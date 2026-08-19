@@ -6681,6 +6681,17 @@ namespace PlayniteAchievements.Services.Database
                 var incomingStoredRarity = incomingRarity;
                 var incomingProgressMax = achievement.ProgressDenom;
 
+                // A payload that does not know the rarity must not blank what is already stored.
+                if (SqlNadoCacheBehavior.ShouldKeepStoredRarity(
+                        incomingGlobalPercent,
+                        achievement.Rarity,
+                        existing.GlobalPercentUnlocked,
+                        existing.Rarity))
+                {
+                    incomingGlobalPercent = existing.GlobalPercentUnlocked;
+                    incomingStoredRarity = existing.Rarity;
+                }
+
                 var changed = !NullableEquals(NormalizeDbText(existing.DisplayName), incomingDisplayName) ||
                               !NullableEquals(NormalizeDbText(existing.Description), incomingDescription) ||
                               !NullableEquals(NormalizeDbText(existing.UnlockedIconPath), incomingUnlockedIconPath) ||

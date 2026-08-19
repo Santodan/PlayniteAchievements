@@ -77,7 +77,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
         [TestMethod]
         public void MissingIdentityIsNotHaptic()
         {
-            Assert.IsFalse(HapticEndpointClassifier.IsHapticEndpoint(null, null, null));
+            Assert.IsFalse(HapticEndpointClassifier.IsHapticEndpoint((string)null, null, null));
         }
 
         [TestMethod]

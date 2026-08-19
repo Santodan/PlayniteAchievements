@@ -37,8 +37,10 @@ namespace PlayniteAchievements.Providers.BattleNet
         private const string WowOfficialAccountProfileUrl = "https://{0}.api.blizzard.com/profile/user/wow?namespace=profile-{0}&locale={1}";
         private const string WowGraphQlUrl = "https://worldofwarcraft.blizzard.com/graphql";
         private const string WowStatusUrl = "https://worldofwarcraft.blizzard.com/game/status";
-        private const string DataForAzerothBaseUrl = "https://dataforazeroth.com/";
-        private const string DataForAzerothIndexUrl = "https://dataforazeroth.com/dynamic/index.json";
+        // One source of truth for the site lives on DataForAzerothClient; these aliases keep the
+        // no-browser fallback path below readable.
+        private const string DataForAzerothBaseUrl = DataForAzerothClient.BaseUrl;
+        private const string DataForAzerothIndexUrl = DataForAzerothClient.IndexUrl;
         private const string DefaultApiLocale = "en_US";
 
         private const string DefaultUserAgent =
@@ -74,10 +76,37 @@ namespace PlayniteAchievements.Providers.BattleNet
         private DateTime _cachedAccessTokenExpiresUtc;
         private Dictionary<string, double> _cachedDataForAzerothWowRarity;
         private Dictionary<string, HashSet<int>> _cachedWowGuildCategoryIds;
+        private readonly DataForAzerothClient _dataForAzeroth;
 
         public BattleNetApiClient(ILogger logger)
             : this(logger, CreateDefaultHttpClient())
         {
+        }
+
+        /// <summary>
+        /// Production constructor. The browser API is needed only for Data for Azeroth, whose bot
+        /// check is cleared by the user in a browser window and replayed from the shared cookie store.
+        /// </summary>
+        public BattleNetApiClient(ILogger logger, IPlayniteAPI playniteApi)
+            : this(logger, CreateDefaultHttpClient())
+        {
+            if (playniteApi != null)
+            {
+                _dataForAzeroth = new DataForAzerothClient(playniteApi, logger);
+            }
+        }
+
+        /// <summary>The Data for Azeroth site session, or null when no browser is available.</summary>
+        internal DataForAzerothClient DataForAzeroth => _dataForAzeroth;
+
+        /// <summary>
+        /// Drops the cached rarity map and any outstanding gate backoff, so a check the user just
+        /// cleared takes effect on the next refresh.
+        /// </summary>
+        internal void InvalidateDataForAzerothRarityCache()
+        {
+            _cachedDataForAzerothWowRarity = null;
+            _dataForAzeroth?.ResetGateState();
         }
 
         internal BattleNetApiClient(ILogger logger, HttpClient httpClient)
@@ -417,6 +446,12 @@ namespace PlayniteAchievements.Providers.BattleNet
                 IsTransientError, ct).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Global WoW achievement rarity, cached for the life of this client. Returns an empty map
+        /// when the site is gated or unreachable; only a complete result is cached, so a user who
+        /// clears the site check mid-session gets rarity on their next refresh rather than after a
+        /// Playnite restart.
+        /// </summary>
         public async Task<Dictionary<string, double>> GetDataForAzerothWowAchievementRarityAsync(CancellationToken ct)
         {
             if (_cachedDataForAzerothWowRarity != null)
@@ -424,15 +459,39 @@ namespace PlayniteAchievements.Providers.BattleNet
                 return _cachedDataForAzerothWowRarity;
             }
 
+            if (_dataForAzeroth != null)
+            {
+                var result = await _dataForAzeroth.LoadRarityAsync(ct).ConfigureAwait(false);
+                if (result.Status != DataForAzerothStatus.Ok)
+                {
+                    return new Dictionary<string, double>(StringComparer.Ordinal);
+                }
+
+                _cachedDataForAzerothWowRarity = result.Rarity;
+                _logger?.Info($"[BattleNet/WoW] Loaded Data for Azeroth achievement rarity. count={_cachedDataForAzerothWowRarity.Count}");
+                return _cachedDataForAzerothWowRarity;
+            }
+
+            return await LoadDataForAzerothRarityViaHttpAsync(ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Direct HTTP path, used when no browser is available to supply the site's cookies (headless
+        /// contexts and unit tests). It is also the path that would light up on its own if the site
+        /// ever drops its bot check.
+        /// </summary>
+        private async Task<Dictionary<string, double>> LoadDataForAzerothRarityViaHttpAsync(CancellationToken ct)
+        {
             var index = await RateLimiter.ExecuteWithRetryAsync(
                 async () => await GetJsonAsync<DataForAzerothDynamicIndex>(DataForAzerothIndexUrl, ct).ConfigureAwait(false),
                 IsTransientError, ct).ConfigureAwait(false);
 
             if (string.IsNullOrWhiteSpace(index?.AchievementsRarity))
             {
+                // Not cached: an unusable index is a condition that can clear on its own, and caching
+                // the empty result would keep rarity blank for the rest of the session.
                 _logger?.Warn("[BattleNet/WoW] Data for Azeroth dynamic index did not include achievementsrarity.");
-                _cachedDataForAzerothWowRarity = new Dictionary<string, double>(StringComparer.Ordinal);
-                return _cachedDataForAzerothWowRarity;
+                return new Dictionary<string, double>(StringComparer.Ordinal);
             }
 
             var rarityUrl = BuildDataForAzerothDynamicUrl(index.AchievementsRarity);
@@ -440,9 +499,13 @@ namespace PlayniteAchievements.Providers.BattleNet
                 async () => await GetJsonAsync<DataForAzerothAchievementRarityResponse>(rarityUrl, ct).ConfigureAwait(false),
                 IsTransientError, ct).ConfigureAwait(false);
 
-            _cachedDataForAzerothWowRarity = rarity?.Achievements != null
-                ? new Dictionary<string, double>(rarity.Achievements, StringComparer.Ordinal)
-                : new Dictionary<string, double>(StringComparer.Ordinal);
+            if (rarity?.Achievements == null)
+            {
+                _logger?.Warn("[BattleNet/WoW] Data for Azeroth rarity document carried no achievements.");
+                return new Dictionary<string, double>(StringComparer.Ordinal);
+            }
+
+            _cachedDataForAzerothWowRarity = new Dictionary<string, double>(rarity.Achievements, StringComparer.Ordinal);
             _logger?.Info($"[BattleNet/WoW] Loaded Data for Azeroth achievement rarity. count={_cachedDataForAzerothWowRarity.Count}");
             return _cachedDataForAzerothWowRarity;
         }
@@ -472,6 +535,11 @@ namespace PlayniteAchievements.Providers.BattleNet
         public static bool IsTransientError(Exception ex)
         {
             return TransientErrorClassifier.IsTransient(ex, e =>
+                // A gated site is a standing condition the user has to clear, not a blip. Without
+                // this rule the 405 arrives as an HttpRequestException, which the canonical
+                // classifier treats as retryable, so every WoW game burns the full backoff ladder
+                // waiting on an answer that cannot change until someone ticks a checkbox.
+                e is DataForAzerothGatedException ? false :
                 e is BattleNetTransientException ? true : (bool?)null);
         }
 
@@ -771,6 +839,7 @@ namespace PlayniteAchievements.Providers.BattleNet
             if (_disposed) return;
             _disposed = true;
             _httpClient?.Dispose();
+            _dataForAzeroth?.Dispose();
         }
 
         private static string Presence(string value) => string.IsNullOrWhiteSpace(value) ? "missing" : "set";

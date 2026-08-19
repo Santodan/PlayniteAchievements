@@ -636,6 +636,15 @@ namespace PlayniteAchievements.Providers.BattleNet
             try
             {
                 var rarity = await _client.GetDataForAzerothWowAchievementRarityAsync(ct).ConfigureAwait(false);
+                if (rarity == null || rarity.Count == 0)
+                {
+                    // The client has already said why, once per session and with what to do about it.
+                    // Achievements are unaffected, and previously stored rarity is preserved rather
+                    // than overwritten, so there is nothing further to report here.
+                    _logger?.Debug("[BattleNet/WoW] No Data for Azeroth rarity available this run; keeping any stored percentages.");
+                    return;
+                }
+
                 var updated = ApplyDataForAzerothRarity(achievements, rarity);
                 _logger?.Info($"[BattleNet/WoW] Applied Data for Azeroth rarity to {updated}/{achievements.Count} achievements.");
             }

@@ -859,6 +859,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForMetadata_Help">Fills missing achievement metadata from Exophase while keeping native achievement data. Requires an Exophase sign-in.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity">Use Data for Azeroth for WoW Rarity</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity_Help">Fills global rarity percentages from the Data for Azeroth website while keeping native achievement data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_DataForAzerothSignInHint">Sign in to Data for Azeroth to read WoW rarity percentages. Until you do, achievements still sync without them.</sys:String>
 
     <!-- Provider: PlayStation -->
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step1">Sign in at PlayStation.com</sys:String>
