@@ -133,6 +133,8 @@ Der erste Rang ist Bronze V, gefolgt von Bronze IV, weiter über die Ränge Silb
     <sys:String x:Key="LOCPlayAch_Column_Unlocks">Erfolge</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Ignore">Ignorieren</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Favorite">Favorite</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_SkipFullScans">Skip Full Scans</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_SkipFullScansHint">Scans stop discovering new unowned games for this friend. Games in your library always refresh, and unowned games already tracked still update in Recent scans. Refreshing this friend directly still runs a Full scan.</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_LastPlayed">Gespielt</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Name">Name</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Points">Punkte</sys:String>
@@ -254,6 +256,7 @@ Diese werden bei der nächsten Freundesaktualisierung erneut  geladen.</sys:Stri
     <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[Aktualisierung läuft]</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshSelected">Erfolgsdaten der ausgewählten Spiele aktualisieren</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_SetCapstone">Als Vollendungserfolg festlegen</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_SetGoal">Set as Goal</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">Erfolgsverknüpfungen für &quot;{0}&quot; aufheben?
 
 Dadurch wird die manuelle Verknüpfung, Freischaltzeiten und zwischengespeicherte Daten des Spiels entfernt.</sys:String>
@@ -306,6 +309,7 @@ Dadurch wird die manuelle Verknüpfung, Freischaltzeiten und zwischengespeichert
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries">Aus Übersichten herausfiltern</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_Hint">Festlegung der Auflistung von Erfolgen in An- und Übersichten.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_Unfiltered">Ungefiltert</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Goals_Hint">Goals are listed first and can be dragged to set which comes first. Changes save immediately, and a goal clears when its achievement unlocks.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_HasNote">Notiz hinzugefügt</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_Header">Erfolgsnotizen</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_Hint">Persönliche Notizen für diesen Erfolg hinzufügen. Die Formatierung unterstützt Markierungen in **fett**, *kursiv* und __untersrichen__.</sys:String>
@@ -339,6 +343,10 @@ This deletes this game's manual links, capstones, custom icons, notification app
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHint">Export or import this game's custom data as a .PA file, including custom images, or clear it. Refresh and summary exclusions are not included.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader">Spielausschluss</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHint">Dieses Spiel von der Verfolgung aus- oder wieder einschließen.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHeader">Exophase Rarity Slug</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHint">When this platform enriches rarity from Exophase, use this exact Exophase game page instead of automatic matching. Paste an exophase.com game URL or the bare slug. Takes effect on the next refresh.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentInvalid">Enter a valid Exophase game slug or exophase.com game URL.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentStatusValue">Override set: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExportButton">Export</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ImportButton">Import</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ImportIgnoredPackageImages">{0} Bilddateien ignoriert, die keinem Erfolg dieses Spiels angehören.</sys:String>
@@ -397,6 +405,7 @@ This deletes this game's manual links, capstones, custom icons, notification app
     <sys:String x:Key="LOCPlayAch_Settings_CategoryGridUseCoverImages">Cover statt Symbole für fehlende Grafiken anzeigen</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCategoryGridColumnHeaders">Spaltenüberschriften anzeigen</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_CustomIcons">Symbole</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Goals">Goals</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_ManualTracking">Manuelle Verfolgung</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Notes">Notizen</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Overrides">Übersteuerungen</sys:String>
@@ -659,6 +668,7 @@ Reclaimed {1}.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FrameVignette">Vignette</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_VignetteFull">Full</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_VignetteBottom">Bottom</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_VignetteStrength">Strength</sys:String>
     <sys:String x:Key="LOCPlayAch_Notification_ThemePreviewUnavailable">The active theme's notification template could not be rendered. It may reference resources that are not currently available.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_SampleUnlock">Example unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">Plugin</sys:String>
@@ -868,6 +878,8 @@ Reclaimed {1}.</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeSelected">Ausgewählte kombinieren</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_IgnoreSelected">Ignore Selected</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_UnignoreSelected">Un-ignore Selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_SkipFullScansSelected">Skip Full Scans</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_AllowFullScansSelected">Allow Full Scans</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_Merged">Kombiniert</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_NoAutoProviders">Keine Plattform zu automatischen Erkennung aktiviert.</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_RefreshCompleteFormat">Freunde aktualisiert: {0:N0}.</sys:String>
@@ -883,6 +895,7 @@ Reclaimed {1}.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForMetadata_Help">Abgleich fehlender Erfolgsmetadaten mit Exohpase. Die nativen Erfolgsdaten bleiben erhalten. Benötigt Exophase-Anmeldung.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity">Data for Azaroth für WoW-Seltenheitswerte verwenden</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity_Help">Abgleich der globalen Seltenheitswerte mit Data for Azaroth. Die nativen Erfolgsdaten bleiben erhalten.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_DataForAzerothSignInHint">Sign in to Data for Azeroth to read WoW rarity percentages. Until you do, achievements still sync without them.</sys:String>
 
     <!-- Provider: PlayStation -->
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step1">Bei PlayStation.com anmelden</sys:String>
