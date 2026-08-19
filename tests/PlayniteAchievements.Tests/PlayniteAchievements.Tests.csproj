@@ -173,6 +173,7 @@
     <Compile Include="..\..\source\Providers\BattleNet\BattleNetSettings.cs" Link="Source\Providers\BattleNet\BattleNetSettings.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\WowGameStrategy.cs" Link="Source\Providers\BattleNet\WowGameStrategy.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\DataForAzerothClient.cs" Link="Source\Providers\BattleNet\DataForAzerothClient.cs" />
+    <Compile Include="..\..\source\Providers\BattleNet\DataForAzerothSessionManager.cs" Link="Source\Providers\BattleNet\DataForAzerothSessionManager.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\Models\BattleNetSc2Models.cs" Link="Source\Providers\BattleNet\Models\BattleNetSc2Models.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\Models\BattleNetWowModels.cs" Link="Source\Providers\BattleNet\Models\BattleNetWowModels.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4PathResolver.cs" Link="Source\Providers\ShadPS4\ShadPS4PathResolver.cs" />

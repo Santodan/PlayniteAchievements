@@ -295,6 +295,50 @@ namespace PlayniteAchievements.Tests.Providers
                 null, RarityTier.Common, null, null));
         }
 
+        [TestMethod]
+        public void ParseSession_ReadsWhoIsSignedInAndWhenItLapses()
+        {
+            // The site issues a JWT and treats it as good for ~6.96 days from its issued-at claim.
+            var issuedAt = DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeSeconds();
+            var session = DataForAzerothSessionManager.ParseSession(Jwt(@"{""sub"":""Tester-1234"",""iat"":" + issuedAt + "}"));
+
+            Assert.AreEqual("Tester-1234", session.UserId);
+            Assert.IsTrue(session.IsValid);
+            Assert.IsFalse(session.IsExpired);
+            Assert.IsTrue(session.ExpiresUtc > DateTime.UtcNow.AddDays(5));
+        }
+
+        [TestMethod]
+        public void ParseSession_TreatsAnAgedTokenAsExpiredRatherThanSignedOut()
+        {
+            var issuedAt = DateTimeOffset.UtcNow.AddDays(-30).ToUnixTimeSeconds();
+            var session = DataForAzerothSessionManager.ParseSession(Jwt(@"{""sub"":""Tester-1234"",""iat"":" + issuedAt + "}"));
+
+            Assert.IsFalse(session.IsValid);
+            Assert.IsTrue(session.IsExpired, "an aged token identifies a user, so it is expired rather than absent");
+        }
+
+        [TestMethod]
+        public void ParseSession_RejectsWhatIsNotASession()
+        {
+            Assert.IsFalse(DataForAzerothSessionManager.ParseSession(null).IsValid);
+            Assert.IsFalse(DataForAzerothSessionManager.ParseSession(string.Empty).IsValid);
+            Assert.IsFalse(DataForAzerothSessionManager.ParseSession("not-a-token").IsValid);
+            Assert.IsFalse(DataForAzerothSessionManager.ParseSession(Jwt(@"{""iat"":1700000000}")).IsValid);
+            Assert.IsFalse(DataForAzerothSessionManager.ParseSession(Jwt(@"{""sub"":""Tester""}")).IsValid);
+        }
+
+        /// <summary>Builds a token whose payload is what matters; the signature is never checked here.</summary>
+        private static string Jwt(string payloadJson)
+        {
+            var payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(payloadJson))
+                .TrimEnd('=')
+                .Replace('+', '-')
+                .Replace('/', '_');
+
+            return "header." + payload + ".signature";
+        }
+
         private static DataForAzerothClient NewClient(ScriptedHandler handler, params HttpCookie[] cookies)
         {
             var client = new DataForAzerothClient(
