@@ -1,37 +1,53 @@
+using Newtonsoft.Json.Linq;
 using Playnite.SDK;
 using Playnite.SDK.Events;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using System;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.BattleNet
 {
     /// <summary>
-    /// Manages the Data for Azeroth site session: the bot check the site puts in front of its whole
-    /// origin, which only a person can clear. Opens the site in a browser window so the user can tick
-    /// the checkbox (and sign in, which the site says stops the check reappearing), then leaves the
-    /// resulting cookie in the shared browser store for <see cref="DataForAzerothClient"/> to replay.
+    /// Signs in to Data for Azeroth, the site that supplies World of Warcraft rarity percentages.
     ///
-    /// It implements <see cref="ISessionManager"/> for the shape - probe, interactive, clear - that the
-    /// settings view is already written against, but it is deliberately NOT exposed through
-    /// <see cref="IDataProvider.AuthSession"/>. Doing so would put a third-party fan site's checkbox in
-    /// front of the refresh pipeline, which drops unauthenticated providers from the run: an uncleared
-    /// check would stop World of Warcraft and StarCraft II achievements syncing entirely, when all that
-    /// is actually unavailable is a rarity percentage.
+    /// The site logs in through Battle.net OAuth and keeps its session as a JSON web token in the
+    /// page's local storage under "token.jwt", identifying the account by the token's subject claim
+    /// and treating it as valid for about a week from its issued-at claim. This manager drives that
+    /// the same way the other providers drive theirs: open the site's login in a browser window,
+    /// wait for a real identity to appear, persist it, and verify it live on demand. Signing in also
+    /// clears the human-check the site puts in front of its whole origin, which is what lets
+    /// <see cref="DataForAzerothClient"/> read rarity at all.
+    ///
+    /// It is deliberately NOT exposed through <see cref="IDataProvider.AuthSession"/>. The refresh
+    /// pipeline drops providers whose AuthSession does not probe clean, so surfacing it would stop
+    /// World of Warcraft and StarCraft II achievements syncing whenever this optional third-party
+    /// account is not signed in, when all it withholds is a rarity percentage.
     /// </summary>
     public sealed class DataForAzerothSessionManager : ISessionManager
     {
         private static readonly TimeSpan InteractiveAuthTimeout = TimeSpan.FromMinutes(3);
         private const string LogPrefix = "[BattleNet/DFA]";
 
+        /// <summary>Where the site keeps its session token. Read only, never written by the plugin.</summary>
+        private const string SessionTokenScript = "(function(){try{return window.localStorage.getItem('token.jwt')||'';}catch(e){return '';}})()";
+
+        private const string ClearSessionTokenScript = "(function(){try{window.localStorage.removeItem('token.jwt');return 'ok';}catch(e){return '';}})()";
+
+        /// <summary>
+        /// The site treats a token as good for this long after its issued-at claim, so the same window
+        /// is used here rather than inventing one.
+        /// </summary>
+        private static readonly TimeSpan SessionLifetime = TimeSpan.FromMilliseconds(601_200_000);
+
         private readonly IPlayniteAPI _api;
         private readonly BattleNetApiClient _apiClient;
         private readonly ILogger _logger;
 
-        private int _verifyInProgress;
-        private bool _checkCleared;
+        private int _authCheckInProgress;
+        private (bool Success, string UserId) _authResult;
 
         public DataForAzerothSessionManager(IPlayniteAPI api, BattleNetApiClient apiClient, ILogger logger)
         {
@@ -41,47 +57,61 @@ namespace PlayniteAchievements.Providers.BattleNet
         }
 
         /// <summary>
-        /// Informational only. This manager is never registered in the provider auth pipeline, so the
-        /// key is not used to look up settings or localized provider names; it must not collide with
+        /// Informational only: this manager is never registered in the provider auth pipeline, so the
+        /// key is not used to resolve settings or localized provider names. It must not collide with
         /// <see cref="BattleNetSessionManager"/>'s "BattleNet".
         /// </summary>
         public string ProviderKey => "DataForAzeroth";
 
+        /// <summary>
+        /// Cheap settings-only check, matching the other providers. Provider work still probes.
+        /// </summary>
+        public bool IsAuthenticated =>
+            !string.IsNullOrWhiteSpace(ProviderRegistry.Settings<BattleNetSettings>().DataForAzerothUserId);
+
+        public string UserId => ProviderRegistry.Settings<BattleNetSettings>().DataForAzerothUserId;
+
         private DataForAzerothClient Client => _apiClient.DataForAzeroth;
 
         /// <summary>
-        /// Asks the site whether it will serve data right now. Runs through the same client and cookie
-        /// path a refresh uses, so a cleared verdict means the replay genuinely works rather than that
-        /// the browser store merely looks healthy.
+        /// Reads the site session out of the browser and reports who is signed in. Opens no window.
         /// </summary>
         public async Task<AuthProbeResult> ProbeAuthStateAsync(CancellationToken ct)
         {
-            var client = Client;
-            if (client == null)
-            {
-                return AuthProbeResult.NotAuthenticated();
-            }
-
             using (PerfScope.Start(_logger, "DataForAzeroth.ProbeAuthStateAsync", thresholdMs: 50))
             {
                 try
                 {
-                    var status = await client.ProbeGateAsync(ct).ConfigureAwait(false);
-                    switch (status)
+                    var session = await ReadSessionAsync(ct).ConfigureAwait(false);
+                    if (session.IsValid)
                     {
-                        case DataForAzerothStatus.Ok:
-                            _checkCleared = true;
-                            return AuthProbeResult.AlreadyAuthenticated();
-                        case DataForAzerothStatus.Gated:
-                            _checkCleared = false;
-                            return AuthProbeResult.NotAuthenticated();
-                        default:
-                            // Unreachable or broken is not the same as "the user must act", so the
-                            // last known state is left alone rather than reported as uncleared.
-                            return AuthProbeResult.Create(
-                                AuthOutcome.ProbeFailed,
-                                "LOCPlayAch_Auth_TemporaryFailure");
+                        PersistUserId(session.UserId);
+
+                        // Being signed in is what the user controls, so it decides the verdict. The
+                        // site can still withhold data from a signed-in visitor, which is worth saying
+                        // out loud rather than reporting a sign-in problem the user cannot act on.
+                        var client = Client;
+                        if (client != null)
+                        {
+                            var served = await client.ProbeGateAsync(ct).ConfigureAwait(false);
+                            if (served != DataForAzerothStatus.Ok)
+                            {
+                                _logger?.Warn(
+                                    $"{LogPrefix} Signed in as {session.UserId}, but the site is not serving data " +
+                                    $"({served}). WoW rarity will stay unavailable until it does.");
+                            }
+                        }
+
+                        return AuthProbeResult.AlreadyAuthenticated(session.UserId, session.ExpiresUtc);
                     }
+
+                    if (session.IsExpired)
+                    {
+                        _logger?.Info($"{LogPrefix} The stored site session has expired; a fresh sign-in is needed.");
+                    }
+
+                    ClearPersistedUserId();
+                    return AuthProbeResult.NotAuthenticated();
                 }
                 catch (OperationCanceledException)
                 {
@@ -89,14 +119,16 @@ namespace PlayniteAchievements.Providers.BattleNet
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Debug(ex, $"{LogPrefix} Gate probe threw.");
+                    // Could not reach a verdict, which is not the same as signed out: the persisted
+                    // identity is preserved for a retry, the way the other providers handle it.
+                    _logger?.Debug(ex, $"{LogPrefix} Session probe failed.");
                     return AuthProbeResult.Create(AuthOutcome.ProbeFailed, "LOCPlayAch_Auth_TemporaryFailure");
                 }
             }
         }
 
         /// <summary>
-        /// Opens the site so the user can clear its check. Only ever reached from a button in settings.
+        /// Opens the site's login in a browser window. Only ever reached from a settings button.
         /// </summary>
         public async Task<AuthProbeResult> AuthenticateInteractiveAsync(
             bool forceInteractive,
@@ -119,53 +151,66 @@ namespace PlayniteAchievements.Providers.BattleNet
                         return existing;
                     }
                 }
+                else
+                {
+                    ClearSession();
+                }
 
                 progress?.Report(AuthProgressStep.OpeningLoginWindow);
 
-                var verifyTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var loginTcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _ = _api.MainView.UIDispatcher.BeginInvoke(new Action(() =>
                 {
                     try
                     {
-                        verifyTcs.TrySetResult(VerifyInteractively());
+                        loginTcs.TrySetResult(LoginInteractively() ?? string.Empty);
                     }
                     catch (Exception ex)
                     {
-                        verifyTcs.TrySetException(ex);
+                        loginTcs.TrySetException(ex);
                     }
                 }));
                 windowOpened = true;
 
                 progress?.Report(AuthProgressStep.WaitingForUserLogin);
                 var completed = await Task.WhenAny(
-                    verifyTcs.Task,
+                    loginTcs.Task,
                     Task.Delay(InteractiveAuthTimeout, ct)).ConfigureAwait(false);
 
-                if (completed != verifyTcs.Task)
+                if (completed != loginTcs.Task)
                 {
-                    _logger?.Warn($"{LogPrefix} The verify window was left open; giving up on this attempt.");
+                    _logger?.Warn($"{LogPrefix} Interactive sign-in timed out.");
                     progress?.Report(AuthProgressStep.Failed);
                     return AuthProbeResult.TimedOut(windowOpened);
                 }
 
-                await verifyTcs.Task.ConfigureAwait(false);
+                var userId = await loginTcs.Task.ConfigureAwait(false);
 
-                // The window closing is a hint, not proof: the user may have ticked the box and closed
-                // it by hand, or dismissed it untouched. A live probe is the only authority.
                 progress?.Report(AuthProgressStep.VerifyingSession);
-                Client?.ResetGateState();
-                _apiClient.InvalidateDataForAzerothRarityCache();
-
-                var confirmed = await ProbeAuthStateAsync(ct).ConfigureAwait(false);
-                if (confirmed.IsSuccess)
+                if (string.IsNullOrWhiteSpace(userId))
                 {
-                    _logger?.Info($"{LogPrefix} The site check is cleared; WoW rarity will fill in on the next refresh.");
-                    progress?.Report(AuthProgressStep.Completed);
-                    return AuthProbeResult.Authenticated(null, windowOpened: windowOpened);
+                    // The window may have been closed by hand after a successful sign-in, so the
+                    // browser is the authority rather than the dialog's outcome.
+                    var session = await ReadSessionAsync(ct).ConfigureAwait(false);
+                    userId = session.IsValid ? session.UserId : null;
                 }
 
-                progress?.Report(AuthProgressStep.Failed);
-                return AuthProbeResult.Cancelled(windowOpened);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    _logger?.Warn($"{LogPrefix} Sign-in did not complete.");
+                    progress?.Report(AuthProgressStep.Failed);
+                    return AuthProbeResult.Cancelled(windowOpened);
+                }
+
+                PersistUserId(userId);
+
+                // Signing in also clears the site's human check, so let the next refresh try again
+                // instead of waiting out the backoff from the last refusal.
+                _apiClient.InvalidateDataForAzerothRarityCache();
+
+                _logger?.Info($"{LogPrefix} Signed in; WoW rarity will fill in on the next refresh.");
+                progress?.Report(AuthProgressStep.Completed);
+                return AuthProbeResult.Authenticated(userId, windowOpened: windowOpened);
             }
             catch (OperationCanceledException)
             {
@@ -174,61 +219,70 @@ namespace PlayniteAchievements.Providers.BattleNet
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, $"{LogPrefix} Clearing the site check failed.");
+                _logger?.Error(ex, $"{LogPrefix} Sign-in failed.");
                 progress?.Report(AuthProgressStep.Failed);
                 return AuthProbeResult.Failed(windowOpened);
             }
         }
 
         /// <summary>
-        /// Forgets the cleared check by deleting the site's cookies. Cookies only: the user's Data for
-        /// Azeroth login lives in the page's local storage, which is left untouched, so this does not
-        /// sign them out of the site.
+        /// Signs out: drops the site's session token, its cookies, and the persisted identity.
         /// </summary>
         public void ClearSession()
         {
-            _logger?.Info($"{LogPrefix} Clearing the stored site check.");
-            _checkCleared = false;
+            _logger?.Info($"{LogPrefix} Signing out.");
+            _authResult = (false, null);
+            ClearPersistedUserId();
+
+            try
+            {
+                _api.MainView.UIDispatcher.Invoke(() =>
+                {
+                    using (var view = _api.WebViews.CreateOffscreenView())
+                    {
+                        view.NavigateAndWaitAsync(DataForAzerothClient.BaseUrl).GetAwaiter().GetResult();
+                        view.EvaluateScriptAsync(ClearSessionTokenScript).GetAwaiter().GetResult();
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"{LogPrefix} Failed to clear the site session token.");
+            }
+
             _api.DeleteDomainCookies(_logger, LogPrefix, DataForAzerothClient.CookieDomains);
-            Client?.ResetGateState();
             _apiClient.InvalidateDataForAzerothRarityCache();
         }
 
-        /// <summary>
-        /// Last known state, for UI that must not perform a live request. Provider work always probes.
-        /// </summary>
-        public bool IsCheckCleared => _checkCleared;
-
-        private bool VerifyInteractively()
+        private string LoginInteractively()
         {
-            _checkCleared = false;
+            _authResult = (false, null);
             IWebView view = null;
 
             try
             {
-                view = _api.WebViews.CreateView(760, 640);
-                view.LoadingChanged += CloseWhenCheckCleared;
+                view = _api.WebViews.CreateView(1000, 800);
+                view.LoadingChanged += CloseWhenSignedIn;
                 view.Navigate(DataForAzerothClient.BaseUrl);
                 view.OpenDialog();
-                return _checkCleared;
+
+                return _authResult.Success ? _authResult.UserId : null;
             }
             finally
             {
                 if (view != null)
                 {
-                    view.LoadingChanged -= CloseWhenCheckCleared;
+                    view.LoadingChanged -= CloseWhenSignedIn;
                     view.Dispose();
                 }
             }
         }
 
         /// <summary>
-        /// Closes the window once the site starts serving data again. The interstitial writes its
-        /// cookie and reloads, so the load that follows the user's tick is the moment the check has
-        /// actually lifted; polling the site rather than watching for a cookie means this still works
-        /// if the gate's cookie is renamed.
+        /// Closes the window once the site has issued a session. The site is a single-page app whose
+        /// sign-in ends in a redirect back to itself, so each completed load is a chance to look.
         /// </summary>
-        private async void CloseWhenCheckCleared(object sender, WebViewLoadingChangedEventArgs e)
+        private async void CloseWhenSignedIn(object sender, WebViewLoadingChangedEventArgs e)
         {
             try
             {
@@ -237,31 +291,27 @@ namespace PlayniteAchievements.Providers.BattleNet
                     return;
                 }
 
-                var client = Client;
-                if (client == null)
+                var view = (IWebView)sender;
+                if (Interlocked.CompareExchange(ref _authCheckInProgress, 1, 0) != 0)
                 {
                     return;
                 }
 
-                if (Interlocked.CompareExchange(ref _verifyInProgress, 1, 0) != 0)
-                {
-                    return;
-                }
-
-                var status = await AsyncPoll.UntilAsync(
-                    async ct => await client.ProbeGateAsync(ct).ConfigureAwait(false),
-                    result => result == DataForAzerothStatus.Ok,
-                    maxAttempts: 4,
+                // The token is written by the app after its redirect resolves, so give it a moment
+                // rather than deciding on the first load event.
+                var session = await AsyncPoll.UntilAsync(
+                    ct => ReadSessionFromViewAsync(view, ct),
+                    probed => probed.IsValid,
+                    maxAttempts: 8,
                     delayMs: 500,
                     CancellationToken.None).ConfigureAwait(false);
 
-                if (status != DataForAzerothStatus.Ok)
+                if (!session.IsValid)
                 {
                     return;
                 }
 
-                _checkCleared = true;
-                var view = (IWebView)sender;
+                _authResult = (true, session.UserId);
                 _ = _api.MainView.UIDispatcher.BeginInvoke(new Action(() =>
                 {
                     try
@@ -270,18 +320,147 @@ namespace PlayniteAchievements.Providers.BattleNet
                     }
                     catch
                     {
-                        // The view may already be gone if the user closed it themselves.
+                        // The user may have closed it already.
                     }
                 }));
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, $"{LogPrefix} Failed to check whether the site check was cleared.");
+                _logger?.Warn(ex, $"{LogPrefix} Failed to check the sign-in state.");
             }
             finally
             {
-                Interlocked.Exchange(ref _verifyInProgress, 0);
+                Interlocked.Exchange(ref _authCheckInProgress, 0);
             }
+        }
+
+        private async Task<SiteSession> ReadSessionAsync(CancellationToken ct)
+        {
+            var operation = _api.MainView.UIDispatcher.InvokeAsync(async () =>
+            {
+                using (var view = _api.WebViews.CreateOffscreenView())
+                {
+                    // Local storage is origin scoped, so the view has to be on the site to read it.
+                    await view.NavigateAndWaitAsync(DataForAzerothClient.BaseUrl).ConfigureAwait(false);
+                    return await ReadSessionFromViewAsync(view, ct).ConfigureAwait(false);
+                }
+            });
+
+            var task = await operation.Task.ConfigureAwait(false);
+            return await task.ConfigureAwait(false);
+        }
+
+        private async Task<SiteSession> ReadSessionFromViewAsync(IWebView view, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var evaluated = await view.EvaluateScriptAsync(SessionTokenScript).ConfigureAwait(false);
+                if (evaluated?.Success != true)
+                {
+                    return SiteSession.None;
+                }
+
+                return ParseSession(evaluated.Result as string);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"{LogPrefix} Could not read the site session token.");
+                return SiteSession.None;
+            }
+        }
+
+        /// <summary>
+        /// Reads the subject and issued-at claims out of the site's session token. Only the claims are
+        /// read; the token itself is never logged or persisted, since it is a live credential.
+        /// </summary>
+        internal static SiteSession ParseSession(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return SiteSession.None;
+            }
+
+            var parts = token.Split('.');
+            if (parts.Length < 2)
+            {
+                return SiteSession.None;
+            }
+
+            try
+            {
+                var payload = JObject.Parse(Encoding.UTF8.GetString(DecodeBase64Url(parts[1])));
+                var subject = payload.Value<string>("sub");
+                var issuedAt = payload.Value<long?>("iat");
+                if (string.IsNullOrWhiteSpace(subject) || !issuedAt.HasValue)
+                {
+                    return SiteSession.None;
+                }
+
+                var expires = DateTimeOffset.FromUnixTimeSeconds(issuedAt.Value).UtcDateTime.Add(SessionLifetime);
+                return new SiteSession(subject, expires);
+            }
+            catch (Exception)
+            {
+                return SiteSession.None;
+            }
+        }
+
+        private static byte[] DecodeBase64Url(string value)
+        {
+            var normalized = value.Replace('-', '+').Replace('_', '/');
+            switch (normalized.Length % 4)
+            {
+                case 2: normalized += "=="; break;
+                case 3: normalized += "="; break;
+            }
+
+            return Convert.FromBase64String(normalized);
+        }
+
+        private void PersistUserId(string userId)
+        {
+            var settings = ProviderRegistry.Settings<BattleNetSettings>();
+            if (string.Equals(settings.DataForAzerothUserId, userId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            settings.DataForAzerothUserId = userId;
+            ProviderRegistry.Write(settings, persistToDisk: true);
+        }
+
+        private void ClearPersistedUserId()
+        {
+            var settings = ProviderRegistry.Settings<BattleNetSettings>();
+            if (string.IsNullOrWhiteSpace(settings.DataForAzerothUserId))
+            {
+                return;
+            }
+
+            settings.DataForAzerothUserId = null;
+            ProviderRegistry.Write(settings, persistToDisk: true);
+        }
+
+        /// <summary>The site session as the plugin understands it: who, and until when.</summary>
+        internal struct SiteSession
+        {
+            public SiteSession(string userId, DateTime expiresUtc)
+            {
+                UserId = userId;
+                ExpiresUtc = expiresUtc;
+            }
+
+            public static SiteSession None => new SiteSession(null, DateTime.MinValue);
+
+            public string UserId { get; }
+
+            public DateTime ExpiresUtc { get; }
+
+            public bool IsValid => !string.IsNullOrWhiteSpace(UserId) && ExpiresUtc > DateTime.UtcNow;
+
+            public bool IsExpired => !string.IsNullOrWhiteSpace(UserId) && ExpiresUtc <= DateTime.UtcNow;
         }
     }
 }
