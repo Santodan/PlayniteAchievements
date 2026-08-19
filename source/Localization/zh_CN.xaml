@@ -129,6 +129,8 @@
     <sys:String x:Key="LOCPlayAch_Column_Unlocks">解锁</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Ignore">忽略</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Favorite">Favorite</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_SkipFullScans">Skip Full Scans</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_SkipFullScansHint">Scans stop discovering new unowned games for this friend. Games in your library always refresh, and unowned games already tracked still update in Recent scans. Refreshing this friend directly still runs a Full scan.</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_LastPlayed">最近游玩</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Name">名称</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Points">点数</sys:String>
@@ -250,6 +252,7 @@
     <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[正在刷新]</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshSelected">刷新已选游戏</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_SetCapstone">设置压轴成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_SetGoal">Set as Goal</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">取消链接“{0}”的成就吗？
 
 这将删除手动链接并删除其解锁时间和该游戏的缓存数据。</sys:String>
@@ -302,6 +305,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries">从摘要中过滤</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_Hint">控制哪些成就出现在成就视图和摘要中。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_Unfiltered">未过滤</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Goals_Hint">Goals are listed first and can be dragged to set which comes first. Changes save immediately, and a goal clears when its achievement unlocks.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_HasNote">已添加备注</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_Header">成就备注</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_Hint">可为此游戏的成就添加个人备注。支持使用 **粗体**、*斜体* 和 __下划线__ 标记设置格式。</sys:String>
@@ -335,6 +339,10 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHint">可将此游戏的自定义数据导出或导入为 .PA 文件（.PA.ZIP 包含图片），也可将其清除。不包括刷新与摘要排除设置。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader">游戏排除</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHint">将此游戏从追踪中排除或重新包含。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHeader">Exophase Rarity Slug</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHint">When this platform enriches rarity from Exophase, use this exact Exophase game page instead of automatic matching. Paste an exophase.com game URL or the bare slug. Takes effect on the next refresh.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentInvalid">Enter a valid Exophase game slug or exophase.com game URL.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentStatusValue">Override set: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExportButton">Export</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ImportButton">Import</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ImportIgnoredPackageImages">已忽略 {0} 个文件名与此游戏任何成就均不匹配的图片文件。</sys:String>
@@ -393,6 +401,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_CategoryGridUseCoverImages">缺少分类图片时使用封面代替图标</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCategoryGridColumnHeaders">显示列标题</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_CustomIcons">图标</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Goals">Goals</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_ManualTracking">手动追踪</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Notes">备注</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Overrides">覆盖</sys:String>
@@ -652,6 +661,7 @@ Reclaimed {1}.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FrameVignette">Vignette</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_VignetteFull">Full</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_VignetteBottom">Bottom</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_VignetteStrength">Strength</sys:String>
     <sys:String x:Key="LOCPlayAch_Notification_ThemePreviewUnavailable">The active theme's notification template could not be rendered. It may reference resources that are not currently available.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_SampleUnlock">Example unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">Plugin</sys:String>
@@ -861,6 +871,8 @@ Reclaimed {1}.</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeSelected">合并所选好友</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_IgnoreSelected">Ignore Selected</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_UnignoreSelected">Un-ignore Selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_SkipFullScansSelected">Skip Full Scans</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_AllowFullScansSelected">Allow Full Scans</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_Merged">已合并</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_NoAutoProviders">未启用自动发现平台。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_RefreshCompleteFormat">好友刷新完成：{0:N0}。</sys:String>
@@ -876,6 +888,7 @@ Reclaimed {1}.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForMetadata_Help">从 Exophase 补充缺失的成就元数据，同时保留平台原生成就数据。需要登录 Exophase。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity">使用 Data for Azeroth 获取《魔兽世界》稀有度</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity_Help">从 Data for Azeroth 网站补充全球稀有度百分比，同时保留平台原生成就数据。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_DataForAzerothSignInHint">Sign in to Data for Azeroth to read WoW rarity percentages. Until you do, achievements still sync without them.</sys:String>
 
     <!-- Provider: PlayStation -->
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step1">在 PlayStation.com 登录</sys:String>
