@@ -153,7 +153,9 @@ namespace PlayniteAchievements.Providers.BattleNet
                 }
                 else
                 {
-                    ClearSession();
+                    // A forced sign-in starts from a clean slate, the way the other providers do it,
+                    // so the site presents its login rather than resuming whoever was signed in.
+                    await ClearSessionAsync(ct).ConfigureAwait(false);
                 }
 
                 progress?.Report(AuthProgressStep.OpeningLoginWindow);
@@ -234,24 +236,41 @@ namespace PlayniteAchievements.Providers.BattleNet
             _authResult = (false, null);
             ClearPersistedUserId();
 
+            // Synchronous view work only. This runs on the UI thread, and the interface is void, so
+            // there is no way to await here: blocking on a navigation would deadlock, because the
+            // navigation's own continuation needs the very thread the block is holding. Removing the
+            // site's session token needs a loaded page, so it lives in ClearSessionAsync instead.
+            _api.DeleteDomainCookies(_logger, LogPrefix, DataForAzerothClient.CookieDomains);
+            _apiClient.InvalidateDataForAzerothRarityCache();
+        }
+
+        /// <summary>
+        /// A full sign-out: everything <see cref="ClearSession"/> does, plus dropping the site's session
+        /// token, which requires its page to be loaded. Callers that can await should prefer this.
+        /// </summary>
+        public async Task ClearSessionAsync(CancellationToken ct)
+        {
+            ClearSession();
+
             try
             {
-                _api.MainView.UIDispatcher.Invoke(() =>
+                await _api.WithOffscreenViewAsync(async view =>
                 {
-                    using (var view = _api.WebViews.CreateOffscreenView())
-                    {
-                        view.NavigateAndWaitAsync(DataForAzerothClient.BaseUrl).GetAwaiter().GetResult();
-                        view.EvaluateScriptAsync(ClearSessionTokenScript).GetAwaiter().GetResult();
-                    }
-                });
+                    // Local storage is origin scoped, so the page has to be loaded to touch it. Kept on
+                    // a short leash: a forced sign-in clears first, and the user is waiting on the
+                    // window to appear.
+                    await view.NavigateAndWaitAsync(DataForAzerothClient.BaseUrl, timeoutMs: 10000);
+                    return await view.EvaluateScriptAsync(ClearSessionTokenScript);
+                }).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, $"{LogPrefix} Failed to clear the site session token.");
             }
-
-            _api.DeleteDomainCookies(_logger, LogPrefix, DataForAzerothClient.CookieDomains);
-            _apiClient.InvalidateDataForAzerothRarityCache();
         }
 
         private string LoginInteractively()
@@ -336,18 +355,12 @@ namespace PlayniteAchievements.Providers.BattleNet
 
         private async Task<SiteSession> ReadSessionAsync(CancellationToken ct)
         {
-            var operation = _api.MainView.UIDispatcher.InvokeAsync(async () =>
+            return await _api.WithOffscreenViewAsync(async view =>
             {
-                using (var view = _api.WebViews.CreateOffscreenView())
-                {
-                    // Local storage is origin scoped, so the view has to be on the site to read it.
-                    await view.NavigateAndWaitAsync(DataForAzerothClient.BaseUrl).ConfigureAwait(false);
-                    return await ReadSessionFromViewAsync(view, ct).ConfigureAwait(false);
-                }
-            });
-
-            var task = await operation.Task.ConfigureAwait(false);
-            return await task.ConfigureAwait(false);
+                // Local storage is origin scoped, so the view has to be on the site to read it.
+                await view.NavigateAndWaitAsync(DataForAzerothClient.BaseUrl);
+                return await ReadSessionFromViewAsync(view, ct);
+            }).ConfigureAwait(false);
         }
 
         private async Task<SiteSession> ReadSessionFromViewAsync(IWebView view, CancellationToken ct)
