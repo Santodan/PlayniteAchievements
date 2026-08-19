@@ -47,6 +47,18 @@ namespace PlayniteAchievements.Services.Recording
         /// </summary>
         private const int HapticCancellationMaxLagFrames = 12000;
 
+        /// <summary>
+        /// Amplitude ratios accepted between the clip's copy of the haptics and the endpoint
+        /// reference. Far wider than the chime's, because the two are tapped at different points in
+        /// the audio graph: the endpoint capture carries that endpoint's own volume and downmix
+        /// scaling, and a ratio of 3.35 has been measured on real hardware. The >= 10 dB suppression
+        /// verification still has to pass, so a wrong lock is rejected on evidence rather than on a
+        /// guess about plausible loudness.
+        /// </summary>
+        private const double HapticCancellationMinimumGain = 0.05;
+
+        private const double HapticCancellationMaximumGain = 20.0;
+
         private const string BufferRootFolderName = "RecordingBuffer";
         private const long MinFreeBytesToStart = 2L * 1024 * 1024 * 1024;
         private const long MinFreeBytesToContinue = 500L * 1024 * 1024;
@@ -1501,12 +1513,20 @@ namespace PlayniteAchievements.Services.Recording
             {
                 var startUtc = audioPlan.Segments[0].StartUtc.AddSeconds(audioPlan.StartOffsetSeconds);
                 var endUtc = startUtc.AddSeconds(audioPlan.DurationSeconds);
-                var reference = TryReadAudioWindow(
-                    session.BufferDirectory,
-                    RecordingPaths.HapticReferenceChunkFilePrefix,
-                    startUtc,
-                    endUtc);
-                if (reference == null)
+                var references = new List<byte[]>();
+                var referenceNames = new List<string>();
+                foreach (var prefix in RecordingPaths.HapticReferenceChunkFilePrefixes())
+                {
+                    var reference = TryReadAudioWindow(
+                        session.BufferDirectory, prefix, startUtc, endUtc);
+                    if (reference != null)
+                    {
+                        references.Add(reference);
+                        referenceNames.Add(prefix.TrimEnd('_'));
+                    }
+                }
+
+                if (references.Count == 0)
                 {
                     // No controller endpoint existed while this window was recorded. Said out loud:
                     // silence here reads exactly like a cancellation that ran and did nothing, and
@@ -1527,24 +1547,36 @@ namespace PlayniteAchievements.Services.Recording
                     return audioPlan;
                 }
 
-                // A controller endpoint and a process-loopback client can sit much further apart
-                // than the chime's two process clients do — field logs show the alignment drifting
-                // to 47 ms against the default 50 ms search, i.e. right at the edge of not being
-                // findable at all. Give this pass room, which the coarse-to-fine search makes cheap.
-                var outcome = PcmAudio.CancelCorrelated(
-                    mixture,
-                    reference,
-                    out var cancellation,
-                    muteUnverifiedBlocks: false,
-                    maxLagFrames: HapticCancellationMaxLagFrames);
-                _logger?.Info(
-                    $"[Recording] Haptic cancellation: outcome={outcome} " +
-                    $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
-                    $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
-                    $"suppression={cancellation.SuppressionDb:0.0}dB " +
-                    $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
-                    $"residual={cancellation.ResidualCorrelation:0.000}.");
-                if (outcome != PcmCancellationOutcome.CancelledVerified)
+                // One pass per endpoint, each over what the previous pass left. A single pass fits
+                // one gain and one lag, so two endpoints could never both be removed from a summed
+                // reference — and a pass that cannot verify its own reference leaves the audio it was
+                // given untouched, which is exactly what the next pass should work on.
+                var removedAny = false;
+                for (var i = 0; i < references.Count; i++)
+                {
+                    // A controller endpoint and a process-loopback client can sit much further apart
+                    // than the chime's two process clients do. Alignment is corrected at capture time
+                    // from each capture's own packet stamp; this width is the safety net for whatever
+                    // that could not model.
+                    var outcome = PcmAudio.CancelCorrelated(
+                        mixture,
+                        references[i],
+                        out var cancellation,
+                        muteUnverifiedBlocks: false,
+                        maxLagFrames: HapticCancellationMaxLagFrames,
+                        minimumGain: HapticCancellationMinimumGain,
+                        maximumGain: HapticCancellationMaximumGain);
+                    _logger?.Info(
+                        $"[Recording] Haptic cancellation ({referenceNames[i]}): outcome={outcome} " +
+                        $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
+                        $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
+                        $"suppression={cancellation.SuppressionDb:0.0}dB " +
+                        $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
+                        $"residual={cancellation.ResidualCorrelation:0.000}.");
+                    removedAny |= outcome == PcmCancellationOutcome.CancelledVerified;
+                }
+
+                if (!removedAny)
                 {
                     return audioPlan;
                 }
@@ -1745,13 +1777,14 @@ namespace PlayniteAchievements.Services.Recording
                 // over one window, and both count against the user's budget, so the cutoff is
                 // resolved once over every file in the buffer.
                 var audioByPrefix = new Dictionary<string, List<SegmentTimeline.SegmentInfo>>();
-                foreach (var prefix in new[]
+                var audioPrefixes = new List<string>
                 {
                     RecordingPaths.AudioChunkFilePrefix,
                     RecordingPaths.ChimeChunkFilePrefix,
                     RecordingPaths.GameReferenceChunkFilePrefix,
-                    RecordingPaths.HapticReferenceChunkFilePrefix
-                })
+                };
+                audioPrefixes.AddRange(RecordingPaths.HapticReferenceChunkFilePrefixes());
+                foreach (var prefix in audioPrefixes)
                 {
                     audioByPrefix[prefix] = SegmentTimeline.ParseSegments(
                         ListBufferFiles(
