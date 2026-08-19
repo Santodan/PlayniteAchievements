@@ -93,6 +93,13 @@ namespace PlayniteAchievements.Services.Capture
         // same audio" (unrelated content scores ~0.05); the per-block re-lock and the projection
         // verification make the actual accept/reject decision.
         private const double MinimumCancellationCorrelation = 0.30;
+
+        // Plausible amplitude ratio between the mixture's copy of the reference and the reference
+        // itself. Both defaults assume the two captures are the same engine mix — true of the chime
+        // pair, where a ratio far from 1 means the wrong signal. A caller whose reference is tapped
+        // somewhere else in the graph must widen these: an endpoint capture carries that endpoint's
+        // own volume and downmix scaling, so a ratio several times off can be legitimate (a virtual
+        // endpoint measured 3.35). Verification, not this gate, is what proves a subtraction correct.
         private const double MinimumCancellationGain = 0.30;
         private const double MaximumCancellationGain = 1.5;
 
@@ -110,6 +117,10 @@ namespace PlayniteAchievements.Services.Capture
         // Lag stride for the first pass of a wider-than-default search; the winner is then refined
         // at single-frame resolution. 1 ms at 48 kHz.
         private const int CoarseLagStrideFrames = 48;
+
+        // Correlation difference below which two candidate lags count as scoring alike, so the one
+        // nearest zero is taken. Only applied to searches wider than the default.
+        private const double PeriodicAmbiguityMargin = 0.02;
         private const int CrossfadeFrames = 240; // 5 ms across block parameter steps
         private const double BlockGainFloor = 0.05; // below this the block has no game to remove
 
@@ -265,7 +276,9 @@ namespace PlayniteAchievements.Services.Capture
             byte[] gameReference,
             out PcmCancellationDiagnostics diagnostics,
             bool muteUnverifiedBlocks = true,
-            int maxLagFrames = MaxCancellationLagFrames)
+            int maxLagFrames = MaxCancellationLagFrames,
+            double minimumGain = MinimumCancellationGain,
+            double maximumGain = MaximumCancellationGain)
         {
             diagnostics = default(PcmCancellationDiagnostics);
             if (mixture == null || gameReference == null ||
@@ -330,7 +343,7 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             if (best.Value < MinimumCancellationCorrelation ||
-                globalGain < MinimumCancellationGain || globalGain > MaximumCancellationGain)
+                globalGain < minimumGain || globalGain > maximumGain)
             {
                 return PcmCancellationOutcome.Unseparable;
             }
@@ -738,7 +751,7 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             var coarse = ScanLagRange(
-                mixture, reference, analysisStart, -maxLag, maxLag, CoarseLagStrideFrames);
+                mixture, reference, analysisStart, -maxLag, maxLag, CoarseLagStrideFrames, true);
             if (coarse.Count <= 0)
             {
                 return coarse;
@@ -750,7 +763,8 @@ namespace PlayniteAchievements.Services.Capture
                 analysisStart,
                 coarse.LagFrames - CoarseLagStrideFrames,
                 coarse.LagFrames + CoarseLagStrideFrames,
-                1);
+                1,
+                true);
             return fine.Count > 0 && fine.Value > coarse.Value ? fine : coarse;
         }
 
@@ -762,12 +776,48 @@ namespace PlayniteAchievements.Services.Capture
             int toLag,
             int step)
         {
+            return ScanLagRange(mixture, reference, analysisStart, fromLag, toLag, step, false);
+        }
+
+        /// <summary>
+        /// Best lag in a range. With <paramref name="preferSmallLag"/>, a candidate only displaces the
+        /// incumbent if it scores meaningfully better, and among candidates that score alike the one
+        /// nearest zero wins.
+        /// <para>
+        /// This matters for a periodic reference: a rumble waveform correlates almost as well one
+        /// period away as at the truth, so a wide search hands the fit a row of near-equal wrong
+        /// answers, and subtracting a phase-shifted copy removes little where the true alignment
+        /// would remove tens of dB. Alignment is already corrected at capture time from each
+        /// capture's own packet stamp, so the answer nearest zero is also the likeliest one.
+        /// </para>
+        /// </summary>
+        private static CorrelationScore ScanLagRange(
+            byte[] mixture,
+            byte[] reference,
+            int analysisStart,
+            int fromLag,
+            int toLag,
+            int step,
+            bool preferSmallLag)
+        {
             var best = default(CorrelationScore);
             best.Value = double.NegativeInfinity;
             for (var lag = fromLag; lag <= toLag; lag += step)
             {
                 var score = ScoreCorrelation(mixture, reference, lag, analysisStart);
-                if (score.Value > best.Value)
+                if (!preferSmallLag)
+                {
+                    if (score.Value > best.Value)
+                    {
+                        best = score;
+                    }
+
+                    continue;
+                }
+
+                if (score.Value > best.Value + PeriodicAmbiguityMargin ||
+                    (score.Value > best.Value - PeriodicAmbiguityMargin &&
+                     Math.Abs(score.LagFrames) < Math.Abs(best.LagFrames)))
                 {
                     best = score;
                 }
