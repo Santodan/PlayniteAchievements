@@ -57,6 +57,12 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>Weakest suppression among the blocks that were subtracted.</summary>
         public double WeakestBlockSuppressionDb;
 
+        /// <summary>
+        /// Blocks whose subtraction could not be shown to improve them and were put back as
+        /// recorded. Only when the caller asked not to mute: the audio is the clip's own.
+        /// </summary>
+        public int RestoredBlocks;
+
         /// <summary>Blocks in the slice.</summary>
         public int TotalBlocks;
 
@@ -133,6 +139,11 @@ namespace PlayniteAchievements.Services.Capture
         private const double PeriodicAmbiguityMargin = 0.02;
         private const int CrossfadeFrames = 240; // 5 ms across block parameter steps
         private const double BlockGainFloor = 0.05; // below this the block has no game to remove
+
+        // How far a single block's fitted gain may exceed the gain fitted over the whole slice. The
+        // slice-wide figure is estimated from far more audio, so a block asking for much more than
+        // this is fitting noise, and acting on it injects signal instead of removing it.
+        private const double BlockGainHeadroom = 3.0;
 
         // The recorder pumps can step the inter-track offset by more than the narrow search width
         // (observed 1-2 ms steps every few seconds on real chunks). When the tracked-lag search
@@ -289,7 +300,8 @@ namespace PlayniteAchievements.Services.Capture
             int maxLagFrames = MaxCancellationLagFrames,
             double minimumGain = MinimumCancellationGain,
             double maximumGain = MaximumCancellationGain,
-            double blockGainFloor = BlockGainFloor)
+            double blockGainFloor = BlockGainFloor,
+            double keepBlockSuppressionDb = MinimumSuppressionDb)
         {
             diagnostics = default(PcmCancellationDiagnostics);
             if (mixture == null || gameReference == null ||
@@ -374,9 +386,19 @@ namespace PlayniteAchievements.Services.Capture
                     mixture, gameReference, blockStart, blockEnd,
                     (int)Math.Round(previousLag), best.LagFrames, maximumGain);
 
-                var blockGain = block.Gain;
+                // A block's own fit has to be credible before anything is subtracted on its word, and
+                // it may not scale the reference far past what the whole slice fitted. Without both,
+                // a noisy fit on a faint block can blow the reference up and subtract an inverted
+                // copy of it — louder haptics, not quieter, which is what the wider gain range
+                // regressed into.
+                var blockGain = Math.Min(block.Gain, globalGain * BlockGainHeadroom);
                 var blockLag = block.LagFrames;
                 var tornBlock = false;
+                if (block.Correlation < MinimumCancellationCorrelation)
+                {
+                    blockGain = 0;
+                }
+
                 if (!block.HasSignal || blockGain < blockGainFloor)
                 {
                     // A silent reference means nothing to remove. A LOUD reference that cannot be
@@ -416,6 +438,7 @@ namespace PlayniteAchievements.Services.Capture
                         StartFrame = blockStart,
                         EndFrame = blockEnd,
                         SuppressionDb = blockSuppression,
+                        Subtracted = true,
                     });
                     previousLag = blockLag;
                 }
@@ -455,16 +478,32 @@ namespace PlayniteAchievements.Services.Capture
             // the subtraction. Shipping it would composite a burst of wrong-time game audio into
             // the chime — the exact artifact this pass exists to remove — so silence those blocks
             // (ramped, so no clicks) rather than let the quartile pass carry them through.
-            if (muteUnverifiedBlocks)
+            foreach (var measured in measuredBlocks)
             {
-                foreach (var measured in measuredBlocks)
+                if (measured.SuppressionDb >= keepBlockSuppressionDb)
                 {
-                    if (measured.SuppressionDb < MinimumSuppressionDb)
-                    {
-                        MuteBlock(working, measured.StartFrame, measured.EndFrame);
-                        diagnostics.MutedBlocks++;
-                    }
+                    continue;
                 }
+
+                if (muteUnverifiedBlocks)
+                {
+                    MuteBlock(working, measured.StartFrame, measured.EndFrame);
+                    diagnostics.MutedBlocks++;
+                    continue;
+                }
+
+                if (!measured.Subtracted)
+                {
+                    // Nothing was taken out of this block, so there is nothing to put back.
+                    continue;
+                }
+
+                // Not muting does not mean shipping whatever the subtraction did. A block that
+                // cannot show it improved goes back to exactly what was recorded, so this pass can
+                // only ever leave audio alone or verifiably clean it — never make it worse.
+                RestoreBlock(working, mixture, measured.StartFrame, measured.EndFrame);
+                diagnostics.RestoredBlocks++;
+                diagnostics.SubtractedBlocks--;
             }
 
             // How much of the reference still projects onto what shipped. The suppression figure
@@ -476,6 +515,40 @@ namespace PlayniteAchievements.Services.Capture
 
             Buffer.BlockCopy(working, 0, mixture, 0, mixture.Length);
             return PcmCancellationOutcome.CancelledVerified;
+        }
+
+        /// <summary>
+        /// Puts the recorded audio back over one block, crossfading at both edges so the seam with
+        /// the subtracted blocks either side cannot click.
+        /// </summary>
+        private static void RestoreBlock(byte[] working, byte[] mixture, int blockStartFrame, int blockEndFrame)
+        {
+            var blockFrames = blockEndFrame - blockStartFrame;
+            var ramp = Math.Min(CrossfadeFrames, blockFrames / 2);
+            for (var frame = blockStartFrame; frame < blockEndFrame; frame++)
+            {
+                var intoBlock = frame - blockStartFrame;
+                var fromEnd = blockEndFrame - 1 - frame;
+                var weight = 1.0;
+                if (ramp > 0 && intoBlock < ramp)
+                {
+                    weight = (intoBlock + 1) / (double)ramp;
+                }
+                else if (ramp > 0 && fromEnd < ramp)
+                {
+                    weight = (fromEnd + 1) / (double)ramp;
+                }
+
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var offset = frame * BlockAlign + channel * 2;
+                    var subtracted = (double)ReadInt16(working, offset);
+                    var recorded = (double)ReadInt16(mixture, offset);
+                    var blended = subtracted + weight * (recorded - subtracted);
+                    WriteInt16(working, offset, (short)Math.Max(
+                        short.MinValue, Math.Min(short.MaxValue, Math.Round(blended))));
+                }
+            }
         }
 
         /// <summary>Silences one block in place, ramping over CrossfadeFrames at both edges.</summary>
@@ -515,6 +588,13 @@ namespace PlayniteAchievements.Services.Capture
             public int StartFrame;
             public int EndFrame;
             public double SuppressionDb;
+
+            /// <summary>
+            /// Whether anything was actually subtracted here. A block scored zero because its
+            /// reference could not be fitted was never modified, so there is nothing to put back —
+            /// but the chime's mute pass still wants it silenced.
+            /// </summary>
+            public bool Subtracted;
         }
 
         /// <summary>
@@ -583,6 +663,7 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             fit.HasSignal = true;
+            fit.Correlation = Math.Abs(bestScore.Value);
             fit.LagFrames = bestScore.LagFrames + fraction;
 
             // Clamped to the caller's plausible maximum, not the default: a caller that accepts a
@@ -995,6 +1076,7 @@ namespace PlayniteAchievements.Services.Capture
         private struct BlockFit
         {
             public bool HasSignal;
+            public double Correlation;
             public double LagFrames;
             public double Gain;
         }
