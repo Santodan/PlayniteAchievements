@@ -119,6 +119,22 @@
                                        Margin="24,0,0,10"
                                        TextWrapping="Wrap"/>
                             <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge}"
+                                           VerticalAlignment="Center"/>
+                                <ComboBox SelectedValue="{Binding Persisted.CategoryCompletionBadgeMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140"
+                                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static settings:CategoryCompletionBadgeMode.All}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadgeMode_First}" Tag="{x:Static settings:CategoryCompletionBadgeMode.First}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static settings:CategoryCompletionBadgeMode.None}"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge_Help}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="0,0,0,10"
+                                       TextWrapping="Wrap"/>
+                            <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SoftGlowTiers}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            VerticalAlignment="Center"
