@@ -47,6 +47,16 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>Blocks the subtraction actually ran on, out of the whole slice.</summary>
         public int SubtractedBlocks;
 
+        /// <summary>
+        /// Blocks skipped because the reference's own level there was too low to fit against. The
+        /// difference between these and the rest of the skipped blocks is the difference between
+        /// "nothing was playing" and "a copy too quiet to pass the floor was left in".
+        /// </summary>
+        public int QuietBlocks;
+
+        /// <summary>Weakest suppression among the blocks that were subtracted.</summary>
+        public double WeakestBlockSuppressionDb;
+
         /// <summary>Blocks in the slice.</summary>
         public int TotalBlocks;
 
@@ -278,7 +288,8 @@ namespace PlayniteAchievements.Services.Capture
             bool muteUnverifiedBlocks = true,
             int maxLagFrames = MaxCancellationLagFrames,
             double minimumGain = MinimumCancellationGain,
-            double maximumGain = MaximumCancellationGain)
+            double maximumGain = MaximumCancellationGain,
+            double blockGainFloor = BlockGainFloor)
         {
             diagnostics = default(PcmCancellationDiagnostics);
             if (mixture == null || gameReference == null ||
@@ -361,12 +372,12 @@ namespace PlayniteAchievements.Services.Capture
                 var blockEnd = Math.Min(mixtureFrames, blockStart + BlockFrames);
                 var block = FitBlock(
                     mixture, gameReference, blockStart, blockEnd,
-                    (int)Math.Round(previousLag), best.LagFrames);
+                    (int)Math.Round(previousLag), best.LagFrames, maximumGain);
 
                 var blockGain = block.Gain;
                 var blockLag = block.LagFrames;
                 var tornBlock = false;
-                if (!block.HasSignal || blockGain < BlockGainFloor)
+                if (!block.HasSignal || blockGain < blockGainFloor)
                 {
                     // A silent reference means nothing to remove. A LOUD reference that cannot be
                     // projected onto the mixture at any lag is different: the global gate already
@@ -376,6 +387,10 @@ namespace PlayniteAchievements.Services.Capture
                     tornBlock = block.HasSignal;
                     blockGain = 0;
                     blockLag = previousLag;
+                    if (block.HasSignal)
+                    {
+                        diagnostics.QuietBlocks++;
+                    }
                 }
 
                 SubtractBlock(
@@ -429,6 +444,7 @@ namespace PlayniteAchievements.Services.Capture
             suppressionsDb.Sort();
             var suppression = suppressionsDb[(suppressionsDb.Count - 1) * 3 / 4];
             diagnostics.SuppressionDb = suppression;
+            diagnostics.WeakestBlockSuppressionDb = suppressionsDb[0];
             diagnostics.EndLagMs = previousLag * 1000.0 / 48000.0;
             if (suppression < MinimumSuppressionDb)
             {
@@ -511,7 +527,8 @@ namespace PlayniteAchievements.Services.Capture
             int blockStartFrame,
             int blockEndFrame,
             int centerLagFrames,
-            int relockCenterLagFrames)
+            int relockCenterLagFrames,
+            double maximumGain)
         {
             var search = SearchLags(
                 mixture, reference, blockStartFrame, blockEndFrame,
@@ -567,8 +584,11 @@ namespace PlayniteAchievements.Services.Capture
 
             fit.HasSignal = true;
             fit.LagFrames = bestScore.LagFrames + fraction;
+
+            // Clamped to the caller's plausible maximum, not the default: a caller that accepts a
+            // wider ratio globally would otherwise have every block silently pinned back to 1.5.
             fit.Gain = Math.Max(0, Math.Min(
-                MaximumCancellationGain,
+                maximumGain,
                 bestScore.ReferenceEnergy <= 0 ? 0 : bestScore.Dot / bestScore.ReferenceEnergy));
             return fit;
         }
