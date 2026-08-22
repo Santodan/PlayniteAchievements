@@ -559,6 +559,59 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
+        public void CancelCorrelated_BlockGainFloorDecidesWhetherAFaintCopyIsRemoved()
+        {
+            // The clip's copy of a reference is loud in some stretches and faint in others. The
+            // chime's floor exists so a block with nothing to remove is left alone, but for haptics
+            // it left the quiet stretches in — the field log showed 27 of 48 blocks subtracted, which
+            // is what "soft haptics in the background" was.
+            const int frames = 480000; // 10 s, twenty blocks
+            var referenceSamples = BandLimitedNoise(frames, 31, 9000);
+            var quietFrom = frames / 2;
+            var mixtureSamples = new short[frames * 2];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var gain = frame < quietFrom ? 0.9 : 0.02;
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    mixtureSamples[frame * 2 + channel] =
+                        (short)Math.Round(gain * referenceSamples[frame * 2 + channel]);
+                }
+            }
+
+            var reference = Samples(referenceSamples);
+            var faintFrom = quietFrom + 24000;
+            var faintTo = frames - 24000;
+            var faintBefore = Energy(mixtureSamples, faintFrom, faintTo);
+
+            var atDefaultFloor = Samples(mixtureSamples);
+            PcmAudio.CancelCorrelated(
+                atDefaultFloor, reference, out var defaultDiagnostics, muteUnverifiedBlocks: false,
+                maxLagFrames: 12000, minimumGain: 0.05, maximumGain: 20.0);
+
+            var atLowFloor = Samples(mixtureSamples);
+            PcmAudio.CancelCorrelated(
+                atLowFloor, reference, out var lowDiagnostics, muteUnverifiedBlocks: false,
+                maxLagFrames: 12000, minimumGain: 0.05, maximumGain: 20.0, blockGainFloor: 0.005);
+
+            Assert.IsTrue(
+                defaultDiagnostics.QuietBlocks > 0,
+                "the default floor was expected to skip the faint blocks");
+            Assert.IsTrue(
+                lowDiagnostics.SubtractedBlocks > defaultDiagnostics.SubtractedBlocks,
+                $"lower floor covered {lowDiagnostics.SubtractedBlocks} blocks, " +
+                $"default covered {defaultDiagnostics.SubtractedBlocks}");
+
+            // The faint copy survives the default floor untouched and is gone under the lower one.
+            var faintAtDefault = Energy(ToShorts(atDefaultFloor), faintFrom, faintTo);
+            var faintAtLow = Energy(ToShorts(atLowFloor), faintFrom, faintTo);
+            Assert.IsTrue(faintAtDefault > faintBefore * 0.9, "the default floor should leave it in");
+            Assert.IsTrue(
+                faintAtLow < faintBefore * 0.01,
+                $"faint-region energy ratio was {faintAtLow / faintBefore:0.0000}");
+        }
+
+        [TestMethod]
         public void WriteWav_WritesAReadableHeaderForTheExportFormat()
         {
             // The cleaned clip audio goes back to the exporter as an ordinary chunk file, so the
