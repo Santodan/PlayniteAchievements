@@ -401,7 +401,7 @@
                    Source="{DynamicResource BadgeRarityCompleted}"
                    Style="{StaticResource OverviewCompletedFooterIconStyle}"
                    ToolTip="{DynamicResource LOCPlayAch_Completed}"
-                   Visibility="{Binding IsCompleted, Converter={StaticResource BoolToVis}}"/>
+                   Visibility="{Binding ShowCompletionBadge, Converter={StaticResource BoolToVis}}"/>
             <ContentControl Grid.Column="1"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
@@ -423,7 +423,7 @@
             <Image Source="{DynamicResource BadgeRarityCompleted}"
                    Style="{StaticResource OverviewCompletedFooterIconStyle}"
                    ToolTip="{DynamicResource LOCPlayAch_Completed}"
-                   Visibility="{Binding IsCompleted, Converter={StaticResource BoolToVis}}"/>
+                   Visibility="{Binding ShowCompletionBadge, Converter={StaticResource BoolToVis}}"/>
         </StackPanel>
     </DataTemplate>
 
@@ -447,7 +447,7 @@
                    HorizontalAlignment="Right"
                    Margin="0,0,4,0"
                    ToolTip="{DynamicResource LOCPlayAch_Completed}"
-                   Visibility="{Binding IsCompleted, Converter={StaticResource BoolToVis}}"/>
+                   Visibility="{Binding ShowCompletionBadge, Converter={StaticResource BoolToVis}}"/>
         </Grid>
     </DataTemplate>
 
