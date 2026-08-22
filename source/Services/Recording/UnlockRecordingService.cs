@@ -85,8 +85,18 @@ namespace PlayniteAchievements.Services.Recording
         /// </summary>
         private const int HapticCancellationBlockFrames = 2400;
 
-        /// <summary>Maximum correlation the cleaned clip may retain against an active reference.</summary>
-        private const double HapticCancellationMaximumResidualCorrelation = 0.05;
+        /// <summary>
+        /// Maximum correlation the cleaned clip may retain against an active reference: a sanity
+        /// check that the reference really described this audio, not the accept gate — per-block
+        /// verification is, and it already guarantees no block was made worse.
+        /// <para>
+        /// Held at 0.05 this rejected whole passes that had done real work: a field clip went from
+        /// 0.939 correlated down to 0.126, 33.4 dB of suppression over 227 blocks, and was discarded
+        /// for missing the ceiling — which handed the user back the full buzz. Partial removal beats
+        /// none, so this only catches a reference that plainly is not this signal.
+        /// </para>
+        /// </summary>
+        private const double HapticCancellationMaximumResidualCorrelation = 0.35;
 
         private const string BufferRootFolderName = "RecordingBuffer";
         private const long MinFreeBytesToStart = 2L * 1024 * 1024 * 1024;
