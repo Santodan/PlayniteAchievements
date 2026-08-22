@@ -135,9 +135,9 @@ internal static class HapticProbe
             return 0;
         }
 
-        if ((args[0] != "--measure" && args[0] != "--check") || args.Length < 2)
+        if ((args[0] != "--measure" && args[0] != "--check" && args[0] != "--stamps") || args.Length < 2)
         {
-            Console.WriteLine("usage: HapticProbe.exe [--check <index>] [--measure <index>]");
+            Console.WriteLine("usage: HapticProbe.exe [--check <index>] [--stamps <index>] [--measure <index>]");
             return 2;
         }
 
@@ -154,7 +154,83 @@ internal static class HapticProbe
             return 2;
         }
 
-        return args[0] == "--check" ? Check(devices[index]) : Measure(devices[index]);
+        if (args[0] == "--check")
+        {
+            return Check(devices[index]);
+        }
+
+        return args[0] == "--stamps" ? Stamps(devices[index]) : Measure(devices[index]);
+    }
+
+    /// <summary>
+    /// Checks that the per-packet capture stamps the recorder now writes by are self-consistent: for
+    /// each packet, where its own stamp puts it versus where the frames counted so far put it. Those
+    /// two agreeing is the whole basis of stamp-placed reference writes — a steadily growing gap
+    /// would be the clock drift that pump-paced writing used to hide, and a jumping one would mean
+    /// the stamps cannot be trusted for placement.
+    /// <para>
+    /// Renders a quiet tone to the chosen endpoint so there is something to capture. Pick a virtual
+    /// endpoint (a Steam streaming device) to keep it inaudible.
+    /// </para>
+    /// </summary>
+    private static int Stamps(MMDevice device)
+    {
+        Console.WriteLine($"capturing '{device.FriendlyName}' and checking packet stamps...");
+        var capture = ProcessLoopbackCapture.ForEndpoint(device.ID);
+        var packets = 0;
+        var stamped = 0;
+        long frames = 0;
+        DateTime? first = null;
+        var worstDeviationMs = 0.0;
+        var lastDeviationMs = 0.0;
+
+        capture.StampedDataAvailable += (s, e) =>
+        {
+            packets++;
+            if (e.CaptureUtc.HasValue)
+            {
+                stamped++;
+                if (first == null)
+                {
+                    first = e.CaptureUtc;
+                }
+                else
+                {
+                    var byStamp = (e.CaptureUtc.Value - first.Value).TotalSeconds;
+                    var byFrames = frames / (double)SampleRate;
+                    lastDeviationMs = (byStamp - byFrames) * 1000.0;
+                    worstDeviationMs = Math.Max(worstDeviationMs, Math.Abs(lastDeviationMs));
+                }
+            }
+
+            frames += e.Bytes / 8; // float32 stereo
+        };
+
+        var tone = new Thread(() => PlayTone(device, HapticToneHz, 4, 0.02, 7)) { IsBackground = true };
+        try
+        {
+            capture.StartRecording();
+            tone.Start();
+            tone.Join();
+            Thread.Sleep(300);
+        }
+        finally
+        {
+            try { capture.StopRecording(); } catch { }
+            capture.Dispose();
+        }
+
+        Console.WriteLine($"packets={packets} stamped={stamped} frames={frames} ({frames / (double)SampleRate:0.00}s)");
+        Console.WriteLine($"stamp vs frame position: worst {worstDeviationMs:0.00}ms, final {lastDeviationMs:0.00}ms");
+        Check(packets > 0, "the endpoint delivered packets", packets.ToString());
+        Check(stamped == packets, "every packet carried a usable stamp", $"{stamped}/{packets}");
+        Check(
+            worstDeviationMs < 20,
+            "stamps agree with the frame count (placement will not fight the stream)",
+            $"{worstDeviationMs:0.00}ms");
+        Console.WriteLine();
+        Console.WriteLine(_failures == 0 ? "ALL PASS" : _failures + " FAILURES");
+        return _failures;
     }
 
     /// <summary>
