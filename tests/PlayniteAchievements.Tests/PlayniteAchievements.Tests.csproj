@@ -338,6 +338,7 @@
     <Compile Include="..\..\source\Models\Settings\DateDisplayMode.cs" Link="Source\Models\Settings\DateDisplayMode.cs" />
     <Compile Include="..\..\source\Models\Settings\FriendNameDisplayMode.cs" Link="Source\Models\Settings\FriendNameDisplayMode.cs" />
     <Compile Include="..\..\source\Models\Settings\PlaytimeDisplayMode.cs" Link="Source\Models\Settings\PlaytimeDisplayMode.cs" />
+    <Compile Include="..\..\source\Models\Settings\CategoryCompletionBadgeMode.cs" Link="Source\Models\Settings\CategoryCompletionBadgeMode.cs" />
     <Compile Include="..\..\source\Models\Settings\ToastScreenCorner.cs" Link="Source\Models\Settings\ToastScreenCorner.cs" />
     <Compile Include="..\..\source\Models\Settings\GridVerticalAlignment.cs" Link="Source\Models\Settings\GridVerticalAlignment.cs" />
     <Compile Include="..\..\source\Models\Settings\CompactListSortMode.cs" Link="Source\Models\Settings\CompactListSortMode.cs" />
