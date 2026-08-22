@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
@@ -15,7 +16,15 @@ namespace PlayniteAchievements.Services.Summaries
     /// </summary>
     internal static class CategorySummaryBuilder
     {
-        public static List<GameSummaryItem> Build(IEnumerable<AchievementDisplayItem> achievements)
+        /// <param name="badgeMode">
+        /// Which rows may render the completion badge. Stamped onto
+        /// <see cref="CategorySummaryItem.AllowCompletionBadge"/> in the configured category order
+        /// this method emits, so <see cref="CategoryCompletionBadgeMode.First"/> resolves to the
+        /// first configured category rather than whichever row a later grid sort floats to the top.
+        /// </param>
+        public static List<GameSummaryItem> Build(
+            IEnumerable<AchievementDisplayItem> achievements,
+            CategoryCompletionBadgeMode badgeMode = CategoryCompletionBadgeMode.All)
         {
             var result = new List<GameSummaryItem>();
             var source = achievements as IReadOnlyList<AchievementDisplayItem>
@@ -76,11 +85,31 @@ namespace PlayniteAchievements.Services.Summaries
 
                 item.IsCompleted = ComputeIsCompleted(bucket);
                 item.CategoryType = ResolveCategoryType(bucket);
+                item.AllowCompletionBadge = AllowsCompletionBadge(badgeMode, result.Count);
 
                 result.Add(item);
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Whether the row at <paramref name="emittedCount"/> (its zero-based position in the
+        /// configured category order) may render the completion badge. Under
+        /// <see cref="CategoryCompletionBadgeMode.First"/> only the first category is permitted, so a
+        /// first category that is not completed leaves the whole list badge-free.
+        /// </summary>
+        private static bool AllowsCompletionBadge(CategoryCompletionBadgeMode mode, int emittedCount)
+        {
+            switch (mode)
+            {
+                case CategoryCompletionBadgeMode.None:
+                    return false;
+                case CategoryCompletionBadgeMode.First:
+                    return emittedCount == 0;
+                default:
+                    return true;
+            }
         }
 
         /// <summary>
