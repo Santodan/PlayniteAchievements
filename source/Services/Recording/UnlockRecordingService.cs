@@ -69,6 +69,15 @@ namespace PlayniteAchievements.Services.Recording
         /// </summary>
         private const double HapticCancellationBlockGainFloor = 0.005;
 
+        /// <summary>
+        /// How well a block has to clean up for its subtraction to be kept rather than the recorded
+        /// audio put back. Stricter than the chime's 10 dB, because a partly-cancelled rumble is not
+        /// simply quieter — what is left is comb-filtered, and that can draw more attention than the
+        /// steady rumble it replaced even while measuring lower. Attempt everywhere the faint-copy
+        /// floor allows, keep only what demonstrably worked, restore the rest.
+        /// </summary>
+        private const double HapticCancellationKeepBlockDb = 15.0;
+
         private const string BufferRootFolderName = "RecordingBuffer";
         private const long MinFreeBytesToStart = 2L * 1024 * 1024 * 1024;
         private const long MinFreeBytesToContinue = 500L * 1024 * 1024;
@@ -1576,14 +1585,15 @@ namespace PlayniteAchievements.Services.Recording
                         maxLagFrames: HapticCancellationMaxLagFrames,
                         minimumGain: HapticCancellationMinimumGain,
                         maximumGain: HapticCancellationMaximumGain,
-                        blockGainFloor: HapticCancellationBlockGainFloor);
+                        blockGainFloor: HapticCancellationBlockGainFloor,
+                        keepBlockSuppressionDb: HapticCancellationKeepBlockDb);
                     _logger?.Info(
                         $"[Recording] Haptic cancellation ({referenceNames[i]}): outcome={outcome} " +
                         $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
                         $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
                         $"suppression={cancellation.SuppressionDb:0.0}dB " +
                         $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
-                        $"(quiet={cancellation.QuietBlocks}) " +
+                        $"(quiet={cancellation.QuietBlocks}, restored={cancellation.RestoredBlocks}) " +
                         $"weakestBlock={cancellation.WeakestBlockSuppressionDb:0.0}dB " +
                         $"residual={cancellation.ResidualCorrelation:0.000}.");
                     removedAny |= outcome == PcmCancellationOutcome.CancelledVerified;
