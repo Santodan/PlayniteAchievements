@@ -16,6 +16,10 @@ namespace PlayniteAchievements.Services.Summaries
     /// </summary>
     internal static class CategorySummaryBuilder
     {
+        /// <summary>
+        /// Builds the per-category rollup rows in configured category order.
+        /// </summary>
+        /// <param name="achievements">The achievement display items to group.</param>
         /// <param name="badgeMode">
         /// Which rows may render the completion badge. Stamped onto
         /// <see cref="CategorySummaryItem.AllowCompletionBadge"/> in the configured category order

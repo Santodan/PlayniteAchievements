@@ -2147,9 +2147,11 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             // Rebuilding re-stamps AllowCompletionBadge and reassigns CategorySummaries, so the
-            // category rows repaint without reopening the window.
-            if (string.IsNullOrEmpty(e.PropertyName) ||
-                e.PropertyName == nameof(PersistedSettings.CategoryCompletionBadgeMode))
+            // category rows repaint without reopening the window. Grids not currently in category
+            // mode pick the new mode up from the rebuild that entering category mode already does.
+            if (_isCategoryMode &&
+                (string.IsNullOrEmpty(e.PropertyName) ||
+                 e.PropertyName == nameof(PersistedSettings.CategoryCompletionBadgeMode)))
             {
                 RebuildCategorySummaries();
             }
