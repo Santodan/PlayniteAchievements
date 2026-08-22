@@ -59,6 +59,16 @@ namespace PlayniteAchievements.Services.Recording
 
         private const double HapticCancellationMaximumGain = 20.0;
 
+        /// <summary>
+        /// How faint a block's copy of the haptics may be and still be subtracted. The chime's floor
+        /// of 0.05 exists so a block with nothing to remove is left alone; here it was leaving the
+        /// quiet stretches in — field logs showed only 27 and 31 of 48 blocks subtracted, the rest
+        /// skipped for a weak fit, which is precisely the "soft haptics in the background" that
+        /// survived. A faint copy is still worth removing, and subtracting a faint reference cannot
+        /// do much damage: the harm is bounded by the reference's own level.
+        /// </summary>
+        private const double HapticCancellationBlockGainFloor = 0.005;
+
         private const string BufferRootFolderName = "RecordingBuffer";
         private const long MinFreeBytesToStart = 2L * 1024 * 1024 * 1024;
         private const long MinFreeBytesToContinue = 500L * 1024 * 1024;
@@ -1565,13 +1575,16 @@ namespace PlayniteAchievements.Services.Recording
                         muteUnverifiedBlocks: false,
                         maxLagFrames: HapticCancellationMaxLagFrames,
                         minimumGain: HapticCancellationMinimumGain,
-                        maximumGain: HapticCancellationMaximumGain);
+                        maximumGain: HapticCancellationMaximumGain,
+                        blockGainFloor: HapticCancellationBlockGainFloor);
                     _logger?.Info(
                         $"[Recording] Haptic cancellation ({referenceNames[i]}): outcome={outcome} " +
                         $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
                         $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
                         $"suppression={cancellation.SuppressionDb:0.0}dB " +
                         $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
+                        $"(quiet={cancellation.QuietBlocks}) " +
+                        $"weakestBlock={cancellation.WeakestBlockSuppressionDb:0.0}dB " +
                         $"residual={cancellation.ResidualCorrelation:0.000}.");
                     removedAny |= outcome == PcmCancellationOutcome.CancelledVerified;
                 }
