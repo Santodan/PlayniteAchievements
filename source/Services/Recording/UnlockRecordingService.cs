@@ -55,7 +55,7 @@ namespace PlayniteAchievements.Services.Recording
         /// verification still has to pass, so a wrong lock is rejected on evidence rather than on a
         /// guess about plausible loudness.
         /// </summary>
-        private const double HapticCancellationMinimumGain = 0.05;
+        private const double HapticCancellationMinimumGain = 0.005;
 
         private const double HapticCancellationMaximumGain = 20.0;
 
@@ -70,13 +70,23 @@ namespace PlayniteAchievements.Services.Recording
         private const double HapticCancellationBlockGainFloor = 0.005;
 
         /// <summary>
-        /// How well a block has to clean up for its subtraction to be kept rather than the recorded
-        /// audio put back. Stricter than the chime's 10 dB, because a partly-cancelled rumble is not
+        /// How well a block has to clean up for its subtraction to be kept rather than briefly
+        /// gated. Stricter than the chime's 10 dB, because a partly-cancelled rumble is not
         /// simply quieter — what is left is comb-filtered, and that can draw more attention than the
         /// steady rumble it replaced even while measuring lower. Attempt everywhere the faint-copy
-        /// floor allows, keep only what demonstrably worked, restore the rest.
+        /// floor allows, keep only what demonstrably worked, and gate the rest.
         /// </summary>
         private const double HapticCancellationKeepBlockDb = 15.0;
+
+        /// <summary>
+        /// Haptics arrive as short impulses. The generic half-second chime blocks diluted a 20-50 ms
+        /// rumble onset with unrelated game audio and left the whole block classified as weak. A
+        /// 50 ms block follows those transients while leaving a 5 ms click-free edge ramp.
+        /// </summary>
+        private const int HapticCancellationBlockFrames = 2400;
+
+        /// <summary>Maximum correlation the cleaned clip may retain against an active reference.</summary>
+        private const double HapticCancellationMaximumResidualCorrelation = 0.05;
 
         private const string BufferRootFolderName = "RecordingBuffer";
         private const long MinFreeBytesToStart = 2L * 1024 * 1024 * 1024;
@@ -1502,19 +1512,22 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// Removes a controller's haptic waveform from the clip's own audio, returning the plan the
-        /// exporter should use: one over a single cleaned chunk when the removal was verified, and
-        /// the original plan in every other case.
+        /// exporter should use: one cleaned chunk after verified removal, or the recorded plan
+        /// unchanged in every other case.
         /// <para>
         /// A DualSense plays haptics as audio through its own render endpoint, and process loopback
         /// mixes every endpoint the game renders to, so the buzz is inside <c>aud_</c>. The recorder
-        /// captures that endpoint into <c>hap_</c> over the same paced writes; cancelling the one
+        /// captures that endpoint into timestamped <c>hap_</c> chunks; cancelling the one
         /// from the other is the only way to separate them, because Windows offers no way to scope a
         /// process capture to a device.
         /// </para>
         /// <para>
-        /// Fail-open throughout: no reference, no verified subtraction, or any error at all leaves
-        /// the recorded audio exactly as captured. Unverified blocks are kept rather than silenced —
-        /// a hole in the clip's own audio is worse than a little residual buzz.
+        /// Every uncertainty keeps the recorded audio: a doubtful reference window, an active
+        /// reference that cannot be verified, excessive residual correlation, an unreadable track or
+        /// an I/O failure all ship the clip's own sound. The worst outcome this pass may produce is
+        /// audio that still carries some buzz — never a clip without audio, which costs the user far
+        /// more than the artifact being guarded against. Within a verified pass, a 50 ms active block
+        /// that cannot be subtracted is briefly gated.
         /// </para>
         /// </summary>
         private SegmentTimeline.ClipPlan TryRemoveHapticAudio(
@@ -1523,6 +1536,7 @@ namespace PlayniteAchievements.Services.Recording
             out string cleanedDirectory)
         {
             cleanedDirectory = null;
+            string candidateDirectory = null;
             if (audioPlan?.Segments == null || audioPlan.Segments.Count == 0)
             {
                 return audioPlan;
@@ -1532,12 +1546,28 @@ namespace PlayniteAchievements.Services.Recording
             {
                 var startUtc = audioPlan.Segments[0].StartUtc.AddSeconds(audioPlan.StartOffsetSeconds);
                 var endUtc = startUtc.AddSeconds(audioPlan.DurationSeconds);
+                if (session.AudioRecorder?.HasHapticHole(startUtc, endUtc) == true)
+                {
+                    _logger?.Info(
+                        "[Recording] The haptic references have a coverage hole over this clip's " +
+                        "window; keeping the recorded audio rather than cleaning against a reference " +
+                        "that may not describe it.");
+                    return audioPlan;
+                }
                 var references = new List<byte[]>();
                 var referenceNames = new List<string>();
                 foreach (var prefix in RecordingPaths.HapticReferenceChunkFilePrefixes())
                 {
                     var reference = TryReadAudioWindow(
-                        session.BufferDirectory, prefix, startUtc, endUtc);
+                        session.BufferDirectory, prefix, startUtc, endUtc, out var referenceCovered);
+                    if (referenceCovered && reference == null)
+                    {
+                        _logger?.Warn(
+                            $"[Recording] Haptic reference {prefix.TrimEnd('_')} covers this clip " +
+                            "but could not be decoded; keeping the recorded audio.");
+                        return audioPlan;
+                    }
+
                     if (reference != null)
                     {
                         references.Add(reference);
@@ -1547,12 +1577,11 @@ namespace PlayniteAchievements.Services.Recording
 
                 if (references.Count == 0)
                 {
-                    // No controller endpoint existed while this window was recorded. Said out loud:
-                    // silence here reads exactly like a cancellation that ran and did nothing, and
-                    // the two have completely different causes.
+                    // With a complete, uncompromised endpoint scan, no sparse chunk means no
+                    // controller waveform was rendered during this window.
                     _logger?.Debug(
                         "[Recording] No haptic reference track covers this clip's audio window; " +
-                        "nothing to remove (see the render-endpoint line from capture start).");
+                        "the healthy controller reference was silent or no controller existed.");
                     return audioPlan;
                 }
 
@@ -1563,6 +1592,9 @@ namespace PlayniteAchievements.Services.Recording
                     endUtc);
                 if (mixture == null)
                 {
+                    _logger?.Warn(
+                        "[Recording] Haptic references exist but the matching clip audio could not " +
+                        "be audited; keeping the recorded audio.");
                     return audioPlan;
                 }
 
@@ -1581,21 +1613,41 @@ namespace PlayniteAchievements.Services.Recording
                         mixture,
                         references[i],
                         out var cancellation,
+                        // Restore, never mute. Silencing a block that could not be verified punches
+                        // a hole in the clip's own sound, and on a clip carrying rumble throughout
+                        // that is most of the audio — the loss the user actually notices. The chime
+                        // sidecar still mutes, because a hole there is inaudible.
                         muteUnverifiedBlocks: false,
                         maxLagFrames: HapticCancellationMaxLagFrames,
                         minimumGain: HapticCancellationMinimumGain,
                         maximumGain: HapticCancellationMaximumGain,
                         blockGainFloor: HapticCancellationBlockGainFloor,
-                        keepBlockSuppressionDb: HapticCancellationKeepBlockDb);
+                        keepBlockSuppressionDb: HapticCancellationKeepBlockDb,
+                        cancellationBlockFrames: HapticCancellationBlockFrames,
+                        commitWithMutedUnverifiedBlocks: false,
+                        maximumResidualCorrelation: HapticCancellationMaximumResidualCorrelation);
                     _logger?.Info(
                         $"[Recording] Haptic cancellation ({referenceNames[i]}): outcome={outcome} " +
                         $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
                         $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
                         $"suppression={cancellation.SuppressionDb:0.0}dB " +
                         $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
-                        $"(quiet={cancellation.QuietBlocks}, restored={cancellation.RestoredBlocks}) " +
+                        $"(quiet={cancellation.QuietBlocks}, unverified={cancellation.UnverifiedBlocks}, " +
+                        $"gated={cancellation.MutedBlocks}, restored={cancellation.RestoredBlocks}) " +
                         $"weakestBlock={cancellation.WeakestBlockSuppressionDb:0.0}dB " +
-                        $"residual={cancellation.ResidualCorrelation:0.000}.");
+                        $"residual={cancellation.ResidualCorrelation:0.000} " +
+                        $"referenceRms={cancellation.ReferenceRms:0.0}.");
+                    if (!PcmAudio.IsReferenceSafelyAbsentOrRemoved(outcome, cancellation))
+                    {
+                        // The mixture is untouched by an unverified pass, so the recorded audio is
+                        // exactly what was captured — buzz included. That is the accepted worst case.
+                        _logger?.Warn(
+                            $"[Recording] Active haptic reference {referenceNames[i]} was not " +
+                            "verifiably removed; keeping the recorded audio, which may still carry " +
+                            "some of the controller's buzz.");
+                        return audioPlan;
+                    }
+
                     removedAny |= outcome == PcmCancellationOutcome.CancelledVerified;
                 }
 
@@ -1604,15 +1656,15 @@ namespace PlayniteAchievements.Services.Recording
                     return audioPlan;
                 }
 
-                var directory = Path.Combine(session.BufferDirectory, $"clean_{Guid.NewGuid():N}");
-                Directory.CreateDirectory(directory);
+                candidateDirectory = Path.Combine(session.BufferDirectory, $"clean_{Guid.NewGuid():N}");
+                Directory.CreateDirectory(candidateDirectory);
                 var name = RecordingPaths.BuildAudioChunkFileName(
                     RecordingPaths.AudioChunkFilePrefix, startUtc);
-                PcmAudio.WriteWav(Path.Combine(directory, name), mixture);
+                PcmAudio.WriteWav(Path.Combine(candidateDirectory, name), mixture);
 
                 var cleanedChunks = SegmentTimeline.ParseSegments(
                     ListBufferFiles(
-                        directory,
+                        candidateDirectory,
                         RecordingPaths.AudioChunkFilePrefix,
                         RecordingPaths.AudioChunkFileExtension),
                     TimeZoneInfo.Local,
@@ -1628,16 +1680,30 @@ namespace PlayniteAchievements.Services.Recording
                     Math.Max(SegmentSeconds, (int)Math.Ceiling(audioPlan.DurationSeconds) + 1));
                 if (cleanedPlan == null)
                 {
-                    TryDeleteCleanedAudio(directory);
+                    TryDeleteCleanedAudio(candidateDirectory);
+                    candidateDirectory = null;
                     return audioPlan;
                 }
 
-                cleanedDirectory = directory;
+                if (session.AudioRecorder?.HasHapticHole(startUtc, endUtc) == true)
+                {
+                    TryDeleteCleanedAudio(candidateDirectory);
+                    candidateDirectory = null;
+                    _logger?.Info(
+                        "[Recording] A haptic coverage hole over this window appeared during " +
+                        "cleanup; keeping the recorded audio.");
+                    return audioPlan;
+                }
+
+                cleanedDirectory = candidateDirectory;
                 return cleanedPlan;
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[Recording] Haptic audio could not be removed; the clip keeps its recorded audio.");
+                TryDeleteCleanedAudio(candidateDirectory);
+                _logger?.Warn(
+                    ex,
+                    "[Recording] Haptic audio removal failed; keeping the recorded audio.");
                 return audioPlan;
             }
         }
@@ -1666,6 +1732,17 @@ namespace PlayniteAchievements.Services.Recording
             DateTime startUtc,
             DateTime endUtc)
         {
+            return TryReadAudioWindow(
+                bufferDirectory, prefix, startUtc, endUtc, out _);
+        }
+
+        private byte[] TryReadAudioWindow(
+            string bufferDirectory,
+            string prefix,
+            DateTime startUtc,
+            DateTime endUtc,
+            out bool windowCovered)
+        {
             var chunks = SegmentTimeline.ParseSegments(
                 ListBufferFiles(
                     bufferDirectory,
@@ -1675,6 +1752,7 @@ namespace PlayniteAchievements.Services.Recording
                 prefix,
                 RecordingPaths.AudioChunkFileExtension);
             var plan = SegmentTimeline.PlanClip(chunks, startUtc, endUtc, SegmentSeconds);
+            windowCovered = plan != null;
             return plan == null
                 ? null
                 : MediaFoundationClipExporter.TryReadPcmWindow(
