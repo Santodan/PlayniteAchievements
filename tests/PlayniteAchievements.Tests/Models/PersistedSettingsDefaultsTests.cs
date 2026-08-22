@@ -242,6 +242,43 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void Constructor_DefaultsCategoryCompletionBadgeModeToAll()
+        {
+            var settings = new PersistedSettings();
+
+            Assert.AreEqual(CategoryCompletionBadgeMode.All, settings.CategoryCompletionBadgeMode);
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveCategoryCompletionBadgeMode()
+        {
+            var source = new PersistedSettings
+            {
+                CategoryCompletionBadgeMode = CategoryCompletionBadgeMode.First
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.AreEqual(CategoryCompletionBadgeMode.First, clone.CategoryCompletionBadgeMode);
+            Assert.AreEqual(CategoryCompletionBadgeMode.First, target.CategoryCompletionBadgeMode);
+        }
+
+        [TestMethod]
+        public void ResetDisplaySettingsToDefaults_RestoresCategoryCompletionBadgeMode()
+        {
+            var settings = new PersistedSettings
+            {
+                CategoryCompletionBadgeMode = CategoryCompletionBadgeMode.None
+            };
+
+            settings.ResetDisplaySettingsToDefaults();
+
+            Assert.AreEqual(CategoryCompletionBadgeMode.All, settings.CategoryCompletionBadgeMode);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveProgressColumnAlignmentDefaultedFlag()
         {
             var source = new PersistedSettings { ProgressColumnAlignmentDefaulted = false };
