@@ -8,6 +8,23 @@ using PlayniteAchievements.Common;
 
 namespace PlayniteAchievements.Services.Recording
 {
+    /// <summary>One captured packet and the instant its audio was rendered.</summary>
+    internal sealed class StampedPacketEventArgs : EventArgs
+    {
+        public StampedPacketEventArgs(byte[] buffer, int bytes, DateTime? captureUtc)
+        {
+            Buffer = buffer;
+            Bytes = bytes;
+            CaptureUtc = captureUtc;
+        }
+
+        public byte[] Buffer { get; }
+
+        public int Bytes { get; }
+
+        public DateTime? CaptureUtc { get; }
+    }
+
     /// <summary>
     /// Captures the audio of a single process tree (the game) via the Windows Application Loopback
     /// API — <c>ActivateAudioInterfaceAsync</c> against the virtual process-loopback device with
@@ -66,6 +83,13 @@ namespace PlayniteAchievements.Services.Recording
 
         public event EventHandler<WaveInEventArgs> DataAvailable;
         public event EventHandler<StoppedEventArgs> RecordingStopped;
+
+        /// <summary>
+        /// Every packet with the instant its audio was rendered, from the same QPC stamp
+        /// <see cref="FirstPacketCaptureUtc"/> comes from. Null on a packet whose stamp the driver
+        /// did not report usably.
+        /// </summary>
+        public event EventHandler<StampedPacketEventArgs> StampedDataAvailable;
 
         /// <summary>
         /// When the first delivered packet's audio was actually rendered, from the QPC stamp
@@ -142,6 +166,32 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             return CaptureTimelineClock.UtcNow.AddTicks(-age100ns);
+        }
+
+        /// <summary>
+        /// The same conversion for placing a packet on a timeline rather than anchoring one. Two
+        /// differences, both because a consumer here only needs stamps to be consistent with each
+        /// other: a stamp may sit in the FUTURE, which is normal for a render endpoint's loopback —
+        /// the audio being captured is about to be played, so it carries its presentation instant —
+        /// and the window is wider. Measured on a real endpoint, the strict anchoring window accepted
+        /// 3 packets in 432; the rest were rejected purely for being ahead of now.
+        /// </summary>
+        private static DateTime? QpcToUtcForPlacement(long qpcPosition100ns)
+        {
+            if (qpcPosition100ns <= 0)
+            {
+                return null;
+            }
+
+            var now100ns = (long)(Stopwatch.GetTimestamp() * (10_000_000d / Stopwatch.Frequency));
+            var offset100ns = now100ns - qpcPosition100ns;
+            if (Math.Abs(offset100ns) > 20_000_000L)
+            {
+                // Two seconds out in either direction is a timebase we do not understand.
+                return null;
+            }
+
+            return CaptureTimelineClock.UtcNow.AddTicks(-offset100ns);
         }
 
         /// <summary>48 kHz stereo 32-bit IEEE float — the format the loopback client mixes the process to.</summary>
@@ -420,9 +470,11 @@ namespace PlayniteAchievements.Services.Recording
                         }
 
                         var bytes = (int)framesAvailable * blockAlign;
+
+                        // Read before ReleaseBuffer so the stamp still belongs to this packet.
+                        var packetUtc = bytes > 0 ? QpcToUtcForPlacement(qpcPosition) : null;
                         if (_firstPacketCaptureUtc == null && bytes > 0)
                         {
-                            // Read before ReleaseBuffer so the stamp still belongs to this packet.
                             _firstPacketCaptureUtc = QpcToUtc(qpcPosition);
                         }
 
@@ -448,6 +500,13 @@ namespace PlayniteAchievements.Services.Recording
 
                         if (bytes > 0)
                         {
+                            // Stamped delivery carries the packet's own capture instant, so a
+                            // consumer can place it on a timeline of its own rather than inferring
+                            // its position from arrival order and its own pacing. Gap padding is not
+                            // reported here: a consumer placing by stamp derives gaps from the
+                            // positions themselves, and would otherwise count them twice.
+                            StampedDataAvailable?.Invoke(
+                                this, new StampedPacketEventArgs(buffer, bytes, packetUtc));
                             DataAvailable?.Invoke(this, new WaveInEventArgs(buffer, bytes));
                         }
 
