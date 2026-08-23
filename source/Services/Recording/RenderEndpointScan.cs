@@ -38,6 +38,20 @@ namespace PlayniteAchievements.Services.Recording
 
         public static IReadOnlyList<HapticEndpointInfo> FindHapticEndpoints(ILogger logger)
         {
+            return FindHapticEndpoints(logger, out _, out _);
+        }
+
+        /// <summary>
+        /// The endpoint list plus states a fail-closed recorder must distinguish from an ordinary
+        /// empty result: an incomplete scan and a controller that is also the default output.
+        /// </summary>
+        public static IReadOnlyList<HapticEndpointInfo> FindHapticEndpoints(
+            ILogger logger,
+            out bool scanComplete,
+            out bool hasUncapturableDefaultHapticEndpoint)
+        {
+            scanComplete = true;
+            hasUncapturableDefaultHapticEndpoint = false;
             var found = new List<HapticEndpointInfo>();
             var inventory = new List<string>();
             try
@@ -61,6 +75,7 @@ namespace PlayniteAchievements.Services.Recording
                             // in the inventory rather than its own line: the scan repeats, and a
                             // per-endpoint log line would repeat with it.
                             var keptAsOutput = haptic && isDefault;
+                            hasUncapturableDefaultHapticEndpoint |= keptAsOutput;
                             inventory.Add(
                                 $"'{Describe(device)}'{(isDefault ? " default" : string.Empty)}" +
                                 $"{(haptic ? " HAPTIC" : string.Empty)}" +
@@ -76,6 +91,7 @@ namespace PlayniteAchievements.Services.Recording
                         catch (Exception ex)
                         {
                             // One unreadable endpoint must not cost the scan the others.
+                            scanComplete = false;
                             logger?.Debug(ex, "[Recording] A render endpoint could not be inspected.");
                         }
                         finally
@@ -87,6 +103,7 @@ namespace PlayniteAchievements.Services.Recording
             }
             catch (Exception ex)
             {
+                scanComplete = false;
                 logger?.Warn(ex, "[Recording] Render endpoints could not be enumerated; no haptic reference will be captured.");
                 return new List<HapticEndpointInfo>();
             }

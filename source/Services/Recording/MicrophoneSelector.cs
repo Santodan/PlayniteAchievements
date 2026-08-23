@@ -13,9 +13,8 @@ namespace PlayniteAchievements.Services.Recording
     /// haptic actuators and records their buzz acoustically — a copy of the haptics that no
     /// render-side cancellation can reach, because it never went through the audio engine.
     ///
-    /// So a controller microphone is used only when it is the only input there is: someone whose
-    /// headset is plugged into the pad genuinely records through it, and taking that away would be
-    /// worse than the noise. Anything else that is present wins over it.
+    /// A controller microphone is never selected. If no positively identified non-controller input
+    /// exists, microphone capture is omitted; render-side cancellation cannot make that input safe.
     /// </summary>
     internal static class MicrophoneSelector
     {
@@ -23,8 +22,8 @@ namespace PlayniteAchievements.Services.Recording
         private static string _lastInventory;
 
         /// <summary>
-        /// The device to record from, or null to leave the choice to NAudio's default. The caller
-        /// owns the returned device for the life of the capture.
+        /// The safe device to record from, or null to omit microphone capture. The caller owns the
+        /// returned device for the life of the capture.
         /// </summary>
         public static MMDevice TryChoose(ILogger logger)
         {
@@ -54,12 +53,9 @@ namespace PlayniteAchievements.Services.Recording
                 var chosen = FirstUsable(new[] { console, communications }, candidates) ?? FirstUsable(candidates);
                 if (chosen == null && candidates.Count > 0)
                 {
-                    // Only a controller microphone exists. Record it, and say why the clip may carry
-                    // the pad's own rumble.
-                    chosen = Match(console, candidates) ?? candidates[0];
                     logger?.Warn(
-                        $"[Recording] The only microphone available is '{Describe(chosen)}' on a controller; " +
-                        "its recording will carry the pad's haptics acoustically, which cannot be cancelled.");
+                        "[Recording] No non-controller microphone is available; microphone capture " +
+                        "is omitted so controller haptics cannot enter the clip acoustically.");
                 }
                 else if (chosen != null && !IsSame(chosen, console))
                 {
@@ -73,7 +69,10 @@ namespace PlayniteAchievements.Services.Recording
             }
             catch (Exception ex)
             {
-                logger?.Debug(ex, "[Recording] Input devices could not be enumerated; using the default microphone.");
+                logger?.Warn(
+                    ex,
+                    "[Recording] Input devices could not be enumerated; microphone capture is " +
+                    "omitted rather than risk using a controller microphone.");
                 return null;
             }
         }
