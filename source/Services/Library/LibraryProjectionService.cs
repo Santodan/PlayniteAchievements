@@ -68,7 +68,7 @@ namespace PlayniteAchievements.Services.Library
 
             if (_customDataStore != null)
             {
-                _customDataStore.CustomDataChanged += OnProjectionSourceChanged;
+                _customDataStore.CustomDataChanged += OnCustomDataChangedForProjection;
             }
 
             if (_settings?.Persisted != null)
@@ -169,7 +169,7 @@ namespace PlayniteAchievements.Services.Library
 
             if (_customDataStore != null)
             {
-                _customDataStore.CustomDataChanged -= OnProjectionSourceChanged;
+                _customDataStore.CustomDataChanged -= OnCustomDataChangedForProjection;
             }
 
             if (_settings?.Persisted != null)
@@ -339,6 +339,18 @@ namespace PlayniteAchievements.Services.Library
 
         private void OnProjectionSourceChanged(object sender, EventArgs e)
         {
+            Invalidate();
+        }
+
+        // A reorder-only change (goals) cannot move anything the library projection derives, so
+        // discarding the whole projection for one would be pure rebuild cost.
+        private void OnCustomDataChangedForProjection(object sender, GameCustomDataChangedEventArgs e)
+        {
+            if (e != null && !e.AffectsSummaryData)
+            {
+                return;
+            }
+
             Invalidate();
         }
 

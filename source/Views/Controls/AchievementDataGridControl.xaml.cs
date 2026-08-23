@@ -1369,8 +1369,19 @@ namespace PlayniteAchievements.Views.Controls
             var items = (CategorySummarySource ?? ItemsSource)?.ToList();
             _allCategorySummaries = items == null || items.Count == 0
                 ? null
-                : CategorySummaryBuilder.Build(items);
+                : CategorySummaryBuilder.Build(items, ResolveCategoryCompletionBadgeMode());
             ApplyCategoryNameFilter();
+        }
+
+        /// <summary>
+        /// Reads the global category completion badge mode. Sourced from the plugin singleton the
+        /// same way <see cref="UpdateUnlockDateMode"/> is; no dependency property is needed because
+        /// the decision is applied in code onto the row item rather than bound from XAML.
+        /// </summary>
+        private static CategoryCompletionBadgeMode ResolveCategoryCompletionBadgeMode()
+        {
+            return PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.CategoryCompletionBadgeMode
+                ?? CategoryCompletionBadgeMode.All;
         }
 
         private void ApplyCategoryNameFilter()
@@ -1748,6 +1759,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(items);
             _drillItems.ReplaceAll(items);
         }
 
@@ -2132,6 +2144,16 @@ namespace PlayniteAchievements.Views.Controls
                 e.PropertyName == nameof(PersistedSettings.UnlockDateDisplayMode))
             {
                 UpdateUnlockDateMode();
+            }
+
+            // Rebuilding re-stamps AllowCompletionBadge and reassigns CategorySummaries, so the
+            // category rows repaint without reopening the window. Grids not currently in category
+            // mode pick the new mode up from the rebuild that entering category mode already does.
+            if (_isCategoryMode &&
+                (string.IsNullOrEmpty(e.PropertyName) ||
+                 e.PropertyName == nameof(PersistedSettings.CategoryCompletionBadgeMode)))
+            {
+                RebuildCategorySummaries();
             }
         }
 
@@ -2689,6 +2711,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(items);
             ReplaceItemsInSource(items);
         }
 

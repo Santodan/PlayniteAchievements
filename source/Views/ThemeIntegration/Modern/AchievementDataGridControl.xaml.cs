@@ -377,6 +377,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                     AchievementSortHelper.CreateExplicitOrderKeys(orderedAchievements));
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(clonedItems);
+
             var filteredItems = _controlBarAdapter.Apply(clonedItems);
             var displayItems = DisplayGridRowLimitHelper.Limit(filteredItems, maxRows);
 
@@ -397,9 +399,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             // achievement and its comparison fields must be re-resolved.
             _friendCompare.SetGame(theme?.SelectedGameId, DisplayItems.ToList());
 
-            // Same reason the capture flag is stamped here rather than on clonedItems: UpdateFrom
-            // does not carry HasCaptures, so a reused row would otherwise keep the flag of whichever
-            // achievement previously occupied its position.
+            // On the live path the details are already capture-stamped by the runtime state
+            // builder and UpdateFrom carries the paths. This mark backstops the sources that
+            // bypass the builder: ThemeDataOverride preview items and states built before the
+            // capture library was wired.
             Services.Captures.CapturePresenceMarker.MarkAchievements(
                 DisplayItems.ToList(), CaptureLibrary);
 
@@ -591,7 +594,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 row.DataContext,
                 this,
                 RefreshAfterRowOptionsChanged,
-                includeViewCaptures: true);
+                includeViewCaptures: true,
+                onGoalChanged: ReapplyGoalOrderAfterRowOptionsChanged,
+                onCapstoneChanged: ApplyCapstoneAfterRowOptionsChanged);
             if (menu.Items.Count == 0)
             {
                 return false;
@@ -611,6 +616,50 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             LoadData();
         }
 
+        /// <summary>
+        /// Re-stamps the capstone flag on the rows already on screen. Valid only when a capstone
+        /// is being set, where every other row becomes a non-capstone.
+        /// </summary>
+        private bool ApplyCapstoneAfterRowOptionsChanged(string capstoneApiName)
+        {
+            var items = DisplayItems;
+            if (items == null || items.Count == 0 || string.IsNullOrWhiteSpace(capstoneApiName))
+            {
+                return false;
+            }
+
+            foreach (var item in items)
+            {
+                if (item != null)
+                {
+                    item.IsCapstone = string.Equals(
+                        (item.ApiName ?? string.Empty).Trim(),
+                        capstoneApiName.Trim(),
+                        StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Re-partitions the rows already on screen after a goal toggle. LoadData would rebuild
+        /// from the theme state and re-run the control bar, which drops the user's active filters.
+        /// </summary>
+        private bool ReapplyGoalOrderAfterRowOptionsChanged()
+        {
+            var items = DisplayItems;
+            if (items == null || items.Count == 0)
+            {
+                return false;
+            }
+
+            var reordered = items.ToList();
+            AchievementSortHelper.ApplyGoalsFirst(reordered);
+            CollectionHelper.SynchronizeCollection(items, reordered);
+            return true;
+        }
+
         private void ApplySorting(string sortMemberPath, ListSortDirection direction)
         {
             if (DisplayItems == null || DisplayItems.Count == 0) return;
@@ -628,6 +677,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 AchievementSortScope.GameAchievements,
                 ref _currentSortPath,
                 ref _currentSortDirection);
+
+            AchievementSortHelper.ApplyGoalsFirst(items);
 
             // Keep dropdown options in canonical definition order rather than the new column sort.
             _controlBarAdapter.UpdateOptions(AchievementsGrid?.CategorySummarySource ?? items);

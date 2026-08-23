@@ -382,6 +382,8 @@ namespace PlayniteAchievements.ViewModels
 
         public bool ShowAchievementGridControlBar => _settings?.Persisted?.ShowViewAchievementsAchievementGridControlBar ?? true;
 
+        public bool ShowAchievementGridColumnHeaders => _settings?.Persisted?.ShowViewAchievementsAchievementGridColumnHeaders ?? true;
+
         public bool HideCategorySummaryRow => _settings?.Persisted?.ViewAchievementsAchievementGridHideCategorySummaryRow ?? false;
 
         public bool CategorySummariesShowColumnHeaders => _settings?.Persisted?.ShowViewAchievementsCategorySummariesGridColumnHeaders ?? true;
@@ -394,11 +396,9 @@ namespace PlayniteAchievements.ViewModels
 
         public double? SingleGameGridRowHeight => _settings?.Persisted?.SingleGameGridRowHeight;
 
-        // The Manage Achievements window follows the Overview "Selected Game Achievements" glow setting.
-        public bool ShowRarityGlow => _settings?.Persisted?.OverviewSelectedGameShowRarityGlow ?? true;
+        public bool ShowRarityGlow => _settings?.Persisted?.ViewAchievementsAchievementGridShowRarityGlow ?? true;
 
-        // The Manage Achievements window follows the Overview "Selected Game Achievements" name-color setting.
-        public bool ColorNamesByRarity => _settings?.Persisted?.OverviewSelectedGameColorNamesByRarity ?? false;
+        public bool ColorNamesByRarity => _settings?.Persisted?.ViewAchievementsAchievementGridColorNamesByRarity ?? false;
 
         public bool ColorRarityColumnsByRarity => _settings?.Persisted?.ViewAchievementsAchievementGridColorRarityColumnsByRarity ?? false;
 
@@ -822,11 +822,14 @@ namespace PlayniteAchievements.ViewModels
                 ApplyAppearanceSettingsToAchievements();
                 OnPropertyChanged(nameof(SingleGameGridRowHeight));
                 OnPropertyChanged(nameof(ShowAchievementGridControlBar));
+                OnPropertyChanged(nameof(ShowAchievementGridColumnHeaders));
                 OnPropertyChanged(nameof(HideCategorySummaryRow));
                 OnPropertyChanged(nameof(CategorySummariesShowColumnHeaders));
                 OnPropertyChanged(nameof(CategorySummariesGridRowHeight));
                 OnPropertyChanged(nameof(CategorySummariesUseCoverImages));
                 OnPropertyChanged(nameof(CategorySummariesShowCompletionGlow));
+                OnPropertyChanged(nameof(ShowRarityGlow));
+                OnPropertyChanged(nameof(ColorNamesByRarity));
                 OnPropertyChanged(nameof(ColorRarityColumnsByRarity));
                 RaiseSummaryAppearanceProperties();
                 ApplySavedTimelineState();
@@ -884,15 +887,21 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            if (e?.PropertyName == nameof(PersistedSettings.OverviewSelectedGameShowRarityGlow))
+            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsAchievementGridShowRarityGlow))
             {
                 OnPropertyChanged(nameof(ShowRarityGlow));
                 return;
             }
 
-            if (e?.PropertyName == nameof(PersistedSettings.OverviewSelectedGameColorNamesByRarity))
+            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsAchievementGridColorNamesByRarity))
             {
                 OnPropertyChanged(nameof(ColorNamesByRarity));
+                return;
+            }
+
+            if (e?.PropertyName == nameof(PersistedSettings.ShowViewAchievementsAchievementGridColumnHeaders))
+            {
+                OnPropertyChanged(nameof(ShowAchievementGridColumnHeaders));
                 return;
             }
 
@@ -981,6 +990,48 @@ namespace PlayniteAchievements.ViewModels
             System.Windows.Application.Current?.Dispatcher?.Invoke(LoadGameData);
         }
 
+        /// <summary>
+        /// Re-stamps the capstone flag on the rows already in memory. Valid only when a capstone
+        /// is being set, where every other row becomes a non-capstone.
+        /// </summary>
+        public bool ApplyCapstone(string capstoneApiName)
+        {
+            if (_allAchievements == null || _allAchievements.Count == 0 ||
+                string.IsNullOrWhiteSpace(capstoneApiName))
+            {
+                return false;
+            }
+
+            foreach (var item in _allAchievements)
+            {
+                if (item != null)
+                {
+                    item.IsCapstone = string.Equals(
+                        (item.ApiName ?? string.Empty).Trim(),
+                        capstoneApiName.Trim(),
+                        StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Re-sorts the rows already in memory after a goal toggle. Goal state only affects
+        /// ordering, so this avoids the cache read, hydration and full row rebuild that
+        /// <see cref="RefreshView"/> pays for.
+        /// </summary>
+        public bool ReapplyGoalOrder()
+        {
+            if (_allAchievements == null || _allAchievements.Count == 0)
+            {
+                return false;
+            }
+
+            ApplySearchFilter(refreshOrder: true);
+            return true;
+        }
+
         #endregion
 
         public void SortDataGrid(string sortMemberPath, ListSortDirection direction)
@@ -1005,6 +1056,7 @@ namespace PlayniteAchievements.ViewModels
                 _currentSortDirection = currentSortDirection.Value;
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(items);
             _orderedAchievements = items;
             ApplySearchFilter();
         }
@@ -1034,6 +1086,7 @@ namespace PlayniteAchievements.ViewModels
                     stableOrder: AchievementSortHelper.CreateStableOrderMap(items));
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(items);
             _orderedAchievements = items;
         }
 

@@ -1,0 +1,43 @@
+<UserControl x:Class="PlayniteAchievements.Views.Controls.AuthStatusCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderSettingsScopedControlStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!--
+        The shared auth styles resolve their state through {RelativeSource AncestorType=UserControl},
+        so the nearest UserControl is what colours the border and picks the glyph. Inside this control
+        that is this card, which is the whole point: a page can host more than one session without the
+        cards fighting over one set of status properties. Buttons supplied as Content inherit the same
+        lookup, so AuthActionButtonStyle disables them from this card's AuthBusy.
+    -->
+    <Border Style="{StaticResource AuthStatusBorderStyle}">
+        <StackPanel>
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Style="{StaticResource AuthStatusIconStyle}"/>
+
+                <TextBlock Grid.Column="1"
+                           Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"/>
+            </Grid>
+
+            <ContentPresenter Content="{Binding Content, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+        </StackPanel>
+    </Border>
+</UserControl>

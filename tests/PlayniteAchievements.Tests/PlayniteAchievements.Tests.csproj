@@ -15,6 +15,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="protobuf-net" Version="2.0.0.668" />
     <PackageReference Include="System.ValueTuple" Version="4.5.0" />
+    <PackageReference Include="XamlAnimatedGif" Version="2.3.2" />
   </ItemGroup>
 
   <ItemGroup>
@@ -62,6 +63,7 @@
     <Compile Include="..\..\source\Services\Database\InGameProgressSqlWriter.cs" Link="Source\Services\Database\InGameProgressSqlWriter.cs" />
     <Compile Include="..\..\source\Services\Cache\IInGameProgressCacheWriter.cs" Link="Source\Services\Cache\IInGameProgressCacheWriter.cs" />
     <Compile Include="..\..\source\Services\InGameMonitoring\InGameReadSchedule.cs" Link="Source\Services\InGameMonitoring\InGameReadSchedule.cs" />
+    <Compile Include="..\..\source\Services\InGameMonitoring\InGameUnlockEmissionPolicy.cs" Link="Source\Services\InGameMonitoring\InGameUnlockEmissionPolicy.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamTimeParser.cs" Link="Source\Providers\Steam\SteamTimeParser.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamStatsPageClassifier.cs" Link="Source\Providers\Steam\SteamStatsPageClassifier.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamImageUrls.cs" Link="Source\Providers\Steam\SteamImageUrls.cs" />
@@ -107,6 +109,7 @@
     <Compile Include="..\..\source\Services\Captures\CaptureModels.cs" Link="Source\Services\Captures\CaptureModels.cs" />
     <Compile Include="..\..\source\Services\Captures\CaptureFileNameParser.cs" Link="Source\Services\Captures\CaptureFileNameParser.cs" />
     <Compile Include="..\..\source\Services\Captures\CaptureLibraryService.cs" Link="Source\Services\Captures\CaptureLibraryService.cs" />
+    <Compile Include="..\..\source\Services\Captures\AchievementCapturePathResolver.cs" Link="Source\Services\Captures\AchievementCapturePathResolver.cs" />
     <Compile Include="..\..\source\Services\Images\CategoryDefaultImageResolver.cs" Link="Source\Services\Images\CategoryDefaultImageResolver.cs" />
     <Compile Include="..\..\source\Services\Images\DiskImageService.cs" Link="Source\Services\Images\DiskImageService.cs" />
     <Compile Include="..\..\source\Services\Images\ImageCompressionPlan.cs" Link="Source\Services\Images\ImageCompressionPlan.cs" />
@@ -119,11 +122,13 @@
     <Compile Include="..\..\source\Services\Images\RayTrackBuilder.cs" Link="Source\Services\Images\RayTrackBuilder.cs" />
     <Compile Include="..\..\source\Services\Images\RayTrackService.cs" Link="Source\Services\Images\RayTrackService.cs" />
     <Compile Include="..\..\source\Views\Helpers\AnimatedImageHelper.cs" Link="Source\Views\Helpers\AnimatedImageHelper.cs" />
+    <Compile Include="..\..\source\Views\Helpers\NativeGifAnimation.cs" Link="Source\Views\Helpers\NativeGifAnimation.cs" />
     <Compile Include="..\..\source\Views\Helpers\SliderTrackValueMath.cs" Link="Source\Views\Helpers\SliderTrackValueMath.cs" />
     <Compile Include="..\..\source\Services\Images\ManagedCustomIconService.cs" Link="Source\Services\Images\ManagedCustomIconService.cs" />
     <Compile Include="..\..\source\Services\Images\AchievementIconService.cs" Link="Source\Services\Images\AchievementIconService.cs" />
     <Compile Include="..\..\source\Services\Images\NotificationImageSlotMap.cs" Link="Source\Services\Images\NotificationImageSlotMap.cs" />
     <Compile Include="..\..\source\Services\Images\NotificationImageStore.cs" Link="Source\Services\Images\NotificationImageStore.cs" />
+    <Compile Include="..\..\source\Services\Achievements\AchievementMarkerTarget.cs" Link="Source\Services\Achievements\AchievementMarkerTarget.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementSortHelper.cs" Link="Source\Services\Achievements\AchievementSortHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementCategoryFilterOrderHelper.cs" Link="Source\Services\Achievements\AchievementCategoryFilterOrderHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementOrderHelper.cs" Link="Source\Services\Achievements\AchievementOrderHelper.cs" />
@@ -167,6 +172,8 @@
     <Compile Include="..\..\source\Providers\BattleNet\BattleNetSupport.cs" Link="Source\Providers\BattleNet\BattleNetSupport.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\BattleNetSettings.cs" Link="Source\Providers\BattleNet\BattleNetSettings.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\WowGameStrategy.cs" Link="Source\Providers\BattleNet\WowGameStrategy.cs" />
+    <Compile Include="..\..\source\Providers\BattleNet\DataForAzerothClient.cs" Link="Source\Providers\BattleNet\DataForAzerothClient.cs" />
+    <Compile Include="..\..\source\Providers\BattleNet\DataForAzerothSessionManager.cs" Link="Source\Providers\BattleNet\DataForAzerothSessionManager.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\Models\BattleNetSc2Models.cs" Link="Source\Providers\BattleNet\Models\BattleNetSc2Models.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\Models\BattleNetWowModels.cs" Link="Source\Providers\BattleNet\Models\BattleNetWowModels.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4PathResolver.cs" Link="Source\Providers\ShadPS4\ShadPS4PathResolver.cs" />
@@ -272,6 +279,8 @@
     <Compile Include="..\..\source\Common\RelativeDateFormatter.cs" Link="Source\Common\RelativeDateFormatter.cs" />
     <Compile Include="..\..\source\Common\RelayCommand.cs" Link="Source\Common\RelayCommand.cs" />
     <Compile Include="..\..\source\Common\WebViewExtensions.cs" Link="Source\Common\WebViewExtensions.cs" />
+    <Compile Include="..\..\source\Common\AsyncPoll.cs" Link="Source\Common\AsyncPoll.cs" />
+    <Compile Include="..\..\source\Common\CefCookieReader.cs" Link="Source\Common\CefCookieReader.cs" />
     <Compile Include="..\..\source\ViewModels\Items\FriendAchievementDisplayItem.cs" Link="Source\ViewModels\Items\FriendAchievementDisplayItem.cs" />
     <Compile Include="..\..\source\ViewModels\Items\FriendGameSummaryItem.cs" Link="Source\ViewModels\Items\FriendGameSummaryItem.cs" />
     <Compile Include="..\..\source\ViewModels\Items\FriendSummaryItem.cs" Link="Source\ViewModels\Items\FriendSummaryItem.cs" />
@@ -329,6 +338,7 @@
     <Compile Include="..\..\source\Models\Settings\DateDisplayMode.cs" Link="Source\Models\Settings\DateDisplayMode.cs" />
     <Compile Include="..\..\source\Models\Settings\FriendNameDisplayMode.cs" Link="Source\Models\Settings\FriendNameDisplayMode.cs" />
     <Compile Include="..\..\source\Models\Settings\PlaytimeDisplayMode.cs" Link="Source\Models\Settings\PlaytimeDisplayMode.cs" />
+    <Compile Include="..\..\source\Models\Settings\CategoryCompletionBadgeMode.cs" Link="Source\Models\Settings\CategoryCompletionBadgeMode.cs" />
     <Compile Include="..\..\source\Models\Settings\ToastScreenCorner.cs" Link="Source\Models\Settings\ToastScreenCorner.cs" />
     <Compile Include="..\..\source\Models\Settings\GridVerticalAlignment.cs" Link="Source\Models\Settings\GridVerticalAlignment.cs" />
     <Compile Include="..\..\source\Models\Settings\CompactListSortMode.cs" Link="Source\Models\Settings\CompactListSortMode.cs" />
@@ -437,11 +447,15 @@
     <Compile Include="..\..\source\Common\MonotonicUtcClock.cs" Link="Source\Common\MonotonicUtcClock.cs" />
     <Compile Include="..\..\source\Services\Capture\ToastOverlayTrack.cs" Link="Source\Services\Capture\ToastOverlayTrack.cs" />
     <Compile Include="..\..\source\Services\Capture\OverlayBlitMath.cs" Link="Source\Services\Capture\OverlayBlitMath.cs" />
+    <Compile Include="..\..\source\Services\Capture\ToastOverlayExportMath.cs" Link="Source\Services\Capture\ToastOverlayExportMath.cs" />
     <Compile Include="..\..\source\Services\Capture\CaptureCropMath.cs" Link="Source\Services\Capture\CaptureCropMath.cs" />
     <Compile Include="..\..\source\Services\Capture\ResolutionCapMath.cs" Link="Source\Services\Capture\ResolutionCapMath.cs" />
     <Compile Include="..\..\source\Services\Capture\BitrateMath.cs" Link="Source\Services\Capture\BitrateMath.cs" />
+    <Compile Include="..\..\source\Services\Capture\CaptureWorkloadPolicy.cs" Link="Source\Services\Capture\CaptureWorkloadPolicy.cs" />
     <Compile Include="..\..\source\Common\WindowRectangles.cs" Link="Source\Common\WindowRectangles.cs" />
     <Compile Include="..\..\source\Services\Capture\PcmAudio.cs" Link="Source\Services\Capture\PcmAudio.cs" />
+    <Compile Include="..\..\source\Services\Recording\HapticEndpointClassifier.cs" Link="Source\Services\Recording\HapticEndpointClassifier.cs" />
+    <Compile Include="..\..\source\Services\UI\ControllerPadIds.cs" Link="Source\Services\UI\ControllerPadIds.cs" />
     <Compile Include="..\..\source\Services\UI\AchievementHotkeyTargetResolver.cs" Link="Source\Services\UI\AchievementHotkeyTargetResolver.cs" />
     <Compile Include="..\..\source\Services\UI\AchievementToastTemplateResolver.cs" Link="Source\Services\UI\AchievementToastTemplateResolver.cs" />
     <Compile Include="..\..\source\Services\UI\PlayAchResourceService.cs" Link="Source\Services\UI\PlayAchResourceService.cs" />

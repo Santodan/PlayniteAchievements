@@ -26,6 +26,7 @@ namespace PlayniteAchievements.Providers.BattleNet
 
         private readonly BattleNetApiClient _apiClient;
         private readonly BattleNetSessionManager _sessionManager;
+        private readonly DataForAzerothSessionManager _dataForAzerothSession;
         private readonly BattleNetScanner _scanner;
         private readonly ILogger _logger;
 
@@ -39,8 +40,12 @@ namespace PlayniteAchievements.Providers.BattleNet
             if (settings == null) throw new ArgumentNullException(nameof(settings));
 
             _logger = logger;
-            _apiClient = new BattleNetApiClient(logger);
+            _apiClient = new BattleNetApiClient(logger, playniteApi);
             _sessionManager = new BattleNetSessionManager(playniteApi, _apiClient, logger);
+            if (playniteApi != null)
+            {
+                _dataForAzerothSession = new DataForAzerothSessionManager(playniteApi, _apiClient, logger);
+            }
             _scanner = new BattleNetScanner(
                 _apiClient,
                 _sessionManager,
@@ -56,6 +61,11 @@ namespace PlayniteAchievements.Providers.BattleNet
 
         public bool IsAuthenticated => true;
 
+        // Intentionally null. Battle.net achievements come from the user's own OAuth credentials via
+        // BattleNetSessionManager, which the scanner drives directly; and the Data for Azeroth site
+        // session must never surface here, because the refresh pipeline drops providers whose
+        // AuthSession does not probe clean. A third-party site's bot check would then stop WoW and SC2
+        // achievements syncing altogether, when all it withholds is a rarity percentage.
         public ISessionManager AuthSession => null;
 
         public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
@@ -74,7 +84,7 @@ namespace PlayniteAchievements.Providers.BattleNet
 
         public ProviderSettingsViewBase CreateSettingsView()
         {
-            return new BattleNetSettingsView(_apiClient, _sessionManager, _logger);
+            return new BattleNetSettingsView(_apiClient, _sessionManager, _dataForAzerothSession, _logger);
         }
 
         public void Dispose()

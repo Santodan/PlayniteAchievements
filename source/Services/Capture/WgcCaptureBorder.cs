@@ -6,22 +6,85 @@ using Windows.Graphics.Capture;
 namespace PlayniteAchievements.Services.Capture
 {
     /// <summary>
-    /// Removes the Windows.Graphics.Capture on-screen border (the colored capture indicator Windows
-    /// draws around a captured window) for both the video recorder and the screenshot capture.
-    ///
-    /// Setting <c>GraphicsCaptureSession.IsBorderRequired = false</c> only takes effect once the app
-    /// has been granted "Borderless" capture access via
-    /// <c>GraphicsCaptureAccess.RequestAccessAsync(GraphicsCaptureAccessKind.Borderless)</c>; without
-    /// that grant the setter is rejected and the border stays. Both APIs are newer than the pinned
-    /// WinRT contracts (Windows 11 22H2 / contract 22621), so the access request is made by reflection
-    /// against the OS metadata and <c>IsBorderRequired</c> is set the same way. The border is never in
-    /// the captured pixels — this only clears the live on-screen indicator — so any failure (older
-    /// build, access denied) is swallowed and the border simply remains.
+    /// The Windows.Graphics.Capture session options the plugin sets on every capture it starts, for
+    /// both the video recorder and screenshot capture: the on-screen border (the colored capture
+    /// indicator Windows draws around a captured window), cursor compositing, and the producer's
+    /// update rate. Each of these postdates the Windows 10 contract this project compiles against and
+    /// is therefore reached by reflection, so an older Windows keeps capturing normally rather than
+    /// failing on a missing property.
     /// </summary>
     internal static class WgcCaptureBorder
     {
-        // Guards the one-time, process-wide Borderless access request.
         private static int _accessRequested;
+
+        /// <summary>
+        /// Asks newer WGC implementations not to produce frames faster than the recorder consumes
+        /// them. MinUpdateInterval arrived after the Windows 10 contract this project compiles
+        /// against, so reflection is deliberate: unsupported systems retain their existing capture
+        /// path, while Windows 11 24H2+ avoids servicing a high-refresh game at monitor rate only to
+        /// discard the excess frames in the fixed-rate encoder pump.
+        /// </summary>
+        public static bool LimitUpdateRate(GraphicsCaptureSession session, int fps)
+        {
+            if (session == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                var property = session.GetType().GetProperty("MinUpdateInterval");
+                if (property == null || !property.CanWrite || property.PropertyType != typeof(TimeSpan))
+                {
+                    return false;
+                }
+
+                property.SetValue(session, CaptureWorkloadPolicy.CaptureSourceInterval(fps));
+                return true;
+            }
+            catch
+            {
+                // Best effort: failure must never stop capture on an older or unusual projection.
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Stops WGC compositing the mouse cursor into captured frames. This defaults to on, and
+        /// leaving it on is what makes the pointer itself feel heavy while a capture is live: the
+        /// cursor normally rides the GPU's hardware cursor plane and moves at the rate the mouse
+        /// reports, but a capture that has to include it forces it through composition instead, so it
+        /// advances at frame cadence. Turning it off also keeps the desktop pointer out of clips and
+        /// unlock screenshots, where it was never part of what the game drew.
+        /// <para>
+        /// IsCursorCaptureEnabled postdates the Windows 10 contract this project compiles against, so
+        /// it is reached by reflection: older systems keep capturing exactly as before.
+        /// </para>
+        /// </summary>
+        public static bool SuppressCursor(GraphicsCaptureSession session)
+        {
+            if (session == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                var property = session.GetType().GetProperty("IsCursorCaptureEnabled");
+                if (property == null || !property.CanWrite || property.PropertyType != typeof(bool))
+                {
+                    return false;
+                }
+
+                property.SetValue(session, false);
+                return true;
+            }
+            catch
+            {
+                // Best effort: never stop a capture over a presentation option.
+                return false;
+            }
+        }
 
         public static void Suppress(GraphicsCaptureSession session)
         {
@@ -34,15 +97,15 @@ namespace PlayniteAchievements.Services.Capture
 
             try
             {
-                var prop = session.GetType().GetProperty("IsBorderRequired");
-                if (prop != null && prop.CanWrite)
+                var property = session.GetType().GetProperty("IsBorderRequired");
+                if (property != null && property.CanWrite)
                 {
-                    prop.SetValue(session, false);
+                    property.SetValue(session, false);
                 }
             }
             catch
             {
-                // Older build or access denied; the border isn't in the captured pixels anyway.
+                // Best effort: keep capture working if this OS denies or lacks border suppression.
             }
         }
 
@@ -50,33 +113,23 @@ namespace PlayniteAchievements.Services.Capture
         {
             if (Interlocked.Exchange(ref _accessRequested, 1) != 0)
             {
-                return; // Requested once per process; the grant persists for later sessions.
+                return;
             }
 
             try
             {
                 var accessType = ResolveWinRtType("Windows.Graphics.Capture.GraphicsCaptureAccess");
                 var kindType = ResolveWinRtType("Windows.Graphics.Capture.GraphicsCaptureAccessKind");
-                if (accessType == null || kindType == null)
-                {
-                    return; // Pre-22H2: the border cannot be removed.
-                }
-
-                var method = accessType.GetMethod("RequestAccessAsync", new[] { kindType });
+                var method = accessType?.GetMethod("RequestAccessAsync", new[] { kindType });
                 if (method == null)
                 {
                     return;
                 }
 
-                var borderless = Enum.Parse(kindType, "Borderless");
-                var asyncOp = method.Invoke(null, new[] { borderless });
-
-                // Block until the request resolves (Allowed/Denied) so IsBorderRequired is only set
-                // after the grant is in place. Runs on the capture/pump thread, never the UI thread.
-                if (asyncOp is IAsyncInfo info)
+                var operation = method.Invoke(null, new[] { Enum.Parse(kindType, "Borderless") });
+                if (operation is IAsyncInfo info)
                 {
-                    var spins = 0;
-                    while (info.Status == AsyncStatus.Started && spins++ < 200)
+                    for (var spins = 0; info.Status == AsyncStatus.Started && spins < 200; spins++)
                     {
                         Thread.Sleep(10);
                     }
@@ -84,12 +137,10 @@ namespace PlayniteAchievements.Services.Capture
             }
             catch
             {
-                // Best effort: if the request can't be made or is denied, the border stays.
+                // Best effort: the border remains if access is unavailable or denied.
             }
         }
 
-        // Resolves a WinRT type from the OS metadata by its runtime-class name, tolerant of the
-        // contract-assembly qualifier the running Windows build uses.
         private static Type ResolveWinRtType(string runtimeClassName)
         {
             return Type.GetType(runtimeClassName + ", Windows.Foundation.UniversalApiContract, ContentType=WindowsRuntime")

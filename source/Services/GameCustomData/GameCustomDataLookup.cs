@@ -47,6 +47,12 @@ namespace PlayniteAchievements.Services.GameCustomData
         public HashSet<string> SummaryFilteredAchievementApiNames { get; set; } =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>
+        /// Goal achievements in user-defined order. A list rather than a set because position
+        /// carries the goal order.
+        /// </summary>
+        public List<string> GoalAchievementApiNames { get; set; } = new List<string>();
+
         public Dictionary<string, string> AchievementNotes { get; set; } =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
@@ -138,6 +144,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                 SummaryFilteredAchievementApiNames = hasCustomData
                     ? CloneApiNameSet(customData?.SummaryFilteredAchievementApiNames)
                     : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                GoalAchievementApiNames = hasCustomData
+                    ? AchievementOrderHelper.NormalizeApiNames(customData?.GoalAchievementApiNames)
+                    : new List<string>(),
                 AchievementNotes = hasCustomData
                     ? CloneNoteMap(customData?.AchievementNotes)
                     : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -296,6 +305,14 @@ namespace PlayniteAchievements.Services.GameCustomData
             GameCustomDataStore store = null)
         {
             return ResolveGameCustomData(gameId, fallbackSettings, store).AchievementOrder;
+        }
+
+        public static List<string> GetGoalAchievements(
+            Guid gameId,
+            PersistedSettings fallbackSettings = null,
+            GameCustomDataStore store = null)
+        {
+            return ResolveGameCustomData(gameId, fallbackSettings, store).GoalAchievementApiNames;
         }
 
         public static Dictionary<string, string> GetAchievementCategoryOverrides(
@@ -628,6 +645,38 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             slugOverride = null;
             return false;
+        }
+
+        /// <summary>
+        /// Slug forced for Exophase rarity/metadata enrichment when another provider services the
+        /// game. Independent of the provider override path read by
+        /// <see cref="TryGetExophaseSlugOverride"/>, which selects the servicing provider.
+        /// </summary>
+        public static bool TryGetExophaseEnrichmentSlugOverride(
+            Guid gameId,
+            out string slugOverride,
+            GameCustomDataStore store = null)
+        {
+            slugOverride = null;
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            if (!TryLoad(gameId, out var customData, store))
+            {
+                return false;
+            }
+
+            slugOverride = NormalizeValue(customData?.ExophaseEnrichmentSlugOverride);
+            if (slugOverride != null &&
+                slugOverride.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                // The UI stores bare slugs; tolerate hand-edited files holding a full URL.
+                slugOverride = NormalizeValue(ExophaseApiClient.ExtractSlugFromUrl(slugOverride));
+            }
+
+            return !string.IsNullOrWhiteSpace(slugOverride);
         }
 
         public static bool TryGetShadPS4MatchIdOverride(

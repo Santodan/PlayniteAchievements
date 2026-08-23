@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -79,100 +80,91 @@ namespace PlayniteAchievements.Services.Capture
                 return false;
             }
 
-            MediaManager.Startup();
-            try
+            using (MediaFoundationRuntime.Acquire())
             {
-                using (var readerAttributes = new MediaAttributes(1))
+                try
                 {
-                    // Advanced video processing lets the reader chain the H.264 decoder plus a
-                    // color converter so it can hand us RGB32 directly.
-                    readerAttributes.Set(SourceReaderAttributeKeys.EnableAdvancedVideoProcessing, true);
-                    using (var videoReader = new SourceReader(baseClipPath, readerAttributes))
+                    using (var readerAttributes = new MediaAttributes(1))
                     {
-                        videoReader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
-                        videoReader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
-
-                        int frameW, frameH, fps;
-                        using (var request = new MediaType())
+                        // Advanced video processing lets the reader chain the H.264 decoder plus a
+                        // color converter so it can hand us RGB32 directly.
+                        readerAttributes.Set(SourceReaderAttributeKeys.EnableAdvancedVideoProcessing, true);
+                        using (var videoReader = new SourceReader(baseClipPath, readerAttributes))
                         {
-                            request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
-                            request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
-                            videoReader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
-                        }
+                            videoReader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
+                            videoReader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
 
-                        int stride;
-                        MediaType decodedType = videoReader.GetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream);
-                        using (decodedType)
-                        {
-                            var size = decodedType.Get(MediaTypeAttributeKeys.FrameSize);
-                            frameW = (int)(size >> 32);
-                            frameH = (int)(size & 0xffffffff);
-                            fps = ReadFps(decodedType, configuredFps);
-                            stride = ReadStride(decodedType, frameW);
-
-                            // The sink must agree with our row-order interpretation. When the
-                            // decoder's type omits MF_MT_DEFAULT_STRIDE, MF's convention for RGB
-                            // is bottom-up — the encoder's converter would vertically flip the
-                            // whole clip even though the video processor hands us top-down rows.
-                            // Declaring the stride we actually assume removes the ambiguity.
-                            decodedType.Set(MediaTypeAttributeKeys.DefaultStride, stride);
-
-                            // The decoder/converter hands back full-range RGB regardless of the base
-                            // clip's own range, so say so: the sink's RGB -> encoder converter then
-                            // compresses to the limited range the output type declares.
-                            MediaFoundationColor.ApplyFullRangeRgbInput(decodedType);
-
-                            SinkWriter sink = null;
-                            try
+                            int frameW, frameH, fps;
+                            using (var request = new MediaType())
                             {
-                                using (var sinkAttributes = new MediaAttributes(1))
-                                {
-                                    sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, 1);
-                                    sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
-                                }
-
-                                var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps, quality);
-                                var audioStream = TryAddAudio(
-                                    sink, baseClipPath, decodeToPcm: chimePcm != null, out var audioReader);
-                                var compositor = new OverlayCompositor(frameW, frameH, stride);
-                                using (audioReader)
-                                {
-                                    sink.BeginWriting();
-                                    var timer = Stopwatch.StartNew();
-                                    var counts = WriteComposited(
-                                        sink, videoStream, videoReader, audioStream, audioReader,
-                                        track, toastStartSeconds, toastMaxSeconds, trimLeadSeconds,
-                                        endSeconds, audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
-                                        frameW, frameH, OneSecond100ns / Math.Max(1, fps),
-                                        compositor);
-                                    sink.Finalize();
-                                    LogPassCost(timer, counts, frameW, frameH);
-                                }
-
-                                return true;
+                                request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
+                                request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
+                                videoReader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
                             }
-                            finally
+
+                            int stride;
+                            MediaType decodedType = videoReader.GetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream);
+                            using (decodedType)
                             {
-                                sink?.Dispose();
+                                var size = decodedType.Get(MediaTypeAttributeKeys.FrameSize);
+                                frameW = (int)(size >> 32);
+                                frameH = (int)(size & 0xffffffff);
+                                fps = ReadFps(decodedType, configuredFps);
+                                stride = ReadStride(decodedType, frameW);
+
+                                // The sink must agree with our row-order interpretation. When the
+                                // decoder's type omits MF_MT_DEFAULT_STRIDE, MF's convention for RGB
+                                // is bottom-up — the encoder's converter would vertically flip the
+                                // whole clip even though the video processor hands us top-down rows.
+                                // Declaring the stride we actually assume removes the ambiguity.
+                                decodedType.Set(MediaTypeAttributeKeys.DefaultStride, stride);
+
+                                // The decoder/converter hands back full-range RGB regardless of the base
+                                // clip's own range, so say so: the sink's RGB -> encoder converter then
+                                // compresses to the limited range the output type declares.
+                                MediaFoundationColor.ApplyFullRangeRgbInput(decodedType);
+
+                                SinkWriter sink = null;
+                                try
+                                {
+                                    using (var sinkAttributes = new MediaAttributes(1))
+                                    {
+                                        sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, 1);
+                                        sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
+                                    }
+
+                                    var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps, quality);
+                                    var audioStream = TryAddAudio(
+                                        sink, baseClipPath, decodeToPcm: chimePcm != null, out var audioReader);
+                                    var compositor = new OverlayCompositor(frameW, frameH, stride);
+                                    using (audioReader)
+                                    {
+                                        sink.BeginWriting();
+                                        var timer = Stopwatch.StartNew();
+                                        var counts = WriteComposited(
+                                            sink, videoStream, videoReader, audioStream, audioReader,
+                                            track, toastStartSeconds, toastMaxSeconds, trimLeadSeconds,
+                                            endSeconds, audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
+                                            frameW, frameH, OneSecond100ns / Math.Max(1, fps),
+                                            compositor);
+                                        sink.Finalize();
+                                        LogPassCost(timer, counts, frameW, frameH);
+                                    }
+
+                                    return true;
+                                }
+                                finally
+                                {
+                                    sink?.Dispose();
+                                }
                             }
                         }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "[Recording] Toast overlay re-encode failed; the toastless clip is kept.");
-                return false;
-            }
-            finally
-            {
-                try
+                catch (Exception ex)
                 {
-                    MediaManager.Shutdown();
-                }
-                catch
-                {
-                    // Startup/Shutdown are refcounted per process; ignore an unbalanced shutdown.
+                    _logger?.Warn(ex, "[Recording] Toast overlay re-encode failed; the toastless clip is kept.");
+                    return false;
                 }
             }
         }
@@ -267,8 +259,11 @@ namespace PlayniteAchievements.Services.Capture
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[Recording] Base clip has no usable audio stream; re-encoding video only.");
-                return -1;
+                _logger?.Debug(
+                    ex,
+                    "[Recording] Base clip audio could not be configured; aborting the overlay " +
+                    "pass so the caller keeps the toastless clip with its audio.");
+                throw;
             }
         }
 
@@ -297,7 +292,30 @@ namespace PlayniteAchievements.Services.Capture
             byte[] inflated = null;
             var inflatedIndex = -1;
 
+            // The card's shadow/glow halo, captured effect-free at record time and re-applied here
+            // per output frame as frame + layer × interpolated scale (the recorded pixels carry no
+            // effects). Inflated once for the whole export; composited into a scratch so the XOR
+            // reconstruction buffer stays pristine. The ray-burst layers work the same way but are
+            // timed: the cursor advances with output time and the current layer is inflated on
+            // change.
+            var shadowLayer = track.ShadowLayer;
+            var shadowPixels = shadowLayer?.Inflate();
+            byte[] glowScratch = null;
+            // Adjacent ray layers are crossfaded by output time — the rays drift slowly, so the
+            // blend reads as smooth motion at a fraction of the capture rate. Two layers stay
+            // inflated: the current one and the next, promoted forward as the cursor advances.
+            var rayCursor = -1;
+            var rayIndex = -1;
+            byte[] rayPixels = null;
+            var rayNextIndex = -1;
+            byte[] rayNextPixels = null;
+
             var pendingAudio = audioStream >= 0 ? ReadNextAudio(audioReader, trimLead) : null;
+            if (audioStream >= 0 && pendingAudio == null)
+            {
+                throw new InvalidDataException(
+                    "The base clip declared audio but produced no samples after lead trimming.");
+            }
 
             var counts = default(CompositeCounts);
 
@@ -339,17 +357,83 @@ namespace PlayniteAchievements.Services.Capture
                 {
                     if (time >= toastStart && time <= toastEnd)
                     {
-                        var sampleIndex = track.FindSampleIndexAtOrBefore((time - toastStart) / (double)OneSecond100ns);
+                        var secondsIntoTrack = (time - toastStart) / (double)OneSecond100ns;
+                        var sampleIndex = track.FindSampleIndexAtOrBefore(secondsIntoTrack);
                         if (sampleIndex >= 0 &&
                             TryGetOverlay(track, sampleIndex, ref inflated, ref inflatedIndex, out var overlayFrame))
                         {
-                            var trackSample = track.Samples[sampleIndex];
-                            var destRect = OverlayBlitMath.ScaleRect(
-                                trackSample.RelX + track.OffsetX, trackSample.RelY + track.OffsetY,
-                                overlayFrame.Width, overlayFrame.Height,
-                                trackSample.ClientW, trackSample.ClientH, frameW, frameH);
+                            // Pixels hold at the nearest-previous sample; the position is synthesized
+                            // (lone-toast corner + slide offset) and interpolated to this frame's
+                            // instant, so motion stays smooth even where pixel frames repeat.
+                            var destRect = ToastOverlayExportMath.ComputeDestRect(
+                                track, sampleIndex, secondsIntoTrack, frameW, frameH);
+
+                            rayCursor = ToastOverlayExportMath.FindRayLayerAtOrBefore(
+                                track, secondsIntoTrack, rayCursor);
+                            var displayIndex = track.RayLayers.Count > 0 ? Math.Max(0, rayCursor) : -1;
+                            if (displayIndex >= 0 && displayIndex != rayIndex)
+                            {
+                                rayPixels = displayIndex == rayNextIndex
+                                    ? rayNextPixels
+                                    : track.RayLayers[displayIndex].Layer?.Inflate();
+                                rayIndex = displayIndex;
+                            }
+
+                            var followIndex = displayIndex >= 0 && displayIndex + 1 < track.RayLayers.Count
+                                ? displayIndex + 1
+                                : -1;
+                            if (followIndex >= 0 && followIndex != rayNextIndex)
+                            {
+                                rayNextPixels = track.RayLayers[followIndex].Layer?.Inflate();
+                                rayNextIndex = followIndex;
+                            }
+
+                            var composeRays = rayIndex >= 0 && rayPixels != null &&
+                                LayerMatchesFrame(track.RayLayers[rayIndex].Layer, overlayFrame) &&
+                                rayPixels.Length == inflated.Length;
+                            var composeShadow = shadowPixels != null &&
+                                shadowLayer.Width == overlayFrame.Width &&
+                                shadowLayer.Height == overlayFrame.Height &&
+                                shadowPixels.Length == inflated.Length;
+
+                            var overlayPixels = inflated;
+                            if (composeRays || composeShadow)
+                            {
+                                if (glowScratch == null || glowScratch.Length != inflated.Length)
+                                {
+                                    glowScratch = new byte[inflated.Length];
+                                }
+
+                                Buffer.BlockCopy(inflated, 0, glowScratch, 0, inflated.Length);
+                                if (composeRays)
+                                {
+                                    var hostOpacity = ToastOverlayExportMath.GetHostOpacity(
+                                        track, sampleIndex, secondsIntoTrack);
+                                    var blend = ToastOverlayExportMath.GetRayLayerBlend(
+                                        track, rayCursor, secondsIntoTrack);
+                                    var blendNext = blend > 0 && followIndex >= 0 && rayNextPixels != null &&
+                                        LayerMatchesFrame(track.RayLayers[followIndex].Layer, overlayFrame) &&
+                                        rayNextPixels.Length == inflated.Length;
+                                    OverlayBlitMath.AddScaled(
+                                        glowScratch, rayPixels, hostOpacity * (blendNext ? 1.0 - blend : 1.0));
+                                    if (blendNext)
+                                    {
+                                        OverlayBlitMath.AddScaled(glowScratch, rayNextPixels, hostOpacity * blend);
+                                    }
+                                }
+
+                                if (composeShadow)
+                                {
+                                    OverlayBlitMath.AddScaled(
+                                        glowScratch, shadowPixels,
+                                        ToastOverlayExportMath.GetGlowScale(track, sampleIndex, secondsIntoTrack));
+                                }
+
+                                overlayPixels = glowScratch;
+                            }
+
                             outSample = compositor.Compose(
-                                sample, inflated, overlayFrame.Width, overlayFrame.Height, destRect);
+                                sample, overlayPixels, overlayFrame.Width, overlayFrame.Height, destRect);
                             if (outSample != null)
                             {
                                 counts.Composited++;
@@ -662,6 +746,12 @@ namespace PlayniteAchievements.Services.Capture
         private static long ToTicks(double seconds)
         {
             return (long)(Math.Max(0, seconds) * OneSecond100ns);
+        }
+
+        private static bool LayerMatchesFrame(ToastOverlayTrack.Frame layer, ToastOverlayTrack.Frame frame)
+        {
+            return layer != null && frame != null &&
+                layer.Width == frame.Width && layer.Height == frame.Height;
         }
     }
 }

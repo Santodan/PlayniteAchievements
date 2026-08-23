@@ -7,14 +7,17 @@ namespace PlayniteAchievements.Services.Capture
 {
     /// <summary>
     /// The recorded animation of one toast card across its on-screen lifetime: time-ordered
-    /// samples (card rect relative to the game client rect, physical pixels) referencing deduped
-    /// Deflate-compressed premultiplied-BGRA frames. Recorded live by the toast pipeline while the
-    /// wave displays and blitted into that achievement's unlock clip at export time, re-timed to
-    /// the clip's unlock anchor — so the clip shows only this card, with its genuine slide-in,
-    /// GIF, countdown and slide-out motion, regardless of what the on-screen wave stacked around
-    /// it. Rects are client-relative because the toast follows the game window on screen while
-    /// the game content never moves inside the captured frame; relative coordinates cancel window
-    /// motion but keep the slide animation.
+    /// samples referencing deduped Deflate-compressed premultiplied-BGRA frames. Recorded live by
+    /// the toast pipeline while the wave displays and blitted into that achievement's unlock clip
+    /// at export time, re-timed to the clip's unlock anchor — so the clip shows only this card,
+    /// with its genuine slide-in, GIF, countdown and slide-out motion, regardless of what the
+    /// on-screen wave stacked around it.
+    ///
+    /// The composited position is synthesized at export rather than replayed from measured screen
+    /// geometry: the card sits at the corner a genuine lone toast would occupy (computed from the
+    /// stored alignment, gap, and the current frame's own pixel size) plus the slide transform's
+    /// recorded per-sample offset. Live window motion — placement corrections, the follow loop,
+    /// stacking — therefore cannot reach the clip; only the intended slide motion does.
     /// </summary>
     internal sealed class ToastOverlayTrack
     {
@@ -32,15 +35,52 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>Track length: last sample time plus one sample interval.</summary>
         public double DurationSeconds { get; set; }
 
-        /// <summary>
-        /// Constant translation (client-relative physical pixels) that moves the card's settled
-        /// on-screen position to the synthetic single-toast corner, so the recorded motion of a
-        /// stacked card lands where a genuine lone toast would sit.
-        /// </summary>
-        public int OffsetX { get; set; }
+        /// <summary>Whether the toast corner is on the client rect's right edge.</summary>
+        public bool AlignRight { get; set; }
 
-        /// <summary>See <see cref="OffsetX"/>.</summary>
-        public int OffsetY { get; set; }
+        /// <summary>Whether the toast corner is on the client rect's bottom edge.</summary>
+        public bool AlignBottom { get; set; }
+
+        /// <summary>
+        /// The corner inset in DIPs (the visible-body gap less the card's glow margin), as the live
+        /// placer uses it; scaled by <see cref="MonitorScale"/> in the corner math.
+        /// </summary>
+        public double GapDip { get; set; }
+
+        /// <summary>The anchor monitor's scale, for turning <see cref="GapDip"/> physical.</summary>
+        public double MonitorScale { get; set; }
+
+        /// <summary>
+        /// The card's shadow/glow halo as a difference layer: with-effects render minus
+        /// effects-stripped render, premultiplied BGRA, captured once per wave at full effect
+        /// opacity. The halo's shape is the blur of the card's static alpha silhouette, so it never
+        /// changes across ticks — only its opacity animates, recorded per sample as
+        /// <see cref="Sample.GlowScale"/> and composited at export as frame + layer × scale. This
+        /// is what lets the per-tick capture skip the software blur (the dominant render cost).
+        /// Null when the card carries no effects.
+        /// </summary>
+        public Frame ShadowLayer { get; set; }
+
+        /// <summary>
+        /// The card's ray-burst flourish as time-ordered difference layers: with-rays render minus
+        /// the bare card render, premultiplied BGRA, captured at a fraction of the sample rate
+        /// (the rays are a slow drift, so a lower cadence reads smoothly). Export composites the
+        /// nearest-previous layer, scaled by the sample's host opacity, between the card pixels
+        /// and the shadow layer. Empty when the card shows no ray burst. Excluding the rays from
+        /// the per-tick render matters because their layered arrow geometry costs a fixed
+        /// flattening price per software rasterization — measured about twice the whole rest of
+        /// the card.
+        /// </summary>
+        public List<TimedLayer> RayLayers { get; } = new List<TimedLayer>();
+
+        /// <summary>One captured difference layer and the track time it was captured at.</summary>
+        public struct TimedLayer
+        {
+            /// <summary>Milliseconds since the track's first sample.</summary>
+            public int ElapsedMs;
+
+            public Frame Layer;
+        }
 
         /// <summary>Time-ordered samples; consecutive identical pixels share one frame.</summary>
         public List<Sample> Samples { get; } = new List<Sample>();
@@ -57,11 +97,40 @@ namespace PlayniteAchievements.Services.Capture
             /// <summary>Index into <see cref="Frames"/>; -1 when the frame was dropped (memory cap).</summary>
             public int FrameIndex;
 
-            /// <summary>Card top-left relative to the game client rect, physical pixels.</summary>
-            public int RelX;
+            /// <summary>
+            /// The slide transform's value at this tick, physical pixels, sub-pixel precision.
+            /// Zero while the card rests; the slide-in and slide-out are the only nonzero spans.
+            /// </summary>
+            public double SlideXPhys;
 
-            /// <summary>See <see cref="RelX"/>.</summary>
-            public int RelY;
+            /// <summary>See <see cref="SlideXPhys"/>.</summary>
+            public double SlideYPhys;
+
+            /// <summary>
+            /// Multiplier for <see cref="ToastOverlayTrack.ShadowLayer"/> at this tick: the glow
+            /// effect's animated opacity relative to the opacity the layer was captured at, times
+            /// the slide host's opacity. Interpolated at export, so the glow pulse plays at the
+            /// clip's full frame rate even when pixel frames repeat.
+            /// </summary>
+            public double GlowScale;
+
+            /// <summary>
+            /// The card's on-screen size in physical pixels. This, not the referenced frame's
+            /// bitmap size, is what the corner math and the destination rect use: pixels may be
+            /// captured at a reduced scale (the clip's own scale, or lower under load) and are
+            /// stretched back to this size at the blit.
+            /// </summary>
+            public int CardWPhys;
+
+            /// <summary>See <see cref="CardWPhys"/>.</summary>
+            public int CardHPhys;
+
+            /// <summary>
+            /// The slide host's opacity at this tick. Scales the ray layers at export (a fade
+            /// theme's fade must reach them; the card pixels carry it already, and the shadow
+            /// layer's <see cref="GlowScale"/> folds it in with the pulse).
+            /// </summary>
+            public double HostOpacity;
 
             /// <summary>Game client width at this tick, physical pixels (scales rects into video frames).</summary>
             public int ClientW;

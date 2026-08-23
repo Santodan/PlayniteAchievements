@@ -11,11 +11,15 @@ using System.Windows.Media.Imaging;
 namespace PlayniteAchievements.Views.Helpers
 {
     /// <summary>
-    /// Decodes animated images into frozen frames and builds the WPF animation that plays them.
-    /// Handles GIF and WebP, which differ in how much work they need: WIC returns a GIF's raw
-    /// sub-frames, which must be composited against a running canvas, but returns a WebP's frames
-    /// already composited to full canvas.
+    /// Decodes animated WebP into frozen frames and builds the WPF animation that plays them.
+    /// WIC returns a WebP's frames already composited to full canvas, so each one is retained as
+    /// it comes and the animation is a key-frame sequence over those snapshots.
     /// </summary>
+    /// <remarks>
+    /// GIFs do not come through here. <see cref="NativeGifAnimation"/> streams them at their own
+    /// dimensions from compressed bytes, which needs neither a retained-frame budget nor a
+    /// canvas walk.
+    /// </remarks>
     internal static class AnimatedImageHelper
     {
         private const string GrayPrefix = "gray:";
@@ -40,8 +44,7 @@ namespace PlayniteAchievements.Views.Helpers
         private const int BytesPerCompositedPixel = 4;
 
         // Below this an animation is not worth retaining; the caller falls back to the static
-        // image path instead. It is also what sends a single-frame GIF or a still WebP down the
-        // ordinary image path.
+        // image path instead. It is also what sends a still WebP down the ordinary image path.
         private const int MinAnimationFrames = 2;
 
         // Applied when a frame declares no usable duration of its own.
@@ -180,7 +183,7 @@ namespace PlayniteAchievements.Views.Helpers
             applyGray = applyGray || HasGrayPrefix(uri);
 
             if (string.IsNullOrWhiteSpace(normalizedSource) ||
-                !ImageFormats.IsAnimationCandidate(normalizedSource) ||
+                !ImageFormats.IsWebpExtension(ImageFormats.GetExtension(normalizedSource)) ||
                 !Path.IsPathRooted(normalizedSource) ||
                 !File.Exists(normalizedSource))
             {
@@ -222,84 +225,53 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// Decodes one source into frozen frames and their delays, dispatching on format. Returns
-        /// null when the source is a still image, exceeds the retention budget, or cannot be
-        /// decoded on this machine.
+        /// Decodes one WebP source into frozen frames and their delays. Returns null when the
+        /// source is a still image, exceeds the retention budget, or cannot be decoded on this
+        /// machine.
         /// </summary>
         private static (List<BitmapSource> Frames, List<int> Delays)? Decode(
             string normalizedSource,
             bool applyGray,
             int decodePixel)
         {
+            // Checked up front so a machine without the codec costs a cheap boolean per image
+            // rather than a thrown decoder exception.
+            if (!WebpCodecProbe.IsSupported)
+            {
+                return null;
+            }
+
             // IgnoreImageCache bypasses WPF's URI-keyed decode cache: the managed image slots reuse
             // fixed file names, so an overwritten animation at the same path must decode fresh bytes.
             const BitmapCreateOptions createOptions =
                 BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreImageCache;
             var sourceUri = new Uri(normalizedSource, UriKind.Absolute);
 
-            if (ImageFormats.IsWebpExtension(ImageFormats.GetExtension(normalizedSource)))
-            {
-                // Checked up front so a machine without the codec costs a cheap boolean per image
-                // rather than a thrown decoder exception.
-                if (!WebpCodecProbe.IsSupported)
-                {
-                    return null;
-                }
-
-                var webpDecoder = BitmapDecoder.Create(sourceUri, createOptions, BitmapCacheOption.OnLoad);
-                if (webpDecoder?.Frames == null || webpDecoder.Frames.Count < MinAnimationFrames)
-                {
-                    return null;
-                }
-
-                var sourceDelays = BuildWebpFrameDelays(normalizedSource, webpDecoder.Frames.Count);
-                var webpFrames = BuildFullCanvasFrames(
-                    webpDecoder,
-                    applyGray,
-                    decodePixel,
-                    sourceDelays,
-                    out var webpDelays);
-                if (webpFrames.Count == 0)
-                {
-                    return null;
-                }
-
-                return (webpFrames, webpDelays);
-            }
-
-            var decoder = new GifBitmapDecoder(sourceUri, createOptions, BitmapCacheOption.OnLoad);
-            if (decoder.Frames == null || decoder.Frames.Count == 0)
+            var decoder = BitmapDecoder.Create(sourceUri, createOptions, BitmapCacheOption.OnLoad);
+            if (decoder?.Frames == null || decoder.Frames.Count < MinAnimationFrames)
             {
                 return null;
             }
 
-            var sourceGifDelays = BuildFrameDelays(decoder, decoder.Frames.Count);
-            var composited = BuildCompositedGifFrames(
+            var sourceDelays = BuildWebpFrameDelays(normalizedSource, decoder.Frames.Count);
+            var frames = BuildFullCanvasFrames(
                 decoder,
                 applyGray,
                 decodePixel,
-                sourceGifDelays,
+                sourceDelays,
                 out var delays);
-            if (composited.Count == 0)
+            if (frames.Count == 0)
             {
                 return null;
             }
 
-            if (delays.Count != composited.Count)
-            {
-                return null;
-            }
-
-            return (composited, delays);
+            return (frames, delays);
         }
 
         /// <summary>
-        /// Takes decoder frames as they are, for formats WIC already composites to full canvas.
+        /// Takes decoder frames as they are, which is what WebP needs: WIC hands back each frame
+        /// already composited to full canvas.
         /// </summary>
-        /// <remarks>
-        /// Running these through the GIF canvas walk would blend each frame over its predecessor a
-        /// second time, so the two paths must stay separate.
-        /// </remarks>
         private static List<BitmapSource> BuildFullCanvasFrames(
             BitmapDecoder decoder,
             bool applyGray,
@@ -467,45 +439,6 @@ namespace PlayniteAchievements.Views.Helpers
             return normalized;
         }
 
-        private static int GetGifFrameDelayMilliseconds(BitmapFrame frame)
-        {
-            try
-            {
-                if (frame?.Metadata is BitmapMetadata metadata)
-                {
-                    var delay = ReadMetadataInt(metadata, "/grctlext/Delay");
-                    if (delay > 0)
-                    {
-                        return delay * 10;
-                    }
-                }
-            }
-            catch
-            {
-            }
-
-            return DefaultFrameDelayMilliseconds;
-        }
-
-        private static List<int> BuildFrameDelays(GifBitmapDecoder decoder, int frameCount)
-        {
-            var delays = new List<int>(frameCount);
-            for (var i = 0; i < frameCount; i++)
-            {
-                var delayMilliseconds = i < decoder.Frames.Count
-                    ? GetGifFrameDelayMilliseconds(decoder.Frames[i])
-                    : DefaultFrameDelayMilliseconds;
-                if (delayMilliseconds < 20)
-                {
-                    delayMilliseconds = DefaultFrameDelayMilliseconds;
-                }
-
-                delays.Add(delayMilliseconds);
-            }
-
-            return delays;
-        }
-
         /// <summary>
         /// Per-frame delays for a WebP, read from its ANMF chunks. Falls back to the default for
         /// any frame the container does not account for, so the delay list always matches the
@@ -532,7 +465,7 @@ namespace PlayniteAchievements.Views.Helpers
         /// to the source duration even when the pixel budget permits only a small number of
         /// frames. This is especially important for large toast backgrounds: retaining only the
         /// leading frames made that short prefix loop repeatedly and look much faster than the
-        /// original GIF.
+        /// original file.
         /// </summary>
         internal static void BuildFrameRetentionPlan(
             int availableFrames,
@@ -840,337 +773,6 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             return frameCount;
-        }
-
-        private static List<BitmapSource> BuildCompositedGifFrames(
-            GifBitmapDecoder decoder,
-            bool applyGray,
-            int decodePixel,
-            IList<int> sourceDelays,
-            out List<int> retainedDelays)
-        {
-            var result = new List<BitmapSource>();
-            retainedDelays = new List<int>();
-            if (decoder?.Frames == null || decoder.Frames.Count == 0)
-            {
-                return result;
-            }
-
-            var sourceWidth = decoder.Frames[0].PixelWidth;
-            var sourceHeight = decoder.Frames[0].PixelHeight;
-            ResolveAnimationDimensions(
-                sourceWidth,
-                sourceHeight,
-                decodePixel,
-                decoder.Frames.Count,
-                out var width,
-                out var height);
-            var retainedFrameCount = ResolveFrameBudget(width, height, decoder.Frames.Count);
-            BuildFrameRetentionPlan(
-                decoder.Frames.Count,
-                retainedFrameCount,
-                sourceDelays,
-                out var retainedIndices,
-                out var plannedDelays);
-            if (retainedIndices.Count == 0)
-            {
-                return result;
-            }
-
-            var stride = width * 4;
-            var canvas = new byte[stride * height];
-
-            int prevLeft = 0;
-            int prevTop = 0;
-            int prevWidth = 0;
-            int prevHeight = 0;
-            int prevDisposal = 0;
-            byte[] previousCanvasBackup = null;
-
-            var nextRetained = 0;
-            for (var i = 0; i < decoder.Frames.Count; i++)
-            {
-                ApplyPreviousDisposal(canvas, stride, prevDisposal, prevLeft, prevTop, prevWidth, prevHeight, previousCanvasBackup);
-                previousCanvasBackup = null;
-
-                var frame = decoder.Frames[i];
-                if (frame == null)
-                {
-                    continue;
-                }
-
-                GetGifFrameGeometry(
-                    frame,
-                    sourceWidth,
-                    sourceHeight,
-                    out var sourceLeft,
-                    out var sourceTop,
-                    out var sourceFrameWidth,
-                    out var sourceFrameHeight);
-                ScaleGifFrameGeometry(
-                    sourceLeft,
-                    sourceTop,
-                    sourceFrameWidth,
-                    sourceFrameHeight,
-                    sourceWidth,
-                    sourceHeight,
-                    width,
-                    height,
-                    out var left,
-                    out var top,
-                    out var frameWidth,
-                    out var frameHeight);
-                var disposal = 0;
-                if (frame.Metadata is BitmapMetadata frameMetadata)
-                {
-                    disposal = ReadMetadataInt(frameMetadata, "/grctlext/Disposal");
-                }
-
-                if (disposal == 3)
-                {
-                    previousCanvasBackup = (byte[])canvas.Clone();
-                }
-
-                var framePixels = CopyFramePixels(frame, frameWidth, frameHeight);
-                AlphaBlendFrame(canvas, stride, width, height, framePixels, frameWidth, frameHeight, left, top);
-
-                if (nextRetained < retainedIndices.Count && i == retainedIndices[nextRetained])
-                {
-                    var snapshot = BitmapSource.Create(
-                        width,
-                        height,
-                        96,
-                        96,
-                        PixelFormats.Bgra32,
-                        null,
-                        canvas,
-                        stride);
-                    if (applyGray)
-                    {
-                        snapshot = ConvertToGrayscale(snapshot);
-                    }
-
-                    if (snapshot.CanFreeze)
-                    {
-                        snapshot.Freeze();
-                    }
-
-                    result.Add(snapshot);
-                    retainedDelays.Add(plannedDelays[nextRetained]);
-                    nextRetained++;
-                }
-
-                prevLeft = left;
-                prevTop = top;
-                prevWidth = frameWidth;
-                prevHeight = frameHeight;
-                prevDisposal = disposal;
-            }
-
-            return result;
-        }
-
-        private static void ScaleGifFrameGeometry(
-            int sourceLeft,
-            int sourceTop,
-            int sourceFrameWidth,
-            int sourceFrameHeight,
-            int sourceCanvasWidth,
-            int sourceCanvasHeight,
-            int targetCanvasWidth,
-            int targetCanvasHeight,
-            out int left,
-            out int top,
-            out int width,
-            out int height)
-        {
-            left = (int)((long)sourceLeft * targetCanvasWidth / sourceCanvasWidth);
-            top = (int)((long)sourceTop * targetCanvasHeight / sourceCanvasHeight);
-
-            var sourceRight = Math.Min(sourceCanvasWidth, sourceLeft + sourceFrameWidth);
-            var sourceBottom = Math.Min(sourceCanvasHeight, sourceTop + sourceFrameHeight);
-            var right = (int)Math.Ceiling(sourceRight * (targetCanvasWidth / (double)sourceCanvasWidth));
-            var bottom = (int)Math.Ceiling(sourceBottom * (targetCanvasHeight / (double)sourceCanvasHeight));
-
-            left = Math.Max(0, Math.Min(targetCanvasWidth - 1, left));
-            top = Math.Max(0, Math.Min(targetCanvasHeight - 1, top));
-            width = Math.Max(1, Math.Min(targetCanvasWidth - left, right - left));
-            height = Math.Max(1, Math.Min(targetCanvasHeight - top, bottom - top));
-        }
-
-        private static void ApplyPreviousDisposal(byte[] canvas, int stride, int disposal, int left, int top, int width, int height, byte[] backup)
-        {
-            if (canvas == null || width <= 0 || height <= 0)
-            {
-                return;
-            }
-
-            if (disposal == 2)
-            {
-                for (var y = 0; y < height; y++)
-                {
-                    var canvasRow = (top + y) * stride + (left * 4);
-                    var length = width * 4;
-                    if (canvasRow < 0 || canvasRow + length > canvas.Length)
-                    {
-                        continue;
-                    }
-
-                    Array.Clear(canvas, canvasRow, length);
-                }
-            }
-            else if (disposal == 3 && backup != null && backup.Length == canvas.Length)
-            {
-                Buffer.BlockCopy(backup, 0, canvas, 0, canvas.Length);
-            }
-        }
-
-        private static byte[] CopyFramePixels(BitmapSource frame, int width, int height)
-        {
-            var source = ResizeAndDetachFrame(frame, width, height);
-            if (source.Format != PixelFormats.Bgra32)
-            {
-                source = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
-            }
-
-            var stride = width * 4;
-            var pixels = new byte[stride * height];
-            source.CopyPixels(pixels, stride, 0);
-            return pixels;
-        }
-
-        private static void AlphaBlendFrame(
-            byte[] canvas,
-            int canvasStride,
-            int canvasWidth,
-            int canvasHeight,
-            byte[] framePixels,
-            int frameWidth,
-            int frameHeight,
-            int left,
-            int top)
-        {
-            if (framePixels == null)
-            {
-                return;
-            }
-
-            var frameStride = frameWidth * 4;
-            for (var y = 0; y < frameHeight; y++)
-            {
-                var canvasY = top + y;
-                if (canvasY < 0 || canvasY >= canvasHeight)
-                {
-                    continue;
-                }
-
-                for (var x = 0; x < frameWidth; x++)
-                {
-                    var canvasX = left + x;
-                    if (canvasX < 0 || canvasX >= canvasWidth)
-                    {
-                        continue;
-                    }
-
-                    var srcIndex = y * frameStride + x * 4;
-                    var dstIndex = canvasY * canvasStride + canvasX * 4;
-
-                    var srcB = framePixels[srcIndex + 0];
-                    var srcG = framePixels[srcIndex + 1];
-                    var srcR = framePixels[srcIndex + 2];
-                    var srcA = framePixels[srcIndex + 3];
-
-                    if (srcA == 255)
-                    {
-                        canvas[dstIndex + 0] = srcB;
-                        canvas[dstIndex + 1] = srcG;
-                        canvas[dstIndex + 2] = srcR;
-                        canvas[dstIndex + 3] = srcA;
-                        continue;
-                    }
-
-                    if (srcA == 0)
-                    {
-                        continue;
-                    }
-
-                    var dstB = canvas[dstIndex + 0];
-                    var dstG = canvas[dstIndex + 1];
-                    var dstR = canvas[dstIndex + 2];
-                    var dstA = canvas[dstIndex + 3];
-
-                    var invA = 255 - srcA;
-                    canvas[dstIndex + 0] = (byte)((srcB * srcA + dstB * invA) / 255);
-                    canvas[dstIndex + 1] = (byte)((srcG * srcA + dstG * invA) / 255);
-                    canvas[dstIndex + 2] = (byte)((srcR * srcA + dstR * invA) / 255);
-                    canvas[dstIndex + 3] = (byte)Math.Min(255, srcA + (dstA * invA) / 255);
-                }
-            }
-        }
-
-        private static void GetGifFrameGeometry(BitmapFrame frame, int canvasWidth, int canvasHeight, out int left, out int top, out int width, out int height)
-        {
-            left = 0;
-            top = 0;
-            width = Math.Max(1, Math.Min(canvasWidth, frame.PixelWidth));
-            height = Math.Max(1, Math.Min(canvasHeight, frame.PixelHeight));
-
-            try
-            {
-                if (frame?.Metadata is BitmapMetadata metadata)
-                {
-                    left = Math.Max(0, ReadMetadataInt(metadata, "/imgdesc/Left"));
-                    top = Math.Max(0, ReadMetadataInt(metadata, "/imgdesc/Top"));
-
-                    var w = ReadMetadataInt(metadata, "/imgdesc/Width");
-                    var h = ReadMetadataInt(metadata, "/imgdesc/Height");
-                    if (w > 0)
-                    {
-                        width = Math.Min(canvasWidth, w);
-                    }
-
-                    if (h > 0)
-                    {
-                        height = Math.Min(canvasHeight, h);
-                    }
-                }
-            }
-            catch
-            {
-            }
-
-            if (left + width > canvasWidth)
-            {
-                width = Math.Max(1, canvasWidth - left);
-            }
-
-            if (top + height > canvasHeight)
-            {
-                height = Math.Max(1, canvasHeight - top);
-            }
-        }
-
-        private static int ReadMetadataInt(BitmapMetadata metadata, string query)
-        {
-            if (metadata == null || string.IsNullOrWhiteSpace(query) || !metadata.ContainsQuery(query))
-            {
-                return 0;
-            }
-
-            var value = metadata.GetQuery(query);
-            switch (value)
-            {
-                case byte b:
-                    return b;
-                case ushort s:
-                    return s;
-                case uint i:
-                    return (int)i;
-                case int j:
-                    return j;
-                default:
-                    return 0;
-            }
         }
 
         private static BitmapSource ConvertToGrayscale(BitmapSource source)

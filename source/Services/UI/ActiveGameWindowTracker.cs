@@ -350,6 +350,43 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// Whether a process belongs to this Playnite instance's child tree. Null means the live
+        /// process snapshot could not establish the relationship safely.
+        /// </summary>
+        public bool? IsInPlayniteProcessTree(int processId)
+        {
+            var parents = SnapshotParentMap();
+            if (processId <= 0 || parents == null)
+            {
+                return null;
+            }
+
+            var playniteProcessId = Process.GetCurrentProcess().Id;
+            var current = processId;
+            for (var depth = 0; depth < MaxParentChainDepth; depth++)
+            {
+                if (current == playniteProcessId)
+                {
+                    return true;
+                }
+
+                if (!parents.TryGetValue(current, out var parent) || parent == current)
+                {
+                    return null;
+                }
+
+                if (parent <= 0)
+                {
+                    return false;
+                }
+
+                current = parent;
+            }
+
+            return null;
+        }
+
         // === Foreground resolution ===
 
         /// <summary>

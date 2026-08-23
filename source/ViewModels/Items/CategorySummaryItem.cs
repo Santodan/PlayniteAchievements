@@ -17,5 +17,26 @@ namespace PlayniteAchievements.ViewModels.Items
         /// theme-facing summary can expose type flags (IsBaseCategory, etc.).
         /// </summary>
         public string CategoryType { get; set; }
+
+        private bool _allowCompletionBadge = true;
+
+        /// <summary>
+        /// Whether the CategoryCompletionBadgeMode display setting permits this row to render the
+        /// completion badge. Stamped by <see cref="PlayniteAchievements.Services.Summaries.CategorySummaryBuilder"/>
+        /// in configured category order, so it is stable across the grid's column sorts.
+        /// </summary>
+        public bool AllowCompletionBadge
+        {
+            get => _allowCompletionBadge;
+            set
+            {
+                if (SetValueAndReturn(ref _allowCompletionBadge, value))
+                {
+                    OnPropertyChanged(nameof(ShowCompletionBadge));
+                }
+            }
+        }
+
+        public override bool ShowCompletionBadge => IsCompleted && AllowCompletionBadge;
     }
 }

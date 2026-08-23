@@ -32,5 +32,16 @@ namespace PlayniteAchievements.Tests.Services.Recording
             Assert.ThrowsException<ArgumentOutOfRangeException>(
                 () => CaptureTimelineClock.Project(DateTime.UtcNow, 0, 1, 0));
         }
+
+        [TestMethod]
+        public void TimestampTo100ns_UsesTheSameNonAccumulatingQpcGrid()
+        {
+            Assert.AreEqual(3_333_333L, CaptureTimelineClock.TimestampTo100ns(1, 3));
+            Assert.AreEqual(6_666_666L, CaptureTimelineClock.TimestampTo100ns(2, 3));
+            Assert.AreEqual(10_000_000L, CaptureTimelineClock.TimestampTo100ns(3, 3));
+            Assert.AreEqual(30_000_000L, CaptureTimelineClock.TimestampTo100ns(9, 3));
+            Assert.ThrowsException<ArgumentOutOfRangeException>(
+                () => CaptureTimelineClock.TimestampTo100ns(1, 0));
+        }
     }
 }

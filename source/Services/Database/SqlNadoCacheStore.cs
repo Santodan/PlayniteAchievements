@@ -2360,13 +2360,14 @@ namespace PlayniteAchievements.Services.Database
 
                 // Full / Shared / Installed / Recent all source from the friend's actual ownership.
                 // They differ only by the my-library intersection: Full includes provider-only games
-                // (everything the friend owns), while Shared / Installed / Recent require a
-                // Playnite-mapped game. Installed additionally filters to the installed-library ids
-                // carried on the options; Recent restricts to recent friend playtime.
+                // (everything the friend owns), as does Recent when the request opted in via
+                // DiscoverProviderOnlyGames, while Shared / Installed require a Playnite-mapped
+                // game. Installed additionally filters to the installed-library ids carried on the
+                // options; Recent restricts to recent friend playtime.
                 return LoadSharedFriendRefreshCandidates(
                     db,
                     providerKey,
-                    includeProviderOnly: FriendRefreshPolicy.DiscoversProviderOnlyGames(options.Scope),
+                    includeProviderOnly: options.DiscoversProviderOnlyGames(),
                     providerOnlyOnly: false,
                     options);
             });
@@ -6679,6 +6680,17 @@ namespace PlayniteAchievements.Services.Database
                 var incomingIsCapstone = isCapstone ? 1L : 0L;
                 var incomingStoredRarity = incomingRarity;
                 var incomingProgressMax = achievement.ProgressDenom;
+
+                // A payload that does not know the rarity must not blank what is already stored.
+                if (SqlNadoCacheBehavior.ShouldKeepStoredRarity(
+                        incomingGlobalPercent,
+                        achievement.Rarity,
+                        existing.GlobalPercentUnlocked,
+                        existing.Rarity))
+                {
+                    incomingGlobalPercent = existing.GlobalPercentUnlocked;
+                    incomingStoredRarity = existing.Rarity;
+                }
 
                 var changed = !NullableEquals(NormalizeDbText(existing.DisplayName), incomingDisplayName) ||
                               !NullableEquals(NormalizeDbText(existing.Description), incomingDescription) ||

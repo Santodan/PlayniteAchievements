@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -50,7 +51,6 @@ namespace PlayniteAchievements.Views.Controls
         private int _paletteGeneration = -1;
         private Size _arrangedSize;
         private bool _appearanceHooked;
-        private bool _subscribed;
         private bool _localEpochSet;
         private double _localEpochMs;
 
@@ -268,7 +268,43 @@ namespace PlayniteAchievements.Views.Controls
 
         bool IRayAnimationTarget.WantsRayFrames => IsActive && IsVisible && ShouldDraw();
 
-        void IRayAnimationTarget.OnRayFrame() => Redraw();
+        /// <summary>
+        /// Whether any part of this burst falls inside the window. IsVisible stays true for an
+        /// element scrolled out of its list's viewport - it is merely clipped - so without this a
+        /// wall of icons keeps rebuilding arrow geometry for rows nobody can see. Checked per
+        /// frame rather than in WantsRayFrames: the driver drops a target whose WantsRayFrames
+        /// goes false, and no event fires when an element scrolls back into view, so a burst
+        /// unsubscribed for being clipped would stay frozen forever.
+        /// </summary>
+        private bool IsWithinViewport()
+        {
+            var root = PresentationSource.FromVisual(this)?.RootVisual as FrameworkElement;
+            if (root == null || root.ActualWidth <= 0 || root.ActualHeight <= 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                var bounds = TransformToAncestor(root).TransformBounds(new Rect(RenderSize));
+                return bounds.IntersectsWith(new Rect(0, 0, root.ActualWidth, root.ActualHeight));
+            }
+            catch (InvalidOperationException)
+            {
+                // Not connected to the ancestor yet; treat as visible and let the next tick decide.
+                return true;
+            }
+        }
+
+        void IRayAnimationTarget.OnRayFrame()
+        {
+            // Clipped out of the scroll viewport: stay subscribed and skip the frame, so the
+            // burst resumes the moment it scrolls back in.
+            if (IsWithinViewport())
+            {
+                Redraw();
+            }
+        }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
@@ -295,7 +331,7 @@ namespace PlayniteAchievements.Views.Controls
             // The track itself is kept: it is cached anyway, and dropping it would only make a
             // re-shown row flash its fallback for a frame.
             CancelPendingLoad();
-            Unsubscribe();
+            RayAnimationDriver.Unsubscribe(this);
         }
 
         private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -464,34 +500,19 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        // No subscribed flag is kept here: the driver drops targets on its own when their
+        // WantsRayFrames goes false, so a local flag can go stale and block resubscription.
+        // Subscribe and Unsubscribe are idempotent, so the driver's list is the single record.
         private void UpdateSubscription()
         {
-            var wants = IsActive && IsVisible && IsLoaded && ShouldDraw();
-            if (wants == _subscribed)
-            {
-                return;
-            }
-
-            if (wants)
+            if (IsActive && IsVisible && IsLoaded && ShouldDraw())
             {
                 RayAnimationDriver.Subscribe(this);
-                _subscribed = true;
             }
             else
             {
-                Unsubscribe();
+                RayAnimationDriver.Unsubscribe(this);
             }
-        }
-
-        private void Unsubscribe()
-        {
-            if (!_subscribed)
-            {
-                return;
-            }
-
-            RayAnimationDriver.Unsubscribe(this);
-            _subscribed = false;
         }
 
         /// <summary>
@@ -574,8 +595,12 @@ namespace PlayniteAchievements.Views.Controls
                 // are going around: a lap of a notification card is several laps of an icon.
                 var laps = RayArrowLayout.ScaleLapsToTrack(CurrentLaps(persisted), mapped);
 
-                var written = RayArrowLayout.BuildSpines(mapped, laps, BurstScale, count, _spines);
-                if (written <= 0)
+                // Every phase-locked burst of the same size and artwork traces the same arrows at
+                // the same phase, so the geometry is identical across all of them - only the tier
+                // brush differs. Building it once per frame and sharing the frozen result turns a
+                // wall of icons from one tessellation each into one for the whole wall.
+                var shared = GetSharedLayerGeometries(mapped, laps, count, palette.Layers.Count);
+                if (shared == null)
                 {
                     return;
                 }
@@ -584,13 +609,104 @@ namespace PlayniteAchievements.Views.Controls
                 // out soft at its edges and bright along its spine.
                 for (var i = 0; i < palette.Layers.Count; i++)
                 {
-                    DrawPass(context, written, palette.Layers[i]);
+                    if (shared[i] != null)
+                    {
+                        context.DrawGeometry(palette.Layers[i].Brush, null, shared[i]);
+                    }
                 }
-
             }
         }
 
-        private void DrawPass(DrawingContext context, int count, RarityAppearanceHelper.RayGlowLayer layer)
+        // Keyed by everything the arrow geometry depends on, so a stale entry can never be reused:
+        // the traced silhouette, the slot it was mapped into, the shaping properties, and the phase.
+        private struct LayerGeometryKey : IEquatable<LayerGeometryKey>
+        {
+            public string SubjectKey;
+            public bool HasTrack;
+            public double SlotWidth;
+            public double SlotHeight;
+            public double BurstScale;
+            public double SubjectInset;
+            public double CornerRadiusRatio;
+            public int Count;
+            public double Laps;
+
+            public bool Equals(LayerGeometryKey other) =>
+                string.Equals(SubjectKey, other.SubjectKey, StringComparison.Ordinal) &&
+                HasTrack == other.HasTrack &&
+                SlotWidth == other.SlotWidth &&
+                SlotHeight == other.SlotHeight &&
+                BurstScale == other.BurstScale &&
+                SubjectInset == other.SubjectInset &&
+                CornerRadiusRatio == other.CornerRadiusRatio &&
+                Count == other.Count &&
+                Laps.Equals(other.Laps);
+
+            public override bool Equals(object obj) => obj is LayerGeometryKey other && Equals(other);
+
+            public override int GetHashCode()
+            {
+                var hash = SubjectKey?.GetHashCode() ?? 0;
+                hash = (hash * 397) ^ SlotWidth.GetHashCode();
+                hash = (hash * 397) ^ SlotHeight.GetHashCode();
+                hash = (hash * 397) ^ Count;
+                hash = (hash * 397) ^ Laps.GetHashCode();
+                return hash;
+            }
+        }
+
+        private static readonly Dictionary<LayerGeometryKey, StreamGeometry[]> FrameGeometries =
+            new Dictionary<LayerGeometryKey, StreamGeometry[]>();
+
+        /// <summary>
+        /// Drops the shared geometry built for the previous frame. Called once per tick by the
+        /// driver, so the cache holds at most the distinct burst shapes on screen.
+        /// </summary>
+        internal static void BeginFrame() => FrameGeometries.Clear();
+
+        private StreamGeometry[] GetSharedLayerGeometries(
+            RayArrowLayout.MappedTrack mapped,
+            double laps,
+            int count,
+            int layerCount)
+        {
+            var key = new LayerGeometryKey
+            {
+                SubjectKey = _subjectKey ?? string.Empty,
+                HasTrack = _track != null,
+                SlotWidth = _mappedSlot.Width,
+                SlotHeight = _mappedSlot.Height,
+                BurstScale = BurstScale,
+                SubjectInset = SubjectInset,
+                CornerRadiusRatio = CornerRadiusRatio,
+                Count = count,
+                Laps = laps
+            };
+
+            if (FrameGeometries.TryGetValue(key, out var cached) && cached.Length == layerCount)
+            {
+                return cached;
+            }
+
+            var written = RayArrowLayout.BuildSpines(mapped, laps, BurstScale, count, _spines);
+            if (written <= 0)
+            {
+                return null;
+            }
+
+            var geometries = new StreamGeometry[layerCount];
+            var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+            var palette = EnsurePalette(persisted);
+            for (var i = 0; i < layerCount; i++)
+            {
+                geometries[i] = BuildLayerGeometry(written, palette.Layers[i]);
+            }
+
+            FrameGeometries[key] = geometries;
+            return geometries;
+        }
+
+        private StreamGeometry BuildLayerGeometry(int count, RarityAppearanceHelper.RayGlowLayer layer)
         {
             RayArrowLayout.Emit(_spines, count, layer.WidthMultiplier, layer.HeightFraction, _quads);
 
@@ -610,7 +726,7 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             geometry.Freeze();
-            context.DrawGeometry(layer.Brush, null, geometry);
+            return geometry;
         }
 
         private RayArrowLayout.MappedTrack EnsureMappedTrack()

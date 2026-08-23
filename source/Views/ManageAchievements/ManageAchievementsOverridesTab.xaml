@@ -145,6 +145,51 @@
                 </StackPanel>
             </Border>
 
+            <Border Style="{StaticResource CardBorderStyle}"
+                    Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
+                    Visibility="{Binding IsExophaseEnrichmentSlugSectionVisible, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHeader}"
+                               Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHint}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                               TextWrapping="Wrap"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
+                    <TextBlock Text="{Binding ExophaseEnrichmentSlugStatusText}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
+                               TextWrapping="Wrap" />
+
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="300" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Grid Grid.Column="0">
+                            <TextBox x:Name="ExophaseEnrichmentSlugTextBox"
+                                     Text="{Binding ExophaseEnrichmentSlugInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="8,6" />
+                            <TextBlock Text="{Binding ExophaseEnrichmentSlugPlaceholder}"
+                                       Tag="{Binding Text, ElementName=ExophaseEnrichmentSlugTextBox}"
+                                       Style="{StaticResource ManageAchievementsSearchPlaceholderTextStyle}" />
+                        </Grid>
+                        <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                Command="{Binding ApplyExophaseEnrichmentSlugCommand}"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                        <Button Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                Command="{Binding ClearExophaseEnrichmentSlugCommand}"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>

@@ -107,7 +107,9 @@ namespace PlayniteAchievements.Providers.Exophase
             string platformSlugHint,
             string providerPlatformKey,
             CancellationToken ct,
-            ExophaseMetadataFields fields = ExophaseMetadataFields.Rarity)
+            ExophaseMetadataFields fields = ExophaseMetadataFields.Rarity,
+            string regionHint = null,
+            string searchName = null)
         {
             if (!_isReady ||
                 fields == ExophaseMetadataFields.None ||
@@ -118,13 +120,17 @@ namespace PlayniteAchievements.Providers.Exophase
                 return;
             }
 
+            // Multipack collections enrich one trophy set at a time; searchName carries the
+            // set's own title, which Exophase lists, where the collection name is not listed.
+            var effectiveName = string.IsNullOrWhiteSpace(searchName) ? game.Name : searchName.Trim();
+
             try
             {
                 var platformSlug = ResolvePlatformSlug(game, platformSlugHint);
-                var slugs = await ResolveSlugsAsync(game, platformSlug, ct).ConfigureAwait(false);
+                var slugs = await ResolveSlugsAsync(game, effectiveName, platformSlug, regionHint, ct).ConfigureAwait(false);
                 if (slugs.Count == 0)
                 {
-                    _logger?.Debug($"[ExophaseMetadata] No Exophase slug resolved for '{game.Name}'.");
+                    _logger?.Debug($"[ExophaseMetadata] No Exophase slug resolved for '{effectiveName}'.");
                     return;
                 }
 
@@ -144,7 +150,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
                     if (fetchedAchievements == null || fetchedAchievements.Count == 0)
                     {
-                        _logger?.Debug($"[ExophaseMetadata] No Exophase achievements found for '{game.Name}' ({slug}).");
+                        _logger?.Debug($"[ExophaseMetadata] No Exophase achievements found for '{effectiveName}' ({slug}).");
                         continue;
                     }
 
@@ -161,7 +167,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 ExophaseDataProvider.ApplyProviderOwnedRarity(exophaseAchievements, providerPlatformKey);
 
                 var updated = ApplyMetadata(achievements, exophaseAchievements, fields);
-                _logger?.Info($"[ExophaseMetadata] Applied {DescribeFields(fields)} to {updated}/{achievements.Count} achievements for '{game.Name}' using slug '{resolvedSlug}'.");
+                _logger?.Info($"[ExophaseMetadata] Applied {DescribeFields(fields)} to {updated}/{achievements.Count} achievements for '{effectiveName}' using slug '{resolvedSlug}'.");
             }
             catch (OperationCanceledException)
             {
@@ -173,8 +179,14 @@ namespace PlayniteAchievements.Providers.Exophase
             }
         }
 
-        private async Task<List<string>> ResolveSlugsAsync(Game game, string platformSlug, CancellationToken ct)
+        private async Task<List<string>> ResolveSlugsAsync(Game game, string effectiveName, string platformSlug, string regionHint, CancellationToken ct)
         {
+            if (GameCustomDataLookup.TryGetExophaseEnrichmentSlugOverride(game.Id, out var enrichmentSlug) &&
+                !string.IsNullOrWhiteSpace(enrichmentSlug))
+            {
+                return new List<string> { enrichmentSlug.Trim() };
+            }
+
             if (GameCustomDataLookup.TryGetExophaseSlugOverride(
                     game.Id,
                     out var overrideSlug,
@@ -185,19 +197,43 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             var platformSlugs = GetPlatformSlugCandidates(platformSlug);
-            var cacheKey = $"{game.Id:N}:{string.Join("|", platformSlugs)}";
+            // The name is part of the key because collections resolve one slug per trophy set
+            // under the same game id.
+            var cacheKey = $"{game.Id:N}:{effectiveName}:{string.Join("|", platformSlugs)}";
             if (TryGetCachedSlug(cacheKey, out var cachedSlug))
             {
                 return new List<string> { cachedSlug };
             }
 
-            var normalizedName = ExophaseGameNameMatcher.NormalizeGameName(game.Name);
+            var normalizedName = ExophaseGameNameMatcher.NormalizeGameName(effectiveName);
             if (!string.IsNullOrWhiteSpace(normalizedName))
             {
                 foreach (var candidatePlatformSlug in platformSlugs)
                 {
                     var games = await _apiClient.SearchGamesAsync(normalizedName, candidatePlatformSlug, ct).ConfigureAwait(false);
-                    var match = FindBestSearchMatch(normalizedName, games, candidatePlatformSlug);
+                    if (games.Count == 0 && !string.IsNullOrWhiteSpace(candidatePlatformSlug))
+                    {
+                        // The archive endpoint does not validate its platform parameter;
+                        // an unrecognized value yields zero rows. The platform is enforced
+                        // client-side from each row's platform slugs, so an unfiltered
+                        // retry stays safe.
+                        games = await _apiClient.SearchGamesAsync(normalizedName, null, ct).ConfigureAwait(false);
+                    }
+
+                    var match = ExophaseGameNameMatcher.SelectBestSearchMatch(normalizedName, games, candidatePlatformSlug, regionHint);
+                    if (match == null && games.Count > 0)
+                    {
+                        var observedPlatforms = games
+                            .SelectMany(row => row?.Platforms ?? Enumerable.Empty<ExophasePlatform>())
+                            .Select(platform => platform?.Slug)
+                            .Where(slug => !string.IsNullOrWhiteSpace(slug))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+                        _logger?.Debug(
+                            $"[ExophaseMetadata] Search for '{normalizedName}' ({candidatePlatformSlug}) matched none of " +
+                            $"{games.Count} rows; platforms seen: [{string.Join(", ", observedPlatforms)}].");
+                    }
+
                     var resolvedSlug = ExophaseApiClient.ExtractSlugFromUrl(match?.EndpointAwards);
                     if (!string.IsNullOrWhiteSpace(resolvedSlug))
                     {
@@ -207,12 +243,21 @@ namespace PlayniteAchievements.Providers.Exophase
                 }
             }
 
+            // PSN slugs on Exophase carry no platform suffix and regional variants get
+            // opaque dedup suffixes, so a generated slug can never be right there; skip
+            // the guess instead of fetching a guaranteed 404 every refresh.
             return platformSlugs
-                .Select(candidatePlatformSlug => GenerateDefaultSlug(game, candidatePlatformSlug))
+                .Where(candidatePlatformSlug => !PsnPlatformSlugs.Contains(candidatePlatformSlug))
+                .Select(candidatePlatformSlug => GenerateDefaultSlug(effectiveName, candidatePlatformSlug))
                 .Where(defaultSlug => !string.IsNullOrWhiteSpace(defaultSlug))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
+
+        private static readonly HashSet<string> PsnPlatformSlugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "psn", "ps3", "ps4", "ps5", "psvita", "vita"
+        };
 
         private bool TryGetCachedSlug(string cacheKey, out string slug)
         {
@@ -239,58 +284,6 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             _slugMemo[cacheKey] = slug;
-        }
-
-        private static ExophaseGame FindBestSearchMatch(string gameName, IList<ExophaseGame> games, string platformSlug)
-        {
-            if (games == null || games.Count == 0 || string.IsNullOrWhiteSpace(gameName))
-            {
-                return null;
-            }
-
-            var normalizedSearch = ExophaseGameNameMatcher.NormalizeGameName(gameName);
-            var scored = games
-                .Where(game => game != null && !string.IsNullOrWhiteSpace(game.EndpointAwards))
-                .Select(game =>
-                {
-                    var score = ScoreSearchMatch(normalizedSearch, game, platformSlug);
-                    return new { Game = game, Score = score };
-                })
-                .Where(item => item.Score > 0)
-                .OrderByDescending(item => item.Score)
-                .ToList();
-
-            if (scored.Count == 0)
-            {
-                return null;
-            }
-
-            if (scored.Count > 1 && scored[0].Score == scored[1].Score)
-            {
-                return null;
-            }
-
-            return scored[0].Score >= 60 ? scored[0].Game : null;
-        }
-
-        private static int ScoreSearchMatch(string normalizedSearch, ExophaseGame game, string platformSlug)
-        {
-            var title = ExophaseGameNameMatcher.NormalizeGameName(game?.Title);
-            if (string.IsNullOrWhiteSpace(title))
-            {
-                return 0;
-            }
-
-            var score = ExophaseGameNameMatcher.ComputeMatchScore(normalizedSearch, title);
-
-            if (score > 0 &&
-                !string.IsNullOrWhiteSpace(platformSlug) &&
-                (game.EndpointAwards ?? string.Empty).IndexOf($"-{platformSlug}", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                score += 20;
-            }
-
-            return score;
         }
 
         private static int ApplyMetadata(
@@ -563,14 +556,14 @@ namespace PlayniteAchievements.Providers.Exophase
             }
         }
 
-        private static string GenerateDefaultSlug(Game game, string platformSlug)
+        private static string GenerateDefaultSlug(string gameName, string platformSlug)
         {
-            if (game == null || string.IsNullOrWhiteSpace(game.Name) || string.IsNullOrWhiteSpace(platformSlug))
+            if (string.IsNullOrWhiteSpace(gameName) || string.IsNullOrWhiteSpace(platformSlug))
             {
                 return null;
             }
 
-            var normalizedName = ExophaseGameNameMatcher.NormalizeGameNameForSlug(game.Name);
+            var normalizedName = ExophaseGameNameMatcher.NormalizeGameNameForSlug(gameName);
             return string.IsNullOrWhiteSpace(normalizedName)
                 ? null
                 : $"{normalizedName}-{platformSlug}";

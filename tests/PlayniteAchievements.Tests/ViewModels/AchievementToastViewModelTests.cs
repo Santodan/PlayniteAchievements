@@ -8,6 +8,8 @@ using PlayniteAchievements.ViewModels;
 using System;
 using System.IO;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace PlayniteAchievements.Tests.ViewModels
 {
@@ -245,6 +247,64 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             Assert.AreEqual(string.Empty, viewModel.TrophyType);
             Assert.IsNull(viewModel.Points);
+        }
+
+        [TestMethod]
+        public void ToastBackgroundRenderSource_DefaultsToTheCompatiblePathBinding()
+        {
+            var style = NotificationStyleSettings.CreateDefault();
+            style.ToastBackgroundImagePath = "background.gif";
+            var viewModel = new AchievementToastViewModel(
+                new AchievementUnlockedEventArgs(),
+                new PersistedSettings(),
+                styleOverride: style);
+
+            Assert.AreEqual("background.gif", viewModel.ToastBackgroundRenderSource);
+            Assert.AreEqual("background.gif", viewModel.ToastBackgroundImagePath);
+        }
+
+        [TestMethod]
+        public void ToastBackgroundRenderSource_PreviewCanInjectAStableImageSourceOrPendingNull()
+        {
+            LocalizationAssemblyInitializer.RunOnSta(() =>
+            {
+                var source = BitmapSource.Create(
+                    1,
+                    1,
+                    96,
+                    96,
+                    System.Windows.Media.PixelFormats.Bgra32,
+                    null,
+                    new byte[] { 1, 2, 3, 255 },
+                    4);
+
+                var ready = new AchievementToastViewModel(
+                    new AchievementUnlockedEventArgs(),
+                    new PersistedSettings(),
+                    toastBackgroundRenderSourceOverride: source,
+                    useToastBackgroundRenderSourceOverride: true);
+                var pending = new AchievementToastViewModel(
+                    new AchievementUnlockedEventArgs(),
+                    new PersistedSettings(),
+                    toastBackgroundRenderSourceOverride: null,
+                    useToastBackgroundRenderSourceOverride: true);
+
+                Assert.AreSame(source, ready.ToastBackgroundRenderSource);
+                Assert.IsNull(pending.ToastBackgroundRenderSource);
+
+                var changed = 0;
+                pending.PropertyChanged += (sender, args) =>
+                {
+                    if (args.PropertyName == nameof(AchievementToastViewModel.ToastBackgroundRenderSource))
+                    {
+                        changed++;
+                    }
+                };
+                pending.SetToastBackgroundRenderSourceOverride(source);
+
+                Assert.AreSame(source, pending.ToastBackgroundRenderSource);
+                Assert.AreEqual(1, changed);
+            });
         }
 
         [TestMethod]
@@ -534,6 +594,88 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             Assert.IsFalse(viewModel.ToastRarityText.IsBottomLine);
             Assert.AreEqual(0, viewModel.ToastRarityText.DescenderSlack);
+        }
+
+        [TestMethod]
+        public void ScaleVignetteStopAlpha_DefaultAndFiftyReturnTheOriginalAlpha()
+        {
+            var baseAlphas = new[] { 0x73 / 255.0, 0xF2 / 255.0, 0xD0 / 255.0 };
+            foreach (var alpha in baseAlphas)
+            {
+                Assert.AreEqual(alpha, AchievementToastViewModel.ScaleVignetteStopAlpha(alpha, null));
+                Assert.AreEqual(alpha, AchievementToastViewModel.ScaleVignetteStopAlpha(alpha, 50));
+            }
+        }
+
+        [TestMethod]
+        public void ScaleVignetteStopAlpha_LowerHalfFadesLinearlyToNothing()
+        {
+            const double baseAlpha = 0xD0 / 255.0;
+            Assert.AreEqual(0, AchievementToastViewModel.ScaleVignetteStopAlpha(baseAlpha, 0));
+            Assert.AreEqual(baseAlpha / 2, AchievementToastViewModel.ScaleVignetteStopAlpha(baseAlpha, 25), 1e-12);
+        }
+
+        [TestMethod]
+        public void ScaleVignetteStopAlpha_UpperHalfScreenStacksWithoutClipping()
+        {
+            // 100 = the original layer composited over itself twice more: 1 - (1 - a)^3.
+            var baseAlphas = new[] { 0x73 / 255.0, 0xF2 / 255.0, 0xD0 / 255.0 };
+            foreach (var alpha in baseAlphas)
+            {
+                var stacked = 1.0 - Math.Pow(1.0 - alpha, 3.0);
+                Assert.AreEqual(stacked, AchievementToastViewModel.ScaleVignetteStopAlpha(alpha, 100), 1e-12);
+                Assert.IsTrue(AchievementToastViewModel.ScaleVignetteStopAlpha(alpha, 100) < 1.0);
+            }
+        }
+
+        [TestMethod]
+        public void FrameVignetteBrushes_UpperHalfGrowsCoverageBeyondAlphaStacking()
+        {
+            var strongSettings = new PersistedSettings();
+            strongSettings.NotificationStyle.Frame.FrameVignetteStrength = 100;
+            var strong = new AchievementToastViewModel(new AchievementUnlockedEventArgs(), strongSettings);
+            var builtIn = new AchievementToastViewModel(new AchievementUnlockedEventArgs(), new PersistedSettings());
+
+            // The radial's clear center shrinks and the mid darkening moves inward.
+            var strongRadial = (RadialGradientBrush)strong.FrameRadialVignetteBrush;
+            var builtInRadial = (RadialGradientBrush)builtIn.FrameRadialVignetteBrush;
+            Assert.IsTrue(strongRadial.GradientStops[1].Offset < builtInRadial.GradientStops[1].Offset);
+            Assert.IsTrue(strongRadial.GradientStops[2].Offset < builtInRadial.GradientStops[2].Offset);
+
+            // The wash's mid stop bows above the linear ramp, pulling darkness up the band.
+            var strongWash = (LinearGradientBrush)strong.FrameBottomWashBrush;
+            var strongMid = strongWash.GradientStops[2];
+            var strongEnd = strongWash.GradientStops[strongWash.GradientStops.Count - 1];
+            Assert.AreEqual(0.5, strongMid.Offset);
+            Assert.IsTrue(strongMid.Color.A > strongEnd.Color.A * 0.5);
+        }
+
+        [TestMethod]
+        public void FrameBottomWashBrush_BuiltInStrengthKeepsTheOriginalLinearRamp()
+        {
+            // At the default strength the intermediate stops must sit exactly on the original
+            // two-stop linear ramp (0 -> 0xD0), changing nothing about the classic look.
+            var wash = (LinearGradientBrush)new AchievementToastViewModel(
+                new AchievementUnlockedEventArgs(), new PersistedSettings()).FrameBottomWashBrush;
+
+            var end = wash.GradientStops[wash.GradientStops.Count - 1];
+            Assert.AreEqual(0xD0, end.Color.A);
+            foreach (var stop in wash.GradientStops)
+            {
+                Assert.AreEqual((byte)Math.Round(0xD0 * stop.Offset), stop.Color.A);
+            }
+        }
+
+        [TestMethod]
+        public void ScaleVignetteStopAlpha_OutOfRangeStrengthClamps()
+        {
+            const double baseAlpha = 0x73 / 255.0;
+            Assert.AreEqual(
+                AchievementToastViewModel.ScaleVignetteStopAlpha(baseAlpha, 0),
+                AchievementToastViewModel.ScaleVignetteStopAlpha(baseAlpha, -20));
+            Assert.AreEqual(
+                AchievementToastViewModel.ScaleVignetteStopAlpha(baseAlpha, 100),
+                AchievementToastViewModel.ScaleVignetteStopAlpha(baseAlpha, 250));
         }
     }
 }

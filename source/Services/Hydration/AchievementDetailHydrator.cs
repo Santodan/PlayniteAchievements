@@ -55,6 +55,21 @@ namespace PlayniteAchievements.Services.Hydration
             var achievementNotes = customData.AchievementNotes ??
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+            // Goal position is resolved once per game rather than scanning the list per row.
+            var goalOrderByApiName = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var goalApiNames = customData.GoalAchievementApiNames;
+            if (goalApiNames != null)
+            {
+                for (var i = 0; i < goalApiNames.Count; i++)
+                {
+                    var goalApiName = (goalApiNames[i] ?? string.Empty).Trim();
+                    if (!string.IsNullOrWhiteSpace(goalApiName) && !goalOrderByApiName.ContainsKey(goalApiName))
+                    {
+                        goalOrderByApiName[goalApiName] = i;
+                    }
+                }
+            }
+
             foreach (var detail in details)
             {
                 if (detail == null)
@@ -108,6 +123,19 @@ namespace PlayniteAchievements.Services.Hydration
                                          achievementNotes.TryGetValue(apiName, out var note)
                     ? note
                     : null;
+
+                // An unlocked achievement is never an effective goal, so display stays correct
+                // even before the stored list is pruned.
+                var goalOrderIndex = int.MaxValue;
+                if (!detail.Unlocked &&
+                    !string.IsNullOrWhiteSpace(apiName) &&
+                    goalOrderByApiName.TryGetValue(apiName, out var resolvedGoalIndex))
+                {
+                    goalOrderIndex = resolvedGoalIndex;
+                }
+
+                detail.IsGoal = goalOrderIndex != int.MaxValue;
+                detail.GoalOrderIndex = goalOrderIndex;
             }
         }
 

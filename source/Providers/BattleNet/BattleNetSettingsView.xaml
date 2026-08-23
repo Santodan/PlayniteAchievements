@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -277,6 +278,28 @@
                                Style="{StaticResource MutedTextStyle}"
                                Margin="24,8,0,0"
                                TextWrapping="Wrap"/>
+
+                    <controls:AuthStatusCard Margin="24,12,0,0"
+                                             IsEnabled="{Binding Settings.UseDataForAzerothForWowRarity}"
+                                             AuthStatus="{Binding DataForAzerothStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                             IsAuthStatusPending="{Binding DataForAzerothPending, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                             IsAuthStatusSuccess="{Binding DataForAzerothChecked, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                             IsAuthStatusChecking="{Binding DataForAzerothChecking, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                             AuthBusy="{Binding AuthBusy, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="{DynamicResource LOCPlayAch_Button_Login}"
+                                    Click="DataForAzeroth_Login_Click"
+                                    Style="{StaticResource AuthActionButtonStyle}"
+                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                            <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
+                                    Click="DataForAzeroth_Check_Click"
+                                    Style="{StaticResource AuthActionButtonStyle}"
+                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                            <Button Content="{DynamicResource LOCPlayAch_Button_SignOut}"
+                                    Click="DataForAzeroth_Clear_Click"
+                                    Style="{StaticResource AuthActionButtonStyle}"/>
+                        </StackPanel>
+                    </controls:AuthStatusCard>
                 </StackPanel>
             </Border>
         </StackPanel>

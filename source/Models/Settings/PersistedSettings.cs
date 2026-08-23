@@ -177,6 +177,7 @@ namespace PlayniteAchievements.Models.Settings
         private GridVerticalAlignment _gridCellVerticalAlignment = GridVerticalAlignment.Center;
         private DateDisplayMode _unlockDateDisplayMode = DateDisplayMode.DateAndTime;
         private PlaytimeDisplayMode _playtimeDisplayMode = PlaytimeDisplayMode.HoursAndMinutes;
+        private CategoryCompletionBadgeMode _categoryCompletionBadgeMode = CategoryCompletionBadgeMode.All;
         private FriendNameDisplayMode _friendNameDisplayMode = FriendNameDisplayMode.PersonaAndNickname;
         private bool _enableAchievementCompactListControl = true;
         private bool _enableAchievementDataGridControl = true;
@@ -521,6 +522,16 @@ namespace PlayniteAchievements.Models.Settings
             return new HashSet<string>(
                 GetFriendSettings(providerKey)
                     .Where(entry => entry.IsIgnored)
+                    .Select(entry => entry.ExternalUserId)
+                    .Where(id => !string.IsNullOrWhiteSpace(id)),
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        public HashSet<string> GetFullScanExcludedFriendIds(string providerKey)
+        {
+            return new HashSet<string>(
+                GetFriendSettings(providerKey)
+                    .Where(entry => entry.ExcludeFromFullScans)
                     .Select(entry => entry.ExternalUserId)
                     .Where(id => !string.IsNullOrWhiteSpace(id)),
                 StringComparer.OrdinalIgnoreCase);
@@ -1990,6 +2001,15 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Which category-mode summary rows may render the completion badge under their progress bar.
+        /// </summary>
+        public CategoryCompletionBadgeMode CategoryCompletionBadgeMode
+        {
+            get => _categoryCompletionBadgeMode;
+            set => SetValue(ref _categoryCompletionBadgeMode, value);
+        }
+
+        /// <summary>
         /// How friend names combine the provider profile name and the provider-assigned nickname.
         /// A manual plugin rename always takes precedence over this mode.
         /// </summary>
@@ -2755,6 +2775,7 @@ namespace PlayniteAchievements.Models.Settings
                 GridCellVerticalAlignment = this.GridCellVerticalAlignment,
                 UnlockDateDisplayMode = this.UnlockDateDisplayMode,
                 PlaytimeDisplayMode = this.PlaytimeDisplayMode,
+                CategoryCompletionBadgeMode = this.CategoryCompletionBadgeMode,
                 FriendNameDisplayMode = this.FriendNameDisplayMode,
                 EnableAchievementCompactListControl = this.EnableAchievementCompactListControl,
                 EnableAchievementDataGridControl = this.EnableAchievementDataGridControl,
@@ -2906,6 +2927,7 @@ namespace PlayniteAchievements.Models.Settings
             GridCellVerticalAlignment = defaults.GridCellVerticalAlignment;
             UnlockDateDisplayMode = defaults.UnlockDateDisplayMode;
             PlaytimeDisplayMode = defaults.PlaytimeDisplayMode;
+            CategoryCompletionBadgeMode = defaults.CategoryCompletionBadgeMode;
             FriendNameDisplayMode = defaults.FriendNameDisplayMode;
 
             EnableAchievementCompactListControl = defaults.EnableAchievementCompactListControl;

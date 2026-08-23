@@ -2104,6 +2104,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
         public System.Windows.Input.ICommand OpenManageAchievementsWindow => _settings?.OpenManageAchievementsWindow;
 
+        public System.Windows.Input.ICommand ToggleAchievementCapstoneCommand => _settings?.ToggleAchievementCapstoneCommand;
+
+        public System.Windows.Input.ICommand ToggleAchievementGoalCommand => _settings?.ToggleAchievementGoalCommand;
+
         public System.Windows.Input.ICommand FilterDynamicLibraryAchievementsByProviderCommand => _settings?.FilterDynamicLibraryAchievementsByProviderCommand;
 
         public System.Windows.Input.ICommand FilterDynamicLibraryAchievementsByRunningGameCommand => _settings?.FilterDynamicLibraryAchievementsByRunningGameCommand;

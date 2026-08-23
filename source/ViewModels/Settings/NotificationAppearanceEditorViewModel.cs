@@ -54,6 +54,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         private bool _hasHeaderFormatError;
         private string _textShadowText;
         private string _textShadowOffsetText;
+        private string _frameVignetteStrengthText;
         private string _imageShadowText;
         private string _imageShadowOffsetText;
         private string _cardWidthText = string.Empty;
@@ -579,6 +580,39 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
         }
 
+        /// <summary>
+        /// Vignette strength text mirror (0-100; 50 matches the built-in vignette, higher
+        /// stacks darker, 0 removes the darkening). Blank clears the override back to the
+        /// default. Zero is meaningful here, so this commits through its own parser instead
+        /// of <see cref="CommitSize"/>.
+        /// </summary>
+        public string FrameVignetteStrengthText
+        {
+            get => _frameVignetteStrengthText;
+            set
+            {
+                if (!SetValueAndReturn(ref _frameVignetteStrengthText, value))
+                {
+                    return;
+                }
+
+                var surface = Surface;
+                if (surface != null && _isEditable)
+                {
+                    surface.FrameVignetteStrength = ParseShadowStrength(value);
+                }
+
+                RefreshCardDimensions();
+            }
+        }
+
+        public double FrameVignetteStrengthSlider
+        {
+            get => Surface?.FrameVignetteStrength ?? AchievementToastViewModel.DefaultFrameVignetteStrength;
+            set => FrameVignetteStrengthText = Math.Round(Math.Max(0, Math.Min(100, value)))
+                .ToString(CultureInfo.CurrentCulture);
+        }
+
         #endregion
 
         #region Card dimensions (toast surface only; blank = template default)
@@ -814,6 +848,9 @@ namespace PlayniteAchievements.ViewModels.Settings
             SetValue(ref _imageShadowOffsetText,
                 surface?.ImageShadowOffset?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(ImageShadowOffsetText));
+            SetValue(ref _frameVignetteStrengthText,
+                surface?.FrameVignetteStrength?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(FrameVignetteStrengthText));
 
             // The slider companions are computed straight from the surface; refresh them
             // together with their text mirrors.
@@ -830,6 +867,7 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(TextShadowOffsetSlider));
             OnPropertyChanged(nameof(ImageShadowSlider));
             OnPropertyChanged(nameof(ImageShadowOffsetSlider));
+            OnPropertyChanged(nameof(FrameVignetteStrengthSlider));
 
             // The rarity percent's font controls read straight from the surface too.
             OnPropertyChanged(nameof(SelectedRarityFontFamilyOption));

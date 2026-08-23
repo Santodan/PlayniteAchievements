@@ -25,12 +25,21 @@ namespace PlayniteAchievements.Services.GameCustomData
 
     public sealed class GameCustomDataChangedEventArgs : EventArgs
     {
-        public GameCustomDataChangedEventArgs(Guid playniteGameId)
+        public GameCustomDataChangedEventArgs(Guid playniteGameId, bool affectsSummaryData = true)
         {
             PlayniteGameId = playniteGameId;
+            AffectsSummaryData = affectsSummaryData;
         }
 
         public Guid PlayniteGameId { get; }
+
+        /// <summary>
+        /// False when the change only reorders or re-presents achievements the user already had,
+        /// so nothing about counts, filters or library rollups can have moved. Subscribers that
+        /// rebuild summary or projection data skip those changes; everything else must keep
+        /// treating the change as significant, which is why this defaults to true.
+        /// </summary>
+        public bool AffectsSummaryData { get; }
     }
 
     /// <summary>
@@ -163,7 +172,14 @@ namespace PlayniteAchievements.Services.GameCustomData
             return _repository.LoadOrDefault(playniteGameId);
         }
 
-        public void Update(Guid playniteGameId, Action<GameCustomDataFile> mutate)
+        /// <param name="affectsSummaryData">
+        /// Pass false when the mutation cannot change achievement counts, filters or library
+        /// rollups, so summary and projection subscribers can skip the rebuild.
+        /// </param>
+        public void Update(
+            Guid playniteGameId,
+            Action<GameCustomDataFile> mutate,
+            bool affectsSummaryData = true)
         {
             if (playniteGameId == Guid.Empty)
             {
@@ -178,7 +194,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             var data = _repository.LoadOrDefault(playniteGameId);
             var previous = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
             mutate(data);
-            Save(playniteGameId, data, previous);
+            Save(playniteGameId, data, previous, affectsSummaryData);
         }
 
         // Rewrites every ApiName-keyed field after achievement definitions were renamed in place
@@ -227,6 +243,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             changed |= RenameListEntries(data.AchievementOrder, renamedApiNames);
             changed |= RenameListEntries(data.FilteredAchievementApiNames, renamedApiNames);
             changed |= RenameListEntries(data.SummaryFilteredAchievementApiNames, renamedApiNames);
+            changed |= RenameListEntries(data.GoalAchievementApiNames, renamedApiNames);
             changed |= RenameDictionaryKeys(data.AchievementCategoryOverrides, renamedApiNames);
             changed |= RenameDictionaryKeys(data.AchievementCategoryTypeOverrides, renamedApiNames);
             changed |= RenameDictionaryKeys(data.AchievementUnlockedIconOverrides, renamedApiNames);
@@ -315,7 +332,11 @@ namespace PlayniteAchievements.Services.GameCustomData
             Save(playniteGameId, data, previousData: null);
         }
 
-        private void Save(Guid playniteGameId, GameCustomDataFile data, GameCustomDataFile previousData)
+        private void Save(
+            Guid playniteGameId,
+            GameCustomDataFile data,
+            GameCustomDataFile previousData,
+            bool affectsSummaryData = true)
         {
             using (PerfScope.Start(_logger, "GameCustomData.Save", thresholdMs: 50))
             {
@@ -330,7 +351,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 _notificationImageStore?.PruneGameImages(
                     playniteGameId,
                     normalized.NotificationAppearanceOverride?.Style);
-                RaiseCustomDataChanged(playniteGameId);
+                RaiseCustomDataChanged(playniteGameId, affectsSummaryData);
             }
         }
 
@@ -1749,14 +1770,16 @@ namespace PlayniteAchievements.Services.GameCustomData
             _ = LoadAll();
         }
 
-        private void RaiseCustomDataChanged(Guid playniteGameId)
+        private void RaiseCustomDataChanged(Guid playniteGameId, bool affectsSummaryData = true)
         {
             if (playniteGameId == Guid.Empty)
             {
                 return;
             }
 
-            CustomDataChanged?.Invoke(this, new GameCustomDataChangedEventArgs(playniteGameId));
+            CustomDataChanged?.Invoke(
+                this,
+                new GameCustomDataChangedEventArgs(playniteGameId, affectsSummaryData));
         }
 
     }

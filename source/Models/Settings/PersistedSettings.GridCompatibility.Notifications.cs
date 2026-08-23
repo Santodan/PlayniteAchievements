@@ -93,7 +93,10 @@ namespace PlayniteAchievements.Models.Settings
                 nameof(DataGridColumnVisibility), nameof(DataGridColumnWidths), nameof(DataGridColumnOrder));
 
             // Achievement / SingleGame
+            Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.ShowRarityGlow), nameof(ViewAchievementsAchievementGridShowRarityGlow));
+            Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.ColorNamesByRarity), nameof(ViewAchievementsAchievementGridColorNamesByRarity));
             Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.ColorRarityColumnsByRarity), nameof(ViewAchievementsAchievementGridColorRarityColumnsByRarity));
+            Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.ShowColumnHeaders), nameof(ShowViewAchievementsAchievementGridColumnHeaders));
             Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.StartInCategoryMode), nameof(ViewAchievementsAchievementGridStartInCategoryMode));
             Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.HideCategorySummaryRow), nameof(ViewAchievementsAchievementGridHideCategorySummaryRow));
             Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.ShowControlBar), nameof(ShowViewAchievementsAchievementGridControlBar));

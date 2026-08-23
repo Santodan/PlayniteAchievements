@@ -61,6 +61,10 @@ namespace PlayniteAchievements.Services.Hydration
                 data.AchievementOrder = configuredOrder;
             }
 
+            data.GoalAchievements = customData.GoalAchievementApiNames != null && customData.GoalAchievementApiNames.Count > 0
+                ? new List<string>(customData.GoalAchievementApiNames)
+                : null;
+
             data.AchievementCategoryOrder = customData.AchievementCategoryOrder != null && customData.AchievementCategoryOrder.Count > 0
                 ? new List<string>(customData.AchievementCategoryOrder)
                 : null;

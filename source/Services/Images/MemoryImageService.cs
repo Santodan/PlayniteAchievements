@@ -104,8 +104,9 @@ namespace PlayniteAchievements.Services.Images
                 return;
             }
 
-            // The GIF animation frame cache is keyed by the token-stripped file path, so it
-            // must drop its entries on the same invalidation signals as the bitmap cache.
+            // The WebP animation frame cache is keyed by the token-stripped file path, so it
+            // must drop its entries on the same invalidation signals as the bitmap cache. GIFs
+            // need no signal here: NativeGifPayloadCache keys on the file's size and write time.
             Views.Helpers.AnimatedImageHelper.EvictBySegment(segment);
             UriSegmentEvicted?.Invoke(segment);
 

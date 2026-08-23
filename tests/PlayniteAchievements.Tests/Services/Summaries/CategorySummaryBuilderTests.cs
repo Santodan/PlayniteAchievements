@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
@@ -196,6 +197,93 @@ namespace PlayniteAchievements.Tests.Services.Summaries
             var byLabel = result.Cast<CategorySummaryItem>().ToDictionary(item => item.CategoryLabel);
             Assert.IsTrue(byLabel["Base"].IsCompleted);
             Assert.IsFalse(byLabel["DLC"].IsCompleted);
+        }
+
+        [TestMethod]
+        public void Build_DefaultBadgeModeAllowsEveryCompletedCategory()
+        {
+            var result = CategorySummaryBuilder.Build(CompletedCategoriesInConfiguredOrder());
+
+            Assert.IsTrue(result.Cast<CategorySummaryItem>().All(c => c.AllowCompletionBadge));
+            Assert.IsTrue(result.All(c => c.ShowCompletionBadge));
+        }
+
+        [TestMethod]
+        public void Build_NoneBadgeModeSuppressesEveryCategory()
+        {
+            var result = CategorySummaryBuilder.Build(
+                CompletedCategoriesInConfiguredOrder(),
+                CategoryCompletionBadgeMode.None);
+
+            Assert.IsTrue(result.Cast<CategorySummaryItem>().All(c => !c.AllowCompletionBadge));
+            // The rows are still completed; only the badge is gated.
+            Assert.IsTrue(result.All(c => c.IsCompleted));
+            Assert.IsTrue(result.All(c => !c.ShowCompletionBadge));
+        }
+
+        [TestMethod]
+        public void Build_FirstBadgeModeAllowsOnlyTheConfiguredFirstCategory()
+        {
+            var result = CategorySummaryBuilder.Build(
+                CompletedCategoriesInConfiguredOrder(),
+                CategoryCompletionBadgeMode.First);
+
+            Assert.AreEqual(3, result.Count);
+            // "Base" carries CategoryOrderIndex 0 but is supplied last, so this also proves the gate
+            // follows the configured order rather than first-seen order.
+            Assert.AreEqual("Base", ((CategorySummaryItem)result[0]).CategoryLabel);
+
+            Assert.IsTrue(result[0].ShowCompletionBadge);
+            Assert.IsFalse(result[1].ShowCompletionBadge);
+            Assert.IsFalse(result[2].ShowCompletionBadge);
+        }
+
+        [TestMethod]
+        public void Build_FirstBadgeModeLeavesListBadgeFreeWhenFirstCategoryIsIncomplete()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                DisplayItem("DLC", unlocked: true, categoryOrderIndex: 1),
+                DisplayItem("Base", unlocked: true, categoryOrderIndex: 0),
+                DisplayItem("Base", unlocked: false, categoryOrderIndex: 0)
+            };
+
+            var result = CategorySummaryBuilder.Build(items, CategoryCompletionBadgeMode.First);
+
+            var first = (CategorySummaryItem)result[0];
+            Assert.AreEqual("Base", first.CategoryLabel);
+            // Permitted, but not completed, so nothing renders anywhere.
+            Assert.IsTrue(first.AllowCompletionBadge);
+            Assert.IsFalse(first.IsCompleted);
+            Assert.IsTrue(result.All(c => !c.ShowCompletionBadge));
+        }
+
+        [TestMethod]
+        public void AllowCompletionBadge_RaisesShowCompletionBadgeChange()
+        {
+            var item = (CategorySummaryItem)CategorySummaryBuilder
+                .Build(CompletedCategoriesInConfiguredOrder())[0];
+            var raised = new List<string>();
+            item.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+            item.AllowCompletionBadge = false;
+
+            CollectionAssert.Contains(raised, nameof(CategorySummaryItem.ShowCompletionBadge));
+            Assert.IsFalse(item.ShowCompletionBadge);
+        }
+
+        /// <summary>
+        /// Three fully completed categories whose configured order (Base, DLC, Extra) is the reverse
+        /// of the order they are supplied in.
+        /// </summary>
+        private static List<AchievementDisplayItem> CompletedCategoriesInConfiguredOrder()
+        {
+            return new List<AchievementDisplayItem>
+            {
+                DisplayItem("Extra", unlocked: true, categoryOrderIndex: 2),
+                DisplayItem("DLC", unlocked: true, categoryOrderIndex: 1),
+                DisplayItem("Base", unlocked: true, categoryOrderIndex: 0)
+            };
         }
 
         private static AchievementDisplayItem DisplayItem(

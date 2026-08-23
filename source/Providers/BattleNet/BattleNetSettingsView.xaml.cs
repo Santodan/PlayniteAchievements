@@ -18,6 +18,7 @@ namespace PlayniteAchievements.Providers.BattleNet
         private static readonly ILogger Logger = PluginLogger.GetLogger(nameof(BattleNetSettingsView));
         private readonly BattleNetApiClient _apiClient;
         private readonly BattleNetSessionManager _sessionManager;
+        private readonly DataForAzerothSessionManager _dataForAzerothSession;
         private readonly ILogger _logger;
         private BattleNetSettings _battleNetSettings;
 
@@ -57,12 +58,56 @@ namespace PlayniteAchievements.Providers.BattleNet
             set => SetValue(AuthStatusProperty, value);
         }
 
+        public static readonly DependencyProperty DataForAzerothCheckedProperty =
+            DependencyProperty.Register(nameof(DataForAzerothChecked), typeof(bool), typeof(BattleNetSettingsView), new PropertyMetadata(false));
+
+        /// <summary>Whether the Data for Azeroth site check is currently cleared.</summary>
+        public bool DataForAzerothChecked
+        {
+            get => (bool)GetValue(DataForAzerothCheckedProperty);
+            set => SetValue(DataForAzerothCheckedProperty, value);
+        }
+
+        public static readonly DependencyProperty DataForAzerothStatusProperty =
+            DependencyProperty.Register(nameof(DataForAzerothStatus), typeof(string), typeof(BattleNetSettingsView), new PropertyMetadata(string.Empty));
+
+        public string DataForAzerothStatus
+        {
+            get => (string)GetValue(DataForAzerothStatusProperty);
+            set => SetValue(DataForAzerothStatusProperty, value);
+        }
+
+        public static readonly DependencyProperty DataForAzerothPendingProperty =
+            DependencyProperty.Register(nameof(DataForAzerothPending), typeof(bool), typeof(BattleNetSettingsView), new PropertyMetadata(true));
+
+        /// <summary>Nothing probed yet, so the card claims neither success nor failure.</summary>
+        public bool DataForAzerothPending
+        {
+            get => (bool)GetValue(DataForAzerothPendingProperty);
+            set => SetValue(DataForAzerothPendingProperty, value);
+        }
+
+        public static readonly DependencyProperty DataForAzerothCheckingProperty =
+            DependencyProperty.Register(nameof(DataForAzerothChecking), typeof(bool), typeof(BattleNetSettingsView), new PropertyMetadata(false));
+
+        public bool DataForAzerothChecking
+        {
+            get => (bool)GetValue(DataForAzerothCheckingProperty);
+            set => SetValue(DataForAzerothCheckingProperty, value);
+        }
+
         public new BattleNetSettings Settings => _battleNetSettings;
 
-        public BattleNetSettingsView(BattleNetApiClient apiClient, BattleNetSessionManager sessionManager, ILogger logger)
+        public BattleNetSettingsView(
+            BattleNetApiClient apiClient,
+            BattleNetSessionManager sessionManager,
+            DataForAzerothSessionManager dataForAzerothSession,
+            ILogger logger)
         {
             _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
+            // Null when no browser is available; the panel then stays inert rather than lying.
+            _dataForAzerothSession = dataForAzerothSession;
             _logger = logger ?? Logger;
             InitializeComponent();
             ConnectionLabel.Text = string.Format(
@@ -102,6 +147,10 @@ namespace PlayniteAchievements.Providers.BattleNet
             UpdateWowStatus();
             SetAuthStatusVisualState(pending: true, success: false);
             AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotChecked");
+            DataForAzerothChecked = false;
+            DataForAzerothChecking = false;
+            DataForAzerothPending = true;
+            DataForAzerothStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotChecked");
         }
 
         private void BattleNetSettings_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -160,6 +209,143 @@ namespace PlayniteAchievements.Providers.BattleNet
             }
 
             UpdateAuthStatus(result);
+
+            // Probed here rather than on a timer or during a refresh: opening this page is the one
+            // moment the user is present and able to act, and the site check lapses periodically.
+            await RefreshDataForAzerothStatusAsync();
+        }
+
+        private async Task RefreshDataForAzerothStatusAsync()
+        {
+            if (_dataForAzerothSession == null || _battleNetSettings?.UseDataForAzerothForWowRarity != true)
+            {
+                DataForAzerothChecked = false;
+                DataForAzerothChecking = false;
+                DataForAzerothPending = true;
+                DataForAzerothStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotChecked");
+                return;
+            }
+
+            DataForAzerothChecking = true;
+            DataForAzerothStatus = ResourceProvider.GetString("LOCPlayAch_Auth_Checking");
+
+            AuthProbeResult result;
+            try
+            {
+                result = await _dataForAzerothSession.ProbeAuthStateAsync(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Logger.Debug(ex, "Data for Azeroth site check probe failed during settings refresh.");
+                result = AuthProbeResult.ProbeFailed();
+            }
+
+            UpdateDataForAzerothStatus(result);
+        }
+
+        private void UpdateDataForAzerothStatus(AuthProbeResult result)
+        {
+            var cleared = result?.IsSuccess ?? false;
+            DataForAzerothChecked = cleared;
+            DataForAzerothChecking = false;
+            DataForAzerothPending = false;
+
+            if (cleared)
+            {
+                // Same "Authenticated as {0}" treatment the Blizzard card gets, falling back to the
+                // plain label when the site session carries no name we can show.
+                var authenticatedAsFormat = ResourceProvider.GetString("LOCPlayAch_Auth_AuthenticatedAs");
+                DataForAzerothStatus = string.IsNullOrWhiteSpace(result.UserId) ||
+                    string.IsNullOrWhiteSpace(authenticatedAsFormat) ||
+                    string.Equals(authenticatedAsFormat, "LOCPlayAch_Auth_AuthenticatedAs", StringComparison.Ordinal)
+                    ? ResourceProvider.GetString("LOCPlayAch_Auth_Authenticated")
+                    : string.Format(authenticatedAsFormat, result.UserId);
+                return;
+            }
+
+            // "Could not reach a verdict" is not the same as "the site is asking for a check", and
+            // telling the user to go tick a box when the request merely failed wastes their time.
+            var indeterminate = result == null ||
+                result.Outcome == AuthOutcome.ProbeFailed ||
+                result.Outcome == AuthOutcome.Cancelled ||
+                result.Outcome == AuthOutcome.TimedOut;
+
+            DataForAzerothStatus = ResourceProvider.GetString(indeterminate
+                ? "LOCPlayAch_Auth_TemporaryFailure"
+                : "LOCPlayAch_Settings_BattleNet_DataForAzerothSignInHint");
+        }
+
+        private async void DataForAzeroth_Login_Click(object sender, RoutedEventArgs e)
+        {
+            if (_dataForAzerothSession == null)
+            {
+                return;
+            }
+
+            try
+            {
+                SetAuthBusy(true);
+                var result = await _dataForAzerothSession.AuthenticateInteractiveAsync(
+                    forceInteractive: true,
+                    CancellationToken.None);
+
+                if (result.IsSuccess)
+                {
+                    await RefreshDataForAzerothStatusAsync();
+                }
+                else
+                {
+                    UpdateDataForAzerothStatus(result);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Data for Azeroth site check verification failed");
+            }
+            finally
+            {
+                SetAuthBusy(false);
+            }
+        }
+
+        private async void DataForAzeroth_Check_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                SetAuthBusy(true);
+                await RefreshDataForAzerothStatusAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Data for Azeroth site check probe failed");
+            }
+            finally
+            {
+                SetAuthBusy(false);
+            }
+        }
+
+        private async void DataForAzeroth_Clear_Click(object sender, RoutedEventArgs e)
+        {
+            if (_dataForAzerothSession == null)
+            {
+                return;
+            }
+
+            try
+            {
+                SetAuthBusy(true);
+                await _dataForAzerothSession.ClearSessionAsync(CancellationToken.None);
+                await RefreshDataForAzerothStatusAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Data for Azeroth site check reset failed");
+            }
+            finally
+            {
+                SetAuthBusy(false);
+            }
         }
 
         private void UpdateAuthStatus(AuthProbeResult result)

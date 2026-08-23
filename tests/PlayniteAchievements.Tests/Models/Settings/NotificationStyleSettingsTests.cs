@@ -153,6 +153,7 @@ namespace PlayniteAchievements.Tests.Models.Settings
             source.NotificationStyle.Toast.RarityFontFamily = "Georgia";
             source.NotificationStyle.Toast.RarityEmphasis =
                 NotificationLineEmphasis.Italic | NotificationLineEmphasis.Strikethrough;
+            source.NotificationStyle.Frame.FrameVignetteStrength = 75;
             var providerStyle = NotificationStyleSettings.CreateDefault();
             providerStyle.Toast.FontFamily = "Consolas";
             source.SetProviderNotificationStyle("Steam", providerStyle);
@@ -174,6 +175,7 @@ namespace PlayniteAchievements.Tests.Models.Settings
                 Assert.AreEqual(
                     NotificationLineEmphasis.Italic | NotificationLineEmphasis.Strikethrough,
                     copy.NotificationStyle.Toast.RarityEmphasis);
+                Assert.AreEqual(75, copy.NotificationStyle.Frame.FrameVignetteStrength);
                 CollectionAssert.AreEqual(
                     source.NotificationStyle.Toast.LineOrder,
                     copy.NotificationStyle.Toast.LineOrder);

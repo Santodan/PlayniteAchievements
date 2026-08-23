@@ -270,7 +270,24 @@ namespace PlayniteAchievements.ViewModels.Items
         public DateTime? LastUnlockLocal => LastUnlockUtc?.ToLocalTime();
 
         private bool _isCompleted;
-        public bool IsCompleted { get => _isCompleted; set => SetValue(ref _isCompleted, value); }
+        public bool IsCompleted
+        {
+            get => _isCompleted;
+            set
+            {
+                if (SetValueAndReturn(ref _isCompleted, value))
+                {
+                    OnPropertyChanged(nameof(ShowCompletionBadge));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Whether the progress column footer renders the completion badge for this row. Game rows
+        /// track <see cref="IsCompleted"/>; category rows additionally honor the
+        /// CategoryCompletionBadgeMode display setting.
+        /// </summary>
+        public virtual bool ShowCompletionBadge => IsCompleted;
 
         private string _provider;
         public string Provider { get => _provider; set => SetValue(ref _provider, value); }
