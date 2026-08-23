@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -155,17 +154,16 @@ namespace PlayniteAchievements.Services.Recording
                 return null;
             }
 
-            var now100ns = (long)(Stopwatch.GetTimestamp() * (10_000_000d / Stopwatch.Frequency));
-            var age100ns = now100ns - qpcPosition100ns;
+            var utc = CaptureTimelineClock.FromQpc100ns(qpcPosition100ns, out var age100ns);
 
-            // A packet is at most a second or so old; anything outside that is a timebase we do
-            // not understand. Negative means the stamp is in the future, which is equally wrong.
-            if (age100ns < 0 || age100ns > 10_000_000L)
+            // A packet is at most a second away. A small future presentation time is valid for a
+            // render-loopback packet and must not force AwaitAnchor onto its 750 ms fallback.
+            if (Math.Abs(age100ns) > 10_000_000L)
             {
                 return null;
             }
 
-            return CaptureTimelineClock.UtcNow.AddTicks(-age100ns);
+            return utc;
         }
 
         /// <summary>
@@ -183,15 +181,14 @@ namespace PlayniteAchievements.Services.Recording
                 return null;
             }
 
-            var now100ns = (long)(Stopwatch.GetTimestamp() * (10_000_000d / Stopwatch.Frequency));
-            var offset100ns = now100ns - qpcPosition100ns;
-            if (Math.Abs(offset100ns) > 20_000_000L)
+            var utc = CaptureTimelineClock.FromQpc100ns(qpcPosition100ns, out var age100ns);
+            if (Math.Abs(age100ns) > 20_000_000L)
             {
                 // Two seconds out in either direction is a timebase we do not understand.
                 return null;
             }
 
-            return CaptureTimelineClock.UtcNow.AddTicks(-offset100ns);
+            return utc;
         }
 
         /// <summary>48 kHz stereo 32-bit IEEE float — the format the loopback client mixes the process to.</summary>

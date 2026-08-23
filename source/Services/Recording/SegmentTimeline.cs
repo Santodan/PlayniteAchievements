@@ -44,6 +44,12 @@ namespace PlayniteAchievements.Services.Recording
         {
             public IReadOnlyList<SegmentInfo> Segments { get; set; }
 
+            /// <summary>
+            /// Exact absolute start of the planned clip. Keep this instead of reconstructing it
+            /// with DateTime.AddSeconds(double), which rounds to milliseconds on .NET Framework.
+            /// </summary>
+            public DateTime StartUtc { get; set; }
+
             /// <summary>Seek offset (seconds) into the concatenated segments.</summary>
             public double StartOffsetSeconds { get; set; }
 
@@ -121,7 +127,7 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// Splits a buffer file name into its wall-clock stamp and, for video segments, the
-        /// encoded dimensions: prefix + yyyyMMdd-HHmmssfff + optional _WxH + optional -N (the
+        /// encoded dimensions: prefix + yyyyMMdd-HHmmssfffffffZ + optional _WxH + optional -N (the
         /// writer's same-instant uniquifier) + extension. The stamp is read at its fixed width so
         /// neither trailing token defeats it, falling back to the second-resolution stamp buffers
         /// written before milliseconds were included carry.
@@ -185,22 +191,21 @@ namespace PlayniteAchievements.Services.Recording
             isUtc = false;
             suffix = string.Empty;
 
-            if (body.Length >= RecordingPaths.UtcStampLength)
+            if (TryParseUtcStamp(
+                    body,
+                    RecordingPaths.UtcStampFormat,
+                    RecordingPaths.UtcStampLength,
+                    out stamp,
+                    out suffix) ||
+                TryParseUtcStamp(
+                    body,
+                    RecordingPaths.LegacyUtcStampFormat,
+                    RecordingPaths.LegacyUtcStampLength,
+                    out stamp,
+                    out suffix))
             {
-                var candidate = body.Substring(0, RecordingPaths.UtcStampLength);
-                var rest = body.Substring(RecordingPaths.UtcStampLength);
-                if ((rest.Length == 0 || rest[0] == RecordingPaths.DimensionSeparator || rest[0] == '-') &&
-                    DateTime.TryParseExact(
-                        candidate,
-                        RecordingPaths.UtcStampFormat,
-                        CultureInfo.InvariantCulture,
-                        DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                        out stamp))
-                {
-                    isUtc = true;
-                    suffix = rest;
-                    return true;
-                }
+                isUtc = true;
+                return true;
             }
 
             foreach (var length in new[] { RecordingPaths.StampLength, RecordingPaths.LegacyStampLength })
@@ -229,6 +234,41 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             return false;
+        }
+
+        private static bool TryParseUtcStamp(
+            string body,
+            string format,
+            int length,
+            out DateTime stamp,
+            out string suffix)
+        {
+            stamp = default;
+            suffix = string.Empty;
+            if (body.Length < length)
+            {
+                return false;
+            }
+
+            var candidate = body.Substring(0, length);
+            var rest = body.Substring(length);
+            if (rest.Length > 0 && rest[0] != RecordingPaths.DimensionSeparator && rest[0] != '-')
+            {
+                return false;
+            }
+
+            if (!DateTime.TryParseExact(
+                    candidate,
+                    format,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                    out stamp))
+            {
+                return false;
+            }
+
+            suffix = rest;
+            return true;
         }
 
         /// <summary>
@@ -495,6 +535,7 @@ namespace PlayniteAchievements.Services.Recording
             return new ClipPlan
             {
                 Segments = run,
+                StartUtc = effectiveStart,
                 StartOffsetSeconds = (effectiveStart - first.StartUtc).TotalSeconds,
                 DurationSeconds = (effectiveEnd - effectiveStart).TotalSeconds,
                 EndUtc = effectiveEnd,
