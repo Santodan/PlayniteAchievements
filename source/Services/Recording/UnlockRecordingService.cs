@@ -70,13 +70,21 @@ namespace PlayniteAchievements.Services.Recording
         private const double HapticCancellationBlockGainFloor = 0.005;
 
         /// <summary>
-        /// How well a block has to clean up for its subtraction to be kept rather than briefly
-        /// gated. Stricter than the chime's 10 dB, because a partly-cancelled rumble is not
-        /// simply quieter — what is left is comb-filtered, and that can draw more attention than the
-        /// steady rumble it replaced even while measuring lower. Attempt everywhere the faint-copy
-        /// floor allows, keep only what demonstrably worked, and gate the rest.
+        /// Haptic activity can occupy only one 50 ms block in a half-second global scoring window.
+        /// That dilutes an otherwise strong local copy to roughly 0.15-0.25 correlation (the latest
+        /// hap1 measured 0.219). This only calibrates the stamped slice's fixed lag and gain; every
+        /// reference-active block is then straight-subtracted and must clear a 10 dB proof.
         /// </summary>
-        private const double HapticCancellationKeepBlockDb = 15.0;
+        private const double HapticCancellationMinimumCorrelation = 0.15;
+
+        /// <summary>
+        /// How well a block has to clean up for its subtraction to be kept. A partly-cancelled
+        /// rumble is not
+        /// simply quieter — what is left is comb-filtered, and that can draw more attention than the
+        /// steady rumble it replaced even while measuring lower. Attempt every stamped active block,
+        /// keep only what demonstrably worked, and restore the rest exactly.
+        /// </summary>
+        private const double HapticCancellationKeepBlockDb = 10.0;
 
         /// <summary>
         /// Haptics arrive as short impulses. The generic half-second chime blocks diluted a 20-50 ms
@@ -87,8 +95,8 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// Maximum correlation the cleaned clip may retain against an active reference: a sanity
-        /// check that the reference really described this audio, not the accept gate — per-block
-        /// verification is, and it already guarantees no block was made worse.
+        /// check that the reference really described this audio, not the accept gate — held-out
+        /// block verification is, and it already guarantees no block was made worse.
         /// <para>
         /// Held at 0.05 this rejected whole passes that had done real work: a field clip went from
         /// 0.939 correlated down to 0.126, 33.4 dB of suppression over 227 blocks, and was discarded
@@ -1386,10 +1394,24 @@ namespace PlayniteAchievements.Services.Recording
             // Remove any controller haptic waveform the process-loopback capture swept up along with
             // the game's audio. Replaces the plan with one over a single cleaned chunk, so the
             // exporter's concatenation and A/V alignment are untouched either way.
+            var recordedAudioPlan = audioPlan;
             var cleanedAudioDirectory = (string)null;
             if (audioPlan != null)
             {
-                audioPlan = TryRemoveHapticAudio(session, audioPlan, out cleanedAudioDirectory);
+                var selectedAudioPlan = TryRemoveHapticAudio(
+                    session, recordedAudioPlan, out cleanedAudioDirectory);
+                // This is deliberately redundant with TryRemoveHapticAudio's own fallback. It keeps
+                // a future cleanup regression from ever turning an existing recorded plan into the
+                // exporter's "no audio" sentinel.
+                audioPlan = selectedAudioPlan ?? recordedAudioPlan;
+                if (selectedAudioPlan == null)
+                {
+                    TryDeleteCleanedAudio(cleanedAudioDirectory);
+                    cleanedAudioDirectory = null;
+                    _logger?.Warn(
+                        "[Recording] Haptic cleanup returned no usable plan; keeping the recorded " +
+                        "audio, which may still carry controller buzz.");
+                }
             }
 
             LogRecordingTiming(session, request, window, plan.Segments.Count, audioPlan != null);
@@ -1407,6 +1429,19 @@ namespace PlayniteAchievements.Services.Recording
             {
                 ok = await Task.Run(() => exporter.Export(plan, audioPlan, tempPath, out videoLeadSeconds))
                     .ConfigureAwait(false);
+                if (!ok && cleanedAudioDirectory != null && recordedAudioPlan != null)
+                {
+                    // A verified PCM cleanup can still fail later while its WAV is opened or muxed.
+                    // Retrying with the already-planned recording makes cleanup strictly optional:
+                    // its worst case is the original buzz, never a missing clip or audio track.
+                    _logger?.Warn(
+                        "[Recording] Export with cleaned haptic audio failed; retrying with the " +
+                        "original recorded audio, which may still carry controller buzz.");
+                    TryDeleteFile(tempPath);
+                    videoLeadSeconds = 0;
+                    ok = await Task.Run(() => exporter.Export(
+                        plan, recordedAudioPlan, tempPath, out videoLeadSeconds)).ConfigureAwait(false);
+                }
             }
             finally
             {
@@ -1426,7 +1461,7 @@ namespace PlayniteAchievements.Services.Recording
             // a young session, a pruned buffer, a run cut short by a resize — makes the clip begin after
             // the window did. Anything positioned inside the clip has to measure from here rather than
             // from the window, or it lands early by the difference.
-            var clipStartUtc = plan.Segments[0].StartUtc.AddSeconds(plan.StartOffsetSeconds);
+            var clipStartUtc = plan.StartUtc;
             if (clipStartUtc > window.StartUtc.AddMilliseconds(250))
             {
                 _logger?.Info(
@@ -1494,7 +1529,12 @@ namespace PlayniteAchievements.Services.Recording
                     return null;
                 }
 
-                var outcome = PcmAudio.CancelCorrelated(pcm, referencePcm, out var cancellation);
+                var outcome = PcmAudio.CancelCorrelated(
+                    pcm,
+                    referencePcm,
+                    out var cancellation,
+                    preferEarlyAlignmentWindow: true,
+                    verificationLagRadiusFrames: 480);
                 if (outcome == PcmCancellationOutcome.Unseparable)
                 {
                     _logger?.Warn(
@@ -1509,7 +1549,8 @@ namespace PlayniteAchievements.Services.Recording
                     $"[Recording] Chime game-audio cancellation: outcome={outcome} " +
                     $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
                     $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
-                    $"suppression={cancellation.SuppressionDb:0.0}dB mutedBlocks={cancellation.MutedBlocks}.");
+                    $"suppression={cancellation.SuppressionDb:0.0}dB " +
+                    $"fixedBlocks={cancellation.FixedFitBlocks} mutedBlocks={cancellation.MutedBlocks}.");
             }
 
             if (pcm != null)
@@ -1536,8 +1577,8 @@ namespace PlayniteAchievements.Services.Recording
         /// reference that cannot be verified, excessive residual correlation, an unreadable track or
         /// an I/O failure all ship the clip's own sound. The worst outcome this pass may produce is
         /// audio that still carries some buzz — never a clip without audio, which costs the user far
-        /// more than the artifact being guarded against. Within a verified pass, a 50 ms active block
-        /// that cannot be subtracted is briefly gated.
+        /// more than the artifact being guarded against. Within a verified pass, every 50 ms active
+        /// block that cannot prove improvement is restored exactly as recorded.
         /// </para>
         /// </summary>
         private SegmentTimeline.ClipPlan TryRemoveHapticAudio(
@@ -1554,8 +1595,8 @@ namespace PlayniteAchievements.Services.Recording
 
             try
             {
-                var startUtc = audioPlan.Segments[0].StartUtc.AddSeconds(audioPlan.StartOffsetSeconds);
-                var endUtc = startUtc.AddSeconds(audioPlan.DurationSeconds);
+                var startUtc = audioPlan.StartUtc;
+                var endUtc = audioPlan.EndUtc;
                 if (session.AudioRecorder?.HasHapticHole(startUtc, endUtc) == true)
                 {
                     _logger?.Info(
@@ -1608,11 +1649,12 @@ namespace PlayniteAchievements.Services.Recording
                     return audioPlan;
                 }
 
-                // One pass per endpoint, each over what the previous pass left. A single pass fits
-                // one gain and one lag, so two endpoints could never both be removed from a summed
-                // reference — and a pass that cannot verify its own reference leaves the audio it was
-                // given untouched, which is exactly what the next pass should work on.
+                // One pass per endpoint, each over what the previous pass left. Each endpoint needs
+                // its own fixed lag and scale, so a summed reference could not remove both reliably.
+                // A pass that cannot verify its own reference leaves its input untouched, which is
+                // exactly what the next pass should work on.
                 var removedAny = false;
+                var unremovedActiveReferences = new List<string>();
                 for (var i = 0; i < references.Count; i++)
                 {
                     // A controller endpoint and a process-loopback client can sit much further apart
@@ -1634,28 +1676,40 @@ namespace PlayniteAchievements.Services.Recording
                         blockGainFloor: HapticCancellationBlockGainFloor,
                         keepBlockSuppressionDb: HapticCancellationKeepBlockDb,
                         cancellationBlockFrames: HapticCancellationBlockFrames,
-                        commitWithMutedUnverifiedBlocks: false,
-                        maximumResidualCorrelation: HapticCancellationMaximumResidualCorrelation);
+                        maximumResidualCorrelation: HapticCancellationMaximumResidualCorrelation,
+                        commitVerifiedBlocksOnWeakPass: true,
+                        minimumCorrelation: HapticCancellationMinimumCorrelation,
+                        attemptVerifiedBlocksWhenGloballyClean: true,
+                        independentChannelGains: true,
+                        // The reference and its copy begin on the same stamped frame. Fading the
+                        // first 5 ms in left the audible onset of every short haptic burst behind.
+                        gainCrossfadeFrames: 0,
+                        // One fixed sub-sample calibration for the whole clip. This models the
+                        // physical phase between audio engines without bringing back block relocks.
+                        fractionalLagSteps: 32);
                     _logger?.Info(
                         $"[Recording] Haptic cancellation ({referenceNames[i]}): outcome={outcome} " +
                         $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
                         $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
                         $"suppression={cancellation.SuppressionDb:0.0}dB " +
                         $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
-                        $"(quiet={cancellation.QuietBlocks}, unverified={cancellation.UnverifiedBlocks}, " +
+                        $"fit=stereo/no-fade/fractional " +
+                        $"(quiet={cancellation.QuietBlocks}, fixed={cancellation.FixedFitBlocks}, " +
                         $"gated={cancellation.MutedBlocks}, restored={cancellation.RestoredBlocks}) " +
+                        $"partial={cancellation.PartialCommit} " +
                         $"weakestBlock={cancellation.WeakestBlockSuppressionDb:0.0}dB " +
                         $"residual={cancellation.ResidualCorrelation:0.000} " +
                         $"referenceRms={cancellation.ReferenceRms:0.0}.");
                     if (!PcmAudio.IsReferenceSafelyAbsentOrRemoved(outcome, cancellation))
                     {
                         // The mixture is untouched by an unverified pass, so the recorded audio is
-                        // exactly what was captured — buzz included. That is the accepted worst case.
+                        // still valid. Keep any verified work from the other independent endpoints
+                        // and accept that this endpoint's buzz can remain.
                         _logger?.Warn(
                             $"[Recording] Active haptic reference {referenceNames[i]} was not " +
-                            "verifiably removed; keeping the recorded audio, which may still carry " +
-                            "some of the controller's buzz.");
-                        return audioPlan;
+                            "verifiably removed; continuing best-effort cleanup. Its buzz may remain.");
+                        unremovedActiveReferences.Add(referenceNames[i]);
+                        continue;
                     }
 
                     removedAny |= outcome == PcmCancellationOutcome.CancelledVerified;
@@ -1664,6 +1718,14 @@ namespace PlayniteAchievements.Services.Recording
                 if (!removedAny)
                 {
                     return audioPlan;
+                }
+
+                if (unremovedActiveReferences.Count > 0)
+                {
+                    _logger?.Info(
+                        "[Recording] Exporting the verified partial haptic cleanup; unresolved " +
+                        "reference(s) remain in the audio: " +
+                        string.Join(", ", unremovedActiveReferences.ToArray()) + ".");
                 }
 
                 candidateDirectory = Path.Combine(session.BufferDirectory, $"clean_{Guid.NewGuid():N}");

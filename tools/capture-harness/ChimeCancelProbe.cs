@@ -2,7 +2,7 @@
 // from source) against the chm_/gam_ WAV chunks of a RecordingBuffer session, so cancellation
 // quality can be measured on real captures without loading Playnite.
 //
-//   ChimeCancelProbe.exe <sessionDir> [--start yyyyMMdd-HHmmssfff[Z]] [--seconds 4.5] [--wav-out dir]
+//   ChimeCancelProbe.exe <sessionDir> [--start yyyyMMdd-HHmmssfffffff[Z]] [--seconds 4.5] [--wav-out dir]
 //   ChimeCancelProbe.exe --selftest
 //
 // With no --start, the whole chm_/gam_ overlap is swept in consecutive windows and each window is
@@ -27,6 +27,7 @@ internal static class ChimeCancelProbe
 {
     private const int SampleRate = 48000;
     private const string StampFormat = "yyyyMMdd-HHmmssfff";
+    private const string PreciseStampFormat = "yyyyMMdd-HHmmssfffffff";
 
     private static int Main(string[] args)
     {
@@ -37,7 +38,7 @@ internal static class ChimeCancelProbe
 
         if (args.Length < 1 || !Directory.Exists(args[0]))
         {
-            Console.WriteLine("usage: ChimeCancelProbe.exe <sessionDir> [--start yyyyMMdd-HHmmssfff[Z]] [--seconds 4.5] [--wav-out dir]");
+            Console.WriteLine("usage: ChimeCancelProbe.exe <sessionDir> [--start yyyyMMdd-HHmmssfffffff[Z]] [--seconds 4.5] [--wav-out dir]");
             Console.WriteLine("       ChimeCancelProbe.exe --selftest");
             return 2;
         }
@@ -102,9 +103,13 @@ internal static class ChimeCancelProbe
             if (refPcm != null)
             {
                 before = (byte[])mixture.Clone();
-                var outcome = PcmAudio.CancelCorrelated(mixture, refPcm, out var d);
+                var outcome = PcmAudio.CancelCorrelated(
+                    mixture, refPcm, out var d,
+                    preferEarlyAlignmentWindow: true,
+                    verificationLagRadiusFrames: 480);
                 outcomeText = outcome.ToString();
-                detail = $"{d.StartLagMs,7:0.000}->{d.EndLagMs,-7:0.000} {d.Gain,5:0.00}  {d.Correlation,5:0.000}  {d.SuppressionDb,7:0.0}";
+                detail = $"{d.StartLagMs,7:0.000}->{d.EndLagMs,-7:0.000} {d.Gain,5:0.00}  {d.Correlation,5:0.000}  {d.SuppressionDb,7:0.0}  " +
+                    $"blocks={d.SubtractedBlocks}/{d.TotalBlocks} muted={d.MutedBlocks} quiet={d.QuietBlocks} weak={d.WeakestBlockSuppressionDb:0.0}";
             }
 
             Console.WriteLine($"{stamp}     {chmRms,6:0.0}    {gamRms,6:0.0}    {outcomeText,-20} {detail}");
@@ -164,7 +169,7 @@ internal static class ChimeCancelProbe
             ? text.Substring(0, text.Length - 1)
             : text;
         return DateTime.TryParseExact(
-            body, StampFormat, CultureInfo.InvariantCulture,
+            body, new[] { PreciseStampFormat, StampFormat, "yyyyMMdd-HHmmss" }, CultureInfo.InvariantCulture,
             DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out utc);
     }
 
@@ -329,13 +334,14 @@ internal static class ChimeCancelProbe
     {
         var failures = 0;
 
-        // Drifting lag at gain 0.9 with a chime tone, like the reported RetroArch session.
+        // A timestamp-aligned fixed lag at gain 0.9 with a chime tone. This is the shape the
+        // direct QPC-stamped chm/gam writers are required to produce.
         const int frames = 288000;
         var reference = BandLimitedNoise(frames, 7, 8000);
         var mixture = new short[frames * 2];
         for (var f = 0; f < frames; f++)
         {
-            var delay = 873.0 + 10.0 * f / frames;
+            const double delay = 873.0;
             for (var ch = 0; ch < 2; ch++)
             {
                 mixture[f * 2 + ch] = (short)Math.Round(0.9 * SampleAt(reference, f + delay, ch));
@@ -350,9 +356,35 @@ internal static class ChimeCancelProbe
         }
 
         var mixBytes = ToBytes(mixture);
-        var outcome = PcmAudio.CancelCorrelated(mixBytes, ToBytes(reference), out var d);
-        Console.WriteLine($"drift:  outcome={outcome} lag={d.StartLagMs:0.000}->{d.EndLagMs:0.000}ms gain={d.Gain:0.00} corr={d.Correlation:0.000} supp={d.SuppressionDb:0.0}dB");
+        var outcome = PcmAudio.CancelCorrelated(
+            mixBytes, ToBytes(reference), out var d,
+            preferEarlyAlignmentWindow: true,
+            verificationLagRadiusFrames: 480);
+        Console.WriteLine($"fixed:  outcome={outcome} lag={d.StartLagMs:0.000}->{d.EndLagMs:0.000}ms gain={d.Gain:0.00} corr={d.Correlation:0.000} supp={d.SuppressionDb:0.0}dB");
         if (outcome != PcmCancellationOutcome.CancelledVerified)
+        {
+            failures++;
+        }
+
+        // If two supposedly stamped tracks ever drift apart, do not report a false success. The
+        // wide residual proof must catch it; subtraction itself remains one fixed full-slice lag.
+        var driftingMixture = new short[frames * 2];
+        for (var f = 0; f < frames; f++)
+        {
+            var delay = 873.0 + 10.0 * f / frames;
+            for (var ch = 0; ch < 2; ch++)
+            {
+                driftingMixture[f * 2 + ch] =
+                    (short)Math.Round(0.9 * SampleAt(reference, f + delay, ch));
+            }
+        }
+
+        outcome = PcmAudio.CancelCorrelated(
+            ToBytes(driftingMixture), ToBytes(reference), out d,
+            preferEarlyAlignmentWindow: true,
+            verificationLagRadiusFrames: 480);
+        Console.WriteLine($"drift:  outcome={outcome} lag={d.StartLagMs:0.000}->{d.EndLagMs:0.000}ms gain={d.Gain:0.00} corr={d.Correlation:0.000} supp={d.SuppressionDb:0.0}dB");
+        if (outcome != PcmCancellationOutcome.Unseparable)
         {
             failures++;
         }
@@ -363,7 +395,10 @@ internal static class ChimeCancelProbe
         var noiseB = new short[96000];
         for (var i = 0; i < noiseA.Length; i++) { noiseA[i] = (short)random.Next(-8000, 8001); }
         for (var i = 0; i < noiseB.Length; i++) { noiseB[i] = (short)random.Next(-8000, 8001); }
-        outcome = PcmAudio.CancelCorrelated(ToBytes(noiseA), ToBytes(noiseB), out d);
+        outcome = PcmAudio.CancelCorrelated(
+            ToBytes(noiseA), ToBytes(noiseB), out d,
+            preferEarlyAlignmentWindow: true,
+            verificationLagRadiusFrames: 480);
         Console.WriteLine($"clean:  outcome={outcome} gain={d.Gain:0.000} corr={d.Correlation:0.000}");
         if (outcome != PcmCancellationOutcome.CleanNoGameDetected)
         {

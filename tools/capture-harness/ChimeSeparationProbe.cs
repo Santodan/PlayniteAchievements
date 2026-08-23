@@ -153,7 +153,10 @@ internal static class ChimeSeparationProbe
         // The production question: can the game tone be removed from the sidecar while the chime
         // survives, across two independent loopback clients?
         var before = (byte[])sidecarPcm.Clone();
-        var outcome = PcmAudio.CancelCorrelated(sidecarPcm, gamePcm, out var d);
+        var outcome = PcmAudio.CancelCorrelated(
+            sidecarPcm, gamePcm, out var d,
+            preferEarlyAlignmentWindow: true,
+            verificationLagRadiusFrames: 480);
         Console.WriteLine();
         Console.WriteLine($"cancellation: outcome={outcome} lag={d.StartLagMs:0.000}->{d.EndLagMs:0.000}ms gain={d.Gain:0.00} corr={d.Correlation:0.000} supp={d.SuppressionDb:0.0}dB");
         Check(outcome == PcmCancellationOutcome.CancelledVerified, "cancellation verified", outcome.ToString());

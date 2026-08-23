@@ -78,6 +78,41 @@ namespace PlayniteAchievements.Services.Tests.Capture
             return energy;
         }
 
+        private static double DifferenceEnergy(
+            short[] actual, short[] expected, int startFrame, int endFrame)
+        {
+            double energy = 0;
+            for (var frame = startFrame; frame < endFrame; frame++)
+            {
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var index = frame * 2 + channel;
+                    var difference = actual[index] - expected[index];
+                    energy += difference * (double)difference;
+                }
+            }
+
+            return energy;
+        }
+
+        private static double ProjectionEnergy(
+            short[] signal, short[] reference, int startFrame, int endFrame)
+        {
+            double dot = 0;
+            double referenceEnergy = 0;
+            for (var frame = startFrame; frame < endFrame; frame++)
+            {
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var source = reference[frame * 2 + channel];
+                    dot += signal[frame * 2 + channel] * (double)source;
+                    referenceEnergy += source * (double)source;
+                }
+            }
+
+            return referenceEnergy > 0 ? dot * dot / referenceEnergy : 0;
+        }
+
         [TestMethod]
         public void MixInto_AddsSamples()
         {
@@ -163,7 +198,12 @@ namespace PlayniteAchievements.Services.Tests.Capture
         {
             // 1 second = 192000 bytes; already aligned.
             Assert.AreEqual(192000L, PcmAudio.TicksToAlignedBytes(10_000_000));
-            // A fraction that lands mid-frame rounds down to a 4-byte boundary.
+            // One frame is 208.333 ticks. The nearest representable tick must still map back to
+            // frame one rather than being truncated to three bytes and aligned onto frame zero.
+            Assert.AreEqual(PcmAudio.BlockAlign, PcmAudio.TicksToAlignedBytes(208));
+            Assert.AreEqual(PcmAudio.BlockAlign, PcmAudio.TicksToAlignedBytes(209));
+            Assert.AreEqual(0, PcmAudio.TicksToAlignedBytes(104));
+            // Every result is a whole stereo sample frame.
             var bytes = PcmAudio.TicksToAlignedBytes(12_345);
             Assert.AreEqual(0, bytes % PcmAudio.BlockAlign);
         }
@@ -212,8 +252,8 @@ namespace PlayniteAchievements.Services.Tests.Capture
             Assert.AreEqual(lag * 1000.0 / 48000.0, diagnostics.StartLagMs, 0.03);
             Assert.IsTrue(diagnostics.Correlation > 0.99, $"correlation was {diagnostics.Correlation}");
 
-            // The fitted gain and fractional lag carry noise-sized epsilons, so the residual is
-            // not sample-exact; require it to be far below audibility instead (the game is
+            // The fitted gain carries a noise-sized epsilon, so the residual is not sample-exact;
+            // require it to be far below audibility instead (the game is
             // +/-6000, so an RMS of 16 is about -51 dB relative to it).
             var cancelled = ToShorts(mixture);
             var worst = 0;
@@ -271,11 +311,148 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
-        public void CancelCorrelated_TracksDriftingLagAcrossTheSlice()
+        public void CancelCorrelated_HapticStereoFitDoesNotHideOppositeChannelResiduals()
         {
-            // Field logs showed the inter-stream lag drifting ~33 ppm (18.188 -> 18.354 ms over
-            // ~5 s); a single global lag comb-filters the slice tail. The block tracker with
-            // fractional-delay subtraction must follow it.
+            // DualSense left/right actuator audio can be scaled differently by the endpoint graph.
+            // One shared gain averages the two. Its positive residual in one channel and negative
+            // residual in the other cancel in a combined projection, falsely looking perfectly
+            // clean while both channels still carry an audible copy.
+            const int frames = 96000;
+            var reference = BandLimitedNoise(frames, 601, 7000);
+            var kept = BandLimitedNoise(frames, 887, 1200);
+            var mixture = new short[frames * 2];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                mixture[frame * 2] = (short)Math.Round(
+                    kept[frame * 2] + 0.95 * reference[frame * 2]);
+                mixture[frame * 2 + 1] = (short)Math.Round(
+                    kept[frame * 2 + 1] + 0.12 * reference[frame * 2 + 1]);
+            }
+
+            var shared = Samples(mixture);
+            var sharedOutcome = PcmAudio.CancelCorrelated(
+                shared, Samples(reference), out _);
+            Assert.AreEqual(PcmCancellationOutcome.CancelledVerified, sharedOutcome);
+
+            var stereo = Samples(mixture);
+            var stereoOutcome = PcmAudio.CancelCorrelated(
+                stereo, Samples(reference), out var diagnostics,
+                independentChannelGains: true,
+                gainCrossfadeFrames: 0);
+            Assert.AreEqual(
+                PcmCancellationOutcome.CancelledVerified,
+                stereoOutcome,
+                $"suppression={diagnostics.SuppressionDb:0.0}dB");
+
+            var from = 2400;
+            var to = frames - 2400;
+            var sharedError = DifferenceEnergy(ToShorts(shared), kept, from, to);
+            var stereoError = DifferenceEnergy(ToShorts(stereo), kept, from, to);
+            Assert.IsTrue(
+                stereoError < sharedError * 0.01,
+                $"per-channel residual was {stereoError / sharedError:P2} of shared-gain residual");
+        }
+
+        [TestMethod]
+        public void CancelCorrelated_ZeroCrossfadeRemovesTheWholeHapticOnset()
+        {
+            // A 5 ms gain ramp is useful between ordinary audio blocks, but it intentionally leaves
+            // the leading edge of a short controller burst behind. Stamped haptics need direct
+            // subtraction from their first active frame.
+            const int frames = 48000;
+            const int burstStart = 2400;
+            const int burstEnd = 4800;
+            var reference = new short[frames * 2];
+            var burst = BandLimitedNoise(burstEnd - burstStart, 733, 8000);
+            for (var frame = burstStart; frame < burstEnd; frame++)
+            {
+                var sourceFrame = frame - burstStart;
+                reference[frame * 2] = burst[sourceFrame * 2];
+                reference[frame * 2 + 1] = burst[sourceFrame * 2 + 1];
+            }
+
+            var mixture = reference
+                .Select(sample => (short)Math.Round(sample * 0.8))
+                .ToArray();
+
+            var faded = Samples(mixture);
+            var fadedOutcome = PcmAudio.CancelCorrelated(
+                faded, Samples(reference), out _,
+                cancellationBlockFrames: 2400,
+                independentChannelGains: true);
+            Assert.AreEqual(PcmCancellationOutcome.CancelledVerified, fadedOutcome);
+
+            var direct = Samples(mixture);
+            var directOutcome = PcmAudio.CancelCorrelated(
+                direct, Samples(reference), out _,
+                cancellationBlockFrames: 2400,
+                independentChannelGains: true,
+                gainCrossfadeFrames: 0);
+            Assert.AreEqual(PcmCancellationOutcome.CancelledVerified, directOutcome);
+
+            var fadedOnset = Energy(ToShorts(faded), burstStart, burstStart + 240);
+            var directOnset = Energy(ToShorts(direct), burstStart, burstStart + 240);
+            Assert.IsTrue(fadedOnset > 0, "the fixture did not exercise the default onset ramp");
+            Assert.IsTrue(
+                directOnset < fadedOnset * 0.001,
+                $"direct onset residual was {directOnset / fadedOnset:P2} of faded residual");
+        }
+
+        [TestMethod]
+        public void CancelCorrelated_OneFractionalLagRemovesNearestFrameResidual()
+        {
+            // Packet timestamps place both tracks on the same frame grid, but independent audio
+            // engines can present the waveform between frame centres. Nearest-frame subtraction
+            // leaves a quiet phasey copy; one fixed fractional calibration removes it without any
+            // block-by-block lag changes.
+            const int frames = 96000;
+            const double lag = 347.375;
+            var reference = BandLimitedNoise(frames, 811, 9000);
+            var mixture = new short[frames * 2];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    mixture[frame * 2 + channel] =
+                        (short)Math.Round(0.9 * SampleAt(reference, frame + lag, channel));
+                }
+            }
+
+            var nearest = Samples(mixture);
+            var nearestOutcome = PcmAudio.CancelCorrelated(
+                nearest, Samples(reference), out _,
+                independentChannelGains: true,
+                gainCrossfadeFrames: 0);
+            Assert.AreEqual(PcmCancellationOutcome.CancelledVerified, nearestOutcome);
+
+            var fractional = Samples(mixture);
+            var fractionalOutcome = PcmAudio.CancelCorrelated(
+                fractional, Samples(reference), out var diagnostics,
+                independentChannelGains: true,
+                gainCrossfadeFrames: 0,
+                fractionalLagSteps: 32);
+            Assert.AreEqual(
+                PcmCancellationOutcome.CancelledVerified,
+                fractionalOutcome,
+                $"lag={diagnostics.StartLagMs:0.0000}ms supp={diagnostics.SuppressionDb:0.0}dB");
+            Assert.AreEqual(lag * 1000.0 / 48000.0, diagnostics.StartLagMs, 0.0004);
+            Assert.AreEqual(diagnostics.StartLagMs, diagnostics.EndLagMs, 0.000001);
+
+            var from = 2400;
+            var to = frames - 2400;
+            var nearestResidual = Energy(ToShorts(nearest), from, to);
+            var fractionalResidual = Energy(ToShorts(fractional), from, to);
+            Assert.IsTrue(
+                fractionalResidual < nearestResidual * 0.01,
+                $"fractional residual was {fractionalResidual / nearestResidual:P2} of nearest-frame residual");
+        }
+
+        [TestMethod]
+        public void CancelCorrelated_UsesOneCalibratedLagAcrossTheSlice()
+        {
+            // A small device-clock drift must not bring back per-block lag chasing. The calibrated
+            // timestamp offset stays fixed; blocks that cannot verify at it use the existing
+            // restore/mute policy instead of moving every later sample on weak local evidence.
             const int frames = 288000; // 6 s
             var referenceSamples = BandLimitedNoise(frames, 7, 8000);
             var mixtureSamples = new short[frames * 2];
@@ -306,23 +483,22 @@ namespace PlayniteAchievements.Services.Tests.Capture
                 PcmCancellationOutcome.CancelledVerified,
                 outcome,
                 $"gain={diagnostics.Gain}, correlation={diagnostics.Correlation}, suppression={diagnostics.SuppressionDb}dB");
-            Assert.IsTrue(
-                diagnostics.EndLagMs > diagnostics.StartLagMs,
-                $"lag did not track upward: {diagnostics.StartLagMs} -> {diagnostics.EndLagMs}");
-            // Outside the chime, at least 10 dB of the game must be gone across the WHOLE slice,
-            // tail included.
+            Assert.AreEqual(diagnostics.StartLagMs, diagnostics.EndLagMs, 0.0001);
+            // This fixture deliberately violates the stamped-timeline contract. The fixed pass
+            // must still make a bounded best effort without changing its alignment mid-slice.
             var residualEnergy = Energy(ToShorts(mixture), 20000, frames - 1000);
             Assert.IsTrue(
-                residualEnergy < originalEnergy * 0.1,
+                residualEnergy < originalEnergy * 0.6,
                 $"residual energy ratio was {residualEnergy / originalEnergy:0.0000}");
+            Assert.IsTrue(diagnostics.FixedFitBlocks > 0);
         }
 
         [TestMethod]
-        public void CancelCorrelated_RelocksAfterALagStep()
+        public void CancelCorrelated_ChimeCalibrationPrefersTheEarlyGraphState()
         {
-            // Real recorder chunks showed the inter-track offset STEPPING 1-2 ms every few
-            // seconds (pump pacing), not just drifting; a step larger than the narrow per-block
-            // search must trigger the wide re-lock instead of losing the rest of the slice.
+            // Starting a chime render stream can change the process-tree capture graph's game
+            // latency. Calibrate inside the early chime passage rather than selecting the later
+            // game-only region merely because it has perfect correlation.
             const int frames = 216000; // 4.5 s, the production slice length
             const int lagBefore = 250; // ~5.2 ms
             const int lagAfter = 340; // ~7.1 ms: a +1.9 ms step at half-way
@@ -350,20 +526,31 @@ namespace PlayniteAchievements.Services.Tests.Capture
             }
 
             var mixture = Samples(mixtureSamples);
-            var tailOriginal = Energy(mixtureSamples, frames * 3 / 5, frames - 1000);
+            var earlyOriginal = Energy(mixtureSamples, 20000, frames / 2 - 1000);
 
-            var outcome = PcmAudio.CancelCorrelated(mixture, Samples(referenceSamples), out var diagnostics);
+            var outcome = PcmAudio.CancelCorrelated(
+                mixture,
+                Samples(referenceSamples),
+                out var diagnostics,
+                preferEarlyAlignmentWindow: true,
+                verificationLagRadiusFrames: 480);
 
             Assert.AreEqual(
                 PcmCancellationOutcome.CancelledVerified,
                 outcome,
                 $"gain={diagnostics.Gain}, correlation={diagnostics.Correlation}, suppression={diagnostics.SuppressionDb}dB");
-            // The blocks after the step must have re-locked: the tail is well past the step, so
-            // it must be strongly suppressed rather than left behind at the stale lag.
-            var tailResidual = Energy(ToShorts(mixture), frames * 3 / 5, frames - 1000);
+            Assert.AreEqual(lagBefore * 1000.0 / 48000.0, diagnostics.StartLagMs, 0.03);
+            Assert.AreEqual(diagnostics.StartLagMs, diagnostics.EndLagMs, 0.0001);
+            var earlyResidual = Energy(ToShorts(mixture), 20000, frames / 2 - 1000);
             Assert.IsTrue(
-                tailResidual < tailOriginal * 0.1,
-                $"tail residual ratio was {tailResidual / tailOriginal:0.0000}");
+                earlyResidual < earlyOriginal * 0.1,
+                $"early residual ratio was {earlyResidual / earlyOriginal:0.0000}");
+
+            // The unrelated early chime must survive; a wrong later calibration would classify
+            // these blocks as failed and mute the very sound the sidecar exists to preserve.
+            var cleaned = ToShorts(mixture);
+            var chimeEnergy = Energy(cleaned, 4800, 14400);
+            Assert.IsTrue(chimeEnergy > 20_000_000_000d, $"chime energy was {chimeEnergy:0}");
         }
 
         [TestMethod]
@@ -387,7 +574,128 @@ namespace PlayniteAchievements.Services.Tests.Capture
                 PcmCancellationOutcome.CleanNoGameDetected,
                 outcome,
                 $"gain={diagnostics.Gain}, correlation={diagnostics.Correlation}");
+            Assert.IsTrue(diagnostics.ReferenceHasSignal);
+            Assert.IsTrue(diagnostics.ReferenceRms > 16);
             CollectionAssert.AreEqual(before, mixture);
+        }
+
+        [TestMethod]
+        public void HapticSafety_RequiresVerifiedCancellationForAnActiveReference()
+        {
+            var silent = new PcmCancellationDiagnostics { ReferenceHasSignal = false };
+            var active = new PcmCancellationDiagnostics { ReferenceHasSignal = true };
+
+            Assert.IsTrue(PcmAudio.IsReferenceSafelyAbsentOrRemoved(
+                PcmCancellationOutcome.CleanNoGameDetected, silent));
+            Assert.IsFalse(PcmAudio.IsReferenceSafelyAbsentOrRemoved(
+                PcmCancellationOutcome.CleanNoGameDetected, active));
+            Assert.IsFalse(PcmAudio.IsReferenceSafelyAbsentOrRemoved(
+                PcmCancellationOutcome.Unseparable, active));
+            Assert.IsTrue(PcmAudio.IsReferenceSafelyAbsentOrRemoved(
+                PcmCancellationOutcome.CancelledVerified, active));
+        }
+
+        [TestMethod]
+        public void CancelCorrelated_ResidualCeilingRejectsWithoutChangingTheRecording()
+        {
+            const int frames = 96000;
+            var reference = BandLimitedNoise(frames, 741, 8000);
+            var unrelated = BandLimitedNoise(frames, 912, 5000);
+            var samples = new short[frames * 2];
+            for (var sample = 0; sample < samples.Length; sample++)
+            {
+                samples[sample] = (short)Math.Round(0.9 * reference[sample] + unrelated[sample]);
+            }
+
+            var permissive = Samples(samples);
+            var permissiveOutcome = PcmAudio.CancelCorrelated(
+                permissive, Samples(reference), out var permissiveDiagnostics);
+            Assert.AreEqual(PcmCancellationOutcome.CancelledVerified, permissiveOutcome);
+            Assert.IsTrue(
+                permissiveDiagnostics.ResidualCorrelation > 0,
+                "the deterministic unrelated component should leave a measurable projection");
+
+            var guarded = Samples(samples);
+            var original = (byte[])guarded.Clone();
+            var guardedOutcome = PcmAudio.CancelCorrelated(
+                guarded,
+                Samples(reference),
+                out var guardedDiagnostics,
+                maximumResidualCorrelation: permissiveDiagnostics.ResidualCorrelation / 2);
+
+            Assert.AreEqual(PcmCancellationOutcome.Unseparable, guardedOutcome);
+            Assert.IsTrue(
+                guardedDiagnostics.ResidualCorrelation >
+                    permissiveDiagnostics.ResidualCorrelation / 2);
+            CollectionAssert.AreEqual(original, guarded);
+        }
+
+        [TestMethod]
+        public void CancelCorrelated_FailedSecondReferencePreservesFirstVerifiedCleanup()
+        {
+            // Two DualSense endpoints were active in the field log. The first pass removed its
+            // reference by 35 dB, while the second could not be identified. Each pass is a
+            // transaction: rejecting the second must not undo the first or damage the game audio.
+            const int frames = 192000;
+            var firstReference = BandLimitedNoise(frames, 741, 7000);
+            var secondReference = BandLimitedNoise(frames, 333, 7000);
+            var game = BandLimitedNoise(frames, 912, 4000);
+            var samples = new short[frames * 2];
+            for (var sample = 0; sample < samples.Length; sample++)
+            {
+                samples[sample] = (short)Math.Round(
+                    0.9 * firstReference[sample] + 0.4 * game[sample]);
+            }
+
+            var working = Samples(samples);
+            var firstOutcome = PcmAudio.CancelCorrelated(
+                working,
+                Samples(firstReference),
+                out var firstDiagnostics,
+                muteUnverifiedBlocks: false,
+                maxLagFrames: 12000,
+                minimumGain: 0.005,
+                maximumGain: 20,
+                blockGainFloor: 0.005,
+                keepBlockSuppressionDb: 15,
+                cancellationBlockFrames: 2400,
+                maximumResidualCorrelation: 0.35);
+            Assert.AreEqual(PcmCancellationOutcome.CancelledVerified, firstOutcome);
+            Assert.IsTrue(firstDiagnostics.SubtractedBlocks > 0);
+
+            var afterFirst = (byte[])working.Clone();
+            var secondOutcome = PcmAudio.CancelCorrelated(
+                working,
+                Samples(secondReference),
+                out var secondDiagnostics,
+                muteUnverifiedBlocks: false,
+                maxLagFrames: 12000,
+                minimumGain: 0.005,
+                maximumGain: 20,
+                blockGainFloor: 0.005,
+                keepBlockSuppressionDb: 15,
+                cancellationBlockFrames: 2400,
+                maximumResidualCorrelation: 0.35);
+
+            Assert.IsFalse(PcmAudio.IsReferenceSafelyAbsentOrRemoved(
+                secondOutcome, secondDiagnostics));
+            CollectionAssert.AreEqual(
+                afterFirst,
+                working,
+                "A rejected reference pass must leave all earlier verified cleanup intact.");
+
+            var beforeProjection = ProjectionEnergy(samples, firstReference, 2400, frames - 2400);
+            var afterProjection = ProjectionEnergy(
+                ToShorts(working), firstReference, 2400, frames - 2400);
+            Assert.IsTrue(
+                afterProjection < beforeProjection * 0.02,
+                $"first-reference residual ratio was {afterProjection / beforeProjection:0.0000}");
+
+            var keptEnergy = Energy(ToShorts(working), 2400, frames - 2400);
+            var expectedGameEnergy = Energy(game, 2400, frames - 2400) * 0.16;
+            Assert.IsTrue(
+                keptEnergy > expectedGameEnergy * 0.5,
+                "Verified cleanup removed too much of the unrelated game audio.");
         }
 
         [TestMethod]
@@ -612,6 +920,274 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
+        public void CancelCorrelated_ShortBlocksRemoveSparseHapticBursts()
+        {
+            // The user log had four half-second blocks with a real reference but no credible fit.
+            // Haptic energy is impulsive: dilute a 25 ms burst with 475 ms of unrelated game audio
+            // and the old block correlation misses it, even though it is obvious while active.
+            const int frames = 192000; // 4 s
+            var reference = BandLimitedNoise(frames, 311, 10000);
+            var game = BandLimitedNoise(frames, 712, 10000);
+            var mixture = new short[frames * 2];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var strongOpening = frame < 36000;
+                var burst = frame >= 48000 && (frame % 12000) < 1200; // 25 ms every 250 ms
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var kept = (int)Math.Round(0.75 * game[frame * 2 + channel]);
+                    var haptic = strongOpening
+                        ? (int)Math.Round(0.9 * reference[frame * 2 + channel])
+                        : burst
+                            ? (int)Math.Round(0.2 * reference[frame * 2 + channel])
+                            : 0;
+                    if (!strongOpening && !burst)
+                    {
+                        // Endpoint loopback carries silence when no haptic waveform is rendered.
+                        reference[frame * 2 + channel] = 0;
+                    }
+                    mixture[frame * 2 + channel] = (short)Math.Max(
+                        short.MinValue, Math.Min(short.MaxValue, kept + haptic));
+                    game[frame * 2 + channel] = (short)kept;
+                }
+            }
+
+            var shortBlocks = Samples(mixture);
+            var outcome = PcmAudio.CancelCorrelated(
+                shortBlocks, Samples(reference), out var diagnostics,
+                muteUnverifiedBlocks: true,
+                maxLagFrames: 12000,
+                minimumGain: 0.005,
+                maximumGain: 20,
+                blockGainFloor: 0.005,
+                keepBlockSuppressionDb: 15,
+                cancellationBlockFrames: 2400);
+
+            Assert.AreEqual(
+                PcmCancellationOutcome.CancelledVerified,
+                outcome,
+                $"corr={diagnostics.Correlation:0.000}, gain={diagnostics.Gain:0.000}, " +
+                $"lag={diagnostics.StartLagMs:0.000}->{diagnostics.EndLagMs:0.000}, " +
+                $"blocks={diagnostics.SubtractedBlocks}/{diagnostics.TotalBlocks}, " +
+                $"restored={diagnostics.RestoredBlocks}, " +
+                $"suppression={diagnostics.SuppressionDb:0.0}");
+            var start = 48000;
+            var originalProjection = ProjectionEnergy(
+                mixture, reference, start, frames - 2400);
+            var newProjection = ProjectionEnergy(
+                ToShorts(shortBlocks), reference, start, frames - 2400);
+            Assert.IsTrue(
+                newProjection < originalProjection * 0.01,
+                $"short-block correlated residual ratio was {newProjection / originalProjection:0.0000}; " +
+                $"muted={diagnostics.MutedBlocks} subtracted={diagnostics.SubtractedBlocks}");
+
+            // Sidecar fallback may gate a locally inseparable active burst, but it must leave the
+            // majority of the unrelated game track intact rather than muting the whole clip.
+            var keptEnergy = Energy(ToShorts(shortBlocks), start, frames - 2400);
+            var gameEnergy = Energy(game, start, frames - 2400);
+            Assert.IsTrue(
+                keptEnergy > gameEnergy * 0.45,
+                $"sparse removal kept only {keptEnergy / gameEnergy:0.000} of game energy");
+        }
+
+        [TestMethod]
+        public void CancelCorrelated_BestEffortKeepsVerifiedBlocksWhenMostCannotBeVerified()
+        {
+            // A reference is positively identified in the opening blocks, then a timestamp tear
+            // makes most active blocks impossible to subtract. Normal mode rejects the whole pass
+            // and leaves the reference in place; haptic best effort commits the verified work and
+            // restores every block it cannot prove clean.
+            const int frames = 96000; // 2 s
+            var reference = BandLimitedNoise(frames, 91, 9000);
+            var mixture = new short[frames * 2];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    mixture[frame * 2 + channel] = frame < 24000
+                        ? (short)Math.Round(0.9 * reference[frame * 2 + channel])
+                        : (short)0;
+                }
+            }
+
+            var ordinary = Samples(mixture);
+            var ordinaryOutcome = PcmAudio.CancelCorrelated(
+                ordinary, Samples(reference), out _, muteUnverifiedBlocks: true,
+                maxLagFrames: 12000, minimumGain: 0.005, maximumGain: 20,
+                blockGainFloor: 0.005, keepBlockSuppressionDb: 15,
+                cancellationBlockFrames: 2400);
+            Assert.AreEqual(PcmCancellationOutcome.Unseparable, ordinaryOutcome);
+            CollectionAssert.AreEqual(Samples(mixture), ordinary);
+
+            var bestEffort = Samples(mixture);
+            var bestEffortOutcome = PcmAudio.CancelCorrelated(
+                bestEffort, Samples(reference), out var bestEffortDiagnostics,
+                muteUnverifiedBlocks: false,
+                maxLagFrames: 12000, minimumGain: 0.005, maximumGain: 20,
+                blockGainFloor: 0.005, keepBlockSuppressionDb: 15,
+                cancellationBlockFrames: 2400,
+                commitVerifiedBlocksOnWeakPass: true);
+
+            Assert.AreEqual(PcmCancellationOutcome.CancelledVerified, bestEffortOutcome);
+            Assert.IsTrue(bestEffortDiagnostics.PartialCommit);
+            Assert.AreEqual(0, bestEffortDiagnostics.MutedBlocks);
+            Assert.IsTrue(bestEffortDiagnostics.SubtractedBlocks > 0);
+
+            var bestEffortSamples = ToShorts(bestEffort);
+            var openingBefore = Energy(mixture, 2400, 21600);
+            var openingAfter = Energy(bestEffortSamples, 2400, 21600);
+            Assert.IsTrue(
+                openingAfter < openingBefore * 0.02,
+                $"verified opening residual ratio was {openingAfter / openingBefore:0.0000}");
+
+            // The three-quarters of the reference that never appeared in the mixture must remain
+            // untouched and, critically, must not be turned into silence gates.
+            var tailBefore = Energy(mixture, 28800, frames - 2400);
+            var tailAfter = Energy(bestEffortSamples, 28800, frames - 2400);
+            Assert.AreEqual(tailBefore, tailAfter, tailBefore * 0.0001 + 1);
+        }
+
+        [TestMethod]
+        public void CancelCorrelated_HapticWeakGlobalGateFindsStrongSparseBlocks()
+        {
+            // Field-shaped hap1: its latest global fits were correlation 0.180-0.182 / gain
+            // 0.05-0.08 and therefore hit the generic "already clean" shortcut at blocks=0/0,
+            // even though individual 50 ms haptic bursts can be an excellent local match. One
+            // active block per half-second reproduces that duty-cycle dilution.
+            const int frames = 96000;
+            var reference = BandLimitedNoise(frames, 171, 7000);
+            var game = BandLimitedNoise(frames, 313, 4000);
+            var mixture = new short[frames * 2];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var burst = frame % 24000 < 2400;
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var sample = (int)Math.Round(0.4 * game[frame * 2 + channel]);
+                    if (burst)
+                    {
+                        sample += (int)Math.Round(0.5 * reference[frame * 2 + channel]);
+                    }
+
+                    mixture[frame * 2 + channel] = (short)sample;
+                }
+            }
+
+            var ordinary = Samples(mixture);
+            var ordinaryOutcome = PcmAudio.CancelCorrelated(
+                ordinary, Samples(reference), out var ordinaryDiagnostics,
+                muteUnverifiedBlocks: false,
+                maxLagFrames: 12000, minimumGain: 0.005, maximumGain: 20,
+                blockGainFloor: 0.005, keepBlockSuppressionDb: 15,
+                cancellationBlockFrames: 2400,
+                commitVerifiedBlocksOnWeakPass: true);
+            Assert.AreEqual(PcmCancellationOutcome.CleanNoGameDetected, ordinaryOutcome);
+            Assert.AreEqual(0, ordinaryDiagnostics.TotalBlocks);
+            Assert.IsTrue(
+                ordinaryDiagnostics.Correlation >= 0.15 && ordinaryDiagnostics.Correlation < 0.20,
+                $"fixture global correlation was {ordinaryDiagnostics.Correlation:0.000}");
+            Assert.IsTrue(
+                ordinaryDiagnostics.Gain >= 0.03 && ordinaryDiagnostics.Gain < 0.09,
+                $"fixture global gain was {ordinaryDiagnostics.Gain:0.000}");
+
+            var haptic = Samples(mixture);
+            var outcome = PcmAudio.CancelCorrelated(
+                haptic, Samples(reference), out var diagnostics,
+                muteUnverifiedBlocks: false,
+                maxLagFrames: 12000, minimumGain: 0.005, maximumGain: 20,
+                blockGainFloor: 0.005, keepBlockSuppressionDb: 15,
+                cancellationBlockFrames: 2400,
+                commitVerifiedBlocksOnWeakPass: true,
+                minimumCorrelation: 0.15,
+                attemptVerifiedBlocksWhenGloballyClean: true);
+
+            Assert.AreEqual(PcmCancellationOutcome.CancelledVerified, outcome);
+            Assert.IsTrue(diagnostics.PartialCommit);
+            Assert.IsTrue(diagnostics.SubtractedBlocks > 0);
+            Assert.IsTrue(diagnostics.SuppressionDb >= 15);
+            Assert.AreEqual(0, diagnostics.MutedBlocks);
+
+            var cleaned = ToShorts(haptic);
+            double beforeBurst = 0;
+            double afterBurst = 0;
+            double beforeBetween = 0;
+            double afterBetween = 0;
+            for (var frame = 2400; frame < frames - 2400; frame++)
+            {
+                var burst = frame % 24000 < 2400;
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var index = frame * 2 + channel;
+                    if (burst)
+                    {
+                        beforeBurst += (double)mixture[index] * mixture[index];
+                        afterBurst += (double)cleaned[index] * cleaned[index];
+                    }
+                    else
+                    {
+                        beforeBetween += (double)mixture[index] * mixture[index];
+                        afterBetween += (double)cleaned[index] * cleaned[index];
+                    }
+                }
+            }
+
+            Assert.IsTrue(
+                afterBurst < beforeBurst * 0.25,
+                $"sparse burst energy ratio was {afterBurst / beforeBurst:0.000}");
+            Assert.AreEqual(
+                beforeBetween,
+                afterBetween,
+                beforeBetween * 0.001 + 1,
+                $"unrelated-region energy changed by " +
+                $"{Math.Abs(afterBetween - beforeBetween) / beforeBetween:P3}");
+        }
+
+        [TestMethod]
+        public void CancelCorrelated_TimestampAlignedFitTriesEverySubThresholdBlockSafely()
+        {
+            // A listener can still hear sparse haptics after the globally obvious blocks are gone.
+            // Model a real copy that sits below the ordinary local correlation floor. The ordinary
+            // policy leaves it alone; the stamped haptic path straight-subtracts every active block
+            // at the slice-wide calibrated lag/gain and still proves suppression before committing.
+            const int frames = 48000;
+            var reference = new short[frames * 2];
+            var game = new short[frames * 2];
+            var referenceRandom = new Random(557);
+            var gameRandom = new Random(991);
+            var mixture = new short[frames * 2];
+            for (var i = 0; i < mixture.Length; i++)
+            {
+                reference[i] = (short)referenceRandom.Next(-7000, 7001);
+                game[i] = (short)gameRandom.Next(-8000, 8001);
+                mixture[i] = (short)(game[i] + Math.Round(0.2 * reference[i]));
+            }
+
+            var polished = Samples(mixture);
+            var outcome = PcmAudio.CancelCorrelated(
+                polished, Samples(reference), out var diagnostics,
+                muteUnverifiedBlocks: false,
+                maxLagFrames: 12000, minimumGain: 0.005, maximumGain: 20,
+                blockGainFloor: 0.005, keepBlockSuppressionDb: 10,
+                cancellationBlockFrames: 2400,
+                commitVerifiedBlocksOnWeakPass: true,
+                minimumCorrelation: 0.15,
+                attemptVerifiedBlocksWhenGloballyClean: true);
+
+            Assert.IsTrue(
+                diagnostics.Correlation >= 0.15 && diagnostics.Correlation < 0.20,
+                $"fixture global correlation was {diagnostics.Correlation:0.000}");
+            Assert.AreEqual(PcmCancellationOutcome.CancelledVerified, outcome);
+            Assert.AreEqual(diagnostics.TotalBlocks, diagnostics.FixedFitBlocks);
+            Assert.IsTrue(diagnostics.SubtractedBlocks > 0);
+            Assert.IsTrue(diagnostics.SuppressionDb >= 10);
+            Assert.AreEqual(0, diagnostics.MutedBlocks);
+            Assert.IsTrue(
+                Math.Abs(diagnostics.EndLagMs - diagnostics.StartLagMs) < 0.2,
+                $"fixed fit wandered {diagnostics.StartLagMs:0.000}->" +
+                $"{diagnostics.EndLagMs:0.000}ms");
+        }
+
+        [TestMethod]
         public void WriteWav_WritesAReadableHeaderForTheExportFormat()
         {
             // The cleaned clip audio goes back to the exporter as an ordinary chunk file, so the
@@ -691,6 +1267,8 @@ namespace PlayniteAchievements.Services.Tests.Capture
 
             Assert.AreEqual(PcmCancellationOutcome.CleanNoGameDetected, outcome);
             Assert.AreEqual(1, diagnostics.Correlation);
+            Assert.IsFalse(diagnostics.ReferenceHasSignal);
+            Assert.AreEqual(0, diagnostics.ReferenceRms);
             CollectionAssert.AreEqual(before, chime);
         }
     }

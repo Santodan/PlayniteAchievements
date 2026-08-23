@@ -1,8 +1,8 @@
 // Burst test for the chime pipeline: two toast waves of three achievements, on the REAL recorder
 // plumbing. Unlike ChimeSeparationProbe (raw loopback clients), this drives two actual
 // AudioLoopbackRecorder instances — the GameOnly main recorder and the chime sidecar — exactly as
-// UnlockRecordingService wires them, so the mixer graph, ReferenceTeeSampleProvider, wall-clock
-// pump, gap padding, and chunk rotation are all exercised. The process topology is the
+// UnlockRecordingService wires them, so the mixer graph, direct packet timestamping, wall-clock
+// main pump, gap padding, and chunk rotation are all exercised. The process topology is the
 // Playnite-launched-emulator shape: this process plays the wave chimes (UniPlaySong's role) while
 // a spawned child plays a continuous AM-warbled game tone (RetroArch's role).
 //
@@ -12,7 +12,7 @@
 // wrong wave's chime showing up in a slice is directly measurable.
 //
 // Per wave, the probe replicates the production sidecar read (slice = ownSound ..
-// +min(toast, 4 s cap)+0.5 s tail), runs PcmAudio.CancelCorrelated against the tee'd gam_
+// +min(toast, 4 s cap)+0.5 s tail), runs PcmAudio.CancelCorrelated against the timestamped gam_
 // reference, and asserts by Goertzel power:
 //   - aud_ (GameOnly main track) never contains either chime
 //   - gam_ exists even though the tree probe returned unknown (the always-cancel fix)
@@ -109,7 +109,7 @@ internal static class ChimeBurstProbe
 
             // Wired exactly like UnlockRecordingService: GameOnly main + chime sidecar. The tree
             // probe deliberately answers "unknown" — after the always-cancel fix, GameOnly must
-            // tee the reference and require cancellation regardless of the probe.
+            // capture the reference and require cancellation regardless of the probe.
             main = new AudioLoopbackRecorder(
                 bufferDir, null, RecordingAudioSource.GameOnly,
                 includeMicrophone: false,
@@ -188,11 +188,20 @@ internal static class ChimeBurstProbe
         Console.WriteLine($"chunks: aud={aud.Count} chm={chm.Count} gam={gam.Count}");
         Check(aud.Count > 0, "main track wrote aud_ chunks", aud.Count.ToString());
         Check(chm.Count > 0, "sidecar wrote chm_ chunks", chm.Count.ToString());
-        Check(gam.Count > 0, "game reference tee wrote gam_ chunks despite unknown tree probe", gam.Count.ToString());
+        Check(gam.Count > 0, "timestamped game reference wrote gam_ chunks despite unknown tree probe", gam.Count.ToString());
         if (aud.Count == 0 || chm.Count == 0 || gam.Count == 0)
         {
             return;
         }
+
+        CheckChunkTimeline("aud", aud);
+        CheckChunkTimeline("chm", chm);
+        CheckChunkTimeline("gam", gam);
+        var mainReferenceAnchorFrames = RecordingPaths.AudioFrameAt(
+            aud[0].StartUtc, gam[0].StartUtc, SampleRate);
+        Check(Math.Abs(mainReferenceAnchorFrames) <= 1,
+            "aud_ and gam_ share their source packet's timeline anchor",
+            $"delta {mainReferenceAnchorFrames} frame(s)");
 
         var sliceSeconds = Math.Min(ToastDurationSeconds, ChimeMaxSliceSeconds) + ChimeTailBeyondToastSeconds;
         var waves = new[]
@@ -239,7 +248,10 @@ internal static class ChimeBurstProbe
                 $"own {chmOwnWhole:0.0} vs other-wave floor {chmOtherWhole:0.0} dB");
 
             var before = (byte[])chmSlice.Clone();
-            var outcome = PcmAudio.CancelCorrelated(chmSlice, gamSlice, out var d);
+            var outcome = PcmAudio.CancelCorrelated(
+                chmSlice, gamSlice, out var d,
+                preferEarlyAlignmentWindow: true,
+                verificationLagRadiusFrames: 480);
             Console.WriteLine($"cancellation: outcome={outcome} lag={d.StartLagMs:0.000}->{d.EndLagMs:0.000}ms gain={d.Gain:0.00} corr={d.Correlation:0.000} supp={d.SuppressionDb:0.0}dB");
             Check(outcome == PcmCancellationOutcome.CancelledVerified, "cancellation verified", outcome.ToString());
             if (outcome == PcmCancellationOutcome.CancelledVerified)
@@ -253,6 +265,24 @@ internal static class ChimeBurstProbe
                 Check(Math.Abs(chimeLoss) <= 3, "wave's own chime survives within 3dB", $"lost {chimeLoss:0.0}dB");
             }
         }
+    }
+
+    private static void CheckChunkTimeline(string name, List<Chunk> chunks)
+    {
+        long worstDeltaFrames = 0;
+        for (var index = 1; index < chunks.Count; index++)
+        {
+            var deltaFrames = RecordingPaths.AudioFrameAt(
+                chunks[index - 1].EndUtc, chunks[index].StartUtc, SampleRate);
+            if (Math.Abs(deltaFrames) > Math.Abs(worstDeltaFrames))
+            {
+                worstDeltaFrames = deltaFrames;
+            }
+        }
+
+        Check(Math.Abs(worstDeltaFrames) <= 1,
+            $"{name}_ chunk timestamps are sample-contiguous",
+            $"worst boundary delta {worstDeltaFrames} frame(s)");
     }
 
     private sealed class Wave
@@ -297,7 +327,8 @@ internal static class ChimeBurstProbe
     {
         public DateTime StartUtc;
         public byte[] Pcm;
-        public DateTime EndUtc => StartUtc.AddSeconds(Pcm.Length / (double)PcmAudio.BytesPerSecond);
+        public DateTime EndUtc => RecordingPaths.AudioFrameUtc(
+            StartUtc, Pcm.Length / PcmAudio.BlockAlign, SampleRate);
     }
 
     private static List<Chunk> LoadTrack(string dir, string prefix)
@@ -312,7 +343,9 @@ internal static class ChimeBurstProbe
             }
 
             if (!DateTime.TryParseExact(
-                    body, "yyyyMMdd-HHmmssfff", CultureInfo.InvariantCulture,
+                    body,
+                    new[] { "yyyyMMdd-HHmmssfffffff", "yyyyMMdd-HHmmssfff", "yyyyMMdd-HHmmss" },
+                    CultureInfo.InvariantCulture,
                     DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var startUtc))
             {
                 continue;

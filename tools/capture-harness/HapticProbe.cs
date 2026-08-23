@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
@@ -35,6 +36,7 @@ internal static class HapticProbe
     private const double GameToneHz = 1320;  // the audio that must survive
     private const double HapticToneHz = 180; // stands in for the pad's rumble waveform (AM, so the
                                              // correlation peak is unique rather than one of many)
+    private const int HapticBlockFrames = 2400; // production's 50 ms transient-sized blocks
 
     private static int _failures;
 
@@ -317,7 +319,7 @@ internal static class HapticProbe
     {
         Console.WriteLine("microphone the recorder would use:");
         var chosen = MicrophoneSelector.TryChoose(new ProbeLogger());
-        Console.WriteLine("  -> " + (chosen == null ? "the Windows default" : "'" + chosen.FriendlyName + "'"));
+        Console.WriteLine("  -> " + (chosen == null ? "omitted (no verified safe input)" : "'" + chosen.FriendlyName + "'"));
         Console.WriteLine();
     }
 
@@ -389,7 +391,13 @@ internal static class HapticProbe
             "reference(endpoint loopback)         ");
 
         var game = new Thread(() => PlayTone(null, GameToneHz, 8, 0.02, 3)) { IsBackground = true };
-        var haptic = new Thread(() => PlayTone(hapticDevice, HapticToneHz, 8, 0.05, 7)) { IsBackground = true };
+        // Real controller haptics are impulses, not a laboratory tone held for eight seconds. The
+        // old continuous signal made every half-second fit trivially and missed exactly the weak
+        // transient blocks reported in the field. Sixty milliseconds on / 290 ms off exercises the
+        // production 50 ms block fit and its restore-on-uncertainty fallback.
+        var haptic = new Thread(
+            () => PlayTone(hapticDevice, HapticToneHz, 8, 0.05, 7, burstPeriodSeconds: 0.35, burstOnSeconds: 0.06))
+        { IsBackground = true };
 
         mixture.Start();
         reference.Start();
@@ -441,13 +449,40 @@ internal static class HapticProbe
             $"haptic {referenceHaptic:0.0}dB vs game {referenceGame:0.0}dB");
 
         // Same policy and search width the recorder uses, so the probe measures production.
+        var originalMixture = (byte[])mixturePcm.Clone();
         var outcome = PcmAudio.CancelCorrelated(
-            mixturePcm, referencePcm, out var d, muteUnverifiedBlocks: false, maxLagFrames: 12000, minimumGain: 0.05, maximumGain: 20.0);
+            mixturePcm,
+            referencePcm,
+            out var d,
+            muteUnverifiedBlocks: false,
+            maxLagFrames: 12000,
+            minimumGain: 0.005,
+            maximumGain: 20.0,
+            blockGainFloor: 0.005,
+            keepBlockSuppressionDb: 10,
+            cancellationBlockFrames: HapticBlockFrames,
+            maximumResidualCorrelation: 0.35,
+            commitVerifiedBlocksOnWeakPass: true,
+            minimumCorrelation: 0.15,
+            attemptVerifiedBlocksWhenGloballyClean: true);
         Console.WriteLine();
         Console.WriteLine($"cancellation: outcome={outcome} lag={d.StartLagMs:0.000}->{d.EndLagMs:0.000}ms " +
-                          $"gain={d.Gain:0.00} corr={d.Correlation:0.000} supp={d.SuppressionDb:0.0}dB muted={d.MutedBlocks}");
+                          $"gain={d.Gain:0.00} corr={d.Correlation:0.000} supp={d.SuppressionDb:0.0}dB " +
+                           $"blocks={d.SubtractedBlocks}/{d.TotalBlocks} quiet={d.QuietBlocks} " +
+                           $"fixed={d.FixedFitBlocks} " +
+                           $"gated={d.MutedBlocks} " +
+                           $"partial={d.PartialCommit} " +
+                           $"weakest={d.WeakestBlockSuppressionDb:0.0}dB residual={d.ResidualCorrelation:0.000}");
         Check(outcome == PcmCancellationOutcome.CancelledVerified, "cancellation verified", outcome.ToString());
-        Check(d.MutedBlocks == 0, "no block was silenced (the clip's own audio is never punched out)", d.MutedBlocks.ToString());
+        Check(d.MutedBlocks == 0, "production cleanup never gates clip audio", d.MutedBlocks.ToString());
+
+        if (outcome != PcmCancellationOutcome.CancelledVerified)
+        {
+            Check(
+                originalMixture.SequenceEqual(mixturePcm),
+                "a rejected cleanup leaves the recorded audio byte-for-byte intact",
+                outcome.ToString());
+        }
 
         if (outcome == PcmCancellationOutcome.CancelledVerified)
         {
@@ -587,14 +622,22 @@ internal static class HapticProbe
     }
 
     /// <summary>Plays a tone to one endpoint, or to the default device when it is null.</summary>
-    private static void PlayTone(MMDevice device, double frequency, double seconds, double amplitude, double amHz)
+    private static void PlayTone(
+        MMDevice device,
+        double frequency,
+        double seconds,
+        double amplitude,
+        double amHz,
+        double burstPeriodSeconds = 0,
+        double burstOnSeconds = 0)
     {
         var output = device == null
             ? new WasapiOut(AudioClientShareMode.Shared, 200)
             : new WasapiOut(device, AudioClientShareMode.Shared, false, 200);
         using (output)
         {
-            output.Init(new ToneProvider(frequency, amplitude, amHz, seconds));
+            output.Init(new ToneProvider(
+                frequency, amplitude, amHz, seconds, burstPeriodSeconds, burstOnSeconds));
             output.Play();
             while (output.PlaybackState == PlaybackState.Playing)
             {
@@ -641,16 +684,26 @@ internal static class HapticProbe
         private readonly double _frequency;
         private readonly double _amplitude;
         private readonly double _amHz;
+        private readonly double _burstPeriodSeconds;
+        private readonly double _burstOnSeconds;
         private long _remainingSamples;
         private long _position;
 
         public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(SampleRate, 2);
 
-        public ToneProvider(double frequency, double amplitude, double amHz, double seconds)
+        public ToneProvider(
+            double frequency,
+            double amplitude,
+            double amHz,
+            double seconds,
+            double burstPeriodSeconds = 0,
+            double burstOnSeconds = 0)
         {
             _frequency = frequency;
             _amplitude = amplitude;
             _amHz = amHz;
+            _burstPeriodSeconds = burstPeriodSeconds;
+            _burstOnSeconds = burstOnSeconds;
             _remainingSamples = (long)(seconds * SampleRate) * 2;
         }
 
@@ -661,6 +714,11 @@ internal static class HapticProbe
             {
                 var t = _position / (double)SampleRate;
                 var envelope = _amHz > 0 ? 0.6 + 0.4 * Math.Sin(2.0 * Math.PI * _amHz * t) : 1.0;
+                if (_burstPeriodSeconds > 0 &&
+                    t % _burstPeriodSeconds >= _burstOnSeconds)
+                {
+                    envelope = 0;
+                }
                 var value = (float)(_amplitude * envelope * Math.Sin(2.0 * Math.PI * _frequency * t));
                 buffer[offset + i] = value;
                 if (i + 1 < samples)

@@ -1077,12 +1077,24 @@ internal static class CaptureHarness
 
     private static DateTime? ParseStamp(string name)
     {
-        // seg_yyyyMMdd-HHmmssfff_WxH.mp4
+        // Current: seg_yyyyMMdd-HHmmssfffffffZ_WxH.mp4. Older millisecond and
+        // second-resolution names remain readable by the harness too.
         var body = name.Substring(4);
-        var stamp = body.Substring(0, Math.Min(18, body.Length));
+        var separator = body.IndexOf('_');
+        var stamp = separator >= 0 ? body.Substring(0, separator) : body;
+        if (stamp.EndsWith("Z", StringComparison.OrdinalIgnoreCase))
+        {
+            stamp = stamp.Substring(0, stamp.Length - 1);
+        }
+
         DateTime parsed;
-        if (DateTime.TryParseExact(stamp, "yyyyMMdd-HHmmssfff", null,
-            System.Globalization.DateTimeStyles.None, out parsed))
+        if (DateTime.TryParseExact(
+            stamp,
+            new[] { "yyyyMMdd-HHmmssfffffff", "yyyyMMdd-HHmmssfff", "yyyyMMdd-HHmmss" },
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AssumeUniversal |
+                System.Globalization.DateTimeStyles.AdjustToUniversal,
+            out parsed))
         {
             return parsed;
         }
