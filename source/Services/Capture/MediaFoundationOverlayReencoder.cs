@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -258,8 +259,11 @@ namespace PlayniteAchievements.Services.Capture
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[Recording] Base clip has no usable audio stream; re-encoding video only.");
-                return -1;
+                _logger?.Debug(
+                    ex,
+                    "[Recording] Base clip audio could not be configured; aborting the overlay " +
+                    "pass so the caller keeps the toastless clip with its audio.");
+                throw;
             }
         }
 
@@ -307,6 +311,11 @@ namespace PlayniteAchievements.Services.Capture
             byte[] rayNextPixels = null;
 
             var pendingAudio = audioStream >= 0 ? ReadNextAudio(audioReader, trimLead) : null;
+            if (audioStream >= 0 && pendingAudio == null)
+            {
+                throw new InvalidDataException(
+                    "The base clip declared audio but produced no samples after lead trimming.");
+            }
 
             var counts = default(CompositeCounts);
 
