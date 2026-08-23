@@ -26,7 +26,7 @@ namespace PlayniteAchievements.Services.Recording
     /// (WASAPI loopback on the default render endpoint) or just the game process's audio (per-process
     /// loopback, <see cref="ProcessLoopbackCapture"/>, degrading to full system on failure or older
     /// Windows), optionally with the default microphone mixed in. Chunk names mirror the video
-    /// convention (aud_yyyyMMdd-HHmmssfffZ.wav, UTC timeline) and rotate every
+    /// convention (aud_yyyyMMdd-HHmmssfffffffZ.wav, UTC timeline) and rotate every
     /// <see cref="UnlockRecordingService.SegmentSeconds"/> seconds.
     ///
     /// A single pump thread reads the (optionally mixed) audio at a wall-clock pace and writes it,
@@ -44,6 +44,10 @@ namespace PlayniteAchievements.Services.Recording
     /// gives it on the pump's timeline (<see cref="WriteStampedHapticPacket"/>). An endpoint client
     /// runs on its own clock, so pacing its audio with ours reintroduced exactly what the export then
     /// had to search for — a fixed offset plus accumulating drift.
+    ///
+    /// The chime sidecar and its game-only cancellation reference are likewise written directly from
+    /// packet stamps. They are independent process-loopback clients; sending either through a 50 ms
+    /// pump caused millisecond alignment steps whenever the chime's render stream changed the graph.
     /// </summary>
     internal sealed class AudioLoopbackRecorder : IDisposable
     {
@@ -93,9 +97,10 @@ namespace PlayniteAchievements.Services.Recording
         private WaveFormat _outputFormat;
 
         private WaveFileWriter _writer;
-        private WaveFileWriter _gameReferenceWriter;
+        private StampedAuxiliaryTrack _stampedChimeTrack;
+        private StampedAuxiliaryTrack _stampedGameReferenceTrack;
         private long _chunkSamplesWritten;
-        private double _chunkStartWallClockSamples;
+        private long _chunkStartWallClockSamples;
         private DateTime _pumpStartUtc;
         private Thread _pumpThread;
         private volatile bool _running;
@@ -239,9 +244,7 @@ namespace PlayniteAchievements.Services.Recording
                             _restoredGameCapture = new ProcessLoopbackCapture(pid.Value, includeProcessTree: true);
                             _restoredGameBuffer = NewBuffer(_restoredGameCapture.WaveFormat);
                             _restoredGameCapture.DataAvailable += (s, e) => Append(_restoredGameBuffer, e);
-                            var gameSamples = new ReferenceTeeSampleProvider(
-                                _restoredGameBuffer.ToSampleProvider(),
-                                WriteGameReferenceSamples);
+                            var gameSamples = _restoredGameBuffer.ToSampleProvider();
                             systemSamples = new MixingSampleProvider(new[] { systemSamples, gameSamples })
                             {
                                 ReadFully = true,
@@ -268,15 +271,6 @@ namespace PlayniteAchievements.Services.Recording
                             ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
                         }
                     }
-                    else if (_writeGameReference)
-                    {
-                        // Tap the raw game signal before microphone mixing. Using the finished aud_
-                        // track here would also subtract the microphone from the chime sidecar.
-                        systemSamples = new ReferenceTeeSampleProvider(
-                            systemSamples,
-                            WriteGameReferenceSamples);
-                    }
-
                     if (_includeMicrophone)
                     {
                         try
@@ -320,6 +314,7 @@ namespace PlayniteAchievements.Services.Recording
                     }
 
                     _outputFormat = _mix.WaveFormat;
+                    AttachTimestampedCancellationTracks();
                     var hapticEndpoints = StartHapticReference();
 
                     // Haptic captures start as they are opened, in AttachHapticEndpoints.
@@ -386,7 +381,7 @@ namespace PlayniteAchievements.Services.Recording
                         // Scoped to the game's tree, so Playnite's chimes are outside it. The
                         // Playnite-tree sidecar can still contain the game (an emulator Playnite
                         // launched is inside both trees), and the tree probe can be wrong in either
-                        // direction, so always tee the game reference and require verified
+                        // direction, so always capture the timestamped game reference and require verified
                         // cancellation instead of trusting the probe: a genuinely clean sidecar
                         // passes through as CleanNoGameDetected.
                         var gameOnly = new ProcessLoopbackCapture(gamePid.Value, includeProcessTree: true);
@@ -411,7 +406,7 @@ namespace PlayniteAchievements.Services.Recording
             // their toast at the unlock moment, so the real chime rarely aligns with the card
             // and other waves' chimes would pollute the clip. When the game is inside Playnite's
             // tree, its game-only process signal is restored into the main mix before it is written
-            // and tee'd as the sidecar-cancellation reference. Unknown relationships deliberately
+            // and captured as the sidecar-cancellation reference. Unknown relationships deliberately
             // keep plain full-system audio and forego re-timing rather than risk removing the game.
             if (ProcessLoopbackCapture.IsSupported && gameInPlayniteTree.HasValue)
             {
@@ -422,8 +417,8 @@ namespace PlayniteAchievements.Services.Recording
                     if (gameInPlayniteTree.Value)
                     {
                         // Excluding Playnite's tree also excludes a Playnite-launched game. Restore
-                        // that game before the main WAV is written and tee the exact same samples to
-                        // gam_*.wav for sidecar cancellation.
+                        // that game before the main WAV is written and capture its timestamped raw
+                        // packets to gam_*.wav for sidecar cancellation.
                         _restoreGameIntoFullSystem = true;
                         _writeGameReference = true;
                         ChimeCaptureMode = PlayniteChimeCaptureMode.CancelGameReference;
@@ -452,6 +447,41 @@ namespace PlayniteAchievements.Services.Recording
             // untouched rather than re-time a second copy.
             ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
             return new WasapiLoopbackCapture();
+        }
+
+        /// <summary>
+        /// Writes the two tracks that participate in chime cancellation directly from their packet
+        /// stamps. Sending them through independent wall-clock pumps re-timed each stream in 50 ms
+        /// batches and produced 1-4 ms alignment steps inside one chime slice. Main clip audio stays
+        /// pump-paced because it may contain a microphone and multiple sources; the chime sidecar
+        /// and raw game reference are single process-loopback streams and need no such mixing.
+        /// </summary>
+        private void AttachTimestampedCancellationTracks()
+        {
+            if (_capturePlayniteChimes && _systemCapture is ProcessLoopbackCapture chimeCapture)
+            {
+                _stampedChimeTrack = new StampedAuxiliaryTrack(
+                    RecordingPaths.ChimeChunkFilePrefix, chimeCapture.WaveFormat);
+                chimeCapture.StampedDataAvailable +=
+                    (s, e) => WriteStampedAuxiliaryPacket(_stampedChimeTrack, e);
+            }
+
+            if (!_writeGameReference)
+            {
+                return;
+            }
+
+            var gameCapture = (_restoredGameCapture ?? _systemCapture) as ProcessLoopbackCapture;
+            if (gameCapture == null)
+            {
+                throw new InvalidOperationException(
+                    "The game cancellation reference has no timestamped process-loopback source.");
+            }
+
+            _stampedGameReferenceTrack = new StampedAuxiliaryTrack(
+                RecordingPaths.GameReferenceChunkFilePrefix, gameCapture.WaveFormat);
+            gameCapture.StampedDataAvailable +=
+                (s, e) => WriteStampedAuxiliaryPacket(_stampedGameReferenceTrack, e);
         }
 
         /// <summary>
@@ -553,7 +583,8 @@ namespace PlayniteAchievements.Services.Recording
                         {
                             _logger?.Info(
                                 $"[Recording] Already capturing {RecordingPaths.MaxHapticReferences} controller endpoints; " +
-                                $"'{endpoint.Name}' is left out, so clip audio will fail closed.");
+                                $"'{endpoint.Name}' is left out; clips overlapping this interval " +
+                                "will retain their original audio and may contain controller buzz.");
                         }
 
                         continue;
@@ -622,7 +653,7 @@ namespace PlayniteAchievements.Services.Recording
                         _logger?.Warn(
                             ex,
                             $"[Recording] Controller endpoint '{endpoint.Name}' could not be captured; " +
-                            "clip audio will fail closed for this session.");
+                            "clips overlapping this interval will retain their original audio.");
                     }
                 }
             }
@@ -771,8 +802,8 @@ namespace PlayniteAchievements.Services.Recording
 
                     if (packet.CaptureUtc.HasValue)
                     {
-                        var target = (long)Math.Round(
-                            (packet.CaptureUtc.Value - _pumpStartUtc).TotalSeconds * rate);
+                        var target = RecordingPaths.AudioFrameAt(
+                            _pumpStartUtc, packet.CaptureUtc.Value, rate);
                         var pumpFrame = TotalFramesWritten();
                         if (Math.Abs(target - pumpFrame) > MaxHapticStampSkewSeconds * rate)
                         {
@@ -911,7 +942,8 @@ namespace PlayniteAchievements.Services.Recording
         {
             CloseHapticChunkLocked(entry);
             startFrame = Math.Max(0, startFrame);
-            var startUtc = _pumpStartUtc.AddSeconds(startFrame / (double)_outputFormat.SampleRate);
+            var startUtc = RecordingPaths.AudioFrameUtc(
+                _pumpStartUtc, startFrame, _outputFormat.SampleRate);
             var name = RecordingPaths.BuildAudioChunkFileName(
                 RecordingPaths.HapticReferenceChunkFilePrefix(entry.Index), startUtc);
             entry.Writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _outputFormat);
@@ -936,6 +968,195 @@ namespace PlayniteAchievements.Services.Recording
                 entry.Writer = null;
                 entry.ChunkFramesWritten = 0;
             }
+        }
+
+        /// <summary>
+        /// Places one continuous chime/game-reference packet at its own QPC-derived UTC position.
+        /// Long idle spans start a sparse chunk; short holes are explicit silence; overlaps are
+        /// trimmed. Nothing is re-paced by the main recorder's 50 ms pump.
+        /// </summary>
+        private void WriteStampedAuxiliaryPacket(
+            StampedAuxiliaryTrack track,
+            StampedPacketEventArgs packet)
+        {
+            if (track == null || packet == null || packet.Bytes <= 0)
+            {
+                return;
+            }
+
+            try
+            {
+                lock (_gate)
+                {
+                    if (_stopped || _failed || track.Failed)
+                    {
+                        return;
+                    }
+
+                    if (!packet.CaptureUtc.HasValue)
+                    {
+                        track.UnstampedPackets++;
+                        FailAuxiliaryTrackLocked(track);
+                        return;
+                    }
+
+                    if (!track.OriginUtc.HasValue)
+                    {
+                        track.OriginUtc = packet.CaptureUtc.Value;
+                    }
+
+                    var rate = track.Format.SampleRate;
+                    var target = RecordingPaths.AudioFrameAt(
+                        track.OriginUtc.Value, packet.CaptureUtc.Value, rate);
+                    var frames = packet.Bytes / track.BlockAlign;
+                    var offset = 0;
+
+                    if (track.Writer == null)
+                    {
+                        OpenAuxiliaryChunkLocked(track, target);
+                    }
+
+                    var drift = target - track.TimelineFrames;
+                    if (drift > MaxHapticGapPaddingSeconds * rate)
+                    {
+                        OpenAuxiliaryChunkLocked(track, target);
+                    }
+                    else if (drift > 0)
+                    {
+                        WriteAuxiliarySilenceLocked(track, drift);
+                    }
+                    else if (drift < 0)
+                    {
+                        var trimFrames = (int)Math.Min(frames, -drift);
+                        offset = trimFrames * track.BlockAlign;
+                        frames -= trimFrames;
+                    }
+
+                    if (frames <= 0)
+                    {
+                        return;
+                    }
+
+                    WriteAuxiliaryFramesLocked(track, packet.Buffer, offset, frames);
+                    track.StampedPackets++;
+                }
+            }
+            catch (Exception ex)
+            {
+                lock (_gate)
+                {
+                    FailAuxiliaryTrackLocked(track);
+                }
+                _logger?.Debug(
+                    ex,
+                    $"[Recording] Timestamped {track?.Prefix?.TrimEnd('_')} packet could not be written.");
+            }
+        }
+
+        private void OpenAuxiliaryChunkLocked(StampedAuxiliaryTrack track, long startFrame)
+        {
+            CloseAuxiliaryChunkLocked(track);
+            startFrame = Math.Max(0, startFrame);
+            var startUtc = RecordingPaths.AudioFrameUtc(
+                track.OriginUtc.Value, startFrame, track.Format.SampleRate);
+            var name = RecordingPaths.BuildAudioChunkFileName(track.Prefix, startUtc);
+            var path = Path.Combine(_bufferDirectory, name);
+            track.Writer = new WaveFileWriter(path, track.Format);
+            track.Paths.Add(path);
+            track.ChunkStartFrame = startFrame;
+            track.ChunkFramesWritten = 0;
+            track.TimelineFrames = startFrame;
+        }
+
+        private void WriteAuxiliarySilenceLocked(StampedAuxiliaryTrack track, long frames)
+        {
+            var remaining = frames;
+            var silence = new byte[Math.Min(remaining * track.BlockAlign, 64 * 1024)];
+            while (remaining > 0 && silence.Length > 0)
+            {
+                var count = (int)Math.Min(silence.Length / track.BlockAlign, remaining);
+                WriteAuxiliaryFramesLocked(track, silence, 0, count);
+                remaining -= count;
+            }
+        }
+
+        private void WriteAuxiliaryFramesLocked(
+            StampedAuxiliaryTrack track,
+            byte[] buffer,
+            int offset,
+            long frames)
+        {
+            var sourceOffset = offset;
+            var remaining = frames;
+            var chunkFrames = HapticChunkFrames(track.Format.SampleRate);
+            while (remaining > 0)
+            {
+                var capacity = chunkFrames - track.ChunkFramesWritten;
+                if (capacity <= 0)
+                {
+                    OpenAuxiliaryChunkLocked(track, track.TimelineFrames);
+                    capacity = chunkFrames;
+                }
+
+                var writeFrames = Math.Min(remaining, capacity);
+                var writeBytes = checked((int)writeFrames * track.BlockAlign);
+                track.Writer.Write(buffer, sourceOffset, writeBytes);
+                sourceOffset += writeBytes;
+                remaining -= writeFrames;
+                track.TimelineFrames += writeFrames;
+                track.ChunkFramesWritten += writeFrames;
+
+            }
+        }
+
+        private void CloseExpiredAuxiliaryChunksLocked(DateTime nowUtc)
+        {
+            foreach (var track in new[] { _stampedChimeTrack, _stampedGameReferenceTrack })
+            {
+                if (track?.Writer == null || !track.OriginUtc.HasValue)
+                {
+                    continue;
+                }
+
+                var nowFrame = RecordingPaths.AudioFrameAt(
+                    track.OriginUtc.Value, nowUtc, track.Format.SampleRate);
+                if (nowFrame - track.ChunkStartFrame >= HapticChunkFrames(track.Format.SampleRate))
+                {
+                    CloseAuxiliaryChunkLocked(track);
+                }
+            }
+        }
+
+        private void CloseAuxiliaryTracksLocked()
+        {
+            CloseAuxiliaryChunkLocked(_stampedChimeTrack);
+            CloseAuxiliaryChunkLocked(_stampedGameReferenceTrack);
+        }
+
+        private static void CloseAuxiliaryChunkLocked(StampedAuxiliaryTrack track)
+        {
+            try { track?.Writer?.Dispose(); } catch { }
+            if (track != null)
+            {
+                track.Writer = null;
+                track.ChunkFramesWritten = 0;
+            }
+        }
+
+        private static void FailAuxiliaryTrackLocked(StampedAuxiliaryTrack track)
+        {
+            if (track == null || track.Failed)
+            {
+                return;
+            }
+
+            track.Failed = true;
+            CloseAuxiliaryChunkLocked(track);
+            foreach (var path in track.Paths)
+            {
+                try { File.Delete(path); } catch { }
+            }
+            track.Paths.Clear();
         }
 
         /// <summary>
@@ -1082,7 +1303,7 @@ namespace PlayniteAchievements.Services.Recording
                 {
                     lock (_gate)
                     {
-                        if (_writer == null)
+                        if (_writer == null && _stampedChimeTrack == null)
                         {
                             break;
                         }
@@ -1091,6 +1312,7 @@ namespace PlayniteAchievements.Services.Recording
                         var elapsed = (CaptureTimelineClock.UtcNow - _pumpStartUtc).TotalSeconds;
                         var targetFrames = (long)(elapsed * sampleRate);
                         CloseExpiredHapticChunksLocked(targetFrames);
+                        CloseExpiredAuxiliaryChunksLocked(CaptureTimelineClock.UtcNow);
                         var writtenFrames = TotalFramesWritten();
                         var frames = (int)Math.Min(buffer.Length / channels, Math.Max(0, targetFrames - writtenFrames));
                         if (frames > 0)
@@ -1098,7 +1320,7 @@ namespace PlayniteAchievements.Services.Recording
                             var read = _mix.Read(buffer, 0, frames * channels);
                             if (read > 0)
                             {
-                                _writer.WriteSamples(buffer, 0, read);
+                                _writer?.WriteSamples(buffer, 0, read);
                                 _chunkSamplesWritten += read;
                             }
 
@@ -1177,7 +1399,8 @@ namespace PlayniteAchievements.Services.Recording
         // Total per-channel frames written across the whole session (chunk base + current chunk).
         private long TotalFramesWritten()
         {
-            return (long)_chunkStartWallClockSamples + _chunkSamplesWritten / Math.Max(1, _outputFormat.Channels);
+            return _chunkStartWallClockSamples +
+                _chunkSamplesWritten / Math.Max(1, _outputFormat.Channels);
         }
 
         /// <summary>Stops capture and closes the current chunk cleanly. Idempotent.</summary>
@@ -1199,6 +1422,7 @@ namespace PlayniteAchievements.Services.Recording
                 mic = _micCapture;
                 haptics = HapticCapturesLocked();
                 LogHapticReferenceLocked();
+                LogAuxiliaryTracksLocked();
             }
 
             // Outside the gate: capture Dispose joins its thread, which may be delivering data.
@@ -1214,6 +1438,7 @@ namespace PlayniteAchievements.Services.Recording
             {
                 CloseChunkLocked();
                 CloseHapticChunksLocked();
+                CloseAuxiliaryTracksLocked();
                 var tracked = new List<IWaveIn> { system, restoredGame };
                 tracked.AddRange(haptics);
                 LogTimelineNotices(tracked.ToArray());
@@ -1262,6 +1487,30 @@ namespace PlayniteAchievements.Services.Recording
 
             _logger?.Info(
                 "[Recording] Haptic reference: " + string.Join("; ", summaries.ToArray()) + ".");
+        }
+
+        private void LogAuxiliaryTracksLocked()
+        {
+            var tracks = new List<string>();
+            foreach (var track in new[] { _stampedChimeTrack, _stampedGameReferenceTrack })
+            {
+                if (track == null)
+                {
+                    continue;
+                }
+
+                tracks.Add(
+                    $"{track.Prefix.TrimEnd('_')}: stamped={track.StampedPackets} " +
+                    $"unstamped={track.UnstampedPackets} chunks={track.Paths.Count} " +
+                    $"failed={track.Failed}");
+            }
+
+            if (tracks.Count > 0)
+            {
+                _logger?.Info(
+                    "[Recording] Timestamped cancellation tracks: " +
+                    string.Join("; ", tracks.ToArray()) + ".");
+            }
         }
 
         public void Dispose()
@@ -1314,17 +1563,15 @@ namespace PlayniteAchievements.Services.Recording
             // planning maps these names onto sample positions, so the name has to say where in the
             // timeline the chunk begins, not when the rotation happened to run -- the two differ by
             // however far past the segment length the last write pushed the chunk.
-            var startUtc = _pumpStartUtc.AddSeconds(
-                _chunkStartWallClockSamples / (double)_outputFormat.SampleRate);
+            var startUtc = RecordingPaths.AudioFrameUtc(
+                _pumpStartUtc,
+                _chunkStartWallClockSamples,
+                _outputFormat.SampleRate);
             var name = RecordingPaths.BuildAudioChunkFileName(prefix, startUtc);
 
-            _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _outputFormat);
-            if (_writeGameReference)
+            if (_stampedChimeTrack == null)
             {
-                var referenceName = RecordingPaths.BuildAudioChunkFileName(
-                    RecordingPaths.GameReferenceChunkFilePrefix, startUtc);
-                _gameReferenceWriter = new WaveFileWriter(
-                    Path.Combine(_bufferDirectory, referenceName), _outputFormat);
+                _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _outputFormat);
             }
 
             _chunkSamplesWritten = 0;
@@ -1332,15 +1579,8 @@ namespace PlayniteAchievements.Services.Recording
 
         private void CloseChunkLocked()
         {
-            if (_writer == null)
-            {
-                return;
-            }
-
-            try { _writer.Dispose(); } catch { }
+            try { _writer?.Dispose(); } catch { }
             _writer = null;
-            try { _gameReferenceWriter?.Dispose(); } catch { }
-            _gameReferenceWriter = null;
         }
 
         private void CloseHapticChunksLocked()
@@ -1366,6 +1606,7 @@ namespace PlayniteAchievements.Services.Recording
             }
             CloseChunkLocked();
             CloseHapticChunksLocked();
+            CloseAuxiliaryTracksLocked();
         }
 
         private void CleanupLocked()
@@ -1373,6 +1614,7 @@ namespace PlayniteAchievements.Services.Recording
             _running = false;
             CloseChunkLocked();
             CloseHapticChunksLocked();
+            CloseAuxiliaryTracksLocked();
             DisposeCapture(ref _systemCapture);
             DisposeCapture(ref _restoredGameCapture);
             DisposeCapture(ref _micCapture);
@@ -1381,11 +1623,6 @@ namespace PlayniteAchievements.Services.Recording
             _restoredGameBuffer = null;
             _micBuffer = null;
             _mix = null;
-        }
-
-        private void WriteGameReferenceSamples(float[] samples, int offset, int count)
-        {
-            _gameReferenceWriter?.WriteSamples(samples, offset, count);
         }
 
         /// <summary>A span the haptic references may not cover or place correctly.</summary>
@@ -1427,34 +1664,28 @@ namespace PlayniteAchievements.Services.Recording
             public float Peak;
         }
 
-        /// <summary>
-        /// Copies exactly the raw game samples consumed by the main mixer into the reference WAV.
-        /// Tapping the same read, rather than running another pump, keeps microphone and unrelated
-        /// system audio out of the cancellation reference.
-        /// </summary>
-        private sealed class ReferenceTeeSampleProvider : ISampleProvider
+        /// <summary>One directly timestamped chime or game-reference track.</summary>
+        private sealed class StampedAuxiliaryTrack
         {
-            private readonly ISampleProvider _source;
-            private readonly Action<float[], int, int> _tap;
-
-            public ReferenceTeeSampleProvider(ISampleProvider source, Action<float[], int, int> tap)
+            public StampedAuxiliaryTrack(string prefix, WaveFormat format)
             {
-                _source = source;
-                _tap = tap;
+                Prefix = prefix;
+                Format = format;
+                BlockAlign = Math.Max(1, format.BlockAlign);
             }
 
-            public WaveFormat WaveFormat => _source.WaveFormat;
-
-            public int Read(float[] buffer, int offset, int count)
-            {
-                var read = _source.Read(buffer, offset, count);
-                if (read > 0)
-                {
-                    _tap(buffer, offset, read);
-                }
-
-                return read;
-            }
+            public string Prefix;
+            public WaveFormat Format;
+            public int BlockAlign;
+            public WaveFileWriter Writer;
+            public DateTime? OriginUtc;
+            public long TimelineFrames;
+            public long ChunkStartFrame;
+            public long ChunkFramesWritten;
+            public long StampedPackets;
+            public long UnstampedPackets;
+            public bool Failed;
+            public List<string> Paths = new List<string>();
         }
     }
 }
