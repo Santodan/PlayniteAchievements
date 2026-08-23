@@ -3,17 +3,21 @@ Packages:
 
   - Version: 3.1.3
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-08-14
+    ReleaseDate: 2026-08-23
     PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v3.1.3/PlayniteAchievements_3_1_3.pext
     Changelog:
     - "[New] Achievement Goals! Right-click any achievement to set it as a goal. Goals are pinned to the top of your achievement lists (including in themes), marked with a pin in the status column, and managed from a new Goals tab in Manage Achievements. A goal retires itself automatically when you unlock it."
     - "[New] RPCS3 trophies can now be read directly from PS3 disc images, without extracting the ISO first."
     - "[New] Themes can now offer capstone and goal toggles on achievement rows."
-    - "[Adjusted] Recent friend refreshes now also pick up friends' games you don't own, when unowned games are enabled."
+    - "[New] Display option to hide completion badges from category mode grids."
+    - "[Adjusted] Recent friend refreshes now also pick up friends' games you don't own, when unowned games are enabled. A new Skip Full Scans checkbox in Friends settings stops this discovery for chosen friends, while their already-tracked games keep updating."
     - "[Fixed] RPCS3 and ShadPS4 trophies now show names and descriptions in your language when the game includes translations."
+    - "[Fixed] RPCS3, ShadPS4, and Xenia have improved rarity fetching from Exophase."
     - "[Fixed] Notifications slide in more smoothly, and animated images in notifications play more efficiently."
     - "[Fixed] Smoother rarity glow animations when many achievements are on screen."
+    - "[Fixed] Some cases where RetroAchievements video captures would have duplicate audio."
     - "[Fixed] The View Achievements window now correctly uses its own settings for rarity glow, achievement name color, and column headers."
+    - "[Fixed] World of Warcraft rarity fetching from DataForAzeroth was fixed by adding a new authentication flow in settings."
     - "[Adjusted] Smaller download: the plugin no longer ships debug files it does not use."
     - "As always, many additional improvements and fixes behind the scenes."
 
