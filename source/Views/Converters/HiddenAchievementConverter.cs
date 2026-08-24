@@ -58,7 +58,7 @@ namespace PlayniteAchievements.Views.Converters
                 {
                     return ConversionMode switch
                     {
-                        Mode.Icon => AchievementIconResolver.GetDefaultIcon(),
+                        Mode.Icon => AchievementIconResolver.GetHiddenFallbackIcon(),
                         Mode.Title => ResourceProvider.GetString("LOCPlayAch_Achievements_HiddenTitle"),
                         Mode.Description => ResourceProvider.GetString("LOCPlayAch_Achievements_ClickToReveal"),
                         _ => values[0]

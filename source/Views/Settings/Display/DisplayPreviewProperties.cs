@@ -19,6 +19,8 @@ namespace PlayniteAchievements.Views.Settings.Display
             nameof(PersistedSettings.ShowHiddenSuffix),
             nameof(PersistedSettings.ShowLockedIcon),
             nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable),
+            nameof(PersistedSettings.LockedFallbackIconPath),
+            nameof(PersistedSettings.HiddenFallbackIconPath),
             nameof(PersistedSettings.UseUniformRarityBadges),
             nameof(PersistedSettings.RoundRarityPercentages),
             nameof(PersistedSettings.RarityColors)

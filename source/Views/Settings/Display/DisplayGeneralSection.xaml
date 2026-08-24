@@ -278,6 +278,105 @@
                                           IsChecked="{Binding Persisted.ShowFriendSpoilers}"
                                           Visibility="{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
+
+                            <!-- Custom fallback images for the two placeholder states previewed above. -->
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FallbackIcons}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FallbackIcons_Help}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Common_Locked}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           MinWidth="60"
+                                           Margin="0,0,8,6"/>
+                                <Border Grid.Row="0" Grid.Column="1"
+                                        Width="48" Height="48"
+                                        Background="{DynamicResource PlayAch.Brush.Surface}"
+                                        BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                        BorderThickness="1"
+                                        Margin="0,0,8,6">
+                                    <Image helpers:AsyncImage.Uri="{Binding LockedFallbackThumbnailUri, ElementName=DisplayGeneralSectionRoot}"
+                                           helpers:AsyncImage.DecodePixel="48"
+                                           Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                                </Border>
+                                <TextBox Grid.Row="0" Grid.Column="2"
+                                         Tag="Locked"
+                                         Text="{Binding Persisted.LockedFallbackIconPath, Mode=OneWay}"
+                                         IsReadOnly="True"
+                                         VerticalAlignment="Center"
+                                         Margin="0,0,0,6"
+                                         AllowDrop="True"
+                                         PreviewDragOver="FallbackIconTextBox_PreviewDragOver"
+                                         PreviewDrop="FallbackIconTextBox_PreviewDrop"/>
+                                <Button Grid.Row="0" Grid.Column="3"
+                                        Tag="Locked"
+                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                        Click="FallbackIconClear_Click"
+                                        Margin="8,0,0,6"
+                                        VerticalAlignment="Center"/>
+                                <Button Grid.Row="0" Grid.Column="4"
+                                        Tag="Locked"
+                                        Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                        Click="FallbackIconBrowse_Click"
+                                        Margin="8,0,0,6"
+                                        VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Filter_Hidden}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           MinWidth="60"
+                                           Margin="0,0,8,0"/>
+                                <Border Grid.Row="1" Grid.Column="1"
+                                        Width="48" Height="48"
+                                        Background="{DynamicResource PlayAch.Brush.Surface}"
+                                        BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                        BorderThickness="1"
+                                        Margin="0,0,8,0">
+                                    <Image helpers:AsyncImage.Uri="{Binding HiddenFallbackThumbnailUri, ElementName=DisplayGeneralSectionRoot}"
+                                           helpers:AsyncImage.DecodePixel="48"
+                                           Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                                </Border>
+                                <TextBox Grid.Row="1" Grid.Column="2"
+                                         Tag="Hidden"
+                                         Text="{Binding Persisted.HiddenFallbackIconPath, Mode=OneWay}"
+                                         IsReadOnly="True"
+                                         VerticalAlignment="Center"
+                                         AllowDrop="True"
+                                         PreviewDragOver="FallbackIconTextBox_PreviewDragOver"
+                                         PreviewDrop="FallbackIconTextBox_PreviewDrop"/>
+                                <Button Grid.Row="1" Grid.Column="3"
+                                        Tag="Hidden"
+                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                        Click="FallbackIconClear_Click"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"/>
+                                <Button Grid.Row="1" Grid.Column="4"
+                                        Tag="Hidden"
+                                        Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                        Click="FallbackIconBrowse_Click"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
                 </StackPanel>
