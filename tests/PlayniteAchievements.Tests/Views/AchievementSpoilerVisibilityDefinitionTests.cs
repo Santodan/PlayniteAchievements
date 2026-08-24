@@ -19,7 +19,9 @@ namespace PlayniteAchievements.Tests.Views
                 "public virtual bool UnlockedForVisibility => Unlocked;",
                 "public bool CanReveal => !UnlockedForVisibility && (!ShowLockedIcon",
                 "public bool IsLockedIconHidden => !UnlockedForVisibility && !ShowLockedIcon && !IsRevealed;",
-                "(!UnlockedForVisibility && !ShowLockedIcon && !IsRevealed)",
+                // DisplayIcon reuses IsIconHidden and IsLockedIconHidden to pick the masked
+                // placeholder, so the spoiler gate above is the single definition to guard.
+                "if (IsLockedIconHidden)",
                 "ShowFriendSpoilers = persisted?.ShowFriendSpoilers ?? false");
         }
 

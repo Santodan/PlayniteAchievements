@@ -1243,12 +1243,14 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             get
             {
-                if (IsHiddenMasked)
+                // Hidden is tested first so the more spoiler-sensitive state wins when an
+                // achievement is both hidden and locked-masked.
+                if (IsIconHidden)
                 {
                     return AchievementIconResolver.GetHiddenFallbackIcon();
                 }
 
-                if (IsLockedMasked)
+                if (IsLockedIconHidden)
                 {
                     return AchievementIconResolver.GetLockedFallbackIcon();
                 }
@@ -1667,13 +1669,6 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(DisplayIcon));
             OnPropertyChanged(nameof(Icon));
         }
-
-        // A hidden achievement whose icon is masked. Checked before IsLockedMasked so the more
-        // spoiler-sensitive state wins when both apply.
-        private bool IsHiddenMasked => IsHidden && Hidden && !ShowHiddenIcon;
-
-        // A locked achievement whose icon is masked by the "reveal locked icon" setting.
-        private bool IsLockedMasked => !UnlockedForVisibility && !ShowLockedIcon && !IsRevealed;
 
         private string GetLockedDisplayIcon()
         {
