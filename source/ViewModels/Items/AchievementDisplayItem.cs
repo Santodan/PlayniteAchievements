@@ -1233,20 +1233,24 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public int PrestigeScore => _source?.PrestigeScore ?? 0;
 
-        private static string DefaultIcon => AchievementIconResolver.GetDefaultIcon();
-
         /// <summary>
         /// Returns the appropriate icon based on unlock state and hide settings.
-        /// When hiding is enabled and achievement is locked and not revealed, shows the placeholder icon.
-        /// Otherwise, uses a real locked icon when available and enabled, or falls back to the grayscale unlocked icon.
+        /// A masked hidden achievement shows the hidden fallback, a masked locked achievement the
+        /// locked fallback. Otherwise, uses a real locked icon when available and enabled, or falls
+        /// back to the locked fallback image or the grayscale unlocked icon.
         /// </summary>
         public string DisplayIcon
         {
             get
             {
-                if (ShouldShowPlaceholderIcon())
+                if (IsHiddenMasked)
                 {
-                    return DefaultIcon;
+                    return AchievementIconResolver.GetHiddenFallbackIcon();
+                }
+
+                if (IsLockedMasked)
+                {
+                    return AchievementIconResolver.GetLockedFallbackIcon();
                 }
 
                 return Unlocked
@@ -1664,11 +1668,12 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(Icon));
         }
 
-        private bool ShouldShowPlaceholderIcon()
-        {
-            return (IsHidden && Hidden && !ShowHiddenIcon) ||
-                   (!UnlockedForVisibility && !ShowLockedIcon && !IsRevealed);
-        }
+        // A hidden achievement whose icon is masked. Checked before IsLockedMasked so the more
+        // spoiler-sensitive state wins when both apply.
+        private bool IsHiddenMasked => IsHidden && Hidden && !ShowHiddenIcon;
+
+        // A locked achievement whose icon is masked by the "reveal locked icon" setting.
+        private bool IsLockedMasked => !UnlockedForVisibility && !ShowLockedIcon && !IsRevealed;
 
         private string GetLockedDisplayIcon()
         {
