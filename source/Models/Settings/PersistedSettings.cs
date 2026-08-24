@@ -135,6 +135,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showLockedIcon = true;
         private bool _useSeparateLockedIconsWhenAvailable = false;
         private HashSet<Guid> _separateLockedIconEnabledGameIds = new HashSet<Guid>();
+        private string _lockedFallbackIconPath = null;
+        private string _hiddenFallbackIconPath = null;
         private bool _modernCompactListShowRarityGlow = true;
         private bool _modernUnlockedListShowRarityGlow = true;
         private bool _animateRarityGlows = true;
@@ -1602,6 +1604,29 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Absolute path to the user's image for locked achievements, or null for the built-in
+        /// placeholder. When set it replaces both the masked-locked placeholder and the
+        /// grayscaled-unlocked fallback, so a locked achievement shows either a provider-supplied
+        /// locked icon or this image.
+        /// </summary>
+        public string LockedFallbackIconPath
+        {
+            get => _lockedFallbackIconPath;
+            set => SetValue(ref _lockedFallbackIconPath, value);
+        }
+
+        /// <summary>
+        /// Absolute path to the user's image for hidden achievements whose icon is masked, or null
+        /// for the built-in placeholder. Takes precedence over <see cref="LockedFallbackIconPath"/>
+        /// when an achievement is both hidden and locked-masked.
+        /// </summary>
+        public string HiddenFallbackIconPath
+        {
+            get => _hiddenFallbackIconPath;
+            set => SetValue(ref _hiddenFallbackIconPath, value);
+        }
+
+        /// <summary>
         /// When true, the modern compact list (and the legacy SuccessStory-compatible lists, which
         /// follow it) shows rarity glow on unlocked icons.
         /// </summary>
@@ -2734,6 +2759,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShowHiddenSuffix = this.ShowHiddenSuffix,
                 ShowLockedIcon = this.ShowLockedIcon,
                 UseSeparateLockedIconsWhenAvailable = this.UseSeparateLockedIconsWhenAvailable,
+                LockedFallbackIconPath = this.LockedFallbackIconPath,
+                HiddenFallbackIconPath = this.HiddenFallbackIconPath,
                 ModernCompactListShowRarityGlow = this.ModernCompactListShowRarityGlow,
                 ModernUnlockedListShowRarityGlow = this.ModernUnlockedListShowRarityGlow,
                 AnimateRarityGlows = this.AnimateRarityGlows,
@@ -2892,6 +2919,8 @@ namespace PlayniteAchievements.Models.Settings
             ShowFriendSpoilers = defaults.ShowFriendSpoilers;
             UseSeparateLockedIconsWhenAvailable = defaults.UseSeparateLockedIconsWhenAvailable;
             SeparateLockedIconEnabledGameIds = new HashSet<Guid>();
+            LockedFallbackIconPath = defaults.LockedFallbackIconPath;
+            HiddenFallbackIconPath = defaults.HiddenFallbackIconPath;
             ModernCompactListShowRarityGlow = defaults.ModernCompactListShowRarityGlow;
             ModernUnlockedListShowRarityGlow = defaults.ModernUnlockedListShowRarityGlow;
             AnimateRarityGlows = defaults.AnimateRarityGlows;

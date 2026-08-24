@@ -152,6 +152,8 @@ namespace PlayniteAchievements.Models.Settings
             target.SeparateLockedIconEnabledGameIds = source.SeparateLockedIconEnabledGameIds != null
                 ? new HashSet<Guid>(source.SeparateLockedIconEnabledGameIds)
                 : new HashSet<Guid>();
+            target.LockedFallbackIconPath = source.LockedFallbackIconPath;
+            target.HiddenFallbackIconPath = source.HiddenFallbackIconPath;
             target.ModernCompactListShowRarityGlow = source.ModernCompactListShowRarityGlow;
             target.ModernUnlockedListShowRarityGlow = source.ModernUnlockedListShowRarityGlow;
             target.AnimateRarityGlows = source.AnimateRarityGlows;
