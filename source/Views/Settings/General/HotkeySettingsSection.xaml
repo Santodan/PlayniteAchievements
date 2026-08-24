@@ -236,7 +236,17 @@
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Hotkeys_FireTestNotificationHelp}"
                                Style="{StaticResource MutedTextStyle}"
-                               Margin="0,0,0,14"
+                               Margin="0,0,0,6"
+                               TextWrapping="Wrap"/>
+
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableCaptureTestFolder}"
+                              IsChecked="{Binding Persisted.EnableCaptureTestFolder}"
+                              IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
+                              Margin="18,0,0,4"/>
+
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_EnableCaptureTestFolderHelp}"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="18,0,0,14"
                                TextWrapping="Wrap"/>
 
                     <TextBlock Text="{Binding HotkeyCaptureStatusText, ElementName=HotkeySettingsSectionRoot}"

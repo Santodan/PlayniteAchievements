@@ -78,6 +78,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _frameUseThemeStyling = true;
         private Dictionary<string, NotificationStyleSettings> _providerNotificationStyles;
         private int _toastDurationSeconds = 6;
+        private double _notificationDelaySeconds = 0;
         private int _maxConcurrentToasts = 3;
         private bool _enableControllerVibration = false;
         private int _controllerVibrationStrengthPercent = 50;
@@ -122,6 +123,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableOpenSettingsHotkey = true;
         private bool _enableCategoryModeHotkey = true;
         private bool _enableTestUnlockHotkey = true;
+        private bool _enableCaptureTestFolder = false;
         private string _viewAchievementsHotkey = DefaultViewAchievementsHotkey;
         private string _manageAchievementsHotkey = DefaultManageAchievementsHotkey;
         private string _overviewHotkey = DefaultOverviewHotkey;
@@ -969,13 +971,27 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Enables the shortcut that fires a notification for the running game's last-earned
+        /// Enables the shortcut that re-fires the notification for the running game's last-earned
         /// achievement. Gated by <see cref="EnableAchievementHotkeys"/>.
         /// </summary>
         public bool EnableTestUnlockHotkey
         {
             get => _enableTestUnlockHotkey;
             set => SetValue(ref _enableTestUnlockHotkey, value);
+        }
+
+        /// <summary>
+        /// Routes retriggered captures into the shared "Test" subfolder of the capture root instead of
+        /// the game's own folder. The capture library hides that subfolder, so retriggers become
+        /// throwaway test output rather than part of the game's collection.
+        ///
+        /// Also the only way to retrigger with no game running: without it the shortcut is inert
+        /// outside a game, because there is no game folder to write to.
+        /// </summary>
+        public bool EnableCaptureTestFolder
+        {
+            get => _enableCaptureTestFolder;
+            set => SetValue(ref _enableCaptureTestFolder, value);
         }
 
         /// <summary>
@@ -1095,6 +1111,24 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _toastDurationSeconds;
             set => SetValue(ref _toastDurationSeconds, Math.Max(2, value));
+        }
+
+        /// <summary>
+        /// Holds a notification back this many seconds after it would otherwise reach the screen, and
+        /// moves its captures with it: the screenshot and the composited clip card both land on the
+        /// delayed moment, so the capture shows what was on screen when the card appeared.
+        ///
+        /// Measured from the notification, not from the unlock — a wave held by the foreground gate is
+        /// delayed relative to when it is released, not to when the achievement was earned.
+        ///
+        /// Deliberately has no upper bound; only negatives are rejected. A delay long enough to outlive
+        /// the recorder's wait budget degrades to an unlock-anchored clip rather than losing it.
+        /// Never applies to previews or retriggers.
+        /// </summary>
+        public double NotificationDelaySeconds
+        {
+            get => _notificationDelaySeconds;
+            set => SetValue(ref _notificationDelaySeconds, Math.Max(0, value));
         }
 
         public int MaxConcurrentToasts
@@ -2698,6 +2732,7 @@ namespace PlayniteAchievements.Models.Settings
                 OpenSettingsHotkey = this.OpenSettingsHotkey,
                 CategoryModeHotkey = this.CategoryModeHotkey,
                 TestUnlockHotkey = this.TestUnlockHotkey,
+                EnableCaptureTestFolder = this.EnableCaptureTestFolder,
 
                 // Notification Settings
                 EnableNotifications = this.EnableNotifications,
@@ -2713,6 +2748,7 @@ namespace PlayniteAchievements.Models.Settings
                         StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase),
                 ToastDurationSeconds = this.ToastDurationSeconds,
+                NotificationDelaySeconds = this.NotificationDelaySeconds,
                 MaxConcurrentToasts = this.MaxConcurrentToasts,
                 ToastPosition = this.ToastPosition,
                 EnableControllerVibration = this.EnableControllerVibration,

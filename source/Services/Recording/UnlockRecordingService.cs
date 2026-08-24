@@ -27,10 +27,13 @@ namespace PlayniteAchievements.Services.Recording
     /// toast, at the unlock moment, regardless of how the on-screen wave stacked or queued, and
     /// whether or not that toast was ever shown: the toast pipeline renders an unrevealed wave for
     /// clip-worthy unlocks (see <see cref="WouldRequestClip"/>), and such clips carry no chime.
+    /// A configured notification delay moves that anchor to the moment the card appeared instead,
+    /// so the clip and the screenshot depict the same frame.
     /// Subscribes to <see cref="PlayniteAchievementsPlugin.AchievementUnlocked"/> in parallel to
     /// the toast service, and to <see cref="ToastNotificationService.TracksCompleted"/> for the
-    /// overlay tracks (<see cref="ToastNotificationService.WaveDisplayed"/> is only a liveness
-    /// bump for the track wait). The toastless base clip always exists before the re-encode runs,
+    /// overlay tracks (<see cref="ToastNotificationService.WaveDisplayed"/> is a liveness bump for
+    /// the track wait, and carries the display instant the delayed path anchors to).
+    /// The toastless base clip always exists before the re-encode runs,
     /// so a re-encode failure degrades to a toastless clip, never a lost one. Per-unlock failures
     /// are silent-but-logged; configuration failures (low disk, repeated capture crashes) raise
     /// one notification per session.
@@ -311,6 +314,22 @@ namespace PlayniteAchievements.Services.Recording
 
             /// <summary>When this request's own wave chime played — where the chime mix reads from.</summary>
             public DateTime? OwnSoundUtc;
+
+            /// <summary>
+            /// Notification delay snapshotted at unlock. Non-zero means this clip anchors on the
+            /// moment its card appeared rather than on the unlock, and that the wave is expected to
+            /// stay silent for at least this long before displaying — which the toast waits below
+            /// add to their silence budget so a long delay does not read as a stalled queue.
+            /// </summary>
+            public double NotificationDelaySeconds;
+
+            /// <summary>
+            /// Completed with the instant this request's wave captured its base surface, or null
+            /// when the wave never reached the screen or the wait gave up — either way the window
+            /// falls back to the unlock anchor. Only created when a delay is configured; null
+            /// otherwise, so the default path never waits on a toast before cutting its clip.
+            /// </summary>
+            public TaskCompletionSource<DateTime?> DisplayTcs;
 
             /// <summary>
             /// Completed with this achievement's overlay track when its wave finishes, or null
@@ -901,6 +920,12 @@ namespace PlayniteAchievements.Services.Recording
                     $"[Recording] Unlock '{e.DisplayName}' has a pre-session video anchor ({videoAnchorUtc.Value:u}); clip will anchor on observation time.");
             }
 
+            // A retrigger is never delayed, so it never waits on a display instant — its clip
+            // anchors on the retrigger moment, which observation already is.
+            var notificationDelaySeconds = e.IsTestFire
+                ? 0
+                : Math.Max(0, persisted.NotificationDelaySeconds);
+
             var request = new ClipRequest
             {
                 Session = session,
@@ -920,8 +945,12 @@ namespace PlayniteAchievements.Services.Recording
                 IsTestFire = e.IsTestFire,
                 EffectiveToastSeconds = _toastNotifications?.GetEffectiveToastDurationSecondsSafe()
                     ?? Math.Max(2, persisted.ToastDurationSeconds),
+                NotificationDelaySeconds = notificationDelaySeconds,
                 TrackTcs = new TaskCompletionSource<ToastOverlayTrack>(
                     TaskCreationOptions.RunContinuationsAsynchronously),
+                DisplayTcs = notificationDelaySeconds > 0
+                    ? new TaskCompletionSource<DateTime?>(TaskCreationOptions.RunContinuationsAsynchronously)
+                    : null,
             };
 
             lock (_gate)
@@ -929,9 +958,11 @@ namespace PlayniteAchievements.Services.Recording
                 _awaitingTrack.Add(request);
             }
 
-            // Production starts immediately: the clip window is unlock-anchored, so nothing about
-            // it depends on when (or whether) the toast displays. Only the overlay composite waits
-            // for the track, after the toastless base clip is already safe.
+            // Production starts immediately. With no delay configured the clip window is
+            // unlock-anchored, so nothing about it depends on when (or whether) the toast displays,
+            // and only the overlay composite waits for the track — after the toastless base clip is
+            // already safe. A delay makes the window itself depend on the display instant, so that
+            // path waits for it first and falls back to the unlock anchor if it never arrives.
             StartClipProduction(request);
         }
 
@@ -952,18 +983,28 @@ namespace PlayniteAchievements.Services.Recording
             lock (_gate)
             {
                 _lastToastActivityUtc = CaptureTimelineClock.UtcNow;
-                if (e.SoundPlayedUtc.HasValue)
+                foreach (var vm in e.Wave)
                 {
-                    foreach (var vm in e.Wave)
+                    if (e.SoundPlayedUtc.HasValue)
                     {
-                        var match = _awaitingTrack.FirstOrDefault(r =>
+                        var soundMatch = _awaitingTrack.FirstOrDefault(r =>
                             !r.OwnSoundUtc.HasValue &&
                             r.CaptureCorrelationId == vm.CaptureCorrelationId);
-                        if (match != null)
+                        if (soundMatch != null)
                         {
-                            match.OwnSoundUtc = e.SoundPlayedUtc;
+                            soundMatch.OwnSoundUtc = e.SoundPlayedUtc;
                         }
                     }
+
+                    // Release the delayed window computation. Completed even when the wave was
+                    // never revealed (null instant), so that path falls back to the unlock anchor
+                    // straight away instead of waiting out the silence budget for an instant that
+                    // is never coming.
+                    var displayMatch = _awaitingTrack.FirstOrDefault(r =>
+                        r.DisplayTcs != null &&
+                        !r.DisplayTcs.Task.IsCompleted &&
+                        r.CaptureCorrelationId == vm.CaptureCorrelationId);
+                    displayMatch?.DisplayTcs.TrySetResult(e.SurfaceCaptureUtc);
                 }
             }
         }
@@ -1030,11 +1071,15 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// The full per-request pipeline, base-first: compute the unlock-anchored window, extract
-        /// the toastless base clip from the buffer (after which the segments are prune-safe and
-        /// the clip can no longer be lost), then wait for this achievement's overlay track and
-        /// re-encode the toast in. Track missing or re-encode failed → the toastless base is
-        /// saved instead.
+        /// The full per-request pipeline, base-first: compute the window, extract the toastless
+        /// base clip from the buffer (after which the segments are prune-safe and the clip can no
+        /// longer be lost), then wait for this achievement's overlay track and re-encode the toast
+        /// in. Track missing or re-encode failed → the toastless base is saved instead.
+        ///
+        /// With a notification delay configured the window is anchored on the moment the card
+        /// appeared, so that instant has to be waited for before the window exists — the one thing
+        /// that runs ahead of the base extraction. It falls back to the unlock anchor rather than
+        /// blocking indefinitely, so base-first still holds for every outcome.
         /// </summary>
         private async Task ProduceClipAsync(ClipRequest request)
         {
@@ -1050,6 +1095,7 @@ namespace PlayniteAchievements.Services.Recording
 
                 var pollInterval = Math.Max(10, persisted.InGamePollIntervalSeconds);
                 var toastSlotSeconds = request.EffectiveToastSeconds + SlideAllowanceSeconds;
+                var displayAnchorUtc = await WaitForDisplayAsync(request).ConfigureAwait(false);
                 var window = SegmentTimeline.ComputeClipWindow(
                     request.VideoAnchorUtc,
                     request.ObservedUtc,
@@ -1058,7 +1104,8 @@ namespace PlayniteAchievements.Services.Recording
                     pollIntervalSeconds: pollInterval,
                     preRollSeconds: persisted.RecordingClipSeconds,
                     toastSlotSeconds: toastSlotSeconds,
-                    tailSeconds: ToastTailSeconds);
+                    tailSeconds: ToastTailSeconds,
+                    displayAnchorUtc: displayAnchorUtc);
 
                 if ((window.EndUtc - window.StartUtc).TotalSeconds < SegmentTimeline.MinimumWindowSeconds)
                 {
@@ -1152,8 +1199,9 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Removes the request from the track-wait list and resolves its waiter null, so an
-        /// abandoned production can't strand the wave matcher or a later WaitForTrackAsync.
+        /// Removes the request from the track-wait list and resolves both its waiters null, so an
+        /// abandoned production can't strand the wave matcher, a later WaitForTrackAsync, or a
+        /// delayed request still waiting on a display instant that will never be stamped.
         /// </summary>
         private void AbandonTrackWait(ClipRequest request)
         {
@@ -1168,13 +1216,69 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             request.TrackTcs?.TrySetResult(null);
+            request.DisplayTcs?.TrySetResult(null);
+        }
+
+        /// <summary>
+        /// Waits for the instant this achievement's wave captured its base surface, so the clip can
+        /// be built around the moment the card appeared. Null — anchor on the unlock instead — when
+        /// the wave was never revealed, or when the wait gives up on the same silence budget the
+        /// track wait uses.
+        ///
+        /// A configured delay is itself a period of deliberate toast silence, so it is added to the
+        /// budget; without that an uncapped delay longer than <see cref="ToastWaitTimeoutSeconds"/>
+        /// would read as a stalled queue and abandon a wave that is merely still waiting its turn.
+        /// </summary>
+        private async Task<DateTime?> WaitForDisplayAsync(ClipRequest request)
+        {
+            if (request.DisplayTcs == null)
+            {
+                return null;
+            }
+
+            var silenceBudget = TimeSpan.FromSeconds(ToastWaitTimeoutSeconds + request.NotificationDelaySeconds);
+            var overallBudget = TimeSpan.FromSeconds(MaxToastWaitSeconds + request.NotificationDelaySeconds);
+
+            while (true)
+            {
+                var completed = await Task.WhenAny(
+                        request.DisplayTcs.Task,
+                        Task.Delay(TimeSpan.FromSeconds(ToastWaitPollSeconds)))
+                    .ConfigureAwait(false);
+                if (completed == request.DisplayTcs.Task)
+                {
+                    return await request.DisplayTcs.Task.ConfigureAwait(false);
+                }
+
+                DateTime lastActivity;
+                lock (_gate)
+                {
+                    lastActivity = _lastToastActivityUtc;
+                }
+
+                var now = CaptureTimelineClock.UtcNow;
+                var silenceAnchor = lastActivity > request.ObservedUtc ? lastActivity : request.ObservedUtc;
+                if (_disposed ||
+                    now - silenceAnchor >= silenceBudget ||
+                    now - request.ObservedUtc >= overallBudget)
+                {
+                    _logger?.Debug(
+                        $"[Recording] No notification display instant for '{request.AchievementName}' " +
+                        $"({(now - request.ObservedUtc).TotalSeconds:F0}s since observation); " +
+                        "anchoring the clip on the unlock instead.");
+                    request.DisplayTcs.TrySetResult(null);
+                    return await request.DisplayTcs.Task.ConfigureAwait(false);
+                }
+            }
         }
 
         /// <summary>
         /// Waits for this achievement's overlay track, giving up (null → toastless clip) only
         /// after <see cref="ToastWaitTimeoutSeconds"/> of toast SILENCE — measured from the last
         /// wave shown or track completed, not from detection — so a toast queued minutes behind
-        /// other waves still gets composited. Returns whatever won a give-up/late-track race.
+        /// other waves still gets composited. A configured notification delay extends that budget,
+        /// since the wave is deliberately withheld for that long before it can display at all.
+        /// Returns whatever won a give-up/late-track race.
         /// </summary>
         private async Task<ToastOverlayTrack> WaitForTrackAsync(ClipRequest request)
         {
@@ -1198,8 +1302,8 @@ namespace PlayniteAchievements.Services.Recording
                 var now = CaptureTimelineClock.UtcNow;
                 var silenceAnchor = lastActivity > request.ObservedUtc ? lastActivity : request.ObservedUtc;
                 if (_disposed ||
-                    now - silenceAnchor >= TimeSpan.FromSeconds(ToastWaitTimeoutSeconds) ||
-                    now - request.ObservedUtc >= TimeSpan.FromSeconds(MaxToastWaitSeconds))
+                    now - silenceAnchor >= TimeSpan.FromSeconds(ToastWaitTimeoutSeconds + request.NotificationDelaySeconds) ||
+                    now - request.ObservedUtc >= TimeSpan.FromSeconds(MaxToastWaitSeconds + request.NotificationDelaySeconds))
                 {
                     _logger?.Debug(
                         $"[Recording] No matching toast track for '{request.AchievementName}' " +
@@ -1229,16 +1333,20 @@ namespace PlayniteAchievements.Services.Recording
             // The two differ whenever the buffer could not reach back the full pre-roll, and measuring
             // from the window then put the card that much too early against the footage.
             //
-            // The card sits on the unlock itself, not on the moment the real notification reached the
-            // screen. Those are far apart: a provider poll takes seconds to notice an unlock, so the
-            // notification appeared 9.2s after the fact in one measured case. A clip is built around the
-            // unlock — the pre-roll leads up to it and the tail follows it — so that is where the card
-            // belongs, and placing it there means the clip shows the achievement popping at the instant it
-            // was earned.
+            // By default the card sits on the unlock itself, not on the moment the real notification
+            // reached the screen. Those are far apart: a provider poll takes seconds to notice an unlock,
+            // so the notification appeared 9.2s after the fact in one measured case. A clip is built
+            // around the unlock — the pre-roll leads up to it and the tail follows it — so that is where
+            // the card belongs, and placing it there means the clip shows the achievement popping at the
+            // instant it was earned.
             //
-            // The track's own first-rendered-frame stamp is deliberately not used for placement. It is
-            // still what the card's animation plays from, so the composited card slides in exactly as it
-            // did live; only its position in the clip comes from the unlock.
+            // A configured notification delay reverses that preference: the window is then built around
+            // the moment the card appeared, so the card still lands on its own window's anchor and the
+            // clip shows what was on screen when the notification arrived.
+            //
+            // Either way the anchor comes from the window, never from the track's own
+            // first-rendered-frame stamp. That stamp is still what the card's animation plays from, so
+            // the composited card slides in exactly as it did live; only its position is the window's.
             var overlaySeconds = Math.Min(toastSlotSeconds, track.DurationSeconds) + PostFadeTailSeconds;
             var overlayStartUtc = window.ToastAnchorUtc;
 
@@ -1246,12 +1354,15 @@ namespace PlayniteAchievements.Services.Recording
             var toastStartSeconds = videoLeadSeconds + (overlayStartUtc - clipOriginUtc).TotalSeconds;
             var endSeconds = toastStartSeconds + overlaySeconds;
 
-            // Where the card landed, and how far the real notification was from it — the gap is the
-            // provider's detection lag, and seeing it beside the placement makes an odd-looking clip
-            // readable without reasoning backwards from the window.
+            // Where the card landed, and how far the real notification was from it. Unlock-anchored,
+            // that gap is the provider's detection lag, and seeing it beside the placement makes an
+            // odd-looking clip readable without reasoning backwards from the window. Display-anchored,
+            // the gap should be near zero — a large one there means the card was placed away from the
+            // frame the screenshot captured.
             _logger?.Info(
                 $"[RecordingTiming] toast placed at {toastStartSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
-                $"on the unlock ({Stamp(window.ToastAnchorUtc)}); the notification itself appeared " +
+                $"on the {(window.AnchoredOnDisplay ? "notification" : "unlock")} ({Stamp(window.ToastAnchorUtc)}); " +
+                $"the notification itself appeared " +
                 $"{(track.StartUtc - window.ToastAnchorUtc).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}s later " +
                 $"({Stamp(track.StartUtc)}). lead={videoLeadSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
                 $"end={endSeconds.ToString("F2", CultureInfo.InvariantCulture)}s");
@@ -1893,9 +2004,11 @@ namespace PlayniteAchievements.Services.Recording
                     return null;
                 }
 
-                // A manual test fire lands in a separate "Test" subfolder, matching the screenshot
-                // planner, so test clips never mix with a game's genuine unlock captures.
-                if (request.IsTestFire)
+                // A retrigger normally captures into the game's own folder, exactly like a genuine
+                // unlock. Opting into the test folder diverts it to the shared "Test" subfolder
+                // instead, matching the screenshot planner so a retrigger's clip and screenshot
+                // never land in different places.
+                if (request.IsTestFire && persisted.EnableCaptureTestFolder)
                 {
                     baseDir = Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
                 }
@@ -2368,6 +2481,7 @@ namespace PlayniteAchievements.Services.Recording
             foreach (var request in awaiting)
             {
                 request.TrackTcs?.TrySetResult(null);
+                request.DisplayTcs?.TrySetResult(null);
             }
 
             if (session != null)

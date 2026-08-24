@@ -8,9 +8,11 @@ namespace PlayniteAchievements.Services.Recording
 {
     /// <summary>
     /// Pure clip-window and buffer math over the rolling segment recording, all in UTC. The
-    /// invariant every window upholds: a clip contains the unlock moment (with its pre-roll)
-    /// plus a toast-duration slot after it — the toast itself is composited into the clip at
-    /// export, so the window never depends on when the toast actually displayed on screen.
+    /// invariant every window upholds: a clip contains its anchor moment (with the anchor's
+    /// pre-roll) plus a toast-duration slot after it — the toast itself is always composited into
+    /// the clip at export, never filmed. The anchor is the unlock by default, so the window does
+    /// not depend on when the toast displayed; a configured notification delay switches it to the
+    /// instant the card appeared, so the clip shows what the user saw.
     /// Clamped only to recorded data. No filesystem access — fully unit-testable.
     /// </summary>
     internal static class SegmentTimeline
@@ -81,6 +83,13 @@ namespace PlayniteAchievements.Services.Recording
             public DateTime EndUtc { get; set; }
 
             public DateTime ToastAnchorUtc { get; set; }
+
+            /// <summary>
+            /// True when the anchor is the moment the notification appeared rather than the unlock —
+            /// the notification-delay path. Diagnostics only: it tells the timing log which of the
+            /// two rules produced this window, so a clip that looks late can be read at a glance.
+            /// </summary>
+            public bool AnchoredOnDisplay { get; set; }
         }
 
         /// <summary>
@@ -323,11 +332,21 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Computes the clip window in UTC. The clip is built around the moment the achievement was
-        /// earned — the real on-screen notification never moves the window, because the card is
-        /// composited into the clip at export, on the anchor.
+        /// Computes the clip window in UTC. By default the clip is built around the moment the
+        /// achievement was earned — the real on-screen notification does not move the window,
+        /// because the card is composited into the clip at export, on the anchor.
         ///
-        /// The anchor is the source-selected timestamp when it is reachable, else observation. Two
+        /// <paramref name="displayAnchorUtc"/> overrides that. When the user configures a
+        /// notification delay, the capture is meant to show what was on screen when the card
+        /// appeared, so the recorder passes the instant the wave grabbed its base surface — the
+        /// same instant the screenshot depicts — and the window is built around that instead. It
+        /// bypasses the <see cref="IsPreciseUnlockTime"/> heuristic deliberately: that guard exists
+        /// to reject provider timestamps from a foreign clock domain, whereas this value is
+        /// measured locally on the recorder's own clock and is always later than observation, which
+        /// the guard's lead check would reject outright.
+        ///
+        /// Otherwise the anchor is the source-selected timestamp when it is reachable, else
+        /// observation. Two
         /// floors raise the start: it may not open earlier than one poll interval + pre-roll before
         /// observation, nor earlier than recorded data. When a floor raises the start past the
         /// timestamp itself, that timestamp is discarded and the window is recomputed around
@@ -349,7 +368,8 @@ namespace PlayniteAchievements.Services.Recording
             int pollIntervalSeconds,
             int preRollSeconds,
             double toastSlotSeconds,
-            double tailSeconds)
+            double tailSeconds,
+            DateTime? displayAnchorUtc = null)
         {
             var preRoll = Math.Max(0, preRollSeconds);
 
@@ -358,6 +378,33 @@ namespace PlayniteAchievements.Services.Recording
             if (oldestSegmentStartUtc.HasValue && oldestSegmentStartUtc.Value > floor)
             {
                 floor = oldestSegmentStartUtc.Value;
+            }
+
+            if (displayAnchorUtc.HasValue)
+            {
+                // The card is pinned to when it actually appeared, so the pre-roll leads into the
+                // notification rather than into the unlock. Only the recorded-data floor applies:
+                // the observation floor guards against reaching back before a promptly-observed
+                // unlock, and this anchor is always later than observation, so it cannot.
+                var displayAnchor = displayAnchorUtc.Value;
+                var displayStart = displayAnchor.AddSeconds(-preRoll);
+                if (displayStart < floor)
+                {
+                    displayStart = floor;
+                }
+
+                if (displayAnchor < displayStart)
+                {
+                    displayAnchor = displayStart;
+                }
+
+                return new ClipWindow
+                {
+                    StartUtc = displayStart,
+                    EndUtc = displayAnchor.AddSeconds(Math.Max(0, toastSlotSeconds) + Math.Max(0, tailSeconds)),
+                    ToastAnchorUtc = displayAnchor,
+                    AnchoredOnDisplay = true,
+                };
             }
 
             var anchor = IsPreciseUnlockTime(preferredAnchorUtc, captureStartUtc, observedUtc)

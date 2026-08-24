@@ -88,6 +88,7 @@ namespace PlayniteAchievements.Models.Settings
             target.OpenSettingsHotkey = source.OpenSettingsHotkey;
             target.CategoryModeHotkey = source.CategoryModeHotkey;
             target.TestUnlockHotkey = source.TestUnlockHotkey;
+            target.EnableCaptureTestFolder = source.EnableCaptureTestFolder;
 
             // Notification Settings
             target.EnableNotifications = source.EnableNotifications;
@@ -103,6 +104,7 @@ namespace PlayniteAchievements.Models.Settings
                     StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase);
             target.ToastDurationSeconds = source.ToastDurationSeconds;
+            target.NotificationDelaySeconds = source.NotificationDelaySeconds;
             target.MaxConcurrentToasts = source.MaxConcurrentToasts;
             target.ToastPosition = source.ToastPosition;
             target.EnableControllerVibration = source.EnableControllerVibration;

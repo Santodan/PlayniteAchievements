@@ -75,6 +75,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0"
@@ -88,23 +89,36 @@
                                      TextAlignment="Right"
                                      Margin="0,0,0,8"/>
 
+                            <!-- LostFocus keeps the value un-normalized while it is being typed, so any
+                                 number can be entered without the setter rewriting it mid-keystroke. -->
                             <TextBlock Grid.Row="1" Grid.Column="0"
-                                       Text="{DynamicResource LOCPlayAch_Settings_MaxConcurrentToasts}"
+                                       Text="{DynamicResource LOCPlayAch_Settings_NotificationDelaySeconds}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,8,8"/>
                             <TextBox Grid.Row="1" Grid.Column="1"
-                                     Text="{Binding Persisted.MaxConcurrentToasts, UpdateSourceTrigger=LostFocus}"
+                                     Text="{Binding Persisted.NotificationDelaySeconds, UpdateSourceTrigger=LostFocus}"
                                      Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
                                      TextAlignment="Right"
                                      Margin="0,0,0,8"/>
 
                             <TextBlock Grid.Row="2" Grid.Column="0"
+                                       Text="{DynamicResource LOCPlayAch_Settings_MaxConcurrentToasts}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,8"/>
+                            <TextBox Grid.Row="2" Grid.Column="1"
+                                     Text="{Binding Persisted.MaxConcurrentToasts, UpdateSourceTrigger=LostFocus}"
+                                     Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                     TextAlignment="Right"
+                                     Margin="0,0,0,8"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0"
                                        Text="{DynamicResource LOCPlayAch_Settings_ToastPosition}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,8,0"/>
-                            <ComboBox Grid.Row="2" Grid.Column="1"
+                            <ComboBox Grid.Row="3" Grid.Column="1"
                                       SelectedValue="{Binding Persisted.ToastPosition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       SelectedValuePath="Tag"
                                       MinWidth="140">

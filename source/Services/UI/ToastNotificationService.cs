@@ -188,7 +188,10 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         internal event EventHandler<ToastTracksCompletedEventArgs> TracksCompleted;
 
-        private void RaiseWaveDisplayed(IReadOnlyList<AchievementToastViewModel> wave, DateTime? soundPlayedUtc)
+        private void RaiseWaveDisplayed(
+            IReadOnlyList<AchievementToastViewModel> wave,
+            DateTime? soundPlayedUtc,
+            DateTime? surfaceCaptureUtc)
         {
             if (wave == null || wave.Count == 0 || wave[0].IsPreview)
             {
@@ -197,7 +200,10 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
-                WaveDisplayed?.Invoke(this, new ToastWaveDisplayedEventArgs(wave, CaptureTimelineClock.UtcNow, soundPlayedUtc));
+                WaveDisplayed?.Invoke(
+                    this,
+                    new ToastWaveDisplayedEventArgs(
+                        wave, CaptureTimelineClock.UtcNow, soundPlayedUtc, surfaceCaptureUtc));
             }
             catch (Exception ex)
             {
@@ -1924,11 +1930,35 @@ namespace PlayniteAchievements.Services.UI
             var visible = wavePlan.IsVisible;
             var plan = wavePlan.Screenshots;
 
+            // Hold the notification back before anything is captured or shown, so the delay moves
+            // the card, the chime, the vibration and every capture together. Measured from here —
+            // the point the wave was released for display — not from the unlock, so a wave held by
+            // the foreground gate is delayed relative to its release.
+            //
+            // Only a wave that actually reaches the screen is delayed. An unrevealed wave renders
+            // its card solely to feed a screenshot variant or an overlay track, so there is no
+            // on-screen moment to push back and nothing to gain by stalling its capture. Test fires
+            // and previews are exempt: both are meant to appear the instant they are asked for.
+            if (wavePlan.Mode == WaveMode.Visible && !waveIsTestFire && !wave[0].IsPreview)
+            {
+                var delaySeconds = _settings?.Persisted?.NotificationDelaySeconds ?? 0;
+                if (delaySeconds > 0)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds)).ConfigureAwait(true);
+                }
+            }
+
             // The base capture must precede window.Show(); overlapping it with the sound-align
             // delay below adds no latency to the toast itself. It feeds every variant: clean saves
             // it as-is, framed composites the frame onto it, and with-notification composites each
             // item's rendered card onto a copy of it.
+            //
+            // Stamped even when no screenshot is planned: it is also the instant a delayed wave's
+            // clip anchors to, and a clip can be cut with screenshots switched off entirely.
             Task<System.Drawing.Bitmap> baseCaptureTask = null;
+            var surfaceCaptureUtc = wavePlan.Mode == WaveMode.Visible
+                ? CaptureTimelineClock.UtcNow
+                : (DateTime?)null;
             if (plan != null)
             {
                 baseCaptureTask = StartWaveSurfaceCapture(waveIsTestFire);
@@ -2292,10 +2322,11 @@ namespace PlayniteAchievements.Services.UI
                 ReportSettledCard(window);
 
                 // The wave has settled, revealed or not: signal the recording service (a liveness
-                // bump for its track wait, plus this wave's chime time for the clip audio mix —
-                // clip windows themselves are unlock-anchored). A unrevealed wave passes a null
-                // chime time, so its clips are mixed without one.
-                RaiseWaveDisplayed(cardItems, soundPlayedUtc);
+                // bump for its track wait, this wave's chime time for the clip audio mix, and the
+                // instant its base surface was captured, which a delayed wave's clip anchors to).
+                // An unrevealed wave passes a null chime time, so its clips are mixed without one,
+                // and a null capture instant, so its clips stay unlock-anchored.
+                RaiseWaveDisplayed(cardItems, soundPlayedUtc, surfaceCaptureUtc);
 
                 // Layout and placement are final: verify a lone card actually settled on its corner.
                 ReportSettledCornerDrift(window, cardItems);
@@ -2609,9 +2640,11 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
-            // A manual test fire lands in a separate "Test" subfolder so it never mixes with a
-            // game's genuine unlock captures.
-            if (first.IsTestFire)
+            // A retrigger normally captures into the game's own folder, exactly like a genuine
+            // unlock — re-capturing a moment is the point of the shortcut. Opting into the test
+            // folder diverts it to a shared "Test" subfolder the capture library hides, which is
+            // what makes the shortcut usable for throwaway testing instead.
+            if (first.IsTestFire && (_settings?.Persisted?.EnableCaptureTestFolder ?? false))
             {
                 baseDir = System.IO.Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
             }

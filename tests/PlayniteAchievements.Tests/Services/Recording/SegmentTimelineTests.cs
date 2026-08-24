@@ -279,6 +279,100 @@ namespace PlayniteAchievements.Services.Tests.Recording
             Assert.AreEqual(unlock, window.ToastAnchorUtc);
         }
 
+        // === Clip window anchored on the notification (the notification-delay path) ===
+
+        [TestMethod]
+        public void ComputeClipWindow_DisplayAnchor_BuildsWindowAroundTheNotification()
+        {
+            var captureStart = T0;
+            var unlock = T0.AddSeconds(60);
+            var detection = unlock.AddSeconds(10);
+            // The card reached the screen after detection, delay included.
+            var display = detection.AddSeconds(4);
+
+            var window = SegmentTimeline.ComputeClipWindow(
+                unlock, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1,
+                displayAnchorUtc: display);
+
+            Assert.AreEqual(display, window.ToastAnchorUtc);
+            Assert.AreEqual(display.AddSeconds(-15), window.StartUtc);
+            Assert.AreEqual(display.AddSeconds(9), window.EndUtc);
+            Assert.IsTrue(window.AnchoredOnDisplay);
+        }
+
+        /// <summary>
+        /// A display instant is always later than observation, which is exactly what
+        /// <see cref="SegmentTimeline.IsPreciseUnlockTime"/> rejects. Routing it through the
+        /// dedicated parameter has to bypass that guard, or every delayed clip would silently fall
+        /// back to detection anchoring.
+        /// </summary>
+        [TestMethod]
+        public void ComputeClipWindow_DisplayAnchor_SurvivesTheLeadGuardThatRejectsLateAnchors()
+        {
+            var captureStart = T0;
+            var detection = T0.AddSeconds(120);
+            var display = detection.AddSeconds(SegmentTimeline.PreciseLeadSeconds + 30);
+
+            Assert.IsFalse(
+                SegmentTimeline.IsPreciseUnlockTime(display, captureStart, detection),
+                "Guard precondition: a late display instant is not a 'precise unlock time'.");
+
+            var window = SegmentTimeline.ComputeClipWindow(
+                null, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1,
+                displayAnchorUtc: display);
+
+            Assert.AreEqual(display, window.ToastAnchorUtc);
+        }
+
+        [TestMethod]
+        public void ComputeClipWindow_DisplayAnchor_ClampsStartToRecordedData()
+        {
+            var captureStart = T0.AddSeconds(100);
+            var detection = T0.AddSeconds(105);
+            var display = T0.AddSeconds(108);
+
+            var window = SegmentTimeline.ComputeClipWindow(
+                null, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 30,
+                toastSlotSeconds: 8, tailSeconds: 1,
+                displayAnchorUtc: display);
+
+            Assert.AreEqual(captureStart, window.StartUtc);
+            Assert.AreEqual(display, window.ToastAnchorUtc);
+        }
+
+        /// <summary>
+        /// No display instant (no delay configured, an unrevealed wave, or the wait gave up) must
+        /// reproduce the unlock-anchored window exactly — the default path stays untouched.
+        /// </summary>
+        [TestMethod]
+        public void ComputeClipWindow_NoDisplayAnchor_MatchesTheUnlockAnchoredWindow()
+        {
+            var captureStart = T0;
+            var unlock = T0.AddSeconds(60);
+            var detection = unlock.AddSeconds(10);
+
+            var withoutArgument = SegmentTimeline.ComputeClipWindow(
+                unlock, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1);
+
+            var withNull = SegmentTimeline.ComputeClipWindow(
+                unlock, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1,
+                displayAnchorUtc: null);
+
+            Assert.AreEqual(withoutArgument.StartUtc, withNull.StartUtc);
+            Assert.AreEqual(withoutArgument.EndUtc, withNull.EndUtc);
+            Assert.AreEqual(withoutArgument.ToastAnchorUtc, withNull.ToastAnchorUtc);
+            Assert.IsFalse(withNull.AnchoredOnDisplay);
+        }
+
         [TestMethod]
         public void ComputeClipWindow_AnchorRaisedToStartWhenClampPassesIt()
         {
