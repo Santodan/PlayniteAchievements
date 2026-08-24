@@ -13,9 +13,71 @@ namespace PlayniteAchievements.Models.Achievements
         private const string CacheBustPrefix = "cachebust|";
 
         /// <summary>
-        /// Get the default hidden icon pack URI.
+        /// Supplies the user's custom locked fallback image path, or null/blank for the built-in
+        /// placeholder. Assigned once at plugin startup. Read through on every call so a settings
+        /// dialog's in-flight edits and its cancel-time instance swap are both picked up without
+        /// depending on PropertyChanged handler ordering.
+        /// </summary>
+        public static Func<string> LockedFallbackPathAccessor { get; set; }
+
+        /// <summary>
+        /// Supplies the user's custom hidden fallback image path, or null/blank for the built-in
+        /// placeholder. See <see cref="LockedFallbackPathAccessor"/>.
+        /// </summary>
+        public static Func<string> HiddenFallbackPathAccessor { get; set; }
+
+        /// <summary>
+        /// Get the built-in placeholder pack URI. This is the "no image" thumbnail used by the
+        /// icon editors, so it deliberately ignores the user's fallback settings; the locked and
+        /// hidden display paths use <see cref="GetLockedFallbackIcon"/> and
+        /// <see cref="GetHiddenFallbackIcon"/> instead.
         /// </summary>
         public static string GetDefaultIcon() => DefaultIconPackUri;
+
+        /// <summary>
+        /// The image for a locked achievement with no usable icon, or whose icon is masked.
+        /// </summary>
+        public static string GetLockedFallbackIcon() =>
+            ResolveCustomFallback(LockedFallbackPathAccessor) ?? DefaultIconPackUri;
+
+        /// <summary>
+        /// The image for a hidden achievement whose icon is masked.
+        /// </summary>
+        public static string GetHiddenFallbackIcon() =>
+            ResolveCustomFallback(HiddenFallbackPathAccessor) ?? DefaultIconPackUri;
+
+        /// <summary>
+        /// Resolves a configured fallback path into a display source, or null when unset or the
+        /// file is gone. Routed through <see cref="BuildDisplayIcon"/> so the managed file picks up
+        /// a cache-bust token: the slot filename is fixed, so replacing the image overwrites the
+        /// same path and would otherwise keep serving the previously decoded bitmap.
+        /// </summary>
+        private static string ResolveCustomFallback(Func<string> accessor)
+        {
+            if (accessor == null)
+            {
+                return null;
+            }
+
+            string configured;
+            try
+            {
+                configured = accessor();
+            }
+            catch
+            {
+                return null;
+            }
+
+            var normalized = NormalizeDisplaySource(configured);
+            if (string.IsNullOrWhiteSpace(normalized) || !IsUsableDisplayPath(normalized))
+            {
+                return null;
+            }
+
+            var candidate = BuildDisplayIcon(normalized, gray: false);
+            return string.IsNullOrWhiteSpace(candidate) ? null : candidate;
+        }
 
         /// <summary>
         /// Returns a plain path/pack URI without cache-busting or grayscale prefixes.
@@ -34,11 +96,22 @@ namespace PlayniteAchievements.Models.Achievements
                 ? DefaultIconPackUri
                 : BuildDisplayIcon(unlockedIconPath, gray: false);
 
+        /// <summary>
+        /// A provider-supplied locked icon when one exists, otherwise the user's locked fallback
+        /// image. With no fallback configured this keeps the historical behaviour: the grayscaled
+        /// unlocked icon, or the built-in placeholder when there is no icon at all.
+        /// </summary>
         public static string GetLockedDisplayIcon(string unlockedIconPath, string lockedIconPath)
         {
             if (HasExplicitLockedIcon(lockedIconPath, unlockedIconPath))
             {
                 return BuildDisplayIcon(lockedIconPath, gray: false);
+            }
+
+            var customFallback = ResolveCustomFallback(LockedFallbackPathAccessor);
+            if (customFallback != null)
+            {
+                return customFallback;
             }
 
             var candidate = BuildDisplayIcon(unlockedIconPath, gray: true);
