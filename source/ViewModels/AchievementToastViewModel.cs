@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
@@ -14,7 +15,7 @@ using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.ViewModels
 {
-    public sealed class AchievementToastViewModel
+    public sealed class AchievementToastViewModel : INotifyPropertyChanged
     {
         private const string DefaultIcon =
             "pack://application:,,,/PlayniteAchievements;component/Resources/UnlockedAchIcon.png";
@@ -37,7 +38,12 @@ namespace PlayniteAchievements.ViewModels
         private const double FrameBodyFontFallback = 19;
         private const double FrameGameCategoryFontFallback = 19;
 
-        // Built-in size fallbacks used when the style stores null.
+        // Built-in size fallbacks used when the style stores null. The two font sizes are
+        // deliberately independent of theme font sizes, like the frame fallbacks above: the
+        // notification card is a fixed-geometry overlay, and Playnite defines much larger font
+        // constants in fullscreen mode than on the desktop, so deriving from the theme sized the
+        // same card differently per mode. Shared with the settings editor so its sliders rest on
+        // the values the renderer applies.
         public const double DefaultToastIconSize = 55;
         public const double DefaultFrameIconSize = 84;
         public const double DefaultToastProviderIconSize = 24;
@@ -49,11 +55,15 @@ namespace PlayniteAchievements.ViewModels
         private readonly AchievementUnlockedEventArgs _args;
         private readonly PersistedSettings _settings;
         private readonly NotificationStyleSettings _style;
+        private ImageSource _toastBackgroundRenderSourceOverride;
+        private readonly bool _useToastBackgroundRenderSourceOverride;
         private readonly RarityTier _rarity;
         private IReadOnlyList<ToastLineDescriptor> _toastLines;
         private IReadOnlyList<ToastLineDescriptor> _frameLines;
         private ToastRarityTextLine _toastRarityText;
         private ToastRarityTextLine _frameRarityText;
+
+        public event PropertyChangedEventHandler PropertyChanged;
 
         public AchievementToastViewModel(
             AchievementUnlockedEventArgs args,
@@ -61,7 +71,9 @@ namespace PlayniteAchievements.ViewModels
             NotificationStyleSettings styleOverride = null,
             GameCustomDataStore gameCustomDataStore = null,
             bool? toastUseThemeStylingOverride = null,
-            bool? frameUseThemeStylingOverride = null)
+            bool? frameUseThemeStylingOverride = null,
+            ImageSource toastBackgroundRenderSourceOverride = null,
+            bool useToastBackgroundRenderSourceOverride = false)
         {
             _args = args ?? new AchievementUnlockedEventArgs();
             _settings = settings ?? new PersistedSettings();
@@ -75,6 +87,8 @@ namespace PlayniteAchievements.ViewModels
                 toastUseThemeStylingOverride ?? resolved.ToastUseThemeStyling;
             FrameUseThemeStyling =
                 frameUseThemeStylingOverride ?? resolved.FrameUseThemeStyling;
+            _toastBackgroundRenderSourceOverride = toastBackgroundRenderSourceOverride;
+            _useToastBackgroundRenderSourceOverride = useToastBackgroundRenderSourceOverride;
             _rarity = ParseRarity(_args.RarityTier);
         }
 
@@ -283,14 +297,129 @@ namespace PlayniteAchievements.ViewModels
         public bool FrameShowRadialVignette => _style.Frame.FrameVignette == FrameVignetteStyle.Full;
         public bool FrameShowBottomWash => _style.Frame.FrameVignette != FrameVignetteStyle.None;
 
+        // Original stop alphas of the built-in frame vignette gradients (what strength 50
+        // reproduces); scaled per-stop by the surface's vignette strength setting.
+        private const double RadialVignetteMidAlpha = 0x73 / 255.0;
+        private const double RadialVignetteEdgeAlpha = 0xF2 / 255.0;
+        private const double BottomWashAlpha = 0xD0 / 255.0;
+
+        // Transparent BLACK: gradient interpolation blends color channels independently of
+        // alpha, so fading from Colors.Transparent (#00FFFFFF, transparent white) into the
+        // dark stops would tint the whole vignette whitish.
+        private static readonly Color TransparentBlack = Color.FromArgb(0, 0, 0, 0);
+
+        // Original stop offsets of the radial vignette (where the clear center ends and the
+        // mid darkening sits), and how far each is pulled toward the center at full strength:
+        // alpha stacking alone saturates near-opaque stops, so the upper half of the range
+        // also grows the vignette's coverage inward to keep every step visibly stronger.
+        private const double RadialVignetteInnerOffset = 0.38;
+        private const double RadialVignetteMidOffset = 0.72;
+        private const double RadialVignetteInnerOffsetAtFull = 0.15;
+        private const double RadialVignetteMidOffsetAtFull = 0.50;
+
+        /// <summary>
+        /// Fill of the frame's circular edge vignette, shaped by the vignette strength setting.
+        /// Relative radial gradients stretch to the bounds, so the radii undo the 16:9 aspect
+        /// (radius = half-diagonal: 0.57 of width, 1.02 of height) and the fade stays a circle
+        /// through the corners instead of an edge-hugging ellipse.
+        /// </summary>
+        public Brush FrameRadialVignetteBrush
+        {
+            get
+            {
+                var strength = _style.Frame.FrameVignetteStrength;
+                var reach = VignetteUpperProgress(strength);
+                var innerOffset = Lerp(RadialVignetteInnerOffset, RadialVignetteInnerOffsetAtFull, reach);
+                var midOffset = Lerp(RadialVignetteMidOffset, RadialVignetteMidOffsetAtFull, reach);
+                var brush = new RadialGradientBrush
+                {
+                    Center = new Point(0.5, 0.5),
+                    GradientOrigin = new Point(0.5, 0.5),
+                    RadiusX = 0.57,
+                    RadiusY = 1.02
+                };
+                brush.GradientStops.Add(new GradientStop(TransparentBlack, 0));
+                brush.GradientStops.Add(new GradientStop(TransparentBlack, innerOffset));
+                brush.GradientStops.Add(new GradientStop(VignetteStopColor(RadialVignetteMidAlpha, strength), midOffset));
+                brush.GradientStops.Add(new GradientStop(VignetteStopColor(RadialVignetteEdgeAlpha, strength), 1));
+                brush.Freeze();
+                return brush;
+            }
+        }
+
+        /// <summary>
+        /// Fill of the frame's bottom contrast wash, shaped by the vignette strength setting.
+        /// The intermediate stops follow the end alpha's stacking exponent, so at the built-in
+        /// strength they sit exactly on the original linear ramp (adding nothing), and above it
+        /// they bow the ramp upward, pulling the darkness higher into the fixed-height band.
+        /// </summary>
+        public Brush FrameBottomWashBrush
+        {
+            get
+            {
+                var strength = _style.Frame.FrameVignetteStrength;
+                var endAlpha = ScaleVignetteStopAlpha(BottomWashAlpha, strength);
+                var gamma = 1.0 / VignetteExponent(strength);
+                var brush = new LinearGradientBrush
+                {
+                    StartPoint = new Point(0, 0),
+                    EndPoint = new Point(0, 1)
+                };
+                brush.GradientStops.Add(new GradientStop(TransparentBlack, 0));
+                foreach (var offset in new[] { 0.25, 0.5, 0.75 })
+                {
+                    brush.GradientStops.Add(new GradientStop(
+                        VignetteAlphaColor(endAlpha * Math.Pow(offset, gamma)), offset));
+                }
+
+                brush.GradientStops.Add(new GradientStop(VignetteAlphaColor(endAlpha), 1));
+                brush.Freeze();
+                return brush;
+            }
+        }
+
+        private static double Lerp(double from, double to, double t) => from + (to - from) * t;
+
+        private static Color VignetteStopColor(double baseAlpha, double? strengthPercent) =>
+            VignetteAlphaColor(ScaleVignetteStopAlpha(baseAlpha, strengthPercent));
+
+        private static Color VignetteAlphaColor(double alpha) =>
+            Color.FromArgb((byte)Math.Round(alpha * 255.0), 0, 0, 0);
+
+        // How far the strength sits into the upper half of its range: 0 at or below the
+        // built-in 50, 1 at full strength.
+        private static double VignetteUpperProgress(double? strengthPercent) =>
+            Math.Max(0.0, NormalizePercent(strengthPercent, DefaultFrameVignetteStrength) * 2.0 - 1.0);
+
+        // Screen-stacking exponent for the upper half: 1 at or below the built-in strength
+        // (the original single layer), ramping to 3 at full strength (two extra layers).
+        private static double VignetteExponent(double? strengthPercent) =>
+            1.0 + VignetteUpperProgress(strengthPercent) * 2.0;
+
+        /// <summary>
+        /// Maps the 0-100 vignette strength onto a gradient stop's alpha. 50 returns the
+        /// original alpha exactly; below it the vignette fades linearly to nothing; above it
+        /// the original layer is screen-stacked over itself (100 = applied three times),
+        /// darkening asymptotically toward solid without clipping the gradient's shape.
+        /// </summary>
+        internal static double ScaleVignetteStopAlpha(double baseAlpha, double? strengthPercent)
+        {
+            var factor = NormalizePercent(strengthPercent, DefaultFrameVignetteStrength) * 2.0;
+            return factor <= 1.0
+                ? baseAlpha * factor
+                : 1.0 - Math.Pow(1.0 - baseAlpha, VignetteExponent(strengthPercent));
+        }
+
         // Mirrors TitleBrush but honors the frame's own rarity-colored-name toggle.
         public Brush FrameTitleBrush => _style.Frame.RarityColoredName
             ? AccentBrush
             : Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush ?? Brushes.White;
 
-        public Effect FrameRarityGlowEffect => _style.Frame.ShowRarityGlow && !HardcoreTakesBorder
-            ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
-            : null;
+        /// <summary>Screenshot-frame counterpart to <see cref="RarityGlowEffect"/>.</summary>
+        public Effect FrameRarityGlowEffect =>
+            _style.Frame.ShowRarityGlow && !HardcoreTakesBorder && HasSoftGlowTier
+                ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
+                : null;
 
         // Header texts honor the surface's user edits with the localized strings as fallback.
         // Stored friend formats that lost their {0} placeholder fall back to the localized
@@ -539,6 +668,15 @@ namespace PlayniteAchievements.ViewModels
         // the border-glow option is on). Toast surface only. Completion uses the completed glow.
         public bool HasBorderGlow => _style.Toast.NotificationBorderGlow;
 
+        /// <summary>
+        /// True when the card itself carries the rotating sunburst behind its border glow: this
+        /// unlock's tier is selected for rays and the surface draws the notification-level glow.
+        /// Gated on the border-glow flag rather than the icon's, so the card's halo and its rays
+        /// appear together. Hardcore is not excluded here as it is for the icon: the crisp border
+        /// substitution is an icon-level treatment, which the card glow likewise ignores.
+        /// </summary>
+        public bool ShowCardRayBurst => HasRaySelection && HasBorderGlow;
+
         // The card border glow is larger than the icon glow (blur 20) so it reads as a halo
         // around the whole card.
         private const double BorderGlowBlurRadius = 36;
@@ -563,7 +701,7 @@ namespace PlayniteAchievements.ViewModels
             get
             {
                 var glow = HasBorderGlow ? BorderGlowBlurRadius + 6 : 16;
-                if (!ShowRayBurst)
+                if (!ShowCardRayBurst)
                 {
                     return new Thickness(glow);
                 }
@@ -724,6 +862,31 @@ namespace PlayniteAchievements.ViewModels
         // size token) so overwriting the image at the same managed path shows the new one rather
         // than a stale cached bitmap; AsyncImage strips the token before decoding.
         public string ToastBackgroundImagePath => AchievementIconResolver.ApplyCacheBust(_style.ToastBackgroundImagePath);
+
+        /// <summary>
+        /// Preferred toast-template background binding. Live toasts receive the ordinary path so
+        /// their source-host Image owns a new animation; the appearance editor can inject the
+        /// stable ImageSource owned by its persistent host so rebuilding the preview does not
+        /// restart the GIF. ToastBackgroundImagePath remains available to existing templates.
+        /// </summary>
+        public object ToastBackgroundRenderSource => _useToastBackgroundRenderSourceOverride
+            ? (object)_toastBackgroundRenderSourceOverride
+            : ToastBackgroundImagePath;
+
+        internal void SetToastBackgroundRenderSourceOverride(ImageSource source)
+        {
+            if (!_useToastBackgroundRenderSourceOverride ||
+                ReferenceEquals(_toastBackgroundRenderSourceOverride, source))
+            {
+                return;
+            }
+
+            _toastBackgroundRenderSourceOverride = source;
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(ToastBackgroundRenderSource)));
+        }
+
         public bool HasToastBackground
         {
             get
@@ -739,21 +902,18 @@ namespace PlayniteAchievements.ViewModels
         public FontFamily FrameFontFamily => ResolveFontFamily(_style.Frame.FontFamily);
 
         // Effective caption/header size per surface.
-        public double ToastHeaderFontSize => _style.Toast.HeaderFontSize
-            ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", DefaultToastCaptionFontSize);
+        public double ToastHeaderFontSize => _style.Toast.HeaderFontSize ?? DefaultToastCaptionFontSize;
         public double FrameHeaderFontSize => _style.Frame.HeaderFontSize ?? FrameHeaderFontFallback;
 
         // Effective rarity percent text size per surface. Decoupled from the header size; when
         // unset it falls back to the same caption/header default so the out-of-the-box look is
         // unchanged.
-        public double ToastRarityFontSize => _style.Toast.RarityFontSize
-            ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", DefaultToastCaptionFontSize);
+        public double ToastRarityFontSize => _style.Toast.RarityFontSize ?? DefaultToastCaptionFontSize;
         public double FrameRarityFontSize => _style.Frame.RarityFontSize ?? FrameHeaderFontFallback;
 
         // Effective title size per surface: the single source of truth for both the title line
         // and the badge size, so the inline and footer badges always match.
-        public double ToastTitleFontSize => _style.Toast.TitleFontSize
-            ?? ResolveFontSizeResource("PlayAch.FontSize.Title", DefaultToastTitleFontSize);
+        public double ToastTitleFontSize => _style.Toast.TitleFontSize ?? DefaultToastTitleFontSize;
         public double FrameTitleFontSize => _style.Frame.TitleFontSize ?? FrameTitleFontFallback;
 
         // Rarity badge render size per surface, identical across every rarity display mode
@@ -789,6 +949,9 @@ namespace PlayniteAchievements.ViewModels
         // The percent values that map to the built-in shadow; shared with the settings editor.
         public const double DefaultTextShadowOpacity = 50;
         public const double DefaultTextShadowOffset = 25;
+
+        // The percent value that maps to the built-in frame vignette; shared with the editor.
+        public const double DefaultFrameVignetteStrength = 50;
 
         // Image shadows are single-layer (artwork has no thin glyph edges to solidify), so
         // 100 is both the default and the darkest the layer can go.
@@ -929,9 +1092,9 @@ namespace PlayniteAchievements.ViewModels
             var headerSize = isFrame ? FrameHeaderFontSize : ToastHeaderFontSize;
             var titleSize = isFrame ? FrameTitleFontSize : ToastTitleFontSize;
             var bodySize = surface.BodyFontSize ??
-                (isFrame ? FrameBodyFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", DefaultToastCaptionFontSize));
+                (isFrame ? FrameBodyFontFallback : DefaultToastCaptionFontSize);
             var gameCategorySize = surface.GameCategoryFontSize ??
-                (isFrame ? FrameGameCategoryFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", DefaultToastCaptionFontSize));
+                (isFrame ? FrameGameCategoryFontFallback : DefaultToastCaptionFontSize);
 
             var showGameName = isFrame ? FrameShowGameName : ShowGameName;
             var showCategory = isFrame ? FrameShowCategory : ShowCategory;
@@ -1181,13 +1344,6 @@ namespace PlayniteAchievements.ViewModels
             }
 
             return decorations;
-        }
-
-        private static double ResolveFontSizeResource(string key, double fallback)
-        {
-            return Application.Current?.TryFindResource(key) is double size && size > 0
-                ? size
-                : fallback;
         }
 
         private static FontFamily ResolveFontFamily(string familyName)

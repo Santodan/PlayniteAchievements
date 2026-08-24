@@ -71,6 +71,7 @@ namespace PlayniteAchievements.ViewModels
             UnmergeFriendCommand = new RelayCommand(UnmergeFriend);
             RemoveFriendCommand = new RelayCommand(RemoveFriend);
             IgnoreSelectedCommand = new RelayCommand(_ => IgnoreSelectedFriends(), _ => CanIgnoreSelected());
+            SkipFullScansSelectedCommand = new RelayCommand(_ => ToggleSkipFullScansSelected(), _ => CanIgnoreSelected());
 
             _persistDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             _persistDebounceTimer.Tick += OnPersistDebounceTimerTick;
@@ -99,6 +100,8 @@ namespace PlayniteAchievements.ViewModels
 
         public ICommand IgnoreSelectedCommand { get; }
 
+        public ICommand SkipFullScansSelectedCommand { get; }
+
         public string FriendSearchText
         {
             get => _friendSearchText;
@@ -109,7 +112,9 @@ namespace PlayniteAchievements.ViewModels
                     FriendsView?.Refresh();
                     OnPropertyChanged(nameof(AreAllVisibleFriendsSelected));
                     OnPropertyChanged(nameof(IgnoreSelectedLabel));
+                    OnPropertyChanged(nameof(SkipFullScansSelectedLabel));
                     (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    (SkipFullScansSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
         }
@@ -134,7 +139,9 @@ namespace PlayniteAchievements.ViewModels
                 _suppressSelectAllSync = false;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IgnoreSelectedLabel));
+                OnPropertyChanged(nameof(SkipFullScansSelectedLabel));
                 (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (SkipFullScansSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 (MergeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
         }
@@ -144,6 +151,12 @@ namespace PlayniteAchievements.ViewModels
         public string IgnoreSelectedLabel => ShouldUnignoreSelected()
             ? ResourceProvider.GetString("LOCPlayAch_FriendsSettings_UnignoreSelected")
             : ResourceProvider.GetString("LOCPlayAch_FriendsSettings_IgnoreSelected");
+
+        // Label for the single Skip Full Scans toggle. Flips to allow when the majority of the
+        // selected rows are already opted out, mirroring the ignore button.
+        public string SkipFullScansSelectedLabel => ShouldAllowFullScansSelected()
+            ? ResourceProvider.GetString("LOCPlayAch_FriendsSettings_AllowFullScansSelected")
+            : ResourceProvider.GetString("LOCPlayAch_FriendsSettings_SkipFullScansSelected");
 
         public bool UseExophaseForSteamFriendOwnership
         {
@@ -395,8 +408,10 @@ namespace PlayniteAchievements.ViewModels
             (UnmergeFriendCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (RemoveFriendCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (SkipFullScansSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(AreAllVisibleFriendsSelected));
             OnPropertyChanged(nameof(IgnoreSelectedLabel));
+            OnPropertyChanged(nameof(SkipFullScansSelectedLabel));
         }
 
         private void OnAutoDiscoverProviderChanged(FriendAutoDiscoverProviderItem item)
@@ -414,7 +429,9 @@ namespace PlayniteAchievements.ViewModels
         {
             (MergeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (SkipFullScansSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(IgnoreSelectedLabel));
+            OnPropertyChanged(nameof(SkipFullScansSelectedLabel));
             if (!_suppressSelectAllSync)
             {
                 OnPropertyChanged(nameof(AreAllVisibleFriendsSelected));
@@ -441,7 +458,7 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            account.WriteToEntry();
+            account.WriteToEntry(_settings?.Persisted?.GetFriendSetting(account.ProviderKey, account.ExternalUserId));
             if (account.IsIgnored)
             {
                 QueueFriendCacheDelete(account.ProviderKey, account.ExternalUserId);
@@ -503,6 +520,56 @@ namespace PlayniteAchievements.ViewModels
             return ignored > selected.Count - ignored;
         }
 
+        // True when the majority of selected rows are already opted out of Full scans, so the single
+        // button reverses the dominant state (allow) instead of opting out.
+        private bool ShouldAllowFullScansSelected()
+        {
+            var selected = Friends.Where(row => row.IsSelected).ToList();
+            if (selected.Count == 0)
+            {
+                return false;
+            }
+
+            var excluded = selected.Count(row => row.ExcludeFromFullScans);
+            return excluded > selected.Count - excluded;
+        }
+
+        // Opts every account of the selected rows out of (or back into, per the majority) Full-scan
+        // unowned discovery, then persists once.
+        private void ToggleSkipFullScansSelected()
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            var exclude = !ShouldAllowFullScansSelected();
+            // Resolve live entries by key: captured Entry references detach from the persisted
+            // collection after any Friends setter reassignment (it clones on normalize).
+            var entries = Friends
+                .Where(row => row.IsSelected)
+                .SelectMany(row => row.Accounts)
+                .Select(account => account == null
+                    ? null
+                    : persisted.GetFriendSetting(account.ProviderKey, account.ExternalUserId) ?? account.Entry)
+                .Where(entry => entry != null && entry.ExcludeFromFullScans != exclude)
+                .ToList();
+            if (entries.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var entry in entries)
+            {
+                entry.ExcludeFromFullScans = exclude;
+            }
+
+            persisted.Friends = persisted.Friends;
+            RebuildFriends();
+            PersistAndNotify(null);
+        }
+
         // Ignores (or un-ignores, per the majority) every account of the selected rows, mirroring the
         // per-account ignore side effects (cache delete on ignore) then persisting once.
         private void IgnoreSelectedFriends()
@@ -514,22 +581,30 @@ namespace PlayniteAchievements.ViewModels
             }
 
             var ignore = !ShouldUnignoreSelected();
-            var accounts = Friends
+            // Resolve live entries by key: captured Entry references detach from the persisted
+            // collection after any Friends setter reassignment (it clones on normalize).
+            var targets = Friends
                 .Where(row => row.IsSelected)
                 .SelectMany(row => row.Accounts)
-                .Where(account => account?.Entry != null && account.Entry.IsIgnored != ignore)
+                .Where(account => account != null)
+                .Select(account => new
+                {
+                    Account = account,
+                    Entry = persisted.GetFriendSetting(account.ProviderKey, account.ExternalUserId) ?? account.Entry
+                })
+                .Where(target => target.Entry != null && target.Entry.IsIgnored != ignore)
                 .ToList();
-            if (accounts.Count == 0)
+            if (targets.Count == 0)
             {
                 return;
             }
 
-            foreach (var account in accounts)
+            foreach (var target in targets)
             {
-                account.Entry.IsIgnored = ignore;
+                target.Entry.IsIgnored = ignore;
                 if (ignore)
                 {
-                    QueueFriendCacheDelete(account.ProviderKey, account.ExternalUserId);
+                    QueueFriendCacheDelete(target.Account.ProviderKey, target.Account.ExternalUserId);
                 }
             }
 
@@ -973,6 +1048,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly Action<FriendSettingsPersonRowItem> _onSelectionChanged;
         private bool _isSelected;
         private bool _isFavorite;
+        private bool _excludeFromFullScans;
         private string _nickname;
 
         public FriendSettingsPersonRowItem(
@@ -1009,6 +1085,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _isFavorite = Accounts.Any(account => account.Entry.IsFavorite);
+            _excludeFromFullScans = Accounts.Any(account => account.Entry.ExcludeFromFullScans);
 
             RefreshDerivedProperties();
         }
@@ -1048,6 +1125,20 @@ namespace PlayniteAchievements.ViewModels
             set
             {
                 if (SetValueAndReturn(ref _isFavorite, value))
+                {
+                    _onChanged?.Invoke(this);
+                }
+            }
+        }
+
+        // Person-level Full-scan opt-out. Persisted onto every underlying account entry via
+        // WritePersonSettings so merged people opt out as a unit.
+        public bool ExcludeFromFullScans
+        {
+            get => _excludeFromFullScans;
+            set
+            {
+                if (SetValueAndReturn(ref _excludeFromFullScans, value))
                 {
                     _onChanged?.Invoke(this);
                 }
@@ -1121,16 +1212,28 @@ namespace PlayniteAchievements.ViewModels
                 var account = Accounts.FirstOrDefault();
                 if (account != null)
                 {
-                    account.Entry.Nickname = string.IsNullOrWhiteSpace(Nickname) ? null : Nickname.Trim();
+                    ResolveLiveEntry(settings, account).Nickname =
+                        string.IsNullOrWhiteSpace(Nickname) ? null : Nickname.Trim();
                 }
             }
 
             foreach (var account in Accounts)
             {
-                account.Entry.IsFavorite = IsFavorite;
+                var entry = ResolveLiveEntry(settings, account);
+                entry.IsFavorite = IsFavorite;
+                entry.ExcludeFromFullScans = ExcludeFromFullScans;
             }
 
             settings.Friends = settings.Friends;
+        }
+
+        // The Friends setter clones every entry on assignment (NormalizeFriendEntries), so the
+        // Entry reference captured at row construction detaches from the persisted collection
+        // after the first write anywhere in the grid. Resolving the live entry by key each time
+        // keeps repeated edits in one session landing in the collection that actually persists.
+        private static FriendSettingsEntry ResolveLiveEntry(PersistedSettings settings, FriendSettingsAccountItem account)
+        {
+            return settings.GetFriendSetting(account.ProviderKey, account.ExternalUserId) ?? account.Entry;
         }
 
         public void RefreshPlatformConflicts(HashSet<string> disabledExophasePlatformTokens)
@@ -1341,10 +1444,14 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        public void WriteToEntry()
+        // liveEntry: the entry currently in the persisted collection, when the caller can resolve
+        // it. The Entry captured at construction detaches after any Friends setter reassignment
+        // (see FriendSettingsPersonRowItem.ResolveLiveEntry), so writes prefer the live object.
+        public void WriteToEntry(FriendSettingsEntry liveEntry = null)
         {
-            Entry.IsIgnored = IsIgnored;
-            Entry.SelectedPlatforms = Platforms
+            var target = liveEntry ?? Entry;
+            target.IsIgnored = IsIgnored;
+            target.SelectedPlatforms = Platforms
                 .Where(platform => platform.IsEnabled && platform.IsSelected)
                 .Select(platform => platform.Token)
                 .ToList();

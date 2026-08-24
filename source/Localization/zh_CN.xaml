@@ -77,13 +77,13 @@
     <sys:String x:Key="LOCPlayAch_Format_Counts">{0}/{1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Presets_ApplyConfirm">Apply preset &quot;{0}&quot;? This replaces this tab's appearance for the current selection, including any custom template.</sys:String>
     <sys:String x:Key="LOCPlayAch_Presets_DeleteConfirm">Delete preset &quot;{0}&quot;?</sys:String>
-    <sys:String x:Key="LOCPlayAch_Presets_Header">Presets</sys:String>
-    <sys:String x:Key="LOCPlayAch_Presets_MaxReached">You can save up to {0} presets.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Presets_NameDialogHint">Enter a preset name (1-64 characters).</sys:String>
-    <sys:String x:Key="LOCPlayAch_Presets_NameDialogTitle">Save Preset</sys:String>
-    <sys:String x:Key="LOCPlayAch_Presets_NameInvalid">Preset name must be between 1 and {0} characters.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Presets_OverwriteConfirm">Overwrite preset &quot;{0}&quot;?</sys:String>
-    <sys:String x:Key="LOCPlayAch_Presets_Save">Save preset</sys:String>
+    <sys:String x:Key="LOCPlayAch_Presets_Header">预设</sys:String>
+    <sys:String x:Key="LOCPlayAch_Presets_MaxReached">您最多可以保存 {0} 个预设。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Presets_NameDialogHint">输入预设名称（1-64 个字符）。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Presets_NameDialogTitle">保存预设</sys:String>
+    <sys:String x:Key="LOCPlayAch_Presets_NameInvalid">预设名称必须在 1 到 {0} 个字符之间。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Presets_OverwriteConfirm">覆盖预设“{0}”？</sys:String>
+    <sys:String x:Key="LOCPlayAch_Presets_Save">保存预设</sys:String>
     <sys:String x:Key="LOCPlayAch_Progress">进度</sys:String>
     <sys:String x:Key="LOCPlayAch_RecentAchievements">最近成就</sys:String>
     <sys:String x:Key="LOCPlayAch_StartPage_FriendsRecentAchievements">好友近期成就</sys:String>
@@ -129,6 +129,8 @@
     <sys:String x:Key="LOCPlayAch_Column_Unlocks">解锁</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Ignore">忽略</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Favorite">Favorite</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_SkipFullScans">Skip Full Scans</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_SkipFullScansHint">Scans stop discovering new unowned games for this friend. Games in your library always refresh, and unowned games already tracked still update in Recent scans. Refreshing this friend directly still runs a Full scan.</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_LastPlayed">最近游玩</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Name">名称</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Points">点数</sys:String>
@@ -157,6 +159,7 @@
     <sys:String x:Key="LOCPlayAch_Button_Browse">浏览</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Cancel">取消</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Clear">清除</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Compress">Compress</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Configure">配置</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Delete">Delete</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Login">登录</sys:String>
@@ -224,7 +227,6 @@
     <sys:String x:Key="LOCPlayAch_Menu_IncludeGame">包含此游戏</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshes">包含在刷新中</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshesAndRefresh">包含在刷新中并刷新已选游戏</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_OpenGameInLibrary">在库中打开游戏</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenOverview">成就概览</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenGameInOverview">在概览中打开游戏</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IgnoreFriend">忽略好友</sys:String>
@@ -250,6 +252,7 @@
     <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[正在刷新]</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshSelected">刷新已选游戏</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_SetCapstone">设置压轴成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_SetGoal">Set as Goal</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">取消链接“{0}”的成就吗？
 
 这将删除手动链接并删除其解锁时间和该游戏的缓存数据。</sys:String>
@@ -302,6 +305,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries">从摘要中过滤</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_Hint">控制哪些成就出现在成就视图和摘要中。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_Unfiltered">未过滤</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Goals_Hint">Goals are listed first and can be dragged to set which comes first. Changes save immediately, and a goal clears when its achievement unlocks.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_HasNote">已添加备注</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_Header">成就备注</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_Hint">可为此游戏的成就添加个人备注。支持使用 **粗体**、*斜体* 和 __下划线__ 标记设置格式。</sys:String>
@@ -335,6 +339,10 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHint">可将此游戏的自定义数据导出或导入为 .PA 文件（.PA.ZIP 包含图片），也可将其清除。不包括刷新与摘要排除设置。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader">游戏排除</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHint">将此游戏从追踪中排除或重新包含。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHeader">Exophase Rarity Slug</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHint">When this platform enriches rarity from Exophase, use this exact Exophase game page instead of automatic matching. Paste an exophase.com game URL or the bare slug. Takes effect on the next refresh.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentInvalid">Enter a valid Exophase game slug or exophase.com game URL.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentStatusValue">Override set: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExportButton">Export</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ImportButton">Import</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ImportIgnoredPackageImages">已忽略 {0} 个文件名与此游戏任何成就均不匹配的图片文件。</sys:String>
@@ -393,6 +401,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_CategoryGridUseCoverImages">缺少分类图片时使用封面代替图标</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCategoryGridColumnHeaders">显示列标题</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_CustomIcons">图标</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Goals">Goals</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_ManualTracking">手动追踪</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Notes">备注</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Overrides">覆盖</sys:String>
@@ -531,6 +540,28 @@
     <sys:String x:Key="LOCPlayAch_Settings_CompactListPreview">紧凑列表</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CompactLockedListPreview">紧凑未解锁列表</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CompactUnlockedListPreview">紧凑已解锁列表</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_AchievementIconsDescription">Compress cached achievement icons. This is normally the largest group.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_CategoryArtDescription">Compress provider-supplied default category art.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_Confirm">{0} of {1} cached images are larger than {2} px.
+
+Current size: {3}
+Estimated after compression: {4}
+
+Files are rewritten in place and this cannot be undone. Continue?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_CustomIconsDescription">Compress your own icon and category images. A refresh cannot restore these.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_Description">Downscale oversized cached images to reclaim disk space. Images already at or below the selected size are left unchanged, and compression cannot be undone.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_FriendImagesDescription">Compress friend avatars and unowned game images. Most of these are already small.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_MaxSize">Maximum image size:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_NoCandidates">No cached images are larger than {0} px.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_ProgressCompressing">Compressing cached images... ({0}/{1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_ProgressScanning">Scanning cached images... ({0}/{1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_Result">Compressed {0} images. Skipped {1}, failed {2}.
+
+Reclaimed {3}.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_ResultCanceled">Canceled after compressing {0} images.
+
+Reclaimed {1}.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_Title">Compress Cached Images</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Description">Playnite Achievements 设置</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_StartPageSection">起始页</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_GridDefaults">网格默认值</sys:String>
@@ -562,6 +593,9 @@
     <sys:String x:Key="LOCPlayAch_Settings_EnableControllerVibration">Vibrate controller on notification</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationStrength">Vibration strength (%):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationDuration">Vibration duration (ms):</sys:String>
+    <!-- UniPlaySong is a separate Playnite extension name: do not translate it -->
+    <sys:String x:Key="LOCPlayAch_Settings_UnlockSoundHint">Unlock sounds are provided by the UniPlaySong extension. Install it and assign sounds there to hear audio when achievements unlock.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseHiddenUnlockSound">Use the hidden achievement sound instead of the rarity sound</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_BottomRight">右下</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_BottomLeft">左下</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_TopRight">右上</sys:String>
@@ -627,6 +661,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_FrameVignette">Vignette</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_VignetteFull">Full</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_VignetteBottom">Bottom</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_VignetteStrength">Strength</sys:String>
     <sys:String x:Key="LOCPlayAch_Notification_ThemePreviewUnavailable">The active theme's notification template could not be rendered. It may reference resources that are not currently available.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_SampleUnlock">Example unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">Plugin</sys:String>
@@ -666,6 +701,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_RecordingFps">帧速率（FPS）</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingResolution">分辨率</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingResolutionNative">原生</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecordingQuality">Quality</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecordingQualityHigh">High</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecordingQualityMedium">Medium</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecordingQualityLow">Low</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingIncludeAudio">录制声音</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingAudioSource">Audio source</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingAudioSourceFull">Full system audio</sys:String>
@@ -832,6 +871,8 @@
     <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeSelected">合并所选好友</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_IgnoreSelected">Ignore Selected</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_UnignoreSelected">Un-ignore Selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_SkipFullScansSelected">Skip Full Scans</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_AllowFullScansSelected">Allow Full Scans</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_Merged">已合并</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_NoAutoProviders">未启用自动发现平台。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_RefreshCompleteFormat">好友刷新完成：{0:N0}。</sys:String>
@@ -847,6 +888,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForMetadata_Help">从 Exophase 补充缺失的成就元数据，同时保留平台原生成就数据。需要登录 Exophase。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity">使用 Data for Azeroth 获取《魔兽世界》稀有度</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity_Help">从 Data for Azeroth 网站补充全球稀有度百分比，同时保留平台原生成就数据。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_DataForAzerothSignInHint">Sign in to Data for Azeroth to read WoW rarity percentages. Until you do, achievements still sync without them.</sys:String>
 
     <!-- Provider: PlayStation -->
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step1">在 PlayStation.com 登录</sys:String>
@@ -950,8 +992,13 @@
     <sys:String x:Key="LOCPlayAch_Settings_RoundRarityPercentages_Help">以整数百分比显示稀有度；低于 1% 的值显示为 &lt;1%。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletedProgressColoring">为已完成进度条着色</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletedProgressColoring_Help">对已完全完成游戏的进度条使用已完成游戏配色。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SoftGlowTiers">Soft Glow Tiers</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RayGlowTiers">Rotating Ray Tiers</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_GlowTiers_Help">Pick what gets each effect. The soft glow is a halo around the icon; rotating rays are a sunburst behind it, with a bright edge, and show up best on dark themes. The two are independent, so anything can have either, both, or neither. Completed covers the glow on completed game and category art.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowHardcoreBorder">Hardcore Border on RetroAchievements Unlocks</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowHardcoreBorder_Help">Give Hardcore RetroAchievements unlocks a crisp metallic border instead of a glow. Turn this off to glow them like any other unlock, following their rarity tier.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AnimateRarityGlows">Animate Rarity Glows</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AnimateRarityGlows_Help">Gently fade rarity glows in and out on unlocked achievement icons and in unlock notifications.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AnimateRarityGlows_Help">Gently fade rarity glows in and out on unlocked achievement icons and in unlock notifications, and slowly turn the rays.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RarityGlowPulseMinOpacity">Minimum Glow</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RarityGlowPulseMaxOpacity">Maximum Glow</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RarityGlowPulseSpeed">Speed</sys:String>

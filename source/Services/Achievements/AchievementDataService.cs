@@ -954,6 +954,13 @@ namespace PlayniteAchievements.Services.Achievements
         // subscription order).
         private void OnCustomDataChangedForOverview(object sender, GameCustomDataChangedEventArgs e)
         {
+            // A reorder-only change (goals) cannot move the filter mirror or any summary, and
+            // resyncing costs a store load plus a mirror write on every toggle.
+            if (e != null && !e.AffectsSummaryData)
+            {
+                return;
+            }
+
             SyncAchievementFiltersForGame(e?.PlayniteGameId ?? Guid.Empty);
             InvalidateOverviewProjectionCaches();
         }

@@ -336,6 +336,103 @@ namespace PlayniteAchievements.Providers.Xenia
             }
         }
 
+        /// <summary>
+        /// Reads only the section-5 string entry (the game title) from an XDBF/GPD.
+        /// No achievements, settings, icons, or title metadata are materialized.
+        /// </summary>
+        internal static bool TryReadTitleString(string path, out string title)
+        {
+            title = null;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return false;
+            }
+
+            try
+            {
+                using (var stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete,
+                    4096,
+                    FileOptions.RandomAccess))
+                using (var reader = new BinaryReader(stream))
+                {
+                    if (stream.Length < 24)
+                    {
+                        return false;
+                    }
+
+                    var magic = ReadUInt32BigEndian(reader);
+                    if (magic != 0x58444246U)
+                    {
+                        return false;
+                    }
+
+                    ReadUInt32BigEndian(reader); // version
+                    var entryCapacity = ReadUInt32BigEndian(reader);
+                    var entryUsed = ReadUInt32BigEndian(reader);
+                    var freeCapacity = ReadUInt32BigEndian(reader);
+                    ReadUInt32BigEndian(reader); // free used
+
+                    if (entryCapacity > 1_000_000 ||
+                        entryUsed > entryCapacity ||
+                        freeCapacity > 1_000_000)
+                    {
+                        return false;
+                    }
+
+                    var dataOffset = checked(
+                        24L +
+                        (18L * entryCapacity) +
+                        (8L * freeCapacity));
+                    if (dataOffset < 24 || dataOffset > stream.Length)
+                    {
+                        return false;
+                    }
+
+                    for (var index = 0U; index < entryUsed; index++)
+                    {
+                        stream.Position = 24L + (18L * index);
+                        var section = ReadUInt16BigEndian(reader);
+                        ReadUInt64BigEndian(reader); // entry id
+                        var offset = ReadUInt32BigEndian(reader);
+                        var size = ReadUInt32BigEndian(reader);
+                        if (section != 5)
+                        {
+                            continue;
+                        }
+
+                        var absoluteOffset = checked(dataOffset + offset);
+                        if (absoluteOffset < dataOffset ||
+                            absoluteOffset > stream.Length ||
+                            size > stream.Length - absoluteOffset)
+                        {
+                            return false;
+                        }
+
+                        stream.Position = absoluteOffset;
+                        var data = reader.ReadBytes((int)size);
+                        if (data.Length != size)
+                        {
+                            return false;
+                        }
+
+                        title = Encoding.UTF8.GetString(data);
+                        return true;
+                    }
+
+                    return false;
+                }
+            }
+            catch
+            {
+                title = null;
+                return false;
+            }
+        }
+
         private static ushort ReadUInt16BigEndian(BinaryReader reader)
         {
             var bytes = reader.ReadBytes(2);

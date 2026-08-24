@@ -491,6 +491,94 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void NormalizeInternal_ExophaseEnrichmentSlugOverride_TrimsAndKeepsField()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ExophaseEnrichmentSlugOverride = "  guitar-hero-hits-xbox-360  "
+                },
+                gameId);
+
+            Assert.AreEqual("guitar-hero-hits-xbox-360", normalized.ExophaseEnrichmentSlugOverride);
+            Assert.IsNull(normalized.ProviderOverride);
+            Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(normalized));
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(normalized));
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_WhitespaceExophaseEnrichmentSlugOverride_BecomesNull()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ExophaseEnrichmentSlugOverride = "   "
+                },
+                gameId);
+
+            Assert.IsNull(normalized.ExophaseEnrichmentSlugOverride);
+            Assert.IsFalse(GameCustomDataNormalizer.HasVisibleCustomization(normalized));
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_LegacyExophaseMigration_LeavesEnrichmentSlugAlone()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ExophaseSlugOverride = "legacy-slug",
+                    ExophaseEnrichmentSlugOverride = "enrichment-slug"
+                },
+                gameId);
+
+            Assert.IsNotNull(normalized.ProviderOverride);
+            Assert.AreEqual("Exophase", normalized.ProviderOverride.ProviderKey);
+            Assert.AreEqual("legacy-slug", normalized.ProviderOverride.Value);
+            Assert.IsNull(normalized.ExophaseSlugOverride);
+            Assert.AreEqual("enrichment-slug", normalized.ExophaseEnrichmentSlugOverride);
+        }
+
+        [TestMethod]
+        public void MergePreferExisting_ExophaseEnrichmentSlugOverride_PrefersExistingThenLegacy()
+        {
+            var existing = new GameCustomDataFile { ExophaseEnrichmentSlugOverride = "existing-slug" };
+            var legacy = new GameCustomDataFile { ExophaseEnrichmentSlugOverride = "legacy-slug" };
+
+            var merged = GameCustomDataNormalizer.MergePreferExisting(existing, legacy);
+            Assert.AreEqual("existing-slug", merged.ExophaseEnrichmentSlugOverride);
+
+            var mergedFromLegacy = GameCustomDataNormalizer.MergePreferExisting(new GameCustomDataFile(), legacy);
+            Assert.AreEqual("legacy-slug", mergedFromLegacy.ExophaseEnrichmentSlugOverride);
+        }
+
+        [TestMethod]
+        public void GameCustomDataFiles_ExophaseEnrichmentSlugOverride_SurvivesCloneAndPortableRoundTrip()
+        {
+            var gameId = Guid.NewGuid();
+            var internalData = new GameCustomDataFile
+            {
+                PlayniteGameId = gameId,
+                ExophaseEnrichmentSlugOverride = "guitar-hero-hits-xbox-360"
+            };
+
+            Assert.AreEqual("guitar-hero-hits-xbox-360", internalData.Clone().ExophaseEnrichmentSlugOverride);
+
+            var portable = internalData.ToPortable();
+            Assert.AreEqual("guitar-hero-hits-xbox-360", portable.ExophaseEnrichmentSlugOverride);
+            Assert.AreEqual("guitar-hero-hits-xbox-360", portable.Clone().ExophaseEnrichmentSlugOverride);
+            Assert.IsTrue(GameCustomDataNormalizer.HasPortableData(portable));
+
+            var roundTripped = GameCustomDataFile.FromPortable(portable, gameId, null, null);
+            Assert.AreEqual("guitar-hero-hits-xbox-360", roundTripped.ExophaseEnrichmentSlugOverride);
+        }
+
+        [TestMethod]
         public void GameCustomDataFiles_CloneAndPortableRoundTrip_DeepCopyGameSummaryCategory()
         {
             var internalData = new GameCustomDataFile

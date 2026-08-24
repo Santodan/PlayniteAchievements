@@ -1,11 +1,80 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using PlayniteAchievements.Models.Settings;
 using SharpDX.MediaFoundation;
 using D3D11 = SharpDX.Direct3D11;
 
 namespace PlayniteAchievements.Services.Capture
 {
+    /// <summary>
+    /// Process-wide Media Foundation lifetime. SharpDX's MediaManager suppresses duplicate Startup
+    /// calls but does not isolate independent Shutdown calls, so every capture/export consumer must
+    /// share one managed lease count or one exporter can shut Media Foundation down under a recorder.
+    /// </summary>
+    internal static class MediaFoundationRuntime
+    {
+        private static readonly object Gate = new object();
+        private static int _leases;
+
+        public static IDisposable Acquire()
+        {
+            lock (Gate)
+            {
+                if (_leases == 0)
+                {
+                    MediaManager.Startup();
+                }
+
+                checked
+                {
+                    _leases++;
+                }
+            }
+
+            return new Lease();
+        }
+
+        private static void Release()
+        {
+            lock (Gate)
+            {
+                if (_leases <= 0)
+                {
+                    return;
+                }
+
+                _leases--;
+                if (_leases == 0)
+                {
+                    try
+                    {
+                        MediaManager.Shutdown();
+                    }
+                    catch
+                    {
+                        // Teardown must remain non-throwing; there are no active consumers left.
+                    }
+                }
+            }
+        }
+
+        private sealed class Lease : IDisposable
+        {
+            private int _active = 1;
+
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _active, 0) == 1)
+                {
+                    Release();
+                }
+            }
+        }
+    }
+
     /// <summary>
     /// GPU-resident H.264 encoder via Media Foundation's SinkWriter. Frames are fed as D3D11 textures
     /// (no CPU readback): the writer is bound to the capture D3D11 device through a DXGI device
@@ -28,6 +97,16 @@ namespace PlayniteAchievements.Services.Capture
         private readonly int _streamIndex;
         private bool _disposed;
 
+        /// <summary>
+        /// Best-effort description of the transforms Media Foundation actually placed between the
+        /// BGRA input and H.264 sink. This distinguishes a hardware encoder from a silent software
+        /// fallback in diagnostics without making transform introspection a recording dependency.
+        /// </summary>
+        private string _transformDescription;
+
+        public string TransformDescription => _transformDescription ??
+            (_transformDescription = DescribeTransforms(_writer, _streamIndex));
+
         private static bool? _available;
 
         /// <summary>
@@ -44,12 +123,11 @@ namespace PlayniteAchievements.Services.Capture
 
             string temp = null;
             D3D11.Device device = null;
-            var started = false;
+            IDisposable mediaFoundationLease = null;
             try
             {
                 // The encoder no longer starts Media Foundation itself, so the probe must.
-                MediaManager.Startup();
-                started = true;
+                mediaFoundationLease = MediaFoundationRuntime.Acquire();
                 temp = Path.Combine(Path.GetTempPath(), $"pa_mfprobe_{Guid.NewGuid():N}.mp4");
                 device = new D3D11.Device(
                     SharpDX.Direct3D.DriverType.Hardware,
@@ -79,17 +157,7 @@ namespace PlayniteAchievements.Services.Capture
                     // ignore probe cleanup failure
                 }
 
-                if (started)
-                {
-                    try
-                    {
-                        MediaManager.Shutdown();
-                    }
-                    catch
-                    {
-                        // Refcounted per process; ignore an unbalanced shutdown.
-                    }
-                }
+                mediaFoundationLease?.Dispose();
             }
 
             return _available.Value;
@@ -102,11 +170,9 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <remarks>
-        /// Media Foundation's lifetime belongs to the caller: <c>MediaManager.Startup</c> and
-        /// <c>Shutdown</c> are refcounted per process, so an encoder that started and shut them down per
-        /// instance let one segment's teardown drop the count to zero while the next segment was still
-        /// setting up — after which the new writer never drained and the first WriteSample blocked
-        /// forever. Whoever owns a run of encoders owns one Startup around all of them.
+        /// Media Foundation's lifetime belongs to the caller through a
+        /// <see cref="MediaFoundationRuntime"/> lease. Whoever owns a run of encoders holds one lease
+        /// around all of them.
         /// </remarks>
         public MediaFoundationH264Encoder(
             D3D11.Device device, string outputPath, int width, int height, int fps, int bitrate)
@@ -155,15 +221,17 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// Encodes one frame from a BGRA D3D11 texture. Times are in 100-ns units (MF's unit).
+        /// Encodes one frame from a BGRA D3D11 texture. Times are in 100-ns units (MF's unit), and
+        /// the return value is the synchronous writer latency in Stopwatch ticks.
         /// </summary>
-        public void WriteFrame(D3D11.Texture2D texture, long timestamp100ns, long duration100ns)
+        public long WriteFrame(D3D11.Texture2D texture, long timestamp100ns, long duration100ns)
         {
             if (_disposed)
             {
-                return;
+                return 0;
             }
 
+            var started = Stopwatch.GetTimestamp();
             var iid = IID_ID3D11Texture2D;
             MediaFactory.CreateDXGISurfaceBuffer(iid, texture, 0, false, out var buffer);
             using (buffer)
@@ -180,6 +248,108 @@ namespace PlayniteAchievements.Services.Capture
                     sample.SampleDuration = duration100ns;
                     _writer.WriteSample(_streamIndex, sample);
                 }
+            }
+
+            return Stopwatch.GetTimestamp() - started;
+        }
+
+        private static string DescribeTransforms(SinkWriter writer, int streamIndex)
+        {
+            var descriptions = new List<string>();
+            try
+            {
+                using (var writerEx = writer.QueryInterfaceOrNull<SinkWriterEx>())
+                {
+                    if (writerEx == null)
+                    {
+                        return "transform inspection unavailable";
+                    }
+
+                    // A BGRA -> H.264 chain is normally a color converter plus an encoder. Leave
+                    // headroom for vendor-specific intermediate transforms, but never probe without
+                    // a bound if a driver returns an unexpected success sequence.
+                    for (var index = 0; index < 8; index++)
+                    {
+                        Transform transform = null;
+                        try
+                        {
+                            writerEx.GetTransformForStream(streamIndex, index, out var category, out transform);
+                            descriptions.Add(DescribeTransform(transform, category));
+                        }
+                        catch
+                        {
+                            break;
+                        }
+                        finally
+                        {
+                            transform?.Dispose();
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Diagnostics must not make an otherwise valid encoder fail construction.
+            }
+
+            return descriptions.Count == 0
+                ? "transform inspection unavailable"
+                : string.Join(" -> ", descriptions);
+        }
+
+        private static string DescribeTransform(Transform transform, Guid category)
+        {
+            if (transform == null)
+            {
+                return $"unknown [{category}]";
+            }
+
+            string name = null;
+            string hardwareUrl = null;
+            Guid? clsid = null;
+            try
+            {
+                using (var attributes = transform.Attributes)
+                {
+                    name = TryGetString(attributes, TransformAttributeKeys.MftFriendlyNameAttribute);
+                    hardwareUrl = TryGetString(attributes, TransformAttributeKeys.MftEnumHardwareUrlAttribute);
+                    clsid = TryGetValue<Guid>(attributes, TransformAttributeKeys.MftTransformClsidAttribute);
+                }
+            }
+            catch
+            {
+                // Attributes are optional for software MFTs; category/CLSID still provide a clue.
+            }
+
+            var identity = !string.IsNullOrWhiteSpace(name)
+                ? name
+                : clsid.HasValue && clsid.Value != Guid.Empty
+                    ? clsid.Value.ToString("D")
+                    : category.ToString("D");
+            return string.IsNullOrWhiteSpace(hardwareUrl) ? identity : identity + " (hardware)";
+        }
+
+        private static T? TryGetValue<T>(MediaAttributes attributes, MediaAttributeKey<T> key) where T : struct
+        {
+            try
+            {
+                return attributes.Get<T>(key);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string TryGetString(MediaAttributes attributes, MediaAttributeKey<string> key)
+        {
+            try
+            {
+                return attributes.Get<string>(key);
+            }
+            catch
+            {
+                return null;
             }
         }
 

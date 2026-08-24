@@ -5,7 +5,10 @@ namespace PlayniteAchievements.Models.ThemeIntegration
 {
     internal sealed class LibraryRuntimeState
     {
-        public bool HasData => TotalTrophies > 0;
+        public bool HasData =>
+            TotalTrophies > 0 ||
+            (AllAchievements != null && AllAchievements.Count > 0) ||
+            (AllGamesWithAchievements != null && AllGamesWithAchievements.Count > 0);
         public bool HeavyListsBuilt { get; set; } = true;
 
         public List<GameAchievementSummary> AllGamesWithAchievements { get; set; } = new List<GameAchievementSummary>();

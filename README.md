@@ -99,6 +99,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- v3.1.3 merge
+
 ## 2026-08-13 - v3.1.2.1
 
 - v3.1.2 merge

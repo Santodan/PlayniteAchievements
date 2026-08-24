@@ -22,6 +22,8 @@ namespace PlayniteAchievements.Providers.Exophase
     public sealed class ExophaseApiClient
     {
         private const string SearchUrl = "https://api.exophase.com/public/archive/games";
+        private const string PsnSearchUrl = "https://api.exophase.com/public/archive/psn";
+        private const string XboxSearchUrl = "https://api.exophase.com/public/archive/xbox";
         private const string AchievementPageBaseUrl = "https://www.exophase.com/game/{0}/achievements/";
         internal const string ExophaseApiNamePrefix = "exophase_";
         // Stable-id key format keyed on the award's master id (the li's data-master attribute,
@@ -187,6 +189,39 @@ namespace PlayniteAchievements.Providers.Exophase
         }
 
         /// <summary>
+        /// Normalizes user input for a game slug: a full exophase.com game URL is reduced to its
+        /// slug, and a bare slug is accepted as-is when it contains no whitespace.
+        /// </summary>
+        public static bool TryNormalizeSlugInput(string input, out string slug)
+        {
+            slug = null;
+            var trimmed = (input ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                return false;
+            }
+
+            if (trimmed.StartsWith("http", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.IndexOf("exophase.com", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                trimmed.IndexOf('/') >= 0)
+            {
+                slug = ExtractSlugFromUrl(trimmed);
+                return !string.IsNullOrWhiteSpace(slug);
+            }
+
+            foreach (var ch in trimmed)
+            {
+                if (char.IsWhiteSpace(ch))
+                {
+                    return false;
+                }
+            }
+
+            slug = trimmed;
+            return true;
+        }
+
+        /// <summary>
         /// Builds the achievement page URL from a game slug or full URL.
         /// Supports both new format (slug only) and legacy format (full URL) for backward compatibility.
         /// PlayStation games use /trophies/, Ubisoft/Uplay uses /challenges/, others use /achievements/.
@@ -250,11 +285,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
             try
             {
-                var url = $"{SearchUrl}?q={Uri.EscapeDataString(query)}&sort=added";
-                if (!string.IsNullOrWhiteSpace(platformSlug))
-                {
-                    url += $"&platform={Uri.EscapeDataString(platformSlug)}";
-                }
+                var url = BuildSearchUrl(query, platformSlug);
 
                 // Use WebView to bypass Cloudflare protection
                 var json = await FetchJsonViaWebViewAsync(url, ct).ConfigureAwait(false);
@@ -290,6 +321,46 @@ namespace PlayniteAchievements.Providers.Exophase
             {
                 _logger?.Error(ex, "Exophase search failed");
                 return new List<ExophaseGame>();
+            }
+        }
+
+        /// <summary>
+        /// Builds the archive search URL for a query and optional platform slug. The
+        /// generic archive endpoint's platform parameter matches nothing for PSN
+        /// platforms, so those route through the environment archive endpoints the
+        /// site's own browse pages use, filtered server-side via Exophase's numeric
+        /// platform ids where known (PS3 = 7, PS4 = 8, Xbox 360 = 41). Other
+        /// platforms keep the legacy generic-endpoint URL.
+        /// </summary>
+        internal static string BuildSearchUrl(string query, string platformSlug)
+        {
+            var escapedQuery = Uri.EscapeDataString(query ?? string.Empty);
+            var normalizedPlatform = platformSlug?.Trim().ToLowerInvariant();
+
+            switch (normalizedPlatform)
+            {
+                case "ps3":
+                    return $"{PsnSearchUrl}?q={escapedQuery}&sort=added&platforms=7";
+                case "ps4":
+                    return $"{PsnSearchUrl}?q={escapedQuery}&sort=added&platforms=8";
+                case "psn":
+                case "ps5":
+                case "psvita":
+                case "vita":
+                    return $"{PsnSearchUrl}?q={escapedQuery}&sort=added";
+                case "xbox-360":
+                    return $"{XboxSearchUrl}?q={escapedQuery}&sort=added&platforms=41";
+                case "xbox":
+                case "xbox-one":
+                    return $"{XboxSearchUrl}?q={escapedQuery}&sort=added";
+                default:
+                    var url = $"{SearchUrl}?q={escapedQuery}&sort=added";
+                    if (!string.IsNullOrWhiteSpace(normalizedPlatform))
+                    {
+                        url += $"&platform={Uri.EscapeDataString(normalizedPlatform)}";
+                    }
+
+                    return url;
             }
         }
 
@@ -712,24 +783,14 @@ namespace PlayniteAchievements.Providers.Exophase
         /// Polls a value factory until a predicate is satisfied or max attempts are exhausted.
         /// Returns the last value regardless of whether the predicate was met.
         /// </summary>
-        internal static async Task<T> PollAsync<T>(
+        internal static Task<T> PollAsync<T>(
             Func<CancellationToken, Task<T>> valueFactory,
             Func<T, bool> readyPredicate,
             int maxAttempts,
             int delayMs,
             CancellationToken ct)
         {
-            for (var attempt = 0; attempt < maxAttempts; attempt++)
-            {
-                ct.ThrowIfCancellationRequested();
-                var value = await valueFactory(ct);
-                if (readyPredicate(value))
-                    return value;
-                if (attempt < maxAttempts - 1)
-                    await Task.Delay(delayMs, ct).ConfigureAwait(false);
-            }
-
-            return await valueFactory(ct);
+            return AsyncPoll.UntilAsync(valueFactory, readyPredicate, maxAttempts, delayMs, ct);
         }
 
         /// <summary>
@@ -1488,6 +1549,13 @@ namespace PlayniteAchievements.Providers.Exophase
 
         [DataMember(Name = "images")]
         public ExophaseImages Images { get; set; }
+
+        // Regional release marker Exophase renders after same-title entries
+        // (NA/EU/JP/AS). Optional: absent for single-release games and for
+        // endpoints that omit the field, in which case region preference in
+        // matching silently degrades to the base-region tie-break.
+        [DataMember(Name = "region", IsRequired = false, EmitDefaultValue = false)]
+        public string Region { get; set; }
     }
 
     [DataContract]

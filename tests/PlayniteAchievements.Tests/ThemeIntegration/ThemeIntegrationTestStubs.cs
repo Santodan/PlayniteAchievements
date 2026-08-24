@@ -96,6 +96,10 @@ namespace PlayniteAchievements.Models.Achievements
 
         public bool IsCapstone { get; set; }
 
+        public bool IsGoal { get; set; }
+
+        public int GoalOrderIndex { get; set; } = int.MaxValue;
+
         public bool IsFiltered { get; set; }
 
         public bool IsFilteredFromSummaries { get; set; }
@@ -130,6 +134,18 @@ namespace PlayniteAchievements.Models.Achievements
 
         public int CategoryOrderIndex { get; set; } = int.MaxValue;
 
+        public string CleanCapturePath { get; set; }
+
+        public string NotificationCapturePath { get; set; }
+
+        public string FramedCapturePath { get; set; }
+
+        public string VideoCapturePath { get; set; }
+
+        public bool HasAnyCapture =>
+            CleanCapturePath != null || NotificationCapturePath != null ||
+            FramedCapturePath != null || VideoCapturePath != null;
+
         public System.Windows.Input.ICommand SetDynamicAchievementsGameCommand { get; set; }
 
         public System.Windows.Input.ICommand FilterDynamicLibraryAchievementsByProviderCommand { get; set; }
@@ -137,6 +153,10 @@ namespace PlayniteAchievements.Models.Achievements
         public System.Windows.Input.ICommand OpenViewAchievementsWindow { get; set; }
 
         public System.Windows.Input.ICommand OpenManageAchievementsWindow { get; set; }
+
+        public System.Windows.Input.ICommand ToggleAchievementCapstoneCommand { get; set; }
+
+        public System.Windows.Input.ICommand ToggleAchievementGoalCommand { get; set; }
 
         public bool HasRarityPercent => GlobalPercentUnlocked.HasValue;
 
@@ -328,6 +348,18 @@ namespace PlayniteAchievements.ViewModels
 
         public string CategoryArtPath { get; set; }
 
+        public string CleanCapturePath { get; set; }
+
+        public string NotificationCapturePath { get; set; }
+
+        public string FramedCapturePath { get; set; }
+
+        public string VideoCapturePath { get; set; }
+
+        public bool HasCaptures =>
+            CleanCapturePath != null || NotificationCapturePath != null ||
+            FramedCapturePath != null || VideoCapturePath != null;
+
         public string GameIconPath { get; set; }
 
         public string GameCoverPath { get; set; }
@@ -337,6 +369,10 @@ namespace PlayniteAchievements.ViewModels
         public bool HasAchievementNote => !string.IsNullOrWhiteSpace(AchievementNote);
 
         public bool IsCapstone { get; set; }
+
+        public bool IsGoal { get; set; }
+
+        public int GoalOrderIndex { get; set; } = int.MaxValue;
 
         public bool Hidden { get; set; }
 
@@ -532,10 +568,16 @@ namespace PlayniteAchievements.ViewModels
                 CategoryLabel = CategoryLabel,
                 CategoryOrderIndex = CategoryOrderIndex,
                 CategoryArtPath = CategoryArtPath,
+                CleanCapturePath = CleanCapturePath,
+                NotificationCapturePath = NotificationCapturePath,
+                FramedCapturePath = FramedCapturePath,
+                VideoCapturePath = VideoCapturePath,
                 GameIconPath = GameIconPath,
                 GameCoverPath = GameCoverPath,
                 Hidden = Hidden,
                 IsCapstone = IsCapstone,
+                IsGoal = IsGoal,
+                GoalOrderIndex = GoalOrderIndex,
                 Unlocked = Unlocked,
                 UnlockTimeUtc = UnlockTimeUtc,
                 GlobalPercentUnlocked = GlobalPercentUnlocked,
@@ -589,6 +631,8 @@ namespace PlayniteAchievements.ViewModels
             CategoryLabel = source?.Category;
             Hidden = source?.Hidden == true;
             IsCapstone = source?.IsCapstone == true;
+            IsGoal = source?.IsGoal == true;
+            GoalOrderIndex = source?.GoalOrderIndex ?? int.MaxValue;
             Unlocked = source?.Unlocked == true;
             UnlockTimeUtc = source?.UnlockTimeUtc;
             GlobalPercentUnlocked = source?.GlobalPercentUnlocked;
@@ -612,6 +656,10 @@ namespace PlayniteAchievements.ViewModels
             CategoryOrderIndex = categoryOrderIndex;
             // Mirrors the real display item: no game-asset fallback baked into the art path.
             CategoryArtPath = categoryArtPath ?? source?.CategoryArtPath;
+            CleanCapturePath = source?.CleanCapturePath;
+            NotificationCapturePath = source?.NotificationCapturePath;
+            FramedCapturePath = source?.FramedCapturePath;
+            VideoCapturePath = source?.VideoCapturePath;
         }
     }
 }

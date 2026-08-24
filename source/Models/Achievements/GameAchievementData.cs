@@ -111,6 +111,12 @@ namespace PlayniteAchievements.Models.Achievements
         [IgnoreDataMember]
         public List<string> AchievementOrder { get; set; }
 
+        /// <summary>
+        /// Runtime-only goal achievement list, most-wanted first. Not persisted in cache/database.
+        /// </summary>
+        [IgnoreDataMember]
+        public List<string> GoalAchievements { get; set; }
+
         [IgnoreDataMember]
         public List<string> AchievementCategoryOrder { get; set; }
 

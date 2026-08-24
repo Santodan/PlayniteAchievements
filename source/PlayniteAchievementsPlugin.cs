@@ -73,6 +73,7 @@ namespace PlayniteAchievements
         private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;
         private readonly RefreshRuntime _refreshService;
         private readonly AchievementOverridesService _achievementOverridesService;
+        private readonly AchievementMarkerToggle _achievementMarkerToggle;
         private readonly AchievementDataService _achievementDataService;
         private readonly LibraryProjectionService _libraryProjectionService;
         private readonly ICacheManager _cacheManager;
@@ -143,6 +144,7 @@ namespace PlayniteAchievements
         public IReadOnlyList<IDataProvider> Providers => _refreshService?.Providers;
         public RefreshRuntime RefreshRuntime => _refreshService;
         public AchievementOverridesService AchievementOverridesService => _achievementOverridesService;
+        public AchievementMarkerToggle AchievementMarkerToggle => _achievementMarkerToggle;
         public AchievementDataService AchievementDataService => _achievementDataService;
         public MemoryImageService ImageService => _imageService;
         public DiskImageService DiskImageService => _diskImageService;
@@ -224,6 +226,10 @@ namespace PlayniteAchievements
                 return;
             }
 
+            // Runs before the dispatcher marshal so the store write stays off the UI thread, and
+            // before the subscriber check so it happens whether or not anything is listening.
+            ClearGoalForUnlock(args);
+
             var handler = AchievementUnlocked;
             if (handler == null)
             {
@@ -238,6 +244,35 @@ namespace PlayniteAchievements
             }
 
             handler.Invoke(null, args);
+        }
+
+        /// <summary>
+        /// A goal is something still to be earned, so unlocking it retires the goal. Skips the
+        /// synthetic notifications (previews, test fires, the game-complete banner) and friend
+        /// unlocks, none of which represent the user earning that achievement.
+        /// </summary>
+        private static void ClearGoalForUnlock(AchievementUnlockedEventArgs args)
+        {
+            if (args.IsPreview ||
+                args.IsTestFire ||
+                args.IsFriendUnlock ||
+                args.IsGameCompleted ||
+                args.PlayniteGameId == Guid.Empty ||
+                string.IsNullOrWhiteSpace(args.ApiName))
+            {
+                return;
+            }
+
+            try
+            {
+                Instance?.AchievementOverridesService?.PruneUnlockedGoals(
+                    args.PlayniteGameId,
+                    new[] { args.ApiName });
+            }
+            catch (Exception ex)
+            {
+                Instance?._logger?.Error(ex, $"Failed clearing goal for unlocked achievement '{args.ApiName}'.");
+            }
         }
 
         private bool UsesCustomAchievementNotification(AchievementUnlockedEventArgs args)
@@ -619,6 +654,10 @@ namespace PlayniteAchievements
                         _gameCustomDataStore,
                         _cacheManager,
                         _logger);
+                    _achievementMarkerToggle = new AchievementMarkerToggle(
+                        _achievementOverridesService,
+                        () => _settingsViewModel?.Settings?.Persisted,
+                        () => _gameCustomDataStore);
                     _achievementDataService = new AchievementDataService(
                         _cacheManager,
                         PlayniteApi,
@@ -673,10 +712,16 @@ namespace PlayniteAchievements
                         GetProcessIdForGame,
                         _toastNotifications,
                         key => Services.UI.ProviderNotificationPolicy.Resolve(settings?.Persisted, key).Recordings,
-                        _windowTracker);
+                        _windowTracker,
+                        // Fails open while the provider registry is still being built: refusing to
+                        // refresh a game we cannot classify is free, but refusing to capture one
+                        // costs a clip that cannot be recovered afterwards.
+                        game => Providers == null || AnyProviderCapable(game));
                     _captureLibraryService = new Services.Captures.CaptureLibraryService(
                         () => _settingsViewModel?.Settings?.Persisted,
                         _logger);
+                    Services.Captures.AchievementCapturePathResolver.CaptureLibraryAccessor =
+                        () => _captureLibraryService;
                     _inGameMonitor = new InGameAchievementMonitor(
                         PlayniteApi,
                         settings,
@@ -764,7 +809,10 @@ namespace PlayniteAchievements
                         gameId => _windowService.OpenManageAchievementsView(gameId, ManageAchievementsTab.Overview),
                         _cacheManager as Services.Friends.IFriendCacheManager,
                         _friendsOverviewDataCoordinator,
-                        _achievementHotkeyTargetResolver.ResolveRunningGame);
+                        _achievementHotkeyTargetResolver.ResolveRunningGame,
+                        ToggleAchievementCapstoneFromTheme,
+                        target => _achievementMarkerToggle.ToggleGoal(target),
+                        _captureLibraryService);
 
                     // A friend-consuming theme is a plugin-lifetime consumer: it keeps the
                     // friends snapshot alive when the last friends view closes.
@@ -1613,6 +1661,31 @@ namespace PlayniteAchievements
             }
 
             InvalidateStartPageData();
+        }
+
+        // A capstone write is a SQLite save, and a theme button click arrives on the UI thread, so
+        // this hands off rather than blocking. The write raises CustomDataChanged, which is what
+        // rebuilds the theme's achievement lists and repaints the toggled row.
+        private void ToggleAchievementCapstoneFromTheme(AchievementMarkerTarget target)
+        {
+            _ = ToggleAchievementCapstoneFromThemeAsync(target);
+        }
+
+        private async Task ToggleAchievementCapstoneFromThemeAsync(AchievementMarkerTarget target)
+        {
+            try
+            {
+                var result = await _achievementMarkerToggle.ToggleCapstoneAsync(target);
+                if (result.Attempted && !result.Success)
+                {
+                    _logger?.Error(
+                        $"Theme capstone toggle failed for gameId={target.GameId}, apiName='{target.ApiName}': {result.ErrorMessage}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Theme capstone toggle failed for gameId={target.GameId}.");
+            }
         }
 
         private void QueueTagSync(Guid gameId)

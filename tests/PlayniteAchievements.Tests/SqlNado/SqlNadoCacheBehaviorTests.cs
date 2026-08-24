@@ -665,6 +665,10 @@ namespace PlayniteAchievements.SqlNado.Tests
             // When ownership is freshly fetched, Steam recency is still the playtime delta since the last
             // successful scrape.
             StringAssert.Contains(runtime, "fresh.PlaytimeForeverMinutes > prev.PlaytimeForeverMinutes");
+
+            // Provider-only inclusion in the ownership-sourced candidate SQL is decided by the
+            // options predicate (Full scope, or Recent opted in via DiscoverProviderOnlyGames).
+            StringAssert.Contains(store, "includeProviderOnly: options.DiscoversProviderOnlyGames()");
         }
 
         [TestMethod]

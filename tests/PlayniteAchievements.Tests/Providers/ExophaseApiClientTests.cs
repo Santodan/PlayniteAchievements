@@ -97,6 +97,60 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public void BuildSearchUrl_Ps3_RoutesThroughPsnArchiveWithPlatformId()
+        {
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/psn?q=demon%20souls&sort=added&platforms=7",
+                ExophaseApiClient.BuildSearchUrl("demon souls", "ps3"));
+        }
+
+        [TestMethod]
+        public void BuildSearchUrl_Ps4_RoutesThroughPsnArchiveWithPlatformId()
+        {
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/psn?q=game&sort=added&platforms=8",
+                ExophaseApiClient.BuildSearchUrl("game", "ps4"));
+        }
+
+        [TestMethod]
+        public void BuildSearchUrl_OtherPsnPlatforms_RouteThroughPsnArchiveUnfiltered()
+        {
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/psn?q=game&sort=added",
+                ExophaseApiClient.BuildSearchUrl("game", "psvita"));
+        }
+
+        [TestMethod]
+        public void BuildSearchUrl_Xbox360_RoutesThroughXboxArchiveWithPlatformId()
+        {
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/xbox?q=game&sort=added&platforms=41",
+                ExophaseApiClient.BuildSearchUrl("game", "xbox-360"));
+        }
+
+        [TestMethod]
+        public void BuildSearchUrl_ModernXbox_RoutesThroughXboxArchiveUnfiltered()
+        {
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/xbox?q=game&sort=added",
+                ExophaseApiClient.BuildSearchUrl("game", "xbox"));
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/xbox?q=game&sort=added",
+                ExophaseApiClient.BuildSearchUrl("game", "xbox-one"));
+        }
+
+        [TestMethod]
+        public void BuildSearchUrl_NonMappedPlatform_KeepsGenericEndpoint()
+        {
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/games?q=game&sort=added&platform=origin",
+                ExophaseApiClient.BuildSearchUrl("game", "origin"));
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/games?q=game&sort=added",
+                ExophaseApiClient.BuildSearchUrl("game", null));
+        }
+
+        [TestMethod]
         public void ExtractSlugFromUrl_ProfileAchievementLinkWithFragment_ReturnsSlug()
         {
             var slug = ExophaseApiClient.ExtractSlugFromUrl(
@@ -185,6 +239,51 @@ namespace PlayniteAchievements.Providers.Tests
             Assert.AreEqual(
                 "https://www.exophase.com/game/shogun-showdown-psn/trophies/",
                 ExophaseApiClient.BuildUrlFromSlug("https://www.exophase.com/game/shogun-showdown-psn/trophies/"));
+        }
+
+        [TestMethod]
+        public void TryNormalizeSlugInput_BareSlug_ReturnsTrimmedSlug()
+        {
+            Assert.IsTrue(ExophaseApiClient.TryNormalizeSlugInput("  guitar-hero-hits-xbox-360 ", out var slug));
+            Assert.AreEqual("guitar-hero-hits-xbox-360", slug);
+        }
+
+        [TestMethod]
+        public void TryNormalizeSlugInput_FullUrls_ExtractSlug()
+        {
+            var urls = new[]
+            {
+                "https://www.exophase.com/game/guitar-hero-hits-xbox-360/achievements/",
+                "https://www.exophase.com/game/guitar-hero-hits-xbox-360/trophies/",
+                "https://www.exophase.com/game/guitar-hero-hits-xbox-360/challenges/",
+                "https://www.exophase.com/game/guitar-hero-hits-xbox-360/achievements/#4768201",
+                "www.exophase.com/game/guitar-hero-hits-xbox-360/achievements/"
+            };
+
+            foreach (var url in urls)
+            {
+                Assert.IsTrue(ExophaseApiClient.TryNormalizeSlugInput(url, out var slug), url);
+                Assert.AreEqual("guitar-hero-hits-xbox-360", slug, url);
+            }
+        }
+
+        [TestMethod]
+        public void TryNormalizeSlugInput_InvalidInput_ReturnsFalse()
+        {
+            var invalid = new[]
+            {
+                null,
+                "",
+                "   ",
+                "https://www.exophase.com/user/somebody/",
+                "two words",
+                "guitar hero smash hits"
+            };
+
+            foreach (var input in invalid)
+            {
+                Assert.IsFalse(ExophaseApiClient.TryNormalizeSlugInput(input, out _), input ?? "<null>");
+            }
         }
 
         private static HtmlNode LoadNode(string html)

@@ -424,6 +424,53 @@ namespace PlayniteAchievements.Services.Images
             return null;
         }
 
+        /// <summary>
+        /// Publishes a local image file as the provider-supplied default category art for
+        /// (gameId, normalized category label), preserving the source extension. Existing
+        /// art is kept, so a re-refresh never overwrites a previous default or a manually
+        /// replaced file. Returns the stored (or already existing) path, or null when the
+        /// source is missing or the copy fails.
+        /// </summary>
+        internal string SaveDefaultCategoryImageFromFile(
+            string gameId,
+            string categoryLabel,
+            string sourcePath)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+            {
+                return null;
+            }
+
+            var existing = FindExistingDefaultCategoryImagePath(gameId, categoryLabel);
+            if (existing != null)
+            {
+                return existing;
+            }
+
+            var canonicalPath = GetDefaultCategoryImagePath(gameId, categoryLabel);
+            if (string.IsNullOrWhiteSpace(canonicalPath))
+            {
+                return null;
+            }
+
+            try
+            {
+                var extension = Path.GetExtension(sourcePath)?.ToLowerInvariant();
+                var targetPath = string.IsNullOrWhiteSpace(extension)
+                    ? canonicalPath
+                    : Path.ChangeExtension(canonicalPath, extension);
+                Directory.CreateDirectory(Path.GetDirectoryName(targetPath));
+                File.Copy(sourcePath, targetPath, overwrite: false);
+                InvalidateDefaultCategoryArtSnapshot(gameId);
+                return targetPath;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to store default category image for '{categoryLabel}'.");
+                return null;
+            }
+        }
+
         // Direct disk fallback for a single call when the directory snapshot could not be built.
         private static string ProbeDefaultCategoryImagePath(string canonicalPath)
         {

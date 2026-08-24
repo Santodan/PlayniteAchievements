@@ -16,6 +16,34 @@ namespace PlayniteAchievements.Services.Database
 
     internal static class SqlNadoCacheBehavior
     {
+        // Rarity is the one definition field a provider can fail to learn without saying so. The tier
+        // is derived from the global percent, and RarityTier's default is Common, so an incoming
+        // "no percent plus Common" is indistinguishable from "never filled in" - which is exactly what
+        // a payload looks like when its rarity source is unavailable, as when Data for Azeroth serves
+        // its bot check instead of World of Warcraft percentages. Writing that over stored rarity
+        // relabels every achievement Common, so the stored values win instead.
+        //
+        // Providers that genuinely assert a tier without a percent still overwrite freely, because
+        // their tier is not the default: GameJolt derives one from trophy difficulty.
+        public static bool ShouldKeepStoredRarity(
+            double? incomingPercent,
+            RarityTier incomingRarity,
+            double? storedPercent,
+            string storedRarity)
+        {
+            var incomingIsUnknown = !incomingPercent.HasValue && incomingRarity == RarityTier.Common;
+            if (!incomingIsUnknown)
+            {
+                return false;
+            }
+
+            var storedHasRarity = storedPercent.HasValue ||
+                (!string.IsNullOrWhiteSpace(storedRarity) &&
+                 !string.Equals(storedRarity.Trim(), RarityTier.Common.ToString(), StringComparison.OrdinalIgnoreCase));
+
+            return storedHasRarity;
+        }
+
         // Computes category backfills for a mapped friend proxy row: a fetched definition's
         // Category/CategoryType only fills existing rows still holding the Default placeholder
         // (or blank), matched by ApiName. Rows a user scan already categorized are never changed,

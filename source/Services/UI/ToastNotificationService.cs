@@ -9,6 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
@@ -19,6 +20,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Providers;
@@ -67,6 +69,8 @@ namespace PlayniteAchievements.Services.UI
         private const int SoundAlignmentDelayMs = 450;
 
         private bool _disposed;
+        // Window-bearing waves shown by this process; see the [Toast] Fire diagnostic line.
+        private int _waveSequence;
         private Window _activeWindow;
         // The corner the current wave uses, resolved once per wave (theme override or plugin
         // setting). Read by the per-frame positioning path so it isn't re-resolved every frame.
@@ -97,13 +101,58 @@ namespace PlayniteAchievements.Services.UI
         // cannot outpace it, the card's WPF timelines are asked to tick at it, and the DPI settle poll
         // waits one of its frames at a time.
         private int _activeMonitorRefreshHz;
-        // The running physical slide's per-frame tick handler (CompositionTarget.Rendering), or null.
+        // The wave's card surface (the ItemsControl holding the cards) and the slide host wrapping it.
+        // The window is sized to the host, which reserves the slide's travel past the card on the entry
+        // side; the card itself moves inside that room via _activeSlideTransform. Placement therefore
+        // measures the card, not the window — see ToastWindowPlacer.TryMeasureCardPhysical.
+        private ItemsControl _activeCardSurface;
+        // Per-wave rasterization surfaces for the track sampler, one per card; created with the
+        // recorder, dropped in the wave's finally. Null while no wave is recording tracks.
+        private Dictionary<AchievementToastViewModel, CardRenderScratch> _trackRenderScratch;
+        // Shadow-layer captures this wave (each costs two with-effect renders); reported in the
+        // sampling summary — a number near the sample count means the recapture guard failed.
+        private int _waveShadowCaptureCount;
+        private FrameworkElement _activeSlideHost;
+        private TranslateTransform _activeSlideTransform;
+        // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
+        // itself is a WPF storyboard, and this exists only so the [Toast] Slide line can still report the
+        // cadence the motion actually got.
         private EventHandler _activeSlideTick;
+        // The running slide's frame bookkeeping, direction and requested duration, kept out of the tick
+        // closure so the one diagnostic line each slide emits can be written from either exit: the slide
+        // is routinely force-stopped (the post-slide snap, teardown) before its final frame runs.
+        // ReportActiveSlide nulls the counter, so whichever exit comes first reports and the other is a
+        // no-op.
+        private RenderTickCounter _activeSlideTicks;
+        private string _activeSlideLabel;
+        private double _activeSlideRequestedMs;
+        // Peak-to-peak travel the running slide actually produced, in host DIPs. Reported so a slide
+        // that animated nothing is visible in the log rather than looking identical to a healthy one.
+        private double _activeSlideMovedDip;
+        // The wave's slide storyboards and their durations, resolved once per wave by
+        // ResolveWaveSlideTiming from the themeable resources. The storyboards are what actually run;
+        // the durations are kept alongside because the wave waits a computed duration rather than a
+        // Completed event, so a misauthored theme storyboard cannot stall the lifecycle. Null means
+        // "no usable storyboard" and the built-in animation is used, so a slide can never run on nothing.
+        private Storyboard _activeSlideInStoryboard;
+        private double _activeSlideInMs = SlideInDurationMs;
+        private Storyboard _activeSlideOutStoryboard;
+        private double _activeSlideOutMs = SlideOutDurationMs;
+        // Whether each resolved storyboard actually moves the card along the slide axis. A theme is free
+        // to replace the slide with a fade or a scale, which animates nothing positional — and then the
+        // card must stay at its resting corner rather than be parked at the slide's start, and the window
+        // needs no travel room reserved. True for the built-in slide.
+        private bool _activeSlideInTravels = true;
+        private bool _activeSlideOutTravels = true;
+        // The storyboard currently running, so StopActiveSlide can stop the right one.
+        private Storyboard _runningSlideStoryboard;
         // Per-wave placement state: the offset between where SetWindowPos is asked to put the toast
         // and where its HWND lands (measured once, on the wave's first settled placement), and whether
         // this wave has already logged that its placement needed rescuing.
         private ToastWindowPlacer.PlacementCorrection _placementCorrection;
         private bool _placementAnomalyLogged;
+        // One drift warning per wave; see WarnOnSettledCardDrift.
+        private bool _placementDriftLogged;
         private bool _activeUsesCustomMediaSurface;
         private bool _activeCenterHorizontally;
         private Dictionary<AchievementToastViewModel, FrameworkElement> _activeCardItems;
@@ -199,10 +248,15 @@ namespace PlayniteAchievements.Services.UI
             try
             {
                 var tracks = await recorder.CompleteAsync().ConfigureAwait(false);
-                if (tracks.Count > 0)
+                if (tracks.Count == 0)
                 {
-                    TracksCompleted?.Invoke(this, new ToastTracksCompletedEventArgs(tracks));
+                    _logger?.Warn(
+                        "[Recording] Toast overlay recorder completed without card samples; " +
+                        "unlock videos for this wave cannot composite the notification.");
+                    return;
                 }
+
+                TracksCompleted?.Invoke(this, new ToastTracksCompletedEventArgs(tracks));
             }
             catch (Exception ex)
             {
@@ -583,7 +637,7 @@ namespace PlayniteAchievements.Services.UI
             // by VM identity — the screenshot plan and the wave's realized cards can differ, since
             // each variant carries its own rarity policy; an item with no realized card degrades
             // to the plain base clone.
-            var itemsControl = window?.Content as ItemsControl;
+            var itemsControl = _activeCardSurface;
             var overlays = new List<(AchievementToastViewModel Vm, System.Drawing.Bitmap Overlay, System.Drawing.Rectangle Rect)>();
             foreach (var vm in withToastVms)
             {
@@ -709,21 +763,167 @@ namespace PlayniteAchievements.Services.UI
         /// <summary>
         /// Renders one live toast card (its item container inside the wave's ItemsControl) to a
         /// tightly-packed premultiplied-BGRA buffer at the physical pixel size it renders on screen.
-        /// The card is drawn through a VisualBrush into a DrawingVisual at the origin: rendering the
-        /// container directly would bake in its stacked offset within the window, and cropping a
-        /// whole-window render would bleed the neighbouring cards' glow into the crop (stacked
-        /// containers overlap via negative margins). The card's own glow room is part of the
-        /// container's RenderSize (the template root carries the ToastGlowMargin), so the result is
-        /// dimensionally identical to a single-toast window's content. Must be called on the UI
-        /// thread (renders the live visual). Returns false when the container can't be rendered.
+        /// A card at its parent's origin rasterizes straight into the target; one carrying a stacked
+        /// offset goes through a VisualBrush, which is the only way to pull it back to the origin
+        /// (see <see cref="RenderCardDirect"/> and <see cref="CanRenderDirect"/>). Either way only
+        /// this container's subtree is drawn, so a neighbour's overlapping glow cannot bleed in. The
+        /// card's own glow room is part of the container's RenderSize (the template root carries the
+        /// ToastGlowMargin), so the result is dimensionally identical to a single-toast window's
+        /// content. Must be called on the UI thread (renders the live visual). Returns false when
+        /// the container can't be rendered.
         /// </summary>
+        /// <summary>
+        /// One card's reusable sampler state: the RenderTargetBitmap re-rendered in place every
+        /// tick while the card's pixel size and DPI stay put, plus the shadow-layer bookkeeping —
+        /// which effects the halo capture covered, the layer's pixel size, and the glow effect
+        /// whose animated opacity the per-sample glow scale follows.
+        /// </summary>
+        private sealed class CardRenderScratch
+        {
+            public System.Windows.Media.Imaging.RenderTargetBitmap Rtb;
+            public int PixelW;
+            public int PixelH;
+            public double DpiX;
+            public double DpiY;
+
+            /// <summary>Pixel size the shadow layer was captured at; 0 when none was captured.</summary>
+            public int ShadowW;
+            public int ShadowH;
+
+            /// <summary>The exact effect instances the shadow layer baked, in tree order.</summary>
+            public List<Effect> ShadowEffectSignature;
+
+            /// <summary>The effect whose animated opacity drives the per-sample glow scale.</summary>
+            public DropShadowEffect GlowEffect;
+            public double GlowRefOpacity = 1.0;
+
+            /// <summary>Track time of the last shadow capture, for the recapture rate limit.</summary>
+            public double LastShadowCaptureMs = double.NegativeInfinity;
+
+            /// <summary>
+            /// The card's physical size from its last pixel render, carried onto the pixel-less
+            /// repeat samples between renders (stagger, backlog) so their corner math stays right.
+            /// </summary>
+            public int LastCardWPhys;
+            public int LastCardHPhys;
+
+            /// <summary>Track time of the last ray-layer capture, for the capture budget.</summary>
+            public double LastRayCaptureMs = double.NegativeInfinity;
+
+            /// <summary>
+            /// Whether this card has contributed at least one pixel frame. A card must have one
+            /// before its samples can repeat it, so the first tick of a slide still rasterizes.
+            /// </summary>
+            public bool HasPixelFrame;
+        }
+
+        /// <summary>
+        /// Per-card floor between ray-layer captures, multiplied by the wave's card count so the
+        /// whole wave's ray-render budget stays constant: each capture costs a full with-rays
+        /// render, and the export crossfades adjacent layers, so a low capture rate still plays
+        /// back as smooth drift.
+        /// </summary>
+        private const double RayLayerBaseIntervalMs = 80;
+
+        /// <summary>
+        /// Floor between shadow-layer recaptures. The capture costs two with-effect renders (the
+        /// software blur both times), so even a pathological invalidation source — an effect
+        /// swapped by a trigger every frame, a binding handing out fresh instances — can never
+        /// drag the heavy path back onto every tick.
+        /// </summary>
+        private const double ShadowRecaptureMinIntervalMs = 150;
+
+        /// <summary>
+        /// Every effect-carrying element under <paramref name="root"/> in visual-tree order, and
+        /// (when a list is supplied) every visible ray-burst control. Both are what the sample
+        /// render excludes: effects for their software blur, ray bursts for their fixed
+        /// per-rasterization geometry-flattening cost — each measured at multiples of the whole
+        /// rest of the card.
+        /// </summary>
+        private static void CollectEffects(
+            DependencyObject root, List<KeyValuePair<FrameworkElement, Effect>> results,
+            List<Views.Controls.RarityRayBurst> rayBursts = null)
+        {
+            if (root is FrameworkElement fe && fe.Effect != null)
+            {
+                results.Add(new KeyValuePair<FrameworkElement, Effect>(fe, fe.Effect));
+            }
+
+            if (rayBursts != null &&
+                root is Views.Controls.RarityRayBurst burst &&
+                burst.Visibility == Visibility.Visible)
+            {
+                rayBursts.Add(burst);
+            }
+
+            var count = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < count; i++)
+            {
+                CollectEffects(VisualTreeHelper.GetChild(root, i), results, rayBursts);
+            }
+        }
+
+        /// <summary>
+        /// Hides/restores the ray bursts around a sample render, via SetCurrentValue for the same
+        /// reasons the effects use it (see <see cref="StripEffects"/>): the Visibility binding
+        /// that gates the burst stays attached and keeps ownership. Both sides run inside one
+        /// dispatcher callback, so the screen never sees the gap.
+        /// </summary>
+        private static void HideRayBursts(List<Views.Controls.RarityRayBurst> rayBursts)
+        {
+            foreach (var burst in rayBursts)
+            {
+                burst.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Collapsed);
+            }
+        }
+
+        private static void RestoreRayBursts(List<Views.Controls.RarityRayBurst> rayBursts)
+        {
+            foreach (var burst in rayBursts)
+            {
+                burst.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Visible);
+            }
+        }
+
+        /// <summary>
+        /// Detaches the given effects for the span of a synchronous render, via
+        /// <see cref="DependencyObject.SetCurrentValue"/> on both sides: it changes the effective
+        /// value without writing a local value and without re-evaluating the style or binding that
+        /// supplied the effect. That matters twice over — a local write would permanently override
+        /// the template's trigger setters, and a ClearValue restore re-runs the setter's Binding,
+        /// which can hand back a different effect instance every tick (defeating the shadow
+        /// layer's identity check, and detaching the pulse animation from the instance it targets).
+        /// The exact instances collected are put back. Everything happens inside one dispatcher
+        /// callback, so composition never sees the gap.
+        /// </summary>
+        private static void StripEffects(List<KeyValuePair<FrameworkElement, Effect>> effects)
+        {
+            foreach (var pair in effects)
+            {
+                pair.Key.SetCurrentValue(UIElement.EffectProperty, null);
+            }
+        }
+
+        private static void RestoreEffects(List<KeyValuePair<FrameworkElement, Effect>> effects)
+        {
+            foreach (var pair in effects)
+            {
+                pair.Key.SetCurrentValue(UIElement.EffectProperty, pair.Value);
+            }
+        }
+
         private bool TryRenderToastItemBytes(
             Window window, FrameworkElement container,
-            out byte[] pixels, out int width, out int height)
+            CardRenderScratch scratch, Func<int, byte[]> takeBuffer, bool applyHostOpacity,
+            double captureScale, string probeCase,
+            out byte[] pixels, out int width, out int height,
+            out int cardWPhys, out int cardHPhys)
         {
             pixels = null;
             width = 0;
             height = 0;
+            cardWPhys = 0;
+            cardHPhys = 0;
             try
             {
                 if (window == null || container == null ||
@@ -744,39 +944,48 @@ namespace PlayniteAchievements.Services.UI
                 var local = container.RenderSize;
                 var bounds = container.TransformToAncestor(window)
                     .TransformBounds(new Rect(local));
-                var pw = Math.Max(1, (int)Math.Ceiling(bounds.Width * pxPerDipX));
-                var ph = Math.Max(1, (int)Math.Ceiling(bounds.Height * pxPerDipY));
+                cardWPhys = Math.Max(1, (int)Math.Ceiling(bounds.Width * pxPerDipX));
+                cardHPhys = Math.Max(1, (int)Math.Ceiling(bounds.Height * pxPerDipY));
 
-                var visual = new DrawingVisual();
-                using (var dc = visual.RenderOpen())
-                {
-                    // Absolute viewbox pins the mapping to the layout bounds so effect bleed can't
-                    // inflate the brush content; clipping matches where the live window edge clips.
-                    // The viewbox coordinate space includes the container's offset within its
-                    // parent panel (a stacked card's offset is non-zero), so the viewbox must be
-                    // anchored at that offset — at (0,0) a stacked card renders shifted down and
-                    // cropped out of the bitmap.
-                    var offset = VisualTreeHelper.GetOffset(container);
-                    var brush = new VisualBrush(container)
-                    {
-                        Stretch = Stretch.Fill,
-                        ViewboxUnits = BrushMappingMode.Absolute,
-                        Viewbox = new Rect(offset.X, offset.Y, local.Width, local.Height),
-                    };
-                    dc.DrawRectangle(brush, null, new Rect(0, 0, local.Width, local.Height));
-                }
+                // Rasterize at the consumption scale, not the screen's: the clip downscales the
+                // card anyway, so capturing smaller costs proportionally less and loses nothing —
+                // WPF's filtered render here beats the export blit's nearest-neighbor. The card's
+                // physical size is reported separately for the corner math.
+                var scale = captureScale > 0 && captureScale < 1 ? captureScale : 1.0;
+                var pw = Math.Max(1, (int)Math.Ceiling(cardWPhys * scale));
+                var ph = Math.Max(1, (int)Math.Ceiling(cardHPhys * scale));
+
+                // Opacity animated on the slide host (a theme may fade the notification in or out
+                // instead of sliding it) lives above the card, so rendering the card alone would miss
+                // it and the clip would show an opaque card while the screen showed a fade.
+                var hostOpacity = applyHostOpacity ? _activeSlideHost?.Opacity ?? 1d : 1d;
+
+                // The container's offset within its parent panel: zero for a single-card wave and
+                // for the first card of a stack, non-zero below that. Read before any temporary
+                // transform is installed, so the measurement above stays untouched.
+                var offset = VisualTreeHelper.GetOffset(container);
 
                 // The physical/local DPI ratio carries both the LayoutTransform scale and the
-                // window's physical render scale in one factor.
-                var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
-                    pw, ph, 96.0 * pw / local.Width, 96.0 * ph / local.Height,
-                    PixelFormats.Pbgra32);
-                rtb.Render(visual);
-                rtb.Freeze();
-
+                // window's physical render scale in one factor. The ancestor LayoutTransform is
+                // never applied by the render itself — this is what substitutes for it — so a
+                // transform must NOT be added to reproduce the scale, which would double-apply it.
+                var dpiX = 96.0 * pw / local.Width;
+                var dpiY = 96.0 * ph / local.Height;
                 var stride = pw * 4;
-                var buffer = new byte[stride * ph];
-                rtb.CopyPixels(buffer, stride, 0);
+
+                var rtb = ResolveRenderTarget(scratch, pw, ph, dpiX, dpiY);
+                var buffer = takeBuffer(stride * ph);
+                var direct = CanRenderDirect(offset);
+                var renderMs = direct
+                    ? RenderCardDirect(rtb, container, hostOpacity, buffer, stride)
+                    : RenderCardViaBrush(rtb, container, local, offset, hostOpacity, buffer, stride);
+
+                if (ToastCaptureProbe.Enabled && direct)
+                {
+                    ProbeAgainstBrushRender(
+                        container, local, offset, hostOpacity, pw, ph, dpiX, dpiY, stride,
+                        buffer, renderMs, probeCase);
+                }
 
                 pixels = buffer;
                 width = pw;
@@ -791,6 +1000,166 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// The RenderTargetBitmap to draw into: the scratch's own when its size and DPI still
+        /// match, else a fresh one (cached on the scratch, or frozen when there is none).
+        /// </summary>
+        private static System.Windows.Media.Imaging.RenderTargetBitmap ResolveRenderTarget(
+            CardRenderScratch scratch, int pw, int ph, double dpiX, double dpiY)
+        {
+            if (scratch != null && scratch.Rtb != null &&
+                scratch.PixelW == pw && scratch.PixelH == ph &&
+                scratch.DpiX == dpiX && scratch.DpiY == dpiY)
+            {
+                return scratch.Rtb;
+            }
+
+            var created = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                pw, ph, dpiX, dpiY, PixelFormats.Pbgra32);
+            if (scratch != null)
+            {
+                // Not frozen: the sampler re-renders this surface next tick. The CopyPixels that
+                // follows each render is an immediate same-thread read, so nothing outlives it.
+                scratch.Rtb = created;
+                scratch.PixelW = pw;
+                scratch.PixelH = ph;
+                scratch.DpiX = dpiX;
+                scratch.DpiY = dpiY;
+            }
+
+            return created;
+        }
+
+        /// <summary>
+        /// Rasterizes the card straight into the target — no VisualBrush, no DrawingVisual — and
+        /// copies it out. Cheaper than going through a brush, which is pure indirection here: the
+        /// brush mapped 1:1 in DIP space and all the scaling came from the target's DPI either way.
+        ///
+        /// Only valid when the container sits at its parent's origin, which
+        /// <see cref="CanRenderDirect"/> enforces: <c>RenderTargetBitmap.Render</c> bakes in a
+        /// visual's own offset and — verified by probe, not assumed — ignores that visual's
+        /// <c>RenderTransform</c>, so a stacked card cannot be pulled back to the origin this way
+        /// and has to keep using the brush.
+        ///
+        /// The slide host's opacity has no DrawingContext to be pushed into here, so it is applied
+        /// as a temporary on the container through SetCurrentValue — the idiom the caller already
+        /// uses to strip effects and hide ray bursts, and byte-identical to the brush path's
+        /// PushOpacity (both are one rasterizer multiply with a single quantization; probe-verified
+        /// at zero difference). Returns the render's cost in milliseconds.
+        /// </summary>
+        private static double RenderCardDirect(
+            System.Windows.Media.Imaging.RenderTargetBitmap rtb, FrameworkElement container,
+            double hostOpacity, byte[] buffer, int stride)
+        {
+            var fading = hostOpacity < 1d;
+            var previousOpacity = container.Opacity;
+            if (fading)
+            {
+                container.SetCurrentValue(
+                    UIElement.OpacityProperty, Math.Max(0d, hostOpacity) * previousOpacity);
+            }
+
+            var started = Stopwatch.GetTimestamp();
+            try
+            {
+                rtb.Clear();
+                rtb.Render(container);
+            }
+            finally
+            {
+                if (fading)
+                {
+                    container.SetCurrentValue(UIElement.OpacityProperty, previousOpacity);
+                }
+            }
+
+            var elapsedMs = (Stopwatch.GetTimestamp() - started) * 1000.0 / Stopwatch.Frequency;
+            rtb.CopyPixels(buffer, stride, 0);
+            return elapsedMs;
+        }
+
+        /// <summary>
+        /// Whether the cheap direct render can stand in for the brush: only at the parent's origin.
+        /// True for every single-card wave and for the first card of a stack (the item container
+        /// style that offsets the rest is installed only when the wave has more than one card).
+        /// </summary>
+        private static bool CanRenderDirect(Vector offset)
+        {
+            return offset.X == 0 && offset.Y == 0;
+        }
+
+        /// <summary>
+        /// The original VisualBrush rasterization, kept only so <see cref="ToastCaptureProbe"/> can
+        /// compare the direct render against it on the real card. Returns its cost in milliseconds.
+        /// </summary>
+        private static double RenderCardViaBrush(
+            System.Windows.Media.Imaging.RenderTargetBitmap rtb, FrameworkElement container,
+            Size local, Vector offset, double hostOpacity, byte[] buffer, int stride)
+        {
+            var fading = hostOpacity < 1d;
+            var started = Stopwatch.GetTimestamp();
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
+            {
+                if (fading)
+                {
+                    dc.PushOpacity(Math.Max(0d, hostOpacity));
+                }
+
+                // Absolute viewbox anchored at the container's offset; at (0,0) a stacked card
+                // renders shifted down and cropped out of the bitmap.
+                var brush = new VisualBrush(container)
+                {
+                    Stretch = Stretch.Fill,
+                    ViewboxUnits = BrushMappingMode.Absolute,
+                    Viewbox = new Rect(offset.X, offset.Y, local.Width, local.Height),
+                };
+                dc.DrawRectangle(brush, null, new Rect(0, 0, local.Width, local.Height));
+
+                if (fading)
+                {
+                    dc.Pop();
+                }
+            }
+
+            rtb.Clear();
+            rtb.Render(visual);
+            var elapsedMs = (Stopwatch.GetTimestamp() - started) * 1000.0 / Stopwatch.Frequency;
+            rtb.CopyPixels(buffer, stride, 0);
+            return elapsedMs;
+        }
+
+        /// <summary>
+        /// Renders the same card through the brush path into a throwaway target and hands both
+        /// buffers to the probe. Diagnostic only: this triples the tick's render cost, so it runs
+        /// solely while <see cref="ToastCaptureProbe.Enabled"/> is compiled on.
+        /// </summary>
+        private void ProbeAgainstBrushRender(
+            FrameworkElement container, Size local, Vector offset, double hostOpacity,
+            int pw, int ph, double dpiX, double dpiY, int stride, byte[] directPixels,
+            double directMs, string probeCase)
+        {
+            try
+            {
+                var probeTarget = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    pw, ph, dpiX, dpiY, PixelFormats.Pbgra32);
+                var brushPixels = new byte[stride * ph];
+                var brushMs = RenderCardViaBrush(
+                    probeTarget, container, local, offset, hostOpacity, brushPixels, stride);
+
+                var caseTag = probeCase ?? (hostOpacity < 1d
+                    ? "fade"
+                    : (offset.X != 0 || offset.Y != 0 ? "stacked" : "single"));
+                ToastCaptureProbe.Record(
+                    _logger, caseTag, brushPixels, directPixels, pw, ph, brushMs, directMs,
+                    _settings?.Persisted?.UnlockScreenshotDirectory);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast capture probe comparison failed.");
+            }
+        }
+
+        /// <summary>
         /// Renders one live toast card to a premultiplied-alpha GDI bitmap at its physical pixel
         /// size (see <see cref="TryRenderToastItemBytes"/>). Returns null (the caller degrades to
         /// the plain game capture) when the card can't be rendered.
@@ -799,7 +1168,10 @@ namespace PlayniteAchievements.Services.UI
             Window window, FrameworkElement container, out System.Drawing.Size physSize)
         {
             physSize = System.Drawing.Size.Empty;
-            if (!TryRenderToastItemBytes(window, container, out var pixels, out var pw, out var ph))
+            if (!TryRenderToastItemBytes(
+                    window, container, scratch: null, len => new byte[len], applyHostOpacity: true,
+                    captureScale: 1.0, probeCase: "screenshot",
+                    out var pixels, out var pw, out var ph, out _, out _))
             {
                 return null;
             }
@@ -979,7 +1351,9 @@ namespace PlayniteAchievements.Services.UI
             out System.Drawing.Rectangle clientPhys, out System.Drawing.Rectangle windowPhys,
             out double pxPerDipX, out double pxPerDipY)
         {
-            itemsControl = window?.Content as ItemsControl;
+            // The card is wrapped in a slide host, so window.Content is no longer the ItemsControl.
+            // Keep sampling the surface itself; otherwise every tick silently produces no track.
+            itemsControl = _activeCardSurface;
             windowPhys = System.Drawing.Rectangle.Empty;
             pxPerDipX = 0;
             pxPerDipY = 0;
@@ -1000,16 +1374,18 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Records one animation tick of every toast card into the wave's overlay track recorder:
-        /// per item, the card's rendered pixels plus its client-relative physical rect. The
-        /// per-item tracks are re-timed into each achievement's unlock clip at export (WGC's
-        /// per-window video capture can't see the separate toast window). Called by the caller once per
-        /// recording frame, with that frame's composition time; a no-op when not a game anchor. The
-        /// window may never be revealed — rendering a card reads layout, not visibility. UI thread
-        /// only.
+        /// per item, the card's rendered pixels plus the slide transform's current value in
+        /// physical pixels. The composited position is synthesized at export as the lone-toast
+        /// corner plus that slide offset — measured screen geometry never reaches the track, so
+        /// live window moves and stacking cannot reach the clip. The per-item tracks are re-timed
+        /// into each achievement's unlock clip at export (WGC's per-window video capture can't see
+        /// the separate toast window). Called by the caller once per recording frame, with that
+        /// frame's composition time; a no-op when not a game anchor. The window may never be
+        /// revealed — rendering a card reads layout, not visibility. UI thread only.
         /// </summary>
         private void SampleWaveTracks(
             ToastOverlayTrackRecorder recorder, Window window,
-            IReadOnlyList<AchievementToastViewModel> toastItems, double elapsedMs)
+            IReadOnlyList<AchievementToastViewModel> toastItems, double elapsedMs, int tickIndex)
         {
             if (recorder == null ||
                 !TryGetTrackGeometry(window, out var itemsControl, out var clientPhys, out var windowPhys,
@@ -1017,6 +1393,13 @@ namespace PlayniteAchievements.Services.UI
             {
                 return;
             }
+
+            // The slide transform lives on the slide host, outside the surface's LayoutTransform,
+            // so its value is plain window DIPs; the window's own DIP-to-physical ratio converts
+            // it. One read covers every card — the whole surface slides as one.
+            var slideXPhys = (_activeSlideTransform?.X ?? 0d) * pxPerDipX;
+            var slideYPhys = (_activeSlideTransform?.Y ?? 0d) * pxPerDipY;
+            var hostOpacity = Math.Max(0d, Math.Min(1d, _activeSlideHost?.Opacity ?? 1d));
 
             for (var i = 0; i < toastItems.Count; i++)
             {
@@ -1027,89 +1410,464 @@ namespace PlayniteAchievements.Services.UI
                     continue;
                 }
 
-                byte[] pixels;
-                int pw;
-                int ph;
-                var webView = FindWebView(container);
-                if (webView != null)
+                var scratch = GetCardScratch(vm);
+                var glowScale = ComputeGlowScale(scratch, hostOpacity);
+
+                // A stacked wave staggers rasterization — one card's pixels per tick — so the
+                // per-tick UI cost stays a single card render. Positions and glow scale are
+                // recorded for every card every tick regardless (they are what the export
+                // interpolates), so only pixel freshness divides by the card count. The same
+                // repeat path covers the worker's backlog refusal.
+                var rendersThisTick = toastItems.Count == 1 || tickIndex % toastItems.Count == i;
+
+                // While a slide runs, the card holds the one frame it already has and only its
+                // position keeps being recorded. The slide is the moment smoothness is most
+                // visible, and rasterizing through it was what capped it: the composition rate
+                // measured 17.5 ms per frame on a 165 Hz display, i.e. the sampler's own budget
+                // rather than the monitor's. Freeing those frames speeds the motion up on both
+                // sides at once — the live slide gets the UI thread back, and the clip gets denser
+                // position samples to interpolate between. The card's appearance is deliberately
+                // treated as static for the slide's span.
+                var slideFrozen = _runningSlideStoryboard != null && scratch.HasPixelFrame;
+                if (!rendersThisTick || slideFrozen || !recorder.CanAcceptFrame(vm))
                 {
-                    if (!_activeWebViewFrames.TryGetValue(vm, out var state))
-                    {
-                        state = new WebViewCaptureState();
-                        _activeWebViewFrames[vm] = state;
-                    }
-
-                    if (!state.Capturing)
-                    {
-                        _ = RefreshWebViewFrameAsync(vm, webView, state);
-                    }
-
-                    var frame = state.Latest;
-                    if (frame == null)
-                    {
-                        continue;
-                    }
-
-                    pixels = frame.Pixels;
-                    pw = frame.Width;
-                    ph = frame.Height;
+                    recorder.Sample(
+                        vm, null, 0, 0, scratch.LastCardWPhys, scratch.LastCardHPhys,
+                        slideXPhys, slideYPhys, glowScale, hostOpacity,
+                        clientPhys.Width, clientPhys.Height, elapsedMs);
+                    continue;
                 }
-                else if (!TryRenderToastItemBytes(window, container, out pixels, out pw, out ph))
+
+                var captureScale = CurrentCaptureScale(clientPhys);
+
+                // Effects and ray bursts are detached for the render: the blur's software raster
+                // and the rays' geometry flattening are each multiples of the whole rest of the
+                // card per rasterization. The blur halo returns at export as the shadow layer x
+                // glowScale; the rays return as timed layers captured below.
+                var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
+                var rayBursts = new List<Views.Controls.RarityRayBurst>();
+                CollectEffects(container, effects, rayBursts);
+                StripEffects(effects);
+                HideRayBursts(rayBursts);
+                byte[] pixels;
+                int pw, ph, cardWPhys, cardHPhys;
+                bool rendered;
+                try
+                {
+                    var webView = FindWebView(container);
+                    if (webView != null)
+                    {
+                        if (!_activeWebViewFrames.TryGetValue(vm, out var state))
+                        {
+                            state = new WebViewCaptureState();
+                            _activeWebViewFrames[vm] = state;
+                        }
+
+                        if (!state.Capturing)
+                        {
+                            _ = RefreshWebViewFrameAsync(vm, webView, state);
+                        }
+
+                        var frame = state.Latest;
+                        rendered = frame != null;
+                        pixels = frame?.Pixels;
+                        pw = frame?.Width ?? 0;
+                        ph = frame?.Height ?? 0;
+                        cardWPhys = pw;
+                        cardHPhys = ph;
+                    }
+                    else
+                    {
+                        rendered = TryRenderToastItemBytes(
+                            window, container, scratch, len => recorder.RentBuffer(vm, len),
+                            applyHostOpacity: true, captureScale, probeCase: null,
+                            out pixels, out pw, out ph, out cardWPhys, out cardHPhys);
+                    }
+                }
+                finally
+                {
+                    RestoreRayBursts(rayBursts);
+                    RestoreEffects(effects);
+                }
+
+                if (!rendered)
                 {
                     continue;
                 }
 
-                // Card origin in window DIPs (includes the LayoutTransform) -> screen physical ->
-                // client-relative. Relative rects cancel game-window motion (the toast follows the
-                // window on screen while the game content never moves inside the captured frame)
-                // but keep the slide animation.
-                var origin = container.TransformToAncestor(window).Transform(new Point(0, 0));
-                var relX = windowPhys.X + (int)Math.Round(origin.X * pxPerDipX) - clientPhys.X;
-                var relY = windowPhys.Y + (int)Math.Round(origin.Y * pxPerDipY) - clientPhys.Y;
+                scratch.LastCardWPhys = cardWPhys;
+                scratch.LastCardHPhys = cardHPhys;
+                scratch.HasPixelFrame = true;
+
+                // (Re)capture the halo when its inputs changed: the card's pixel size, or the set
+                // of effect instances (a trigger swapping the neutral shadow for the rarity glow).
+                // Rate-limited — the capture is the expensive path this design exists to avoid.
+                if (effects.Count > 0 &&
+                    elapsedMs - scratch.LastShadowCaptureMs >= ShadowRecaptureMinIntervalMs &&
+                    (pw != scratch.ShadowW || ph != scratch.ShadowH ||
+                     !SameEffectSignature(scratch.ShadowEffectSignature, effects)))
+                {
+                    scratch.LastShadowCaptureMs = elapsedMs;
+                    CaptureShadowLayer(recorder, window, container, vm, scratch, effects, captureScale);
+                }
+
+                // Ray layers refresh on a time budget: rays drift slowly and the export
+                // crossfades adjacent layers, so a modest capture rate plays back smoothly while
+                // each capture's full with-rays render stays rare enough to keep the tick healthy.
+                // Skipped mid-fade — the layer must carry no host opacity of its own, since the
+                // export scales it by the sample's. Computed before the Sample call (which passes
+                // the bare buffer's ownership to the worker), attached after it (the item's time
+                // epoch must exist first).
+                byte[] rayDelta = null;
+                var rayW = 0;
+                var rayH = 0;
+                if (rayBursts.Count > 0 && hostOpacity >= 0.999 &&
+                    _runningSlideStoryboard == null &&
+                    elapsedMs - scratch.LastRayCaptureMs >= RayLayerBaseIntervalMs * toastItems.Count)
+                {
+                    rayDelta = ComputeRayLayerDelta(
+                        recorder, window, container, vm, pixels, pw, ph, captureScale,
+                        out rayW, out rayH);
+                    if (rayDelta != null)
+                    {
+                        scratch.LastRayCaptureMs = elapsedMs;
+                    }
+                }
+
                 recorder.Sample(
-                    vm, pixels, pw, ph, relX, relY, clientPhys.Width, clientPhys.Height, elapsedMs);
+                    vm, pixels, pw, ph, cardWPhys, cardHPhys, slideXPhys, slideYPhys,
+                    glowScale, hostOpacity,
+                    clientPhys.Width, clientPhys.Height, elapsedMs);
+                if (rayDelta != null)
+                {
+                    recorder.AttachRayLayer(vm, rayDelta, rayW, rayH, elapsedMs);
+                }
             }
         }
 
         /// <summary>
-        /// Computes, for every toast card, the constant translation from its settled stacked
-        /// position to the synthetic single-toast corner — where a genuine lone toast would sit —
-        /// and stores it on the card's track. Called once at the placement snap, when layout and
-        /// position are final. UI thread only.
+        /// Computes one ray-burst difference layer: the card rendered with rays visible (effects
+        /// stripped) minus this tick's bare render, in the same dispatcher callback so the content
+        /// matches. Non-negative in premultiplied space: rays only add light over the bare card.
+        /// Null when the render fails or the sizes disagree.
         /// </summary>
-        private void SetTrackCornerOffsets(
+        private byte[] ComputeRayLayerDelta(
+            ToastOverlayTrackRecorder recorder, Window window, FrameworkElement container,
+            AchievementToastViewModel vm, byte[] barePixels, int pw, int ph, double captureScale,
+            out int rayW, out int rayH)
+        {
+            rayW = 0;
+            rayH = 0;
+            var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
+            CollectEffects(container, effects);
+            StripEffects(effects);
+            byte[] withRays;
+            int rw, rh;
+            bool rendered;
+            try
+            {
+                rendered = TryRenderToastItemBytes(
+                    window, container, scratch: null, len => recorder.RentBuffer(vm, len),
+                    applyHostOpacity: true, captureScale, probeCase: "rays",
+                    out withRays, out rw, out rh, out _, out _);
+            }
+            finally
+            {
+                RestoreEffects(effects);
+            }
+
+            if (!rendered || rw != pw || rh != ph || withRays.Length != barePixels.Length)
+            {
+                recorder.ReturnRentedBuffer(vm, withRays);
+                return null;
+            }
+
+            for (var i = 0; i < withRays.Length; i++)
+            {
+                var delta = withRays[i] - barePixels[i];
+                withRays[i] = delta > 0 ? (byte)delta : (byte)0;
+            }
+
+            rayW = rw;
+            rayH = rh;
+            return withRays;
+        }
+
+        /// <summary>
+        /// The scale card pixels are rasterized at: the clip's own scale — its encode height over
+        /// the client height. Capturing above it is cost without benefit (the export blit would
+        /// downscale with nearest-neighbor); capturing below it is what "super compressed" cards
+        /// look like, so nothing here ever goes lower.
+        /// </summary>
+        private double CurrentCaptureScale(System.Drawing.Rectangle clientPhys)
+        {
+            if (clientPhys.Height <= 0)
+            {
+                return 1.0;
+            }
+
+            var cap = ResolutionCapMath.CapHeightFor(
+                _settings?.Persisted?.RecordingResolution ?? RecordingResolution.Native);
+            var size = ResolutionCapMath.Apply(
+                clientPhys.Width, clientPhys.Height, cap, evenDimensions: true);
+            return Math.Min(1.0, size.Height / (double)clientPhys.Height);
+        }
+
+        private CardRenderScratch GetCardScratch(AchievementToastViewModel vm)
+        {
+            var scratchByVm = _trackRenderScratch;
+            if (scratchByVm == null)
+            {
+                return new CardRenderScratch();
+            }
+
+            if (!scratchByVm.TryGetValue(vm, out var scratch))
+            {
+                scratch = new CardRenderScratch();
+                scratchByVm[vm] = scratch;
+            }
+
+            return scratch;
+        }
+
+        /// <summary>
+        /// The shadow-layer multiplier for this tick: the glow effect's current animated opacity
+        /// relative to the opacity the layer was captured at, times the slide host's opacity (the
+        /// halo must fade with a fade theme even though the card pixels carry that fade already).
+        /// </summary>
+        private static double ComputeGlowScale(CardRenderScratch scratch, double hostOpacity)
+        {
+            if (scratch.GlowEffect != null && scratch.GlowRefOpacity > 0.001)
+            {
+                return hostOpacity * Math.Max(0d, scratch.GlowEffect.Opacity) / scratch.GlowRefOpacity;
+            }
+
+            return hostOpacity;
+        }
+
+        private static bool SameEffectSignature(
+            List<Effect> signature, List<KeyValuePair<FrameworkElement, Effect>> effects)
+        {
+            if (signature == null || signature.Count != effects.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < effects.Count; i++)
+            {
+                if (!ReferenceEquals(signature[i], effects[i].Value))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Captures every card's shadow layer before the wave's slide starts, so the one software
+        /// blur rasterization each card pays lands outside the slide's clock. Cards without
+        /// effects record nothing (their glow scale degenerates to the host opacity).
+        /// </summary>
+        private void CaptureWaveShadowLayers(
             ToastOverlayTrackRecorder recorder, Window window,
             IReadOnlyList<AchievementToastViewModel> toastItems)
         {
             if (recorder == null ||
+                !TryGetTrackGeometry(window, out var itemsControl, out var clientPhys, out _, out _, out _))
+            {
+                return;
+            }
+
+            var captureScale = CurrentCaptureScale(clientPhys);
+            for (var i = 0; i < toastItems.Count; i++)
+            {
+                var container = ResolveCardContainer(itemsControl, toastItems[i]);
+                if (container == null)
+                {
+                    continue;
+                }
+
+                var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
+                CollectEffects(container, effects);
+                if (effects.Count > 0)
+                {
+                    var scratch = GetCardScratch(toastItems[i]);
+                    scratch.LastShadowCaptureMs = 0;
+                    CaptureShadowLayer(
+                        recorder, window, container, toastItems[i], scratch, effects, captureScale);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Captures one card's shadow/glow halo as a difference layer: the card rendered with its
+        /// effects minus the card rendered without them, both in this same dispatcher callback so
+        /// the content (GIF frame, countdown) is identical in the pair. Host opacity is excluded
+        /// from both renders — the per-sample glow scale carries it instead, so a fade theme's
+        /// mid-fade capture doesn't bake a dimmed halo. This pays the software blur exactly once
+        /// per capture; every subsequent tick renders effect-free.
+        /// </summary>
+        private void CaptureShadowLayer(
+            ToastOverlayTrackRecorder recorder, Window window, FrameworkElement container,
+            AchievementToastViewModel vm, CardRenderScratch scratch,
+            List<KeyValuePair<FrameworkElement, Effect>> effects, double captureScale)
+        {
+            _waveShadowCaptureCount++;
+            if (!TryRenderToastItemBytes(
+                    window, container, scratch: null, len => new byte[len], applyHostOpacity: false,
+                    captureScale, probeCase: "shadow", out var withEffects, out var pw1, out var ph1,
+                    out var cardWPhys, out var cardHPhys))
+            {
+                return;
+            }
+
+            StripEffects(effects);
+            byte[] withoutEffects;
+            int pw0, ph0;
+            bool rendered;
+            try
+            {
+                rendered = TryRenderToastItemBytes(
+                    window, container, scratch: null, len => new byte[len], applyHostOpacity: false,
+                    captureScale, probeCase: "shadow-bare",
+                    out withoutEffects, out pw0, out ph0, out _, out _);
+            }
+            finally
+            {
+                RestoreEffects(effects);
+            }
+
+            if (!rendered || pw0 != pw1 || ph0 != ph1)
+            {
+                return;
+            }
+
+            // With-effects minus without, in place: non-negative in premultiplied space (an
+            // effect's shadow only ever adds under the content), clamped against rounding.
+            for (var i = 0; i < withEffects.Length; i++)
+            {
+                var delta = withEffects[i] - withoutEffects[i];
+                withEffects[i] = delta > 0 ? (byte)delta : (byte)0;
+            }
+
+            recorder.SetShadowLayer(vm, withEffects, pw1, ph1);
+            scratch.ShadowW = pw1;
+            scratch.ShadowH = ph1;
+            // Primes the repeat-sample dims too: with staggering, a card's first samples can
+            // precede its first tick render.
+            scratch.LastCardWPhys = cardWPhys;
+            scratch.LastCardHPhys = cardHPhys;
+            var signature = new List<Effect>(effects.Count);
+            foreach (var pair in effects)
+            {
+                signature.Add(pair.Value);
+            }
+
+            scratch.ShadowEffectSignature = signature;
+
+            // The scale driver is the effect the pulse actually animates — the one on an element
+            // opted into RarityGlowPulse with Target=Effect — falling back to the first
+            // DropShadowEffect (a static neutral shadow then keeps scale at the host opacity).
+            // Its opacity right now is what the layer baked, so it is the reference.
+            scratch.GlowEffect = null;
+            scratch.GlowRefOpacity = 1.0;
+            foreach (var pair in effects)
+            {
+                if (!(pair.Value is DropShadowEffect dropShadow))
+                {
+                    continue;
+                }
+
+                var pulsed = RarityGlowPulse.GetIsActive(pair.Key) &&
+                    RarityGlowPulse.GetTarget(pair.Key) == RarityGlowPulseTarget.Effect;
+                if (scratch.GlowEffect == null || pulsed)
+                {
+                    scratch.GlowEffect = dropShadow;
+                    scratch.GlowRefOpacity = Math.Max(0.05, dropShadow.Opacity);
+                    if (pulsed)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            if (Common.PerfScope.PerfTracingEnabled)
+            {
+                _logger?.Info(
+                    $"[Recording] Toast shadow layer captured: '{vm.AchievementName}' " +
+                    $"{pw1}x{ph1}, effects={effects.Count}, refOpacity={scratch.GlowRefOpacity:0.##}");
+            }
+        }
+
+        /// <summary>
+        /// Measures where a single-card wave's card settled against the corner the placement math
+        /// says it belongs on, feeding <see cref="WarnOnSettledCardDrift"/>. Purely diagnostic:
+        /// the clip's composited position is synthesized at export and never reads this. Called
+        /// once at the placement snap, when layout and position are final. UI thread only.
+        /// </summary>
+        private void ReportSettledCornerDrift(
+            Window window, IReadOnlyList<AchievementToastViewModel> toastItems)
+        {
+            if (toastItems == null || toastItems.Count != 1 ||
                 !TryGetTrackGeometry(window, out var itemsControl, out var clientPhys, out var windowPhys,
                     out var pxPerDipX, out var pxPerDipY))
             {
                 return;
             }
 
-            foreach (var vm in toastItems)
+            var container = ResolveCardContainer(itemsControl, toastItems[0]);
+            if (container == null || container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0)
             {
-                var container = ResolveCardContainer(itemsControl, vm);
-                if (container == null || container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0)
-                {
-                    continue;
-                }
-
-                var bounds = container.TransformToAncestor(window)
-                    .TransformBounds(new Rect(container.RenderSize));
-                var physW = Math.Max(1, (int)Math.Ceiling(bounds.Width * pxPerDipX));
-                var physH = Math.Max(1, (int)Math.Ceiling(bounds.Height * pxPerDipY));
-                var settledRelX = windowPhys.X + (int)Math.Round(bounds.X * pxPerDipX) - clientPhys.X;
-                var settledRelY = windowPhys.Y + (int)Math.Round(bounds.Y * pxPerDipY) - clientPhys.Y;
-
-                ComputeActiveCorner(
-                    clientPhys, physW, physH, out var cornerX, out var cornerY);
-                recorder.SetCornerOffset(
-                    vm,
-                    (cornerX - clientPhys.X) - settledRelX,
-                    (cornerY - clientPhys.Y) - settledRelY);
+                return;
             }
+
+            var bounds = container.TransformToAncestor(window)
+                .TransformBounds(new Rect(container.RenderSize));
+            var physW = Math.Max(1, (int)Math.Ceiling(bounds.Width * pxPerDipX));
+            var physH = Math.Max(1, (int)Math.Ceiling(bounds.Height * pxPerDipY));
+            var settledRelX = windowPhys.X + (int)Math.Round(bounds.X * pxPerDipX) - clientPhys.X;
+            var settledRelY = windowPhys.Y + (int)Math.Round(bounds.Y * pxPerDipY) - clientPhys.Y;
+
+            ComputeActiveCorner(clientPhys, physW, physH, out var cornerX, out var cornerY);
+            WarnOnSettledCardDrift(toastItems.Count, cornerX - clientPhys.X, cornerY - clientPhys.Y,
+                settledRelX, settledRelY);
+        }
+
+        /// <summary>
+        /// Warns when a lone card did not settle where the corner math says it belongs.
+        ///
+        /// The toast window is larger than the card — it reserves the slide's travel — so the card's
+        /// resting position is the window's position plus a measured offset rather than the window's
+        /// position itself. If those two measurements ever disagree, the card lands off the corner, and
+        /// on the clip side that is invisible: the composited position is synthesized from the same
+        /// corner math, so the clip looks fine while the on-screen card is wrong. This makes it a log
+        /// line instead.
+        ///
+        /// Only for a single-card wave. A stacked wave's cards are legitimately away from the corner,
+        /// so the difference carries no information there.
+        /// </summary>
+        private void WarnOnSettledCardDrift(int cardCount, int cornerRelX, int cornerRelY, int settledRelX, int settledRelY)
+        {
+            if (cardCount != 1 || _placementDriftLogged)
+            {
+                return;
+            }
+
+            var dx = cornerRelX - settledRelX;
+            var dy = cornerRelY - settledRelY;
+            if (Math.Abs(dx) <= ToastWindowPlacer.PlacementTolerancePx &&
+                Math.Abs(dy) <= ToastWindowPlacer.PlacementTolerancePx)
+            {
+                return;
+            }
+
+            _placementDriftLogged = true;
+            _logger?.Warn(string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "[Toast] Settled card is {0},{1}px off its corner (settled {2},{3}; corner {4},{5}). The " +
+                "window's slide-travel reservation and the measured card offset disagree.",
+                dx, dy, settledRelX, settledRelY, cornerRelX, cornerRelY));
         }
 
         /// <summary>
@@ -1410,10 +2168,23 @@ namespace PlayniteAchievements.Services.UI
 
             var waveIsTestFire = wave[0].IsTestFire;
             _activeToastThemeStylingEnabled = wave[0].ToastUseThemeStyling;
+            // Resolve the corner once for this wave: a theme override wins, otherwise the plugin
+            // setting. Positioning (including the per-frame game-window follow) and slide direction
+            // both read the resolved value.
+            _activePosition = EffectivePosition();
+            // Same reason, and the reason it is here rather than at the slides: resolving the themeable
+            // slide storyboards reaches the filesystem and the resource dictionaries, and doing that
+            // inside SlideInPhysical/SlideOutPhysical put it on the UI thread on the very frame the
+            // slide began. Called unconditionally so all four fields are always this wave's, never a
+            // previous wave's. Only the storyboards' shape is resolved here; each is bound to this
+            // wave's slide host at the slide itself, since the window does not exist yet.
+            ResolveWaveSlideTiming();
+            _activeCardGlow = wave[0].ToastGlowMargin.Top;
             // Placement state is per-wave: the correction is measured on this wave's first settled
             // placement, and the anomaly warning is emitted at most once for it.
             _placementCorrection = default(ToastWindowPlacer.PlacementCorrection);
             _placementAnomalyLogged = false;
+            _placementDriftLogged = false;
             var waveGameId = wave[0].PlayniteGameId;
             _activeWaveGameId = waveGameId != Guid.Empty ? waveGameId : (Guid?)null;
 
@@ -1464,32 +2235,12 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            // Chime and vibration belong to the on-screen notification, so an unrevealed wave skips
-            // both — and skips the alignment delay that exists only to line them up with the
-            // reveal. Its clips carry no chime because none was played.
-            DateTime? soundPlayedUtc = null;
-            if (visible)
-            {
-                // Play the sound first, then show the toast after a short delay so the audio onset
-                // and the slide-in visually align.
-                soundPlayedUtc = PlayWaveSound(cardItems);
-                await Task.Delay(SoundAlignmentDelayMs).ConfigureAwait(true);
-                if (_disposed)
-                {
-                    DisposeCaptureTask(baseCaptureTask);
-                    return;
-                }
-
-                // Pulse after the same alignment delay: the motors start in-process, so firing at
-                // launch time would put the vibration ahead of the audible chime.
-                VibrateControllers();
-            }
-
-            var window = PlayniteUiProvider.CreateBorderlessTopmostWindow(
-                _api,
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
-            _activeWindow = window;
-
+            // Everything the card needs that costs nothing on screen is built here, ahead of the chime
+            // and its alignment delay: the template instantiation, the surface, and the icon decodes and
+            // ray traces the card would otherwise finish while it is already sliding. None of it touches
+            // an HWND or a pixel, so the base capture above still completes against a screen with no
+            // toast on it, and the window is still created and shown at the same point as before.
+            //
             // A wave is game-homogeneous, so scope the custom template to this wave's game and
             // provider (game > provider > global) for real unlocks. The template decision (fire-test
             // preview source vs normal theme-styling resolve) and the host element are built through
@@ -1555,7 +2306,45 @@ namespace PlayniteAchievements.Services.UI
 
             LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
 
-            window.Content = items;
+            PrimeWaveVisuals(cardItems);
+
+            // Chime and vibration belong to the on-screen notification, so an unrevealed wave skips
+            // both — and skips the alignment delay that exists only to line them up with the
+            // reveal. Its clips carry no chime because none was played.
+            DateTime? soundPlayedUtc = null;
+            if (visible)
+            {
+                // Play the sound first, then show the toast after a short delay so the audio onset
+                // and the slide-in visually align.
+                soundPlayedUtc = PlayWaveSound(cardItems);
+                await Task.Delay(SoundAlignmentDelayMs).ConfigureAwait(true);
+                if (_disposed)
+                {
+                    DisposeCaptureTask(baseCaptureTask);
+                    return;
+                }
+
+                // Pulse after the same alignment delay: the motors start in-process, so firing at
+                // launch time would put the vibration ahead of the audible chime.
+                VibrateControllers();
+            }
+
+            // Counts the window-bearing waves this process has shown, so a diagnostic line says whether
+            // it came from the session's first toast (which pays every one-time cost) or a later one.
+            var waveSequence = ++_waveSequence;
+
+            var window = PlayniteUiProvider.CreateBorderlessTopmostWindow(
+                _api,
+                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+            _activeWindow = window;
+
+            // Keep the upstream slide host for smooth, transform-only animation even when the
+            // card surface comes from the fork's custom notification renderer.
+            var slideHost = ToastSurfaceFactory.BuildSlideHost(items, out var slideTransform);
+            _activeCardSurface = items;
+            _activeSlideHost = slideHost;
+            _activeSlideTransform = slideTransform;
+            window.Content = slideHost;
 
             // Resolve the anchor the toast follows. The toast is realized Per-Monitor-V2 and positioned
             // in physical pixels relative to that anchor, so it renders crisply on whatever monitor the
@@ -1631,6 +2420,8 @@ namespace PlayniteAchievements.Services.UI
             // the recording frame rate asks for it rather than aliasing to half of it.
             RenderTickCounter trackTicks = null;
             var trackSampleCount = 0;
+            Stopwatch trackRenderWatch = null;
+            var trackRenderMaxMs = 0d;
             try
             {
                 // Realize the toast HWND under Per-Monitor-V2 so Windows does not bitmap-rescale it on
@@ -1646,9 +2437,11 @@ namespace PlayniteAchievements.Services.UI
                 var needsPerMonitorWindow = systemScale > 0 &&
                     Math.Abs(_activeMonitorScale - systemScale) >= DpiSettleTolerance;
                 _logger?.Info(
-                    $"[Toast] Fire: monitorScale={_activeMonitorScale:0.###}, systemScale={systemScale:0.###}, " +
-                    $"perMonitorWindow={needsPerMonitorWindow}, isGame={_activeIsGame}, " +
-                    $"revealed={visible}");
+                    $"[Toast] Fire: wave={waveSequence}, monitorScale={_activeMonitorScale:0.###}, " +
+                    $"systemScale={systemScale:0.###}, perMonitorWindow={needsPerMonitorWindow}, " +
+                    $"isGame={_activeIsGame}, revealed={visible}, mode={wavePlan.Mode}, " +
+                    $"testFire={waveIsTestFire}, preview={previewSource.HasValue}, cards={cardItems.Count}, " +
+                    $"shots={plan != null}, recordings={_settings?.Persisted?.EnableUnlockRecordings ?? false}");
                 if (needsPerMonitorWindow)
                 {
                     using (Common.DpiAwarenessScope.PerMonitorV2())
@@ -1686,27 +2479,70 @@ namespace PlayniteAchievements.Services.UI
                 // Now on the target monitor with the DPI settled: correct the compensation from the
                 // actual render scale, snap to the corner, and (for a visible wave) reveal.
                 ApplyDpiCompensation(window, items, fitScale);
+
+                // Reserve the slide's travel now that the card has its final laid-out size, so the
+                // window is large enough to hold the card at both ends of the slide. Placed between the
+                // compensation and the settled placement because it changes the window's size, and the
+                // placement below is what puts the (now larger) window where the card lands on the
+                // corner.
+                ReserveSlideTravel(window, items);
                 PlaceWindow(window, "shown");
+
+                // Let the card actually reach the screen before the slide starts timing itself.
+                // ApplyDpiCompensation's UpdateLayout is measure/arrange, not pixels; on a monitor at
+                // the system scale the settle loop above does not await at all, so without this the
+                // slide's first frame is also the toast's first frame — the one paying for the layered
+                // window's surface, the template's visuals, text realization and the shadow effects.
+                // The slide reads progress from frame timestamps, so that cost does not slow the slide,
+                // it skips it: the second frame reports a clock that has already run most of the
+                // duration and the card jumps. Two composed frames put that work before the clock
+                // starts. Bounded like the settle loop above, and it runs for an unrevealed wave too,
+                // whose recorded track would otherwise carry the same jump.
+                var warmFrames = await WaitForComposedFramesAsync(WarmFrameCount, WarmFrameTimeoutMs)
+                    .ConfigureAwait(true);
+                if (_disposed)
+                {
+                    return;
+                }
+
+                // Only the shortfall is logged, so no line means the toast did get its frames — which is
+                // what makes the slide line below readable: a large first-frame gap under a silent warm
+                // is a cost the warm frames failed to absorb, not a warm that never ran.
+                if (warmFrames < WarmFrameCount)
+                {
+                    _logger?.Info($"[Toast] Warm: frames={warmFrames}/{WarmFrameCount}, timedOut=true");
+                }
+
+                // Recording setup runs before the slide so its one expensive render — the shadow
+                // layer capture, which rasterizes the effects' software blur once per card — lands
+                // before the slide clock starts instead of eating the slide's first frames. Game
+                // anchor only — a test fire out of game has no video — and only with recordings
+                // enabled, since nothing else consumes a track.
+                if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero &&
+                    (_settings?.Persisted?.EnableUnlockRecordings ?? false))
+                {
+                    trackRecorder = new ToastOverlayTrackRecorder(
+                        _logger, TrackSampleIntervalMs(),
+                        AlignRight(), AlignBottom(), EffectiveGapDip(), _activeMonitorScale);
+                    _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
+                    trackSampleCount = 0;
+                    _waveShadowCaptureCount = 0;
+                    CaptureWaveShadowLayers(trackRecorder, window, cardItems);
+                }
+
                 SlideInPhysical(window, reveal: visible);
 
-                // Start recording each card's overlay track now, at the slide-in — revealed or not
+                // Start sampling each card's overlay track now, at the slide-in — revealed or not
                 // — so the slide-in animation lands in the tracks (not just the settled toast).
                 // Tracks are sampled at the
                 // recording frame rate and re-timed into each achievement's clip at export. Independent
-                // of the placement hooks below (sampling only reads, never moves the window). Game anchor
-                // only — a test fire out of game has no video — and only with recordings enabled, since
-                // nothing else consumes a track.
-                if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero &&
-                    ((_settings?.Persisted?.EnableUnlockRecordings ?? false) ||
-                     (ProviderRegistry.Settings<LocalSettings>()?.EnableUnlockRecordings ?? false)))
+                // of the placement hooks below (sampling only reads, never moves the window).
+                if (trackRecorder != null)
                 {
                     var sampleIntervalMs = TrackSampleIntervalMs();
-                    trackRecorder = new ToastOverlayTrackRecorder(_logger, sampleIntervalMs);
-                    SampleWaveTracks(trackRecorder, window, cardItems, 0d);
-                    trackSampleCount = 1;
-                    // The unconditional resample also carries animation frames into the tracks (min
-                    // effective frame delay is 100ms for both GIF and WebP per AnimatedImageHelper) — do
-                    // not reduce this to sample-on-position-change.
+                    // The unconditional resample also carries animation frames into the tracks — a
+                    // GIF advances on whatever per-frame delays its own file declares — so do not
+                    // reduce this to sample-on-position-change.
                     var recorder = trackRecorder;
                     // Sampling is due every recording frame, but can only happen on a composed frame, so
                     // take the tick nearest each due instant: comparing against the due time less half a
@@ -1714,9 +2550,14 @@ namespace PlayniteAchievements.Services.UI
                     // aliasing. When the two rates match, every tick is a sample; when the recording rate
                     // is the lower one, ticks are skipped evenly.
                     var dueTolerance = MonitorFramePeriodMs() / 2d;
-                    var nextDueMs = sampleIntervalMs;
+                    // The first sample rides the first composed frame rather than running here
+                    // synchronously: the slide storyboard has just begun, and its animated value is
+                    // not applied until that frame, so a synchronous read would record the seeded
+                    // rest value — one frame of the card sitting at its corner before the slide.
+                    var nextDueMs = 0d;
                     trackTicks = new RenderTickCounter();
                     var counter = trackTicks;
+                    var renderWatch = new Stopwatch();
                     onTrackSample = (s, e) =>
                     {
                         try
@@ -1736,21 +2577,41 @@ namespace PlayniteAchievements.Services.UI
                             while (nextDueMs <= elapsedMs);
 
                             trackSampleCount++;
-                            SampleWaveTracks(recorder, window, cardItems, elapsedMs);
+                            // Accumulated, not per-call: the whole-wave total and worst tick are
+                            // what the sampling summary reports at wave end.
+                            var before = renderWatch.Elapsed.TotalMilliseconds;
+                            renderWatch.Start();
+                            SampleWaveTracks(recorder, window, cardItems, elapsedMs, trackSampleCount);
+                            renderWatch.Stop();
+                            var tickMs = renderWatch.Elapsed.TotalMilliseconds - before;
+                            if (tickMs > trackRenderMaxMs)
+                            {
+                                trackRenderMaxMs = tickMs;
+                            }
                         }
                         catch
                         {
                             // Ignore transient render/placement failures (e.g. window closing).
                         }
                     };
+                    trackRenderWatch = renderWatch;
                     CompositionTarget.Rendering += onTrackSample;
+
+                    // The ray-burst glow invalidates at its own fixed default rate; sampling above it
+                    // stores duplicate ray frames with beat-dependent phase, which plays back as
+                    // judder. Raise the driver to the sampling rate for the recording's span.
+                    RayAnimationDriver.SetSamplingFps(1000.0 / sampleIntervalMs);
                 }
 
                 // Let the cards finish sliding in and paint so each renders at its final laid-out
                 // size (achievement icons and badge images load asynchronously), then snap,
                 // composite the with-notification shots, and hold for the remaining display time.
-                // The base capture itself already ran, before the window existed.
-                const int captureDelayMs = 300;
+                // The base capture itself already ran, before the window existed. At least the
+                // resolved slide-in duration plus a settle margin: a theme may author a slide
+                // longer than the base delay, and the snap's StopActiveSlide would cut it
+                // mid-flight — on screen and in the recorded track alike.
+                var captureDelayMs = Math.Max(
+                    300, (int)Math.Round(_activeSlideInMs) + (2 * SlideSettleBufferMs));
                 await Task.Delay(captureDelayMs).ConfigureAwait(true);
                 if (_disposed)
                 {
@@ -1761,6 +2622,7 @@ namespace PlayniteAchievements.Services.UI
                 // corner now that the toast is fully laid out.
                 StopActiveSlide();
                 PlaceWindow(window, "snap");
+                ReportSettledCard(window);
 
                 // The wave has settled, revealed or not: signal the recording service (a liveness
                 // bump for its track wait, plus this wave's chime time for the clip audio mix —
@@ -1768,9 +2630,8 @@ namespace PlayniteAchievements.Services.UI
                 // chime time, so its clips are mixed without one.
                 RaiseWaveDisplayed(cardItems, soundPlayedUtc);
 
-                // Layout and placement are final: pin each card's synthetic single-toast corner so
-                // its recorded motion lands where a genuine lone toast would sit.
-                SetTrackCornerOffsets(trackRecorder, window, cardItems);
+                // Layout and placement are final: verify a lone card actually settled on its corner.
+                ReportSettledCornerDrift(window, cardItems);
 
                 // The with-notification composites happen here: the toast has slid in and settled,
                 // so each item's card renders at its final laid-out size. Cards render on the UI
@@ -1828,6 +2689,13 @@ namespace PlayniteAchievements.Services.UI
                 try
                 {
                     AnimateCountdownBars(window, remainingMs);
+
+                    // Sampling starts at the slide, the countdown at the settle snap, so in track
+                    // time the bar stops here. Lets the track line separate identical renders that
+                    // prove a static card from those that only follow the bar reaching zero.
+                    var countdownVisible = cardItems.Count > 0 && cardItems[0].ShowCountdownBar;
+                    trackRecorder?.SetCountdownWindow(
+                        countdownVisible ? captureDelayMs + remainingMs : 0);
                 }
                 catch (Exception ex)
                 {
@@ -1855,8 +2723,26 @@ namespace PlayniteAchievements.Services.UI
                 {
                     CompositionTarget.Rendering -= onTrackSample;
                     onTrackSample = null;
+                    RayAnimationDriver.ClearSamplingFps();
                 }
 
+                // Unconditional (unlike the PerfScope-gated cadence line): the card render is the
+                // sampler's whole per-tick cost, and an average near or past the sample interval is
+                // the UI-thread stall that turns a 60 fps request into a lower effective rate.
+                if (trackRecorder != null && trackSampleCount > 0 && trackRenderWatch != null)
+                {
+                    _logger?.Info(string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "[Recording] Toast sampling: {0} samples, card render avg {1:0.0} ms, max {2:0.0} ms " +
+                        "(sample interval {3:0.0} ms), shadow captures {4}",
+                        trackSampleCount,
+                        trackRenderWatch.Elapsed.TotalMilliseconds / trackSampleCount,
+                        trackRenderMaxMs,
+                        TrackSampleIntervalMs(),
+                        _waveShadowCaptureCount));
+                }
+
+                ToastCaptureProbe.ReportWave(_logger);
                 LogWaveCadence(trackTicks, trackSampleCount);
             }
             catch (Exception ex) when (previewSource.HasValue)
@@ -1884,11 +2770,18 @@ namespace PlayniteAchievements.Services.UI
                     CompositionTarget.Rendering -= onTrackSample;
                 }
 
+                // Unconditional: waves are sequential, so this only ever clears this wave's rate.
+                RayAnimationDriver.ClearSamplingFps();
+
                 // Finalize and hand the recorded card tracks to the recording service. The raw
                 // pixels are already captured, so this safely outlives window.Close() below.
                 _ = CompleteAndRaiseTracksAsync(trackRecorder);
 
                 StopActiveSlide();
+                _activeCardSurface = null;
+                _trackRenderScratch = null;
+                _activeSlideHost = null;
+                _activeSlideTransform = null;
                 _activeReferenceHwnd = IntPtr.Zero;
                 _activeIsGame = false;
                 _activeSuppressZOrder = false;
@@ -2608,7 +3501,8 @@ namespace PlayniteAchievements.Services.UI
             else
             {
                 placed = ToastWindowPlacer.PositionPhysical(
-                    window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
+                    window, _activeCardSurface, SlideOffsetDipX(), SlideOffsetDipY(),
+                    anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
                     measure, ref _placementCorrection, out outcome);
                 LogPlacementAnomaly(window, anchorPhys, renderScale, outcome);
             }
@@ -2682,27 +3576,17 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        private bool TryComputeRestingCorner(Window window, out int x, out int y)
+        // The slide transform's current value, removed from any card measurement so placement always
+        // works from the card's resting offset. Reading the transform rather than tracking a flag keeps
+        // this correct no matter which pass a placement lands in.
+        private double SlideOffsetDipX()
         {
-            x = 0;
-            y = 0;
-            if (!TryResolveAnchor(out var anchorPhys))
-            {
-                return false;
-            }
+            return _activeSlideTransform?.X ?? 0d;
+        }
 
-            var renderScale = ToastWindowPlacer.RenderScale(window);
-            if (_activeCenterHorizontally && window.ActualWidth > 0 && window.ActualHeight > 0)
-            {
-                var width = Math.Max(1, (int)Math.Round(window.ActualWidth * renderScale));
-                var height = Math.Max(1, (int)Math.Round(window.ActualHeight * renderScale));
-                ComputeActiveCorner(anchorPhys, width, height, out x, out y);
-                return true;
-            }
-
-            return ToastWindowPlacer.TryComputeCorner(
-                window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
-                out x, out y, out _);
+        private double SlideOffsetDipY()
+        {
+            return _activeSlideTransform?.Y ?? 0d;
         }
 
         /// <summary>
@@ -2829,6 +3713,68 @@ namespace PlayniteAchievements.Services.UI
         private const int SlideOutDurationMs = 200;
         // Extra travel beyond the card height so the card fully clears the screen edge in and out.
         private const double SlideTravelPaddingDip = 40d;
+
+        /// <summary>
+        /// What the slide animates: the translate in the slide host's transform group. Everything is
+        /// aimed at the host — a real <c>UIElement</c> — so one target object serves the slide, an
+        /// opacity fade, and the group's scale at index 0, and a theme can animate any combination.
+        /// </summary>
+        private const string SlideTargetPath =
+            "(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)";
+
+        /// <summary>
+        /// What the bundled storyboards used to declare. It never animated anything — the slide read
+        /// only the easing and duration off them — so a theme carrying it means "the plugin's slide,
+        /// my timing" and is retargeted rather than rejected.
+        /// </summary>
+        private const string LegacySlideTargetPath = "(Window.Top)";
+
+        /// <summary>
+        /// The slide's target property, built with its dependency properties supplied directly rather
+        /// than parsed from <see cref="SlideTargetPath"/>.
+        ///
+        /// This must not be recognised or constructed by string. XAML does not keep the text a
+        /// storyboard was authored with: it normalises <c>Storyboard.TargetProperty</c> to indexed
+        /// placeholders — <c>(0).(1)[1].(2)</c> — and puts the resolved properties in
+        /// <c>PathParameters</c>. So comparing <c>PropertyPath.Path</c> to the authored spelling never
+        /// matches for a themed or bundled storyboard, which is precisely how the slide shipped
+        /// animating nothing: unrecognised, it got no From/To, and a DoubleAnimation without either
+        /// animates a property from its own value to its own value. That neither moves nor throws.
+        /// </summary>
+        private static PropertyPath BuildSlidePath()
+        {
+            return new PropertyPath(
+                "(0).(1)[1].(2)",
+                UIElement.RenderTransformProperty,
+                TransformGroup.ChildrenProperty,
+                TranslateTransform.YProperty);
+        }
+
+        /// <summary>
+        /// Whether a storyboard child is the one that moves the card, however it was spelled.
+        ///
+        /// Decided on the property the path actually resolves to — the last entry of
+        /// <c>PathParameters</c> — so every spelling of the translate's Y is recognised: the bundled
+        /// indexed form, the un-indexed form a theme author would naturally reach for, and a
+        /// code-built path. An unset target property means the slide (a theme contributing only timing),
+        /// as does the legacy <c>(Window.Top)</c>, which never animated anything.
+        /// </summary>
+        private static bool AnimatesSlide(Timeline child)
+        {
+            var path = Storyboard.GetTargetProperty(child);
+            if (path == null || string.IsNullOrEmpty(path.Path) || path.Path == LegacySlideTargetPath)
+            {
+                return true;
+            }
+
+            var parameters = path.PathParameters;
+            if (parameters != null && parameters.Count > 0)
+            {
+                return parameters[parameters.Count - 1] == TranslateTransform.YProperty;
+            }
+
+            return path.Path == SlideTargetPath;
+        }
         // Small pause after a slide-out finishes before the window is torn down.
         private const int SlideSettleBufferMs = 10;
         // Below this, the content scale is treated as 1.0 and no LayoutTransform is applied.
@@ -2839,6 +3785,19 @@ namespace PlayniteAchievements.Services.UI
         // the common case and never hangs.
         private const int MaxDpiSettleFrames = 8;
         private const double DpiSettleTolerance = 0.01;
+        // Composed frames of the invisible toast to wait for before starting the slide, and the ceiling
+        // on that wait. Two, because the first frame after Show is the one that realizes the card, and a
+        // second proves that frame was presented rather than merely queued.
+        //
+        // The ceiling is a stall guard, not the expected path: subscribing to Rendering itself keeps the
+        // render loop ticking, so the frames arrive on their own even with nothing on the card animating.
+        // Measured with tools\capture-harness SlideProbe on a static Opacity=0 window, this wait costs
+        // 6-25 ms and never reaches the ceiling. Do not shorten it toward a frame period: its other
+        // effect is bounding how much first-paint work the warm can absorb, so a tight ceiling would cut
+        // an expensive first paint short and hand the remainder back to the slide's first frame, which is
+        // the whole defect. It only costs latency in a pathological case where frames stop entirely.
+        private const int WarmFrameCount = 2;
+        private const int WarmFrameTimeoutMs = 150;
         // Frame period assumed when the anchor monitor's refresh rate can't be read (60 Hz).
         private const double FallbackFramePeriodMs = 1000d / 60d;
         // Recording frame rate assumed when settings are unreachable; matches PersistedSettings' default.
@@ -2895,6 +3854,20 @@ namespace PlayniteAchievements.Services.UI
             /// <summary>Mean interval between the observed frames (ms); 0 below two frames.</summary>
             public double MeanIntervalMs => Frames > 1 ? (_lastMs - _firstMs) / (Frames - 1) : 0d;
 
+            /// <summary>Time from the first observed frame to the last (ms); 0 below two frames.</summary>
+            public double SpanMs => Frames > 1 ? _lastMs - _firstMs : 0d;
+
+            /// <summary>
+            /// Interval between the first two observed frames (ms); 0 below two frames. For motion
+            /// driven off frame timestamps this is the interval that shows as a jump rather than as
+            /// slowness: whatever the first frame had to rasterize is charged entirely to it, and the
+            /// eased progress the second frame reports has already skipped that far ahead.
+            /// </summary>
+            public double FirstIntervalMs { get; private set; }
+
+            /// <summary>Largest interval between consecutive observed frames (ms); 0 below two frames.</summary>
+            public double MaxIntervalMs { get; private set; }
+
             /// <summary>
             /// True when this event carries a frame not seen yet, with <paramref name="elapsedMs"/> set to
             /// that frame's time since the first observed one.
@@ -2921,6 +3894,19 @@ namespace PlayniteAchievements.Services.UI
                 {
                     _firstMs = nowMs;
                 }
+                else
+                {
+                    var intervalMs = nowMs - _lastMs;
+                    if (Frames == 1)
+                    {
+                        FirstIntervalMs = intervalMs;
+                    }
+
+                    if (intervalMs > MaxIntervalMs)
+                    {
+                        MaxIntervalMs = intervalMs;
+                    }
+                }
 
                 _lastMs = nowMs;
                 Frames++;
@@ -2946,17 +3932,15 @@ namespace PlayniteAchievements.Services.UI
                 window.Opacity = 1;
             }
 
-            if (!TryComputeRestingCorner(window, out var rx, out var ry))
-            {
-                return;
-            }
+            // The window is already at the resting corner and stays there for the whole slide; only the
+            // card moves. Place once here so the slide starts from a settled position.
+            PlaceWindow(window);
 
-            ResolveSlideTiming(
-                AchievementToastTemplateResolver.SlideInStoryboardKey, DefaultSlideInEase, SlideInDurationMs,
-                out var ease, out var durationMs);
-            var distance = SlideDistancePhysical(window);
-            var startY = SlideFromBottom() ? ry + distance : ry - distance;
-            RunPhysicalSlide(window, rx, startY, ry, ease, durationMs);
+            var distance = SlideDistanceDip(window);
+            var from = SlideFromBottom() ? distance : -distance;
+            RunSlideStoryboard(
+                _activeSlideInStoryboard, from, 0d, DefaultSlideInEase, _activeSlideInMs,
+                _activeSlideInTravels, "in");
         }
 
         // Returns the slide-out duration (ms) so the caller waits exactly that long; 0 if it didn't run.
@@ -2967,102 +3951,544 @@ namespace PlayniteAchievements.Services.UI
                 return 0;
             }
 
-            if (!TryComputeRestingCorner(window, out var rx, out var ry))
+            var distance = SlideDistanceDip(window);
+            var to = SlideFromBottom() ? distance : -distance;
+            RunSlideStoryboard(
+                _activeSlideOutStoryboard, 0d, to, DefaultSlideOutEase, _activeSlideOutMs,
+                _activeSlideOutTravels, "out");
+            return _activeSlideOutMs;
+        }
+
+        /// <summary>
+        /// Waits for <paramref name="frames"/> distinct composed frames, or <paramref name="timeoutMs"/>,
+        /// whichever comes first; returns the frames actually observed.
+        ///
+        /// Counting distinct frames is the point. WPF raises <c>Rendering</c> more than once for a single
+        /// frame, so waiting for N events can return within one frame; <see cref="RenderTickCounter"/>
+        /// already de-duplicates by composition timestamp. Nothing else here proves a frame was
+        /// presented: <c>DispatcherPriority.Render</c> only orders against the queued render operation
+        /// (and outranks <c>Loaded</c>, so it would run before the card's images have even been asked
+        /// for), and <c>ContentRendered</c> fires once per window and already carries placement work.
+        /// </summary>
+        private static async Task<int> WaitForComposedFramesAsync(int frames, int timeoutMs)
+        {
+            if (frames <= 0)
             {
                 return 0;
             }
 
-            ResolveSlideTiming(
-                AchievementToastTemplateResolver.SlideOutStoryboardKey, DefaultSlideOutEase, SlideOutDurationMs,
-                out var ease, out var durationMs);
-            var distance = SlideDistancePhysical(window);
-            var endY = SlideFromBottom() ? ry + distance : ry - distance;
-            RunPhysicalSlide(window, rx, ry, endY, ease, durationMs);
-            return durationMs;
-        }
-
-        // Easing + duration for a physical slide, taken from the themeable storyboard when it defines
-        // them, else the supplied fallbacks. Reuses ResolveAnimation, which clones the storyboard's
-        // first DoubleAnimation (the same resource the countdown bar reads).
-        private void ResolveSlideTiming(
-            string storyboardKey, IEasingFunction fallbackEase, double fallbackMs,
-            out IEasingFunction ease, out double durationMs)
-        {
-            ease = fallbackEase;
-            durationMs = fallbackMs;
-
-            var animation = ResolveAnimation(storyboardKey);
-            if (animation == null)
-            {
-                return;
-            }
-
-            if (animation.EasingFunction != null)
-            {
-                ease = animation.EasingFunction;
-            }
-
-            if (animation.Duration.HasTimeSpan)
-            {
-                durationMs = animation.Duration.TimeSpan.TotalMilliseconds;
-            }
-        }
-
-        private int SlideDistancePhysical(Window window)
-        {
-            return (int)Math.Round(SlideDistance(window) * ToastWindowPlacer.RenderScale(window));
-        }
-
-        // Animates the toast's physical Y from fromY to toY over durationMs, eased per `ease`, moving
-        // the HWND each frame. Any prior slide is stopped first. Replaces the WPF Window.Top slide for
-        // the physical (in-game) path.
-        private void RunPhysicalSlide(Window window, int x, int fromY, int toY, IEasingFunction ease, double durationMs)
-        {
-            StopActiveSlide();
-            if (durationMs <= 0)
-            {
-                MoveCorrected(window, x, toY);
-                return;
-            }
-
-            // Progress comes from each frame's composition time, not from when the handler ran: the
-            // window moves once per composed frame either way, but timing it off the frame keeps the
-            // steps as evenly spaced as the frames, at whatever rate the monitor presents.
             var ticks = new RenderTickCounter();
+            // RunContinuationsAsynchronously because TrySetResult below runs inside a Rendering handler,
+            // and a TaskCompletionSource otherwise completes its continuations synchronously on the
+            // thread that set it — resuming the caller in the middle of a composition pass, where it
+            // would move the window and subscribe the slide. ConfigureAwait(true) on a captured
+            // dispatcher context already posts rather than inlines, so this guards the invariant rather
+            // than fixing a live defect; it costs nothing and does not depend on that reasoning holding.
+            var reached = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             EventHandler tick = null;
             tick = (s, e) =>
             {
-                if (!ticks.TryAdvance(e, out var elapsedMs))
+                if (ticks.TryAdvance(e, out _) && ticks.Frames >= frames)
+                {
+                    reached.TrySetResult(true);
+                }
+            };
+
+            CompositionTarget.Rendering += tick;
+            try
+            {
+                await Task.WhenAny(reached.Task, Task.Delay(timeoutMs)).ConfigureAwait(true);
+            }
+            finally
+            {
+                CompositionTarget.Rendering -= tick;
+            }
+
+            return ticks.Frames;
+        }
+
+        /// <summary>
+        /// Resolves both slides' easing and duration for the wave that is starting. Called once per
+        /// wave, off the render loop; the slides themselves then only read the fields.
+        ///
+        /// The countdown bar deliberately keeps resolving its own storyboard when it starts, since it
+        /// is nowhere near a slide — so a theme author editing timing still sees the countdown change
+        /// immediately, and the slides on the next notification.
+        /// </summary>
+        private void ResolveWaveSlideTiming()
+        {
+            _activeSlideInStoryboard = ResolveSlideStoryboard(
+                AchievementToastTemplateResolver.SlideInStoryboardKey, SlideInDurationMs,
+                out _activeSlideInMs, out _activeSlideInTravels);
+            _activeSlideOutStoryboard = ResolveSlideStoryboard(
+                AchievementToastTemplateResolver.SlideOutStoryboardKey, SlideOutDurationMs,
+                out _activeSlideOutMs, out _activeSlideOutTravels);
+        }
+
+        /// <summary>
+        /// Clones the themeable slide storyboard and retargets it onto the slide transform, so a theme
+        /// gets real animation control (keyframes, and animating opacity or a scale alongside the
+        /// slide) rather than only contributing an easing and a duration.
+        ///
+        /// The retarget rules keep every previously-valid theme storyboard working. A child with no
+        /// target name goes to the slide host; a child with no target property — or the legacy
+        /// <c>(Window.Top)</c>, which never actually animated anything — is pointed at the transform's
+        /// Y. Anything that names its own target is left exactly as authored. From/To are filled in by
+        /// the caller, because the travel distance depends on the card's laid-out height and a theme
+        /// cannot know it.
+        ///
+        /// Returns null (and the fallback duration) when nothing usable is defined, which is what makes
+        /// the built-in animation the floor rather than a special case.
+        /// </summary>
+        private Storyboard ResolveSlideStoryboard(
+            string storyboardKey, double fallbackMs, out double durationMs, out bool travels)
+        {
+            durationMs = fallbackMs;
+            travels = true;
+            try
+            {
+                var authored = _templateResolver?.ResolveStoryboard(storyboardKey);
+                if (authored == null)
+                {
+                    return null;
+                }
+
+                // Only the property is rewritten here; the target object is bound at slide time, because
+                // this runs once per wave before the wave's window and transform exist.
+                var storyboard = authored.Clone();
+                var resolved = 0d;
+                var movesCard = false;
+                foreach (var child in storyboard.Children)
+                {
+                    if (!IsUntargeted(child))
+                    {
+                        continue;
+                    }
+
+                    // Always overwrite the slide child's path with the plugin's own, whatever spelling
+                    // it arrived in: the un-indexed form cannot resolve against the host's transform
+                    // group, and the indexed form is only equivalent, never identical, to ours.
+                    if (AnimatesSlide(child))
+                    {
+                        Storyboard.SetTargetProperty(child, BuildSlidePath());
+                        movesCard = true;
+                    }
+
+                    if (child.Duration.HasTimeSpan)
+                    {
+                        resolved = Math.Max(resolved, child.Duration.TimeSpan.TotalMilliseconds);
+                    }
+                }
+
+                // A storyboard with no finite duration would leave the wave waiting on a number it never
+                // produced, and Forever would never settle the card. Fall back rather than run it —
+                // which means the built-in slide, so `travels` stays true.
+                if (resolved <= 0)
+                {
+                    return null;
+                }
+
+                travels = movesCard;
+                durationMs = resolved;
+                return storyboard;
+            }
+            catch (Exception ex)
+            {
+                // A theme can put anything in this resource; a broken one must cost the slide its
+                // customisation, not the notification.
+                _logger?.Debug(ex, $"Toast slide storyboard '{storyboardKey}' unusable; using the built-in slide.");
+                travels = true;
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Runs one slide: the card translates from <paramref name="fromDip"/> to
+        /// <paramref name="toDip"/> inside the stationary window. Any prior slide is stopped first.
+        ///
+        /// This is a real WPF animation rather than a per-frame interpolation. It advances at whatever
+        /// rate WPF composes at and at sub-pixel precision, where the previous per-frame
+        /// <c>SetWindowPos</c> both cost a window move every frame and quantised to whole physical
+        /// pixels. <see cref="_activeSlideTick"/> is attached purely to count frames for the diagnostic.
+        /// </summary>
+        private void RunSlideStoryboard(
+            Storyboard authored, double fromDip, double toDip, IEasingFunction fallbackEase,
+            double durationMs, bool travels, string label)
+        {
+            StopActiveSlide();
+            var host = _activeSlideHost;
+            var transform = _activeSlideTransform;
+            if (host == null || transform == null)
+            {
+                return;
+            }
+
+            // Where the card belongs once this slide is over: the slide's end, or its resting corner when
+            // the animation moves nothing positional (a theme fade or scale).
+            //
+            // This is seeded as the transform's LOCAL value before the storyboard starts, and the
+            // animation then overrides it for its duration. Seeding the slide's *start* instead is
+            // wrong in a way that only shows up later: an animation is an override, not an assignment,
+            // so Stop/Remove reverts the property to whatever local value was underneath. With the
+            // start seeded, the settled snap reverted the card to the slide's start — off in the
+            // reserved travel room — and it vanished until the slide-out reseeded it.
+            var restDip = travels ? toDip : 0d;
+
+            _activeSlideLabel = label;
+            _activeSlideRequestedMs = durationMs;
+            if (durationMs <= 0)
+            {
+                transform.Y = restDip;
+                // Reported too: a theme authoring a zero duration gets a snap rather than a slide,
+                // which is worth seeing in the log instead of an absent line.
+                _activeSlideTicks = new RenderTickCounter();
+                ReportActiveSlide("instant");
+                return;
+            }
+
+            var storyboard = BuildSlideStoryboard(authored, host, fromDip, toDip, fallbackEase, durationMs);
+            if (storyboard == null)
+            {
+                transform.Y = restDip;
+                _activeSlideTicks = new RenderTickCounter();
+                ReportActiveSlide("instant");
+                return;
+            }
+
+            // Counting only. The slide no longer needs a per-frame callback to move anything, but the
+            // cadence it achieved is the number this change is judged on, so it is still measured.
+            // How far the card actually moved, watched per frame. A storyboard that resolves to no
+            // property animates nothing and does NOT throw, so without this a slide that never moved is
+            // indistinguishable in the log from one that ran perfectly — which is exactly how a target
+            // path that did not match the host's transform shape shipped twice.
+            var ticks = new RenderTickCounter();
+            var minY = double.MaxValue;
+            var maxY = double.MinValue;
+            _activeSlideMovedDip = 0d;
+            EventHandler tick = (s, e) =>
+            {
+                if (!ticks.TryAdvance(e, out _))
                 {
                     return;
                 }
 
-                var t = Math.Min(1.0, elapsedMs / durationMs);
-                var k = ease != null ? ease.Ease(t) : t;
-                var y = (int)Math.Round(fromY + ((toY - fromY) * k));
-                MoveCorrected(window, x, y);
-                if (t >= 1.0)
+                var y = transform.Y;
+                if (y < minY)
                 {
-                    CompositionTarget.Rendering -= tick;
-                    if (ReferenceEquals(_activeSlideTick, tick))
-                    {
-                        _activeSlideTick = null;
-                    }
+                    minY = y;
                 }
-            };
 
+                if (y > maxY)
+                {
+                    maxY = y;
+                }
+
+                _activeSlideMovedDip = maxY - minY;
+            };
+            _activeSlideTicks = ticks;
             _activeSlideTick = tick;
-            MoveCorrected(window, x, fromY);
+            _runningSlideStoryboard = storyboard;
+
+            transform.Y = restDip;
             CompositionTarget.Rendering += tick;
+            try
+            {
+                storyboard.Begin(host, isControllable: true);
+            }
+            catch (Exception ex)
+            {
+                // Begin can throw on a theme storyboard that survived resolution but cannot bind to this
+                // tree. Land the card where the slide would have left it rather than mid-travel.
+                _logger?.Debug(ex, "Toast slide storyboard failed to start; snapping to the slide's end.");
+                CompositionTarget.Rendering -= tick;
+                _activeSlideTick = null;
+                _runningSlideStoryboard = null;
+                transform.Y = restDip;
+                ReportActiveSlide("failed");
+            }
         }
 
-        // Slide frames move the HWND directly (deliberately off the anchor corner, so they must not be
-        // clamped), but they still go through the wave's learned placement correction — otherwise a
-        // corrected resting position would jump from an uncorrected slide.
-        private void MoveCorrected(Window window, int x, int y)
+        /// <summary>
+        /// The storyboard actually begun: the theme's, with the travel filled in where it left the
+        /// endpoints open, or the built-in animation when no usable one was resolved.
+        ///
+        /// A theme child that declares neither From nor To gets this slide's endpoints — it cannot know
+        /// the card's laid-out height, so leaving them open is how a theme says "the plugin's travel,
+        /// my timing". One that declares them is left alone.
+        /// </summary>
+        private static Storyboard BuildSlideStoryboard(
+            Storyboard authored, FrameworkElement host, double fromDip, double toDip,
+            IEasingFunction fallbackEase, double durationMs)
         {
-            ToastWindowPlacer.MovePhysical(
-                window, x + _placementCorrection.OffsetX, y + _placementCorrection.OffsetY);
+            if (authored != null)
+            {
+                var storyboard = authored.Clone();
+                foreach (var child in storyboard.Children)
+                {
+                    if (!IsUntargeted(child))
+                    {
+                        continue;
+                    }
+
+                    // Everything untargeted animates the host, so a theme child animating opacity or a
+                    // scale lands on a real UIElement; only the slide child was pointed at the
+                    // transform's Y, via the property path.
+                    Storyboard.SetTarget(child, host);
+                    if (child is DoubleAnimation slide &&
+                        !slide.From.HasValue && !slide.To.HasValue &&
+                        AnimatesSlide(child))
+                    {
+                        slide.From = fromDip;
+                        slide.To = toDip;
+                    }
+                }
+
+                return storyboard;
+            }
+
+            var animation = new DoubleAnimation
+            {
+                From = fromDip,
+                To = toDip,
+                Duration = new Duration(TimeSpan.FromMilliseconds(durationMs)),
+                EasingFunction = fallbackEase,
+                // The card must hold where the slide left it: the slide-out's end is off-screen, and the
+                // window is not torn down until after the settle buffer.
+                FillBehavior = FillBehavior.HoldEnd,
+            };
+            Storyboard.SetTarget(animation, host);
+            Storyboard.SetTargetProperty(animation, BuildSlidePath());
+
+            var built = new Storyboard();
+            built.Children.Add(animation);
+            return built;
+        }
+
+        /// <summary>
+        /// A storyboard child the plugin is free to point at its own slide host: one the theme did not
+        /// aim somewhere specific. A child that names its own target is left entirely alone.
+        /// </summary>
+        private static bool IsUntargeted(Timeline child)
+        {
+            return Storyboard.GetTargetName(child) == null && Storyboard.GetTarget(child) == null;
+        }
+
+        /// <summary>
+        /// One line describing where the card actually sits once the wave has settled — after the slide
+        /// has been stopped and the window snapped to its corner. This is the span the notification
+        /// spends simply on screen, so anything other than a slide offset of 0 and a card rect on the
+        /// corner means the card is somewhere the user cannot see it.
+        ///
+        /// Worth a line of its own because the slide's own diagnostic covers only the animation: a slide
+        /// that ran perfectly and then had the card moved out from under it afterwards reports as
+        /// healthy.
+        /// </summary>
+        private void ReportSettledCard(Window window)
+        {
+            try
+            {
+                var renderScale = ToastWindowPlacer.RenderScale(window);
+                var measured = ToastWindowPlacer.TryMeasureCardPhysical(
+                    window, _activeCardSurface, renderScale, SlideOffsetDipX(), SlideOffsetDipY(),
+                    out var insetX, out var insetY, out var cardW, out var cardH);
+                ToastWindowPlacer.TryGetPhysicalRect(window, out var windowPhys);
+                _logger?.Info(string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "[Toast] Settled: slideDipY={0:0.0} measured={1} cardInset={2},{3} card={4}x{5} " +
+                    "window={6},{7} {8}x{9} opacity={10:0.##}",
+                    SlideOffsetDipY(),
+                    measured,
+                    insetX,
+                    insetY,
+                    cardW,
+                    cardH,
+                    windowPhys.X,
+                    windowPhys.Y,
+                    windowPhys.Width,
+                    windowPhys.Height,
+                    window?.Opacity ?? -1d));
+            }
+            catch
+            {
+                // Diagnostics only.
+            }
+        }
+
+        /// <summary>
+        /// Writes the running slide's one diagnostic line and clears the bookkeeping so it is written
+        /// exactly once, from whichever of natural completion or <see cref="StopActiveSlide"/> comes
+        /// first. Ungated (unlike the PerfScope-gated wave lines) because the numbers it carries —
+        /// above all the gap between the slide's first two frames — are what distinguish a slide that
+        /// ran short of frames from one that was merely slow.
+        /// </summary>
+        private void ReportActiveSlide(string end)
+        {
+            var ticks = _activeSlideTicks;
+            if (ticks == null)
+            {
+                return;
+            }
+
+            _activeSlideTicks = null;
+            try
+            {
+                _logger?.Info(string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "[Toast] Slide {0}: requestedMs={1:0} spanMs={2:0.00} frames={3} meanMs={4:0.00} " +
+                    "firstGapMs={5:0.00} maxGapMs={6:0.00} monitorHz={7} movedDip={8:0.0} end={9}",
+                    _activeSlideLabel,
+                    _activeSlideRequestedMs,
+                    ticks.SpanMs,
+                    ticks.Frames,
+                    ticks.MeanIntervalMs,
+                    ticks.FirstIntervalMs,
+                    ticks.MaxIntervalMs,
+                    _activeMonitorRefreshHz,
+                    _activeSlideMovedDip,
+                    end));
+            }
+            catch
+            {
+                // Diagnostics only; a formatting or logging failure must never affect a wave.
+            }
+        }
+
+        // Decode sizes the card's images are requested at. Hints, not cache keys: for an Image element
+        // AsyncImage takes the larger of the authored value and one inferred from the element's laid-out
+        // size and the monitor scale, so a configurable icon size or a scaled monitor produces a
+        // different key and the prime warms the codec, the file read and any download but not the final
+        // decode. The background is the exception — its host Image is laid out at zero size, so there is
+        // nothing to infer and the authored value is used verbatim, making the prime hit exactly.
+        private const int PrimeIconDecodePixel = 160;
+        private const int PrimeRightBadgeDecodePixel = 96;
+        private const int PrimeIconBadgeDecodePixel = 64;
+        private const int PrimeBackgroundDecodePixel = 768;
+
+        /// <summary>
+        /// Starts the card's image decodes and ray-silhouette traces for a wave that is about to show,
+        /// so the card is complete on its first frame instead of completing itself while it slides.
+        /// Everything here is work the card would do anyway, only earlier — into the same caches — and
+        /// none of it is awaited or required: on failure the card loads exactly as it does today.
+        ///
+        /// A late-arriving image is the second of the two visible defects. The window is
+        /// SizeToContent, so an image landing mid-slide resizes the HWND while the slide is moving it
+        /// with SWP_NOSIZE, and the resting Y was computed from the pre-resize height — so the card
+        /// lands short and the placement snap jumps it the rest of the way.
+        /// </summary>
+        private void PrimeWaveVisuals(IReadOnlyList<AchievementToastViewModel> cardItems)
+        {
+            if (cardItems == null || cardItems.Count == 0)
+            {
+                return;
+            }
+
+            // Collected on the UI thread: these getters read the style, the provider registry and the
+            // filesystem. The decodes themselves are thread-agnostic and hand back frozen bitmaps.
+            var iconPaths = new List<string>();
+            var requests = new List<KeyValuePair<string, int>>();
+            var seenRequests = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var vm in cardItems)
+            {
+                if (vm == null)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(vm.IconPath) && !iconPaths.Contains(vm.IconPath))
+                {
+                    iconPaths.Add(vm.IconPath);
+                }
+
+                AddPrimeRequest(requests, seenRequests, vm.IconPath, PrimeIconDecodePixel);
+                if (vm.ShowRightBadge)
+                {
+                    AddPrimeRequest(
+                        requests, seenRequests, vm.ToastBadgeSource as string, PrimeRightBadgeDecodePixel);
+                }
+
+                if (vm.ShowBadge)
+                {
+                    AddPrimeRequest(
+                        requests, seenRequests, vm.ToastBadgeSource as string, PrimeIconBadgeDecodePixel);
+                }
+
+                if (vm.IsGameCompleted)
+                {
+                    AddPrimeRequest(
+                        requests, seenRequests, vm.ToastCompletedBadgeSource as string, PrimeIconDecodePixel);
+                }
+
+                if (vm.HasToastBackground)
+                {
+                    // Must stay the string the template's background host resolves to — for a live
+                    // toast ToastBackgroundRenderSource is this same path — since the cache key is the
+                    // source string: priming a different one warms an entry nothing asks for and the
+                    // image still arrives mid-slide, with nothing failing to say so.
+                    AddPrimeRequest(
+                        requests, seenRequests, vm.ToastBackgroundImagePath, PrimeBackgroundDecodePixel);
+                }
+            }
+
+            // Traces and decodes run as two concurrent chains so a slow silhouette trace cannot starve
+            // the image decodes inside the window before the toast shows.
+            var imageService = PlayniteAchievementsPlugin.Instance?.ImageService;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.WhenAll(
+                        PrimeRayTracksAsync(iconPaths),
+                        PrimeImagesAsync(imageService, requests)).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Priming is an optimization; a failure must never surface as an unobserved fault.
+                }
+            });
+        }
+
+        // A badge source is either a path string or an already-built image; only the former is fetched.
+        private static void AddPrimeRequest(
+            List<KeyValuePair<string, int>> requests, HashSet<string> seen, string uri, int decodePixel)
+        {
+            if (string.IsNullOrWhiteSpace(uri) || !seen.Add($"{decodePixel}{uri}"))
+            {
+                return;
+            }
+
+            requests.Add(new KeyValuePair<string, int>(uri, decodePixel));
+        }
+
+        private static async Task PrimeRayTracksAsync(IReadOnlyList<string> iconPaths)
+        {
+            for (var i = 0; i < iconPaths.Count; i++)
+            {
+                // Already bounded and exception-swallowing per icon.
+                await WarmRayTrackAsync(iconPaths[i]).ConfigureAwait(false);
+            }
+        }
+
+        private static async Task PrimeImagesAsync(
+            MemoryImageService imageService, IReadOnlyList<KeyValuePair<string, int>> requests)
+        {
+            if (imageService == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < requests.Count; i++)
+            {
+                try
+                {
+                    await imageService
+                        .GetAsync(requests[i].Key, requests[i].Value, System.Threading.CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+                catch
+                {
+                    // A missing or undecodable image is the card's problem to handle, as it is today.
+                }
+            }
         }
 
         private const int RayTrackWarmupTimeoutMs = 250;
@@ -3102,17 +4528,89 @@ namespace PlayniteAchievements.Services.UI
                 CompositionTarget.Rendering -= _activeSlideTick;
                 _activeSlideTick = null;
             }
+
+            // Stop the storyboard AND clear the animation off the property. Stop alone leaves the
+            // animation holding the property at its base value, so a later direct write to Y would be
+            // ignored and the card could never be nudged back to rest.
+            var storyboard = _runningSlideStoryboard;
+            _runningSlideStoryboard = null;
+            if (storyboard != null && _activeSlideHost != null)
+            {
+                try
+                {
+                    storyboard.Stop(_activeSlideHost);
+                    storyboard.Remove(_activeSlideHost);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Stopping the toast slide storyboard failed.");
+                }
+            }
+
+            // Outside the guard: a slide that reached its final frame already unhooked itself and
+            // reported, so this is a no-op for it and only a genuinely cut-short slide reports here.
+            ReportActiveSlide("stopped");
         }
 
-        private static double SlideDistance(Window window)
+        /// <summary>
+        /// How far the card travels, in the slide host's DIPs: the card's own laid-out height plus
+        /// enough padding to clear the screen edge.
+        ///
+        /// Measured from the card surface, not the window. The window is deliberately taller than the
+        /// card by exactly this distance (the travel room), so deriving it from the window would feed
+        /// the reservation its own output and grow the window every pass.
+        /// </summary>
+        private double SlideDistanceDip(Window window)
         {
-            var height = window.ActualHeight > 0 ? window.ActualHeight : window.Height;
+            var height = _activeCardSurface?.ActualHeight ?? 0d;
             if (double.IsNaN(height) || height <= 0)
             {
-                height = ToastWindowPlacer.DefaultCardHeightDip;
+                height = window != null && window.ActualHeight > 0
+                    ? window.ActualHeight
+                    : ToastWindowPlacer.DefaultCardHeightDip;
             }
 
             return height + SlideTravelPaddingDip;
+        }
+
+        /// <summary>
+        /// Reserves the slide's travel as empty room past the card on the side it enters from, so the
+        /// window is big enough to hold the card at both ends. An HWND clips its content unconditionally,
+        /// so without this the card is simply cut off while it slides.
+        ///
+        /// Runs once per wave, after the DPI compensation has settled the card's size and before the
+        /// settled placement, which is what puts the now-larger window where the card lands on the
+        /// corner.
+        /// </summary>
+        private void ReserveSlideTravel(Window window, ItemsControl surface)
+        {
+            if (window == null || surface == null)
+            {
+                return;
+            }
+
+            // Nothing to reserve when neither animation moves the card — a theme that fades or scales
+            // instead of sliding gets a window that is exactly its card, which is also what keeps the
+            // host's centre scale pivot on the card rather than on empty travel room.
+            if (!_activeSlideInTravels && !_activeSlideOutTravels)
+            {
+                return;
+            }
+
+            try
+            {
+                ToastSurfaceFactory.ApplySlideTravel(surface, SlideDistanceDip(window), SlideFromBottom());
+                window.UpdateLayout();
+            }
+            catch (Exception ex)
+            {
+                // Without the room the card would be clipped mid-slide, which is worse than not sliding.
+                _logger?.Debug(ex, "Reserving toast slide travel failed; the slide is skipped this wave.");
+                _activeSlideInStoryboard = null;
+                _activeSlideOutStoryboard = null;
+                _activeSlideInMs = 0;
+                _activeSlideOutMs = 0;
+            }
         }
 
         private bool SlideFromBottom()

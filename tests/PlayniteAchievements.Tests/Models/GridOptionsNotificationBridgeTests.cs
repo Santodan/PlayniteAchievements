@@ -23,6 +23,34 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void SingleGameAppearanceEdit_RaisesFlatPropertyChangedOnPersistedSettings()
+        {
+            var settings = new PersistedSettings();
+            var raised = new List<string>();
+            settings.PropertyChanged += (sender, e) => raised.Add(e.PropertyName);
+
+            var options = settings.GridOptions.GetAchievement(GridOptionKeys.Achievement.SingleGame);
+            options.ShowRarityGlow = !options.ShowRarityGlow;
+            options.ColorNamesByRarity = !options.ColorNamesByRarity;
+            options.ShowColumnHeaders = !options.ShowColumnHeaders;
+
+            CollectionAssert.Contains(raised, nameof(PersistedSettings.ViewAchievementsAchievementGridShowRarityGlow));
+            CollectionAssert.Contains(raised, nameof(PersistedSettings.ViewAchievementsAchievementGridColorNamesByRarity));
+            CollectionAssert.Contains(raised, nameof(PersistedSettings.ShowViewAchievementsAchievementGridColumnHeaders));
+        }
+
+        [TestMethod]
+        public void SingleGameAppearance_IsIndependentOfOverviewSelectedGame()
+        {
+            var settings = new PersistedSettings();
+
+            settings.GridOptions.GetAchievement(GridOptionKeys.Achievement.OverviewSelectedGame).ShowRarityGlow = false;
+
+            Assert.IsFalse(settings.OverviewSelectedGameShowRarityGlow);
+            Assert.IsTrue(settings.ViewAchievementsAchievementGridShowRarityGlow);
+        }
+
+        [TestMethod]
         public void GameSummariesOptionEdit_RaisesFlatPropertyChangedOnPersistedSettings()
         {
             var settings = new PersistedSettings();

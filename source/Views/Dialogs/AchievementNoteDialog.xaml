@@ -122,6 +122,7 @@
                      AcceptsReturn="True"
                      AcceptsTab="True"
                      TextWrapping="Wrap"
+                     VerticalContentAlignment="Stretch"
                      VerticalScrollBarVisibility="Auto"
                      HorizontalScrollBarVisibility="Disabled"
                      ScrollViewer.CanContentScroll="True"

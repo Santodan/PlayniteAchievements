@@ -1739,11 +1739,28 @@ namespace PlayniteAchievements.Services.Tests
         [TestMethod]
         public async Task RefreshAsync_Recent_DoesNotDiscoverProviderOnlyOwnership()
         {
-            // Recent is strictly playtime-delta based; it never discovers provider-only libraries.
-            var cache = new FakeFriendCache();
+            // Without the DiscoverProviderOnlyGames opt-in, Recent is strictly playtime-delta based
+            // over library-mapped games; provider-only libraries are never discovered, even when the
+            // fetched ownership carries a positive unlock hint.
+            var cache = new FakeFriendCache
+            {
+                ProviderGamesMappedToPlayniteLibrary = false
+            };
             var friends = new FakeFriendsProvider("Steam")
             {
-                FriendsToReturn = new List<FriendIdentity> { MakeFriend("1") }
+                FriendsToReturn = new List<FriendIdentity> { MakeFriend("1") },
+                OwnedGamesToReturn = new List<FriendGameOwnership>
+                {
+                    new FriendGameOwnership
+                    {
+                        ProviderKey = "Steam",
+                        ExternalUserId = "1",
+                        AppId = 100,
+                        PlaytimeForeverMinutes = 50,
+                        AchievementUnlocksHint = 3,
+                        AchievementTotalHint = 10
+                    }
+                }
             };
             SeedCachedFriends(cache, "Steam", "1");
 
@@ -1759,6 +1776,7 @@ namespace PlayniteAchievements.Services.Tests
 
             Assert.AreEqual(1, friends.GetOwnedGamesCalls);
             Assert.AreEqual(0, friends.GetFriendGameDefinitionCalls);
+            Assert.AreEqual(0, friends.GetFriendGameAchievementsCalls);
             Assert.AreEqual(0, cache.SaveProviderOnlyOwnershipCalls);
         }
 
@@ -2117,6 +2135,234 @@ namespace PlayniteAchievements.Services.Tests
 
             Assert.AreEqual(1, friends.GetFriendGameAchievementsCalls);
             Assert.AreEqual(1, payload.FriendSummary.CandidatesRefreshed);
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_RecentWithProviderOnlyOptIn_ProbesStaleGameWithPositiveHint()
+        {
+            // Recent + DiscoverProviderOnlyGames: a provider-only game with no recency baseline is
+            // stale, so it goes through the unowned definition/probe phase like a Full run would;
+            // the probe finds unlocks and persists both the provider-only ownership and the rows.
+            var cache = new FakeFriendCache
+            {
+                ProviderGamesMappedToPlayniteLibrary = false
+            };
+            var friends = new FakeFriendsProvider("Steam")
+            {
+                FriendsToReturn = new List<FriendIdentity> { MakeFriend("1") },
+                OwnedGamesToReturn = new List<FriendGameOwnership>
+                {
+                    new FriendGameOwnership
+                    {
+                        ProviderKey = "Steam",
+                        ExternalUserId = "1",
+                        AppId = 100,
+                        PlaytimeForeverMinutes = 50,
+                        AchievementUnlocksHint = 3,
+                        AchievementTotalHint = 10
+                    }
+                },
+                AchievementRowsToReturn = new List<FriendAchievementRow>
+                {
+                    new FriendAchievementRow { ApiName = "A", Unlocked = true }
+                }
+            };
+            SeedCachedFriends(cache, "Steam", "1");
+
+            await CreateRuntime(cache)
+                .RefreshAsync(
+                    new IDataProvider[] { new FakeDataProvider("Steam", friends) },
+                    new FriendRefreshOptions
+                    {
+                        Scope = FriendRefreshScope.Recent,
+                        DiscoverProviderOnlyGames = true
+                    },
+                    reportProgress: null)
+                .ConfigureAwait(false);
+
+            Assert.AreEqual(1, friends.GetOwnedGamesCalls);
+            // Positive-hint provider-only games fetch their schema eagerly.
+            Assert.AreEqual(1, friends.GetFriendGameDefinitionCalls);
+            Assert.AreEqual(1, friends.GetFriendGameAchievementsCalls);
+            Assert.AreEqual(1, cache.SaveProviderOnlyOwnershipCalls);
+            Assert.AreEqual(1, cache.SaveFriendGameAchievementsCalls);
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_RecentWithProviderOnlyOptIn_SkipsZeroUnlockHintGame()
+        {
+            // The unlock-hint gate applies unchanged: a provider-only game the friend has zero
+            // unlocks in is dropped before any network fetch.
+            var cache = new FakeFriendCache
+            {
+                ProviderGamesMappedToPlayniteLibrary = false
+            };
+            var friends = new FakeFriendsProvider("Steam")
+            {
+                FriendsToReturn = new List<FriendIdentity> { MakeFriend("1") },
+                OwnedGamesToReturn = new List<FriendGameOwnership>
+                {
+                    new FriendGameOwnership
+                    {
+                        ProviderKey = "Steam",
+                        ExternalUserId = "1",
+                        AppId = 100,
+                        PlaytimeForeverMinutes = 50,
+                        AchievementUnlocksHint = 0,
+                        AchievementTotalHint = 10
+                    }
+                }
+            };
+            SeedCachedFriends(cache, "Steam", "1");
+
+            await CreateRuntime(cache)
+                .RefreshAsync(
+                    new IDataProvider[] { new FakeDataProvider("Steam", friends) },
+                    new FriendRefreshOptions
+                    {
+                        Scope = FriendRefreshScope.Recent,
+                        DiscoverProviderOnlyGames = true
+                    },
+                    reportProgress: null)
+                .ConfigureAwait(false);
+
+            Assert.AreEqual(0, friends.GetFriendGameDefinitionCalls);
+            Assert.AreEqual(0, friends.GetFriendGameAchievementsCalls);
+            Assert.AreEqual(0, cache.SaveProviderOnlyOwnershipCalls);
+            Assert.AreEqual(0, cache.SaveFriendGameAchievementsCalls);
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_RecentWithProviderOnlyOptIn_UnknownHintProbeLeavesNoTraceWhenEmpty()
+        {
+            // A provider-only game with no unlock hint is probed rather than silently dropped
+            // (same deferral as Full); an empty probe persists nothing, so the game is re-probed
+            // on later Recent runs.
+            var cache = new FakeFriendCache
+            {
+                ProviderGamesMappedToPlayniteLibrary = false
+            };
+            var friends = new FakeFriendsProvider("Steam")
+            {
+                FriendsToReturn = new List<FriendIdentity> { MakeFriend("1") },
+                OwnedGamesToReturn = new List<FriendGameOwnership>
+                {
+                    new FriendGameOwnership
+                    {
+                        ProviderKey = "Steam",
+                        ExternalUserId = "1",
+                        AppId = 100,
+                        PlaytimeForeverMinutes = 50
+                    }
+                }
+            };
+            SeedCachedFriends(cache, "Steam", "1");
+
+            await CreateRuntime(cache)
+                .RefreshAsync(
+                    new IDataProvider[] { new FakeDataProvider("Steam", friends) },
+                    new FriendRefreshOptions
+                    {
+                        Scope = FriendRefreshScope.Recent,
+                        DiscoverProviderOnlyGames = true
+                    },
+                    reportProgress: null)
+                .ConfigureAwait(false);
+
+            // Unknown-hint definitions defer to the probe; the empty probe never confirms an owner.
+            Assert.AreEqual(0, friends.GetFriendGameDefinitionCalls);
+            Assert.AreEqual(1, friends.GetFriendGameAchievementsCalls);
+            Assert.AreEqual(0, cache.SaveProviderOnlyOwnershipCalls);
+            Assert.AreEqual(0, cache.SaveFriendGameAchievementsCalls);
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_RecentWithProviderOnlyOptIn_SkipsRecencyFreshProviderOnlyGame()
+        {
+            // The recency delta applies to provider-only games too: unchanged playtime against the
+            // cached baseline means no probe and no scrape.
+            var cache = new FakeFriendCache
+            {
+                ProviderGamesMappedToPlayniteLibrary = false,
+                OwnershipRecency = new Dictionary<string, FriendOwnershipRecency>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["100"] = new FriendOwnershipRecency
+                    {
+                        PlaytimeForeverMinutes = 50,
+                        LastScrapedUtc = DateTime.UtcNow.AddDays(-1),
+                        LastScrapeStatus = "ok"
+                    }
+                }
+            };
+            var friends = new FakeFriendsProvider("Steam")
+            {
+                FriendsToReturn = new List<FriendIdentity> { MakeFriend("1") },
+                OwnedGamesToReturn = new List<FriendGameOwnership>
+                {
+                    new FriendGameOwnership
+                    {
+                        ProviderKey = "Steam",
+                        ExternalUserId = "1",
+                        AppId = 100,
+                        PlaytimeForeverMinutes = 50,
+                        AchievementUnlocksHint = 3,
+                        AchievementTotalHint = 10
+                    }
+                }
+            };
+            SeedCachedFriends(cache, "Steam", "1");
+
+            await CreateRuntime(cache)
+                .RefreshAsync(
+                    new IDataProvider[] { new FakeDataProvider("Steam", friends) },
+                    new FriendRefreshOptions
+                    {
+                        Scope = FriendRefreshScope.Recent,
+                        DiscoverProviderOnlyGames = true
+                    },
+                    reportProgress: null)
+                .ConfigureAwait(false);
+
+            Assert.AreEqual(1, friends.GetOwnedGamesCalls);
+            Assert.AreEqual(0, friends.GetFriendGameDefinitionCalls);
+            Assert.AreEqual(0, friends.GetFriendGameAchievementsCalls);
+            Assert.AreEqual(0, cache.SaveProviderOnlyOwnershipCalls);
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_RecentWithProviderOnlyOptIn_OwnershipFetchFails_SkipsProviderOnlyWork()
+        {
+            // Fail closed extends to provider-only discovery: without a fresh ownership snapshot
+            // there is nothing to probe, and the friend's cached backlog is not scraped blind.
+            var cache = new FakeFriendCache
+            {
+                ProviderGamesMappedToPlayniteLibrary = false,
+                Candidates = new List<FriendRefreshCandidate> { MakeCandidate("1", 100) }
+            };
+            var friends = new FakeFriendsProvider("Steam")
+            {
+                FriendsToReturn = new List<FriendIdentity> { MakeFriend("1") },
+                OwnedGamesResult = FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>
+                    .Failed("profile temporarily unavailable")
+            };
+            SeedCachedFriends(cache, "Steam", "1");
+
+            var payload = await CreateRuntime(cache)
+                .RefreshAsync(
+                    new IDataProvider[] { new FakeDataProvider("Steam", friends) },
+                    new FriendRefreshOptions
+                    {
+                        Scope = FriendRefreshScope.Recent,
+                        DiscoverProviderOnlyGames = true
+                    },
+                    reportProgress: null)
+                .ConfigureAwait(false);
+
+            Assert.AreEqual(1, friends.GetOwnedGamesCalls);
+            Assert.AreEqual(0, friends.GetFriendGameDefinitionCalls);
+            Assert.AreEqual(0, friends.GetFriendGameAchievementsCalls);
+            Assert.AreEqual(0, cache.SaveProviderOnlyOwnershipCalls);
+            Assert.AreEqual(0, payload.FriendSummary.CandidatesRefreshed);
         }
 
         [TestMethod]

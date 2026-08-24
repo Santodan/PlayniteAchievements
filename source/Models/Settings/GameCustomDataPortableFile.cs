@@ -33,6 +33,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public List<string> SummaryFilteredAchievementApiNames { get; set; }
 
+        public List<string> GoalAchievementApiNames { get; set; }
+
         public Dictionary<string, string> AchievementUnlockedIconOverrides { get; set; }
 
         public Dictionary<string, string> AchievementLockedIconOverrides { get; set; }
@@ -54,6 +56,8 @@ namespace PlayniteAchievements.Models.Settings
         public GameNotificationAppearanceOverride NotificationAppearanceOverride { get; set; }
 
         public ProviderOverrideData ProviderOverride { get; set; }
+
+        public string ExophaseEnrichmentSlugOverride { get; set; }
 
         public ManualAchievementLink ManualLink { get; set; }
 
@@ -85,6 +89,9 @@ namespace PlayniteAchievements.Models.Settings
                 SummaryFilteredAchievementApiNames = SummaryFilteredAchievementApiNames != null
                     ? new List<string>(SummaryFilteredAchievementApiNames)
                     : null,
+                GoalAchievementApiNames = GoalAchievementApiNames != null
+                    ? new List<string>(GoalAchievementApiNames)
+                    : null,
                 AchievementUnlockedIconOverrides = AchievementUnlockedIconOverrides != null
                     ? new Dictionary<string, string>(AchievementUnlockedIconOverrides, StringComparer.OrdinalIgnoreCase)
                     : null,
@@ -104,6 +111,7 @@ namespace PlayniteAchievements.Models.Settings
                 ExophaseSlugOverride = ExophaseSlugOverride,
                 NotificationAppearanceOverride = NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = ProviderOverride?.Clone(),
+                ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
                 ManualLink = ManualLink?.Clone()
             };
         }

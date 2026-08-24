@@ -103,6 +103,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showCountdownBar = true;
         private string _countdownBarColor;
         private FrameVignetteStyle _frameVignette = FrameVignetteStyle.Full;
+        private double? _frameVignetteStrength;
         private List<string> _lineOrder;
         private string _fontFamily;
         private string _headerFontFamily;
@@ -309,6 +310,18 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _frameVignette;
             set => SetValue(ref _frameVignette, value);
+        }
+
+        /// <summary>
+        /// Vignette strength (0-100; 50 matches the built-in vignette, higher darkens toward
+        /// solid, 0 removes the darkening), or null for the default (50). Scales both the radial
+        /// vignette and the bottom wash selected by <see cref="FrameVignette"/>. Frame surface
+        /// only; the toast has its own card chrome and ignores this.
+        /// </summary>
+        public double? FrameVignetteStrength
+        {
+            get => _frameVignetteStrength;
+            set => SetValue(ref _frameVignetteStrength, value);
         }
 
         /// <summary>
@@ -689,6 +702,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowCountdownBar = ShowCountdownBar,
                 CountdownBarColor = CountdownBarColor,
                 FrameVignette = FrameVignette,
+                FrameVignetteStrength = FrameVignetteStrength,
                 LineOrder = LineOrder != null ? new List<string>(LineOrder) : null,
                 FontFamily = FontFamily,
                 HeaderFontFamily = HeaderFontFamily,

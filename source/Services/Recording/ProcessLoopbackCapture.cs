@@ -1,12 +1,29 @@
 using System;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using NAudio.Wave;
 using PlayniteAchievements.Common;
 
 namespace PlayniteAchievements.Services.Recording
 {
+    /// <summary>One captured packet and the instant its audio was rendered.</summary>
+    internal sealed class StampedPacketEventArgs : EventArgs
+    {
+        public StampedPacketEventArgs(byte[] buffer, int bytes, DateTime? captureUtc)
+        {
+            Buffer = buffer;
+            Bytes = bytes;
+            CaptureUtc = captureUtc;
+        }
+
+        public byte[] Buffer { get; }
+
+        public int Bytes { get; }
+
+        public DateTime? CaptureUtc { get; }
+    }
+
     /// <summary>
     /// Captures the audio of a single process tree (the game) via the Windows Application Loopback
     /// API — <c>ActivateAudioInterfaceAsync</c> against the virtual process-loopback device with
@@ -15,11 +32,25 @@ namespace PlayniteAchievements.Services.Recording
     /// Windows 10 build 19041+; callers gate on <see cref="IsSupported"/> and fall back to full
     /// system audio when it's unavailable or activation fails. The mixed stream is delivered as
     /// 48 kHz stereo 32-bit float, polled off a background thread.
+    /// <para>
+    /// The same client also captures one render <em>endpoint</em> (<see cref="ForEndpoint"/>):
+    /// an endpoint id is itself a device interface path, so only the activation params and the
+    /// OS requirement differ. Sharing the client is what keeps the two tracks comparable — same
+    /// poll loop, same QPC packet stamps, same gap padding, and the same audio-engine conversion
+    /// into 48 kHz stereo float — which is what lets one be cancelled from the other.
+    /// </para>
     /// </summary>
     internal sealed class ProcessLoopbackCapture : IWaveIn
     {
         private const string VirtualAudioDeviceProcessLoopback = "VAD\\Process_Loopback";
         private const int AUDCLNT_STREAMFLAGS_LOOPBACK = 0x00020000;
+
+        // Let the audio engine convert an endpoint's own mix format (which can be 44.1 kHz, or
+        // multichannel on a controller endpoint) into the format below, instead of failing the
+        // Initialize. The virtual process-loopback device needs neither flag: it mixes to whatever
+        // format is asked for.
+        private const int AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM = unchecked((int)0x80000000);
+        private const int AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY = 0x08000000;
         private const int AUDCLNT_SHAREMODE_SHARED = 0;
         private const uint WAVE_FORMAT_IEEE_FLOAT = 3;
         // ActivationType: 0 = default, 1 = process loopback. Mode: 0 = include target tree.
@@ -33,19 +64,31 @@ namespace PlayniteAchievements.Services.Recording
         // The most dropped audio one gap will stand silence in for.
         private const int MaxGapSeconds = 5;
 
+        private const int CLSCTX_ALL = 23;
+
+        private static readonly Guid MMDeviceEnumeratorClsid = new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E");
         private static readonly Guid IID_IAudioClient = new Guid("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
         private static readonly Guid IID_IAudioCaptureClient = new Guid("C8ADBD64-E71E-48A0-A4DE-185C395CD317");
 
         private readonly int _processId;
         private readonly int _mode;
+        private readonly bool _endpointCapture;
         private IAudioClient _audioClient;
         private IAudioCaptureClient _captureClient;
         private Thread _pollThread;
         private volatile bool _capturing;
         private bool _disposed;
+        private int _clientsReleased;
 
         public event EventHandler<WaveInEventArgs> DataAvailable;
         public event EventHandler<StoppedEventArgs> RecordingStopped;
+
+        /// <summary>
+        /// Every packet with the instant its audio was rendered, from the same QPC stamp
+        /// <see cref="FirstPacketCaptureUtc"/> comes from. Null on a packet whose stamp the driver
+        /// did not report usably.
+        /// </summary>
+        public event EventHandler<StampedPacketEventArgs> StampedDataAvailable;
 
         /// <summary>
         /// When the first delivered packet's audio was actually rendered, from the QPC stamp
@@ -111,17 +154,41 @@ namespace PlayniteAchievements.Services.Recording
                 return null;
             }
 
-            var now100ns = (long)(Stopwatch.GetTimestamp() * (10_000_000d / Stopwatch.Frequency));
-            var age100ns = now100ns - qpcPosition100ns;
+            var utc = CaptureTimelineClock.FromQpc100ns(qpcPosition100ns, out var age100ns);
 
-            // A packet is at most a second or so old; anything outside that is a timebase we do
-            // not understand. Negative means the stamp is in the future, which is equally wrong.
-            if (age100ns < 0 || age100ns > 10_000_000L)
+            // A packet is at most a second away. A small future presentation time is valid for a
+            // render-loopback packet and must not force AwaitAnchor onto its 750 ms fallback.
+            if (Math.Abs(age100ns) > 10_000_000L)
             {
                 return null;
             }
 
-            return CaptureTimelineClock.UtcNow.AddTicks(-age100ns);
+            return utc;
+        }
+
+        /// <summary>
+        /// The same conversion for placing a packet on a timeline rather than anchoring one. Two
+        /// differences, both because a consumer here only needs stamps to be consistent with each
+        /// other: a stamp may sit in the FUTURE, which is normal for a render endpoint's loopback —
+        /// the audio being captured is about to be played, so it carries its presentation instant —
+        /// and the window is wider. Measured on a real endpoint, the strict anchoring window accepted
+        /// 3 packets in 432; the rest were rejected purely for being ahead of now.
+        /// </summary>
+        private static DateTime? QpcToUtcForPlacement(long qpcPosition100ns)
+        {
+            if (qpcPosition100ns <= 0)
+            {
+                return null;
+            }
+
+            var utc = CaptureTimelineClock.FromQpc100ns(qpcPosition100ns, out var age100ns);
+            if (Math.Abs(age100ns) > 20_000_000L)
+            {
+                // Two seconds out in either direction is a timebase we do not understand.
+                return null;
+            }
+
+            return utc;
         }
 
         /// <summary>48 kHz stereo 32-bit IEEE float — the format the loopback client mixes the process to.</summary>
@@ -148,8 +215,46 @@ namespace PlayniteAchievements.Services.Recording
         {
             _processId = processId;
             _mode = includeProcessTree ? IncludeTargetProcessTree : ExcludeTargetProcessTree;
-            _audioClient = ActivateProcessLoopbackClient(processId, _mode);
-            InitializeClient();
+            try
+            {
+                _audioClient = ActivateProcessLoopbackClient(processId, _mode);
+                InitializeClient();
+            }
+            catch
+            {
+                ReleaseClients();
+                throw;
+            }
+        }
+
+        private ProcessLoopbackCapture(string deviceId)
+        {
+            _endpointCapture = true;
+            try
+            {
+                _audioClient = ActivateEndpointClient(deviceId);
+                InitializeClient();
+            }
+            catch
+            {
+                ReleaseClients();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Captures everything rendered to one endpoint, by its id (an endpoint id is the device
+        /// interface path <c>ActivateAudioInterfaceAsync</c> takes). Unlike process loopback this
+        /// needs no particular Windows build — plain endpoint loopback is as old as WASAPI.
+        /// </summary>
+        public static ProcessLoopbackCapture ForEndpoint(string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                throw new ArgumentNullException(nameof(deviceId));
+            }
+
+            return new ProcessLoopbackCapture(deviceId);
         }
 
         private IAudioClient ActivateProcessLoopbackClient(int processId, int mode)
@@ -177,10 +282,67 @@ namespace PlayniteAchievements.Services.Recording
                     blobData = paramPtr,
                 };
 
-                var handler = new ActivationHandler();
+                return ActivateAudioClient(VirtualAudioDeviceProcessLoopback, prop);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(paramPtr);
+            }
+        }
+
+        /// <summary>
+        /// Activates a real endpoint through the device enumerator. Not
+        /// <c>ActivateAudioInterfaceAsync</c>: that one takes a device INTERFACE PATH
+        /// (<c>\\?\SWD#MMDEVAPI#...</c>), and handing it an endpoint id fails with
+        /// ERROR_FILE_NOT_FOUND. <c>IMMDevice::Activate</c> takes the endpoint itself, needs no
+        /// path translation, and is not gated on a Windows build.
+        /// </summary>
+        private static IAudioClient ActivateEndpointClient(string deviceId)
+        {
+            // Created from the CLSID rather than through a [ComImport] coclass: NAudio declares its
+            // own class for the same CLSID, and two managed types claiming one CLSID make the
+            // activation hand back whichever was registered first — which then fails to cast.
+            var enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(
+                Type.GetTypeFromCLSID(MMDeviceEnumeratorClsid));
+            try
+            {
+                var hr = enumerator.GetDevice(deviceId, out var device);
+                if (hr != 0 || device == null)
+                {
+                    Marshal.ThrowExceptionForHR(hr != 0 ? hr : unchecked((int)0x80004005));
+                }
+
+                try
+                {
+                    var iid = IID_IAudioClient;
+                    hr = device.Activate(ref iid, CLSCTX_ALL, IntPtr.Zero, out var client);
+                    if (hr != 0 || client == null)
+                    {
+                        Marshal.ThrowExceptionForHR(hr != 0 ? hr : unchecked((int)0x80004005));
+                    }
+
+                    return (IAudioClient)client;
+                }
+                finally
+                {
+                    Marshal.ReleaseComObject(device);
+                }
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(enumerator);
+            }
+        }
+
+        private static IAudioClient ActivateAudioClient(string devicePath, PROPVARIANT activationParams)
+        {
+            var handler = new ActivationHandler();
+            IActivateAudioInterfaceAsyncOperation op = null;
+            try
+            {
                 var iid = IID_IAudioClient;
                 var hr = ActivateAudioInterfaceAsync(
-                    VirtualAudioDeviceProcessLoopback, ref iid, ref prop, handler, out var op);
+                    devicePath, ref iid, ref activationParams, handler, out op);
                 if (hr != 0)
                 {
                     Marshal.ThrowExceptionForHR(hr);
@@ -193,14 +355,18 @@ namespace PlayniteAchievements.Services.Recording
 
                 if (handler.ActivateHr != 0 || handler.Interface == null)
                 {
-                    Marshal.ThrowExceptionForHR(handler.ActivateHr != 0 ? handler.ActivateHr : unchecked((int)0x80004005));
+                    Marshal.ThrowExceptionForHR(
+                        handler.ActivateHr != 0 ? handler.ActivateHr : unchecked((int)0x80004005));
                 }
 
                 return (IAudioClient)handler.Interface;
             }
             finally
             {
-                Marshal.FreeHGlobal(paramPtr);
+                if (op != null)
+                {
+                    Marshal.ReleaseComObject(op);
+                }
             }
         }
 
@@ -221,9 +387,18 @@ namespace PlayniteAchievements.Services.Recording
             try
             {
                 Marshal.StructureToPtr(format, formatPtr, false);
-                // 200 ms buffer (100-ns units). Process loopback requires shared mode + the loopback flag.
+
+                // 200 ms buffer (100-ns units). Both modes require shared mode + the loopback flag;
+                // an endpoint additionally needs the engine's converter, because its own mix format
+                // is whatever the device runs at.
+                var flags = AUDCLNT_STREAMFLAGS_LOOPBACK;
+                if (_endpointCapture)
+                {
+                    flags |= AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
+                }
+
                 var hr = _audioClient.Initialize(
-                    AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, 2_000_000, 0, formatPtr, Guid.Empty);
+                    AUDCLNT_SHAREMODE_SHARED, flags, 2_000_000, 0, formatPtr, IntPtr.Zero);
                 if (hr != 0)
                 {
                     Marshal.ThrowExceptionForHR(hr);
@@ -256,7 +431,14 @@ namespace PlayniteAchievements.Services.Recording
             _nextDevicePosition = -1;
             _audioClient.Start();
             _capturing = true;
-            _pollThread = new Thread(PollLoop) { IsBackground = true, Name = "PA-ProcLoopback" };
+            _pollThread = new Thread(PollLoop)
+            {
+                IsBackground = true,
+                Name = "PA-ProcLoopback",
+                // Background capture work. WASAPI buffers the packets this loop drains, so yielding
+                // to the game and the shell costs latency here, not audio.
+                Priority = ThreadPriority.BelowNormal,
+            };
             _pollThread.Start();
         }
 
@@ -285,9 +467,11 @@ namespace PlayniteAchievements.Services.Recording
                         }
 
                         var bytes = (int)framesAvailable * blockAlign;
+
+                        // Read before ReleaseBuffer so the stamp still belongs to this packet.
+                        var packetUtc = bytes > 0 ? QpcToUtcForPlacement(qpcPosition) : null;
                         if (_firstPacketCaptureUtc == null && bytes > 0)
                         {
-                            // Read before ReleaseBuffer so the stamp still belongs to this packet.
                             _firstPacketCaptureUtc = QpcToUtc(qpcPosition);
                         }
 
@@ -313,6 +497,13 @@ namespace PlayniteAchievements.Services.Recording
 
                         if (bytes > 0)
                         {
+                            // Stamped delivery carries the packet's own capture instant, so a
+                            // consumer can place it on a timeline of its own rather than inferring
+                            // its position from arrival order and its own pacing. Gap padding is not
+                            // reported here: a consumer placing by stamp derives gaps from the
+                            // positions themselves, and would otherwise count them twice.
+                            StampedDataAvailable?.Invoke(
+                                this, new StampedPacketEventArgs(buffer, bytes, packetUtc));
                             DataAvailable?.Invoke(this, new WaveInEventArgs(buffer, bytes));
                         }
 
@@ -341,8 +532,9 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             _capturing = false;
-            try { _pollThread?.Join(500); } catch { }
+            // Stop the native engine first so a poll blocked in an audio-client call can return.
             try { _audioClient?.Stop(); } catch { }
+            try { _pollThread?.Join(500); } catch { }
         }
 
         public void Dispose()
@@ -354,6 +546,29 @@ namespace PlayniteAchievements.Services.Recording
 
             _disposed = true;
             StopRecording();
+            var poll = _pollThread;
+            if (poll != null && poll.IsAlive)
+            {
+                // Never release COM interfaces while PollLoop can still call through them. A slow
+                // driver may outlive the bounded Dispose call, so retain ownership until it exits.
+                Task.Run(() =>
+                {
+                    try { poll.Join(); } catch { }
+                    ReleaseClients();
+                });
+                return;
+            }
+
+            ReleaseClients();
+        }
+
+        private void ReleaseClients()
+        {
+            if (Interlocked.Exchange(ref _clientsReleased, 1) != 0)
+            {
+                return;
+            }
+
             if (_captureClient != null)
             {
                 Marshal.ReleaseComObject(_captureClient);
@@ -414,6 +629,45 @@ namespace PlayniteAchievements.Services.Recording
             public ushort cbSize;
         }
 
+        [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"),
+         InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IMMDeviceEnumerator
+        {
+            [PreserveSig]
+            int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr devices);
+
+            [PreserveSig]
+            int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice device);
+
+            [PreserveSig]
+            int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
+
+            [PreserveSig]
+            int RegisterEndpointNotificationCallback(IntPtr client);
+
+            [PreserveSig]
+            int UnregisterEndpointNotificationCallback(IntPtr client);
+        }
+
+        [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"),
+         InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IMMDevice
+        {
+            [PreserveSig]
+            int Activate(
+                ref Guid interfaceId, int classContext, IntPtr activationParams,
+                [MarshalAs(UnmanagedType.IUnknown)] out object instance);
+
+            [PreserveSig]
+            int OpenPropertyStore(int access, out IntPtr properties);
+
+            [PreserveSig]
+            int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+
+            [PreserveSig]
+            int GetState(out int state);
+        }
+
         [ComImport, Guid("41D949AB-9862-444A-80F6-C261334DA5EB"),
          InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         private interface IActivateAudioInterfaceCompletionHandler
@@ -435,7 +689,9 @@ namespace PlayniteAchievements.Services.Recording
         private interface IAudioClient
         {
             [PreserveSig]
-            int Initialize(int shareMode, int streamFlags, long bufferDuration, long periodicity, IntPtr format, Guid audioSessionGuid);
+            int Initialize(
+                int shareMode, int streamFlags, long bufferDuration, long periodicity,
+                IntPtr format, IntPtr audioSessionGuid);
 
             [PreserveSig]
             int GetBufferSize(out uint bufferFrames);

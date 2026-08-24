@@ -174,13 +174,37 @@ namespace PlayniteAchievements.Services.Tests
         [DataRow(FriendRefreshScope.Shared, false)]
         [DataRow(FriendRefreshScope.Installed, false)]
         [DataRow(FriendRefreshScope.SelectedGame, false)]
-        public void FriendRefreshPolicy_DiscoversProviderOnlyGames_OnlyForFullScope(
+        public void FriendRefreshPolicy_DiscoversProviderOnlyGames_OnlyForFullScopeByDefault(
             FriendRefreshScope scope,
             bool expected)
         {
             var options = new FriendRefreshOptions { Scope = scope };
 
             Assert.AreEqual(expected, options.DiscoversProviderOnlyGames());
+        }
+
+        [TestMethod]
+        public void FriendRefreshPolicy_DiscoversProviderOnlyGames_AllowsRecentOptIn()
+        {
+            var options = new FriendRefreshOptions
+            {
+                Scope = FriendRefreshScope.Recent,
+                DiscoverProviderOnlyGames = true
+            };
+
+            Assert.IsTrue(options.DiscoversProviderOnlyGames());
+        }
+
+        [TestMethod]
+        public void FriendRefreshOptions_Clone_PreservesDiscoverProviderOnlyGames()
+        {
+            var options = new FriendRefreshOptions
+            {
+                Scope = FriendRefreshScope.Recent,
+                DiscoverProviderOnlyGames = true
+            };
+
+            Assert.IsTrue(options.Clone().DiscoverProviderOnlyGames);
         }
 
         [TestMethod]
@@ -508,6 +532,73 @@ namespace PlayniteAchievements.Services.Tests
 
             Assert.IsTrue(resolved.ShouldExecute);
             Assert.AreEqual(expectedScope, resolved.FriendOptions.Scope);
+        }
+
+        [DataTestMethod]
+        [DataRow(true, true)]
+        [DataRow(false, false)]
+        public void Resolve_FriendsRecent_SetsDiscoverProviderOnlyGamesFromUnownedSetting(
+            bool includeUnownedFriendGames,
+            bool expected)
+        {
+            var planner = CreatePlanner(Array.Empty<Game>(), includeUnownedFriendGames);
+            var friendProvider = new FakeProvider("Steam", new FakeFriendsProvider("Steam"));
+
+            var resolved = planner.Resolve(
+                new RefreshRequest { Mode = RefreshModeType.FriendsRecent },
+                new IDataProvider[] { friendProvider });
+
+            Assert.IsTrue(resolved.ShouldExecute);
+            Assert.AreEqual(FriendRefreshScope.Recent, resolved.FriendOptions.Scope);
+            Assert.AreEqual(expected, resolved.FriendOptions.DiscoverProviderOnlyGames);
+            Assert.AreEqual(expected, resolved.FriendOptions.DiscoversProviderOnlyGames());
+        }
+
+        [TestMethod]
+        public void Resolve_FriendsCustomRecentScope_SetsDiscoverProviderOnlyGamesFromUnownedSetting()
+        {
+            // The per-friend context-menu refresh path issues a FriendsCustom request with
+            // Recent scope; the opt-in must apply there the same as the global Recent mode.
+            var planner = CreatePlanner(Array.Empty<Game>(), includeUnownedFriendGames: true);
+            var friendProvider = new FakeProvider("Steam", new FakeFriendsProvider("Steam"));
+
+            var resolved = planner.Resolve(
+                new RefreshRequest
+                {
+                    Mode = RefreshModeType.FriendsCustom,
+                    Options = RefreshOptions.FromFriend(new FriendCustomRefreshOptions
+                    {
+                        ProviderKeys = new[] { "Steam" },
+                        Scope = FriendRefreshScope.Recent,
+                        FriendAccounts = new[] { FriendAccountRef.From("Steam", "alice") },
+                        FriendExternalUserIds = new[] { "alice" }
+                    })
+                },
+                new IDataProvider[] { friendProvider });
+
+            Assert.IsTrue(resolved.ShouldExecute);
+            Assert.AreEqual(FriendRefreshScope.Recent, resolved.FriendOptions.Scope);
+            Assert.IsTrue(resolved.FriendOptions.DiscoverProviderOnlyGames);
+        }
+
+        [DataTestMethod]
+        [DataRow(RefreshModeType.FriendsShared)]
+        [DataRow(RefreshModeType.FriendsInstalled)]
+        public void Resolve_NonRecentFriendModes_DoNotSetDiscoverProviderOnlyGames(
+            RefreshModeType mode)
+        {
+            var planner = CreatePlanner(
+                new[] { new Game { Id = Guid.NewGuid(), Name = "Installed", IsInstalled = true } },
+                includeUnownedFriendGames: true);
+            var friendProvider = new FakeProvider("Steam", new FakeFriendsProvider("Steam"));
+
+            var resolved = planner.Resolve(
+                new RefreshRequest { Mode = mode },
+                new IDataProvider[] { friendProvider });
+
+            Assert.IsTrue(resolved.ShouldExecute);
+            Assert.IsFalse(resolved.FriendOptions.DiscoverProviderOnlyGames);
+            Assert.IsFalse(resolved.FriendOptions.DiscoversProviderOnlyGames());
         }
 
         [TestMethod]

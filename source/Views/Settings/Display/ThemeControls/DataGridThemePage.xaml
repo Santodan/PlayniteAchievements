@@ -55,8 +55,11 @@
                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
                                        Style="{StaticResource ContextLabelStyle}"/>
+                            <!-- The theme grid renders one game's achievements and never swaps icons
+                                 for cover art, so the cover images row has nothing to act on. -->
                             <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.Achievement[DesktopTheme]}"
                                                         ShowCategoryModeRow="True"
+                                                        ShowCoverImagesRow="False"
                                                         ShowRarityGlowRow="False"
                                                         ShowColorNamesRow="False"
                                                         ShowSortRow="False"/>
@@ -71,7 +74,12 @@
                             <TextBlock Text="{DynamicResource LOCPlayAch_Overview_GameSummaries}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
-                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.GameSummaries[DesktopTheme]}"/>
+                            <!-- The theme grid's game summary is a fixed single header row without a
+                                 control bar, so the control bar, row limit and sort rows are inert. -->
+                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.GameSummaries[DesktopTheme]}"
+                                                        ShowControlBarRow="False"
+                                                        ShowMaxRowsRow="False"
+                                                        ShowSortRow="False"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CategoryGrid}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>

@@ -20,6 +20,18 @@ namespace PlayniteAchievements.Services.Capture
             int relX, int relY, int cardW, int cardH,
             int clientW, int clientH, int frameW, int frameH)
         {
+            return ScaleRect((double)relX, relY, cardW, cardH, clientW, clientH, frameW, frameH);
+        }
+
+        /// <summary>
+        /// Sub-pixel position variant: the synthesized corner-plus-slide position carries fractional
+        /// physical pixels, and rounding once here — after the frame scaling — is what keeps a slide
+        /// smooth instead of stair-stepped by an early integer snap.
+        /// </summary>
+        public static Rectangle ScaleRect(
+            double relX, double relY, int cardW, int cardH,
+            int clientW, int clientH, int frameW, int frameH)
+        {
             if (clientW <= 0 || clientH <= 0 || frameW <= 0 || frameH <= 0)
             {
                 return Rectangle.Empty;
@@ -32,6 +44,29 @@ namespace PlayniteAchievements.Services.Capture
             var w = Math.Max(1, (int)Math.Round(cardW * sx));
             var h = Math.Max(1, (int)Math.Round(cardH * sy));
             return new Rectangle(x, y, w, h);
+        }
+
+        /// <summary>
+        /// Adds a premultiplied-BGRA difference layer into <paramref name="target"/>, scaled:
+        /// target = clamp(target + layer × scale), all four channels (the layer's alpha is the
+        /// halo's alpha). Reconstructs an effect's contribution on top of an effect-stripped card
+        /// render — the layer is non-negative by construction (with-effect minus without), so this
+        /// only ever brightens. A non-positive scale is a no-op.
+        /// </summary>
+        public static void AddScaled(byte[] target, byte[] layer, double scale)
+        {
+            if (target == null || layer == null || target.Length != layer.Length || scale <= 0)
+            {
+                return;
+            }
+
+            // Fixed-point 8.8 multiplier; clamped well past any sane pulse overshoot.
+            var factor = (int)Math.Round(Math.Min(scale, 4.0) * 256.0);
+            for (var i = 0; i < target.Length; i++)
+            {
+                var value = target[i] + ((layer[i] * factor) >> 8);
+                target[i] = value > 255 ? (byte)255 : (byte)value;
+            }
         }
 
         /// <summary>

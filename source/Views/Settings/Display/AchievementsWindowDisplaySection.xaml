@@ -38,7 +38,12 @@
                                Style="{StaticResource SubSectionHeaderStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                     <Border Style="{StaticResource SettingGroupCardStyle}">
-                        <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.GameSummaries[ViewAchievements]}"/>
+                        <!-- The window's game summary is a fixed single row without a control bar, so the
+                             control bar, row limit and sort rows have nothing to act on. -->
+                        <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.GameSummaries[ViewAchievements]}"
+                                                    ShowControlBarRow="False"
+                                                    ShowMaxRowsRow="False"
+                                                    ShowSortRow="False"/>
                     </Border>
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Achievements}"

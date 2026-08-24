@@ -32,13 +32,26 @@
     <LangVersion>preview</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
+    <!-- No symbols in the packed .pext: the .pdb was 3.58 MB of a 10.36 MB package, and logged
+         exceptions are overwhelmingly environmental (HTTP/socket/IO/JSON), where the exception type
+         and the method name in the trace are the whole diagnosis. Traces still carry exception type,
+         message, inner exceptions, and namespace-qualified method names; only the trailing
+         "in [file]:line N" is lost. DebugType=portable is NOT an alternative: .NET Framework cannot
+         read portable PDBs, so it drops line numbers anyway at a fifth of the size. Build Debug to
+         get symbols while developing. -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <LangVersion>preview</LangVersion>
+    <!-- Release output is what Toolbox packs into the .pext. Suppress the .pdb and IntelliSense .xml
+         files MSBuild otherwise copies next to each referenced assembly: neither is loaded at runtime,
+         and together they accounted for 1.59 MB of the 10.36 MB 3.1.2 package. This also cleared an
+         orphaned protobuf-net.pdb, whose DLL Toolbox already strips because Playnite provides it. -->
+    <AllowedReferenceRelatedFileExtensions>none</AllowedReferenceRelatedFileExtensions>
   </PropertyGroup>
   <ItemGroup>
     <!-- Plugin dependencies -->
@@ -143,6 +156,10 @@
       <HintPath>packages\VirtualizingWrapPanel.1.5.4\lib\net45\VirtualizingWrapPanel.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="XamlAnimatedGif">
+      <HintPath>packages\XamlAnimatedGif.2.3.2\lib\net45\XamlAnimatedGif.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Playnite.SDK, Version=6.14.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>packages\PlayniteSDK.6.14.0\lib\net462\Playnite.SDK.dll</HintPath>
       <Private>False</Private>
@@ -210,9 +227,9 @@
     <Resource Include="Resources\BrandingIcon.png" />
     <Resource Include="Resources\HiddenAchIcon.png" />
     <Resource Include="Resources\UnlockedAchIcon.png" />
-    <Content Include="Resources\HiddenAchIcon.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <!-- UnlockedAchIcon is needed as a loose file too: HoyoverseDefinitionClient resolves it by path
+         as the icon fallback. HiddenAchIcon is only ever loaded through its pack:// URI, so it ships
+         as a Resource alone. -->
     <Content Include="Resources\UnlockedAchIcon.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

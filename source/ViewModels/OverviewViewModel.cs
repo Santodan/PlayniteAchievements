@@ -3125,6 +3125,14 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            // A reorder-only change (goals) is already applied to the rows in place by
+            // ReapplyGoalOrder. Queuing a delta would rebuild the selected game and re-run the
+            // control bar, discarding the filters the user currently has applied.
+            if (!e.AffectsSummaryData)
+            {
+                return;
+            }
+
             QueueOverviewDelta(isFullReset: false, key: e.PlayniteGameId.ToString("D"));
         }
 
@@ -3484,6 +3492,115 @@ namespace PlayniteAchievements.ViewModels
                 _settings?.Persisted?.OverviewRecentAchievementsGridMaxRows);
 
             CollectionHelper.Replace(RecentAchievements, displayItems);
+        }
+
+        /// <summary>
+        /// Re-stamps the capstone flag on the selected game's rows. Valid only when a capstone is
+        /// being set, where every other row becomes a non-capstone.
+        /// </summary>
+        public bool ApplyCapstone(string capstoneApiName)
+        {
+            if (_allSelectedGameAchievements == null ||
+                _allSelectedGameAchievements.Count == 0 ||
+                string.IsNullOrWhiteSpace(capstoneApiName))
+            {
+                return false;
+            }
+
+            foreach (var item in _allSelectedGameAchievements)
+            {
+                if (item != null)
+                {
+                    item.IsCapstone = string.Equals(
+                        (item.ApiName ?? string.Empty).Trim(),
+                        capstoneApiName.Trim(),
+                        StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Re-sorts the selected game's rows after a goal toggle. Goal state only affects
+        /// ordering, so this avoids the full selected-game rebuild.
+        /// </summary>
+        public bool ReapplyGoalOrder()
+        {
+            if (_allSelectedGameAchievements == null || _allSelectedGameAchievements.Count == 0)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(_selectedGameSortPath))
+            {
+                // Re-runs the active column sort and re-partitions goals, then syncs.
+                SortSelectedGameAchievements(_selectedGameSortPath, _selectedGameSortDirection);
+                return true;
+            }
+
+            // No column sort, so re-run exactly what the load path does: restore the natural order
+            // as the base (the configured sort may preserve source order), apply the configured
+            // default sort, then pin goals. Partitioning alone is stable, so without this a
+            // removed goal would stay stranded at the top.
+            RestoreSelectedGameNaturalOrder();
+            AchievementSortHelper.ApplyConfiguredDefaultSort(
+                _filteredSelectedGameAchievements,
+                _settings?.Persisted,
+                AchievementSortSurface.OverviewSelectedGame,
+                AchievementSortScope.GameAchievements,
+                stableOrder: AchievementSortHelper.CreateStableOrderMap(_filteredSelectedGameAchievements));
+            AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
+            AchievementSortHelper.ApplyGoalsFirst(_filteredSelectedGameAchievements);
+            SyncSelectedGameAchievementsDisplay();
+            return true;
+        }
+
+        /// <summary>
+        /// Re-orders the selected game's live lists to follow the natural-order snapshot taken
+        /// when the game loaded. Items missing from the snapshot keep their relative position at
+        /// the end.
+        /// </summary>
+        private void RestoreSelectedGameNaturalOrder()
+        {
+            var natural = _selectedGameDefaultOrderedAchievements;
+            if (natural == null || natural.Count == 0)
+            {
+                return;
+            }
+
+            var indexByItem = new Dictionary<AchievementDisplayItem, int>();
+            for (var i = 0; i < natural.Count; i++)
+            {
+                var item = natural[i];
+                if (item != null && !indexByItem.ContainsKey(item))
+                {
+                    indexByItem[item] = i;
+                }
+            }
+
+            SortByNaturalOrder(_allSelectedGameAchievements, indexByItem);
+            SortByNaturalOrder(_filteredSelectedGameAchievements, indexByItem);
+        }
+
+        private static void SortByNaturalOrder(
+            List<AchievementDisplayItem> items,
+            IReadOnlyDictionary<AchievementDisplayItem, int> indexByItem)
+        {
+            if (items == null || items.Count < 2)
+            {
+                return;
+            }
+
+            // OrderBy is stable, so anything absent from the snapshot keeps its relative order.
+            var ordered = items
+                .OrderBy(item => item != null && indexByItem.TryGetValue(item, out var index)
+                    ? index
+                    : int.MaxValue)
+                .ToList();
+
+            items.Clear();
+            items.AddRange(ordered);
         }
 
         private void SyncSelectedGameAchievementsDisplay()
@@ -4066,6 +4183,7 @@ namespace PlayniteAchievements.ViewModels
                         AchievementSortScope.GameAchievements,
                         stableOrder: AchievementSortHelper.CreateStableOrderMap(_filteredSelectedGameAchievements));
 
+                    AchievementSortHelper.ApplyGoalsFirst(_filteredSelectedGameAchievements);
                     SyncSelectedGameAchievementsDisplay();
                 }
                 else
@@ -4486,7 +4604,10 @@ namespace PlayniteAchievements.ViewModels
 
                 _allSelectedGameAchievements = items;
                 Services.Captures.CapturePresenceMarker.MarkAchievements(items, _captureLibrary);
+                // Snapshot the natural order before goals are pinned, so removing a goal can put
+                // the achievement back where it belongs instead of leaving it stranded on top.
                 _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>(items);
+                AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
                 FriendCompare?.SetTargetItems(items);
                 UpdateSelectedGameAchievementFilterOptions(_allSelectedGameAchievements);
                 if (DefaultAchievementSortMode == CompactListSortMode.Custom ||
@@ -4861,6 +4982,8 @@ namespace PlayniteAchievements.ViewModels
                 ref selectedSortDirection,
                 sortedAllOrder);
 
+            AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
+            AchievementSortHelper.ApplyGoalsFirst(_filteredSelectedGameAchievements);
             ApplySecondarySorts(
                 _allSelectedGameAchievements,
                 _selectedGameSecondarySorts,

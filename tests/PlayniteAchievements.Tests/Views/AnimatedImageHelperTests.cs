@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Tests.TestInfrastructure;
 using PlayniteAchievements.Views.Helpers;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,6 +9,25 @@ namespace PlayniteAchievements.Tests.Views
     [TestClass]
     public class AnimatedImageHelperTests
     {
+        [TestMethod]
+        public void TryEnsureCachedFrames_RefusesGifsSoTheyReachTheNativeDecoder()
+        {
+            // This helper retains a full-canvas bitmap per frame, which is what forced large GIFs
+            // to be downscaled and temporally sampled. GIFs now stream through NativeGifAnimation
+            // instead, so a GIF reaching here at all would mean something silently reintroduced
+            // that budget -- and the two paths would both be decoding the same file.
+            var path = GifFixture.WriteTempGif(GifFixture.BuildSparseGif(64, 64, 8));
+            try
+            {
+                Assert.IsFalse(
+                    AnimatedImageHelper.TryEnsureCachedFrames(path, applyGray: false, decodePixel: 64));
+            }
+            finally
+            {
+                GifFixture.DeleteTempPayload(path);
+            }
+        }
+
         [TestMethod]
         public void BuildFrameRetentionPlan_PreservesCompleteDurationWhenFramesAreLimited()
         {
@@ -43,6 +63,9 @@ namespace PlayniteAchievements.Tests.Views
             CollectionAssert.AreEqual(sourceDelays, retainedDelays);
         }
 
+        // The retained-pixel budget these cases pin now governs animated WebP alone. The
+        // dimensions are kept as they are because they came from real sources that exercised the
+        // interesting corners of the budget, not because the format is what is under test.
         [TestMethod]
         public void ResolveAnimationDimensions_PrioritizesAllFramesForToastSizedDecode()
         {

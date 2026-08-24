@@ -311,7 +311,7 @@ namespace PlayniteAchievements.Providers.Xbox
             return null;
         }
 
-        private static bool IsXbox360Game(Game game)
+        internal static bool IsXbox360Game(Game game)
         {
             return game.Platforms?.Any(p =>
                 string.Equals(p?.SpecificationId, "xbox360", StringComparison.OrdinalIgnoreCase) ||

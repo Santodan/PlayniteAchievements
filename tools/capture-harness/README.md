@@ -1,7 +1,7 @@
 # Capture harness
 
-Diagnostic tools for the unlock-clip pipeline: recording, clip export, toast compositing, and unlock
-screenshots.
+Diagnostic tools for the unlock notification: the clip pipeline (recording, clip export, toast
+compositing, unlock screenshots) and the on-screen slide.
 
 The pipeline is hard to reason about from the outside because a clip looks plausible while being wrong.
 Frames can be duplicated, reordered, or shifted wholesale in time, and none of that is visible by eye
@@ -21,6 +21,8 @@ tools\capture-harness\build.ps1
 Compiles each tool with Roslyn against .NET Framework 4.6.2 and the SharpDX assemblies from
 `source\bin\Debug`, so **build the plugin first**.
 Executables land in `tools\capture-harness\bin\` and are git-ignored.
+`CaptureHarness.exe` is built x86 because it loads the plugin into Playnite's 32-bit process model;
+the standalone artifact-analysis tools remain x64.
 
 Needs Visual Studio 2022 or the Build Tools (the script finds Roslyn itself, whatever the edition) and the
 .NET Framework 4.6.2 targeting pack.
@@ -29,6 +31,8 @@ Needs Visual Studio 2022 or the Build Tools (the script finds Roslyn itself, wha
 
 Only `CaptureHarness` needs the plugin: it drives the recorder, exporter and re-encoder by reflection, so
 it wants a built `source\bin\Debug` and is really a developer tool.
+`SlideProbe` stands alone unless `--dict` is passed, which loads the plugin's resource graph (and finds
+`Playnite.SDK.dll` in `source\packages`, since it is not copied to the plugin's output).
 The rest stand alone and can be handed to anyone on Windows:
 
 - `Show-Mp4Timeline.ps1` has no dependencies at all — pure PowerShell over the MP4 boxes.
@@ -63,6 +67,44 @@ looks like to the capture. Wired but not yet exercised.
 
 Per-frame offsets are written to `alignment_*.csv` next to the executable.
 
+### Native lifetime/page-heap stress
+
+```powershell
+tools\capture-harness\bin\CaptureHarness.exe --stress <seconds> <fps> [pluginDir] [exportEverySeconds] [teardownCycles] [width] [height]
+```
+
+Stress mode keeps the real recorder active while it repeatedly exports finalized MP4 segments and
+overlay-reencodes those exports. It then disposes a live recorder and repeats short teardown cycles at
+the next-writer preparation boundary. This exercises the Media Foundation, D3D11 and WGC lifetime
+overlaps that a normal correctness run does not.
+
+For a guarded native-heap run, install **Debugging Tools for Windows** from the Windows SDK and launch
+an elevated PowerShell:
+
+```powershell
+tools\capture-harness\Invoke-PageHeapSoak.ps1 -Seconds 600
+```
+
+The script builds the x86 harness, enables full page heap only for `CaptureHarness.exe`, runs it under
+the x86 CDB debugger, writes a log under `artifacts\pageheap`, and disables page heap in a `finally`
+block. Its 1280x720 default is deliberate: full page heap expands every native allocation and a 32-bit
+1080p re-encode can exhaust virtual address space before it reaches a guard-page fault. Pass
+`-Width 1920 -Height 1080` for a shorter crash-resolution run when address-space pressure permits.
+
+Do not enable page heap for `Playnite.DesktopApp.exe`; this harness isolates the plugin's native
+capture paths without destabilizing the user's Playnite installation.
+
+If `--stress` reports `0x80070424` because the interactive user's per-user `CaptureService` is stopped,
+the focused fallback still covers D3D11 texture encoding plus overlapping MF export/re-encode and the
+shared runtime lease:
+
+```powershell
+tools\capture-harness\Invoke-PageHeapSoak.ps1 -MediaFoundationOnly -Seconds 300
+```
+
+That fallback cannot validate the WGC pump/session teardown; rerun the primary mode after signing back
+into an interactive Windows session so `CaptureService` is available.
+
 ### The short-buffer case matters most
 
 It is the regression test for a defect that shipped: `SegmentTimeline.PlanClip` begins a clip at the later
@@ -76,6 +118,181 @@ start*.
 The mapping was never broken; only the reference point was wrong.
 That is why every earlier run of this harness passed while the bug was live, and why the short-buffer case
 had to be added explicitly.
+
+## The slide probe
+
+```powershell
+tools\capture-harness\bin\SlideProbe.exe [--load <ms>] [--duration <ms>] [--repeats <n>] [--dict <pluginDir>]
+```
+
+Measures the notification's slide-in the way the plugin performs it, and answers whether the motion got
+the frames it needed.
+
+The slide is not a WPF animation. `ToastNotificationService.RunPhysicalSlide` hooks
+`CompositionTarget.Rendering` and, per composed frame, reads that frame's composition timestamp, eases
+the elapsed fraction and moves the HWND with `SetWindowPos`. So it is duration-correct by construction
+and can fail only one way: by running out of frames. A late second frame means the eased clock has
+already advanced, and the card jumps rather than slides — while still finishing in exactly 240 ms, which
+is why a stopwatch and the naked eye both miss it.
+
+The probe replicates that interpolation and the `RenderTickCounter` timestamp handling exactly, on a real
+per-pixel-alpha window, and runs three orderings side by side:
+
+| Mode | Ordering |
+|---|---|
+| `None` | Slide on the same UI-thread turn as `Show` — the ordering before the fix. The **control**; it is expected to jump under `--load`, and is not judged. |
+| `Transparent` | Wait for two composed frames at `Opacity=0`, then slide — what the plugin does now. |
+| `NearTransparent` | The same at `Opacity=1/255`, which defeats any `Opacity==0` culling. |
+
+`--load <ms>` arms a one-shot cost consumed by the window's **first composed frame**, wherever that
+lands: in the warm phase when warming, otherwise on the slide's own first frame. That is what makes the
+defect deterministic instead of dependent on a cold process, and it is what the control contrast checks.
+`--dict` additionally times the storyboard resolve the slides used to do inline.
+
+### Reading it
+
+`firstX` is the verdict: the gap **after the slide's first frame**, as a multiple of that run's own
+median. All ratios are against the run's own median rather than the display's rate, because moving a
+per-pixel-alpha window costs a full redirection-surface blit — the slide sustains an even ~82 Hz on a
+165 Hz panel and cannot do better. Uniform coarseness reads as smooth; the specific thing that reads as a
+jump is the frame *after the first* arriving late.
+
+Measured over six control and twelve warmed runs, `firstX` separates with an order of magnitude of margin
+either side of the 3x threshold: the unwarmed control runs **4.3–11.2**, a warmed slide **0.0–0.5**.
+
+`worstX` (the worst gap anywhere) is only a loose stall backstop at 8x. It deliberately is *not* the
+verdict: a warmed run on a machine that is merely busy reaches 4x, which overlaps the control's low end,
+so judging on it cries wolf about one run in ten. `maxStep` is a gap's visible cost in pixels — context,
+not a threshold, since `BackEase` is steep early and an identical gap costs far more travel at the start
+of the slide than at the end.
+
+Four earlier versions of this probe were wrong in ways worth not repeating:
+
+- Injecting the cost into the **slide's** first frame rather than the **window's** penalised every mode
+  equally, so no warm ordering could ever win.
+- Deriving the "ideal" step from the run's own observed mean interval is circular: it hands a starved
+  slide a lenient target, so a three-frame slide passes.
+- Sampling `CompositionTarget.Rendering` while idle to measure the display rate reports the rate the
+  sampler asked for frames, not the display's — 31.8 Hz on a 165 Hz panel, inflating every target twofold.
+  It comes from `EnumDisplaySettings` now.
+- Waiting for warm frames with `Dispatcher.PushFrame` validated the *idea* of warming but not the code
+  that does it, and once the warm became async the nested pump deadlocked against its continuation. The
+  whole probe is await-based now, mirroring how the plugin sequences it.
+
+### What it established
+
+- A window at `Opacity=0` **does** rasterize its content: the transparent warm absorbs the whole injected
+  first-paint cost (first gap ~121 ms → under 0.3 ms), so the near-transparent variant is unnecessary.
+- The warm wait is satisfied by frames arriving, not by its timeout — **6–25 ms** on a fully static
+  `Opacity=0` window with nothing animating, because subscribing to `Rendering` itself keeps the render
+  loop ticking. So it adds no notification latency, and its 150 ms ceiling should *not* be shortened
+  toward a frame period: the ceiling's other role is bounding how much first paint the warm can absorb.
+- The first storyboard resolve of a session costs **90–150 ms** on the UI thread, on the frame the first
+  slide subscribes on. That is the first-notification jank.
+- Later resolves cost only ~1.3 ms, so memoizing the dictionary does **not** explain a janky slide-out;
+  look to the save pipeline's allocation churn instead, via the `[Toast] Slide out` log line.
+
+### Limits
+
+The card is toast-shaped — layered, chromeless, sized to content, carrying the same shadow and blur
+effects — but it is not the real template bound to a real view model, so absolute first-paint costs are
+lower than the live toast's. It measures the mechanism, not the card.
+
+## The storyboard probes
+
+Two tools cover the slide as it works now — a WPF `Storyboard` on the card host's translate inside a
+stationary window, rather than a per-frame `SetWindowPos`.
+
+### `SlideStoryboardProbe.exe`
+
+Loads the real bundled storyboard out of the built assembly and runs it through the service's own
+resolve/retarget logic against a real layered window, reporting the travel it produced.
+
+```powershell
+tools\capture-harness\bin\SlideStoryboardProbe.exe [pluginDir]
+```
+
+`movedDip=0` is the failure it exists for. Source-text tests structurally cannot catch it: XAML
+normalises `Storyboard.TargetProperty` to indexed placeholders (`(0).(1)[1].(2)`) with the real
+properties in `PathParameters`, so matching the authored path string never succeeds, and an unrecognised
+slide child gets no `From`/`To`. A `DoubleAnimation` with neither animates a property from its own value
+to its own value — no motion, no exception, nothing logged. That shipped.
+
+Its stop-and-revert check does **not** faithfully model the app: it passed against knowingly-broken
+seeding. Do not treat that half as a guard.
+
+### `SlideCadenceProbe.exe`
+
+Measures the composition rate actually sustained *during* the motion, per mechanism, against the
+display's own period read from the OS.
+
+```powershell
+tools\capture-harness\bin\SlideCadenceProbe.exe [--repeats 5]
+```
+
+Measured on a 165 Hz display:
+
+| mechanism | sustained | % of refresh |
+|---|---|---|
+| `WindowMove` (the pre-storyboard slide) | 55–82 Hz | **33–50%** |
+| `Transform` (what ships) | 165 Hz | **100%** |
+| `TransformCached` (+ `BitmapCache`) | 165 Hz | 100% |
+| `TransformNoPadding` | 165 Hz | 100% |
+| `TransformWithSampling` (+ overlay-track `RenderTargetBitmap` at 60 fps) | 165 Hz | 100% |
+
+What that establishes: moving a per-pixel-alpha layered HWND once per composed frame costs roughly half
+the display's rate, and animating content inside a stationary one costs none of it. The travel padding
+the window reserves is free, a bitmap cache buys nothing because the transform path is already at the
+ceiling — so it is not worth its invalidation risk against the countdown bar and animated backgrounds —
+and overlay-track sampling does not pull the slide off the refresh rate either.
+
+Counting the animation's own value changes would prove nothing: a WPF timeline advances once per composed
+frame by construction, so that only re-measures the render loop. The rate the loop itself holds is the
+number.
+
+## The composer probe
+
+```powershell
+tools\capture-harness\bin\ComposerProbe.exe
+```
+
+A/B pixel comparison of the recorder's frame path: the shipped three-pass route
+(`GpuHdrToneMapper` -> `CopySubresourceRegion` crop -> `FrameScaler` downscale) against the single
+`FrameComposer` pass meant to replace it, over identical synthetic input. All three classes are
+compiled in from `source\Services\Capture\`, so it always compares the current code.
+
+It exists because the two defects the fold can introduce are both invisible in a plausible-looking
+clip: a crop that lands on the wrong pixels, and a sampler that pulls window chrome into the frame
+edge. Every pixel of the SDR fixture states its own coordinates, so an off-by-one crop produces a
+numerically different image rather than a similar-looking one.
+
+Geometry and colour are judged separately, and that separation is the point:
+
+- **Geometry** is proven only by the 1:1 cases and by SDR, where the two paths must be *bit-identical*.
+- **Colour** differs by design on HDR. The shipped route tone-maps at full resolution and then
+  averages the sRGB-encoded result; the fold averages linear scRGB and then tone-maps. Averaging in
+  linear light before the transfer curve is the correct order, so the fold differs from the reference
+  exactly where the reference is wrong.
+
+The luminance centroid locates the picture, but **only while the two paths agree on colour**. An
+earlier version judged geometry by centroid on every case and failed the production shape at
+1.24 px — not a crop error, but linear-light averaging brightening every dark-side checker edge and
+moving the centroid photometrically. Cases with a deliberately extreme order difference are marked
+`GeometryCheck = false` for that reason.
+
+Measured (all ten cases pass):
+
+| case | maxDelta | meanDelta |
+|---|---|---|
+| every SDR case, incl. sub-rect, odd-size and downscale | **0.0** | 0.000 |
+| HDR identity 1:1, HDR sub-rect crop 1:1 | **0.0** | 0.000 |
+| HDR production 2544x1401 -> 1920x1080, realistic ramp | 1.0 | 0.020 |
+| HDR blown-highlight checker at the same non-integer ratio | 160.0 | 13.333 |
+
+So the fold is geometrically exact and, on realistic content, within one 8-bit step of the path that
+ships. The 160 is the worst case by construction: a 4x4 checker alternating linear 4.0 and 0.02
+straddles the tone-map shoulder, where averaging before the curve gives 255 and averaging after it
+gives 147. Real frames do not look like that; the ramp case is the representative number.
 
 ## Supporting tools
 
@@ -95,6 +312,121 @@ had to be added explicitly.
 - **`GenerationLoss.exe <source.mp4> <outDir> [bitrateKbps...]`** — re-encodes a clip at several bitrates
   and reports PSNR against the source, for sizing the export-time bitrate headroom. Slow: each rate costs a
   decode plus an encode plus two comparison decodes.
+
+## The chime cancellation probe
+
+```powershell
+tools\capture-harness\bin\ChimeCancelProbe.exe <sessionDir> [--start yyyyMMdd-HHmmssfffffff[Z]] [--seconds 4.5] [--wav-out dir]
+tools\capture-harness\bin\ChimeCancelProbe.exe --selftest
+```
+
+Runs the plugin's real game-audio cancellation (`PcmAudio.CancelCorrelated`, compiled in from
+`source\Services\Capture\PcmAudio.cs` so it always reflects the current algorithm, not a built DLL)
+against the `chm_`/`gam_` WAV chunks of a `RecordingBuffer\<session>` directory.
+With no `--start` it sweeps the whole overlap of the two tracks in consecutive windows and prints one
+line per window: RMS of both tracks, the outcome (`CancelledVerified` / `CleanNoGameDetected` /
+`Unseparable`), the tracked lag range, fitted gain, correlation, and achieved suppression in dB.
+`--wav-out` writes `<stamp>_mixture.wav`, `_cancelled.wav`, and `_reference.wav` per window so the
+residual can be listened to directly — the fastest way to judge whether a reported "duplicated game
+audio in the chime" case is a cancellation failure or something upstream.
+Buffers are pruned when a session ends, so copy the session directory out while Playnite is still
+running (or ask a reporting user to zip theirs before closing Playnite).
+`--selftest` replays the field-shaped fixtures (drifting lag at gain 0.9, unrelated-reference clean
+pass) without needing any capture data.
+
+## The chime separation probe
+
+```powershell
+tools\capture-harness\bin\ChimeSeparationProbe.exe          # plays two quiet tones for ~7 s
+tools\capture-harness\bin\ChimeSeparationProbe.exe --tone <freqHz> <seconds> [amp] [amHz]
+```
+
+End-to-end proof that Playnite-chime vs emulator audio separation works on real WASAPI sessions,
+without Playnite.
+The probe recreates the process topology of a Playnite-launched emulator — it plays a 440 Hz "chime"
+from its own process (UniPlaySong's role) while a spawned child process plays an AM-warbled 1320 Hz
+"game" tone (RetroArch's role) — then captures three streams with the plugin's real
+`ProcessLoopbackCapture` (compiled in from source, like the cancellation): include-tree on the child
+(the GameOnly main track), include-tree on itself (the `chm_` sidecar; the child is inside that
+tree), and exclude-tree on itself (the FullSystem main track).
+Goertzel power at the two frequencies then verifies each scope (child-scoped capture must not carry
+the parent's chime; the excluded capture must carry neither tone), and `PcmAudio.CancelCorrelated`
+runs across the two *independent* loopback clients — real inter-client clock offset and drift — with
+the assertion that the game tone is suppressed >= 10 dB while the chime survives within 3 dB.
+The exe carries a Win10 `supportedOS` manifest (`win10.manifest`) because
+`ProcessLoopbackCapture.IsSupported` reads `Environment.OSVersion`, which lies (6.2) in unmanifested
+processes; inside Playnite the plugin never sees this.
+The two include-tree captures are immune to other applications' audio by construction; only the
+exclude-tree check is informational when something else is playing.
+
+## The chime burst probe
+
+```powershell
+tools\capture-harness\bin\ChimeBurstProbe.exe [--keep]
+```
+
+The burst scenario — two toast waves of three achievements — on the REAL recorder plumbing.
+Unlike the separation probe's raw loopback clients, this drives two actual `AudioLoopbackRecorder`
+instances (the GameOnly main recorder and the chime sidecar, wired exactly as
+`UnlockRecordingService` wires them), so the mixer graph, direct packet timestamping, wall-clock
+main pump, gap padding, and chunk rotation are all exercised.
+A wave plays one chime regardless of its card count, so two waves of three means two chimes at wave
+cadence (~7.5 s apart with the default 6 s toast), each at a distinct frequency (440 / 587 Hz) so
+the wrong wave's chime appearing in a slice is directly measurable.
+Per wave it replicates the production sidecar slice (ownSound + min(toast, 4 s cap) + 0.5 s), runs
+the real cancellation against the timestamped `gam_` chunks, and asserts: the main track carries no chime,
+`gam_` exists even with an unknown tree probe, each slice holds only its own wave's chime, the game
+is suppressed, and the chime survives.
+The run takes ~25 s and plays whisper-level tones; `--keep` retains the chunk directory (failures
+keep it automatically) so `ChimeCancelProbe` can map lag over time on the same data.
+This probe is what surfaced the recorder pump's 1-2 ms alignment tears (correlated with a render
+stream starting — i.e. the chime itself) that motivated multi-window global calibration and
+failed-block fallback in `PcmAudio.CancelCorrelated`. The production path never changes lag inside
+the slice.
+
+## The haptic capture and cancellation probe
+
+```powershell
+tools\capture-harness\bin\HapticProbe.exe
+tools\capture-harness\bin\HapticProbe.exe --check <endpoint-index>
+tools\capture-harness\bin\HapticProbe.exe --stamps <endpoint-index>
+tools\capture-harness\bin\HapticProbe.exe --measure <endpoint-index>
+```
+
+With no arguments, inventories active render endpoints, shows which ones production classifies as
+controller-haptic references, reports the safe microphone selection (controller inputs are omitted),
+and checks that the first selected endpoint can be activated. `--stamps` renders a quiet signal and
+verifies that every endpoint packet has a stable QPC timestamp.
+
+`--measure` is the destructive-quality test: select a non-default idle output, because it renders a
+quiet game tone to the default device and a synthetic haptic pattern to the selected endpoint for
+eight seconds. The haptic signal is deliberately a series of 60 ms bursts, not the old continuous
+tone that made every half-second fit artificially easy. It runs the exact production haptic policy
+(250 ms global range, 50 ms blocks, low-gain removal, and restoration of any block that cannot be
+verified). A weak whole-clip result may retain only blocks that independently prove at least 10 dB
+of removal; blocks that fail that proof remain byte-for-byte recorded audio. The probe requires 10 dB
+haptic suppression while the game tone stays within 3 dB.
+The complete report is also saved as `HapticProbe-report.txt` beside the executable.
+
+Sparse references use a haptic-only global entry floor of 0.15. That correlation is used once to
+calibrate the stamped slice's fixed endpoint latency; it is not a per-block permission gate.
+Production then straight-subtracts every reference-active 50 ms block at that lag, fitting only its
+scale because sparse activity makes one whole-slice level inaccurate.
+Each block still needs 10 dB measured removal or its exact recorded samples are restored. Haptics
+also continue into calibration when the
+generic chime policy would call a sub-0.20 correlation/sub-0.10 gain slice globally clean: the latest
+field hap1 measured 0.18 correlation at 0.05-0.08 gain, which can still be audible against a loud pad.
+
+For a field report, the decisive production log lines are `Render endpoints`, `Controller endpoint
+disappeared/appeared`, each `Haptic cancellation (hapN)` result, and the final per-endpoint `Haptic
+reference` packet/peak/stamp summary. A reference with zero peak means the game rendered no waveform
+to that endpoint; an absent `hapN` window means capture coverage failed before cancellation ran.
+
+Production always fails back to the recorded audio. An incomplete endpoint scan, default-output
+controller, late/disconnected/dead endpoint capture, missing packet stamp, unreadable covered
+reference, or a pass that cannot be verified leaves that reference's buzz in the clip. Independently
+verified passes from other controller endpoints are still kept. A residual above 0.35 rejects only
+that pass, and a cleaned-track mux failure retries with the original recorded WAV chunks.
 
 ## Limits
 

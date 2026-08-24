@@ -16,50 +16,23 @@ namespace PlayniteAchievements.Services.Tests.Captures
     [TestClass]
     public class CaptureLibraryServiceTests
     {
+        private CaptureTestDirectory _captures;
         private string _root;
-        private PersistedSettings _settings;
 
         [TestInitialize]
         public void Setup()
         {
-            _root = Path.Combine(
-                Path.GetTempPath(),
-                "PlayAchCaptureTests",
-                Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(_root);
-            _settings = new PersistedSettings
-            {
-                UnlockScreenshotDirectory = _root,
-                UnlockRecordingDirectory = _root
-            };
+            _captures = new CaptureTestDirectory();
+            _root = _captures.Root;
         }
 
         [TestCleanup]
-        public void Cleanup()
-        {
-            try
-            {
-                if (Directory.Exists(_root))
-                {
-                    Directory.Delete(_root, recursive: true);
-                }
-            }
-            catch (IOException)
-            {
-                // A leftover temp folder must never fail a test run.
-            }
-        }
+        public void Cleanup() => _captures.Dispose();
 
-        private CaptureLibraryService CreateService() =>
-            new CaptureLibraryService(() => _settings, null);
+        private CaptureLibraryService CreateService() => _captures.CreateService();
 
-        /// <summary>Drops a capture file into the game's folder, as the writers do.</summary>
-        private void WriteCapture(string gameName, string fileName)
-        {
-            var folder = Path.Combine(_root, UnlockScreenshotService.SanitizeCaptureGameName(gameName));
-            Directory.CreateDirectory(folder);
-            File.WriteAllText(Path.Combine(folder, fileName), "x");
-        }
+        private void WriteCapture(string gameName, string fileName) =>
+            _captures.WriteCapture(gameName, fileName);
 
         [TestMethod]
         public void Invalidate_RaisesCapturesChanged_WithTheSanitizedFolder()

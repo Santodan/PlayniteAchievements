@@ -91,6 +91,14 @@ namespace PlayniteAchievements.Services.Refresh
                    options?.ProviderGameKeys?.Any(key => !string.IsNullOrWhiteSpace(key)) == true;
         }
 
+        // A refresh that names specific friends (the per-friend context-menu path) overrides the
+        // per-friend Full-scan opt-out; only broad all-friends runs honor it.
+        internal static bool HasExplicitFriendTargets(FriendRefreshOptions options)
+        {
+            return options?.FriendAccounts?.Any(account => account != null) == true ||
+                   options?.FriendExternalUserIds?.Any(id => !string.IsNullOrWhiteSpace(id)) == true;
+        }
+
         internal static bool ShouldPruneStaleSharedOwnership(
             FriendRefreshOptions options,
             IReadOnlyList<FriendGameOwnership> ownedGames)

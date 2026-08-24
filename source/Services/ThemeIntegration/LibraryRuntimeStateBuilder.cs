@@ -12,6 +12,7 @@ using System.Linq;
 using System.Threading;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.Captures;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.ViewModels;
@@ -383,6 +384,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                         continue;
                     }
 
+                    var captureSet = AchievementCapturePathResolver.ResolveGameSet(data);
                     foreach (var achievement in data.Achievements)
                     {
                         if (achievement == null)
@@ -390,32 +392,39 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                             continue;
                         }
 
-                        ApplyAchievementPresentation(achievement, data);
+                        ApplyAchievementPresentation(achievement, data, captureSet);
                         allAchievements.Add(achievement);
                     }
                 }
 
-                state.AllAchievements = allAchievements.ToList();
-                state.AllAchievementsUnlockAsc = AchievementSortHelper.CreateSortedDetailList(
-                    allAchievements,
-                    nameof(AchievementDisplayItem.UnlockTime),
-                    ListSortDirection.Ascending,
-                    includeGameNameTieBreak: true);
-                state.AllAchievementsUnlockDesc = AchievementSortHelper.CreateSortedDetailList(
-                    allAchievements,
-                    nameof(AchievementDisplayItem.UnlockTime),
-                    ListSortDirection.Descending,
-                    includeGameNameTieBreak: true);
-                state.AllAchievementsRarityAsc = AchievementSortHelper.CreateSortedDetailList(
-                    allAchievements,
-                    nameof(AchievementDisplayItem.RaritySortValue),
-                    ListSortDirection.Ascending,
-                    includeGameNameTieBreak: true);
-                state.AllAchievementsRarityDesc = AchievementSortHelper.CreateSortedDetailList(
-                    allAchievements,
-                    nameof(AchievementDisplayItem.RaritySortValue),
-                    ListSortDirection.Descending,
-                    includeGameNameTieBreak: true);
+                // Goals lead these the same way they lead the desktop grids. The recent-unlock
+                // lists below need no such treatment: they are unlocked-only, and a goal clears
+                // the moment its achievement unlocks.
+                state.AllAchievements = AchievementSortHelper.CreateGoalsFirstDetailList(allAchievements);
+                state.AllAchievementsUnlockAsc = AchievementSortHelper.CreateGoalsFirstDetailList(
+                    AchievementSortHelper.CreateSortedDetailList(
+                        allAchievements,
+                        nameof(AchievementDisplayItem.UnlockTime),
+                        ListSortDirection.Ascending,
+                        includeGameNameTieBreak: true));
+                state.AllAchievementsUnlockDesc = AchievementSortHelper.CreateGoalsFirstDetailList(
+                    AchievementSortHelper.CreateSortedDetailList(
+                        allAchievements,
+                        nameof(AchievementDisplayItem.UnlockTime),
+                        ListSortDirection.Descending,
+                        includeGameNameTieBreak: true));
+                state.AllAchievementsRarityAsc = AchievementSortHelper.CreateGoalsFirstDetailList(
+                    AchievementSortHelper.CreateSortedDetailList(
+                        allAchievements,
+                        nameof(AchievementDisplayItem.RaritySortValue),
+                        ListSortDirection.Ascending,
+                        includeGameNameTieBreak: true));
+                state.AllAchievementsRarityDesc = AchievementSortHelper.CreateGoalsFirstDetailList(
+                    AchievementSortHelper.CreateSortedDetailList(
+                        allAchievements,
+                        nameof(AchievementDisplayItem.RaritySortValue),
+                        ListSortDirection.Descending,
+                        includeGameNameTieBreak: true));
 
                 var unlockedAchievements = allAchievements
                     .Where(a => a != null && a.UnlockTimeUtc.HasValue && a.UnlockTimeUtc.Value != DateTime.MinValue)
@@ -433,6 +442,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     continue;
                 }
 
+                var captureSet = AchievementCapturePathResolver.ResolveGameSet(data);
                 foreach (var achievement in data.Achievements)
                 {
                     if (achievement == null ||
@@ -442,7 +452,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                         continue;
                     }
 
-                    ApplyAchievementPresentation(achievement, data);
+                    ApplyAchievementPresentation(achievement, data, captureSet);
                     unlockedRecent.Add(achievement);
                 }
             }
@@ -450,7 +460,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             PopulateRecentLists(state, unlockedRecent, includeFullLists: false);
         }
 
-        private static void ApplyAchievementPresentation(AchievementDetail achievement, GameAchievementData data)
+        private static void ApplyAchievementPresentation(
+            AchievementDetail achievement,
+            GameAchievementData data,
+            GameCaptureSet captureSet)
         {
             if (achievement == null)
             {
@@ -460,6 +473,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             achievement.Game = data?.Game;
             achievement.ProviderKey = ResolveEffectiveProviderKey(data?.ProviderKey, data?.ProviderPlatformKey);
             ApplyCategoryImagePresentation(achievement, data);
+            AchievementCapturePathResolver.Apply(achievement, captureSet);
         }
 
         private static void ApplyCategoryImagePresentation(AchievementDetail achievement, GameAchievementData data)
