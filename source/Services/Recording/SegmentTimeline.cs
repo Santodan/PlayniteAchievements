@@ -83,6 +83,13 @@ namespace PlayniteAchievements.Services.Recording
             public DateTime EndUtc { get; set; }
 
             public DateTime ToastAnchorUtc { get; set; }
+
+            /// <summary>
+            /// True when the anchor is the moment the notification appeared rather than the unlock —
+            /// the notification-delay path. Diagnostics only: it tells the timing log which of the
+            /// two rules produced this window, so a clip that looks late can be read at a glance.
+            /// </summary>
+            public bool AnchoredOnDisplay { get; set; }
         }
 
         /// <summary>
@@ -396,6 +403,7 @@ namespace PlayniteAchievements.Services.Recording
                     StartUtc = displayStart,
                     EndUtc = displayAnchor.AddSeconds(Math.Max(0, toastSlotSeconds) + Math.Max(0, tailSeconds)),
                     ToastAnchorUtc = displayAnchor,
+                    AnchoredOnDisplay = true,
                 };
             }
 
