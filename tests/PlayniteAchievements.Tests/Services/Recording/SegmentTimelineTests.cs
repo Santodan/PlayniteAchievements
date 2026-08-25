@@ -863,8 +863,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 RecordingPaths.AudioChunkFilePrefix,
                 RecordingPaths.ChimeChunkFilePrefix,
                 RecordingPaths.GameReferenceChunkFilePrefix,
-                RecordingPaths.HapticReferenceChunkFilePrefix(0),
-                RecordingPaths.HapticReferenceChunkFilePrefix(3),
+                RecordingPaths.NonGameReferenceChunkFilePrefix,
             };
 
             foreach (var prefix in prefixes)
