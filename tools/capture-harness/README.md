@@ -362,7 +362,7 @@ exclude-tree check is informational when something else is playing.
 ## The chime burst probe
 
 ```powershell
-tools\capture-harness\bin\ChimeBurstProbe.exe [--keep]
+tools\capture-harness\bin\ChimeBurstProbe.exe [--keep] [--no-haptics]
 ```
 
 The burst scenario — two toast waves of three achievements — on the REAL recorder plumbing.
@@ -372,61 +372,51 @@ instances (the GameOnly main recorder and the chime sidecar, wired exactly as
 main pump, gap padding, and chunk rotation are all exercised.
 A wave plays one chime regardless of its card count, so two waves of three means two chimes at wave
 cadence (~7.5 s apart with the default 6 s toast), each at a distinct frequency (440 / 587 Hz) so
-the wrong wave's chime appearing in a slice is directly measurable.
+the wrong wave's chime appearing in a slice is directly measurable. Chimes and the game tone all
+carry band-limited noise with distinct seeds: a pure sine's periodic autocorrelation lets a lag
+search lock any period multiple, a signal pathology real broadband audio does not have.
 Per wave it replicates the production sidecar slice (ownSound + min(toast, 4 s cap) + 0.5 s), runs
-the real cancellation against the timestamped `gam_` chunks, and asserts: the main track carries no chime,
-`gam_` exists even with an unknown tree probe, each slice holds only its own wave's chime, the game
-is suppressed, and the chime survives.
-The run takes ~25 s and plays whisper-level tones; `--keep` retains the chunk directory (failures
+the real cancellation against the timestamped `gam_` chunks, and asserts: the speaker-endpoint
+track carries the game, `gam_` exists even with an unknown tree probe, each slice holds only its
+own wave's chime, the game is suppressed, and the chime survives. It then proves both production
+export paths on the same captured data: GameOnly (aud minus the purged `oth_` reference) and
+FullSystem chime re-timing (aud minus the game-free `chm_` slice), each keeping the game tone and
+dropping the live chime.
+When exactly one controller endpoint is connected, the child also renders a 180 Hz actuator tone
+for the whole run and every user-facing output is asserted to exclude it — one run then covers
+full/game audio, with/without haptics, and the chime paths. `--no-haptics` skips that layer for an
+A/B. Under continuous haptic crossfeed the sidecar cancellation may legitimately fail closed
+(chime dropped, nothing unverified ships); the probe reports that outcome as a labeled pass.
+The run takes ~35 s and plays whisper-level tones; `--keep` retains the chunk directory (failures
 keep it automatically) so `ChimeCancelProbe` can map lag over time on the same data.
 This probe is what surfaced the recorder pump's 1-2 ms alignment tears (correlated with a render
 stream starting — i.e. the chime itself) that motivated multi-window global calibration and
 failed-block fallback in `PcmAudio.CancelCorrelated`. The production path never changes lag inside
 the slice.
 
-## The haptic capture and cancellation probe
+## The haptic endpoint-isolation probe
 
 ```powershell
 tools\capture-harness\bin\HapticProbe.exe
-tools\capture-harness\bin\HapticProbe.exe --check <endpoint-index>
-tools\capture-harness\bin\HapticProbe.exe --stamps <endpoint-index>
+tools\capture-harness\bin\HapticProbe.exe --auto
 tools\capture-harness\bin\HapticProbe.exe --measure <endpoint-index>
 ```
 
-With no arguments, inventories active render endpoints, shows which ones production classifies as
-controller-haptic references, reports the safe microphone selection (controller inputs are omitted),
-and checks that the first selected endpoint can be activated. `--stamps` renders a quiet signal and
-verifies that every endpoint packet has a stable QPC timestamp.
+With no arguments, the tool inventories active render endpoints and reports the safe microphone
+selection. `--auto` requires exactly one detected controller output and drives native actuator
+channels 2 and 3 separately while a normal game tone plays to the default output.
 
-`--measure` is the destructive-quality test: select a non-default idle output, because it renders a
-quiet game tone to the default device and a synthetic haptic pattern to the selected endpoint for
-eight seconds. The haptic signal is deliberately a series of 60 ms bursts, not the old continuous
-tone that made every half-second fit artificially easy. It runs the exact production haptic policy
-(250 ms global range, 50 ms blocks, low-gain removal, and restoration of any block that cannot be
-verified). A weak whole-clip result may retain only blocks that independently prove at least 10 dB
-of removal; blocks that fail that proof remain byte-for-byte recorded audio. The probe requires 10 dB
-haptic suppression while the game tone stays within 3 dB.
-The complete report is also saved as `HapticProbe-report.txt` beside the executable.
+For each actuator it compares the endpoint audio production records with endpoint-agnostic process
+loopback. The endpoint track must reject the controller tone by at least 30 dB while retaining the
+game tone within 3 dB. This tests the actual invariant used by both recording settings: a separate
+controller endpoint never enters the main WAV. If the controller is itself the default output, the
+probe follows production by keeping native front L/R and discarding actuator channels 2/3.
+`--measure` runs the same two-actuator proof on a listed controller. The complete report is saved as
+`HapticProbe-report.txt` beside the executable.
 
-Sparse references use a haptic-only global entry floor of 0.15. That correlation is used once to
-calibrate the stamped slice's fixed endpoint latency; it is not a per-block permission gate.
-Production then straight-subtracts every reference-active 50 ms block at that lag, fitting only its
-scale because sparse activity makes one whole-slice level inaccurate.
-Each block still needs 10 dB measured removal or its exact recorded samples are restored. Haptics
-also continue into calibration when the
-generic chime policy would call a sub-0.20 correlation/sub-0.10 gain slice globally clean: the latest
-field hap1 measured 0.18 correlation at 0.05-0.08 gain, which can still be audible against a loud pad.
-
-For a field report, the decisive production log lines are `Render endpoints`, `Controller endpoint
-disappeared/appeared`, each `Haptic cancellation (hapN)` result, and the final per-endpoint `Haptic
-reference` packet/peak/stamp summary. A reference with zero peak means the game rendered no waveform
-to that endpoint; an absent `hapN` window means capture coverage failed before cancellation ran.
-
-Production always fails back to the recorded audio. An incomplete endpoint scan, default-output
-controller, late/disconnected/dead endpoint capture, missing packet stamp, unreadable covered
-reference, or a pass that cannot be verified leaves that reference's buzz in the clip. Independently
-verified passes from other controller endpoints are still kept. A residual above 0.35 rejects only
-that pass, and a cleaned-track mux failure retries with the original recorded WAV chunks.
+Game Only subsequently removes a timestamped non-game sidecar with one full-clip stereo subtraction.
+That separation is best effort; failure keeps the audible endpoint mix. It cannot reintroduce controller
+audio or turn a clip into video-only. Full System uses the endpoint mix directly.
 
 ## Limits
 

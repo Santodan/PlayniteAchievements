@@ -91,7 +91,6 @@ $extraSources = @{
         (Join-Path $repo 'source\Services\Capture\FrameComposer.cs'),
         (Join-Path $here 'ReferenceFramePath.cs'))
     HapticProbe = @(
-        (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
         (Join-Path $repo 'source\Services\Recording\RenderEndpointScan.cs'),
         (Join-Path $repo 'source\Services\Recording\MicrophoneSelector.cs'),
