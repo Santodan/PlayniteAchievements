@@ -40,6 +40,10 @@ namespace PlayniteAchievements.Services.UI
                     "ResolveAchievementSound", new[] { typeof(string) });
                 if (method == null)
                 {
+                    logger?.Debug(plugin == null
+                        ? "UniPlaySong is not installed; chime files cannot be resolved."
+                        : "UniPlaySong predates the sound-resolution API (needs 1.8.4+); " +
+                          "clips use the capture-based chime fallback.");
                     return null;
                 }
 

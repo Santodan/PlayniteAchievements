@@ -2606,6 +2606,14 @@ namespace PlayniteAchievements.Services.UI
                 ? null
                 : UniPlaySongBridge.TryReadJingleVolume(_api, _logger);
 
+            // One line per wave, because a field log without it cannot distinguish "UniPlaySong
+            // too old" from "resolution failed" from "file path flowed but export dropped it".
+            _logger?.Info(
+                $"[Toast] Wave sound (tier={tier}): " +
+                (soundFilePath == null
+                    ? "no resolved file; clips use the capture-based chime fallback"
+                    : $"file='{soundFilePath}' volume={(soundFileGain?.ToString("0.00") ?? "unknown")}"));
+
             if (UniPlaySongBridge.TryTriggerExternalEvent(_api, tier, _logger))
             {
                 return (CaptureTimelineClock.UtcNow, soundFilePath, soundFileGain);
