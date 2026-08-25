@@ -60,6 +60,14 @@ Primary fork areas:
 
 - Local appears with its default icon and settings defaults.
 - Local folder discovery, extra/excluded paths, import, and refresh work.
+- Local settings show **Use SteamHunters for Categories** enabled by default
+  immediately above **Steam path (optional)**. When enabled, Local refreshes
+  use the resolved Steam schema App ID to populate SteamHunters category labels,
+  Base/DLC types, and default category artwork through Steam's shared enricher.
+- After category enrichment, Manage Achievements shows only categories that
+  contain achievements; it does not retain a synthetic `Default` category with
+  `0/0` achievements. A real Default category remains visible when at least one
+  achievement belongs to it.
 - Steam App ID and Steam-user overrides remain in the Steam sub-tab.
 - LumaPlay App ID and `LumaPlay.ini` remain in the LumaPlay sub-tab.
 - A RetroAchievements Game ID override can load the base achievement set and
@@ -91,6 +99,7 @@ Primary fork areas:
 Primary fork areas:
 
 - `source/Providers/Local/`
+- `source/Providers/Steam/SteamDataProvider.cs`
 - `source/Providers/RetroAchievements/`
 - `source/Services/Refresh/NewGameAutoRefreshPolicy.cs`
 - `source/Services/GameCustomData/`
@@ -102,6 +111,7 @@ Primary fork areas:
 - `source/PlayniteAchievementsPlugin.LocalMenus.cs`
 - `source/ViewModels/*Local*`
 - `source/ViewModels/ManageAchievementsViewModel.*.cs`
+- `source/ViewModels/ManageAchievements/ManageAchievementsCategoryViewModel.cs`
 - `source/Views/ManageAchievements/`
 - `source/Views/GameOptionsLocalOverridesSection.*`
 

@@ -369,6 +369,7 @@ namespace PlayniteAchievements.Providers.Local
         private Dictionary<Guid, string> _steamAppCacheUserOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, bool> _refreshOnGameCloseOverrides = new Dictionary<Guid, bool>();
         private string _steamUserdataPath = string.Empty;
+        private bool _useSteamHuntersForCategories = true;
         private bool _enableActiveGameMonitoring;
         private bool _refreshAchievementsOnRealtimeUnlock;
         private bool _refreshAchievementsOnGameClose;
@@ -1996,6 +1997,12 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _steamUserdataPath;
             set => SetValue(ref _steamUserdataPath, value ?? string.Empty);
+        }
+
+        public bool UseSteamHuntersForCategories
+        {
+            get => _useSteamHuntersForCategories;
+            set => SetValue(ref _useSteamHuntersForCategories, value);
         }
 
         public Dictionary<Guid, string> SteamAppCacheUserOverrides

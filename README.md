@@ -99,6 +99,10 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- Fixed missing categorized achievements fro `Local` platform
+
+## 2026-08-24 - v3.1.3.1
+
 - v3.1.3 merge
 
 ## 2026-08-13 - v3.1.2.1
@@ -127,6 +131,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
   - This way it can be used with the original notification from the original fork with the changes to the settings.
 - Changed the Screenshot behavior to be a mirror of the original fork screenshot mechanism with the additional wildcard in the path and name
 
+## Old Changelogs
+<details>
+
 ## 2026-08-06 - v3.1.0.1
 
 - v3.1.0 merge
@@ -135,10 +142,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added logs for the screenshot and for the video from the `Achievement Notification`
 - Removed the always on overlay for the `Achievement Notification`
 - Fixed the `<rarity>` wildcard showing the rarity tier instead of percentage.
-
-
-## Old Changelogs
-<details>
 
 ## 2026-08-02 - v3.0.0.1
 

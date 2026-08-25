@@ -604,7 +604,7 @@ namespace PlayniteAchievements.Providers.Local
                         PreserveCachedLocalMetadata(data);
                         Log($"SCHEMA CORRELATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={raw.Count} matched={correlatedEntries.Count}");
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} schema achievements with local progress from {rawSource}. schemaSource={steamSchemaSource ?? "none"}");
-                        return data;
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
                     }
 
                     foreach (var kv in raw)
@@ -622,7 +622,7 @@ namespace PlayniteAchievements.Providers.Local
                     {
                         PreserveCachedLocalMetadata(data);
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from {rawSource}. schemaSource={steamSchemaSource ?? "none"}");
-                        return data;
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
                     }
                 }
 
@@ -649,7 +649,7 @@ namespace PlayniteAchievements.Providers.Local
                     }
 
                     Log($"SUCCESS: {game.Name} - Direct Local achievement file override produced {data.Achievements.Count} locked achievements; Steam local cache fallbacks were skipped. file={configuredFolderOverridePath}");
-                    return data;
+                    return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
                 }
 
                 if (steamAppCacheEntries != null && steamAppCacheEntries.Count > 0)
@@ -674,7 +674,7 @@ namespace PlayniteAchievements.Providers.Local
                     {
                         PreserveCachedLocalMetadata(data);
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from Steam appcache stats.");
-                        return data;
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
                     }
                 }
 
@@ -698,7 +698,7 @@ namespace PlayniteAchievements.Providers.Local
                     {
                         PreserveCachedLocalMetadata(data);
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from Steam local library cache.");
-                        return data;
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
                     }
                 }
 
@@ -736,7 +736,7 @@ namespace PlayniteAchievements.Providers.Local
                     {
                         PreserveCachedLocalMetadata(data);
                         Log($"INFO: {game.Name} - Local folder found, loaded {data.Achievements.Count} achievement definitions from Steam schema.");
-                        return data;
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
                     }
                 }
 
@@ -748,6 +748,35 @@ namespace PlayniteAchievements.Providers.Local
                 Log($"ERROR: {game.Name} - {ex.Message}");
                 return null;
             }
+        }
+
+        private async Task<GameAchievementData> EnrichSteamHuntersCategoriesAsync(
+            GameAchievementData data,
+            int steamAppId)
+        {
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            if (settings?.UseSteamHuntersForCategories != true ||
+                steamAppId <= 0 ||
+                data?.Achievements == null ||
+                data.Achievements.Count == 0)
+            {
+                return data;
+            }
+
+            var steamProvider = ProviderRegistry.Instance?.GetProvider("Steam") as SteamDataProvider;
+            if (steamProvider == null)
+            {
+                Log($"STEAMHUNTERS CATEGORIES: appId={steamAppId} skipped because the Steam provider is unavailable.");
+                return data;
+            }
+
+            await steamProvider.EnrichSteamHuntersCategoriesForExternalProviderAsync(
+                steamAppId,
+                data.GameName,
+                data.Achievements,
+                data.PlayniteGameId,
+                CancellationToken.None).ConfigureAwait(false);
+            return data;
         }
 
         public async Task<RebuildPayload> RefreshAsync(IReadOnlyList<Game> games, Action<Game> onGameProcessed,

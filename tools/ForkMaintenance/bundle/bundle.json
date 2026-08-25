@@ -1,8 +1,8 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-13T14:32:36.7743676Z",
+    "generatedUtc":  "2026-08-25T08:08:20.3403559Z",
     "baselineRef":  "upstream/main",
-    "baselineCommit":  "1aa13382c458daadba55a493d7ab10db797b35f7",
+    "baselineCommit":  "24b1bcab770277a645ef93f52795823739e0ae0e",
     "protectedPaths":  [
                            "README.md",
                            "source/extension.yaml",
@@ -10,13 +10,13 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "31769A11E324090C8AA3DE339844845C8214CA33EF6E102DC11528EB9A2CA4A3"
+                  "sha256":  "4F225E46420CEB98901BD5EE892146C8D6CA804E0DAF263053CDE2C59312CD85"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
-                                "sha256":  "1F6CA67B624A3A314BEB55240C5BAF6A507BD4CEA8827BDEE6FD6865490B07B1",
+                                "sha256":  "2764C8CF5977C42DC65556B2EA073F12249440999F83737765383C255C394EB5",
                                 "fileCount":  1,
-                                "entryCount":  383
+                                "entryCount":  386
                             },
     "overlayFiles":  [
                          {
@@ -133,15 +133,15 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "99BB44D031F9FFA934F954116EF37155787642C883469EE521A26F0FA0C5594A"
+                             "sha256":  "D11F07428B26690C97087499DB5436EBE02C59D49985AD87876AA667CD8C84AC"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "4330A70CEC68D91230818344EBEC01C8B0026323FE643C3FB41EF06442267BC4"
+                             "sha256":  "1E80B526D9A2E79027E829B052C8F75114D1918F713C77C4757F0E036F735B3B"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
-                             "sha256":  "BC09CFAC6B950717078B119B532567CC70A90DC69E3EC323EFACBE5B99234336"
+                             "sha256":  "B2DD6D69438A47786E6F74A6D6602A2570EED20E8CAE375AE151687489FAC53A"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml.cs",

@@ -1348,6 +1348,21 @@
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_BattleNet_WowRegion\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eRegion\u003c/sys:String\u003e"
                         },
                         {
+                            "key":  "LOCPlayAch_Settings_CompressImages_Confirm",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_CompressImages_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003e{0} of {1} cached images are larger than {2} px.\n\nCurrent size: {3}\nEstimated after compression: {4}\n\nFiles are rewritten in place and this cannot be undone. Continue?\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_CompressImages_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003e{0} of {1} cached images are larger than {2} px.\r\n\r\nCurrent size: {3}\r\nEstimated after compression: {4}\r\n\r\nFiles are rewritten in place and this cannot be undone. Continue?\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Settings_CompressImages_Result",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_CompressImages_Result\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eCompressed {0} images. Skipped {1}, failed {2}.\n\nReclaimed {3}.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_CompressImages_Result\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eCompressed {0} images. Skipped {1}, failed {2}.\r\n\r\nReclaimed {3}.\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Settings_CompressImages_ResultCanceled",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_CompressImages_ResultCanceled\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eCanceled after compressing {0} images.\n\nReclaimed {1}.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_CompressImages_ResultCanceled\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eCanceled after compressing {0} images.\r\n\r\nReclaimed {1}.\u003c/sys:String\u003e"
+                        },
+                        {
                             "key":  "LOCPlayAch_Settings_DefaultAchievementSort",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_DefaultAchievementSort\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eDefault Achievement Sort\u003c/sys:String\u003e"

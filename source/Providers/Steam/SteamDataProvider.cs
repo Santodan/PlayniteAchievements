@@ -273,6 +273,26 @@ namespace PlayniteAchievements.Providers.Steam
             }
         }
 
+        internal async Task EnrichSteamHuntersCategoriesForExternalProviderAsync(
+            int appId,
+            string gameName,
+            IList<AchievementDetail> achievements,
+            Guid? playniteGameId,
+            CancellationToken cancel)
+        {
+            if (_steamHuntersCategoryEnricher == null)
+            {
+                return;
+            }
+
+            using (_sessionManager.BeginOffscreenViewLease())
+            {
+                await _steamHuntersCategoryEnricher
+                    .EnrichAsync(appId, gameName, achievements, playniteGameId, cancel)
+                    .ConfigureAwait(false);
+            }
+        }
+
         InGameProgressRegistration IInGameProgressSource.TryRegister(
             Game game,
             GameAchievementData cachedSchema)

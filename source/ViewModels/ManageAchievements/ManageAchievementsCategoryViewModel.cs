@@ -1388,16 +1388,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _definitionOrderedRows.Count > 0 ? _definitionOrderedRows : _allRows,
                 row => row?.Category,
                 categoryOrder);
-            EnsureDefaultCategoryLabel(orderedLabels, categoryOrder);
             var fileStems = AchievementIconCachePathBuilder.BuildFileStems(orderedLabels);
             var rows = new List<ManageAchievementsCategoryMetadataItem>();
 
             foreach (var label in orderedLabels)
             {
-                // The Default row is kept even with no achievements in it so its art can
-                // be set and selected for game summaries ahead of time.
-                if ((!groups.TryGetValue(label, out var bucket) || bucket.Count == 0) &&
-                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                if (!groups.TryGetValue(label, out var bucket) || bucket.Count == 0)
                 {
                     continue;
                 }
@@ -1426,37 +1422,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             HasCustomCategoryNames = rows.Any(row =>
                 !string.Equals(row.CategoryLabel, row.ProviderCategoryLabel, StringComparison.OrdinalIgnoreCase));
             ReplaceCategoryRows(rows);
-        }
-
-        // Inserts the Default label when no achievement currently falls into it, at its
-        // persisted custom-order position when one exists, otherwise at the end.
-        private static void EnsureDefaultCategoryLabel(List<string> orderedLabels, IReadOnlyList<string> categoryOrder)
-        {
-            if (orderedLabels == null ||
-                orderedLabels.Contains(AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparer.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            var insertIndex = orderedLabels.Count;
-            var defaultOrderIndex = AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(
-                AchievementCategoryTypeHelper.DefaultCategoryLabel,
-                categoryOrder);
-            if (defaultOrderIndex != int.MaxValue)
-            {
-                // Ordered labels precede unordered ones (index int.MaxValue), so the first
-                // label ranked after Default marks the insertion point.
-                for (var i = 0; i < orderedLabels.Count; i++)
-                {
-                    if (AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(orderedLabels[i], categoryOrder) > defaultOrderIndex)
-                    {
-                        insertIndex = i;
-                        break;
-                    }
-                }
-            }
-
-            orderedLabels.Insert(insertIndex, AchievementCategoryTypeHelper.DefaultCategoryLabel);
         }
 
         private void RefreshCategoryLabelOptions()

@@ -109,6 +109,9 @@ namespace PlayniteAchievements.Tests.Views
                 code,
                 "private List<ManageAchievementsCategoryItem> _definitionOrderedRows",
                 "_definitionOrderedRows.Count > 0 ? _definitionOrderedRows : _allRows");
+            Assert.IsFalse(
+                code.Contains("EnsureDefaultCategoryLabel("),
+                "Manage Categories must not synthesize an empty Default category row.");
         }
 
         [TestMethod]

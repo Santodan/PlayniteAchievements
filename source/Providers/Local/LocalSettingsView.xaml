@@ -140,6 +140,14 @@
 
             <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>-->
+                    <CheckBox Content="Use SteamHunters for Categories"
+                              IsChecked="{Binding Settings.UseSteamHuntersForCategories, Mode=TwoWay}"
+                              Margin="0,0,0,4"/>
+                    <TextBlock Text="Fills achievement categories and Base/DLC types from SteamHunters during Local refreshes. Category art defaults to Steam store banners (changeable per game in Manage Achievements)."
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="18,0,0,12"
+                               TextWrapping="Wrap"/>
+
                     <TextBlock Text="Steam path (optional):"
                                Foreground="{DynamicResource TextBrush}"
                                FontWeight="SemiBold"
