@@ -333,10 +333,10 @@ namespace PlayniteAchievements.Providers.Hoyoverse
                 case "chinese":
                 case "schinese":
                 case "simplified chinese":
-                    return "chs";
+                    return "zh";
                 case "tchinese":
                 case "traditional chinese":
-                    return "cht";
+                    return "tw";
                 case "japanese":
                     return "ja";
                 case "koreana":
