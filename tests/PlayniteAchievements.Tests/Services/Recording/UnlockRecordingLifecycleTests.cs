@@ -127,18 +127,22 @@ namespace PlayniteAchievements.Services.Tests.Recording
             // composite, so a chime always plays at the notification in the clip.
             var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            StringAssert.Contains(service, "Live-chime removal: outcome=");
+            StringAssert.Contains(service, "Live-chime removal (");
             StringAssert.Contains(service, "subtractedAnything");
             Assert.IsFalse(
                 service.Contains("LiveChimeAbsent"),
                 "The removal-quality composite gate was removed by policy.");
+            // Hybrid removal: file reference first (immune to crossfeed/tears), captured slice
+            // second (matches a cold player's time-warped render the file cannot).
+            StringAssert.Contains(service, "ChimePass(fileChimeReference, \"file\"");
+            StringAssert.Contains(service, "ChimePass(capturedChimeReference, \"capture\"");
 
             // Full System captures the game-tree reference so the Playnite-tree slice can be
             // verified game-free before it is subtracted from the speaker mix; a Playnite-launched
             // game lives inside both trees and must never be removed from a Full System clip.
-            StringAssert.Contains(service, "TryReadPlayniteReference");
+            StringAssert.Contains(service, "TryReadCapturedChimeReference");
             var isolate = service.IndexOf(
-                "private byte[] TryReadPlayniteReference", StringComparison.Ordinal);
+                "private byte[] TryReadCapturedChimeReference", StringComparison.Ordinal);
             var isolateEnd = service.IndexOf(
                 "private SegmentTimeline.ClipPlan TryRemoveNonGameAudio",
                 isolate,

@@ -1828,39 +1828,27 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Builds the live-chime removal reference for a clip window (both modes): the fired
-        /// chimes' files when they are all known, otherwise the captured Playnite-tree slice with
-        /// the game reference cancelled out of it (a Playnite-launched game lives inside both
-        /// trees, and only what is verifiably not the game may be subtracted from the clip
-        /// audio). Returns null when there is nothing that may be subtracted — including a window
-        /// no chime fired in.
+        /// Builds the CAPTURED live-chime removal reference for a clip window: the Playnite-tree
+        /// slice with the game reference cancelled out of it (a Playnite-launched game lives
+        /// inside both trees, and only what is verifiably not the game may be subtracted from the
+        /// clip audio). Complementary to the file reference: this slice carries the chime exactly
+        /// as it rendered — a cold player's time-warped onset included — which the pristine file
+        /// cannot match, while the file is immune to the crossfeed and tears that can contaminate
+        /// this capture. Returns null when the slice cannot be trusted.
         /// </summary>
-        private byte[] TryReadPlayniteReference(
+        private byte[] TryReadCapturedChimeReference(
             CaptureSession session,
             DateTime startUtc,
             DateTime endUtc)
         {
-            var fileReference = TryReadFiredChimeReference(
-                startUtc, endUtc, out var noChimesFired);
-            if (noChimesFired)
-            {
-                return null;
-            }
-
-            if (fileReference != null)
-            {
-                return fileReference;
-            }
-
             if (session.ChimeRecorder == null ||
                 session.AudioRecorder?.ChimeCaptureMode !=
                     PlayniteChimeCaptureMode.CancelGameReference ||
                 session.ChimeRecorder.ChimeReferenceFailed ||
                 session.AudioRecorder.GameReferenceFailed)
             {
-                _logger?.Info(
-                    "[Recording] A chime fired inside this window but no usable removal " +
-                    "reference exists; the live chime stays in the speaker mix.");
+                _logger?.Debug(
+                    "[Recording] No captured chime reference is available for this window.");
                 return null;
             }
 
@@ -2021,43 +2009,73 @@ namespace PlayniteAchievements.Services.Recording
                 // fallback — and the wave's own chime is composited at the toast instead. The
                 // chime-file reference sits at the sound LAUNCH stamp while the live chime starts
                 // an out-of-process onset later (player spin-up, measured up to ~500 ms cold),
-                // hence the wide search. A verified partial removal is kept: an attenuated
+                // hence its wide search. A verified partial removal is kept: an attenuated
                 // residue under a correctly placed chime beats a full-level live chime at the
                 // wrong moment.
-                var chimeReference = TryReadPlayniteReference(session, startUtc, endUtc);
-                if (chimeReference != null)
+                //
+                // Hybrid removal: the file pass first (pristine reference, immune to crossfeed
+                // and capture tears), then a captured-slice mop-up on whatever remains (it
+                // carries the chime exactly as rendered, so a cold player's time-warped onset —
+                // which cannot match the file — still subtracts). Each pass commits only
+                // held-out-verified work.
+                PcmCancellationOutcome ChimePass(
+                    byte[] chimeReference, string source, int maxLag)
                 {
-                    var chimeOutcome = SubtractNonGame(
+                    var passOutcome = SubtractNonGame(
                         mixture,
                         chimeReference,
                         out var chimePass,
                         residualPass: false,
-                        maxLagFrames: 36000,
+                        maxLagFrames: maxLag,
                         detectClean: true);
-                    if (chimeOutcome == PcmCancellationOutcome.Unseparable)
+                    if (passOutcome == PcmCancellationOutcome.Unseparable)
                     {
                         // A residue between the clean ceiling and the ordinary entry gate is
-                        // still worth an attempt at the residual pass's lower floors — the
-                        // reference is the exact source waveform, and every committed block
-                        // still proves itself on held-out samples.
-                        chimeOutcome = SubtractNonGame(
+                        // still worth an attempt at the residual pass's lower floors — every
+                        // committed block still proves itself on held-out samples.
+                        passOutcome = SubtractNonGame(
                             mixture,
                             chimeReference,
                             out chimePass,
                             residualPass: true,
-                            maxLagFrames: 36000,
+                            maxLagFrames: maxLag,
                             detectClean: true);
                     }
+
                     _logger?.Info(
-                        $"[Recording] Live-chime removal: outcome={chimeOutcome} " +
+                        $"[Recording] Live-chime removal ({source}): outcome={passOutcome} " +
                         $"lag={chimePass.StartLagMs:0.###}ms " +
                         $"correlation={chimePass.Correlation:0.000} " +
                         $"suppression={chimePass.SuppressionDb:0.0}dB " +
                         $"blocks={chimePass.SubtractedBlocks}/{chimePass.TotalBlocks} " +
                         $"restored={chimePass.RestoredBlocks} gated={chimePass.MutedBlocks}.");
                     subtractedAnything |=
-                        chimeOutcome == PcmCancellationOutcome.CancelledVerified &&
+                        passOutcome == PcmCancellationOutcome.CancelledVerified &&
                         chimePass.SubtractedBlocks > 0;
+                    return passOutcome;
+                }
+
+                var fileChimeReference = TryReadFiredChimeReference(
+                    startUtc, endUtc, out var noChimesFired);
+                if (!noChimesFired)
+                {
+                    if (fileChimeReference != null)
+                    {
+                        ChimePass(fileChimeReference, "file", 36000);
+                    }
+
+                    var capturedChimeReference = TryReadCapturedChimeReference(
+                        session, startUtc, endUtc);
+                    if (capturedChimeReference != null)
+                    {
+                        ChimePass(capturedChimeReference, "capture", 12000);
+                    }
+                    else if (fileChimeReference == null)
+                    {
+                        _logger?.Info(
+                            "[Recording] A chime fired inside this window but no removal " +
+                            "reference exists; the live chime stays in the speaker mix.");
+                    }
                 }
 
                 if (!subtractedAnything)

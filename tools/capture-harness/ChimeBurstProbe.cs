@@ -471,28 +471,70 @@ internal static class ChimeBurstProbe
                     $"lag={fsf.StartLagMs:0.000}ms corr={fsf.Correlation:0.000} " +
                     $"supp={fsf.SuppressionDb:0.0}dB restored={fsf.RestoredBlocks} " +
                     $"gated={fsf.MutedBlocks}");
-                if (fsFileOutcome == PcmCancellationOutcome.CancelledVerified)
+
+                // Production's hybrid mop-up: the captured Playnite-tree slice, verified
+                // game-free, matches the chime exactly as rendered — a cold player's time-warped
+                // onset included — and removes what the pristine file could not.
+                var mopUp = (byte[])chmSlice.Clone();
+                for (var peel = 0; peel < 2; peel++)
                 {
-                    var fsfDuring = GoertzelDb(fsFile, p0, p1, wave.OwnHz);
-                    var fsfAfter = GoertzelDb(fsFile, a0, a1, wave.OwnHz);
-                    var fsfGame = GoertzelDb(fsFile, p0, p1, GameToneHz);
-                    Check(
-                        fsfDuring - fsfAfter <= 12 || audOwnDuring - fsfDuring >= 15,
-                        "file-based removal drops the live chime",
-                        $"during {fsfDuring:0.0} vs after {fsfAfter:0.0} dB (raw {audOwnDuring:0.0} dB)");
-                    Check(
-                        Math.Abs(audGame - fsfGame) <= 3,
-                        "file-based removal keeps the game tone within 3dB",
-                        $"lost {audGame - fsfGame:0.0}dB");
-                    if (hapticsLayer)
+                    var peelOutcome = PcmAudio.CancelCorrelated(
+                        mopUp, gamSlice, out _,
+                        muteUnverifiedBlocks: false,
+                        commitVerifiedBlocksOnWeakPass: true,
+                        preferEarlyAlignmentWindow: true,
+                        verificationLagRadiusFrames: 480);
+                    if (peelOutcome != PcmCancellationOutcome.CancelledVerified)
                     {
-                        var fsfHaptic = GoertzelDb(fsFile, p0, p1, HapticToneHz);
-                        Check(
-                            (gamHaptic - gamGame) - (fsfHaptic - fsfGame) >= 30,
-                            "file-based removal output excludes the haptic tone by >= 30dB",
-                            $"process ratio {gamHaptic - gamGame:0.0}dB vs output ratio " +
-                            $"{fsfHaptic - fsfGame:0.0}dB");
+                        break;
                     }
+                }
+                var mopUpPurge = PcmAudio.CancelCorrelated(
+                    mopUp, gamSlice, out var mopUpDiag,
+                    preferEarlyAlignmentWindow: true,
+                    verificationLagRadiusFrames: 480);
+                if (mopUpPurge != PcmCancellationOutcome.Unseparable && mopUpDiag.MutedBlocks == 0)
+                {
+                    var mopUpOutcome = SubtractNonGame(
+                        fsFile, mopUp, out var mop, residualPass: false, maxLagFrames: 12000,
+                        detectClean: true);
+                    if (mopUpOutcome == PcmCancellationOutcome.Unseparable)
+                    {
+                        mopUpOutcome = SubtractNonGame(
+                            fsFile, mopUp, out mop, residualPass: true, maxLagFrames: 12000,
+                            detectClean: true);
+                    }
+                    Console.WriteLine(
+                        $"FullSystem captured mop-up: outcome={mopUpOutcome} " +
+                        $"lag={mop.StartLagMs:0.000}ms corr={mop.Correlation:0.000} " +
+                        $"supp={mop.SuppressionDb:0.0}dB restored={mop.RestoredBlocks}");
+                }
+                else
+                {
+                    Console.WriteLine(
+                        $"FullSystem captured mop-up unavailable ({mopUpPurge} " +
+                        $"gated={mopUpDiag.MutedBlocks})");
+                }
+
+                var fsfDuring = GoertzelDb(fsFile, p0, p1, wave.OwnHz);
+                var fsfAfter = GoertzelDb(fsFile, a0, a1, wave.OwnHz);
+                var fsfGame = GoertzelDb(fsFile, p0, p1, GameToneHz);
+                Check(
+                    fsfDuring - fsfAfter <= 12 || audOwnDuring - fsfDuring >= 15,
+                    "hybrid removal drops the live chime",
+                    $"during {fsfDuring:0.0} vs after {fsfAfter:0.0} dB (raw {audOwnDuring:0.0} dB)");
+                Check(
+                    Math.Abs(audGame - fsfGame) <= 3,
+                    "hybrid removal keeps the game tone within 3dB",
+                    $"lost {audGame - fsfGame:0.0}dB");
+                if (hapticsLayer)
+                {
+                    var fsfHaptic = GoertzelDb(fsFile, p0, p1, HapticToneHz);
+                    Check(
+                        (gamHaptic - gamGame) - (fsfHaptic - fsfGame) >= 30,
+                        "hybrid removal output excludes the haptic tone by >= 30dB",
+                        $"process ratio {gamHaptic - gamGame:0.0}dB vs output ratio " +
+                        $"{fsfHaptic - fsfGame:0.0}dB");
                 }
             }
 
