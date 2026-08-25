@@ -272,13 +272,6 @@ namespace PlayniteAchievements.Services.Recording
             public double? OwnSoundFileGain;
 
             /// <summary>
-            /// Whether the live chime is verifiably absent from the exported base audio — removed
-            /// by verified subtraction, or proven never present inside the clip window. Only then
-            /// may the re-timed chime be composited without doubling a chime the clip already has.
-            /// </summary>
-            public bool LiveChimeAbsent;
-
-            /// <summary>
             /// Notification delay snapshotted at unlock. Non-zero means this clip anchors on the
             /// moment its card appeared rather than on the unlock, and that the wave is expected to
             /// stay silent for at least this long before displaying — which the toast waits below
@@ -1486,16 +1479,14 @@ namespace PlayniteAchievements.Services.Recording
             if (audioPlan != null)
             {
                 var selectedAudioPlan = TryRemoveNonGameAudio(
-                    session, recordedAudioPlan, out cleanedAudioDirectory, out var liveChimeAbsent);
+                    session, recordedAudioPlan, out cleanedAudioDirectory);
                 // Deliberately redundant with the cleanup's own fallback: no cleanup regression
                 // may turn an existing speaker-endpoint plan into the no-audio sentinel.
                 audioPlan = selectedAudioPlan ?? recordedAudioPlan;
-                request.LiveChimeAbsent = liveChimeAbsent;
                 if (selectedAudioPlan == null)
                 {
                     TryDeleteCleanedAudio(cleanedAudioDirectory);
                     cleanedAudioDirectory = null;
-                    request.LiveChimeAbsent = false;
                     _logger?.Warn(
                         "[Recording] Clip-audio cleanup returned no usable plan; keeping the " +
                         "haptic-free speaker audio.");
@@ -1525,7 +1516,6 @@ namespace PlayniteAchievements.Services.Recording
                     _logger?.Warn(
                         "[Recording] Export with cleaned clip audio failed; retrying with the " +
                         "original recorded audio (the haptic-free full-system speaker mix).");
-                    request.LiveChimeAbsent = false;
                     TryDeleteFile(tempPath);
                     videoLeadSeconds = 0;
                     ok = await Task.Run(() => exporter.Export(
@@ -1587,9 +1577,10 @@ namespace PlayniteAchievements.Services.Recording
                 soundFileGain = request.OwnSoundFileGain;
             }
 
-            // The re-timed chime may only be composited when the live chime is verifiably out of
-            // the base audio; otherwise the clip would carry the chime twice.
-            if (!ownSound.HasValue || !request.LiveChimeAbsent)
+            // Every fired chime is removed from the base audio best-effort at export; the wave's
+            // own chime is then always composited at the toast. A wave that played no sound gets
+            // none.
+            if (!ownSound.HasValue)
             {
                 return null;
             }
@@ -1678,17 +1669,13 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// Reads the Game Only "everything except the game tree" reference over the clip window.
-        /// Returns null when there is nothing that may be subtracted; <paramref
-        /// name="liveChimeAbsent"/> is then true only when a healthy reference proves no non-game
-        /// audio — the live chime included — played inside the window at all.
+        /// Returns null when there is nothing that may be subtracted.
         /// </summary>
         private byte[] TryReadNonGameReference(
             CaptureSession session,
             DateTime startUtc,
-            DateTime endUtc,
-            out bool liveChimeAbsent)
+            DateTime endUtc)
         {
-            liveChimeAbsent = false;
             if (session.AudioRecorder.NonGameReferenceFailed)
             {
                 _logger?.Warn(
@@ -1714,9 +1701,7 @@ namespace PlayniteAchievements.Services.Recording
                 else
                 {
                     // Sparse process loopback delivers nothing during silence, so no coverage
-                    // from a healthy reference means no non-game audio (and no live chime)
-                    // played inside this window at all.
-                    liveChimeAbsent = true;
+                    // from a healthy reference means no non-game audio played in this window.
                     _logger?.Debug(
                         "[Recording] No non-game process audio covers this clip; the " +
                         "haptic-free speaker mix is already Game Only.");
@@ -1843,28 +1828,22 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Builds the live-chime removal reference for a Full System clip window: the fired
+        /// Builds the live-chime removal reference for a clip window (both modes): the fired
         /// chimes' files when they are all known, otherwise the captured Playnite-tree slice with
         /// the game reference cancelled out of it (a Playnite-launched game lives inside both
         /// trees, and only what is verifiably not the game may be subtracted from the clip
-        /// audio). Returns null when there is nothing that may be subtracted; <paramref
-        /// name="liveChimeAbsent"/> is then true only when no chime fired inside the window at
-        /// all.
+        /// audio). Returns null when there is nothing that may be subtracted — including a window
+        /// no chime fired in.
         /// </summary>
         private byte[] TryReadPlayniteReference(
             CaptureSession session,
             DateTime startUtc,
-            DateTime endUtc,
-            out bool liveChimeAbsent)
+            DateTime endUtc)
         {
-            liveChimeAbsent = false;
             var fileReference = TryReadFiredChimeReference(
                 startUtc, endUtc, out var noChimesFired);
             if (noChimesFired)
             {
-                // No chime fired inside this window, so the re-timed chime cannot double anything
-                // and there is nothing that needs removing.
-                liveChimeAbsent = true;
                 return null;
             }
 
@@ -1943,20 +1922,18 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// Turns the haptic-free speaker mix into the configured mode's clip audio. Game Only
-        /// removes the simultaneously captured "everything except the game tree" reference; Full
-        /// System removes only the game-free Playnite-tree slice, so the chime can be re-timed
-        /// onto the composited toast without doubling. Rejection keeps the speaker mix: that may
-        /// contain another application or the live chime, but it can never contain a controller
-        /// endpoint or become the exporter's no-audio sentinel.
+        /// removes the simultaneously captured "everything except the game tree" reference; both
+        /// modes then remove every fired live chime best-effort, because the wave's own chime is
+        /// always composited back at the toast. Rejection keeps the speaker mix: that may contain
+        /// another application or a live chime, but it can never contain a controller endpoint or
+        /// become the exporter's no-audio sentinel.
         /// </summary>
         private SegmentTimeline.ClipPlan TryRemoveNonGameAudio(
             CaptureSession session,
             SegmentTimeline.ClipPlan audioPlan,
-            out string cleanedDirectory,
-            out bool liveChimeAbsent)
+            out string cleanedDirectory)
         {
             cleanedDirectory = null;
-            liveChimeAbsent = false;
             string candidateDirectory = null;
             var gameOnly = session.AudioRecorder?.RequiresNonGameCleanup == true;
             if (audioPlan?.Segments == null || audioPlan.Segments.Count == 0 ||
@@ -1969,14 +1946,6 @@ namespace PlayniteAchievements.Services.Recording
             {
                 var startUtc = audioPlan.StartUtc;
                 var endUtc = audioPlan.EndUtc;
-                var reference = gameOnly
-                    ? TryReadNonGameReference(session, startUtc, endUtc, out liveChimeAbsent)
-                    : TryReadPlayniteReference(session, startUtc, endUtc, out liveChimeAbsent);
-                if (reference == null)
-                {
-                    return audioPlan;
-                }
-
                 var mixture = TryReadAudioWindow(
                     session.BufferDirectory,
                     RecordingPaths.AudioChunkFilePrefix,
@@ -1987,139 +1956,113 @@ namespace PlayniteAchievements.Services.Recording
                     return audioPlan;
                 }
 
-                var recordedMixture = (byte[])mixture.Clone();
-                // The chime-file reference is placed at the sound LAUNCH stamp, while the live
-                // chime starts an out-of-process onset later (WasapiOut/player spin-up, measured
-                // up to ~500 ms cold), so its search must reach further than capture-to-capture.
-                var searchLag = gameOnly ? 12000 : 36000;
-                var outcome = SubtractNonGame(
-                    mixture,
-                    reference,
-                    out var cancellation,
-                    residualPass: false,
-                    maxLagFrames: searchLag,
-                    detectClean: !gameOnly);
-                var fit = "one-full-clip-stereo-subtraction";
-                if (outcome == PcmCancellationOutcome.Unseparable)
-                {
-                    mixture = recordedMixture;
-                    outcome = SubtractNonGame(
-                        mixture,
-                        reference,
-                        out cancellation,
-                        residualPass: false,
-                        blockFrames: 24000,
-                        maxLagFrames: searchLag,
-                        detectClean: !gameOnly);
-                    fit = "500ms-gain-fallback";
-                }
-                var label = gameOnly ? "Game-only isolation" : "Playnite-audio removal";
-                _logger?.Info(
-                    $"[Recording] {label}: outcome={outcome} " +
-                    $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
-                    $"correlation={cancellation.Correlation:0.000} " +
-                    $"suppression={cancellation.SuppressionDb:0.0}dB " +
-                    $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
-                    $"restored={cancellation.RestoredBlocks} gated={cancellation.MutedBlocks} " +
-                    $"fit={fit}.");
-                if (!gameOnly && outcome == PcmCancellationOutcome.CleanNoGameDetected)
-                {
-                    // The chimes do not project onto the speaker mix at their played volume —
-                    // nothing to remove, and the composite cannot double anything.
-                    liveChimeAbsent = true;
-                    return audioPlan;
-                }
-
-                if (outcome != PcmCancellationOutcome.CancelledVerified)
-                {
-                    liveChimeAbsent = false;
-                    return audioPlan;
-                }
-
-                // A block the pass had to restore or gate may still hold the live chime, so a
-                // partial pass cannot license compositing a second one.
-                liveChimeAbsent =
-                    cancellation.RestoredBlocks == 0 && cancellation.MutedBlocks == 0;
-                if (!gameOnly && !liveChimeAbsent)
-                {
-                    // Full System removes the live chime only so it can be re-timed. A partial
-                    // removal without the composited chime is worse than the live chime.
-                    _logger?.Info(
-                        "[Recording] Live-chime removal was only partial; the live chime " +
-                        "stays in the speaker mix.");
-                    return audioPlan;
-                }
-
-                // A second full-clip fit can remove a low-level phase/latency residual left by the
-                // first endpoint/process transfer. It is optional and transactional: rejection
-                // leaves the first verified result byte-for-byte intact.
-                for (var pass = 1; pass <= 3; pass++)
-                {
-                    var residualOutcome = SubtractNonGame(
-                        mixture,
-                        reference,
-                        out var residual,
-                        residualPass: true,
-                        maxLagFrames: searchLag);
-                    _logger?.Debug(
-                        $"[Recording] {label} residual pass {pass}: outcome={residualOutcome} " +
-                        $"lag={residual.StartLagMs:0.###}->{residual.EndLagMs:0.###}ms " +
-                        $"correlation={residual.Correlation:0.000} " +
-                        $"suppression={residual.SuppressionDb:0.0}dB.");
-                    if (residualOutcome != PcmCancellationOutcome.CancelledVerified)
-                    {
-                        break;
-                    }
-                }
-
+                var subtractedAnything = false;
                 if (gameOnly)
                 {
-                    // The composite gate is decided by the chime itself when its files are known:
-                    // whole-slice verification can pass while the chime component specifically
-                    // survived (measured live: a verified pass left the chime bin only 8 dB
-                    // down), and compositing on those statistics would double an audible chime.
-                    // This pass removes that residue with the exact source waveform, and its
-                    // outcome replaces the statistical gate.
-                    var chimeReference = TryReadFiredChimeReference(
-                        startUtc, endUtc, out var noChimesFired);
-                    if (noChimesFired)
+                    var reference = TryReadNonGameReference(session, startUtc, endUtc);
+                    if (reference != null)
                     {
-                        liveChimeAbsent = true;
-                    }
-                    else if (chimeReference != null)
-                    {
-                        var chimeOutcome = SubtractNonGame(
+                        var recordedMixture = (byte[])mixture.Clone();
+                        var outcome = SubtractNonGame(
                             mixture,
-                            chimeReference,
-                            out var chimePass,
-                            residualPass: false,
-                            maxLagFrames: 36000,
-                            detectClean: true);
-                        if (chimeOutcome == PcmCancellationOutcome.Unseparable)
+                            reference,
+                            out var cancellation,
+                            residualPass: false);
+                        var fit = "one-full-clip-stereo-subtraction";
+                        if (outcome != PcmCancellationOutcome.CancelledVerified)
                         {
-                            // A residue between the clean ceiling and the ordinary entry gate is
-                            // still worth an attempt at the residual pass's lower floors — the
-                            // reference is the exact source waveform, and every committed block
-                            // still proves itself on held-out samples.
-                            chimeOutcome = SubtractNonGame(
+                            mixture = recordedMixture;
+                            outcome = SubtractNonGame(
                                 mixture,
-                                chimeReference,
-                                out chimePass,
-                                residualPass: true,
-                                maxLagFrames: 36000,
-                                detectClean: true);
+                                reference,
+                                out cancellation,
+                                residualPass: false,
+                                blockFrames: 24000);
+                            fit = "500ms-gain-fallback";
                         }
                         _logger?.Info(
-                            $"[Recording] Game-only chime-residue pass: outcome={chimeOutcome} " +
-                            $"lag={chimePass.StartLagMs:0.###}ms " +
-                            $"correlation={chimePass.Correlation:0.000} " +
-                            $"suppression={chimePass.SuppressionDb:0.0}dB " +
-                            $"restored={chimePass.RestoredBlocks} gated={chimePass.MutedBlocks}.");
-                        liveChimeAbsent =
-                            chimeOutcome == PcmCancellationOutcome.CleanNoGameDetected ||
-                            (chimeOutcome == PcmCancellationOutcome.CancelledVerified &&
-                                chimePass.RestoredBlocks == 0 && chimePass.MutedBlocks == 0);
+                            $"[Recording] Game-only isolation: outcome={outcome} " +
+                            $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
+                            $"correlation={cancellation.Correlation:0.000} " +
+                            $"suppression={cancellation.SuppressionDb:0.0}dB " +
+                            $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
+                            $"restored={cancellation.RestoredBlocks} gated={cancellation.MutedBlocks} " +
+                            $"fit={fit}.");
+                        if (outcome == PcmCancellationOutcome.CancelledVerified)
+                        {
+                            subtractedAnything = true;
+                            // A second full-clip fit can remove a low-level phase/latency residual
+                            // left by the first endpoint/process transfer. Optional and
+                            // transactional: rejection leaves the verified result intact.
+                            for (var pass = 1; pass <= 3; pass++)
+                            {
+                                var residualOutcome = SubtractNonGame(
+                                    mixture,
+                                    reference,
+                                    out var residual,
+                                    residualPass: true);
+                                _logger?.Debug(
+                                    $"[Recording] Game-only isolation residual pass {pass}: " +
+                                    $"outcome={residualOutcome} " +
+                                    $"lag={residual.StartLagMs:0.###}->{residual.EndLagMs:0.###}ms " +
+                                    $"correlation={residual.Correlation:0.000} " +
+                                    $"suppression={residual.SuppressionDb:0.0}dB.");
+                                if (residualOutcome != PcmCancellationOutcome.CancelledVerified)
+                                {
+                                    break;
+                                }
+                            }
+                        }
                     }
+                }
+
+                // Live chimes are ALWAYS removed, in both modes and regardless of whether the
+                // non-game stage ran — file references first, the captured Playnite-tree slice as
+                // fallback — and the wave's own chime is composited at the toast instead. The
+                // chime-file reference sits at the sound LAUNCH stamp while the live chime starts
+                // an out-of-process onset later (player spin-up, measured up to ~500 ms cold),
+                // hence the wide search. A verified partial removal is kept: an attenuated
+                // residue under a correctly placed chime beats a full-level live chime at the
+                // wrong moment.
+                var chimeReference = TryReadPlayniteReference(session, startUtc, endUtc);
+                if (chimeReference != null)
+                {
+                    var chimeOutcome = SubtractNonGame(
+                        mixture,
+                        chimeReference,
+                        out var chimePass,
+                        residualPass: false,
+                        maxLagFrames: 36000,
+                        detectClean: true);
+                    if (chimeOutcome == PcmCancellationOutcome.Unseparable)
+                    {
+                        // A residue between the clean ceiling and the ordinary entry gate is
+                        // still worth an attempt at the residual pass's lower floors — the
+                        // reference is the exact source waveform, and every committed block
+                        // still proves itself on held-out samples.
+                        chimeOutcome = SubtractNonGame(
+                            mixture,
+                            chimeReference,
+                            out chimePass,
+                            residualPass: true,
+                            maxLagFrames: 36000,
+                            detectClean: true);
+                    }
+                    _logger?.Info(
+                        $"[Recording] Live-chime removal: outcome={chimeOutcome} " +
+                        $"lag={chimePass.StartLagMs:0.###}ms " +
+                        $"correlation={chimePass.Correlation:0.000} " +
+                        $"suppression={chimePass.SuppressionDb:0.0}dB " +
+                        $"blocks={chimePass.SubtractedBlocks}/{chimePass.TotalBlocks} " +
+                        $"restored={chimePass.RestoredBlocks} gated={chimePass.MutedBlocks}.");
+                    subtractedAnything |=
+                        chimeOutcome == PcmCancellationOutcome.CancelledVerified &&
+                        chimePass.SubtractedBlocks > 0;
+                }
+
+                if (!subtractedAnything)
+                {
+                    return audioPlan;
                 }
 
                 candidateDirectory = Path.Combine(
@@ -2146,7 +2089,6 @@ namespace PlayniteAchievements.Services.Recording
                 if (cleanedPlan == null)
                 {
                     TryDeleteCleanedAudio(candidateDirectory);
-                    liveChimeAbsent = false;
                     return audioPlan;
                 }
 
@@ -2156,7 +2098,6 @@ namespace PlayniteAchievements.Services.Recording
             catch (Exception ex)
             {
                 TryDeleteCleanedAudio(candidateDirectory);
-                liveChimeAbsent = false;
                 _logger?.Warn(
                     ex,
                     "[Recording] Clip-audio isolation failed; keeping the " +
@@ -2226,7 +2167,11 @@ namespace PlayniteAchievements.Services.Recording
                 blockGainFloor: floor,
                 keepBlockSuppressionDb: 10,
                 cancellationBlockFrames: blockFrames ?? mixture.Length / PcmAudio.BlockAlign,
-                maximumResidualCorrelation: 0.35,
+                // The residual ceiling exists to catch a reference that is not this signal. A
+                // chime-file caller's reference is definitionally this signal, and the ceiling was
+                // observed discarding a verified 20+ dB removal because the leftovers of an
+                // earlier pass still correlated with the file.
+                maximumResidualCorrelation: detectClean ? double.MaxValue : 0.35,
                 commitVerifiedBlocksOnWeakPass: true,
                 minimumCorrelation: residualPass ? 0.03 : 0.15,
                 // A chime-file caller wants "the reference does not project" reported as

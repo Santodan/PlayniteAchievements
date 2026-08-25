@@ -55,11 +55,12 @@ namespace PlayniteAchievements.Services.UI
         // CornerGapDip - glow so the body sits here whether or not the border glow is on (with the
         // glow on, the glow itself may reach the screen edge). Tunable.
         private const double CornerGapDip = 24d;
-        // Gap between launching the sound URI and the toast slide-in / controller pulse. The sound
-        // is played out-of-process (UniPlaySong resolves and starts the audio), so its onset lags
-        // the launch; this offset is what the slide-in and the in-process vibration wait for so all
-        // three land together. Tunable.
+        // Gap between launching the sound and the toast slide-in / controller pulse, so the audio
+        // onset and the reveal land together. The URI path pays the shell's scheme resolution on
+        // top of UniPlaySong's player start, hence the larger constant; the in-process event
+        // (UniPlaySong 1.8.4+) reaches the player directly and needs far less. Both tunable.
         private const int SoundAlignmentDelayMs = 450;
+        private const int SoundAlignmentFastPathDelayMs = 150;
 
         private bool _disposed;
         // Window-bearing waves shown by this process; see the [Toast] Fire diagnostic line.
@@ -2019,9 +2020,12 @@ namespace PlayniteAchievements.Services.UI
             if (visible)
             {
                 // Play the sound first, then show the toast after a short delay so the audio onset
-                // and the slide-in visually align.
-                (soundPlayedUtc, soundFilePath, soundFileGain) = PlayWaveSound(cardItems);
-                await Task.Delay(SoundAlignmentDelayMs).ConfigureAwait(true);
+                // and the slide-in visually align. The in-process fast path starts the player far
+                // sooner than the URI, so it waits proportionally less.
+                bool fastPath;
+                (soundPlayedUtc, soundFilePath, soundFileGain, fastPath) = PlayWaveSound(cardItems);
+                await Task.Delay(fastPath ? SoundAlignmentFastPathDelayMs : SoundAlignmentDelayMs)
+                    .ConfigureAwait(true);
                 if (_disposed)
                 {
                     DisposeCaptureTask(baseCaptureTask);
@@ -2579,8 +2583,8 @@ namespace PlayniteAchievements.Services.UI
         /// master switch being off) and the resolved file path (null when unknown, which sends the
         /// recording service down its capture-based fallback).
         /// </summary>
-        private (DateTime? PlayedUtc, string SoundFilePath, double? SoundFileGain) PlayWaveSound(
-            IReadOnlyList<AchievementToastViewModel> wave)
+        private (DateTime? PlayedUtc, string SoundFilePath, double? SoundFileGain, bool FastPath)
+            PlayWaveSound(IReadOnlyList<AchievementToastViewModel> wave)
         {
             var tier = wave?
                 .OrderByDescending(vm => vm.SoundTierRank)
@@ -2588,7 +2592,7 @@ namespace PlayniteAchievements.Services.UI
                 .FirstOrDefault();
             if (string.IsNullOrWhiteSpace(tier))
             {
-                return (null, null, null);
+                return (null, null, null, false);
             }
 
             var soundFilePath = UniPlaySongBridge.TryResolveAchievementSound(
@@ -2597,7 +2601,7 @@ namespace PlayniteAchievements.Services.UI
             {
                 // UniPlaySong positively reports achievement sounds off: nothing would play, so
                 // nothing may be mixed into clips either.
-                return (null, null, null);
+                return (null, null, null, false);
             }
 
             // Snapshotted at fire time, like the path: the mixed chime should be as loud as the
@@ -2616,18 +2620,18 @@ namespace PlayniteAchievements.Services.UI
 
             if (UniPlaySongBridge.TryTriggerExternalEvent(_api, tier, _logger))
             {
-                return (CaptureTimelineClock.UtcNow, soundFilePath, soundFileGain);
+                return (CaptureTimelineClock.UtcNow, soundFilePath, soundFileGain, true);
             }
 
             try
             {
                 Process.Start($"playnite://uniplaysong/{UniPlaySongBridge.EventSource}/{tier}");
-                return (CaptureTimelineClock.UtcNow, soundFilePath, soundFileGain);
+                return (CaptureTimelineClock.UtcNow, soundFilePath, soundFileGain, false);
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Toast unlock sound URI could not be launched.");
-                return (null, null, null);
+                return (null, null, null, false);
             }
         }
 
