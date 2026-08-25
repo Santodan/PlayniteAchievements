@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 
 namespace PlayniteAchievements.Services.Recording
@@ -144,34 +143,12 @@ namespace PlayniteAchievements.Services.Recording
         public const string GameReferenceChunkFilePrefix = "gam_";
 
         /// <summary>
-        /// How many controller endpoints can be captured as separate references.
+        /// Non-game reference chunks: oth_yyyyMMdd-HHmmssfffffffZ.wav. Game-only capture records
+        /// the speaker endpoint as its haptic-free main track and captures every process except the
+        /// game tree here, so export can remove other applications without ever admitting a
+        /// controller endpoint into the clip audio.
         /// </summary>
-        public const int MaxHapticReferences = 4;
-
-        /// <summary>
-        /// Haptic-reference chunk filenames: hap0_yyyyMMdd-HHmmssfffffffZ.wav — everything rendered to
-        /// one controller's own audio endpoint. Process loopback mixes every endpoint the game
-        /// renders to, so this is the copy of its haptic waveform that the clip's audio is cleaned
-        /// against. Written only while such an endpoint exists.
-        /// <para>
-        /// One track per endpoint, never a mix of them: cancellation fits a separate fixed lag and
-        /// scale for each reference, so two endpoints summed into one track cannot both be removed. They are
-        /// subtracted one after another instead.
-        /// </para>
-        /// </summary>
-        public static string HapticReferenceChunkFilePrefix(int index)
-        {
-            return "hap" + index.ToString(CultureInfo.InvariantCulture) + "_";
-        }
-
-        /// <summary>Every haptic-reference prefix, for buffer maintenance.</summary>
-        public static IEnumerable<string> HapticReferenceChunkFilePrefixes()
-        {
-            for (var index = 0; index < MaxHapticReferences; index++)
-            {
-                yield return HapticReferenceChunkFilePrefix(index);
-            }
-        }
+        public const string NonGameReferenceChunkFilePrefix = "oth_";
 
         public const string AudioChunkFileExtension = ".wav";
     }

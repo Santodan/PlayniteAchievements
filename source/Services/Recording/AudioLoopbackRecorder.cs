@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
@@ -16,16 +14,17 @@ namespace PlayniteAchievements.Services.Recording
     internal enum PlayniteChimeCaptureMode
     {
         Unavailable,
-        Clean,
         CancelGameReference
     }
 
     /// <summary>
     /// Best-effort rolling capture of audio into short WAV chunks written next to the video segments,
-    /// so clip export can mux matching sound. The source is chosen by settings: all system audio
-    /// (WASAPI loopback on the default render endpoint) or just the game process's audio (per-process
-    /// loopback, <see cref="ProcessLoopbackCapture"/>, degrading to full system on failure or older
-    /// Windows), optionally with the default microphone mixed in. Chunk names mirror the video
+    /// so clip export can mux matching sound. Both settings record the actual default render
+    /// endpoint. Full System keeps that mix apart from the verified removal of Playnite's own
+    /// sounds so the chime can be re-timed onto the composited toast; Game Only subtracts a
+    /// simultaneous non-game process reference after export verification. Both fall back to the
+    /// audible endpoint mix. The optional
+    /// microphone is mixed into either mode. Chunk names mirror the video
     /// convention (aud_yyyyMMdd-HHmmssfffffffZ.wav, UTC timeline) and rotate every
     /// <see cref="UnlockRecordingService.SegmentSeconds"/> seconds.
     ///
@@ -35,15 +34,10 @@ namespace PlayniteAchievements.Services.Recording
     /// pipeline untouched; NAudio types are confined to this file, ProcessLoopbackCapture and
     /// RenderEndpointScan.
     ///
-    /// While a controller audio endpoint exists, everything rendered to it is captured in parallel
-    /// into one hapN_ track per endpoint (<see cref="StartHapticReference"/>). Process loopback mixes
-    /// every endpoint a process renders to, so a game's haptic waveform is inside the main track; the
-    /// clip export cancels it out against those references.
-    ///
-    /// Those tracks are NOT pump-paced: each packet is written at the position its own capture stamp
-    /// gives it on the pump's timeline (<see cref="WriteStampedHapticPacket"/>). An endpoint client
-    /// runs on its own clock, so pacing its audio with ours reintroduced exactly what the export then
-    /// had to search for — a fixed offset plus accumulating drift.
+    /// User-facing capture always comes from one real render endpoint, never the virtual
+    /// all-process/all-endpoint loopback device. A separate controller actuator endpoint therefore
+    /// cannot enter the recording. If the DualSense itself is the default output, its proven native
+    /// layout is split and only the front L/R program channels are retained.
     ///
     /// The chime sidecar and its game-only cancellation reference are likewise written directly from
     /// packet stamps. They are independent process-loopback clients; sending either through a 50 ms
@@ -59,39 +53,22 @@ namespace PlayniteAchievements.Services.Recording
         // instead. Only reached when the source is silent from the moment capture starts.
         private const int AnchorTimeoutMs = 750;
 
-        // How often to look for a controller audio endpoint that was not there at capture start.
-        private const int HapticRescanIntervalMs = 5000;
-
-        // A render endpoint produces no loopback packets while it is idle. Small holes inside one
-        // active passage are padded, but a larger one starts a new timestamped sparse chunk instead
-        // of writing minutes of silence (or, worse, collapsing the gap and moving the next rumble).
-        private const double MaxHapticGapPaddingSeconds = 1.0;
-
-        // Packet placement should stay close to the main pump even after a long endpoint silence.
-        // Anything further away indicates an unusable driver timestamp or a stalled capture graph.
-        private const double MaxHapticStampSkewSeconds = 2.0;
-
-        // Distinct doubtful spans kept before collapsing them into one. Bounded so a pathological
-        // session cannot grow this without limit.
-        private const int MaxHapticHoles = 128;
+        // Sparse process-loopback sidecars produce no packets while idle. Small holes inside an
+        // active passage are padded; a larger one starts a new timestamped chunk.
+        private const double MaxSparseGapPaddingSeconds = 1.0;
 
         private readonly string _bufferDirectory;
         private readonly ILogger _logger;
         private readonly RecordingAudioSource _source;
         private readonly bool _includeMicrophone;
         private readonly Func<int?> _gameProcessId;
-        private readonly Func<int, bool?> _isGameInPlayniteTree;
         private readonly object _gate = new object();
 
         private IWaveIn _systemCapture;
-        private IWaveIn _restoredGameCapture;
+        private IWaveIn _gameReferenceCapture;
+        private IWaveIn _nonGameCapture;
         private IWaveIn _micCapture;
-        private readonly Dictionary<string, HapticEndpointCapture> _hapticCaptures =
-            new Dictionary<string, HapticEndpointCapture>(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> _hapticFailedDeviceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private Thread _hapticWatchThread;
         private BufferedWaveProvider _systemBuffer;
-        private BufferedWaveProvider _restoredGameBuffer;
         private BufferedWaveProvider _micBuffer;
         private ISampleProvider _mix;
         private WaveFormat _outputFormat;
@@ -99,6 +76,7 @@ namespace PlayniteAchievements.Services.Recording
         private WaveFileWriter _writer;
         private StampedAuxiliaryTrack _stampedChimeTrack;
         private StampedAuxiliaryTrack _stampedGameReferenceTrack;
+        private StampedAuxiliaryTrack _stampedNonGameTrack;
         private long _chunkSamplesWritten;
         private long _chunkStartWallClockSamples;
         private DateTime _pumpStartUtc;
@@ -106,13 +84,27 @@ namespace PlayniteAchievements.Services.Recording
         private volatile bool _running;
         private bool _failed;
         private bool _stopped;
-        private readonly List<HapticHole> _hapticHoles = new List<HapticHole>();
-
         // Audio the ring buffer never accepted, in bytes of the capture format; see Append.
         private long _discardedBytes;
-        private bool _restoreGameIntoFullSystem;
         private bool _writeGameReference;
+        private bool _removeNonGameFromSpeakerMix;
+        private bool _extractControllerProgramAudio;
+        private bool _hapticExclusionProven;
         private string _micName;
+
+        /// <summary>
+        /// Game-only mode records the speaker endpoint and removes this recorder's non-game
+        /// sidecar at export. The main track is therefore haptic-free even if that cleanup fails.
+        /// </summary>
+        public bool RequiresNonGameCleanup => _removeNonGameFromSpeakerMix;
+
+        public bool NonGameReferenceFailed => _stampedNonGameTrack?.Failed == true;
+
+        /// <summary>Whether the gam_ cancellation reference failed and its chunks were deleted.</summary>
+        public bool GameReferenceFailed => _stampedGameReferenceTrack?.Failed == true;
+
+        /// <summary>On the chime sidecar instance: whether its chm_ track failed and was deleted.</summary>
+        public bool ChimeReferenceFailed => _stampedChimeTrack?.Failed == true;
 
         public AudioLoopbackRecorder(
             string bufferDirectory,
@@ -120,7 +112,6 @@ namespace PlayniteAchievements.Services.Recording
             RecordingAudioSource source = RecordingAudioSource.FullSystem,
             bool includeMicrophone = false,
             Func<int?> gameProcessId = null,
-            Func<int, bool?> isGameInPlayniteTree = null,
             bool capturePlayniteChimes = false)
         {
             _bufferDirectory = bufferDirectory;
@@ -128,13 +119,12 @@ namespace PlayniteAchievements.Services.Recording
             _source = source;
             _includeMicrophone = includeMicrophone;
             _gameProcessId = gameProcessId;
-            _isGameInPlayniteTree = isGameInPlayniteTree;
             _capturePlayniteChimes = capturePlayniteChimes;
         }
 
         // When true this instance is the chime sidecar: it records Playnite's process tree (where
         // UniPlaySong plays the unlock chimes) into chm_*.wav chunks. That tree can also contain a
-        // game launched by Playnite; in that case the main recorder tees its restored game signal
+        // game launched by Playnite; in that case the main recorder captures its game signal
         // to a reference WAV so the game can be cancelled before the chime is re-timed.
         private readonly bool _capturePlayniteChimes;
 
@@ -145,68 +135,8 @@ namespace PlayniteAchievements.Services.Recording
         public static bool IsChimeCaptureSupported => ProcessLoopbackCapture.IsSupported;
 
         /// <summary>
-        /// Whether a controller reference may have a coverage or placement hole overlapping
-        /// [<paramref name="windowStartUtc"/>, <paramref name="windowEndUtc"/>].
-        /// <para>
-        /// Scoped to when the hole happened rather than latched for the session: endpoint churn is
-        /// normal on the hardware this feature exists for — a DualSense endpoint re-enumerates, and
-        /// Windows moves the default output onto it — so a session-wide flag ended up set during
-        /// ordinary play and every later clip inherited a doubt that had nothing to do with it.
-        /// </para>
-        /// </summary>
-        public bool HasHapticHole(DateTime windowStartUtc, DateTime windowEndUtc)
-        {
-            lock (_gate)
-            {
-                foreach (var hole in _hapticHoles)
-                {
-                    if (hole.StartUtc < windowEndUtc && windowStartUtc < hole.EndUtc)
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Records that the references cannot be trusted around now. The span reaches back one
-        /// rescan interval because that is how stale the knowledge behind most of these calls is:
-        /// the watcher only learns an endpoint appeared, vanished or failed at its next scan.
-        /// </summary>
-        private void MarkHapticCompromisedLocked()
-        {
-            var now = CaptureTimelineClock.UtcNow;
-            var start = now.AddMilliseconds(-HapticRescanIntervalMs);
-            if (_hapticHoles.Count > 0)
-            {
-                var last = _hapticHoles[_hapticHoles.Count - 1];
-                if (last.EndUtc >= start)
-                {
-                    // Contiguous with the previous hole: widen it rather than accumulate entries.
-                    last.EndUtc = now;
-                    _hapticHoles[_hapticHoles.Count - 1] = last;
-                    return;
-                }
-            }
-
-            if (_hapticHoles.Count >= MaxHapticHoles)
-            {
-                // Churning this hard, the safe reading is that the whole session is doubtful.
-                var first = _hapticHoles[0];
-                _hapticHoles.Clear();
-                _hapticHoles.Add(new HapticHole { StartUtc = first.StartUtc, EndUtc = now });
-                return;
-            }
-
-            _hapticHoles.Add(new HapticHole { StartUtc = start, EndUtc = now });
-        }
-
-        /// <summary>
-        /// How the Playnite-tree sidecar can be made into a chime-only signal for this main track.
-        /// A game launched beneath Playnite requires a simultaneous game-only reference to be
-        /// cancelled from that sidecar; a separate process tree is already clean.
+        /// Whether the Playnite-tree sidecar has a simultaneous game reference that must be
+        /// cancelled before the isolated chime is re-timed.
         /// </summary>
         public PlayniteChimeCaptureMode ChimeCaptureMode { get; private set; }
 
@@ -226,51 +156,14 @@ namespace PlayniteAchievements.Services.Recording
                 try
                 {
                     _systemCapture = CreateSystemCapture();
-                    _systemBuffer = NewBuffer(_systemCapture.WaveFormat);
-                    _systemCapture.DataAvailable += (s, e) => Append(_systemBuffer, e);
+                    var systemFormat = _extractControllerProgramAudio
+                        ? WaveFormat.CreateIeeeFloatWaveFormat(48000, 2)
+                        : _systemCapture.WaveFormat;
+                    _systemBuffer = NewBuffer(systemFormat);
+                    _systemCapture.DataAvailable += (s, e) => AppendSystem(e);
 
                     ISampleProvider systemSamples = _systemBuffer.ToSampleProvider();
 
-                    if (_restoreGameIntoFullSystem)
-                    {
-                        try
-                        {
-                            var pid = _gameProcessId?.Invoke();
-                            if (!pid.HasValue || pid.Value <= 0)
-                            {
-                                throw new InvalidOperationException("No game process is available for audio restoration.");
-                            }
-
-                            _restoredGameCapture = new ProcessLoopbackCapture(pid.Value, includeProcessTree: true);
-                            _restoredGameBuffer = NewBuffer(_restoredGameCapture.WaveFormat);
-                            _restoredGameCapture.DataAvailable += (s, e) => Append(_restoredGameBuffer, e);
-                            var gameSamples = _restoredGameBuffer.ToSampleProvider();
-                            systemSamples = new MixingSampleProvider(new[] { systemSamples, gameSamples })
-                            {
-                                ReadFully = true,
-                            };
-                        }
-                        catch (Exception ex)
-                        {
-                            // An excluded Playnite-tree track without the game restored is worse than
-                            // no isolation: it silently removes the very audio the user asked to keep.
-                            // Fall back to ordinary system loopback and leave its live chime alone.
-                            _logger?.Warn(
-                                ex,
-                                "[Recording] Game audio could not be restored into full-system capture; " +
-                                "using plain full-system audio without chime re-timing.");
-                            DisposeCapture(ref _restoredGameCapture);
-                            _restoredGameBuffer = null;
-                            DisposeCapture(ref _systemCapture);
-                            _systemCapture = new WasapiLoopbackCapture();
-                            _systemBuffer = NewBuffer(_systemCapture.WaveFormat);
-                            _systemCapture.DataAvailable += (s, e) => Append(_systemBuffer, e);
-                            systemSamples = _systemBuffer.ToSampleProvider();
-                            _restoreGameIntoFullSystem = false;
-                            _writeGameReference = false;
-                            ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
-                        }
-                    }
                     if (_includeMicrophone)
                     {
                         try
@@ -315,12 +208,9 @@ namespace PlayniteAchievements.Services.Recording
 
                     _outputFormat = _mix.WaveFormat;
                     AttachTimestampedCancellationTracks();
-                    var hapticEndpoints = StartHapticReference();
 
-                    // Haptic captures start as they are opened, in AttachHapticEndpoints.
                     _systemCapture.StartRecording();
-                    _restoredGameCapture?.StartRecording();
-                    _micCapture?.StartRecording();
+                    StartOptionalCaptures();
 
                     // The timeline is anchored, and the first chunk opened, by the pump once it
                     // knows when the first packet's audio actually played -- see AwaitAnchor.
@@ -339,7 +229,7 @@ namespace PlayniteAchievements.Services.Recording
                     _logger?.Info(
                         $"[Recording] Audio capture started (source={CaptureSourceName()}, " +
                         $"mic={(_micCapture == null ? "False" : "'" + _micName + "'")}, " +
-                        $"{_outputFormat}{hapticEndpoints}).");
+                        $"{_outputFormat}, haptics={(_hapticExclusionProven ? "excluded-by-endpoint" : "unproven-audio-retained")}).");
                     return true;
                 }
                 catch (Exception ex)
@@ -353,9 +243,7 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Builds the system-audio source from the configured mode. Game-only uses per-process
-        /// loopback scoped to the resolved game pid, degrading to full-system loopback (with one log
-        /// line) when the pid is unknown, the OS is too old, or activation fails.
+        /// Builds the required endpoint source and, for Game Only, its optional non-game sidecar.
         /// </summary>
         private IWaveIn CreateSystemCapture()
         {
@@ -367,86 +255,145 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             var gamePid = _gameProcessId?.Invoke();
-            var playnitePid = System.Diagnostics.Process.GetCurrentProcess().Id;
-            var gameInPlayniteTree = gamePid.HasValue && gamePid.Value > 0
-                ? _isGameInPlayniteTree?.Invoke(gamePid.Value)
-                : null;
-
-            if (_source == RecordingAudioSource.GameOnly)
-            {
-                if (gamePid.HasValue && gamePid.Value > 0 && ProcessLoopbackCapture.IsSupported)
-                {
-                    try
-                    {
-                        // Scoped to the game's tree, so Playnite's chimes are outside it. The
-                        // Playnite-tree sidecar can still contain the game (an emulator Playnite
-                        // launched is inside both trees), and the tree probe can be wrong in either
-                        // direction, so always capture the timestamped game reference and require verified
-                        // cancellation instead of trusting the probe: a genuinely clean sidecar
-                        // passes through as CleanNoGameDetected.
-                        var gameOnly = new ProcessLoopbackCapture(gamePid.Value, includeProcessTree: true);
-                        ChimeCaptureMode = PlayniteChimeCaptureMode.CancelGameReference;
-                        _writeGameReference = true;
-
-                        return gameOnly;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Warn(ex, "[Recording] Per-process (game-only) audio capture failed; using full system audio.");
-                    }
-                }
-                else
-                {
-                    _logger?.Info("[Recording] Game-only audio unavailable (no pid or OS < 19041); using full system audio.");
-                }
-            }
-
-            // Full system audio minus Playnite's own process tree: the plugin's unlock chimes
-            // (UniPlaySong plays inside Playnite) never land in clip audio — clips composite
-            // their toast at the unlock moment, so the real chime rarely aligns with the card
-            // and other waves' chimes would pollute the clip. When the game is inside Playnite's
-            // tree, its game-only process signal is restored into the main mix before it is written
-            // and captured as the sidecar-cancellation reference. Unknown relationships deliberately
-            // keep plain full-system audio and forego re-timing rather than risk removing the game.
-            if (ProcessLoopbackCapture.IsSupported && gameInPlayniteTree.HasValue)
+            if (_source == RecordingAudioSource.GameOnly &&
+                gamePid.HasValue && gamePid.Value > 0 &&
+                ProcessLoopbackCapture.IsSupported)
             {
                 try
                 {
-                    var excluded = new ProcessLoopbackCapture(
-                        playnitePid, includeProcessTree: false);
-                    if (gameInPlayniteTree.Value)
+                    // The main source is deliberately the real speaker endpoint: controller
+                    // endpoints can never enter it. Everything except the game tree is captured
+                    // separately and removed offline; a failed separation retains this speaker mix,
+                    // so failure means extra system audio rather than haptic buzz or silence.
+                    _nonGameCapture = new ProcessLoopbackCapture(
+                        gamePid.Value, includeProcessTree: false);
+                    _removeNonGameFromSpeakerMix = true;
+
+                    // Keep the existing re-timed chime path. The Playnite-tree sidecar can also
+                    // contain a Playnite-launched game, so capture the game tree separately and
+                    // require verified cancellation before that sidecar is composited.
+                    try
                     {
-                        // Excluding Playnite's tree also excludes a Playnite-launched game. Restore
-                        // that game before the main WAV is written and capture its timestamped raw
-                        // packets to gam_*.wav for sidecar cancellation.
-                        _restoreGameIntoFullSystem = true;
+                        _gameReferenceCapture = new ProcessLoopbackCapture(
+                            gamePid.Value, includeProcessTree: true);
                         _writeGameReference = true;
                         ChimeCaptureMode = PlayniteChimeCaptureMode.CancelGameReference;
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        ChimeCaptureMode = PlayniteChimeCaptureMode.Clean;
+                        _logger?.Warn(
+                            ex,
+                            "[Recording] The game reference for chime re-timing could not start; " +
+                            "Game Only isolation remains active with the live chime removed.");
+                        DisposeCapture(ref _gameReferenceCapture);
+                        _writeGameReference = false;
+                        ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
                     }
-
-                    return excluded;
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Warn(ex, "[Recording] Playnite-excluded audio capture failed; using full system audio.");
+                    _logger?.Warn(
+                        ex,
+                        "[Recording] Game-only isolation reference could not start; " +
+                        "recording haptic-free full-system speaker audio.");
+                    DisposeCapture(ref _nonGameCapture);
+                    _removeNonGameFromSpeakerMix = false;
                 }
             }
-            else if (ProcessLoopbackCapture.IsSupported)
+            else if (_source == RecordingAudioSource.GameOnly)
             {
                 _logger?.Info(
-                    "[Recording] The game/Playnite process-tree relationship is unknown; " +
-                    "using plain full-system audio so excluding Playnite cannot remove the game.");
+                    "[Recording] Game-only isolation unavailable (no pid or OS < 19041); " +
+                    "recording haptic-free full-system speaker audio.");
+            }
+            else if (gamePid.HasValue && gamePid.Value > 0 && ProcessLoopbackCapture.IsSupported)
+            {
+                // Full System also re-times the chime onto the composited toast. The speaker mix
+                // carries the live chime, so export first removes the Playnite-tree slice from it;
+                // the game tree is captured alongside because a Playnite-launched game lives inside
+                // both trees and must be cancelled out of that slice before it is subtracted.
+                try
+                {
+                    _gameReferenceCapture = new ProcessLoopbackCapture(
+                        gamePid.Value, includeProcessTree: true);
+                    _writeGameReference = true;
+                    ChimeCaptureMode = PlayniteChimeCaptureMode.CancelGameReference;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(
+                        ex,
+                        "[Recording] The game reference for chime re-timing could not start; " +
+                        "the live chime stays in the speaker mix.");
+                    DisposeCapture(ref _gameReferenceCapture);
+                    _writeGameReference = false;
+                }
+            }
+            else
+            {
+                _logger?.Info(
+                    "[Recording] Chime re-timing unavailable (no pid or OS < 19041); " +
+                    "the live chime stays in the speaker mix.");
             }
 
-            // Plain system loopback is the last resort after process-scope setup fails. It carries
-            // the live chime and has no lossless pre-encode way to remove it, so leave that audio
-            // untouched rather than re-time a second copy.
-            ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
-            return new WasapiLoopbackCapture();
+            // Both user-facing modes record the actual default render endpoint. A DualSense
+            // actuator stream lives on its own endpoint and therefore never reaches aud_*.wav.
+            if (!_writeGameReference)
+            {
+                // Without a game reference the Playnite-tree sidecar cannot be verified game-free,
+                // so the live chime stays in the speaker mix where it played.
+                ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
+            }
+            try
+            {
+                using (var enumerator = new MMDeviceEnumerator())
+                using (var speaker = enumerator.GetDefaultAudioEndpoint(
+                    DataFlow.Render,
+                    Role.Console))
+                {
+                    if (RenderEndpointScan.IsHapticEndpoint(speaker))
+                    {
+                        ProcessLoopbackCapture native = null;
+                        try
+                        {
+                            native = ProcessLoopbackCapture.ForEndpointNative(speaker.ID);
+                            if (ProcessLoopbackCapture.IsDualSenseActuatorFormat(native.WaveFormat))
+                            {
+                                _extractControllerProgramAudio = true;
+                                _hapticExclusionProven = true;
+                                _logger?.Info(
+                                    "[Recording] The default output is a controller; recording its " +
+                                    "native front L/R channels and excluding actuator channels 2/3.");
+                                return native;
+                            }
+                        }
+                        finally
+                        {
+                            if (!_extractControllerProgramAudio)
+                            {
+                                try { native?.Dispose(); } catch { }
+                            }
+                        }
+
+                        _logger?.Warn(
+                            "[Recording] The default controller output did not expose the proven " +
+                            "4-channel layout; retaining audible endpoint audio, which may include haptics.");
+                    }
+
+                    var endpoint = ProcessLoopbackCapture.ForEndpoint(speaker.ID);
+                    _hapticExclusionProven = true;
+                    return endpoint;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(
+                    ex,
+                    "[Recording] Timestamped speaker capture unavailable; using ordinary " +
+                    "speaker loopback. Audio is retained, but haptic exclusion cannot be proven on " +
+                    "this fallback.");
+                return new WasapiLoopbackCapture();
+            }
         }
 
         /// <summary>
@@ -466,12 +413,31 @@ namespace PlayniteAchievements.Services.Recording
                     (s, e) => WriteStampedAuxiliaryPacket(_stampedChimeTrack, e);
             }
 
+            if (_nonGameCapture is ProcessLoopbackCapture nonGameCapture)
+            {
+                _stampedNonGameTrack = new StampedAuxiliaryTrack(
+                    RecordingPaths.NonGameReferenceChunkFilePrefix,
+                    nonGameCapture.WaveFormat);
+                nonGameCapture.StampedDataAvailable +=
+                    (s, e) => WriteStampedAuxiliaryPacket(_stampedNonGameTrack, e);
+                nonGameCapture.RecordingStopped += (s, e) =>
+                {
+                    lock (_gate)
+                    {
+                        if (!_stopped && e.Exception != null)
+                        {
+                            FailAuxiliaryTrackLocked(_stampedNonGameTrack);
+                        }
+                    }
+                };
+            }
+
             if (!_writeGameReference)
             {
                 return;
             }
 
-            var gameCapture = (_restoredGameCapture ?? _systemCapture) as ProcessLoopbackCapture;
+            var gameCapture = (_gameReferenceCapture ?? _systemCapture) as ProcessLoopbackCapture;
             if (gameCapture == null)
             {
                 throw new InvalidOperationException(
@@ -485,488 +451,54 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Starts a loopback capture of every controller audio endpoint on the machine, written
-        /// alongside the main track as hap_ chunks. A DualSense plays its haptics as audio through
-        /// its own endpoint, and process loopback mixes every endpoint the game renders to, so that
-        /// waveform is inside the recorded audio; this is the copy the clip export cancels it with.
-        /// <para>
-        /// Returns the text appended to the capture-started log line, empty when no such endpoint
-        /// exists — which is the case on any machine without a wired pad, including a Bluetooth
-        /// DualSense (Bluetooth exposes no controller audio device).
-        /// </para>
+        /// Starts sidecars independently of the required speaker capture. A broken GameOnly,
+        /// chime, or microphone helper may reduce isolation, but it must never discard audible
+        /// speaker audio that is already running.
         /// </summary>
-        private string StartHapticReference()
+        private void StartOptionalCaptures()
         {
-            if (_capturePlayniteChimes)
+            try
             {
-                // The sidecar is cancelled against the game reference, which carries the same
-                // haptics; cleaning it separately would subtract them twice.
-                return string.Empty;
+                _gameReferenceCapture?.StartRecording();
             }
-
-            var attached = AttachHapticEndpoints();
-            StartHapticWatcher();
-            return attached.Count == 0 ? string.Empty : ", haptics=" + string.Join("+", attached.ToArray());
-        }
-
-        /// <summary>
-        /// Opens a capture for every controller endpoint not already attached, closes endpoints that
-        /// vanished, and returns the names of the ones opened. This runs on the dedicated watcher
-        /// thread, so stopping a dead driver never blocks the audio pump.
-        /// </summary>
-        private List<string> AttachHapticEndpoints()
-        {
-            var opened = new List<string>();
-            var endpoints = RenderEndpointScan.FindHapticEndpoints(
-                _logger, out var scanComplete, out var hasDefaultHapticEndpoint);
-            if (!scanComplete || hasDefaultHapticEndpoint)
+            catch (Exception ex)
             {
-                lock (_gate)
-                {
-                    MarkHapticCompromisedLocked();
-                }
-            }
-
-            // A controller audio endpoint can disappear and later return with the SAME id. Keeping
-            // its old loopback client in the dictionary made the re-scan believe it was still being
-            // captured, even though that client's poll thread was permanently attached to the dead
-            // device. Remove vanished clients here, on the watcher thread, so the same id is opened
-            // afresh as soon as Windows publishes it again.
-            var activeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var endpoint in endpoints)
-            {
-                activeIds.Add(endpoint.DeviceId);
-            }
-
-            var vanished = new List<HapticEndpointCapture>();
-            lock (_gate)
-            {
-                foreach (var pair in _hapticCaptures)
-                {
-                    if (!activeIds.Contains(pair.Key))
-                    {
-                        vanished.Add(pair.Value);
-                    }
-                }
-
-                foreach (var entry in vanished)
-                {
-                    MarkHapticCompromisedLocked();
-                    RemoveHapticCaptureLocked(entry);
-                }
-            }
-
-            foreach (var entry in vanished)
-            {
-                StopCapture(entry.Capture);
-                _logger?.Info(
-                    $"[Recording] Controller endpoint disappeared; closed haptic reference " +
-                    $"hap{entry.Index} for '{entry.Name}' so the same endpoint id can reconnect.");
-            }
-
-            foreach (var endpoint in endpoints)
-            {
-                var index = 0;
-                lock (_gate)
-                {
-                    if (_stopped || _hapticCaptures.ContainsKey(endpoint.DeviceId))
-                    {
-                        continue;
-                    }
-
-                    index = NextHapticIndexLocked();
-                    if (index < 0)
-                    {
-                        MarkHapticCompromisedLocked();
-                        // Said once, because the rescan would otherwise repeat it forever.
-                        if (_hapticFailedDeviceIds.Add(endpoint.DeviceId))
-                        {
-                            _logger?.Info(
-                                $"[Recording] Already capturing {RecordingPaths.MaxHapticReferences} controller endpoints; " +
-                                $"'{endpoint.Name}' is left out; clips overlapping this interval " +
-                                "will retain their original audio and may contain controller buzz.");
-                        }
-
-                        continue;
-                    }
-                }
-
-                // Activation and StartRecording are COM work, kept off the gate so the pump thread
-                // is never blocked behind a driver.
-                ProcessLoopbackCapture capture = null;
-                try
-                {
-                    capture = ProcessLoopbackCapture.ForEndpoint(endpoint.DeviceId);
-                    var entry = new HapticEndpointCapture
-                    {
-                        DeviceId = endpoint.DeviceId,
-                        Name = endpoint.Name,
-                        Index = index,
-                        Capture = capture,
-                        BlockAlign = Math.Max(1, capture.WaveFormat.BlockAlign),
-                    };
-
-                    // No ring buffer and no pacing: each packet is written where its own capture
-                    // instant puts it on the pump's timeline. See WriteStampedHapticPacket.
-                    capture.StampedDataAvailable += (s, e) => WriteStampedHapticPacket(entry, e);
-                    capture.RecordingStopped += (s, e) => HapticCaptureStopped(entry, e);
-
-                    lock (_gate)
-                    {
-                        _hapticCaptures[endpoint.DeviceId] = entry;
-                        // The first main chunk installs startup captures. A mid-session endpoint is
-                        // usable immediately instead of waiting through another recording chunk.
-                        entry.Installed = _writer != null;
-                        if (entry.Installed)
-                        {
-                            // The watcher can discover an endpoint up to one scan interval after it
-                            // starts carrying audio. Its later packets are safe, but the gap cannot
-                            // be reconstructed retrospectively.
-                            MarkHapticCompromisedLocked();
-                        }
-                    }
-
-                    capture.StartRecording();
-
-                    opened.Add(endpoint.Name);
-                    _hapticFailedDeviceIds.Remove(endpoint.DeviceId);
-                }
-                catch (Exception ex)
-                {
-                    lock (_gate)
-                    {
-                        MarkHapticCompromisedLocked();
-                        if (_hapticCaptures.TryGetValue(endpoint.DeviceId, out var failed) &&
-                            ReferenceEquals(failed.Capture, capture))
-                        {
-                            RemoveHapticCaptureLocked(failed);
-                        }
-                    }
-
-                    try { capture?.Dispose(); } catch { }
-                    capture = null;
-
-                    // Retried on every later tick — an endpoint can be busy for a moment — but
-                    // reported once per device, or a stuck one would fill the log at rescan cadence.
-                    if (_hapticFailedDeviceIds.Add(endpoint.DeviceId))
-                    {
-                        _logger?.Warn(
-                            ex,
-                            $"[Recording] Controller endpoint '{endpoint.Name}' could not be captured; " +
-                            "clips overlapping this interval will retain their original audio.");
-                    }
-                }
-            }
-
-            return opened;
-        }
-
-        /// <summary>
-        /// Makes an endpoint whose poll loop died eligible for the next five-second re-scan even if
-        /// Windows still reports the same device id as active. Disconnect/reconnect is not the only
-        /// failure mode: a driver can invalidate an existing audio client without withdrawing the
-        /// endpoint from enumeration.
-        /// </summary>
-        private void HapticCaptureStopped(HapticEndpointCapture entry, StoppedEventArgs stopped)
-        {
-            lock (_gate)
-            {
-                if (_stopped || _failed ||
-                    !_hapticCaptures.TryGetValue(entry.DeviceId, out var attached) ||
-                    !ReferenceEquals(attached, entry))
-                {
-                    return;
-                }
-
-                MarkHapticCompromisedLocked();
-                RemoveHapticCaptureLocked(entry);
-            }
-
-            _logger?.Warn(
-                stopped?.Exception,
-                $"[Recording] Controller endpoint capture stopped unexpectedly for '{entry.Name}'; " +
-                "the watcher will reopen it.");
-
-            // This callback runs on the capture's own poll thread. Dispose eventually joins that
-            // thread, so hand it to the pool instead of making the thread wait for itself.
-            ThreadPool.QueueUserWorkItem(_ =>
-            {
-                try { entry.Capture?.Dispose(); } catch { }
-            });
-        }
-
-        private void RemoveHapticCaptureLocked(HapticEndpointCapture entry)
-        {
-            entry.Installed = false;
-            CloseHapticChunkLocked(entry);
-            _hapticCaptures.Remove(entry.DeviceId);
-        }
-
-        /// <summary>First reference prefix not owned by a currently attached endpoint.</summary>
-        private int NextHapticIndexLocked()
-        {
-            for (var candidate = 0; candidate < RecordingPaths.MaxHapticReferences; candidate++)
-            {
-                if (_hapticCaptures.Values.All(entry => entry.Index != candidate))
-                {
-                    return candidate;
-                }
-            }
-
-            return -1;
-        }
-
-        /// <summary>
-        /// Re-checks for controller endpoints for the life of the session. Detecting once at capture
-        /// start is not enough: a pad connected after the game launched has no endpoint yet, and a
-        /// pad that re-enumerates (Windows names the new instance "2-", "3-", …) leaves the original
-        /// endpoint id dead while the game renders its haptics to the new one.
-        /// </summary>
-        private void StartHapticWatcher()
-        {
-            _hapticWatchThread = new Thread(() =>
-            {
-                while (true)
-                {
-                    Thread.Sleep(HapticRescanIntervalMs);
-                    lock (_gate)
-                    {
-                        if (_stopped || _failed)
-                        {
-                            return;
-                        }
-                    }
-
-                    try
-                    {
-                        var opened = AttachHapticEndpoints();
-                        if (opened.Count > 0)
-                        {
-                            _logger?.Info(
-                                "[Recording] Controller endpoint appeared mid-session; capturing " +
-                                string.Join("+", opened.ToArray()) + " as a haptic reference.");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        lock (_gate)
-                        {
-                            MarkHapticCompromisedLocked();
-                        }
-                        _logger?.Debug(ex, "[Recording] A haptic endpoint re-scan failed.");
-                    }
-                }
-            })
-            {
-                IsBackground = true,
-                Name = "PA-HapticWatch",
-            };
-            _hapticWatchThread.Start();
-        }
-
-        /// <summary>
-        /// Writes one captured packet at the position its own capture instant gives it on the pump's
-        /// timeline. Endpoint loopback is sparse — it emits no packets at all between haptic
-        /// passages — so long gaps become separate timestamped WAV chunks. Short packet holes are
-        /// represented by silence and overlaps are trimmed from the packet's front.
-        /// <para>
-        /// The alternative — buffering the packets and reading them at the pump's pace — re-times an
-        /// independently clocked stream onto our clock, which is where the reference's misalignment
-        /// came from: a fixed offset from the endpoint client's own latency (31-47 ms in the field)
-        /// plus drift from the two clocks running apart (~490 ppm observed, tens of ms across one
-        /// clip). Placing each packet by its stamp removes both at the source, and leaves the
-        /// export's correlation search as a safety net rather than the thing doing the work.
-        /// Critically, a ten-minute silent gap is a ten-minute timestamp jump, not an implausible
-        /// correction: QpcToUtcForPlacement already rejected stamps on a foreign timebase.
-        /// </para>
-        /// </summary>
-        private void WriteStampedHapticPacket(HapticEndpointCapture entry, StampedPacketEventArgs packet)
-        {
-            if (packet == null || packet.Bytes <= 0)
-            {
-                return;
+                _logger?.Warn(
+                    ex,
+                    "[Recording] The game reference for chime re-timing failed to start; " +
+                    "speaker audio remains active.");
+                DisposeCapture(ref _gameReferenceCapture);
+                _writeGameReference = false;
+                ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
+                FailAuxiliaryTrackLocked(_stampedGameReferenceTrack);
             }
 
             try
             {
-                lock (_gate)
-                {
-                    if (_stopped || _failed || !entry.Installed || _outputFormat == null)
-                    {
-                        return;
-                    }
-
-                    var rate = _outputFormat.SampleRate;
-                    var frames = packet.Bytes / entry.BlockAlign;
-                    var offset = 0;
-
-                    if (packet.CaptureUtc.HasValue)
-                    {
-                        var target = RecordingPaths.AudioFrameAt(
-                            _pumpStartUtc, packet.CaptureUtc.Value, rate);
-                        var pumpFrame = TotalFramesWritten();
-                        if (Math.Abs(target - pumpFrame) > MaxHapticStampSkewSeconds * rate)
-                        {
-                            MarkHapticCompromisedLocked();
-                            target = Math.Max(0, pumpFrame);
-                        }
-                        if (target < 0)
-                        {
-                            var trimFrames = (int)Math.Min(frames, -target);
-                            offset = trimFrames * entry.BlockAlign;
-                            frames -= trimFrames;
-                            target = 0;
-                        }
-
-                        if (frames <= 0)
-                        {
-                            return;
-                        }
-
-                        if (entry.Writer == null)
-                        {
-                            OpenHapticChunkLocked(entry, target);
-                        }
-
-                        var drift = target - entry.TimelineFrames;
-                        if (drift > MaxHapticGapPaddingSeconds * rate ||
-                            entry.ChunkFramesWritten + drift >= HapticChunkFrames(rate))
-                        {
-                            // The endpoint was idle. Do not materialise the silence or append this
-                            // packet at the old position: a new filename places it exactly on UTC.
-                            OpenHapticChunkLocked(entry, target);
-                        }
-                        else if (drift > 0)
-                        {
-                            WriteHapticSilenceLocked(entry, drift);
-                        }
-                        else if (drift < 0)
-                        {
-                            var trimFrames = (int)Math.Min(frames, -drift);
-                            offset += trimFrames * entry.BlockAlign;
-                            frames -= trimFrames;
-                        }
-                    }
-                    else
-                    {
-                        entry.UnstampedPackets++;
-                        MarkHapticCompromisedLocked();
-                        // Rare driver fallback. Arrival time is less exact than a packet stamp, but
-                        // it is still vastly safer than putting a mid-session packet at timeline zero.
-                        if (entry.Writer == null)
-                        {
-                            OpenHapticChunkLocked(entry, Math.Max(0, TotalFramesWritten()));
-                        }
-                    }
-
-                    if (frames <= 0)
-                    {
-                        return;
-                    }
-
-                    var bytes = (int)frames * entry.BlockAlign;
-                    TrackHapticPeakLocked(entry, packet.Buffer, offset, bytes);
-                    WriteHapticFramesLocked(entry, packet.Buffer, offset, frames);
-                    entry.CapturedFrames += frames;
-                    if (packet.CaptureUtc.HasValue)
-                    {
-                        entry.StampedPackets++;
-                    }
-                }
+                _nonGameCapture?.StartRecording();
             }
             catch (Exception ex)
             {
-                lock (_gate)
-                {
-                    MarkHapticCompromisedLocked();
-                }
-                _logger?.Debug(ex, $"[Recording] A haptic reference packet from '{entry.Name}' was not written.");
+                _logger?.Warn(
+                    ex,
+                    "[Recording] Game-only isolation failed to start; retaining haptic-free " +
+                    "full-system speaker audio.");
+                DisposeCapture(ref _nonGameCapture);
+                _removeNonGameFromSpeakerMix = false;
+                FailAuxiliaryTrackLocked(_stampedNonGameTrack);
             }
-        }
 
-        /// <summary>Stands silence in for a short packet hole, keeping positions true.</summary>
-        private void WriteHapticSilenceLocked(HapticEndpointCapture entry, long frames)
-        {
-            var remaining = frames;
-            var silence = new byte[Math.Min(remaining * entry.BlockAlign, 64 * 1024)];
-            while (remaining > 0 && silence.Length > 0)
-            {
-                var chunk = (int)Math.Min(silence.Length / entry.BlockAlign, remaining);
-                WriteHapticFramesLocked(entry, silence, 0, chunk);
-                remaining -= chunk;
-            }
-        }
-
-        /// <summary>
-        /// Writes frames without crossing a haptic chunk boundary. Unlike the main pump's files,
-        /// these chunks rotate on the endpoint's own stamped timeline, so no packet can be written
-        /// into one file and then silently reappear at the start of the next.
-        /// </summary>
-        private void WriteHapticFramesLocked(
-            HapticEndpointCapture entry, byte[] buffer, int offset, long frames)
-        {
-            var sourceOffset = offset;
-            var remaining = frames;
-            var chunkFrames = HapticChunkFrames(_outputFormat.SampleRate);
-            while (remaining > 0)
-            {
-                if (entry.Writer == null)
-                {
-                    OpenHapticChunkLocked(entry, entry.TimelineFrames);
-                }
-
-                var capacity = chunkFrames - entry.ChunkFramesWritten;
-                if (capacity <= 0)
-                {
-                    OpenHapticChunkLocked(entry, entry.TimelineFrames);
-                    capacity = chunkFrames;
-                }
-
-                var writeFrames = Math.Min(remaining, capacity);
-                var writeBytes = checked((int)writeFrames * entry.BlockAlign);
-                entry.Writer.Write(buffer, sourceOffset, writeBytes);
-                sourceOffset += writeBytes;
-                remaining -= writeFrames;
-                entry.TimelineFrames += writeFrames;
-                entry.ChunkFramesWritten += writeFrames;
-            }
-        }
-
-        private static long HapticChunkFrames(int sampleRate)
-        {
-            return (long)UnlockRecordingService.SegmentSeconds * sampleRate;
-        }
-
-        /// <summary>Starts a sparse reference chunk at one exact position on the pump timeline.</summary>
-        private void OpenHapticChunkLocked(HapticEndpointCapture entry, long startFrame)
-        {
-            CloseHapticChunkLocked(entry);
-            startFrame = Math.Max(0, startFrame);
-            var startUtc = RecordingPaths.AudioFrameUtc(
-                _pumpStartUtc, startFrame, _outputFormat.SampleRate);
-            var name = RecordingPaths.BuildAudioChunkFileName(
-                RecordingPaths.HapticReferenceChunkFilePrefix(entry.Index), startUtc);
-            entry.Writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _outputFormat);
-            entry.ChunkStartFrame = startFrame;
-            entry.ChunkFramesWritten = 0;
-            entry.TimelineFrames = startFrame;
-        }
-
-        private void CloseHapticChunkLocked(HapticEndpointCapture entry)
-        {
             try
             {
-                entry?.Writer?.Dispose();
+                _micCapture?.StartRecording();
             }
             catch (Exception ex)
             {
-                MarkHapticCompromisedLocked();
-                _logger?.Debug(ex, "[Recording] A haptic reference chunk could not be finalized.");
-            }
-            if (entry != null)
-            {
-                entry.Writer = null;
-                entry.ChunkFramesWritten = 0;
+                _logger?.Warn(
+                    ex,
+                    "[Recording] Microphone capture failed to start; speaker audio remains active.");
+                DisposeCapture(ref _micCapture);
+                _micName = "omitted-start-failed";
             }
         }
 
@@ -1017,7 +549,7 @@ namespace PlayniteAchievements.Services.Recording
                     }
 
                     var drift = target - track.TimelineFrames;
-                    if (drift > MaxHapticGapPaddingSeconds * rate)
+                    if (drift > MaxSparseGapPaddingSeconds * rate)
                     {
                         OpenAuxiliaryChunkLocked(track, target);
                     }
@@ -1088,7 +620,7 @@ namespace PlayniteAchievements.Services.Recording
         {
             var sourceOffset = offset;
             var remaining = frames;
-            var chunkFrames = HapticChunkFrames(track.Format.SampleRate);
+            var chunkFrames = AuxiliaryChunkFrames(track.Format.SampleRate);
             while (remaining > 0)
             {
                 var capacity = chunkFrames - track.ChunkFramesWritten;
@@ -1111,7 +643,12 @@ namespace PlayniteAchievements.Services.Recording
 
         private void CloseExpiredAuxiliaryChunksLocked(DateTime nowUtc)
         {
-            foreach (var track in new[] { _stampedChimeTrack, _stampedGameReferenceTrack })
+            foreach (var track in new[]
+            {
+                _stampedChimeTrack,
+                _stampedGameReferenceTrack,
+                _stampedNonGameTrack,
+            })
             {
                 if (track?.Writer == null || !track.OriginUtc.HasValue)
                 {
@@ -1120,7 +657,7 @@ namespace PlayniteAchievements.Services.Recording
 
                 var nowFrame = RecordingPaths.AudioFrameAt(
                     track.OriginUtc.Value, nowUtc, track.Format.SampleRate);
-                if (nowFrame - track.ChunkStartFrame >= HapticChunkFrames(track.Format.SampleRate))
+                if (nowFrame - track.ChunkStartFrame >= AuxiliaryChunkFrames(track.Format.SampleRate))
                 {
                     CloseAuxiliaryChunkLocked(track);
                 }
@@ -1131,6 +668,7 @@ namespace PlayniteAchievements.Services.Recording
         {
             CloseAuxiliaryChunkLocked(_stampedChimeTrack);
             CloseAuxiliaryChunkLocked(_stampedGameReferenceTrack);
+            CloseAuxiliaryChunkLocked(_stampedNonGameTrack);
         }
 
         private static void CloseAuxiliaryChunkLocked(StampedAuxiliaryTrack track)
@@ -1157,37 +695,6 @@ namespace PlayniteAchievements.Services.Recording
                 try { File.Delete(path); } catch { }
             }
             track.Paths.Clear();
-        }
-
-        /// <summary>
-        /// Closes a sparse file once wall time has moved past its nominal span. A haptic burst often
-        /// ends without another packet, so waiting for the next packet to rotate would leave the
-        /// RIFF header unfinished when clip export tries to read it.
-        /// </summary>
-        private void CloseExpiredHapticChunksLocked(long timelineFrame)
-        {
-            var chunkFrames = HapticChunkFrames(_outputFormat.SampleRate);
-            foreach (var entry in _hapticCaptures.Values)
-            {
-                if (entry.Writer != null && timelineFrame - entry.ChunkStartFrame >= chunkFrames)
-                {
-                    CloseHapticChunkLocked(entry);
-                }
-            }
-        }
-
-        /// <summary>Loudest sample this reference has carried, for the per-endpoint stop summary.</summary>
-        private static void TrackHapticPeakLocked(
-            HapticEndpointCapture entry, byte[] buffer, int offset, int bytes)
-        {
-            for (var i = offset; i + 4 <= offset + bytes; i += 4)
-            {
-                var magnitude = Math.Abs(BitConverter.ToSingle(buffer, i));
-                if (magnitude > entry.Peak)
-                {
-                    entry.Peak = magnitude;
-                }
-            }
         }
 
         private string CaptureSourceName()
@@ -1256,6 +763,33 @@ namespace PlayniteAchievements.Services.Recording
             }
         }
 
+        private static long AuxiliaryChunkFrames(int sampleRate)
+        {
+            return (long)UnlockRecordingService.SegmentSeconds * sampleRate;
+        }
+
+        private void AppendSystem(WaveInEventArgs packet)
+        {
+            if (!_extractControllerProgramAudio)
+            {
+                Append(_systemBuffer, packet);
+                return;
+            }
+
+            var programAudio = ProcessLoopbackCapture.ExtractDualSenseProgramAudio(
+                packet?.Buffer,
+                packet?.BytesRecorded ?? 0,
+                _systemCapture?.WaveFormat);
+            if (programAudio == null)
+            {
+                return;
+            }
+
+            Append(
+                _systemBuffer,
+                new WaveInEventArgs(programAudio, programAudio.Length));
+        }
+
         /// <summary>
         /// Reports whatever this track lost or stood in for. Silent when nothing did, so a line here
         /// always means the recorded audio does not represent an unbroken stretch of real time.
@@ -1311,7 +845,6 @@ namespace PlayniteAchievements.Services.Recording
                         // Frames (per channel) that should have been written by now, wall-clock paced.
                         var elapsed = (CaptureTimelineClock.UtcNow - _pumpStartUtc).TotalSeconds;
                         var targetFrames = (long)(elapsed * sampleRate);
-                        CloseExpiredHapticChunksLocked(targetFrames);
                         CloseExpiredAuxiliaryChunksLocked(CaptureTimelineClock.UtcNow);
                         var writtenFrames = TotalFramesWritten();
                         var frames = (int)Math.Min(buffer.Length / channels, Math.Max(0, targetFrames - writtenFrames));
@@ -1364,16 +897,11 @@ namespace PlayniteAchievements.Services.Recording
         private bool AwaitAnchor()
         {
             var stamped = _systemCapture as ProcessLoopbackCapture;
-            var restoredGame = _restoredGameCapture as ProcessLoopbackCapture;
             var deadline = CaptureTimelineClock.UtcNow.AddMilliseconds(AnchorTimeoutMs);
 
             while (_running)
             {
-                var primaryUtc = stamped?.FirstPacketCaptureUtc;
-                var gameUtc = restoredGame?.FirstPacketCaptureUtc;
-                var packetUtc = primaryUtc.HasValue && gameUtc.HasValue
-                    ? (primaryUtc.Value <= gameUtc.Value ? primaryUtc : gameUtc)
-                    : primaryUtc ?? gameUtc;
+                var packetUtc = stamped?.FirstPacketCaptureUtc;
                 if (stamped == null || packetUtc.HasValue || CaptureTimelineClock.UtcNow >= deadline)
                 {
                     lock (_gate)
@@ -1406,8 +934,7 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>Stops capture and closes the current chunk cleanly. Idempotent.</summary>
         public void Stop()
         {
-            IWaveIn system, restoredGame, mic;
-            IWaveIn[] haptics;
+            IWaveIn system, gameReference, nonGame, mic;
             lock (_gate)
             {
                 if (_stopped)
@@ -1418,81 +945,39 @@ namespace PlayniteAchievements.Services.Recording
                 _stopped = true;
                 _running = false;
                 system = _systemCapture;
-                restoredGame = _restoredGameCapture;
+                gameReference = _gameReferenceCapture;
+                nonGame = _nonGameCapture;
                 mic = _micCapture;
-                haptics = HapticCapturesLocked();
-                LogHapticReferenceLocked();
                 LogAuxiliaryTracksLocked();
             }
 
             // Outside the gate: capture Dispose joins its thread, which may be delivering data.
             StopCapture(system);
-            StopCapture(restoredGame);
+            StopCapture(gameReference);
+            StopCapture(nonGame);
             StopCapture(mic);
-            foreach (var capture in haptics)
-            {
-                StopCapture(capture);
-            }
 
             lock (_gate)
             {
                 CloseChunkLocked();
-                CloseHapticChunksLocked();
                 CloseAuxiliaryTracksLocked();
-                var tracked = new List<IWaveIn> { system, restoredGame };
-                tracked.AddRange(haptics);
-                LogTimelineNotices(tracked.ToArray());
+                LogTimelineNotices(system, gameReference, nonGame);
                 _systemCapture = null;
-                _restoredGameCapture = null;
+                _gameReferenceCapture = null;
+                _nonGameCapture = null;
                 _micCapture = null;
-                _hapticCaptures.Clear();
             }
-        }
-
-        private IWaveIn[] HapticCapturesLocked()
-        {
-            var captures = new IWaveIn[_hapticCaptures.Count];
-            var index = 0;
-            foreach (var entry in _hapticCaptures.Values)
-            {
-                captures[index++] = entry.Capture;
-            }
-
-            return captures;
-        }
-
-        /// <summary>
-        /// Reports what the haptic reference actually recorded. A track that ran for the whole
-        /// session but peaked at zero is the difference between "no controller endpoint" and "the
-        /// endpoint we captured was not the one the game plays haptics to" — a distinction no other
-        /// line in the log can make, and the one that decides where to look next.
-        /// </summary>
-        private void LogHapticReferenceLocked()
-        {
-            if (_hapticCaptures.Count == 0)
-            {
-                return;
-            }
-
-            var rate = Math.Max(1, _outputFormat?.SampleRate ?? 1);
-            var summaries = new List<string>();
-            foreach (var entry in _hapticCaptures.Values)
-            {
-                summaries.Add(
-                    $"hap{entry.Index} '{entry.Name}': " +
-                    $"{(entry.CapturedFrames / (double)rate).ToString("0.0", CultureInfo.InvariantCulture)}s packets, " +
-                    $"peak {entry.Peak.ToString("0.0000", CultureInfo.InvariantCulture)}, " +
-                    $"stamped={entry.StampedPackets} unstamped={entry.UnstampedPackets}");
-            }
-
-            _logger?.Info(
-                "[Recording] Haptic reference: " + string.Join("; ", summaries.ToArray()) + ".");
         }
 
         private void LogAuxiliaryTracksLocked()
         {
             var tracks = new List<string>();
-            foreach (var track in new[] { _stampedChimeTrack, _stampedGameReferenceTrack })
+            foreach (var track in new[]
+            {
+                _stampedChimeTrack,
+                _stampedGameReferenceTrack,
+                _stampedNonGameTrack,
+            })
             {
                 if (track == null)
                 {
@@ -1535,25 +1020,8 @@ namespace PlayniteAchievements.Services.Recording
             capture = null;
         }
 
-        private void DisposeHapticCaptures()
-        {
-            foreach (var entry in _hapticCaptures.Values)
-            {
-                try { entry.Capture?.Dispose(); } catch { }
-            }
-
-            _hapticCaptures.Clear();
-        }
-
         private void OpenChunkLocked()
         {
-            // Initial endpoint captures were opened before the pump timestamp existed. The first
-            // main chunk fixes that timestamp and makes their packet callbacks usable.
-            foreach (var entry in _hapticCaptures.Values)
-            {
-                entry.Installed = true;
-            }
-
             var prefix = _capturePlayniteChimes
                 ? RecordingPaths.ChimeChunkFilePrefix
                 : RecordingPaths.AudioChunkFilePrefix;
@@ -1583,14 +1051,6 @@ namespace PlayniteAchievements.Services.Recording
             _writer = null;
         }
 
-        private void CloseHapticChunksLocked()
-        {
-            foreach (var entry in _hapticCaptures.Values)
-            {
-                CloseHapticChunkLocked(entry);
-            }
-        }
-
         private void FailLocked(Exception ex, string message)
         {
             if (!_failed)
@@ -1600,12 +1060,7 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             _running = false;
-            if (_hapticCaptures.Count > 0)
-            {
-                MarkHapticCompromisedLocked();
-            }
             CloseChunkLocked();
-            CloseHapticChunksLocked();
             CloseAuxiliaryTracksLocked();
         }
 
@@ -1613,58 +1068,17 @@ namespace PlayniteAchievements.Services.Recording
         {
             _running = false;
             CloseChunkLocked();
-            CloseHapticChunksLocked();
             CloseAuxiliaryTracksLocked();
             DisposeCapture(ref _systemCapture);
-            DisposeCapture(ref _restoredGameCapture);
+            DisposeCapture(ref _gameReferenceCapture);
+            DisposeCapture(ref _nonGameCapture);
             DisposeCapture(ref _micCapture);
-            DisposeHapticCaptures();
             _systemBuffer = null;
-            _restoredGameBuffer = null;
             _micBuffer = null;
             _mix = null;
         }
 
-        /// <summary>A span the haptic references may not cover or place correctly.</summary>
-        private struct HapticHole
-        {
-            public DateTime StartUtc;
-            public DateTime EndUtc;
-        }
-
-        /// <summary>One controller endpoint's capture and the reference track it writes.</summary>
-        private sealed class HapticEndpointCapture
-        {
-            public string DeviceId;
-            public string Name;
-            public int Index;
-            public ProcessLoopbackCapture Capture;
-            public WaveFileWriter Writer;
-            public bool Installed;
-            public int BlockAlign;
-
-            /// <summary>
-            /// Frames this track holds, counted from the pump's timeline zero and carried across
-            /// chunk rotations: it is what an incoming packet's own stamp is compared against.
-            /// </summary>
-            public long TimelineFrames;
-
-            /// <summary>Global frame represented by sample zero of the current sparse WAV.</summary>
-            public long ChunkStartFrame;
-
-            public long ChunkFramesWritten;
-
-            /// <summary>Actual endpoint packet frames, excluding silence used to bridge tiny holes.</summary>
-            public long CapturedFrames;
-
-            public long StampedPackets;
-
-            public long UnstampedPackets;
-
-            public float Peak;
-        }
-
-        /// <summary>One directly timestamped chime or game-reference track.</summary>
+        /// <summary>One directly timestamped chime, game, or non-game reference track.</summary>
         private sealed class StampedAuxiliaryTrack
         {
             public StampedAuxiliaryTrack(string prefix, WaveFormat format)

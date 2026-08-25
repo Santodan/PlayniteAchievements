@@ -69,10 +69,13 @@ namespace PlayniteAchievements.Services.Recording
         private static readonly Guid MMDeviceEnumeratorClsid = new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E");
         private static readonly Guid IID_IAudioClient = new Guid("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
         private static readonly Guid IID_IAudioCaptureClient = new Guid("C8ADBD64-E71E-48A0-A4DE-185C395CD317");
+        private static readonly Guid IeeeFloatSubFormat =
+            new Guid("00000003-0000-0010-8000-00aa00389b71");
 
         private readonly int _processId;
         private readonly int _mode;
         private readonly bool _endpointCapture;
+        private readonly bool _nativeEndpointFormat;
         private IAudioClient _audioClient;
         private IAudioCaptureClient _captureClient;
         private Thread _pollThread;
@@ -227,9 +230,10 @@ namespace PlayniteAchievements.Services.Recording
             }
         }
 
-        private ProcessLoopbackCapture(string deviceId)
+        private ProcessLoopbackCapture(string deviceId, bool nativeFormat)
         {
             _endpointCapture = true;
+            _nativeEndpointFormat = nativeFormat;
             try
             {
                 _audioClient = ActivateEndpointClient(deviceId);
@@ -254,7 +258,67 @@ namespace PlayniteAchievements.Services.Recording
                 throw new ArgumentNullException(nameof(deviceId));
             }
 
-            return new ProcessLoopbackCapture(deviceId);
+            return new ProcessLoopbackCapture(deviceId, nativeFormat: false);
+        }
+
+        /// <summary>
+        /// Captures an endpoint in its shared-mode native mix format. This lets the recorder retain
+        /// only the program channels when a controller is itself the default output. Callers must
+        /// inspect <see cref="WaveFormat"/> and convert retained packets; ordinary endpoint callers
+        /// should use <see cref="ForEndpoint"/>.
+        /// </summary>
+        public static ProcessLoopbackCapture ForEndpointNative(string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                throw new ArgumentNullException(nameof(deviceId));
+            }
+
+            return new ProcessLoopbackCapture(deviceId, nativeFormat: true);
+        }
+
+        /// <summary>The verified DualSense native layout: FL, FR, left actuator, right actuator.</summary>
+        internal static bool IsDualSenseActuatorFormat(WaveFormat format)
+        {
+            var extensible = format as WaveFormatExtensible;
+            if (extensible == null || format.SampleRate != 48000 || format.Channels != 4 ||
+                format.BitsPerSample != 32 || format.BlockAlign != 16 ||
+                extensible.SubFormat != IeeeFloatSubFormat)
+            {
+                return false;
+            }
+
+            var maskField = typeof(WaveFormatExtensible).GetField(
+                "dwChannelMask",
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.NonPublic);
+            return maskField != null && Convert.ToUInt32(maskField.GetValue(extensible)) == 0x33u;
+        }
+
+        /// <summary>
+        /// Extracts the native front-left/right program channels and discards the two actuator
+        /// channels. This is used when the DualSense is itself the user's default output.
+        /// </summary>
+        internal static byte[] ExtractDualSenseProgramAudio(
+            byte[] source,
+            int bytes,
+            WaveFormat format)
+        {
+            if (source == null || !IsDualSenseActuatorFormat(format))
+            {
+                return null;
+            }
+
+            var frames = Math.Min(Math.Max(0, bytes), source.Length) / format.BlockAlign;
+            var output = new byte[checked(frames * 2 * sizeof(float))];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var sourceOffset = frame * format.BlockAlign;
+                var outputOffset = frame * 2 * sizeof(float);
+                Buffer.BlockCopy(source, sourceOffset, output, outputOffset, 2 * sizeof(float));
+            }
+
+            return output;
         }
 
         private IAudioClient ActivateProcessLoopbackClient(int processId, int mode)
@@ -372,27 +436,42 @@ namespace PlayniteAchievements.Services.Recording
 
         private void InitializeClient()
         {
-            var format = new WAVEFORMATEX
+            IntPtr formatPtr;
+            var nativeAllocation = false;
+            if (_nativeEndpointFormat)
             {
-                wFormatTag = (ushort)WAVE_FORMAT_IEEE_FLOAT,
-                nChannels = (ushort)WaveFormat.Channels,
-                nSamplesPerSec = (uint)WaveFormat.SampleRate,
-                wBitsPerSample = (ushort)WaveFormat.BitsPerSample,
-                nBlockAlign = (ushort)(WaveFormat.Channels * WaveFormat.BitsPerSample / 8),
-                cbSize = 0,
-            };
-            format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
+                var mixHr = _audioClient.GetMixFormat(out formatPtr);
+                if (mixHr != 0 || formatPtr == IntPtr.Zero)
+                {
+                    Marshal.ThrowExceptionForHR(mixHr != 0 ? mixHr : unchecked((int)0x80004005));
+                }
 
-            var formatPtr = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(WAVEFORMATEX)));
+                nativeAllocation = true;
+                WaveFormat = WaveFormat.MarshalFromPtr(formatPtr);
+            }
+            else
+            {
+                var format = new WAVEFORMATEX
+                {
+                    wFormatTag = (ushort)WAVE_FORMAT_IEEE_FLOAT,
+                    nChannels = (ushort)WaveFormat.Channels,
+                    nSamplesPerSec = (uint)WaveFormat.SampleRate,
+                    wBitsPerSample = (ushort)WaveFormat.BitsPerSample,
+                    nBlockAlign = (ushort)(WaveFormat.Channels * WaveFormat.BitsPerSample / 8),
+                    cbSize = 0,
+                };
+                format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
+                formatPtr = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(WAVEFORMATEX)));
+                Marshal.StructureToPtr(format, formatPtr, false);
+            }
+
             try
             {
-                Marshal.StructureToPtr(format, formatPtr, false);
-
                 // 200 ms buffer (100-ns units). Both modes require shared mode + the loopback flag;
-                // an endpoint additionally needs the engine's converter, because its own mix format
-                // is whatever the device runs at.
+                // a forced-format endpoint additionally needs the engine's converter. A native
+                // endpoint supplies GetMixFormat verbatim and needs no conversion flags.
                 var flags = AUDCLNT_STREAMFLAGS_LOOPBACK;
-                if (_endpointCapture)
+                if (_endpointCapture && !_nativeEndpointFormat)
                 {
                     flags |= AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
                 }
@@ -406,7 +485,14 @@ namespace PlayniteAchievements.Services.Recording
             }
             finally
             {
-                Marshal.FreeHGlobal(formatPtr);
+                if (nativeAllocation)
+                {
+                    Marshal.FreeCoTaskMem(formatPtr);
+                }
+                else
+                {
+                    Marshal.FreeHGlobal(formatPtr);
+                }
             }
 
             var captureIid = IID_IAudioCaptureClient;

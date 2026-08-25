@@ -43,72 +43,6 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>Rolling capture segment length in seconds (K).</summary>
         internal const int SegmentSeconds = 5;
 
-        /// <summary>
-        /// Alignment search width for removing controller haptics, in 48 kHz frames (250 ms). Wide
-        /// because the reference comes from a separate endpoint client whose engine latency is
-        /// unrelated to the main capture's.
-        /// </summary>
-        private const int HapticCancellationMaxLagFrames = 12000;
-
-        /// <summary>
-        /// Amplitude ratios accepted between the clip's copy of the haptics and the endpoint
-        /// reference. Far wider than the chime's, because the two are tapped at different points in
-        /// the audio graph: the endpoint capture carries that endpoint's own volume and downmix
-        /// scaling, and a ratio of 3.35 has been measured on real hardware. The >= 10 dB suppression
-        /// verification still has to pass, so a wrong lock is rejected on evidence rather than on a
-        /// guess about plausible loudness.
-        /// </summary>
-        private const double HapticCancellationMinimumGain = 0.005;
-
-        private const double HapticCancellationMaximumGain = 20.0;
-
-        /// <summary>
-        /// How faint a block's copy of the haptics may be and still be subtracted. The chime's floor
-        /// of 0.05 exists so a block with nothing to remove is left alone; here it was leaving the
-        /// quiet stretches in — field logs showed only 27 and 31 of 48 blocks subtracted, the rest
-        /// skipped for a weak fit, which is precisely the "soft haptics in the background" that
-        /// survived. A faint copy is still worth removing, and subtracting a faint reference cannot
-        /// do much damage: the harm is bounded by the reference's own level.
-        /// </summary>
-        private const double HapticCancellationBlockGainFloor = 0.005;
-
-        /// <summary>
-        /// Haptic activity can occupy only one 50 ms block in a half-second global scoring window.
-        /// That dilutes an otherwise strong local copy to roughly 0.15-0.25 correlation (the latest
-        /// hap1 measured 0.219). This only calibrates the stamped slice's fixed lag and gain; every
-        /// reference-active block is then straight-subtracted and must clear a 10 dB proof.
-        /// </summary>
-        private const double HapticCancellationMinimumCorrelation = 0.15;
-
-        /// <summary>
-        /// How well a block has to clean up for its subtraction to be kept. A partly-cancelled
-        /// rumble is not
-        /// simply quieter — what is left is comb-filtered, and that can draw more attention than the
-        /// steady rumble it replaced even while measuring lower. Attempt every stamped active block,
-        /// keep only what demonstrably worked, and restore the rest exactly.
-        /// </summary>
-        private const double HapticCancellationKeepBlockDb = 10.0;
-
-        /// <summary>
-        /// Haptics arrive as short impulses. The generic half-second chime blocks diluted a 20-50 ms
-        /// rumble onset with unrelated game audio and left the whole block classified as weak. A
-        /// 50 ms block follows those transients while leaving a 5 ms click-free edge ramp.
-        /// </summary>
-        private const int HapticCancellationBlockFrames = 2400;
-
-        /// <summary>
-        /// Maximum correlation the cleaned clip may retain against an active reference: a sanity
-        /// check that the reference really described this audio, not the accept gate — held-out
-        /// block verification is, and it already guarantees no block was made worse.
-        /// <para>
-        /// Held at 0.05 this rejected whole passes that had done real work: a field clip went from
-        /// 0.939 correlated down to 0.126, 33.4 dB of suppression over 227 blocks, and was discarded
-        /// for missing the ceiling — which handed the user back the full buzz. Partial removal beats
-        /// none, so this only catches a reference that plainly is not this signal.
-        /// </para>
-        /// </summary>
-        private const double HapticCancellationMaximumResidualCorrelation = 0.35;
-
         private const string BufferRootFolderName = "RecordingBuffer";
         private const long MinFreeBytesToStart = 2L * 1024 * 1024 * 1024;
         private const long MinFreeBytesToContinue = 500L * 1024 * 1024;
@@ -314,6 +248,13 @@ namespace PlayniteAchievements.Services.Recording
 
             /// <summary>When this request's own wave chime played — where the chime mix reads from.</summary>
             public DateTime? OwnSoundUtc;
+
+            /// <summary>
+            /// Whether the live chime is verifiably absent from the exported base audio — removed
+            /// by verified subtraction, or proven never present inside the clip window. Only then
+            /// may the re-timed chime be composited without doubling a chime the clip already has.
+            /// </summary>
+            public bool LiveChimeAbsent;
 
             /// <summary>
             /// Notification delay snapshotted at unlock. Non-zero means this clip anchors on the
@@ -649,8 +590,7 @@ namespace PlayniteAchievements.Services.Recording
                         _logger,
                         persisted.RecordingAudioSource,
                         persisted.RecordingIncludeMicrophone,
-                        () => _getGameProcessId?.Invoke(session.OwnerGameId),
-                        pid => _windowTracker?.IsInPlayniteProcessTree(pid));
+                        () => _getGameProcessId?.Invoke(session.OwnerGameId));
                     if (recorder.Start())
                     {
                         session.AudioRecorder = recorder;
@@ -1502,26 +1442,27 @@ namespace PlayniteAchievements.Services.Recording
                 audioPlan = SegmentTimeline.PlanClip(audioChunks, window.StartUtc, plan.EndUtc, SegmentSeconds);
             }
 
-            // Remove any controller haptic waveform the process-loopback capture swept up along with
-            // the game's audio. Replaces the plan with one over a single cleaned chunk, so the
-            // exporter's concatenation and A/V alignment are untouched either way.
+            // Both modes start from the haptic-free speaker endpoint. Game Only verifiably removes
+            // the simultaneous non-game reference; Full System removes only the Playnite-tree
+            // slice so the chime can be re-timed onto the composited toast.
             var recordedAudioPlan = audioPlan;
             var cleanedAudioDirectory = (string)null;
             if (audioPlan != null)
             {
-                var selectedAudioPlan = TryRemoveHapticAudio(
-                    session, recordedAudioPlan, out cleanedAudioDirectory);
-                // This is deliberately redundant with TryRemoveHapticAudio's own fallback. It keeps
-                // a future cleanup regression from ever turning an existing recorded plan into the
-                // exporter's "no audio" sentinel.
+                var selectedAudioPlan = TryRemoveNonGameAudio(
+                    session, recordedAudioPlan, out cleanedAudioDirectory, out var liveChimeAbsent);
+                // Deliberately redundant with the cleanup's own fallback: no cleanup regression
+                // may turn an existing speaker-endpoint plan into the no-audio sentinel.
                 audioPlan = selectedAudioPlan ?? recordedAudioPlan;
+                request.LiveChimeAbsent = liveChimeAbsent;
                 if (selectedAudioPlan == null)
                 {
                     TryDeleteCleanedAudio(cleanedAudioDirectory);
                     cleanedAudioDirectory = null;
+                    request.LiveChimeAbsent = false;
                     _logger?.Warn(
-                        "[Recording] Haptic cleanup returned no usable plan; keeping the recorded " +
-                        "audio, which may still carry controller buzz.");
+                        "[Recording] Clip-audio cleanup returned no usable plan; keeping the " +
+                        "haptic-free speaker audio.");
                 }
             }
 
@@ -1542,12 +1483,13 @@ namespace PlayniteAchievements.Services.Recording
                     .ConfigureAwait(false);
                 if (!ok && cleanedAudioDirectory != null && recordedAudioPlan != null)
                 {
-                    // A verified PCM cleanup can still fail later while its WAV is opened or muxed.
-                    // Retrying with the already-planned recording makes cleanup strictly optional:
-                    // its worst case is the original buzz, never a missing clip or audio track.
+                    // A verified PCM cleanup can still fail while its WAV is opened or muxed.
+                    // Retry the already haptic-free speaker plan; isolation remains optional and
+                    // can never cause a missing audio track.
                     _logger?.Warn(
-                        "[Recording] Export with cleaned haptic audio failed; retrying with the " +
-                        "original recorded audio, which may still carry controller buzz.");
+                        "[Recording] Export with cleaned clip audio failed; retrying with the " +
+                        "original recorded audio (the haptic-free full-system speaker mix).");
+                    request.LiveChimeAbsent = false;
                     TryDeleteFile(tempPath);
                     videoLeadSeconds = 0;
                     ok = await Task.Run(() => exporter.Export(
@@ -1605,7 +1547,9 @@ namespace PlayniteAchievements.Services.Recording
                 ownSound = request.OwnSoundUtc;
             }
 
-            if (!ownSound.HasValue || session.ChimeRecorder == null)
+            // The re-timed chime may only be composited when the live chime is verifiably out of
+            // the base audio; otherwise the clip would carry the chime twice.
+            if (!ownSound.HasValue || session.ChimeRecorder == null || !request.LiveChimeAbsent)
             {
                 return null;
             }
@@ -1640,12 +1584,7 @@ namespace PlayniteAchievements.Services.Recording
                     return null;
                 }
 
-                var outcome = PcmAudio.CancelCorrelated(
-                    pcm,
-                    referencePcm,
-                    out var cancellation,
-                    preferEarlyAlignmentWindow: true,
-                    verificationLagRadiusFrames: 480);
+                var outcome = CancelGameFromPlayniteSlice(pcm, referencePcm, out var cancellation);
                 if (outcome == PcmCancellationOutcome.Unseparable)
                 {
                     _logger?.Warn(
@@ -1673,33 +1612,206 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Removes a controller's haptic waveform from the clip's own audio, returning the plan the
-        /// exporter should use: one cleaned chunk after verified removal, or the recorded plan
-        /// unchanged in every other case.
-        /// <para>
-        /// A DualSense plays haptics as audio through its own render endpoint, and process loopback
-        /// mixes every endpoint the game renders to, so the buzz is inside <c>aud_</c>. The recorder
-        /// captures that endpoint into timestamped <c>hap_</c> chunks; cancelling the one
-        /// from the other is the only way to separate them, because Windows offers no way to scope a
-        /// process capture to a device.
-        /// </para>
-        /// <para>
-        /// Every uncertainty keeps the recorded audio: a doubtful reference window, an active
-        /// reference that cannot be verified, excessive residual correlation, an unreadable track or
-        /// an I/O failure all ship the clip's own sound. The worst outcome this pass may produce is
-        /// audio that still carries some buzz — never a clip without audio, which costs the user far
-        /// more than the artifact being guarded against. Within a verified pass, every 50 ms active
-        /// block that cannot prove improvement is restored exactly as recorded.
-        /// </para>
+        /// Reads the Game Only "everything except the game tree" reference over the clip window.
+        /// Returns null when there is nothing that may be subtracted; <paramref
+        /// name="liveChimeAbsent"/> is then true only when a healthy reference proves no non-game
+        /// audio — the live chime included — played inside the window at all.
         /// </summary>
-        private SegmentTimeline.ClipPlan TryRemoveHapticAudio(
+        private byte[] TryReadNonGameReference(
+            CaptureSession session,
+            DateTime startUtc,
+            DateTime endUtc,
+            out bool liveChimeAbsent)
+        {
+            liveChimeAbsent = false;
+            if (session.AudioRecorder.NonGameReferenceFailed)
+            {
+                _logger?.Warn(
+                    "[Recording] Game-only isolation reference failed; keeping the " +
+                    "haptic-free full-system speaker mix.");
+                return null;
+            }
+
+            var reference = TryReadAudioWindow(
+                session.BufferDirectory,
+                RecordingPaths.NonGameReferenceChunkFilePrefix,
+                startUtc,
+                endUtc,
+                out var referenceCovered);
+            if (reference == null)
+            {
+                if (referenceCovered)
+                {
+                    _logger?.Warn(
+                        "[Recording] Non-game reference could not be decoded; keeping the " +
+                        "haptic-free full-system speaker mix.");
+                }
+                else
+                {
+                    // Sparse process loopback delivers nothing during silence, so no coverage
+                    // from a healthy reference means no non-game audio (and no live chime)
+                    // played inside this window at all.
+                    liveChimeAbsent = true;
+                    _logger?.Debug(
+                        "[Recording] No non-game process audio covers this clip; the " +
+                        "haptic-free speaker mix is already Game Only.");
+                }
+
+                return null;
+            }
+
+            // An audio-mirroring service (game streaming, casting) re-renders the whole mix from
+            // its own process, so this "everything except the game tree" reference can carry a
+            // delayed COPY of the game. Subtracting that copy would verifiably remove real game
+            // audio from the clip. Purge everything game-correlated from the reference first; the
+            // mirror's latency is unrelated to the capture clients', hence the wide search. A
+            // silent (uncovered) game track cannot have been mirrored, so no purge is needed.
+            var gameCovered = false;
+            var gamePcm = session.AudioRecorder.GameReferenceFailed
+                ? null
+                : TryReadAudioWindow(
+                    session.BufferDirectory,
+                    RecordingPaths.GameReferenceChunkFilePrefix,
+                    startUtc,
+                    endUtc,
+                    out gameCovered);
+            if (gamePcm == null)
+            {
+                if (session.AudioRecorder.GameReferenceFailed || gameCovered)
+                {
+                    _logger?.Warn(
+                        "[Recording] The game reference is unavailable, so the non-game " +
+                        "reference cannot be verified free of a mirrored game copy; keeping " +
+                        "the haptic-free full-system speaker mix.");
+                    return null;
+                }
+
+                return reference;
+            }
+
+            var purgeOutcome = CancelGameFromPlayniteSlice(
+                reference, gamePcm, out var purge, maxLagFrames: 12000);
+            if (purgeOutcome == PcmCancellationOutcome.Unseparable || purge.MutedBlocks > 0)
+            {
+                _logger?.Warn(
+                    "[Recording] The non-game reference could not be verified free of a " +
+                    $"mirrored game copy (outcome={purgeOutcome} " +
+                    $"correlation={purge.Correlation:0.000} gated={purge.MutedBlocks}); " +
+                    "keeping the haptic-free full-system speaker mix.");
+                return null;
+            }
+
+            return reference;
+        }
+
+        /// <summary>
+        /// Reads the Playnite-tree slice over the clip window for Full System chime re-timing,
+        /// with the game reference cancelled out of it first: a Playnite-launched game lives
+        /// inside both trees, and only what is verifiably not the game may be subtracted from the
+        /// clip audio. Returns null when there is nothing that may be subtracted; <paramref
+        /// name="liveChimeAbsent"/> is then true only when a healthy sidecar proves Playnite made
+        /// no sound inside the window.
+        /// </summary>
+        private byte[] TryReadPlayniteReference(
+            CaptureSession session,
+            DateTime startUtc,
+            DateTime endUtc,
+            out bool liveChimeAbsent)
+        {
+            liveChimeAbsent = false;
+            if (session.ChimeRecorder.ChimeReferenceFailed ||
+                session.AudioRecorder.GameReferenceFailed)
+            {
+                _logger?.Warn(
+                    "[Recording] The chime or game reference track failed; the live chime " +
+                    "stays in the speaker mix.");
+                return null;
+            }
+
+            var reference = TryReadAudioWindow(
+                session.BufferDirectory,
+                RecordingPaths.ChimeChunkFilePrefix,
+                startUtc,
+                endUtc,
+                out var referenceCovered);
+            if (reference == null)
+            {
+                if (referenceCovered)
+                {
+                    _logger?.Warn(
+                        "[Recording] The Playnite-tree slice could not be decoded; the live " +
+                        "chime stays in the speaker mix.");
+                }
+                else
+                {
+                    // Sparse process loopback delivers nothing during silence: a healthy sidecar
+                    // with no coverage means Playnite made no sound inside this window, so the
+                    // re-timed chime cannot double anything.
+                    liveChimeAbsent = true;
+                }
+
+                return null;
+            }
+
+            var gamePcm = TryReadAudioWindow(
+                session.BufferDirectory,
+                RecordingPaths.GameReferenceChunkFilePrefix,
+                startUtc,
+                endUtc,
+                out var gameCovered);
+            if (gamePcm == null && gameCovered)
+            {
+                _logger?.Warn(
+                    "[Recording] The game reference could not be decoded; the live chime " +
+                    "stays in the speaker mix.");
+                return null;
+            }
+
+            if (gamePcm != null)
+            {
+                // Same contract as the sidecar read in TryReadChimePcmAsync. Unverified blocks are
+                // muted in the REFERENCE, which merely means "subtract nothing there"; only
+                // Unseparable leaves the reference possibly still carrying the game.
+                var outcome = CancelGameFromPlayniteSlice(reference, gamePcm, out var cancellation);
+                if (outcome == PcmCancellationOutcome.Unseparable || cancellation.MutedBlocks > 0)
+                {
+                    // A muted span is a hole in the reference: the speaker mix still carries the
+                    // real Playnite audio there, but the subtraction would see silence and leave
+                    // it — and a later composite would then double that fragment.
+                    _logger?.Warn(
+                        "[Recording] The Playnite-tree slice could not be verified game-free " +
+                        $"(outcome={outcome} correlation={cancellation.Correlation:0.000} " +
+                        $"gated={cancellation.MutedBlocks}); the live chime stays in the " +
+                        "speaker mix.");
+                    return null;
+                }
+            }
+
+            return reference;
+        }
+
+        /// <summary>
+        /// Turns the haptic-free speaker mix into the configured mode's clip audio. Game Only
+        /// removes the simultaneously captured "everything except the game tree" reference; Full
+        /// System removes only the game-free Playnite-tree slice, so the chime can be re-timed
+        /// onto the composited toast without doubling. Rejection keeps the speaker mix: that may
+        /// contain another application or the live chime, but it can never contain a controller
+        /// endpoint or become the exporter's no-audio sentinel.
+        /// </summary>
+        private SegmentTimeline.ClipPlan TryRemoveNonGameAudio(
             CaptureSession session,
             SegmentTimeline.ClipPlan audioPlan,
-            out string cleanedDirectory)
+            out string cleanedDirectory,
+            out bool liveChimeAbsent)
         {
             cleanedDirectory = null;
+            liveChimeAbsent = false;
             string candidateDirectory = null;
-            if (audioPlan?.Segments == null || audioPlan.Segments.Count == 0)
+            var gameOnly = session.AudioRecorder?.RequiresNonGameCleanup == true;
+            var retimesChime = session.ChimeRecorder != null &&
+                session.AudioRecorder?.ChimeCaptureMode == PlayniteChimeCaptureMode.CancelGameReference;
+            if (audioPlan?.Segments == null || audioPlan.Segments.Count == 0 ||
+                (!gameOnly && !retimesChime))
             {
                 return audioPlan;
             }
@@ -1708,42 +1820,11 @@ namespace PlayniteAchievements.Services.Recording
             {
                 var startUtc = audioPlan.StartUtc;
                 var endUtc = audioPlan.EndUtc;
-                if (session.AudioRecorder?.HasHapticHole(startUtc, endUtc) == true)
+                var reference = gameOnly
+                    ? TryReadNonGameReference(session, startUtc, endUtc, out liveChimeAbsent)
+                    : TryReadPlayniteReference(session, startUtc, endUtc, out liveChimeAbsent);
+                if (reference == null)
                 {
-                    _logger?.Info(
-                        "[Recording] The haptic references have a coverage hole over this clip's " +
-                        "window; keeping the recorded audio rather than cleaning against a reference " +
-                        "that may not describe it.");
-                    return audioPlan;
-                }
-                var references = new List<byte[]>();
-                var referenceNames = new List<string>();
-                foreach (var prefix in RecordingPaths.HapticReferenceChunkFilePrefixes())
-                {
-                    var reference = TryReadAudioWindow(
-                        session.BufferDirectory, prefix, startUtc, endUtc, out var referenceCovered);
-                    if (referenceCovered && reference == null)
-                    {
-                        _logger?.Warn(
-                            $"[Recording] Haptic reference {prefix.TrimEnd('_')} covers this clip " +
-                            "but could not be decoded; keeping the recorded audio.");
-                        return audioPlan;
-                    }
-
-                    if (reference != null)
-                    {
-                        references.Add(reference);
-                        referenceNames.Add(prefix.TrimEnd('_'));
-                    }
-                }
-
-                if (references.Count == 0)
-                {
-                    // With a complete, uncompromised endpoint scan, no sparse chunk means no
-                    // controller waveform was rendered during this window.
-                    _logger?.Debug(
-                        "[Recording] No haptic reference track covers this clip's audio window; " +
-                        "the healthy controller reference was silent or no controller existed.");
                     return audioPlan;
                 }
 
@@ -1754,97 +1835,85 @@ namespace PlayniteAchievements.Services.Recording
                     endUtc);
                 if (mixture == null)
                 {
-                    _logger?.Warn(
-                        "[Recording] Haptic references exist but the matching clip audio could not " +
-                        "be audited; keeping the recorded audio.");
                     return audioPlan;
                 }
 
-                // One pass per endpoint, each over what the previous pass left. Each endpoint needs
-                // its own fixed lag and scale, so a summed reference could not remove both reliably.
-                // A pass that cannot verify its own reference leaves its input untouched, which is
-                // exactly what the next pass should work on.
-                var removedAny = false;
-                var unremovedActiveReferences = new List<string>();
-                for (var i = 0; i < references.Count; i++)
+                var recordedMixture = (byte[])mixture.Clone();
+                var outcome = SubtractNonGame(
+                    mixture,
+                    reference,
+                    out var cancellation,
+                    residualPass: false);
+                var fit = "one-full-clip-stereo-subtraction";
+                if (outcome != PcmCancellationOutcome.CancelledVerified)
                 {
-                    // A controller endpoint and a process-loopback client can sit much further apart
-                    // than the chime's two process clients do. Alignment is corrected at capture time
-                    // from each capture's own packet stamp; this width is the safety net for whatever
-                    // that could not model.
-                    var outcome = PcmAudio.CancelCorrelated(
+                    mixture = recordedMixture;
+                    outcome = SubtractNonGame(
                         mixture,
-                        references[i],
-                        out var cancellation,
-                        // Restore, never mute. Silencing a block that could not be verified punches
-                        // a hole in the clip's own sound, and on a clip carrying rumble throughout
-                        // that is most of the audio — the loss the user actually notices. The chime
-                        // sidecar still mutes, because a hole there is inaudible.
-                        muteUnverifiedBlocks: false,
-                        maxLagFrames: HapticCancellationMaxLagFrames,
-                        minimumGain: HapticCancellationMinimumGain,
-                        maximumGain: HapticCancellationMaximumGain,
-                        blockGainFloor: HapticCancellationBlockGainFloor,
-                        keepBlockSuppressionDb: HapticCancellationKeepBlockDb,
-                        cancellationBlockFrames: HapticCancellationBlockFrames,
-                        maximumResidualCorrelation: HapticCancellationMaximumResidualCorrelation,
-                        commitVerifiedBlocksOnWeakPass: true,
-                        minimumCorrelation: HapticCancellationMinimumCorrelation,
-                        attemptVerifiedBlocksWhenGloballyClean: true,
-                        independentChannelGains: true,
-                        // The reference and its copy begin on the same stamped frame. Fading the
-                        // first 5 ms in left the audible onset of every short haptic burst behind.
-                        gainCrossfadeFrames: 0,
-                        // One fixed sub-sample calibration for the whole clip. This models the
-                        // physical phase between audio engines without bringing back block relocks.
-                        fractionalLagSteps: 32);
-                    _logger?.Info(
-                        $"[Recording] Haptic cancellation ({referenceNames[i]}): outcome={outcome} " +
-                        $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
-                        $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
-                        $"suppression={cancellation.SuppressionDb:0.0}dB " +
-                        $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
-                        $"fit=stereo/no-fade/fractional " +
-                        $"(quiet={cancellation.QuietBlocks}, fixed={cancellation.FixedFitBlocks}, " +
-                        $"gated={cancellation.MutedBlocks}, restored={cancellation.RestoredBlocks}) " +
-                        $"partial={cancellation.PartialCommit} " +
-                        $"weakestBlock={cancellation.WeakestBlockSuppressionDb:0.0}dB " +
-                        $"residual={cancellation.ResidualCorrelation:0.000} " +
-                        $"referenceRms={cancellation.ReferenceRms:0.0}.");
-                    if (!PcmAudio.IsReferenceSafelyAbsentOrRemoved(outcome, cancellation))
-                    {
-                        // The mixture is untouched by an unverified pass, so the recorded audio is
-                        // still valid. Keep any verified work from the other independent endpoints
-                        // and accept that this endpoint's buzz can remain.
-                        _logger?.Warn(
-                            $"[Recording] Active haptic reference {referenceNames[i]} was not " +
-                            "verifiably removed; continuing best-effort cleanup. Its buzz may remain.");
-                        unremovedActiveReferences.Add(referenceNames[i]);
-                        continue;
-                    }
-
-                    removedAny |= outcome == PcmCancellationOutcome.CancelledVerified;
+                        reference,
+                        out cancellation,
+                        residualPass: false,
+                        blockFrames: 24000);
+                    fit = "500ms-gain-fallback";
                 }
-
-                if (!removedAny)
+                var label = gameOnly ? "Game-only isolation" : "Playnite-audio removal";
+                _logger?.Info(
+                    $"[Recording] {label}: outcome={outcome} " +
+                    $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
+                    $"correlation={cancellation.Correlation:0.000} " +
+                    $"suppression={cancellation.SuppressionDb:0.0}dB " +
+                    $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
+                    $"restored={cancellation.RestoredBlocks} gated={cancellation.MutedBlocks} " +
+                    $"fit={fit}.");
+                if (outcome != PcmCancellationOutcome.CancelledVerified)
                 {
+                    liveChimeAbsent = false;
                     return audioPlan;
                 }
 
-                if (unremovedActiveReferences.Count > 0)
+                // A block the pass had to restore or gate may still hold the live chime, so a
+                // partial pass cannot license compositing a second one.
+                liveChimeAbsent =
+                    cancellation.RestoredBlocks == 0 && cancellation.MutedBlocks == 0;
+                if (!gameOnly && !liveChimeAbsent)
                 {
+                    // Full System removes Playnite audio only so the chime can be re-timed. A
+                    // partial removal without the composited chime is worse than the live chime.
                     _logger?.Info(
-                        "[Recording] Exporting the verified partial haptic cleanup; unresolved " +
-                        "reference(s) remain in the audio: " +
-                        string.Join(", ", unremovedActiveReferences.ToArray()) + ".");
+                        "[Recording] Playnite-audio removal was only partial; the live chime " +
+                        "stays in the speaker mix.");
+                    return audioPlan;
                 }
 
-                candidateDirectory = Path.Combine(session.BufferDirectory, $"clean_{Guid.NewGuid():N}");
+                // A second full-clip fit can remove a low-level phase/latency residual left by the
+                // first endpoint/process transfer. It is optional and transactional: rejection
+                // leaves the first verified result byte-for-byte intact.
+                for (var pass = 1; pass <= 3; pass++)
+                {
+                    var residualOutcome = SubtractNonGame(
+                        mixture,
+                        reference,
+                        out var residual,
+                        residualPass: true);
+                    _logger?.Debug(
+                        $"[Recording] {label} residual pass {pass}: outcome={residualOutcome} " +
+                        $"lag={residual.StartLagMs:0.###}->{residual.EndLagMs:0.###}ms " +
+                        $"correlation={residual.Correlation:0.000} " +
+                        $"suppression={residual.SuppressionDb:0.0}dB.");
+                    if (residualOutcome != PcmCancellationOutcome.CancelledVerified)
+                    {
+                        break;
+                    }
+                }
+
+                candidateDirectory = Path.Combine(
+                    session.BufferDirectory,
+                    $"clean_{Guid.NewGuid():N}");
                 Directory.CreateDirectory(candidateDirectory);
                 var name = RecordingPaths.BuildAudioChunkFileName(
-                    RecordingPaths.AudioChunkFilePrefix, startUtc);
+                    RecordingPaths.AudioChunkFilePrefix,
+                    startUtc);
                 PcmAudio.WriteWav(Path.Combine(candidateDirectory, name), mixture);
-
                 var cleanedChunks = SegmentTimeline.ParseSegments(
                     ListBufferFiles(
                         candidateDirectory,
@@ -1853,9 +1922,6 @@ namespace PlayniteAchievements.Services.Recording
                     TimeZoneInfo.Local,
                     RecordingPaths.AudioChunkFilePrefix,
                     RecordingPaths.AudioChunkFileExtension);
-
-                // The cleaned window is one chunk spanning the whole clip, so the implied chunk
-                // length has to cover it rather than the recorder's rotation interval.
                 var cleanedPlan = SegmentTimeline.PlanClip(
                     cleanedChunks,
                     startUtc,
@@ -1864,17 +1930,7 @@ namespace PlayniteAchievements.Services.Recording
                 if (cleanedPlan == null)
                 {
                     TryDeleteCleanedAudio(candidateDirectory);
-                    candidateDirectory = null;
-                    return audioPlan;
-                }
-
-                if (session.AudioRecorder?.HasHapticHole(startUtc, endUtc) == true)
-                {
-                    TryDeleteCleanedAudio(candidateDirectory);
-                    candidateDirectory = null;
-                    _logger?.Info(
-                        "[Recording] A haptic coverage hole over this window appeared during " +
-                        "cleanup; keeping the recorded audio.");
+                    liveChimeAbsent = false;
                     return audioPlan;
                 }
 
@@ -1884,11 +1940,82 @@ namespace PlayniteAchievements.Services.Recording
             catch (Exception ex)
             {
                 TryDeleteCleanedAudio(candidateDirectory);
+                liveChimeAbsent = false;
                 _logger?.Warn(
                     ex,
-                    "[Recording] Haptic audio removal failed; keeping the recorded audio.");
+                    "[Recording] Clip-audio isolation failed; keeping the " +
+                    "haptic-free full-system speaker mix.");
                 return audioPlan;
             }
+        }
+
+        /// <summary>
+        /// Removes the game reference from a Playnite-tree slice. One fixed-lag pass cannot remove
+        /// a game that reaches both process captures through two engine paths — its speaker audio
+        /// and a controller haptic stream sit at different capture latencies — so two best-effort
+        /// peel passes first remove whatever proves itself at each path's own lag. The peels
+        /// commit only held-out-verified blocks and restore everything else; the final strict pass
+        /// still mutes anything unproven, so nothing unverified can ride into the chime.
+        /// </summary>
+        private static PcmCancellationOutcome CancelGameFromPlayniteSlice(
+            byte[] slice,
+            byte[] gameReference,
+            out PcmCancellationDiagnostics diagnostics,
+            int maxLagFrames = 2400)
+        {
+            for (var peel = 0; peel < 2; peel++)
+            {
+                var peelOutcome = PcmAudio.CancelCorrelated(
+                    slice,
+                    gameReference,
+                    out _,
+                    muteUnverifiedBlocks: false,
+                    maxLagFrames: maxLagFrames,
+                    commitVerifiedBlocksOnWeakPass: true,
+                    preferEarlyAlignmentWindow: true,
+                    verificationLagRadiusFrames: 480);
+                if (peelOutcome != PcmCancellationOutcome.CancelledVerified)
+                {
+                    break;
+                }
+            }
+
+            return PcmAudio.CancelCorrelated(
+                slice,
+                gameReference,
+                out diagnostics,
+                maxLagFrames: maxLagFrames,
+                preferEarlyAlignmentWindow: true,
+                verificationLagRadiusFrames: 480);
+        }
+
+        private static PcmCancellationOutcome SubtractNonGame(
+            byte[] mixture,
+            byte[] reference,
+            out PcmCancellationDiagnostics diagnostics,
+            bool residualPass,
+            int? blockFrames = null)
+        {
+            var floor = residualPass ? 0.001 : 0.005;
+            return PcmAudio.CancelCorrelated(
+                mixture,
+                reference,
+                out diagnostics,
+                muteUnverifiedBlocks: false,
+                maxLagFrames: 12000,
+                minimumGain: floor,
+                maximumGain: 20,
+                blockGainFloor: floor,
+                keepBlockSuppressionDb: 10,
+                cancellationBlockFrames: blockFrames ?? mixture.Length / PcmAudio.BlockAlign,
+                maximumResidualCorrelation: 0.35,
+                commitVerifiedBlocksOnWeakPass: true,
+                minimumCorrelation: residualPass ? 0.03 : 0.15,
+                attemptVerifiedBlocksWhenGloballyClean: true,
+                verificationLagRadiusFrames: 128,
+                independentChannelGains: true,
+                gainCrossfadeFrames: 0,
+                fractionalLagSteps: 32);
         }
 
         /// <summary>Removes the temporary cleaned-audio chunk once the exporter has read it.</summary>
@@ -2068,8 +2195,8 @@ namespace PlayniteAchievements.Services.Recording
                     RecordingPaths.AudioChunkFilePrefix,
                     RecordingPaths.ChimeChunkFilePrefix,
                     RecordingPaths.GameReferenceChunkFilePrefix,
+                    RecordingPaths.NonGameReferenceChunkFilePrefix,
                 };
-                audioPrefixes.AddRange(RecordingPaths.HapticReferenceChunkFilePrefixes());
                 foreach (var prefix in audioPrefixes)
                 {
                     audioByPrefix[prefix] = SegmentTimeline.ParseSegments(

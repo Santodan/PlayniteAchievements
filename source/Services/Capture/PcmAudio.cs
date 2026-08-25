@@ -143,9 +143,6 @@ namespace PlayniteAchievements.Services.Capture
         // they never chase local correlation peaks or move the shared timeline.
         private const int BlockFrames = 24000; // 0.5 s
 
-        // Lag stride for the first pass of a wider-than-default search; the winner is then refined
-        // at single-frame resolution. 1 ms at 48 kHz.
-        private const int CoarseLagStrideFrames = 48;
 
         // Correlation difference below which two candidate lags count as scoring alike, so the one
         // nearest zero is taken. Only applied to searches wider than the default.
@@ -376,10 +373,35 @@ namespace PlayniteAchievements.Services.Capture
             // slice. A tear cannot fracture every window.
             var loudestScore = ScanWindow(mixture, gameReference, loudestStart, maxLag);
             var best = loudestScore;
+            // Reference presence anywhere in the slice, independent of which window calibrates
+            // the lag. The early-calibration caller must not classify a slice as "clean" from its
+            // one chime-diluted window while a later window shows the reference plainly present —
+            // that shipped a game-carrying sidecar as CleanNoGameDetected in a live probe run.
+            var presence = loudestScore.Count > 0 ? Math.Abs(loudestScore.Value) : 0;
             var earlyReference = ScoreCorrelation(gameReference, gameReference, 0, 0);
             var earlyReferenceRms = earlyReference.Count <= 0 || earlyReference.ReferenceEnergy <= 0
                 ? 0
                 : Math.Sqrt(earlyReference.ReferenceEnergy / earlyReference.Count);
+            foreach (var candidateStart in new[] { 0, (int)((long)referenceFrames / 3), (int)(2L * referenceFrames / 3) })
+            {
+                if (Math.Abs(candidateStart - loudestStart) < CorrelationWindowFrames / 2)
+                {
+                    continue;
+                }
+
+                var score = ScanWindow(mixture, gameReference, candidateStart, maxLag);
+                if (score.Count <= 0)
+                {
+                    continue;
+                }
+
+                presence = Math.Max(presence, Math.Abs(score.Value));
+                if (score.Value > best.Value)
+                {
+                    best = score;
+                }
+            }
+
             if (preferEarlyAlignmentWindow && earlyReferenceRms > SilentReferenceRms)
             {
                 // A chime can change the process-tree capture graph's latency when its render
@@ -389,22 +411,6 @@ namespace PlayniteAchievements.Services.Capture
                 if (early.Count > 0)
                 {
                     best = early;
-                }
-            }
-            else
-            {
-                foreach (var candidateStart in new[] { 0, (int)((long)referenceFrames / 3), (int)(2L * referenceFrames / 3) })
-                {
-                    if (Math.Abs(candidateStart - loudestStart) < CorrelationWindowFrames / 2)
-                    {
-                        continue;
-                    }
-
-                    var score = ScanWindow(mixture, gameReference, candidateStart, maxLag);
-                    if (score.Count > 0 && score.Value > best.Value)
-                    {
-                        best = score;
-                    }
                 }
             }
 
@@ -431,6 +437,7 @@ namespace PlayniteAchievements.Services.Capture
 
             if (Math.Abs(globalGain) < CleanGainCeiling &&
                 Math.Abs(best.Value) < CleanCorrelationCeiling &&
+                presence < CleanCorrelationCeiling &&
                 !attemptVerifiedBlocksWhenGloballyClean)
             {
                 return PcmCancellationOutcome.CleanNoGameDetected;
@@ -681,10 +688,14 @@ namespace PlayniteAchievements.Services.Capture
             var residual = ScoreCorrelationAtLag(
                 working, gameReference, fixedLagFrames, loudestStart);
             diagnostics.ResidualCorrelation = residual.Count > 0 ? Math.Abs(residual.Value) : 0;
-            if (diagnostics.ResidualCorrelation > Math.Max(0, maximumResidualCorrelation))
+            if (diagnostics.RestoredBlocks == 0 &&
+                diagnostics.ResidualCorrelation > Math.Max(0, maximumResidualCorrelation))
             {
                 // The caller asked for an independent residual ceiling. Leave the original buffer
                 // untouched so it can keep the recorded track rather than commit a weak pass.
+                // A partial pass is exempt: its restored blocks legitimately still carry the
+                // reference, and every committed block already proved itself on held-out samples —
+                // rejecting the whole pass here would trade verified removal for none at all.
                 return PcmCancellationOutcome.Unseparable;
             }
 
@@ -1060,22 +1071,27 @@ namespace PlayniteAchievements.Services.Capture
                 return ScanLagRange(mixture, reference, analysisStart, -maxLag, maxLag, 1);
             }
 
-            var coarse = ScanLagRange(
-                mixture, reference, analysisStart, -maxLag, maxLag, CoarseLagStrideFrames, true);
-            if (coarse.Count <= 0)
+            // The wide range is swept at 2-frame resolution, never coarser. A 48-frame coarse
+            // stride stepped straight over the narrow peak a broadband reference produces (its
+            // autocorrelation spans only a few frames), so the sweep saw nothing but sidelobes and
+            // the refinement then polished a wrong neighbourhood — observed live as 40-155 ms
+            // locks against a stable, strong peak at -12.7 ms. Adjacent-frame correlation of real
+            // audio stays far above that sidelobe floor, so a 2-frame stride cannot lose the peak.
+            var sweep = ScanLagRange(mixture, reference, analysisStart, -maxLag, maxLag, 2, true);
+            if (sweep.Count <= 0)
             {
-                return coarse;
+                return sweep;
             }
 
             var fine = ScanLagRange(
                 mixture,
                 reference,
                 analysisStart,
-                coarse.LagFrames - CoarseLagStrideFrames,
-                coarse.LagFrames + CoarseLagStrideFrames,
+                sweep.LagFrames - 2,
+                sweep.LagFrames + 2,
                 1,
                 true);
-            return fine.Count > 0 && fine.Value > coarse.Value ? fine : coarse;
+            return fine.Count > 0 && fine.Value > sweep.Value ? fine : sweep;
         }
 
         private static CorrelationScore ScanLagRange(
