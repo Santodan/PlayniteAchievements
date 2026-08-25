@@ -119,17 +119,19 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void ReTimedChime_IsCompositedOnlyWhenTheLiveChimeIsProvablyAbsent()
+        public void ReTimedChime_LiveChimesAlwaysRemovedAndOwnChimeAlwaysComposited()
         {
-            // Both modes now record the speaker endpoint, which carries the live chime. The
-            // sidecar chime is placed at the composited toast, so mixing it while the live chime
-            // is still in the base audio would put two chimes in one clip.
+            // The standing policy: every fired live chime is removed best-effort in BOTH modes
+            // (verified partial removals kept), and the wave's own chime is always composited at
+            // the toast — there is deliberately no gate between removal quality and the
+            // composite, so a chime always plays at the notification in the clip.
             var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            StringAssert.Contains(service, "!request.LiveChimeAbsent)");
-            StringAssert.Contains(
-                service,
-                "cancellation.RestoredBlocks == 0 && cancellation.MutedBlocks == 0");
+            StringAssert.Contains(service, "Live-chime removal: outcome=");
+            StringAssert.Contains(service, "subtractedAnything");
+            Assert.IsFalse(
+                service.Contains("LiveChimeAbsent"),
+                "The removal-quality composite gate was removed by policy.");
 
             // Full System captures the game-tree reference so the Playnite-tree slice can be
             // verified game-free before it is subtracted from the speaker mix; a Playnite-launched
@@ -158,21 +160,14 @@ namespace PlayniteAchievements.Services.Tests.Recording
         public void ChimeComposite_PrefersTheResolvedFileAndRespectsUniPlaySongGates()
         {
             // The composited chime comes from the exact file UniPlaySong resolved at fire time —
-            // no captured copy, no separation. Capture remains the fallback for older UniPlaySong,
-            // and both paths share the double-chime gate. The Full System live-chime removal also
-            // builds its reference from the fired chimes' files when they are all known.
+            // no captured copy, no separation. Capture remains the fallback for older UniPlaySong.
+            // The live-chime removal also builds its reference from the fired chimes' files when
+            // they are all known.
             var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
             StringAssert.Contains(service, "OwnSoundFilePath");
             StringAssert.Contains(service, "ChimeSoundFile.TryReadPcm");
             StringAssert.Contains(service, "_firedChimes");
-            var gate = service.IndexOf(
-                "!ownSound.HasValue || !request.LiveChimeAbsent", StringComparison.Ordinal);
-            var fileRead = service.IndexOf(
-                "ChimeSoundFile.TryReadPcm", StringComparison.Ordinal);
-            Assert.IsTrue(gate >= 0 && fileRead > gate,
-                "The double-chime gate must run before the file composite, or a clip could " +
-                "carry both the live and the mixed chime.");
 
             var toast = File.ReadAllText(FindRepoFile(
                 "source", "Services", "UI", "ToastNotificationService.cs"));
