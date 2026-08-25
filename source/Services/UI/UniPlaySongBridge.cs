@@ -81,6 +81,9 @@ namespace PlayniteAchievements.Services.UI
                 var path = result.Value<string>("path");
                 if (string.IsNullOrWhiteSpace(path) || result.Value<bool?>("exists") != true)
                 {
+                    logger?.Debug(
+                        "UniPlaySong resolved the achievement sound but the file is missing " +
+                        $"(source={result.Value<string>("source") ?? "?"} path='{path}').");
                     return null;
                 }
 
