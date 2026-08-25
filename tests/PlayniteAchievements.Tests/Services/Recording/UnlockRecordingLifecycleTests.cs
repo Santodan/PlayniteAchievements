@@ -155,6 +155,45 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
+        public void ChimeComposite_PrefersTheResolvedFileAndRespectsUniPlaySongGates()
+        {
+            // The composited chime comes from the exact file UniPlaySong resolved at fire time —
+            // no captured copy, no separation. Capture remains the fallback for older UniPlaySong,
+            // and both paths share the double-chime gate. The Full System live-chime removal also
+            // builds its reference from the fired chimes' files when they are all known.
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            StringAssert.Contains(service, "OwnSoundFilePath");
+            StringAssert.Contains(service, "ChimeSoundFile.TryReadPcm");
+            StringAssert.Contains(service, "_firedChimes");
+            var gate = service.IndexOf(
+                "!ownSound.HasValue || !request.LiveChimeAbsent", StringComparison.Ordinal);
+            var fileRead = service.IndexOf(
+                "ChimeSoundFile.TryReadPcm", StringComparison.Ordinal);
+            Assert.IsTrue(gate >= 0 && fileRead > gate,
+                "The double-chime gate must run before the file composite, or a clip could " +
+                "carry both the live and the mixed chime.");
+
+            var toast = File.ReadAllText(FindRepoFile(
+                "source", "Services", "UI", "ToastNotificationService.cs"));
+            StringAssert.Contains(toast, "TryResolveAchievementSound");
+            StringAssert.Contains(toast, "TryTriggerExternalEvent");
+            StringAssert.Contains(toast, "playnite://uniplaysong/");
+
+            var bridge = File.ReadAllText(FindRepoFile(
+                "source", "Services", "UI", "UniPlaySongBridge.cs"));
+            StringAssert.Contains(bridge, "soundDisabled = true");
+            StringAssert.Contains(bridge, "\"enabled\"");
+            StringAssert.Contains(bridge, "\"exists\"");
+            StringAssert.Contains(bridge, "apiVersion",
+                "The bridge should stay documented against UniPlaySong's version-stamped JSON.");
+            // UniPlaySong plays jingles at MusicVolume / 100 (its JingleService); the mixed chime
+            // must be as loud as the live one the user heard, not a full-scale decode.
+            StringAssert.Contains(bridge, "MusicVolume");
+            StringAssert.Contains(service, "soundFileGain ?? ChimeFileMixGain");
+        }
+
+        [TestMethod]
         public void EveryAudioCapturePath_UsesOneTickPreciseFrameTimeline()
         {
             var recorder = File.ReadAllText(FindRepoFile(
