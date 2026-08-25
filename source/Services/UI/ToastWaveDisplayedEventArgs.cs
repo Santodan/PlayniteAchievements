@@ -56,14 +56,15 @@ namespace PlayniteAchievements.Services.UI
         public double? SoundFileGain { get; }
 
         /// <summary>
-        /// When this wave grabbed its base surface capture — the single frame every screenshot
-        /// variant is built from, and therefore the moment the notification is understood to have
-        /// reached the screen. With a notification delay configured, the recording service anchors
-        /// the clip here so the clip and the screenshot depict the same instant.
+        /// The instant this wave's base surface capture is aimed at — the single frame every
+        /// screenshot variant is built from. With a capture delay configured, the recording service
+        /// anchors the clip here so the clip and the screenshot depict the same instant.
         ///
-        /// Null when the wave was never revealed (an unrevealed wave renders its card only to feed
-        /// a screenshot variant or an overlay track), because there is no on-screen moment to
-        /// anchor to — such clips stay unlock-anchored.
+        /// A scheduled target, not an observation: it is reported when the wave settles, which may
+        /// be before the capture actually runs, so the recorder can plan a clip window without
+        /// waiting on the capture. The capture waits for this exact instant, so the two agree.
+        ///
+        /// Null when no capture delay is configured, which keeps clips unlock-anchored.
         /// </summary>
         public DateTime? SurfaceCaptureUtc { get; }
     }

@@ -27,7 +27,7 @@ namespace PlayniteAchievements.Services.Recording
     /// toast, at the unlock moment, regardless of how the on-screen wave stacked or queued, and
     /// whether or not that toast was ever shown: the toast pipeline renders an unrevealed wave for
     /// clip-worthy unlocks (see <see cref="WouldRequestClip"/>), and such clips carry no chime.
-    /// A configured notification delay moves that anchor to the moment the card appeared instead,
+    /// A configured capture delay moves that anchor to the moment the capture was taken instead,
     /// so the clip and the screenshot depict the same frame.
     /// Subscribes to <see cref="PlayniteAchievementsPlugin.AchievementUnlocked"/> in parallel to
     /// the toast service, and to <see cref="ToastNotificationService.TracksCompleted"/> for the
@@ -272,10 +272,10 @@ namespace PlayniteAchievements.Services.Recording
             public double? OwnSoundFileGain;
 
             /// <summary>
-            /// Notification delay snapshotted at unlock. Non-zero means this clip anchors on the
-            /// moment its card appeared rather than on the unlock, and that the wave is expected to
-            /// stay silent for at least this long before displaying — which the toast waits below
-            /// add to their silence budget so a long delay does not read as a stalled queue.
+            /// Capture delay snapshotted at unlock. Non-zero means this clip anchors on the moment
+            /// its capture was taken rather than on the unlock, and that the clip's own window
+            /// extends that much further into the future — which the toast waits below add to their
+            /// silence budget so a long delay does not read as a stalled queue.
             /// </summary>
             public double NotificationDelaySeconds;
 
@@ -1189,14 +1189,16 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Waits for the instant this achievement's wave captured its base surface, so the clip can
-        /// be built around the moment the card appeared. Null — anchor on the unlock instead — when
-        /// the wave was never revealed, or when the wait gives up on the same silence budget the
-        /// track wait uses.
+        /// Waits for the instant this achievement's wave aims its base capture at, so the clip can
+        /// be built around the frame the screenshot depicts. Null — anchor on the unlock instead —
+        /// when no capture delay is configured, or when the wait gives up on the same silence
+        /// budget the track wait uses.
         ///
-        /// A configured delay is itself a period of deliberate toast silence, so it is added to the
-        /// budget; without that an uncapped delay longer than <see cref="ToastWaitTimeoutSeconds"/>
-        /// would read as a stalled queue and abandon a wave that is merely still waiting its turn.
+        /// The wave reports that instant when it settles, as a scheduled target rather than an
+        /// observation, so this does not wait for the capture itself — only for the wave to reach
+        /// the screen. A configured delay still extends the budget, because it pushes the clip's
+        /// own window that much further out; without that an uncapped delay longer than
+        /// <see cref="ToastWaitTimeoutSeconds"/> could read as a stalled queue.
         /// </summary>
         private async Task<DateTime?> WaitForDisplayAsync(ClipRequest request)
         {
@@ -1309,9 +1311,9 @@ namespace PlayniteAchievements.Services.Recording
             // the card belongs, and placing it there means the clip shows the achievement popping at the
             // instant it was earned.
             //
-            // A configured notification delay reverses that preference: the window is then built around
-            // the moment the card appeared, so the card still lands on its own window's anchor and the
-            // clip shows what was on screen when the notification arrived.
+            // A configured capture delay reverses that preference: the window is then built around the
+            // moment the capture was taken, so the card still lands on its own window's anchor and the
+            // clip shows the same frame the screenshot did.
             //
             // Either way the anchor comes from the window, never from the track's own
             // first-rendered-frame stamp. That stamp is still what the card's animation plays from, so
