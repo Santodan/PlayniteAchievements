@@ -1114,16 +1114,17 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Holds a notification back this many seconds after it would otherwise reach the screen, and
-        /// moves its captures with it: the screenshot and the composited clip card both land on the
-        /// delayed moment, so the capture shows what was on screen when the card appeared.
+        /// Delays the unlock CAPTURE this many seconds. The notification itself is never held back —
+        /// it shows as soon as the queue and the foreground gate allow — but its screenshot is taken
+        /// this long afterwards, and the clip is anchored there too, with the composited card placed
+        /// at that same instant. The capture therefore shows the game a moment further on while still
+        /// reading as the notification's own frame.
         ///
-        /// Measured from the notification, not from the unlock — a wave held by the foreground gate is
-        /// delayed relative to when it is released, not to when the achievement was earned.
+        /// Measured from the notification reaching the screen, not from the unlock: a wave held by the
+        /// foreground gate captures relative to when it is finally shown.
         ///
-        /// Deliberately has no upper bound; only negatives are rejected. A delay long enough to outlive
-        /// the recorder's wait budget degrades to an unlock-anchored clip rather than losing it.
-        /// Never applies to previews or retriggers.
+        /// Deliberately has no upper bound; only negatives are rejected. Never applies to previews or
+        /// retriggers, which capture the instant they are asked for.
         /// </summary>
         public double NotificationDelaySeconds
         {
