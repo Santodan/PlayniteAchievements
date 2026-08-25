@@ -16,12 +16,16 @@ namespace PlayniteAchievements.Services.UI
             IReadOnlyList<AchievementToastViewModel> wave,
             DateTime shownUtc,
             DateTime? soundPlayedUtc,
-            DateTime? surfaceCaptureUtc)
+            DateTime? surfaceCaptureUtc,
+            string soundFilePath = null,
+            double? soundFileGain = null)
         {
             Wave = wave;
             ShownUtc = shownUtc;
             SoundPlayedUtc = soundPlayedUtc;
             SurfaceCaptureUtc = surfaceCaptureUtc;
+            SoundFilePath = soundFilePath;
+            SoundFileGain = soundFileGain;
         }
 
         public IReadOnlyList<AchievementToastViewModel> Wave { get; }
@@ -35,6 +39,21 @@ namespace PlayniteAchievements.Services.UI
         /// none, so its clips ship without a chime.
         /// </summary>
         public DateTime? SoundPlayedUtc { get; }
+
+        /// <summary>
+        /// The exact sound file UniPlaySong resolved for this wave, snapshotted the moment it
+        /// fired, or null when it cannot be known (UniPlaySong before 1.8.4, resolution failure).
+        /// With a path, export mixes this file at the composited toast instead of separating a
+        /// captured copy of the chime.
+        /// </summary>
+        public string SoundFilePath { get; }
+
+        /// <summary>
+        /// The volume UniPlaySong played the sound at (0..1), snapshotted with the path so the
+        /// mixed chime is as loud as the live one the user heard. Null when unknown; export then
+        /// uses its fixed fallback gain.
+        /// </summary>
+        public double? SoundFileGain { get; }
 
         /// <summary>
         /// When this wave grabbed its base surface capture — the single frame every screenshot

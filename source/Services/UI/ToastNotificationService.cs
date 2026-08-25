@@ -191,7 +191,9 @@ namespace PlayniteAchievements.Services.UI
         private void RaiseWaveDisplayed(
             IReadOnlyList<AchievementToastViewModel> wave,
             DateTime? soundPlayedUtc,
-            DateTime? surfaceCaptureUtc)
+            DateTime? surfaceCaptureUtc,
+            string soundFilePath = null,
+            double? soundFileGain = null)
         {
             if (wave == null || wave.Count == 0 || wave[0].IsPreview)
             {
@@ -203,7 +205,12 @@ namespace PlayniteAchievements.Services.UI
                 WaveDisplayed?.Invoke(
                     this,
                     new ToastWaveDisplayedEventArgs(
-                        wave, CaptureTimelineClock.UtcNow, soundPlayedUtc, surfaceCaptureUtc));
+                        wave,
+                        CaptureTimelineClock.UtcNow,
+                        soundPlayedUtc,
+                        surfaceCaptureUtc,
+                        soundFilePath,
+                        soundFileGain));
             }
             catch (Exception ex)
             {
@@ -2007,11 +2014,13 @@ namespace PlayniteAchievements.Services.UI
             // both — and skips the alignment delay that exists only to line them up with the
             // reveal. Its clips carry no chime because none was played.
             DateTime? soundPlayedUtc = null;
+            string soundFilePath = null;
+            double? soundFileGain = null;
             if (visible)
             {
                 // Play the sound first, then show the toast after a short delay so the audio onset
                 // and the slide-in visually align.
-                soundPlayedUtc = PlayWaveSound(cardItems);
+                (soundPlayedUtc, soundFilePath, soundFileGain) = PlayWaveSound(cardItems);
                 await Task.Delay(SoundAlignmentDelayMs).ConfigureAwait(true);
                 if (_disposed)
                 {
@@ -2326,7 +2335,8 @@ namespace PlayniteAchievements.Services.UI
                 // instant its base surface was captured, which a delayed wave's clip anchors to).
                 // An unrevealed wave passes a null chime time, so its clips are mixed without one,
                 // and a null capture instant, so its clips stay unlock-anchored.
-                RaiseWaveDisplayed(cardItems, soundPlayedUtc, surfaceCaptureUtc);
+                RaiseWaveDisplayed(
+                    cardItems, soundPlayedUtc, surfaceCaptureUtc, soundFilePath, soundFileGain);
 
                 // Layout and placement are final: verify a lone card actually settled on its corner.
                 ReportSettledCornerDrift(window, cardItems);
@@ -2562,11 +2572,15 @@ namespace PlayniteAchievements.Services.UI
         /// <summary>
         /// Fires a single UniPlaySong sound for the wave, using the highest-ranked tier present so
         /// a burst of unlocks does not stack overlapping sounds. UniPlaySong owns enablement and
-        /// audio selection for the "playniteachievements/&lt;tier&gt;" URI; if it is not installed
-        /// the URI is unhandled and the call is ignored. Returns the launch moment (null when no
-        /// sound fired) so the recording service can locate the chime in its sidecar audio track.
+        /// audio selection. The sound file is resolved first (UniPlaySong 1.8.4+) so the recording
+        /// service can mix that exact file at the composited toast; the sound then fires through
+        /// UniPlaySong's in-process event, or the playnite:// URI on older versions. Returns the
+        /// launch moment (null when no sound fired — including UniPlaySong's achievement-sound
+        /// master switch being off) and the resolved file path (null when unknown, which sends the
+        /// recording service down its capture-based fallback).
         /// </summary>
-        private DateTime? PlayWaveSound(IReadOnlyList<AchievementToastViewModel> wave)
+        private (DateTime? PlayedUtc, string SoundFilePath, double? SoundFileGain) PlayWaveSound(
+            IReadOnlyList<AchievementToastViewModel> wave)
         {
             var tier = wave?
                 .OrderByDescending(vm => vm.SoundTierRank)
@@ -2574,18 +2588,38 @@ namespace PlayniteAchievements.Services.UI
                 .FirstOrDefault();
             if (string.IsNullOrWhiteSpace(tier))
             {
-                return null;
+                return (null, null, null);
+            }
+
+            var soundFilePath = UniPlaySongBridge.TryResolveAchievementSound(
+                _api, tier, _logger, out var soundDisabled);
+            if (soundDisabled)
+            {
+                // UniPlaySong positively reports achievement sounds off: nothing would play, so
+                // nothing may be mixed into clips either.
+                return (null, null, null);
+            }
+
+            // Snapshotted at fire time, like the path: the mixed chime should be as loud as the
+            // live one the user heard, and the volume can change between now and export.
+            var soundFileGain = soundFilePath == null
+                ? null
+                : UniPlaySongBridge.TryReadJingleVolume(_api, _logger);
+
+            if (UniPlaySongBridge.TryTriggerExternalEvent(_api, tier, _logger))
+            {
+                return (CaptureTimelineClock.UtcNow, soundFilePath, soundFileGain);
             }
 
             try
             {
-                Process.Start($"playnite://uniplaysong/playniteachievements/{tier}");
-                return CaptureTimelineClock.UtcNow;
+                Process.Start($"playnite://uniplaysong/{UniPlaySongBridge.EventSource}/{tier}");
+                return (CaptureTimelineClock.UtcNow, soundFilePath, soundFileGain);
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Toast unlock sound URI could not be launched.");
-                return null;
+                return (null, null, null);
             }
         }
 

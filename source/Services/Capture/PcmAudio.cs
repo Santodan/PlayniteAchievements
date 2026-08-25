@@ -1262,6 +1262,18 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             var denominator = Math.Sqrt(mixtureEnergy * referenceEnergy);
+            var value = denominator > 0 ? dot / denominator : 0;
+
+            // A lag near or beyond the window length leaves only a sliver of overlap, and a
+            // handful of samples correlates near-perfectly by chance — observed live as a
+            // corr=1.000 two-sample "peak" outscoring the true 0.79 alignment. A window that
+            // could not sample at least three quarters of its span scores nothing.
+            var windowFrames = Math.Max(1, referenceEnd - analysisStart);
+            if (count / 2 * CorrelationStrideFrames < windowFrames * 3L / 4)
+            {
+                value = 0;
+            }
+
             return new CorrelationScore
             {
                 LagFrames = (int)Math.Round(lagFrames),
@@ -1270,7 +1282,7 @@ namespace PlayniteAchievements.Services.Capture
                 Dot = dot,
                 ReferenceEnergy = referenceEnergy,
                 Count = count,
-                Value = denominator > 0 ? dot / denominator : 0,
+                Value = value,
             };
         }
 
