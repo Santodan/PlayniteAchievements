@@ -19,8 +19,11 @@
 //   - each wave's chm_ slice contains its OWN chime and not the other wave's (the slice cap)
 //   - cancellation removes the game tone (>= 10 dB) while the wave's chime survives (within 3 dB)
 //   - GameOnly isolation: aud_ minus oth_ drops the live chime and keeps the game tone
-//   - FullSystem re-timing: aud_ minus the game-free chm_ slice drops the live chime, keeps the
-//     game tone, and a FullSystem recorder wires the gam_ reference the removal depends on
+//   - FullSystem re-timing, primary path: the chime's SOURCE FILE (regenerated deterministically,
+//     decoded by the real ChimeSoundFile) subtracts the live chime from aud_ — the UniPlaySong
+//     1.8.4 resolved-sound flow, needing no capture-based reference at all
+//   - FullSystem re-timing, fallback path: aud_ minus the game-free chm_ slice, and a FullSystem
+//     recorder wires the gam_ reference that fallback depends on
 //
 // When exactly one controller (haptic) endpoint is connected, the child additionally renders a
 // 180 Hz actuator tone to it for the whole run — the real game-with-haptics topology — and every
@@ -159,7 +162,13 @@ internal static class ChimeBurstProbe
                 "GameOnly captures the game reference needed for chime isolation",
                 main.ChimeCaptureMode.ToString());
 
-            Thread.Sleep(2000); // game-only lead-in
+            // Warm the parent's render path during the lead-in: the process's FIRST render stream
+            // starts on a ramping engine client whose early samples are time-warped, which no
+            // fixed-lag subtraction can match (measured: corr 0.997 at the true onset yet only
+            // 6 dB verified). UniPlaySong's player is likewise warm except right after its idle
+            // teardown, where production fails closed for that one wave.
+            PlayTone(220, 0.3, 0.0008, 0);
+            Thread.Sleep(1700); // game-only lead-in
 
             // Chimes carry their own band-limited noise (distinct seeds) for the same reason the
             // game tone does: a pure sine's periodic autocorrelation lets the cancellation lag
@@ -255,8 +264,8 @@ internal static class ChimeBurstProbe
         var sliceSeconds = Math.Min(ToastDurationSeconds, ChimeMaxSliceSeconds) + ChimeTailBeyondToastSeconds;
         var waves = new[]
         {
-            new Wave { Name = "wave 1", SoundUtc = sound1Utc, OwnHz = Wave1ChimeHz, OtherHz = Wave2ChimeHz },
-            new Wave { Name = "wave 2", SoundUtc = sound2Utc, OwnHz = Wave2ChimeHz, OtherHz = Wave1ChimeHz },
+            new Wave { Name = "wave 1", SoundUtc = sound1Utc, OwnHz = Wave1ChimeHz, OtherHz = Wave2ChimeHz, Seed = 41 },
+            new Wave { Name = "wave 2", SoundUtc = sound2Utc, OwnHz = Wave2ChimeHz, OtherHz = Wave1ChimeHz, Seed = 42 },
         };
 
         foreach (var wave in waves)
@@ -304,6 +313,21 @@ internal static class ChimeBurstProbe
                     (gamHaptic - gamGame) - (audHaptic - audGame) >= 30,
                     "speaker-endpoint track (both modes' aud_) excludes the haptic tone by >= 30dB",
                     $"process ratio {gamHaptic - gamGame:0.0}dB vs endpoint ratio {audHaptic - audGame:0.0}dB");
+            }
+
+            // The wave's chime, regenerated deterministically as the WAV file UniPlaySong would
+            // have resolved, decoded by the real ChimeSoundFile and placed at the fire time —
+            // the reference production's file-based chime handling is built on.
+            var chimeFilePath = Path.Combine(
+                bufferDir, $"chime-{wave.OwnHz.ToString("0", CultureInfo.InvariantCulture)}.wav");
+            WriteChimeWav(chimeFilePath, wave.OwnHz, wave.Seed);
+            var filePcm = ChimeSoundFile.TryReadPcm(chimeFilePath, sliceSeconds, 1.0, null);
+            Check(filePcm != null, "resolved chime file decodes", chimeFilePath);
+            byte[] fileReference = null;
+            if (filePcm != null)
+            {
+                fileReference = new byte[audSlice.Length];
+                PcmAudio.MixInto(fileReference, 0, filePcm, 0, filePcm.Length);
             }
 
             // Production's mirrored-game-copy purge: an audio-mirroring service (game streaming)
@@ -378,6 +402,32 @@ internal static class ChimeBurstProbe
                     $"residual subtraction: outcome={residualOutcome} " +
                     $"lag={residual.StartLagMs:0.000}->{residual.EndLagMs:0.000}ms " +
                     $"corr={residual.Correlation:0.000} supp={residual.SuppressionDb:0.0}dB");
+                if (fileReference != null)
+                {
+                    // Production's chime-residue pass: the composite gate is decided by the chime
+                    // itself, and whatever the whole-slice pass left of it is removed with the
+                    // exact source waveform.
+                    var chimeOutcome = SubtractNonGame(
+                        isolatedGame, fileReference, out var chimePass, residualPass: false,
+                        maxLagFrames: 36000, detectClean: true);
+                    if (chimeOutcome == PcmCancellationOutcome.Unseparable)
+                    {
+                        chimeOutcome = SubtractNonGame(
+                            isolatedGame, fileReference, out chimePass, residualPass: true,
+                            maxLagFrames: 36000, detectClean: true);
+                    }
+                    Console.WriteLine(
+                        $"GameOnly chime-residue pass: outcome={chimeOutcome} " +
+                        $"lag={chimePass.StartLagMs:0.000}ms corr={chimePass.Correlation:0.000} " +
+                        $"supp={chimePass.SuppressionDb:0.0}dB restored={chimePass.RestoredBlocks} " +
+                        $"gated={chimePass.MutedBlocks}");
+                    Check(
+                        chimeOutcome == PcmCancellationOutcome.CleanNoGameDetected ||
+                            (chimeOutcome == PcmCancellationOutcome.CancelledVerified &&
+                             chimePass.RestoredBlocks == 0 && chimePass.MutedBlocks == 0),
+                        "GameOnly chime-residue pass proves the live chime absent",
+                        $"{chimeOutcome} restored={chimePass.RestoredBlocks} gated={chimePass.MutedBlocks}");
+                }
                 var isolatedDuring = GoertzelDb(isolatedGame, p0, p1, wave.OwnHz);
                 var isolatedAfter = GoertzelDb(isolatedGame, a0, a1, wave.OwnHz);
                 var isolatedGameTone = GoertzelDb(isolatedGame, p0, p1, GameToneHz);
@@ -401,6 +451,59 @@ internal static class ChimeBurstProbe
                         "GameOnly output excludes the haptic tone by >= 30dB",
                         $"process ratio {gamHaptic - gamGame:0.0}dB vs output ratio " +
                         $"{isolatedHaptic - isolatedGameTone:0.0}dB");
+                }
+            }
+
+            // Production's PRIMARY FullSystem path (UniPlaySong 1.8.4+): the same file reference
+            // subtracts the live chime from the speaker mix — no capture-based reference involved.
+            if (fileReference != null)
+            {
+                // ±750 ms search, as in production: the reference sits at the launch stamp while
+                // the rendered chime starts an out-of-process onset later (measured ~500 ms on a
+                // cold render stream).
+                var fsFile = (byte[])audSlice.Clone();
+                var fsFileOutcome = SubtractNonGame(
+                    fsFile, fileReference, out var fsf, residualPass: false, maxLagFrames: 36000,
+                    detectClean: true);
+                if (fsFileOutcome == PcmCancellationOutcome.Unseparable)
+                {
+                    fsFile = (byte[])audSlice.Clone();
+                    fsFileOutcome = SubtractNonGame(
+                        fsFile, fileReference, out fsf, residualPass: false, blockFrames: 24000,
+                        maxLagFrames: 36000, detectClean: true);
+                }
+                Console.WriteLine(
+                    $"FullSystem file-based chime removal: outcome={fsFileOutcome} " +
+                    $"lag={fsf.StartLagMs:0.000}ms corr={fsf.Correlation:0.000} " +
+                    $"supp={fsf.SuppressionDb:0.0}dB restored={fsf.RestoredBlocks} " +
+                    $"gated={fsf.MutedBlocks}");
+                Check(
+                    fsFileOutcome == PcmCancellationOutcome.CancelledVerified &&
+                        fsf.RestoredBlocks == 0 && fsf.MutedBlocks == 0,
+                    "file-based live-chime removal verified with no partial blocks",
+                    $"{fsFileOutcome} restored={fsf.RestoredBlocks} gated={fsf.MutedBlocks}");
+                if (fsFileOutcome == PcmCancellationOutcome.CancelledVerified)
+                {
+                    var fsfDuring = GoertzelDb(fsFile, p0, p1, wave.OwnHz);
+                    var fsfAfter = GoertzelDb(fsFile, a0, a1, wave.OwnHz);
+                    var fsfGame = GoertzelDb(fsFile, p0, p1, GameToneHz);
+                    Check(
+                        fsfDuring - fsfAfter <= 12 || audOwnDuring - fsfDuring >= 15,
+                        "file-based removal drops the live chime",
+                        $"during {fsfDuring:0.0} vs after {fsfAfter:0.0} dB (raw {audOwnDuring:0.0} dB)");
+                    Check(
+                        Math.Abs(audGame - fsfGame) <= 3,
+                        "file-based removal keeps the game tone within 3dB",
+                        $"lost {audGame - fsfGame:0.0}dB");
+                    if (hapticsLayer)
+                    {
+                        var fsfHaptic = GoertzelDb(fsFile, p0, p1, HapticToneHz);
+                        Check(
+                            (gamHaptic - gamGame) - (fsfHaptic - fsfGame) >= 30,
+                            "file-based removal output excludes the haptic tone by >= 30dB",
+                            $"process ratio {gamHaptic - gamGame:0.0}dB vs output ratio " +
+                            $"{fsfHaptic - fsfGame:0.0}dB");
+                    }
                 }
             }
 
@@ -431,15 +534,17 @@ internal static class ChimeBurstProbe
             // Goertzel suppression check below still fails loudly if that claim were false.
             var separated = outcome == PcmCancellationOutcome.CancelledVerified ||
                 outcome == PcmCancellationOutcome.CleanNoGameDetected;
-            // Continuous haptics put the game into both process captures through a second engine
-            // path at its own lag; one fixed-lag pass then cannot verify, and dropping the chime
-            // is the designed verified-or-dropped outcome — nothing unproven ships.
-            var failedClosed = !separated && hapticsLayer &&
-                outcome == PcmCancellationOutcome.Unseparable;
+            // With a resolved sound file (UniPlaySong 1.8.4+) the composite never reads this
+            // capture-based fallback, and its verified-or-dropped refusal is the designed safe
+            // outcome — as it also is under continuous haptic crossfeed, where the game reaches
+            // both process captures through a second engine path at its own lag.
+            var failedClosed = !separated &&
+                outcome == PcmCancellationOutcome.Unseparable &&
+                (hapticsLayer || filePcm != null);
             Check(
                 separated || failedClosed,
                 failedClosed
-                    ? "cancellation failed closed under continuous haptic crossfeed (chime dropped, nothing ships unverified)"
+                    ? "capture-fallback cancellation failed closed (chime dropped there; the file path composites instead)"
                     : "cancellation verified",
                 outcome.ToString());
             if (separated)
@@ -457,12 +562,14 @@ internal static class ChimeBurstProbe
                 // keeping the game tone, or the composited chime would double it.
                 var fullSystem = (byte[])audSlice.Clone();
                 var fsOutcome = SubtractNonGame(
-                    fullSystem, chmSlice, out var fs, residualPass: false);
-                if (fsOutcome != PcmCancellationOutcome.CancelledVerified)
+                    fullSystem, chmSlice, out var fs, residualPass: false, maxLagFrames: 36000,
+                    detectClean: true);
+                if (fsOutcome == PcmCancellationOutcome.Unseparable)
                 {
                     fullSystem = (byte[])audSlice.Clone();
                     fsOutcome = SubtractNonGame(
-                        fullSystem, chmSlice, out fs, residualPass: false, blockFrames: 24000);
+                        fullSystem, chmSlice, out fs, residualPass: false, blockFrames: 24000,
+                        maxLagFrames: 36000, detectClean: true);
                 }
                 Console.WriteLine(
                     $"FullSystem chime removal: outcome={fsOutcome} " +
@@ -517,7 +624,9 @@ internal static class ChimeBurstProbe
         byte[] reference,
         out PcmCancellationDiagnostics diagnostics,
         bool residualPass,
-        int? blockFrames = null)
+        int? blockFrames = null,
+        int maxLagFrames = 12000,
+        bool detectClean = false)
     {
         var floor = residualPass ? 0.001 : 0.005;
         return PcmAudio.CancelCorrelated(
@@ -525,7 +634,7 @@ internal static class ChimeBurstProbe
             reference,
             out diagnostics,
             muteUnverifiedBlocks: false,
-            maxLagFrames: 12000,
+            maxLagFrames: maxLagFrames,
             minimumGain: floor,
             maximumGain: 20,
             blockGainFloor: floor,
@@ -534,7 +643,7 @@ internal static class ChimeBurstProbe
             maximumResidualCorrelation: 0.35,
             commitVerifiedBlocksOnWeakPass: true,
             minimumCorrelation: residualPass ? 0.03 : 0.15,
-            attemptVerifiedBlocksWhenGloballyClean: true,
+            attemptVerifiedBlocksWhenGloballyClean: !detectClean,
             verificationLagRadiusFrames: 128,
             independentChannelGains: true,
             gainCrossfadeFrames: 0,
@@ -565,6 +674,7 @@ internal static class ChimeBurstProbe
         public DateTime SoundUtc;
         public double OwnHz;
         public double OtherHz;
+        public int Seed;
     }
 
     private static void Check(bool condition, string what, string detail)
@@ -767,6 +877,24 @@ internal static class ChimeBurstProbe
         }
     }
 
+    /// <summary>
+    /// Regenerates one wave's chime samples (ToneProvider is deterministic per seed) and writes
+    /// them as the WAV file that stands in for the UniPlaySong-resolved sound.
+    /// </summary>
+    private static void WriteChimeWav(string path, double frequency, int seed)
+    {
+        var provider = new ToneProvider(frequency, 0.006, 0, 2.5, 0.004, seed: seed);
+        using (var writer = new WaveFileWriter(path, WaveFormat.CreateIeeeFloatWaveFormat(SampleRate, 2)))
+        {
+            var buffer = new float[SampleRate];
+            int read;
+            while ((read = provider.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                writer.WriteSamples(buffer, 0, read);
+            }
+        }
+    }
+
     /// <summary>Whether exactly one controller (haptic) render endpoint is connected.</summary>
     private static bool HasSingleControllerEndpoint(out string name)
     {
@@ -836,8 +964,12 @@ internal static class ChimeBurstProbe
                 using (var output = new WasapiOut(
                     controller, NAudio.CoreAudioApi.AudioClientShareMode.Shared, false, 200))
                 {
+                    // Band-limited noise rides on the rumble tone for the same reason as every
+                    // other probe tone: a pure sine correlates equally at every half-period, which
+                    // turns lag calibration into a comb of near-equal wrong answers (measured
+                    // live: equal peaks every 2.7 ms). Real haptic streams are broadband.
                     output.Init(new ToneProvider(
-                        HapticToneHz, 0.05, 7, seconds, 0, channels, activeChannel: 2));
+                        HapticToneHz, 0.05, 7, seconds, 0.03, channels, activeChannel: 2, seed: 77));
                     output.Play();
                     while (output.PlaybackState == PlaybackState.Playing)
                     {
