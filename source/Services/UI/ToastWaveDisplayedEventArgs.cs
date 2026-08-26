@@ -7,8 +7,9 @@ namespace PlayniteAchievements.Services.UI
     /// <summary>
     /// Raised by <see cref="ToastNotificationService"/> the moment a non-preview wave reaches its
     /// settled state — slide-in finished and placement snapped — whether or not it was revealed on
-    /// screen. A liveness signal for the unlock-recording service's overlay-track wait; the toast
-    /// is composited into clips at export rather than filmed.
+    /// screen, and immediately for a windowless wave. A liveness signal for the unlock-recording
+    /// service's overlay-track wait; the toast is composited into clips at export rather than
+    /// filmed.
     /// </summary>
     internal sealed class ToastWaveDisplayedEventArgs : EventArgs
     {
@@ -57,14 +58,16 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// The instant this wave's base surface capture is aimed at — the single frame every
-        /// screenshot variant is built from. With a capture delay configured, the recording service
-        /// anchors the clip here so the clip and the screenshot depict the same instant.
+        /// screenshot variant is built from. With either delay configured (a notification delay
+        /// holding the wave past the unlock, or a capture delay pushing the capture past the wave
+        /// start), the recording service anchors the clip here so the clip and the screenshot
+        /// depict the same instant.
         ///
         /// A scheduled target, not an observation: it is reported when the wave settles, which may
         /// be before the capture actually runs, so the recorder can plan a clip window without
         /// waiting on the capture. The capture waits for this exact instant, so the two agree.
         ///
-        /// Null when no capture delay is configured, which keeps clips unlock-anchored.
+        /// Null when neither delay is configured, which keeps clips unlock-anchored.
         /// </summary>
         public DateTime? SurfaceCaptureUtc { get; }
     }
