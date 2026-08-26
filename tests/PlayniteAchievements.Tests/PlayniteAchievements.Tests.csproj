@@ -277,6 +277,7 @@
     <Compile Include="..\..\source\Common\PathExpansion.cs" Link="Source\Common\PathExpansion.cs" />
     <Compile Include="..\..\source\Common\PercentFormatter.cs" Link="Source\Common\PercentFormatter.cs" />
     <Compile Include="..\..\source\Common\PerfScope.cs" Link="Source\Common\PerfScope.cs" />
+    <Compile Include="..\..\source\Common\RenderQuietGate.cs" Link="Source\Common\RenderQuietGate.cs" />
     <Compile Include="..\..\source\Common\RelativeDateFormatter.cs" Link="Source\Common\RelativeDateFormatter.cs" />
     <Compile Include="..\..\source\Common\RelayCommand.cs" Link="Source\Common\RelayCommand.cs" />
     <Compile Include="..\..\source\Common\WebViewExtensions.cs" Link="Source\Common\WebViewExtensions.cs" />
