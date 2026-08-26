@@ -43,6 +43,95 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void ComputeNotifyReadyUtc_NoDelayOrExemptArgs_AlwaysReady()
+        {
+            var enqueued = new DateTime(2026, 8, 26, 12, 0, 0, DateTimeKind.Utc);
+            var observed = enqueued.AddSeconds(-2);
+
+            Assert.AreEqual(
+                default(DateTime),
+                AchievementToastViewModel.ComputeNotifyReadyUtc(
+                    new AchievementUnlockedEventArgs { ObservedUtc = observed },
+                    new PersistedSettings(),
+                    enqueued),
+                "zero delay must not stamp a ready time");
+
+            Assert.AreEqual(
+                default(DateTime),
+                AchievementToastViewModel.ComputeNotifyReadyUtc(
+                    new AchievementUnlockedEventArgs { ObservedUtc = observed },
+                    null,
+                    enqueued),
+                "null settings must not stamp a ready time");
+
+            var delayed = new PersistedSettings { NotificationDelaySeconds = 5 };
+            Assert.AreEqual(
+                default(DateTime),
+                AchievementToastViewModel.ComputeNotifyReadyUtc(
+                    new AchievementUnlockedEventArgs { ObservedUtc = observed, IsPreview = true },
+                    delayed,
+                    enqueued),
+                "previews are exempt from the notification delay");
+
+            Assert.AreEqual(
+                default(DateTime),
+                AchievementToastViewModel.ComputeNotifyReadyUtc(
+                    new AchievementUnlockedEventArgs { ObservedUtc = observed, IsTestFire = true },
+                    delayed,
+                    enqueued),
+                "test fires are exempt from the notification delay");
+
+            Assert.AreEqual(
+                default(DateTime),
+                AchievementToastViewModel.ComputeNotifyReadyUtc(null, delayed, enqueued),
+                "null args must not stamp a ready time");
+        }
+
+        [TestMethod]
+        public void ComputeNotifyReadyUtc_AnchorsOnObservationSoLatencyCountsTowardDelay()
+        {
+            var observed = new DateTime(2026, 8, 26, 12, 0, 0, DateTimeKind.Utc);
+            // Enqueue lands later than the observation (dispatcher/queue latency); the ready
+            // instant must still be observation + delay, not enqueue + delay.
+            var enqueued = observed.AddSeconds(0.8);
+
+            var readyAt = AchievementToastViewModel.ComputeNotifyReadyUtc(
+                new AchievementUnlockedEventArgs { ObservedUtc = observed },
+                new PersistedSettings { NotificationDelaySeconds = 5 },
+                enqueued);
+
+            Assert.AreEqual(observed.AddSeconds(5), readyAt);
+        }
+
+        [TestMethod]
+        public void ComputeNotifyReadyUtc_NoObservationStampFallsBackToEnqueueAnchor()
+        {
+            // Friend unlocks carry no ObservedUtc; the enqueue instant anchors the delay instead.
+            var enqueued = new DateTime(2026, 8, 26, 12, 0, 0, DateTimeKind.Utc);
+
+            var readyAt = AchievementToastViewModel.ComputeNotifyReadyUtc(
+                new AchievementUnlockedEventArgs { IsFriendUnlock = true },
+                new PersistedSettings { NotificationDelaySeconds = 3 },
+                enqueued);
+
+            Assert.AreEqual(enqueued.AddSeconds(3), readyAt);
+        }
+
+        [TestMethod]
+        public void ComputeNotifyReadyUtc_NormalizesNonUtcObservationKind()
+        {
+            var localObserved = new DateTime(2026, 8, 26, 12, 0, 0, DateTimeKind.Local);
+
+            var readyAt = AchievementToastViewModel.ComputeNotifyReadyUtc(
+                new AchievementUnlockedEventArgs { ObservedUtc = localObserved },
+                new PersistedSettings { NotificationDelaySeconds = 2 },
+                localObserved.ToUniversalTime());
+
+            Assert.AreEqual(localObserved.ToUniversalTime().AddSeconds(2), readyAt);
+            Assert.AreEqual(DateTimeKind.Utc, readyAt.Kind);
+        }
+
+        [TestMethod]
         public void CompletionNotification_IsGameCompletedMarksTheStandaloneToast()
         {
             var viewModel = new AchievementToastViewModel(

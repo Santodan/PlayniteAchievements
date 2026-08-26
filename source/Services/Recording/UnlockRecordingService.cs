@@ -28,7 +28,8 @@ namespace PlayniteAchievements.Services.Recording
     /// whether or not that toast was ever shown: the toast pipeline renders an unrevealed wave for
     /// clip-worthy unlocks (see <see cref="WouldRequestClip"/>), and such clips carry no chime.
     /// A configured capture delay moves that anchor to the moment the capture was taken instead,
-    /// so the clip and the screenshot depict the same frame.
+    /// so the clip and the screenshot depict the same frame; a configured notification delay
+    /// likewise moves it, since the wave itself (and so the capture) is held past the unlock.
     /// Subscribes to <see cref="PlayniteAchievementsPlugin.AchievementUnlocked"/> in parallel to
     /// the toast service, and to <see cref="ToastNotificationService.TracksCompleted"/> for the
     /// overlay tracks (<see cref="ToastNotificationService.WaveDisplayed"/> is a liveness bump for
@@ -272,17 +273,29 @@ namespace PlayniteAchievements.Services.Recording
             public double? OwnSoundFileGain;
 
             /// <summary>
-            /// Capture delay snapshotted at unlock. Non-zero means this clip anchors on the moment
-            /// its capture was taken rather than on the unlock, and that the clip's own window
-            /// extends that much further into the future — which the toast waits below add to their
-            /// silence budget so a long delay does not read as a stalled queue.
+            /// Notification delay snapshotted at unlock. Non-zero means the wave itself is held
+            /// this long past the unlock before it may show, so every toast/track wait extends its
+            /// silence budget by it — a long hold must not read as a stalled queue.
             /// </summary>
             public double NotificationDelaySeconds;
 
             /// <summary>
+            /// Capture delay snapshotted at unlock. Non-zero means this clip anchors on the moment
+            /// its capture was taken rather than on the unlock, and that the clip's own window
+            /// extends that much further past the (possibly already delayed) wave start.
+            /// </summary>
+            public double CaptureDelaySeconds;
+
+            /// <summary>
+            /// Both delays together: how far past the unlock this request's display instant and
+            /// capture may legitimately sit, added to the toast/track wait budgets below.
+            /// </summary>
+            public double TotalDelaySeconds => NotificationDelaySeconds + CaptureDelaySeconds;
+
+            /// <summary>
             /// Completed with the instant this request's wave captured its base surface, or null
             /// when the wave never reached the screen or the wait gave up — either way the window
-            /// falls back to the unlock anchor. Only created when a delay is configured; null
+            /// falls back to the unlock anchor. Only created when either delay is configured; null
             /// otherwise, so the default path never waits on a toast before cutting its clip.
             /// </summary>
             public TaskCompletionSource<DateTime?> DisplayTcs;
@@ -880,6 +893,9 @@ namespace PlayniteAchievements.Services.Recording
             var notificationDelaySeconds = e.IsTestFire
                 ? 0
                 : Math.Max(0, persisted.NotificationDelaySeconds);
+            var captureDelaySeconds = e.IsTestFire
+                ? 0
+                : Math.Max(0, persisted.CaptureDelaySeconds);
 
             var request = new ClipRequest
             {
@@ -901,9 +917,10 @@ namespace PlayniteAchievements.Services.Recording
                 EffectiveToastSeconds = _toastNotifications?.GetEffectiveToastDurationSecondsSafe()
                     ?? Math.Max(2, persisted.ToastDurationSeconds),
                 NotificationDelaySeconds = notificationDelaySeconds,
+                CaptureDelaySeconds = captureDelaySeconds,
                 TrackTcs = new TaskCompletionSource<ToastOverlayTrack>(
                     TaskCreationOptions.RunContinuationsAsynchronously),
-                DisplayTcs = notificationDelaySeconds > 0
+                DisplayTcs = notificationDelaySeconds + captureDelaySeconds > 0
                     ? new TaskCompletionSource<DateTime?>(TaskCreationOptions.RunContinuationsAsynchronously)
                     : null,
             };
@@ -1191,14 +1208,15 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>
         /// Waits for the instant this achievement's wave aims its base capture at, so the clip can
         /// be built around the frame the screenshot depicts. Null — anchor on the unlock instead —
-        /// when no capture delay is configured, or when the wait gives up on the same silence
+        /// when neither delay is configured, or when the wait gives up on the same silence
         /// budget the track wait uses.
         ///
         /// The wave reports that instant when it settles, as a scheduled target rather than an
         /// observation, so this does not wait for the capture itself — only for the wave to reach
-        /// the screen. A configured delay still extends the budget, because it pushes the clip's
-        /// own window that much further out; without that an uncapped delay longer than
-        /// <see cref="ToastWaitTimeoutSeconds"/> could read as a stalled queue.
+        /// the screen. Both configured delays extend the budget: the notification delay withholds
+        /// the wave itself, and the capture delay pushes the clip's own window that much further
+        /// out; without that an uncapped delay longer than <see cref="ToastWaitTimeoutSeconds"/>
+        /// could read as a stalled queue.
         /// </summary>
         private async Task<DateTime?> WaitForDisplayAsync(ClipRequest request)
         {
@@ -1207,8 +1225,8 @@ namespace PlayniteAchievements.Services.Recording
                 return null;
             }
 
-            var silenceBudget = TimeSpan.FromSeconds(ToastWaitTimeoutSeconds + request.NotificationDelaySeconds);
-            var overallBudget = TimeSpan.FromSeconds(MaxToastWaitSeconds + request.NotificationDelaySeconds);
+            var silenceBudget = TimeSpan.FromSeconds(ToastWaitTimeoutSeconds + request.TotalDelaySeconds);
+            var overallBudget = TimeSpan.FromSeconds(MaxToastWaitSeconds + request.TotalDelaySeconds);
 
             while (true)
             {
@@ -1247,9 +1265,9 @@ namespace PlayniteAchievements.Services.Recording
         /// Waits for this achievement's overlay track, giving up (null → toastless clip) only
         /// after <see cref="ToastWaitTimeoutSeconds"/> of toast SILENCE — measured from the last
         /// wave shown or track completed, not from detection — so a toast queued minutes behind
-        /// other waves still gets composited. A configured notification delay extends that budget,
-        /// since the wave is deliberately withheld for that long before it can display at all.
-        /// Returns whatever won a give-up/late-track race.
+        /// other waves still gets composited. The configured notification and capture delays both
+        /// extend that budget, since the wave is deliberately withheld for that long before it can
+        /// display at all. Returns whatever won a give-up/late-track race.
         /// </summary>
         private async Task<ToastOverlayTrack> WaitForTrackAsync(ClipRequest request)
         {
@@ -1273,8 +1291,8 @@ namespace PlayniteAchievements.Services.Recording
                 var now = CaptureTimelineClock.UtcNow;
                 var silenceAnchor = lastActivity > request.ObservedUtc ? lastActivity : request.ObservedUtc;
                 if (_disposed ||
-                    now - silenceAnchor >= TimeSpan.FromSeconds(ToastWaitTimeoutSeconds + request.NotificationDelaySeconds) ||
-                    now - request.ObservedUtc >= TimeSpan.FromSeconds(MaxToastWaitSeconds + request.NotificationDelaySeconds))
+                    now - silenceAnchor >= TimeSpan.FromSeconds(ToastWaitTimeoutSeconds + request.TotalDelaySeconds) ||
+                    now - request.ObservedUtc >= TimeSpan.FromSeconds(MaxToastWaitSeconds + request.TotalDelaySeconds))
                 {
                     _logger?.Debug(
                         $"[Recording] No matching toast track for '{request.AchievementName}' " +

@@ -105,6 +105,7 @@ namespace PlayniteAchievements.Models.Settings
                 : new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase);
             target.ToastDurationSeconds = source.ToastDurationSeconds;
             target.NotificationDelaySeconds = source.NotificationDelaySeconds;
+            target.CaptureDelaySeconds = source.CaptureDelaySeconds;
             target.MaxConcurrentToasts = source.MaxConcurrentToasts;
             target.ToastPosition = source.ToastPosition;
             target.EnableControllerVibration = source.EnableControllerVibration;
