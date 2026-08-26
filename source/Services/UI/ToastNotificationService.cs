@@ -140,6 +140,10 @@ namespace PlayniteAchievements.Services.UI
         private bool _activeSlideOutTravels = true;
         // The storyboard currently running, so StopActiveSlide can stop the right one.
         private Storyboard _runningSlideStoryboard;
+        // The quiet scope covering the running slide's span. Opened when a slide storyboard
+        // begins; released by the storyboard's Completed, the Begin failure path, and
+        // StopActiveSlide as the backstop, whichever runs first.
+        private IDisposable _activeSlideQuiet;
         // Per-wave placement state: the offset between where SetWindowPos is asked to put the toast
         // and where its HWND lands (measured once, on the wave's first settled placement), and whether
         // this wave has already logged that its placement needed rescuing.
@@ -3853,6 +3857,13 @@ namespace PlayniteAchievements.Services.UI
             _activeSlideTick = tick;
             _runningSlideStoryboard = storyboard;
 
+            // The quiet span covers exactly the storyboard's run: everything else that animates
+            // or invalidates stands down so the slide gets the whole frame budget. Completed
+            // releases it at the slide's natural end (attached before Begin — later subscribers
+            // never reach the running clock); StopActiveSlide backstops every cut-short path.
+            _activeSlideQuiet = new SlideQuietScope(host);
+            storyboard.Completed += (s, e) => DisposeSlideQuiet();
+
             transform.Y = restDip;
             CompositionTarget.Rendering += tick;
             try
@@ -3864,6 +3875,7 @@ namespace PlayniteAchievements.Services.UI
                 // Begin can throw on a theme storyboard that survived resolution but cannot bind to this
                 // tree. Land the card where the slide would have left it rather than mid-travel.
                 _logger?.Debug(ex, "Toast slide storyboard failed to start; snapping to the slide's end.");
+                DisposeSlideQuiet();
                 CompositionTarget.Rendering -= tick;
                 _activeSlideTick = null;
                 _runningSlideStoryboard = null;
@@ -4185,8 +4197,86 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// Everything that stands down for one slide's span: the process-wide quiet gate (ray
+        /// invalidations, deferred periodic work) plus the card's own animation clocks (glow
+        /// pulse, GIF decoders), which freeze so the slide owns the frame budget. Each step is
+        /// independently guarded so a failure in one can never leave another unreleased, and
+        /// disposal is idempotent because three paths race to release it.
+        /// </summary>
+        private sealed class SlideQuietScope : IDisposable
+        {
+            private readonly FrameworkElement _host;
+            private IDisposable _gate;
+            private bool _disposed;
+
+            public SlideQuietScope(FrameworkElement host)
+            {
+                _host = host;
+                _gate = RenderQuietGate.Engage();
+
+                try
+                {
+                    RarityGlowPulse.PauseUnder(host);
+                }
+                catch
+                {
+                    // A pause that fails just leaves that animation running for the slide.
+                }
+
+                try
+                {
+                    AsyncImage.PauseGifAnimationsUnder(host);
+                }
+                catch
+                {
+                    // Same: the slide runs, merely without this stand-down.
+                }
+            }
+
+            public void Dispose()
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
+
+                try
+                {
+                    AsyncImage.ResumeGifAnimationsUnder(_host);
+                }
+                catch
+                {
+                    // The window may be tearing down; a decoder that never resumes dies with it.
+                }
+
+                try
+                {
+                    RarityGlowPulse.ResumeUnder(_host);
+                }
+                catch
+                {
+                    // Same teardown tolerance as above.
+                }
+
+                _gate?.Dispose();
+                _gate = null;
+            }
+        }
+
+        private void DisposeSlideQuiet()
+        {
+            var quiet = _activeSlideQuiet;
+            _activeSlideQuiet = null;
+            quiet?.Dispose();
+        }
+
         private void StopActiveSlide()
         {
+            DisposeSlideQuiet();
+
             if (_activeSlideTick != null)
             {
                 CompositionTarget.Rendering -= _activeSlideTick;
@@ -4466,6 +4556,7 @@ namespace PlayniteAchievements.Services.UI
             _disposed = true;
             PlayniteAchievementsPlugin.AchievementUnlocked -= OnAchievementUnlocked;
             _queue.Clear();
+            DisposeSlideQuiet();
             try
             {
                 _activeWindow?.Close();
