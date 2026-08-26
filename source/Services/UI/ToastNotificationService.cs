@@ -43,13 +43,18 @@ namespace PlayniteAchievements.Services.UI
         private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly Queue<AchievementToastViewModel> _queue = new Queue<AchievementToastViewModel>();
         private bool _processing;
-        // Diagnostic hold-logging (no behavior change): when the queue is holding waves because no
-        // queued game is foreground, the UTC time the current hold began and the last time it was
-        // logged, so a hold is reported once at start, at most every HoldLogIntervalSeconds while it
-        // persists, and on release — each line naming the foreground window responsible.
+        // Diagnostic hold-logging (no behavior change): when the queue is holding waves — because
+        // no queued game is foreground, or because items are still waiting out their notification
+        // delay — the UTC time the current hold began and the last time it was logged, so a hold is
+        // reported once at start, at most every HoldLogIntervalSeconds while it persists, and on
+        // release — each line naming the cause (and the foreground window when that is the cause).
         private DateTime? _holdStartedUtc;
         private DateTime _lastHoldLogUtc;
         private const int HoldLogIntervalSeconds = 15;
+        // Hold-loop recheck cadence: the 1s ceiling is the historical minimized-hold poll; the
+        // floor keeps a burst of near-ready delayed items from spinning the loop.
+        private const int HoldPollIntervalMs = 1000;
+        private const int MinHoldPollDelayMs = 15;
         // Target gap (DIP) from the screen/game-window corner to the visible card body, held
         // constant regardless of the card's ToastGlowMargin: the window margin is derived as
         // CornerGapDip - glow so the body sits here whether or not the border glow is on (with the
@@ -185,9 +190,11 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Raised when a non-preview toast wave is fully on screen (slide-in finished and
-        /// placement snapped) — a liveness signal for the recording service's track wait (clip
-        /// windows themselves are unlock-anchored). Fires on the UI thread.
+        /// Raised when a non-preview wave is fully on screen (slide-in finished and placement
+        /// snapped), or immediately for a windowless wave — a liveness signal for the recording
+        /// service's track wait, carrying the capture instant a delayed clip anchors to (null when
+        /// neither delay is configured, which keeps clip windows unlock-anchored). Fires on the UI
+        /// thread.
         /// </summary>
         internal event EventHandler<ToastWaveDisplayedEventArgs> WaveDisplayed;
 
@@ -396,6 +403,27 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
+            // Snapshotted at enqueue, mirroring the recording side's per-request snapshot, so both
+            // sides agree per unlock and a mid-queue settings change never moves queued items.
+            var notifyReadyAtUtc = AchievementToastViewModel.ComputeNotifyReadyUtc(
+                args, _settings?.Persisted, CaptureTimelineClock.UtcNow);
+
+            // Per-game monotonic clamp: per-game FIFO is a queue invariant, so a settings change
+            // between two enqueues of the same game must not let the later unlock become ready
+            // before the earlier one. Previews and test fires stay exempt — immediate by contract
+            // even when a delayed real unlock of the same game is queued.
+            if (!args.IsPreview && !args.IsTestFire)
+            {
+                foreach (var queued in _queue)
+                {
+                    if (queued.PlayniteGameId == args.PlayniteGameId &&
+                        queued.NotifyReadyAtUtc > notifyReadyAtUtc)
+                    {
+                        notifyReadyAtUtc = queued.NotifyReadyAtUtc;
+                    }
+                }
+            }
+
             // PreviewStyleOverride is set only by settings fire-tests, so the fired notification
             // renders the exact style the editor mockup shows; real unlocks resolve normally.
             _queue.Enqueue(new AchievementToastViewModel(
@@ -405,6 +433,7 @@ namespace PlayniteAchievements.Services.UI
                 gameCustomDataStore: _gameCustomDataStore)
             {
                 NeedsOverlayTrack = needsOverlayTrack,
+                NotifyReadyAtUtc = notifyReadyAtUtc,
             });
             if (!_processing)
             {
@@ -515,7 +544,8 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         /// <summary>
         /// Grabs the wave's base surface at <paramref name="captureAtUtc"/>, or immediately when it
-        /// is null (no configured capture delay).
+        /// is null (neither delay configured) — with only a notification delay the instant is the
+        /// wave start itself, so the wait below is zero.
         /// <para>
         /// Waits for that exact instant rather than sleeping the configured duration, so the moment
         /// published to the recording service is the moment actually captured — the clip anchor and
@@ -1807,10 +1837,11 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Diagnostic only: records that the queue is holding waves because no queued game is
-        /// foreground, logging the foreground window responsible once when the hold starts and at
-        /// most every <see cref="HoldLogIntervalSeconds"/> while it persists — enough to identify
-        /// the culprit window without spamming the 1s hold loop.
+        /// Diagnostic only: records that the queue is holding waves — every item's game minimized,
+        /// or every item still waiting out its notification delay — logging the cause once when the
+        /// hold starts and at most every <see cref="HoldLogIntervalSeconds"/> while it persists —
+        /// enough to identify the culprit window (or the configured delay) without spamming the
+        /// hold loop.
         /// </summary>
         private void LogWaveHeld()
         {
@@ -1820,7 +1851,7 @@ namespace PlayniteAchievements.Services.UI
                 _holdStartedUtc = now;
                 _lastHoldLogUtc = now;
                 _logger?.Debug(
-                    $"[Toast] Holding {_queue.Count} queued notification(s); no queued game is foreground. {DescribeForeground()}");
+                    $"[Toast] Holding {_queue.Count} queued notification(s); {DescribeHoldCause(now)}");
                 return;
             }
 
@@ -1828,8 +1859,33 @@ namespace PlayniteAchievements.Services.UI
             {
                 _lastHoldLogUtc = now;
                 _logger?.Debug(
-                    $"[Toast] Still holding {_queue.Count} notification(s) after {(now - _holdStartedUtc.Value).TotalSeconds:F0}s. {DescribeForeground()}");
+                    $"[Toast] Still holding {_queue.Count} notification(s) after {(now - _holdStartedUtc.Value).TotalSeconds:F0}s; {DescribeHoldCause(now)}");
             }
+        }
+
+        /// <summary>
+        /// Names why the queue is holding: purely the notification delay (the foreground window is
+        /// irrelevant then), purely minimized games, or both.
+        /// </summary>
+        private string DescribeHoldCause(DateTime now)
+        {
+            var delayHeld = 0;
+            foreach (var vm in _queue)
+            {
+                if (vm.NotifyReadyAtUtc > now)
+                {
+                    delayHeld++;
+                }
+            }
+
+            if (delayHeld >= _queue.Count)
+            {
+                return "all waiting out the configured notification delay.";
+            }
+
+            return delayHeld > 0
+                ? $"no queued game is foreground ({delayHeld} also waiting out the notification delay). {DescribeForeground()}"
+                : $"no queued game is foreground. {DescribeForeground()}";
         }
 
         /// <summary>
@@ -1864,12 +1920,12 @@ namespace PlayniteAchievements.Services.UI
                     var wave = DequeueNextReadyWave();
                     if (wave.Count == 0)
                     {
-                        // Every queued wave belongs to a running game whose window is minimized right
-                        // now (unfocused/occluded games are ready — the toast interleaves with them).
-                        // Hold and re-check; a game's pending toasts are dropped by ClearPending when
-                        // it stops.
+                        // Every queued item is either waiting out its notification delay or belongs
+                        // to a running game whose window is minimized right now (unfocused/occluded
+                        // games are ready — the toast interleaves with them). Hold and re-check; a
+                        // game's pending toasts are dropped by ClearPending when it stops.
                         LogWaveHeld();
-                        await Task.Delay(1000).ConfigureAwait(true);
+                        await Task.Delay(ComputeHoldPollDelayMs()).ConfigureAwait(true);
                         continue;
                     }
 
@@ -1894,11 +1950,35 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Waits until the soonest delay-held item becomes ready, capped at the historical 1s
+        /// minimized-hold recheck so sub-second notification delays fire on time instead of
+        /// quantizing to the poll, and floored so a burst of near-ready items cannot spin the loop.
+        /// </summary>
+        private int ComputeHoldPollDelayMs()
+        {
+            var now = CaptureTimelineClock.UtcNow;
+            var soonestMs = (double)HoldPollIntervalMs;
+            foreach (var vm in _queue)
+            {
+                var remaining = (vm.NotifyReadyAtUtc - now).TotalMilliseconds;
+                if (remaining > 0 && remaining < soonestMs)
+                {
+                    soonestMs = remaining;
+                }
+            }
+
+            return Math.Max(MinHoldPollDelayMs, (int)Math.Ceiling(soonestMs));
+        }
+
+        /// <summary>
         /// Dequeues the next wave whose game is ready to receive it (window visible — focused,
-        /// unfocused, or occluded — or not a running game at all). Waves batch by friend/own and by
-        /// game: a cross-game wave would share one screenshot window and one placement anchor between
-        /// two different game windows. A held wave (its game minimized) is skipped over so it never
-        /// blocks another game's ready toasts; per-game ordering is preserved.
+        /// unfocused, or occluded — or not a running game at all) and whose notification delay has
+        /// elapsed. Waves batch by friend/own and by game: a cross-game wave would share one
+        /// screenshot window and one placement anchor between two different game windows. A held
+        /// wave (its game minimized, or its delay still running) is skipped over so it never blocks
+        /// another game's ready toasts; per-game ordering is preserved. A run also truncates at the
+        /// first not-yet-ready item, so a later unlock never rides an earlier wave before its own
+        /// delay elapses — it follows in its own wave when ready.
         /// </summary>
         private List<AchievementToastViewModel> DequeueNextReadyWave()
         {
@@ -1909,8 +1989,9 @@ namespace PlayniteAchievements.Services.UI
                 return result;
             }
 
+            var now = CaptureTimelineClock.UtcNow;
             var items = _queue.ToList();
-            var anchorIndex = items.FindIndex(IsWaveGameReady);
+            var anchorIndex = items.FindIndex(vm => vm.NotifyReadyAtUtc <= now && IsWaveGameReady(vm));
             if (anchorIndex < 0)
             {
                 return result;
@@ -1922,6 +2003,7 @@ namespace PlayniteAchievements.Services.UI
             // in their own wave (multiple completions of the same kind may stack together).
             while (end < items.Count &&
                    result.Count < max &&
+                   items[end].NotifyReadyAtUtc <= now &&
                    items[end].IsFriendUnlock == anchor.IsFriendUnlock &&
                    items[end].PlayniteGameId == anchor.PlayniteGameId &&
                    items[end].IsGameCompleted == anchor.IsGameCompleted &&
@@ -2095,25 +2177,33 @@ namespace PlayniteAchievements.Services.UI
             var visible = wavePlan.IsVisible;
             var plan = wavePlan.Screenshots;
 
-            // The notification is never held back — it shows as soon as the queue and the
-            // foreground gate allow. The delay moves only the CAPTURE: the base frame is grabbed
-            // this long after the card reaches the screen, and the composited card is placed at
-            // that same instant, so the capture shows the game a moment further on while still
-            // reading as the notification's own frame.
+            // The wave shows once the queue, the foreground gate, and the notification delay all
+            // allow (the delay hold happens upstream, in the queue's readiness gate). The capture
+            // delay then moves only the CAPTURE: the base frame is grabbed this long after the
+            // wave starts, and the composited card is placed at that same instant, so the capture
+            // shows the game a moment further on while still reading as the notification's own
+            // frame.
             //
             // Previews and retriggers are exempt: both capture the instant they are asked for.
             var captureDelaySeconds = !waveIsTestFire && !wave[0].IsPreview
-                ? Math.Max(0, _settings?.Persisted?.NotificationDelaySeconds ?? 0)
+                ? Math.Max(0, _settings?.Persisted?.CaptureDelaySeconds ?? 0)
                 : 0;
 
             // The instant the base frame is aimed at, published to the recording service so a
             // delayed clip anchors on the same moment the screenshot depicts. The capture waits
             // for this exact instant rather than sleeping a duration, so the value stays truthful.
-            // Null at zero delay, which keeps clips unlock-anchored exactly as before.
+            //
+            // Published whenever either delay moved the moment off the unlock: a capture delay
+            // pushes it past the wave start, and a notification delay means the wave start itself
+            // already sits past the unlock — with only a notification delay the value is simply
+            // "now", the show moment. Null when neither delay applied, which keeps clips
+            // unlock-anchored exactly as before. The wave's own enqueue-time stamp decides (not a
+            // fresh settings read), so this agrees with the recording side's per-request snapshot.
             //
             // Stamped even when no screenshot is planned: a clip can be cut with screenshots
             // switched off entirely, and it still anchors here.
-            var surfaceCaptureUtc = captureDelaySeconds > 0
+            var waveNotifyDelayed = wave[0].NotifyReadyAtUtc != default(DateTime);
+            var surfaceCaptureUtc = captureDelaySeconds > 0 || waveNotifyDelayed
                 ? CaptureTimelineClock.UtcNow.AddSeconds(captureDelaySeconds)
                 : (DateTime?)null;
 
@@ -2131,7 +2221,7 @@ namespace PlayniteAchievements.Services.UI
                 baseCaptureTask = StartWaveSurfaceCaptureAsync(waveIsTestFire, surfaceCaptureUtc);
             }
 
-            // Nothing needs a card: capture and save, no window, no delays. Running this inside
+            // Nothing needs a card: capture and save, no window, no hold. Running this inside
             // the sequential wave pipeline is what keeps the out-of-game monitor capture free of
             // an earlier wave's toast, and keeps the per-wave placement state single-owner.
             if (wavePlan.Mode == WaveMode.Windowless)
@@ -2141,6 +2231,12 @@ namespace PlayniteAchievements.Services.UI
                     _ = SaveWaveScreenshotsAsync(plan, baseCaptureTask, null);
                 }
 
+                // A windowless wave still owes the recording side its liveness bump and, in the
+                // rare eligibility race that pairs a clip with a windowless wave (see
+                // UnlockRecordingService.WouldRequestClip), the anchor instant the screenshots
+                // depict — instead of letting that clip burn its full silence budget and fall
+                // back to the unlock anchor.
+                RaiseWaveDisplayed(wave, null, surfaceCaptureUtc);
                 return;
             }
 
@@ -2499,9 +2595,10 @@ namespace PlayniteAchievements.Services.UI
                 // bump for its track wait, this wave's chime time for the clip audio mix, and the
                 // instant this wave's capture is aimed at, which a delayed clip anchors to).
                 // An unrevealed wave passes a null chime time, so its clips are mixed without one.
-                // With no capture delay the instant is null and clips stay unlock-anchored; it is
-                // reported here, before the capture itself, because it is a scheduled target rather
-                // than an observation, so the recorder never waits on the capture to plan a window.
+                // With neither delay configured the instant is null and clips stay unlock-anchored;
+                // it is reported here, before the capture itself, because it is a scheduled target
+                // rather than an observation, so the recorder never waits on the capture to plan a
+                // window.
                 RaiseWaveDisplayed(
                     cardItems, soundPlayedUtc, surfaceCaptureUtc, soundFilePath, soundFileGain);
 
