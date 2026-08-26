@@ -776,36 +776,7 @@ namespace PlayniteAchievements.Providers.Steam
 
         public static bool HasOnlyHiddenAchievementRows(string html)
         {
-            if (string.IsNullOrWhiteSpace(html))
-            {
-                return false;
-            }
-
-            var doc = new HtmlDocument();
-            doc.LoadHtml(html);
-
-            var nodes = doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveRow')]") ??
-                        doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveTxtHolder')]") ??
-                        doc.DocumentNode.SelectNodes("//*[contains(@class,'achievement') and (.//h3 or .//div[contains(@class,'achieveUnlockTime')])]");
-
-            if (nodes == null || nodes.Count == 0)
-            {
-                return false;
-            }
-
-            var hasHiddenRow = false;
-            foreach (var row in nodes)
-            {
-                var isHidden = row.SelectSingleNode(".//div[contains(@class,'achieveHiddenBox')]") != null;
-                if (!isHidden)
-                {
-                    return false;
-                }
-
-                hasHiddenRow = true;
-            }
-
-            return hasHiddenRow;
+            return SteamStatsPageClassifier.HasOnlyHiddenAchievementRows(html);
         }
 
         public void ResetSteamDatetimeParseFailuresForScan()
