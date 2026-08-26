@@ -106,6 +106,10 @@ namespace PlayniteAchievements.Services.UI
         // Shadow-layer captures this wave (each costs two with-effect renders); reported in the
         // sampling summary — a number near the sample count means the recapture guard failed.
         private int _waveShadowCaptureCount;
+        // Cards whose first pixel frame came from the pre-slide prime rather than an in-slide
+        // rasterization; reported in the sampling summary so a wave that fell back to rendering
+        // mid-slide is visible in the log.
+        private int _wavePrimedSubmitCount;
         private FrameworkElement _activeSlideHost;
         private TranslateTransform _activeSlideTransform;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
@@ -795,9 +799,20 @@ namespace PlayniteAchievements.Services.UI
 
             /// <summary>
             /// Whether this card has contributed at least one pixel frame. A card must have one
-            /// before its samples can repeat it, so the first tick of a slide still rasterizes.
+            /// before its samples can repeat it; the pre-slide prime supplies that frame so the
+            /// first tick of a slide-in submits stashed pixels instead of rasterizing mid-slide.
             /// </summary>
             public bool HasPixelFrame;
+
+            /// <summary>
+            /// The card's pixels rendered before the slide began, awaiting the first sample tick.
+            /// Rented from the recorder: ownership passes to the worker on submit, or back via
+            /// ReturnRentedBuffer when the first tick cannot use them (a theme fade mid-ramp).
+            /// A wave torn down before its first tick just drops the array with the scratch.
+            /// </summary>
+            public byte[] PrimedPixels;
+            public int PrimedW;
+            public int PrimedH;
         }
 
         /// <summary>
@@ -1240,6 +1255,30 @@ namespace PlayniteAchievements.Services.UI
                 var scratch = GetCardScratch(vm);
                 var glowScale = ComputeGlowScale(scratch, hostOpacity);
 
+                // A frame primed before the slide substitutes for the first tick's rasterization:
+                // submitting it is only an enqueue, so the slide-in's early frames carry no render
+                // cost. Deliberately ahead of the stagger — no rasterization happens either way.
+                // A fade theme's first tick must not submit opacity-1 pixels primed before the
+                // fade began, so mid-fade the buffer goes back and the live path runs instead.
+                if (scratch.PrimedPixels != null)
+                {
+                    var primed = scratch.PrimedPixels;
+                    scratch.PrimedPixels = null;
+                    if (hostOpacity >= 0.999 && recorder.CanAcceptFrame(vm))
+                    {
+                        recorder.Sample(
+                            vm, primed, scratch.PrimedW, scratch.PrimedH,
+                            scratch.LastCardWPhys, scratch.LastCardHPhys, slideXPhys, slideYPhys,
+                            glowScale, hostOpacity,
+                            clientPhys.Width, clientPhys.Height, elapsedMs);
+                        scratch.HasPixelFrame = true;
+                        _wavePrimedSubmitCount++;
+                        continue;
+                    }
+
+                    recorder.ReturnRentedBuffer(vm, primed);
+                }
+
                 // A stacked wave staggers rasterization — one card's pixels per tick — so the
                 // per-tick UI cost stays a single card render. Positions and glow scale are
                 // recorded for every card every tick regardless (they are what the export
@@ -1499,6 +1538,70 @@ namespace PlayniteAchievements.Services.UI
                     CaptureShadowLayer(
                         recorder, window, container, toastItems[i], scratch, effects, captureScale);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Renders each card's first pixel frame before the slide starts, so the sampler's first
+        /// in-slide tick submits stashed pixels instead of rasterizing (7-25 ms measured) inside
+        /// the slide-in span. The render is exactly the sampler's bare render — effects and ray
+        /// bursts detached — so the export's shadow/ray layering composes over it like any later
+        /// frame. A card whose render fails is simply left unprimed and its first tick rasterizes
+        /// live, as before. Runs after the warm frames, so the primed pixels match what that
+        /// first tick would have produced. UI thread only.
+        /// </summary>
+        private void PrimeWaveCardPixels(
+            ToastOverlayTrackRecorder recorder, Window window,
+            IReadOnlyList<AchievementToastViewModel> toastItems)
+        {
+            if (recorder == null ||
+                !TryGetTrackGeometry(window, out var itemsControl, out var clientPhys, out _, out _, out _))
+            {
+                return;
+            }
+
+            var captureScale = CurrentCaptureScale(clientPhys);
+            for (var i = 0; i < toastItems.Count; i++)
+            {
+                var vm = toastItems[i];
+                var container = itemsControl.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
+                if (container == null)
+                {
+                    continue;
+                }
+
+                var scratch = GetCardScratch(vm);
+                var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
+                var rayBursts = new List<Views.Controls.RarityRayBurst>();
+                CollectEffects(container, effects, rayBursts);
+                StripEffects(effects);
+                HideRayBursts(rayBursts);
+                byte[] pixels;
+                int pw, ph, cardWPhys, cardHPhys;
+                bool rendered;
+                try
+                {
+                    rendered = TryRenderToastItemBytes(
+                        window, container, scratch, len => recorder.RentBuffer(vm, len),
+                        applyHostOpacity: true, captureScale, probeCase: null,
+                        out pixels, out pw, out ph, out cardWPhys, out cardHPhys);
+                }
+                finally
+                {
+                    RestoreRayBursts(rayBursts);
+                    RestoreEffects(effects);
+                }
+
+                if (!rendered)
+                {
+                    continue;
+                }
+
+                scratch.PrimedPixels = pixels;
+                scratch.PrimedW = pw;
+                scratch.PrimedH = ph;
+                scratch.LastCardWPhys = cardWPhys;
+                scratch.LastCardHPhys = cardHPhys;
             }
         }
 
@@ -2293,7 +2396,9 @@ namespace PlayniteAchievements.Services.UI
                     _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
                     trackSampleCount = 0;
                     _waveShadowCaptureCount = 0;
+                    _wavePrimedSubmitCount = 0;
                     CaptureWaveShadowLayers(trackRecorder, window, cardItems);
+                    PrimeWaveCardPixels(trackRecorder, window, cardItems);
                 }
 
                 SlideInPhysical(window, reveal: visible);
@@ -2513,12 +2618,13 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Info(string.Format(
                         System.Globalization.CultureInfo.InvariantCulture,
                         "[Recording] Toast sampling: {0} samples, card render avg {1:0.0} ms, max {2:0.0} ms " +
-                        "(sample interval {3:0.0} ms), shadow captures {4}",
+                        "(sample interval {3:0.0} ms), shadow captures {4}, primed {5}",
                         trackSampleCount,
                         trackRenderWatch.Elapsed.TotalMilliseconds / trackSampleCount,
                         trackRenderMaxMs,
                         TrackSampleIntervalMs(),
-                        _waveShadowCaptureCount));
+                        _waveShadowCaptureCount,
+                        _wavePrimedSubmitCount));
                 }
 
                 ToastCaptureProbe.ReportWave(_logger);

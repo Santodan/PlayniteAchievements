@@ -100,6 +100,57 @@ namespace PlayniteAchievements.Tests.Services.UI
                 "The countdown bar must be detached after the hold and before the slide-out.");
         }
 
+        [TestMethod]
+        public void CardPixels_ArePrimedBetweenTheShadowCaptureAndTheSlide()
+        {
+            var service = ReadToastService();
+
+            var shadows = service.IndexOf(
+                "CaptureWaveShadowLayers(trackRecorder, window, cardItems);", StringComparison.Ordinal);
+            var prime = service.IndexOf(
+                "PrimeWaveCardPixels(trackRecorder, window, cardItems);", StringComparison.Ordinal);
+            var slide = service.IndexOf(
+                "SlideInPhysical(window, reveal: visible)", StringComparison.Ordinal);
+
+            Assert.IsTrue(shadows >= 0, "The pre-slide shadow capture call was renamed.");
+            Assert.IsTrue(prime >= 0, "The pre-slide pixel prime is gone; the first card render lands mid-slide.");
+            Assert.IsTrue(slide >= 0, "The slide-in call was renamed.");
+
+            // The prime must land after the warm frames (alongside the shadow capture) and before
+            // the slide clock starts, or its cost moves back into the slide-in span.
+            Assert.IsTrue(
+                shadows < prime && prime < slide,
+                "The pixel prime must run after the shadow capture and before the slide-in.");
+        }
+
+        [TestMethod]
+        public void PrimedPixels_AreSubmittedAheadOfTheFrozenSlidePath_WithTheFadeDiscard()
+        {
+            var service = ReadToastService();
+
+            var primedSubmit = service.IndexOf(
+                "if (scratch.PrimedPixels != null)", StringComparison.Ordinal);
+            var frozen = service.IndexOf(
+                "var slideFrozen = _runningSlideStoryboard != null && scratch.HasPixelFrame;",
+                StringComparison.Ordinal);
+
+            Assert.IsTrue(primedSubmit >= 0, "The sampler no longer consumes the primed pixel frame.");
+            Assert.IsTrue(frozen >= 0, "The frozen-slide sample path was renamed.");
+
+            // Behind the frozen branch the primed frame would never be submitted: a frozen tick
+            // records position only, and the worker drops pixel-less ticks with no frame under
+            // them, which erases the whole slide-in from the track.
+            Assert.IsTrue(
+                primedSubmit < frozen,
+                "The primed submit must precede the frozen-slide branch or the slide-in vanishes from clips.");
+
+            // A fade theme's first tick must rasterize live rather than submit opacity-1 pixels
+            // primed before the fade began.
+            Assert.IsTrue(
+                service.Contains("recorder.ReturnRentedBuffer(vm, primed);"),
+                "The mid-fade discard path is gone; a fade theme's clip would pop in fully opaque.");
+        }
+
         private static string ReadToastService()
         {
             return File.ReadAllText(FindRepoFile("source", "Services", "UI", "ToastNotificationService.cs"));
