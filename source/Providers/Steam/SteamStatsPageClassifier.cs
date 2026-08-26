@@ -1,4 +1,5 @@
 using HtmlAgilityPack;
+using PlayniteAchievements.Providers.Steam.Models;
 using System;
 using System.Text.RegularExpressions;
 
@@ -181,6 +182,36 @@ namespace PlayniteAchievements.Providers.Steam
             // ASCII digits are read. Locales with non-ASCII digits yield null, meaning no evidence.
             var match = Regex.Match(box.InnerText ?? string.Empty, "[0-9]+");
             return match.Success && int.TryParse(match.Value, out var count) ? count : (int?)null;
+        }
+
+        /// <summary>
+        /// Decides whether an AllHidden scrape result proves the user has zero unlocks, so an
+        /// empty unlock set can be stored instead of failing the game as unreadable.
+        ///
+        /// A visible schema achievement always renders a normal row (locked or unlocked), so an
+        /// all-hidden page cannot occur unless every schema achievement is hidden. An unlocked
+        /// hidden achievement renders as a full parseable row, so the scrape would have been
+        /// classified Scraped rather than AllHidden. A hidden-remaining count that parses to a
+        /// number different from the schema total means the page and schema describe different
+        /// achievement sets, so confirmation is withheld and the conservative failure stands.
+        /// </summary>
+        public static bool ConfirmsAllHiddenZeroUnlocks(SchemaAndPercentages schema, int? hiddenRemainingCount)
+        {
+            var achievements = schema?.Achievements;
+            if (achievements == null || achievements.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var achievement in achievements)
+            {
+                if (achievement == null || achievement.Hidden == 0)
+                {
+                    return false;
+                }
+            }
+
+            return hiddenRemainingCount == null || hiddenRemainingCount == achievements.Count;
         }
 
         private static HtmlDocument TryParseHtmlDocument(string html)
