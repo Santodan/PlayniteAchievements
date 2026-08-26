@@ -136,6 +136,53 @@ namespace PlayniteAchievements.Providers.Steam
                 RegexOptions.IgnoreCase | RegexOptions.Singleline);
         }
 
+        public static bool HasOnlyHiddenAchievementRows(string html)
+        {
+            var doc = TryParseHtmlDocument(html);
+            if (doc?.DocumentNode == null)
+            {
+                return false;
+            }
+
+            var nodes = doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveRow')]") ??
+                        doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveTxtHolder')]") ??
+                        doc.DocumentNode.SelectNodes("//*[contains(@class,'achievement') and (.//h3 or .//div[contains(@class,'achieveUnlockTime')])]");
+
+            if (nodes == null || nodes.Count == 0)
+            {
+                return false;
+            }
+
+            var hasHiddenRow = false;
+            foreach (var row in nodes)
+            {
+                var isHidden = row.SelectSingleNode(".//div[contains(@class,'achieveHiddenBox')]") != null;
+                if (!isHidden)
+                {
+                    return false;
+                }
+
+                hasHiddenRow = true;
+            }
+
+            return hasHiddenRow;
+        }
+
+        public static int? TryGetHiddenRemainingCount(string html)
+        {
+            var doc = TryParseHtmlDocument(html);
+            var box = doc?.DocumentNode?.SelectSingleNode("//div[contains(@class,'achieveHiddenBox')]");
+            if (box == null)
+            {
+                return null;
+            }
+
+            // The surrounding "N hidden achievements remaining" text is localized; only the bare
+            // ASCII digits are read. Locales with non-ASCII digits yield null, meaning no evidence.
+            var match = Regex.Match(box.InnerText ?? string.Empty, "[0-9]+");
+            return match.Success && int.TryParse(match.Value, out var count) ? count : (int?)null;
+        }
+
         private static HtmlDocument TryParseHtmlDocument(string html)
         {
             if (string.IsNullOrWhiteSpace(html))
