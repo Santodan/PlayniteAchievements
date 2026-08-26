@@ -79,6 +79,27 @@ namespace PlayniteAchievements.Tests.Services.UI
                 "BeginAnimation creates a clock with no reachable controller; the slide cannot pause it.");
         }
 
+        [TestMethod]
+        public void CountdownBar_IsDetachedBetweenTheHoldAndTheSlideOut()
+        {
+            var service = ReadToastService();
+
+            var hold = service.IndexOf(
+                "await HoldWaveAsync(remainingMs).ConfigureAwait(true);", StringComparison.Ordinal);
+            var stop = service.IndexOf("StopCountdownBars(window);", StringComparison.Ordinal);
+            var slideOut = service.IndexOf("SlideOutPhysical(window);", StringComparison.Ordinal);
+
+            Assert.IsTrue(hold >= 0, "The wave hold call was renamed.");
+            Assert.IsTrue(stop >= 0, "The countdown bar is no longer detached before slide-out.");
+            Assert.IsTrue(slideOut >= 0, "The slide-out call was renamed.");
+
+            // The bar's clock nominally completes as the hold ends, but that is timing skew, not
+            // a guarantee; a clock still producing values during the slide-out costs it frames.
+            Assert.IsTrue(
+                hold < stop && stop < slideOut,
+                "The countdown bar must be detached after the hold and before the slide-out.");
+        }
+
         private static string ReadToastService()
         {
             return File.ReadAllText(FindRepoFile("source", "Services", "UI", "ToastNotificationService.cs"));

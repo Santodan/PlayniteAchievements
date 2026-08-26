@@ -2479,6 +2479,10 @@ namespace PlayniteAchievements.Services.UI
 
                 var endedHidden = await HoldWaveAsync(remainingMs).ConfigureAwait(true);
 
+                // The hold is over, so the bar has reached (or is a skewed frame from) empty;
+                // detach its clock so nothing but the slide animates through the slide-out.
+                StopCountdownBars(window);
+
                 if (onRendering != null)
                 {
                     CompositionTarget.Rendering -= onRendering;
@@ -4478,6 +4482,26 @@ namespace PlayniteAchievements.Services.UI
                 // throttles the whole render loop — measured dropping a 163 Hz tick to 90 Hz, which would
                 // coarsen the slide as well as the bar.
                 scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+            }
+        }
+
+        /// <summary>
+        /// Detaches every countdown bar's animation, holding the bar at its current animated
+        /// value. Called right before slide-out: the bar's clock nominally completes as the hold
+        /// ends, but that is timing skew (dispatcher latency, a theme-authored storyboard), not a
+        /// guarantee, and a clock still producing values during the slide-out costs it frames.
+        /// Reassigning the read value in the same dispatcher callback leaves no visible gap.
+        /// </summary>
+        private static void StopCountdownBars(DependencyObject root)
+        {
+            foreach (var bar in FindCountdownBars(root))
+            {
+                if (bar.RenderTransform is ScaleTransform scale)
+                {
+                    var current = scale.ScaleX;
+                    scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                    scale.ScaleX = current;
+                }
             }
         }
 
