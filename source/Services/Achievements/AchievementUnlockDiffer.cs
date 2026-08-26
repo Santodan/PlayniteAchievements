@@ -38,10 +38,11 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
+            // Time ascending with the provider-ordered input as the stable tie. The sole caller
+            // projects this to a key set; InGameUnlockEmissionOrder owns the real user emission
+            // order, which this matches for unhydrated details.
             return result
                 .OrderBy(a => NormalizeUnlockTime(a.UnlockTimeUtc) ?? DateTime.MaxValue)
-                .ThenBy(a => a.Rarity)
-                .ThenBy(a => a.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
         }
 
@@ -74,10 +75,14 @@ namespace PlayniteAchievements.Services.Achievements
                 alreadyToastedKeys?.Add(key);
             }
 
+            // Rows arrive provider-ordered (definition rowid), so the input index is provider
+            // order: same-timestamp friend unlocks notify in provider order, matching the user
+            // emission order. Friend rows cannot resolve the user's per-game custom order.
             return result
-                .OrderBy(row => NormalizeUnlockTime(row.UnlockTimeUtc) ?? DateTime.MaxValue)
-                .ThenBy(row => row.Rarity ?? RarityTier.Common)
-                .ThenBy(row => row.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                .Select((row, index) => (row, index))
+                .OrderBy(entry => NormalizeUnlockTime(entry.row.UnlockTimeUtc) ?? DateTime.MaxValue)
+                .ThenBy(entry => entry.index)
+                .Select(entry => entry.row)
                 .ToList();
         }
 
@@ -113,10 +118,9 @@ namespace PlayniteAchievements.Services.Achievements
                 alreadyToastedKeys?.Add(key);
             }
 
-            return result
-                .OrderBy(row => row.Rarity ?? RarityTier.Common)
-                .ThenBy(row => row.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-                .ToList();
+            // Baseline diffs carry no timestamps; rows arrive provider-ordered (definition rowid),
+            // so the input order is already the emission order.
+            return result;
         }
 
         public static string GetAchievementKey(string apiName, string displayName)
