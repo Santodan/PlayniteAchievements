@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
@@ -34,7 +35,24 @@ namespace PlayniteAchievements.Services.Hydration
                 return;
             }
 
+            var detailList = details as IList<AchievementDetail> ?? details.ToList();
+
             customData ??= GameCustomDataLookup.ResolveGameCustomData(playniteGameId, _settings);
+
+            // The incoming list is provider-ordered (cache reads sort by definition rowid), so its
+            // position under the custom-order overlay is the game's default order. Unlock-time
+            // sorts and toast emission tie-break on this index.
+            var orderedForIndex = AchievementOrderHelper.ApplyOrder(
+                detailList,
+                a => a?.ApiName,
+                customData.AchievementOrder);
+            for (var i = 0; i < orderedForIndex.Count; i++)
+            {
+                if (orderedForIndex[i] != null)
+                {
+                    orderedForIndex[i].DefaultOrderIndex = i;
+                }
+            }
 
             var manualCapstone = customData.ManualCapstoneApiName;
             var hasManualCapstone = !string.IsNullOrWhiteSpace(manualCapstone);
@@ -70,7 +88,7 @@ namespace PlayniteAchievements.Services.Hydration
                 }
             }
 
-            foreach (var detail in details)
+            foreach (var detail in detailList)
             {
                 if (detail == null)
                 {
