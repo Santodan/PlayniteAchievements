@@ -136,6 +136,27 @@ namespace PlayniteAchievements.Providers.Steam
                 RegexOptions.IgnoreCase | RegexOptions.Singleline);
         }
 
+        public static bool LooksLoggedOutStatsPayloadWithoutRows(string html, string finalUrl = null)
+        {
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                return false;
+            }
+
+            var doc = TryParseHtmlDocument(html);
+            if (!LooksLikeStatsPage(doc, finalUrl) || HasAchievementRowsInDom(doc))
+            {
+                return false;
+            }
+
+            var unauthSteamId = Regex.IsMatch(
+                html,
+                @"g_steamID\s*=\s*(?:false|""0""|0)\s*;",
+                RegexOptions.IgnoreCase);
+
+            return HasHeaderLoginLink(doc) || unauthSteamId || ContainsLoggedOutUserInfoFlag(html);
+        }
+
         private static HtmlDocument TryParseHtmlDocument(string html)
         {
             if (string.IsNullOrWhiteSpace(html))

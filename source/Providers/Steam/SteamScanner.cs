@@ -991,7 +991,7 @@ namespace PlayniteAchievements.Providers.Steam
 
             if (SteamHttpClient.LooksUnauthenticatedStatsPayload(html, finalUrl)) return true;
 
-            if (SteamHttpClient.LooksLoggedOutHeader(html)) return true;
+            if (SteamHttpClient.LooksLoggedOutStatsPayloadWithoutRows(html, finalUrl)) return true;
 
             var hasLoggedOutSteamIdMarker =
                 html.IndexOf("g_steamID = \"0\"", StringComparison.OrdinalIgnoreCase) >= 0 ||

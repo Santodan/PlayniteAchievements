@@ -104,15 +104,7 @@ namespace PlayniteAchievements.Providers.Steam
 
         public void ClearInMemoryAuthState()
         {
-            lock (_cookieLock)
-            {
-                _cookieJar = new CookieContainer();
-            }
-
-            lock (_cookieSyncStateLock)
-            {
-                _lastCefCookieSyncUtc = DateTime.MinValue;
-            }
+            ResetAuthenticatedHttpClientState();
         }
 
         // ---------------------------------------------------------------------
@@ -137,6 +129,13 @@ namespace PlayniteAchievements.Providers.Steam
 
             _logger?.Debug($"[SteamAch] Probing Steam session (Force={forceRefresh})...");
             var result = await _sessionManager.ProbeAuthStateAsync(ct).ConfigureAwait(false);
+            if (forceRefresh)
+            {
+                // A forced refresh must start from a clean container. Adding refreshed
+                // cookies to the existing jar can leave stale domain/path variants active.
+                ResetAuthenticatedHttpClientState();
+            }
+
             SyncCookieJarFromCefIfNeeded(force: true);
             lock (_cookieLock)
             {
@@ -1197,9 +1196,10 @@ namespace PlayniteAchievements.Providers.Steam
                             var responseHtml = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
 
                             if (requiresCookies && isSteamAuth && attempt == 1 &&
-                                LooksUnauthenticatedStatsPayload(responseHtml, result.FinalUrl))
+                                (LooksUnauthenticatedStatsPayload(responseHtml, result.FinalUrl) ||
+                                 LooksLoggedOutStatsPayloadWithoutRows(responseHtml, result.FinalUrl)))
                             {
-                                _logger?.Warn($"[SteamAch] Auth-like stats payload detected for {url} (Status={resp.StatusCode}, Url={result.FinalUrl}). Forcing session refresh and retrying once.");
+                                _logger?.Warn($"[SteamAch] Logged-out stats payload detected for {url} (Status={resp.StatusCode}, Url={result.FinalUrl}). Rebuilding the authenticated client, refreshing the session, and retrying once.");
                                 await EnsureSessionAsync(ct, forceRefresh: true).ConfigureAwait(false);
                                 continue;
                             }
@@ -1221,8 +1221,23 @@ namespace PlayniteAchievements.Providers.Steam
 
         private void BuildHttpClientsOnce()
         {
-            _handler?.Dispose(); _http?.Dispose();
+            RebuildAuthenticatedHttpClient();
+
             _apiHandler?.Dispose(); _apiHttp?.Dispose();
+
+            _apiHandler = new HttpClientHandler
+            {
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+                AllowAutoRedirect = true,
+                UseCookies = false
+            };
+            _apiHttp = new HttpClient(_apiHandler) { Timeout = TimeSpan.FromSeconds(30) };
+        }
+
+        private void RebuildAuthenticatedHttpClient()
+        {
+            _http?.Dispose();
+            _handler?.Dispose();
 
             _cookieJar.PerDomainCapacity = 300;
 
@@ -1234,14 +1249,20 @@ namespace PlayniteAchievements.Providers.Steam
                 UseCookies = true
             };
             _http = new HttpClient(_handler) { Timeout = TimeSpan.FromSeconds(30) };
+        }
 
-            _apiHandler = new HttpClientHandler
+        private void ResetAuthenticatedHttpClientState()
+        {
+            lock (_cookieLock)
             {
-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
-                AllowAutoRedirect = true,
-                UseCookies = false
-            };
-            _apiHttp = new HttpClient(_apiHandler) { Timeout = TimeSpan.FromSeconds(30) };
+                _cookieJar = new CookieContainer();
+                RebuildAuthenticatedHttpClient();
+            }
+
+            lock (_cookieSyncStateLock)
+            {
+                _lastCefCookieSyncUtc = DateTime.MinValue;
+            }
         }
 
         // ---------------------------------------------------------------------
@@ -1271,6 +1292,11 @@ namespace PlayniteAchievements.Providers.Steam
         public static bool LooksLoggedOutHeader(string html)
         {
             return SteamStatsPageClassifier.LooksLoggedOutHeader(html);
+        }
+
+        public static bool LooksLoggedOutStatsPayloadWithoutRows(string html, string finalUrl = null)
+        {
+            return SteamStatsPageClassifier.LooksLoggedOutStatsPayloadWithoutRows(html, finalUrl);
         }
 
         public static bool LooksUnauthenticatedSteamPage(string html, string finalUrl = null)

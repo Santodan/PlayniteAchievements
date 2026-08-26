@@ -2099,7 +2099,7 @@ index a069f134638453d5544736d89a6727e3aca1f1c7..68e11aad6f9733fab2366f036ac21587
          public void Dispose()
          {
 diff --git a/source/Providers/Steam/SteamHTTPClient.cs b/source/Providers/Steam/SteamHTTPClient.cs
-index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614eb1607d78 100644
+index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..c5940875b2fdeb2d67f788ddc4703abfdaa1233a 100644
 --- a/source/Providers/Steam/SteamHTTPClient.cs
 +++ b/source/Providers/Steam/SteamHTTPClient.cs
 @@ -1,4 +1,6 @@
@@ -2140,7 +2140,38 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
  
          private readonly IPlayniteAPI _api;
          private readonly ILogger _logger;
-@@ -175,44 +197,281 @@ bool Has(CookieCollection cc) =>
+@@ -82,15 +104,7 @@ public void Dispose()
+ 
+         public void ClearInMemoryAuthState()
+         {
+-            lock (_cookieLock)
+-            {
+-                _cookieJar = new CookieContainer();
+-            }
+-
+-            lock (_cookieSyncStateLock)
+-            {
+-                _lastCefCookieSyncUtc = DateTime.MinValue;
+-            }
++            ResetAuthenticatedHttpClientState();
+         }
+ 
+         // ---------------------------------------------------------------------
+@@ -115,6 +129,13 @@ private async Task<bool> EnsureSessionAsync(CancellationToken ct, bool forceRefr
+ 
+             _logger?.Debug($"[SteamAch] Probing Steam session (Force={forceRefresh})...");
+             var result = await _sessionManager.ProbeAuthStateAsync(ct).ConfigureAwait(false);
++            if (forceRefresh)
++            {
++                // A forced refresh must start from a clean container. Adding refreshed
++                // cookies to the existing jar can leave stale domain/path variants active.
++                ResetAuthenticatedHttpClientState();
++            }
++
+             SyncCookieJarFromCefIfNeeded(force: true);
+             lock (_cookieLock)
+             {
+@@ -175,44 +196,281 @@ bool Has(CookieCollection cc) =>
          }
  
          // ---------------------------------------------------------------------
@@ -2222,19 +2253,14 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
 +                        return SteamAsyncConfigRequestResult.Success((int)resp.StatusCode, resp.ReasonPhrase, content);
 +                    }
 +                }
-             }
++            }
 +            catch (OperationCanceledException) { throw; }
 +            catch (Exception ex)
 +            {
 +                return SteamAsyncConfigRequestResult.RequestFailure(ex);
 +            }
 +        }
- 
--            // Fetch the standard (React) games page rather than the &xml=1 feed: the React page
--            // embeds per-game achievement progress ("11/17") in the server-delivered HTML, which
--            // feeds the friend refresh unlock hint. The XML profile page remains a fallback (no
--            // counts) via GetProfileXmlPageAsync when this page yields no owned-games payload.
--            return GetSteamPageAsync($"https://steamcommunity.com/profiles/{steamId64.Trim()}/games?tab=all", true, ct);
++
 +        internal async Task<OwnedGamesResolutionResult> GetOwnedGamesFromSessionAsync(
 +            CancellationToken ct,
 +            IProgress<OwnedGamesResolutionProgressInfo> progress = null,
@@ -2248,8 +2274,13 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
 +            if (ownedAppIds.Count == 0)
 +            {
 +                return new OwnedGamesResolutionResult();
-+            }
-+
+             }
+ 
+-            // Fetch the standard (React) games page rather than the &xml=1 feed: the React page
+-            // embeds per-game achievement progress ("11/17") in the server-delivered HTML, which
+-            // feeds the friend refresh unlock hint. The XML profile page remains a fallback (no
+-            // counts) via GetProfileXmlPageAsync when this page yields no owned-games payload.
+-            return GetSteamPageAsync($"https://steamcommunity.com/profiles/{steamId64.Trim()}/games?tab=all", true, ct);
 +            return await GetAppDetailsForOwnedGamesAsync(ownedAppIds, "owned Steam games", ct, progress).ConfigureAwait(false);
          }
  
@@ -2441,7 +2472,7 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
          }
  
          public Task<SteamPageResult> GetAchievementsPageByKeyAsync(string steamId64, string statsKey, string language, CancellationToken ct)
-@@ -260,6 +519,316 @@ public List<ScrapedAchievement> ParseAchievements(string html, bool includeLocke
+@@ -260,6 +518,316 @@ public List<ScrapedAchievement> ParseAchievements(string html, bool includeLocke
              return new List<ScrapedAchievement>();
          }
  
@@ -2758,7 +2789,7 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
          private List<ScrapedAchievement> ParseAchievementRows(
              HtmlDocument doc,
              HtmlNodeCollection nodes,
-@@ -581,14 +1150,43 @@ private async Task<SteamPageResult> GetSteamPageAsync(string url, bool requiresC
+@@ -581,14 +1149,43 @@ private async Task<SteamPageResult> GetSteamPageAsync(string url, bool requiresC
  
                              if (requiresCookies && isSteamAuth && attempt == 1)
                              {
@@ -2770,7 +2801,8 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
                                      _logger.Info($"[SteamAch] HTTP auth failed, attempting CEF fallback for {url}");
 -                                    if (await TryGetSteamPageFromCefAsync(url, result, RequiresAchievementRows(url), ct).ConfigureAwait(false))
 +                                    try
-+                                    {
+                                     {
+-                                        return result;
 +                                        var (cefFinalUrl, cefHtml) = await _sessionManager.GetSteamPageAsyncCef(url, ct).ConfigureAwait(false);
 +                                        if (!string.IsNullOrEmpty(cefHtml))
 +                                        {
@@ -2799,18 +2831,18 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
 +                                        }
 +                                    }
 +                                    catch (Exception cefEx)
-                                     {
--                                        return result;
++                                    {
 +                                        _logger.Warn(cefEx, $"[SteamAch] CEF fallback failed for {url}");
                                      }
  
                                      await EnsureSessionAsync(ct, forceRefresh: true).ConfigureAwait(false);
-@@ -599,14 +1197,9 @@ private async Task<SteamPageResult> GetSteamPageAsync(string url, bool requiresC
+@@ -599,14 +1196,10 @@ private async Task<SteamPageResult> GetSteamPageAsync(string url, bool requiresC
                              var responseHtml = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
  
                              if (requiresCookies && isSteamAuth && attempt == 1 &&
 -                                LooksUnauthenticatedSteamPage(responseHtml, result.FinalUrl))
-+                                LooksUnauthenticatedStatsPayload(responseHtml, result.FinalUrl))
++                                (LooksUnauthenticatedStatsPayload(responseHtml, result.FinalUrl) ||
++                                 LooksLoggedOutStatsPayloadWithoutRows(responseHtml, result.FinalUrl)))
                              {
 -                                _logger?.Warn($"[SteamAch] Auth-like Steam payload detected for {url} (Status={resp.StatusCode}, Url={result.FinalUrl}). Attempting CEF fallback.");
 -                                if (await TryGetSteamPageFromCefAsync(url, result, RequiresAchievementRows(url), ct).ConfigureAwait(false))
@@ -2818,11 +2850,11 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
 -                                    return result;
 -                                }
 -
-+                                _logger?.Warn($"[SteamAch] Auth-like stats payload detected for {url} (Status={resp.StatusCode}, Url={result.FinalUrl}). Forcing session refresh and retrying once.");
++                                _logger?.Warn($"[SteamAch] Logged-out stats payload detected for {url} (Status={resp.StatusCode}, Url={result.FinalUrl}). Rebuilding the authenticated client, refreshing the session, and retrying once.");
                                  await EnsureSessionAsync(ct, forceRefresh: true).ConfigureAwait(false);
                                  continue;
                              }
-@@ -626,64 +1219,12 @@ private async Task<SteamPageResult> GetSteamPageAsync(string url, bool requiresC
+@@ -626,64 +1219,27 @@ private async Task<SteamPageResult> GetSteamPageAsync(string url, bool requiresC
              return result;
          }
  
@@ -2831,7 +2863,8 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
 -            SteamPageResult result,
 -            bool requireAchievementRows,
 -            CancellationToken ct)
--        {
++        private void BuildHttpClientsOnce()
+         {
 -            try
 -            {
 -                var (cefFinalUrl, cefHtml) = await _sessionManager
@@ -2842,7 +2875,8 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
 -                    _logger.Warn($"[SteamAch] CEF fallback returned empty HTML for {url}");
 -                    return false;
 -                }
--
++            RebuildAuthenticatedHttpClient();
+ 
 -                if (LooksUnauthenticatedSteamPage(cefHtml, cefFinalUrl))
 -                {
 -                    _logger.Warn($"[SteamAch] CEF fallback returned unauthenticated content for {url}");
@@ -2861,7 +2895,8 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
 -                // resync the jar now instead of waiting out CEFJarSyncInterval; later
 -                // requests can then succeed over plain HTTP without the CEF fallback.
 -                SyncCookieJarFromCefIfNeeded(force: true);
--
++            _apiHandler?.Dispose(); _apiHttp?.Dispose();
+ 
 -                result.Html = cefHtml;
 -                result.FinalUrl = cefFinalUrl;
 -                result.StatusCode = HttpStatusCode.OK;
@@ -2869,16 +2904,25 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
 -                return true;
 -            }
 -            catch (Exception cefEx)
--            {
++            _apiHandler = new HttpClientHandler
+             {
 -                _logger.Warn(cefEx, $"[SteamAch] CEF fallback failed for {url}");
 -                return false;
 -            }
--        }
--
-         private void BuildHttpClientsOnce()
++                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
++                AllowAutoRedirect = true,
++                UseCookies = false
++            };
++            _apiHttp = new HttpClient(_apiHandler) { Timeout = TimeSpan.FromSeconds(30) };
+         }
+ 
+-        private void BuildHttpClientsOnce()
++        private void RebuildAuthenticatedHttpClient()
          {
-             _handler?.Dispose(); _http?.Dispose();
-             _apiHandler?.Dispose(); _apiHttp?.Dispose();
+-            _handler?.Dispose(); _http?.Dispose();
+-            _apiHandler?.Dispose(); _apiHttp?.Dispose();
++            _http?.Dispose();
++            _handler?.Dispose();
  
              _cookieJar.PerDomainCapacity = 300;
 -            ServicePointManager.DefaultConnectionLimit = Math.Max(
@@ -2887,8 +2931,42 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
  
              _handler = new HttpClientHandler
              {
-@@ -734,38 +1275,16 @@ public static bool LooksLoggedOutHeader(string html)
+@@ -693,14 +1249,20 @@ private void BuildHttpClientsOnce()
+                 UseCookies = true
+             };
+             _http = new HttpClient(_handler) { Timeout = TimeSpan.FromSeconds(30) };
++        }
  
+-            _apiHandler = new HttpClientHandler
++        private void ResetAuthenticatedHttpClientState()
++        {
++            lock (_cookieLock)
+             {
+-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+-                AllowAutoRedirect = true,
+-                UseCookies = false
+-            };
+-            _apiHttp = new HttpClient(_apiHandler) { Timeout = TimeSpan.FromSeconds(30) };
++                _cookieJar = new CookieContainer();
++                RebuildAuthenticatedHttpClient();
++            }
++
++            lock (_cookieSyncStateLock)
++            {
++                _lastCefCookieSyncUtc = DateTime.MinValue;
++            }
+         }
+ 
+         // ---------------------------------------------------------------------
+@@ -732,40 +1294,23 @@ public static bool LooksLoggedOutHeader(string html)
+             return SteamStatsPageClassifier.LooksLoggedOutHeader(html);
+         }
+ 
++        public static bool LooksLoggedOutStatsPayloadWithoutRows(string html, string finalUrl = null)
++        {
++            return SteamStatsPageClassifier.LooksLoggedOutStatsPayloadWithoutRows(html, finalUrl);
++        }
++
          public static bool LooksUnauthenticatedSteamPage(string html, string finalUrl = null)
          {
 -            return IsSteamLoginUrl(finalUrl) ||
@@ -2930,6 +3008,19 @@ index 25f6869b32a4ddb593b1904e44ef4c4d7b614c5b..56af8c8ad949bff72aa885e5183d614e
          public static bool HasAnyAchievementRows(string html)
          {
              if (string.IsNullOrWhiteSpace(html)) return false;
+diff --git a/source/Providers/Steam/SteamScanner.cs b/source/Providers/Steam/SteamScanner.cs
+index 6851d4f7dffb64333b70b1ece849c0ddd8085eab..61af72c8cfcb5604a4a310d3f77e35e5a3bb0965 100644
+--- a/source/Providers/Steam/SteamScanner.cs
++++ b/source/Providers/Steam/SteamScanner.cs
+@@ -991,7 +991,7 @@ private static bool LooksLoggedOutHeuristic(string html, string finalUrl)
+ 
+             if (SteamHttpClient.LooksUnauthenticatedStatsPayload(html, finalUrl)) return true;
+ 
+-            if (SteamHttpClient.LooksLoggedOutHeader(html)) return true;
++            if (SteamHttpClient.LooksLoggedOutStatsPayloadWithoutRows(html, finalUrl)) return true;
+ 
+             var hasLoggedOutSteamIdMarker =
+                 html.IndexOf("g_steamID = \"0\"", StringComparison.OrdinalIgnoreCase) >= 0 ||
 diff --git a/source/Providers/Steam/SteamSettings.cs b/source/Providers/Steam/SteamSettings.cs
 index e6379f37d6725bd38dbab447342318592dd7a1ab..4a7e2ef33a3c6b722a884daf0073520baa7ef45b 100644
 --- a/source/Providers/Steam/SteamSettings.cs
@@ -4603,6 +4694,38 @@ index dd1554c0ad1372807decc4da2876eb3edd5f4cdf..6919b7cc8d82301619d168af2da3bb12
      }
  }
  
+diff --git a/source/Providers/Steam/SteamStatsPageClassifier.cs b/source/Providers/Steam/SteamStatsPageClassifier.cs
+index 590a9d15fd79c769e9011d2394f608c303a67327..04dc33519b3438132d927224845acf27e35f1cb5 100644
+--- a/source/Providers/Steam/SteamStatsPageClassifier.cs
++++ b/source/Providers/Steam/SteamStatsPageClassifier.cs
+@@ -136,6 +136,27 @@ public static bool LooksLoggedOutHeader(string html)
+                 RegexOptions.IgnoreCase | RegexOptions.Singleline);
+         }
+ 
++        public static bool LooksLoggedOutStatsPayloadWithoutRows(string html, string finalUrl = null)
++        {
++            if (string.IsNullOrWhiteSpace(html))
++            {
++                return false;
++            }
++
++            var doc = TryParseHtmlDocument(html);
++            if (!LooksLikeStatsPage(doc, finalUrl) || HasAchievementRowsInDom(doc))
++            {
++                return false;
++            }
++
++            var unauthSteamId = Regex.IsMatch(
++                html,
++                @"g_steamID\s*=\s*(?:false|""0""|0)\s*;",
++                RegexOptions.IgnoreCase);
++
++            return HasHeaderLoginLink(doc) || unauthSteamId || ContainsLoggedOutUserInfoFlag(html);
++        }
++
+         private static HtmlDocument TryParseHtmlDocument(string html)
+         {
+             if (string.IsNullOrWhiteSpace(html))
 diff --git a/source/Services/Achievements/AchievementDataService.cs b/source/Services/Achievements/AchievementDataService.cs
 index 4bf5aff5d8b0bd6f106c30ae4f94db4f07ff70f9..5004235978460d8e7145357585badf53c1fdd8a0 100644
 --- a/source/Services/Achievements/AchievementDataService.cs
@@ -22240,6 +22363,41 @@ index 29c665447a7f891c79f35e812da2bdd0ed14821b..777a17368846cf095ae1c8ff1e018d66
          private sealed class StubHttpMessageHandler : HttpMessageHandler
          {
              private readonly Func<HttpRequestMessage, HttpResponseMessage> _responseFactory;
+diff --git a/tests/PlayniteAchievements.Tests/Steam/SteamStatsPageClassifierTests.cs b/tests/PlayniteAchievements.Tests/Steam/SteamStatsPageClassifierTests.cs
+index f5c3cfcbde66f9884a84ef6f93fe629f7cce339f..bc647ea248ab622bb0bf6591915a468b4e40200d 100644
+--- a/tests/PlayniteAchievements.Tests/Steam/SteamStatsPageClassifierTests.cs
++++ b/tests/PlayniteAchievements.Tests/Steam/SteamStatsPageClassifierTests.cs
+@@ -18,6 +18,7 @@ public void LoggedOutFatalStatsPage_IsClassifiedAsUnauthenticated()
+             Assert.IsTrue(SteamStatsPageClassifier.LooksUnauthenticatedStatsPayload(html, StatsUrl));
+             Assert.IsFalse(SteamStatsPageClassifier.LooksPrivateOrRestrictedStatsPayload(html, StatsUrl));
+             Assert.IsTrue(SteamStatsPageClassifier.LooksLoggedOutHeader(html));
++            Assert.IsTrue(SteamStatsPageClassifier.LooksLoggedOutStatsPayloadWithoutRows(html, StatsUrl));
+         }
+ 
+         [TestMethod]
+@@ -28,6 +29,22 @@ public void LoggedInPrivateFatalStatsPage_IsClassifiedAsPrivate()
+             Assert.IsFalse(SteamStatsPageClassifier.LooksUnauthenticatedStatsPayload(html, StatsUrl));
+             Assert.IsTrue(SteamStatsPageClassifier.LooksPrivateOrRestrictedStatsPayload(html, StatsUrl));
+             Assert.IsFalse(SteamStatsPageClassifier.LooksLoggedOutHeader(html));
++            Assert.IsFalse(SteamStatsPageClassifier.LooksLoggedOutStatsPayloadWithoutRows(html, StatsUrl));
++        }
++
++        [TestMethod]
++        public void LoggedOutPublicStatsPage_WithAchievementRows_IsUsable()
++        {
++            const string html =
++                "<html><body>" +
++                "<a class='global_action_link' href='https://steamcommunity.com/login/home/'>Sign in</a>" +
++                "<div id='personalAchieve'><div class='achieveRow'>Achievement</div></div>" +
++                "<script>g_steamID = false;</script>" +
++                "</body></html>";
++
++            Assert.IsFalse(SteamStatsPageClassifier.LooksUnauthenticatedStatsPayload(html, StatsUrl));
++            Assert.IsTrue(SteamStatsPageClassifier.LooksLoggedOutHeader(html));
++            Assert.IsFalse(SteamStatsPageClassifier.LooksLoggedOutStatsPayloadWithoutRows(html, StatsUrl));
+         }
+ 
+         private static string LoadFixture(string fileName)
 diff --git a/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationBindingsTests.cs b/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationBindingsTests.cs
 index 75a59890ce323e2c266accc49632db4041f61711..a0a1a43d7d8682754eea87427c57895e4f52616b 100644
 --- a/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationBindingsTests.cs
