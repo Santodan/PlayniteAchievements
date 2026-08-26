@@ -561,6 +561,19 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
+        public int DefaultOrderIndex
+        {
+            get => _source?.DefaultOrderIndex ?? int.MaxValue;
+            set
+            {
+                SetSourceValue(
+                    source => source.DefaultOrderIndex,
+                    (source, next) => source.DefaultOrderIndex = next,
+                    value,
+                    nameof(DefaultOrderIndex));
+            }
+        }
+
         public bool Hidden
         {
             get => _source?.Hidden == true;
@@ -1612,6 +1625,7 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(IsCapstone));
             OnPropertyChanged(nameof(IsGoal));
             OnPropertyChanged(nameof(GoalOrderIndex));
+            OnPropertyChanged(nameof(DefaultOrderIndex));
             OnPropertyChanged(nameof(RarityBrush));
             OnPropertyChanged(nameof(RarityNameBrush));
             OnPropertyChanged(nameof(Hidden));
