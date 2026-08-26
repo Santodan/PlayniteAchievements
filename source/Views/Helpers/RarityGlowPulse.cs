@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
@@ -77,6 +78,14 @@ namespace PlayniteAchievements.Views.Helpers
         private static readonly DependencyProperty SettingsHandlerProperty =
             DependencyProperty.RegisterAttached(
                 "SettingsHandler", typeof(PropertyChangedEventHandler), typeof(RarityGlowPulse),
+                new PropertyMetadata(null));
+
+        // Stores the Effect-target pulse's root clock so PauseUnder/ResumeUnder can find it on a
+        // visual-tree walk. BeginAnimation would create a clock with no reachable controller;
+        // pausing the notification card's glow for the slide's span requires the clock handle.
+        private static readonly DependencyProperty EffectClockProperty =
+            DependencyProperty.RegisterAttached(
+                "EffectClock", typeof(AnimationClock), typeof(RarityGlowPulse),
                 new PropertyMetadata(null));
 
         private static void OnIsActiveChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -284,7 +293,12 @@ namespace PlayniteAchievements.Views.Helpers
                             animation.BeginTime = GetPhaseLock(element)
                                 ? GlowAnimationClock.PhaseLockBeginTime(cycleMilliseconds)
                                 : GlowAnimationClock.PeakStartBeginTime(cycleMilliseconds);
-                            effect.BeginAnimation(DropShadowEffect.OpacityProperty, animation);
+
+                            // A root clock rather than BeginAnimation: the controller is what
+                            // lets PauseUnder/ResumeUnder freeze the pulse for the slide's span.
+                            var clock = animation.CreateClock();
+                            effect.ApplyAnimationClock(DropShadowEffect.OpacityProperty, clock);
+                            element.SetValue(EffectClockProperty, clock);
                         }
                     }),
                     DispatcherPriority.Loaded);
@@ -304,8 +318,10 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 if (element.Effect is DropShadowEffect effect)
                 {
-                    effect.BeginAnimation(DropShadowEffect.OpacityProperty, null);
+                    effect.ApplyAnimationClock(DropShadowEffect.OpacityProperty, null);
                 }
+
+                element.SetValue(EffectClockProperty, null);
             }
             else
             {
@@ -315,6 +331,56 @@ namespace PlayniteAchievements.Views.Helpers
                 // Drop the phase pre-set local value (see OnIsActiveChanged) so the element
                 // returns to its style/default opacity when the pulse is off.
                 element.ClearValue(UIElement.OpacityProperty);
+            }
+        }
+
+        /// <summary>
+        /// Pauses every Effect-target pulse clock in <paramref name="root"/>'s visual tree, for
+        /// the notification slide's span: the pulse invalidates a software-blurred
+        /// DropShadowEffect subtree every frame, which competes with the slide for the frame
+        /// budget. Scoped to a subtree rather than global on purpose — pausing a phase-locked
+        /// clock would desynchronize it from the shared epoch, so only the notification card
+        /// (whose templates opt out of phase lock) should ever be paused. UI thread only.
+        /// </summary>
+        public static void PauseUnder(DependencyObject root)
+        {
+            ForEachEffectClock(root, clock =>
+            {
+                if (!clock.IsPaused)
+                {
+                    clock.Controller?.Pause();
+                }
+            });
+        }
+
+        /// <summary>Resumes the clocks <see cref="PauseUnder"/> paused. UI thread only.</summary>
+        public static void ResumeUnder(DependencyObject root)
+        {
+            ForEachEffectClock(root, clock =>
+            {
+                if (clock.IsPaused)
+                {
+                    clock.Controller?.Resume();
+                }
+            });
+        }
+
+        private static void ForEachEffectClock(DependencyObject root, Action<AnimationClock> action)
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            if (root.GetValue(EffectClockProperty) is AnimationClock clock)
+            {
+                action(clock);
+            }
+
+            var count = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < count; i++)
+            {
+                ForEachEffectClock(VisualTreeHelper.GetChild(root, i), action);
             }
         }
 
