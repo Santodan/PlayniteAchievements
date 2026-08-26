@@ -1074,9 +1074,9 @@ namespace PlayniteAchievements.Services
 
             // Filtered achievements still consume their claim, so a rarity/category filter cannot be
             // toggled mid-session into replaying an unlock the player already passed.
-            var unlocks = claimed
-                .Where(a => a?.IsFiltered != true)
-                .ToList();
+            // HydrateForToast(after) above stamped DefaultOrderIndex on these instances, so the
+            // emission sort sees the game's custom/provider order.
+            var unlocks = InGameUnlockEmissionOrder.Sort(claimed.Where(a => a?.IsFiltered != true));
             _logger?.Debug(
                 $"[InGameMonitor] User progress complete: game={game.Name}, elapsedMs={elapsedMs}, unlocks={unlocks.Count}.");
 

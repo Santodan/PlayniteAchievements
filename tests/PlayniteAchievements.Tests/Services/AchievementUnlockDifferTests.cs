@@ -109,6 +109,86 @@ namespace PlayniteAchievements.Tests.Services
             Assert.IsTrue(toasted.Contains("Fallback"));
         }
 
+        [TestMethod]
+        public void DiffUserUnlocks_OrdersByTimeThenInputOrder()
+        {
+            var differ = new AchievementUnlockDiffer();
+            var tied = new DateTime(2026, 7, 4, 12, 5, 0, DateTimeKind.Utc);
+            var before = Data(
+                Achievement("zeta", "Zeta", false),
+                Achievement("alpha", "Alpha", false),
+                Achievement("late-input-early-time", "Late Input Early Time", false));
+            var after = Data(
+                Achievement("zeta", "Zeta", true, tied),
+                Achievement("alpha", "Alpha", true, tied),
+                Achievement("late-input-early-time", "Late Input Early Time", true, tied.AddMinutes(-1)));
+
+            var result = differ.DiffUserUnlocks(before, after).ToList();
+
+            CollectionAssert.AreEqual(
+                new[] { "late-input-early-time", "zeta", "alpha" },
+                result.Select(a => a.ApiName).ToArray(),
+                "Time ascending dominates; same-timestamp unlocks keep the provider-ordered input order, not name or rarity order.");
+        }
+
+        [TestMethod]
+        public void DiffFriendSessionUnlocks_SameTimestampKeepsProviderOrder()
+        {
+            var differ = new AchievementUnlockDiffer();
+            var sessionStart = new DateTime(2026, 7, 4, 12, 0, 0, DateTimeKind.Utc);
+            var tied = sessionStart.AddMinutes(1);
+            var rows = new[]
+            {
+                FriendRow("zeta", "Zeta", true, tied, RarityTier.Common),
+                FriendRow("alpha", "Alpha", true, tied, RarityTier.UltraRare)
+            };
+
+            var result = differ.DiffFriendSessionUnlocks(rows, sessionStart, new HashSet<string>(StringComparer.OrdinalIgnoreCase)).ToList();
+
+            CollectionAssert.AreEqual(
+                new[] { "zeta", "alpha" },
+                result.Select(row => row.ApiName).ToArray(),
+                "Same-timestamp friend unlocks keep the provider-ordered input order, not rarity or name order.");
+        }
+
+        [TestMethod]
+        public void DiffFriendSessionUnlocks_TimeDominatesProviderOrder()
+        {
+            var differ = new AchievementUnlockDiffer();
+            var sessionStart = new DateTime(2026, 7, 4, 12, 0, 0, DateTimeKind.Utc);
+            var rows = new[]
+            {
+                FriendRow("later-time", "Later Time", true, sessionStart.AddMinutes(5)),
+                FriendRow("earlier-time", "Earlier Time", true, sessionStart.AddMinutes(1))
+            };
+
+            var result = differ.DiffFriendSessionUnlocks(rows, sessionStart, new HashSet<string>(StringComparer.OrdinalIgnoreCase)).ToList();
+
+            CollectionAssert.AreEqual(
+                new[] { "earlier-time", "later-time" },
+                result.Select(row => row.ApiName).ToArray());
+        }
+
+        [TestMethod]
+        public void DiffFriendBaselineUnlocks_KeepsProviderOrder()
+        {
+            var differ = new AchievementUnlockDiffer();
+            var baseline = new[] { FriendRow("existing", "Existing", true, null) };
+            var current = new[]
+            {
+                FriendRow("existing", "Existing", true, null),
+                FriendRow("zeta", "Zeta", true, null, RarityTier.Common),
+                FriendRow("alpha", "Alpha", true, null, RarityTier.UltraRare)
+            };
+
+            var result = differ.DiffFriendBaselineUnlocks(baseline, current, new HashSet<string>(StringComparer.OrdinalIgnoreCase)).ToList();
+
+            CollectionAssert.AreEqual(
+                new[] { "zeta", "alpha" },
+                result.Select(row => row.ApiName).ToArray(),
+                "Baseline diffs carry no timestamps; the provider-ordered input order is the emission order.");
+        }
+
         private static GameAchievementData Data(params AchievementDetail[] achievements)
         {
             return new GameAchievementData
@@ -128,14 +208,20 @@ namespace PlayniteAchievements.Tests.Services
             };
         }
 
-        private static FriendAchievementRow FriendRow(string apiName, string displayName, bool unlocked, DateTime? unlockTime)
+        private static FriendAchievementRow FriendRow(
+            string apiName,
+            string displayName,
+            bool unlocked,
+            DateTime? unlockTime,
+            RarityTier? rarity = null)
         {
             return new FriendAchievementRow
             {
                 ApiName = apiName,
                 DisplayName = displayName,
                 Unlocked = unlocked,
-                UnlockTimeUtc = unlockTime
+                UnlockTimeUtc = unlockTime,
+                Rarity = rarity
             };
         }
     }
