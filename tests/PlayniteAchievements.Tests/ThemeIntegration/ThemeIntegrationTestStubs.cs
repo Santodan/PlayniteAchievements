@@ -136,6 +136,8 @@ namespace PlayniteAchievements.Models.Achievements
 
         public int CategoryOrderIndex { get; set; } = int.MaxValue;
 
+        public int DefaultOrderIndex { get; set; } = int.MaxValue;
+
         public string CleanCapturePath { get; set; }
 
         public string NotificationCapturePath { get; set; }
@@ -373,6 +375,8 @@ namespace PlayniteAchievements.ViewModels
 
         public int GoalOrderIndex { get; set; } = int.MaxValue;
 
+        public int DefaultOrderIndex { get; set; } = int.MaxValue;
+
         public bool Hidden { get; set; }
 
         public bool Unlocked { get; set; }
@@ -577,6 +581,7 @@ namespace PlayniteAchievements.ViewModels
                 IsCapstone = IsCapstone,
                 IsGoal = IsGoal,
                 GoalOrderIndex = GoalOrderIndex,
+                DefaultOrderIndex = DefaultOrderIndex,
                 Unlocked = Unlocked,
                 UnlockTimeUtc = UnlockTimeUtc,
                 GlobalPercentUnlocked = GlobalPercentUnlocked,
@@ -632,6 +637,7 @@ namespace PlayniteAchievements.ViewModels
             IsCapstone = source?.IsCapstone == true;
             IsGoal = source?.IsGoal == true;
             GoalOrderIndex = source?.GoalOrderIndex ?? int.MaxValue;
+            DefaultOrderIndex = source?.DefaultOrderIndex ?? int.MaxValue;
             Unlocked = source?.Unlocked == true;
             UnlockTimeUtc = source?.UnlockTimeUtc;
             GlobalPercentUnlocked = source?.GlobalPercentUnlocked;
