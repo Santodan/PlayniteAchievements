@@ -319,6 +319,7 @@ namespace PlayniteAchievements.Models.Tests
                 FrameUseThemeStyling = false,
                 ToastDurationSeconds = 8,
                 NotificationDelaySeconds = 0.4,
+                CaptureDelaySeconds = 0.7,
                 MaxConcurrentToasts = 4,
                 ToastPosition = ToastScreenCorner.TopLeft
             };
@@ -351,9 +352,9 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         /// <summary>
-        /// The notification delay is deliberately uncapped — a user may want to hold a notification
-        /// for as long as they like — so only negatives are rejected. Asserting a large value
-        /// survives keeps a ceiling from being reintroduced as an unnoticed "sanity clamp".
+        /// Both delays are deliberately uncapped — a user may want to hold a notification or its
+        /// capture for as long as they like — so only negatives are rejected. Asserting a large
+        /// value survives keeps a ceiling from being reintroduced as an unnoticed "sanity clamp".
         /// </summary>
         [TestMethod]
         public void NotificationDelay_FloorsNegativesAndKeepsLargeValues()
@@ -366,6 +367,19 @@ namespace PlayniteAchievements.Models.Tests
 
             settings.NotificationDelaySeconds = 120;
             Assert.AreEqual(120, settings.NotificationDelaySeconds);
+        }
+
+        [TestMethod]
+        public void CaptureDelay_FloorsNegativesAndKeepsLargeValues()
+        {
+            var settings = new PersistedSettings { CaptureDelaySeconds = -1.5 };
+            Assert.AreEqual(0, settings.CaptureDelaySeconds);
+
+            settings.CaptureDelaySeconds = 0.4;
+            Assert.AreEqual(0.4, settings.CaptureDelaySeconds);
+
+            settings.CaptureDelaySeconds = 120;
+            Assert.AreEqual(120, settings.CaptureDelaySeconds);
         }
 
         [TestMethod]
@@ -1635,6 +1649,7 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(expected.FrameUseThemeStyling, actual.FrameUseThemeStyling);
             Assert.AreEqual(expected.ToastDurationSeconds, actual.ToastDurationSeconds);
             Assert.AreEqual(expected.NotificationDelaySeconds, actual.NotificationDelaySeconds);
+            Assert.AreEqual(expected.CaptureDelaySeconds, actual.CaptureDelaySeconds);
             Assert.AreEqual(expected.MaxConcurrentToasts, actual.MaxConcurrentToasts);
             Assert.AreEqual(expected.ToastPosition, actual.ToastPosition);
         }
