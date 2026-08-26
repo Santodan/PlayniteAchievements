@@ -79,6 +79,7 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, NotificationStyleSettings> _providerNotificationStyles;
         private int _toastDurationSeconds = 6;
         private double _notificationDelaySeconds = 0;
+        private double _captureDelaySeconds = 0;
         private int _maxConcurrentToasts = 3;
         private bool _enableControllerVibration = false;
         private int _controllerVibrationStrengthPercent = 50;
@@ -1114,22 +1115,41 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Delays the unlock CAPTURE this many seconds. The notification itself is never held back —
-        /// it shows as soon as the queue and the foreground gate allow — but its screenshot is taken
-        /// this long afterwards, and the clip is anchored there too, with the composited card placed
-        /// at that same instant. The capture therefore shows the game a moment further on while still
-        /// reading as the notification's own frame.
+        /// Holds the entire unlock notification wave — toast card, chime, vibration, and the
+        /// windowless screenshot-only wave alike — until this many seconds after the unlock was
+        /// observed (falling back to the moment the notification was queued when no observation
+        /// stamp exists, e.g. friend unlocks). Pipeline latency and time spent held while the game
+        /// is minimized both count toward the delay: the wave shows when the last gate clears.
         ///
-        /// Measured from the notification reaching the screen, not from the unlock: a wave held by the
-        /// foreground gate captures relative to when it is finally shown.
+        /// Independent of <see cref="CaptureDelaySeconds"/>, which then runs from the (delayed)
+        /// wave start, so the capture lands at roughly unlock + notification delay + capture delay.
         ///
-        /// Deliberately has no upper bound; only negatives are rejected. Never applies to previews or
-        /// retriggers, which capture the instant they are asked for.
+        /// Deliberately has no upper bound; only negatives are rejected. Never applies to previews
+        /// or test fires, which show the instant they are asked for.
         /// </summary>
         public double NotificationDelaySeconds
         {
             get => _notificationDelaySeconds;
             set => SetValue(ref _notificationDelaySeconds, Math.Max(0, value));
+        }
+
+        /// <summary>
+        /// Delays the unlock CAPTURE this many seconds. The screenshot's base frame is grabbed
+        /// this long after the wave starts to show, and the clip is anchored there too, with the
+        /// composited card placed at that same instant. The capture therefore shows the game a
+        /// moment further on while still reading as the notification's own frame.
+        ///
+        /// Measured from the wave starting to show, not from the unlock: with a notification
+        /// delay configured the wave start is itself already held past the unlock, and a wave held
+        /// by the foreground gate captures relative to when it is finally shown.
+        ///
+        /// Deliberately has no upper bound; only negatives are rejected. Never applies to previews or
+        /// retriggers, which capture the instant they are asked for.
+        /// </summary>
+        public double CaptureDelaySeconds
+        {
+            get => _captureDelaySeconds;
+            set => SetValue(ref _captureDelaySeconds, Math.Max(0, value));
         }
 
         public int MaxConcurrentToasts
@@ -2750,6 +2770,7 @@ namespace PlayniteAchievements.Models.Settings
                     : new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase),
                 ToastDurationSeconds = this.ToastDurationSeconds,
                 NotificationDelaySeconds = this.NotificationDelaySeconds,
+                CaptureDelaySeconds = this.CaptureDelaySeconds,
                 MaxConcurrentToasts = this.MaxConcurrentToasts,
                 ToastPosition = this.ToastPosition,
                 EnableControllerVibration = this.EnableControllerVibration,
