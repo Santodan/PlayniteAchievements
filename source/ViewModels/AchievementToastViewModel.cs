@@ -125,6 +125,39 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         internal bool NeedsOverlayTrack { get; set; }
 
+        /// <summary>
+        /// The earliest instant this notification may show (the notification-delay gate). Stamped
+        /// at enqueue from the notification-delay setting so a mid-queue settings change never
+        /// retroactively moves an already-queued item. default(DateTime) means no delay applies.
+        /// Anchored on the unlock observation, so pipeline latency counts toward the delay.
+        /// </summary>
+        internal DateTime NotifyReadyAtUtc { get; set; }
+
+        /// <summary>
+        /// Computes <see cref="NotifyReadyAtUtc"/>: the unlock observation (or the enqueue instant
+        /// when no observation stamp exists, e.g. friend unlocks) plus the configured notification
+        /// delay. Previews and test fires are exempt and always ready, matching the capture-delay
+        /// exemptions.
+        /// </summary>
+        internal static DateTime ComputeNotifyReadyUtc(
+            AchievementUnlockedEventArgs args,
+            PersistedSettings settings,
+            DateTime enqueuedUtc)
+        {
+            var delaySeconds = settings?.NotificationDelaySeconds ?? 0;
+            if (args == null || args.IsPreview || args.IsTestFire || delaySeconds <= 0)
+            {
+                return default(DateTime);
+            }
+
+            var anchor = args.ObservedUtc == default(DateTime)
+                ? enqueuedUtc
+                : (args.ObservedUtc.Kind == DateTimeKind.Utc
+                    ? args.ObservedUtc
+                    : args.ObservedUtc.ToUniversalTime());
+            return anchor.AddSeconds(delaySeconds);
+        }
+
         internal Guid CaptureCorrelationId => _args.CaptureCorrelationId;
 
         /// <summary>
