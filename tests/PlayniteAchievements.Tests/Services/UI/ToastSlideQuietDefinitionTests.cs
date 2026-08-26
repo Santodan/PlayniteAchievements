@@ -18,8 +18,10 @@ namespace PlayniteAchievements.Tests.Services.UI
         {
             var service = ReadToastService();
 
+            // A prefix, not the full call: the scope's arguments are free to change without
+            // touching the invariant under test, which is only where the engage happens.
             var engage = service.IndexOf(
-                "_activeSlideQuiet = new SlideQuietScope(host);", StringComparison.Ordinal);
+                "_activeSlideQuiet = new SlideQuietScope(host", StringComparison.Ordinal);
             var completed = service.IndexOf(
                 "storyboard.Completed += (s, e) => DisposeSlideQuiet();", StringComparison.Ordinal);
             var begin = service.IndexOf(

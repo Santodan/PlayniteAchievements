@@ -3492,6 +3492,14 @@ namespace PlayniteAchievements.Services.UI
         // Extra travel beyond the card height so the card fully clears the screen edge in and out.
         private const double SlideTravelPaddingDip = 40d;
 
+        // Diagnostic experiment for GPU-contended in-game slides: cache the slide host's subtree
+        // as a texture for the slide's span, so the translate composes a cached bitmap instead of
+        // re-rendering the card. Flip to true and rebuild to measure via the [Toast] Slide line
+        // (a quiet-process harness measured no gain; this exists for the contended case). Only
+        // valid inside SlideQuietScope — an unpaused invalidation on a cached host re-rasterizes
+        // the whole card per frame. Ships false.
+        internal static readonly bool SlideHostCacheExperiment = false;
+
         /// <summary>
         /// What the slide animates: the translate in the slide host's transform group. Everything is
         /// aimed at the host — a real <c>UIElement</c> — so one target object serves the slide, an
@@ -3971,7 +3979,7 @@ namespace PlayniteAchievements.Services.UI
             // or invalidates stands down so the slide gets the whole frame budget. Completed
             // releases it at the slide's natural end (attached before Begin — later subscribers
             // never reach the running clock); StopActiveSlide backstops every cut-short path.
-            _activeSlideQuiet = new SlideQuietScope(host);
+            _activeSlideQuiet = new SlideQuietScope(host, ToastWindowPlacer.RenderScale(_activeWindow));
             storyboard.Completed += (s, e) => DisposeSlideQuiet();
 
             transform.Y = restDip;
@@ -4319,8 +4327,9 @@ namespace PlayniteAchievements.Services.UI
             private readonly FrameworkElement _host;
             private IDisposable _gate;
             private bool _disposed;
+            private bool _cached;
 
-            public SlideQuietScope(FrameworkElement host)
+            public SlideQuietScope(FrameworkElement host, double renderAtScale)
             {
                 _host = host;
                 _gate = RenderQuietGate.Engage();
@@ -4342,6 +4351,27 @@ namespace PlayniteAchievements.Services.UI
                 {
                     // Same: the slide runs, merely without this stand-down.
                 }
+
+                // Inside the scope by design: with the pauses above in place the card really is
+                // static for the slide's span, so the cache never invalidates mid-slide.
+                // RenderAtScale at the window's physical density keeps a fractional-DPI card
+                // sharp — the surface's LayoutTransform is inside the cached subtree.
+                if (SlideHostCacheExperiment)
+                {
+                    try
+                    {
+                        _host.CacheMode = new System.Windows.Media.BitmapCache
+                        {
+                            RenderAtScale = renderAtScale > 0 ? renderAtScale : 1.0,
+                            EnableClearType = false,
+                        };
+                        _cached = true;
+                    }
+                    catch
+                    {
+                        // The experiment failing to engage leaves a plain, correct slide.
+                    }
+                }
             }
 
             public void Dispose()
@@ -4352,6 +4382,20 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 _disposed = true;
+
+                if (_cached)
+                {
+                    try
+                    {
+                        // Never left on for the settled hold, where the countdown and GIFs
+                        // animate again and every frame would re-rasterize the cache.
+                        _host.CacheMode = null;
+                    }
+                    catch
+                    {
+                        // Teardown tolerance, as below.
+                    }
+                }
 
                 try
                 {
