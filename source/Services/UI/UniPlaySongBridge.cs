@@ -35,6 +35,19 @@ namespace PlayniteAchievements.Services.UI
             soundDisabled = false;
             try
             {
+                // The FIRING vocabulary is PA's command segments (commonachievement, ...,
+                // hidden), which UniPlaySong's event handler maps explicitly. The RESOLUTION
+                // API speaks bare rarities (common, uncommon, rare, ultrarare, hidden,
+                // capstone); asking with the firing segment resolved to an empty starter-pack
+                // path in the field.
+                const string firingSuffix = "achievement";
+                if (tier != null &&
+                    tier.EndsWith(firingSuffix, StringComparison.OrdinalIgnoreCase) &&
+                    tier.Length > firingSuffix.Length)
+                {
+                    tier = tier.Substring(0, tier.Length - firingSuffix.Length);
+                }
+
                 var plugin = FindPlugin(api);
                 var method = plugin?.GetType().GetMethod(
                     "ResolveAchievementSound", new[] { typeof(string) });

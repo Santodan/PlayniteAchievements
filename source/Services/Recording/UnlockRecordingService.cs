@@ -2030,11 +2030,17 @@ namespace PlayniteAchievements.Services.Recording
                         residualPass: false,
                         maxLagFrames: maxLag,
                         detectClean: true);
-                    if (passOutcome == PcmCancellationOutcome.Unseparable)
+                    if (passOutcome == PcmCancellationOutcome.Unseparable ||
+                        (passOutcome == PcmCancellationOutcome.CleanNoGameDetected &&
+                            chimePass.SubtractedBlocks == 0))
                     {
                         // A residue between the clean ceiling and the ordinary entry gate is
                         // still worth an attempt at the residual pass's lower floors — every
-                        // committed block still proves itself on held-out samples.
+                        // committed block still proves itself on held-out samples. The same goes
+                        // for a "clean" verdict that did zero work: a chime is KNOWN to have
+                        // fired in this window, and a quiet chime's true gain can sit under the
+                        // ordinary fit floor (field: a 5% music volume read as clean and the
+                        // composite then doubled it).
                         passOutcome = SubtractNonGame(
                             mixture,
                             chimeReference,

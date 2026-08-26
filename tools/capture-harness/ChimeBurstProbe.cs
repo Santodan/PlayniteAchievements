@@ -429,7 +429,9 @@ internal static class ChimeBurstProbe
                 var chimeOutcome = SubtractNonGame(
                     isolatedGame, fileReference, out var chimePass, residualPass: false,
                     maxLagFrames: 36000, detectClean: true);
-                if (chimeOutcome == PcmCancellationOutcome.Unseparable)
+                if (chimeOutcome == PcmCancellationOutcome.Unseparable ||
+                    (chimeOutcome == PcmCancellationOutcome.CleanNoGameDetected &&
+                     chimePass.SubtractedBlocks == 0))
                 {
                     chimeOutcome = SubtractNonGame(
                         isolatedGame, fileReference, out chimePass, residualPass: true,
