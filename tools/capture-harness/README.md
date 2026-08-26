@@ -227,8 +227,12 @@ Measures the composition rate actually sustained *during* the motion, per mechan
 display's own period read from the OS.
 
 ```powershell
-tools\capture-harness\bin\SlideCadenceProbe.exe [--repeats 5]
+tools\capture-harness\bin\SlideCadenceProbe.exe [--repeats 5] [--load N]
 ```
+
+`--load N` spawns N child processes of the probe itself, each rendering large animated blurs every
+frame. GPU contention arrives from other processes when a game runs, so the load deliberately lives
+outside the measuring process: it competes at the GPU and DWM, never inside this render loop.
 
 Measured on a 165 Hz display:
 
@@ -245,6 +249,20 @@ the display's rate, and animating content inside a stationary one costs none of 
 the window reserves is free, a bitmap cache buys nothing because the transform path is already at the
 ceiling — so it is not worth its invalidation risk against the countdown bar and animated backgrounds —
 and overlay-track sampling does not pull the slide off the refresh rate either.
+
+Measured on a 60 Hz display with `--load 3` (GPU saturated by three child render processes):
+
+| mechanism | sustained | % of refresh |
+|---|---|---|
+| `Transform` | 30 Hz | 50% |
+| `TransformCached` (+ `BitmapCache`) | 30 Hz | 50% |
+| `TransformNoPadding` | 30 Hz | 50% |
+| `TransformWithSampling` | 30 Hz | 50% |
+
+Under contention every transform variant degrades identically: the per-frame cost that loses frames is
+the layered window's own composition against a saturated GPU, not card re-rasterization — the retained
+tree already avoids re-rasterizing a static card on translate. A `BitmapCache` therefore buys nothing in
+the contended regime either, which is why the plugin's quiet-slide scope does not cache the slide host.
 
 Counting the animation's own value changes would prove nothing: a WPF timeline advances once per composed
 frame by construction, so that only re-measures the render loop. The rate the loop itself holds is the

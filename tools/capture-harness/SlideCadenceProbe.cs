@@ -99,17 +99,29 @@ internal static class SlideCadenceProbe
     [STAThread]
     private static int Main(string[] args)
     {
+        if (Array.IndexOf(args, "--loadwindow") >= 0)
+        {
+            RunLoadWindow();
+            return 0;
+        }
+
         var repeats = 5;
+        var load = 0;
         for (var i = 0; i < args.Length; i++)
         {
             if (args[i] == "--repeats" && i + 1 < args.Length)
             {
                 repeats = Math.Max(1, int.Parse(args[++i], CultureInfo.InvariantCulture));
             }
+            else if (args[i] == "--load")
+            {
+                load = i + 1 < args.Length && int.TryParse(args[i + 1], out var n) ? Math.Max(1, n) : 2;
+            }
         }
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         var results = new List<Result>();
+        var loadProcesses = new List<System.Diagnostics.Process>();
 
         app.Startup += async (s, e) =>
         {
@@ -121,6 +133,26 @@ internal static class SlideCadenceProbe
                     _displayPeriodMs, 1000d / _displayPeriodMs, SlideDurationMs);
                 Console.WriteLine(
                     "Ideal frame count for a slide at that rate: {0:0}.", SlideDurationMs / _displayPeriodMs);
+
+                // GPU contention arrives from OTHER processes when a game is running, so the load
+                // lives in child processes: their render threads and command queues compete with
+                // this one at the GPU and DWM, never inside this process's render loop.
+                if (load > 0)
+                {
+                    var exe = System.Reflection.Assembly.GetEntryAssembly().Location;
+                    for (var i = 0; i < load; i++)
+                    {
+                        loadProcesses.Add(System.Diagnostics.Process.Start(
+                            new System.Diagnostics.ProcessStartInfo(exe, "--loadwindow")
+                            {
+                                UseShellExecute = false,
+                            }));
+                    }
+
+                    Console.WriteLine("GPU load: {0} child render process(es), animated blur.", load);
+                    await System.Threading.Tasks.Task.Delay(2000);
+                }
+
                 Console.WriteLine();
 
                 foreach (Mechanism mechanism in Enum.GetValues(typeof(Mechanism)))
@@ -143,12 +175,78 @@ internal static class SlideCadenceProbe
             }
             finally
             {
+                foreach (var child in loadProcesses)
+                {
+                    try
+                    {
+                        child.Kill();
+                    }
+                    catch
+                    {
+                    }
+                }
+
                 app.Shutdown();
             }
         };
 
         app.Run();
         return 0;
+    }
+
+    /// <summary>
+    /// One GPU-load window: large animated gradients under animated wide-radius blurs, redrawn
+    /// every composed frame. Blur cost scales with radius and area, so a few of these saturate
+    /// the GPU the way a busy game does, without touching the measuring process's render loop.
+    /// </summary>
+    private static void RunLoadWindow()
+    {
+        var app = new Application { ShutdownMode = ShutdownMode.OnLastWindowClose };
+        var canvas = new Canvas { Width = 1280, Height = 800, Background = Brushes.Black };
+        for (var i = 0; i < 6; i++)
+        {
+            var blur = new BlurEffect { Radius = 60, RenderingBias = RenderingBias.Quality };
+            var rotate = new RotateTransform();
+            var rect = new System.Windows.Shapes.Rectangle
+            {
+                Width = 700,
+                Height = 500,
+                Fill = new LinearGradientBrush(Colors.OrangeRed, Colors.DarkSlateBlue, i * 60),
+                Effect = blur,
+                RenderTransform = rotate,
+                RenderTransformOrigin = new Point(0.5, 0.5),
+            };
+            Canvas.SetLeft(rect, 40 + (i * 80));
+            Canvas.SetTop(rect, 30 + (i * 30));
+            canvas.Children.Add(rect);
+            rotate.BeginAnimation(
+                RotateTransform.AngleProperty,
+                new DoubleAnimation(0, 360, TimeSpan.FromSeconds(1.3 + (0.2 * i)))
+                {
+                    RepeatBehavior = RepeatBehavior.Forever,
+                });
+            blur.BeginAnimation(
+                BlurEffect.RadiusProperty,
+                new DoubleAnimation(30, 90, TimeSpan.FromSeconds(0.7 + (0.1 * i)))
+                {
+                    RepeatBehavior = RepeatBehavior.Forever,
+                    AutoReverse = true,
+                });
+        }
+
+        var window = new Window
+        {
+            Title = "SlideCadenceProbe GPU load",
+            Width = 1300,
+            Height = 840,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            Left = 300,
+            Top = 200,
+            ShowActivated = false,
+            ShowInTaskbar = false,
+            Content = canvas,
+        };
+        app.Run(window);
     }
 
     private static async System.Threading.Tasks.Task<Result> RunOne(Mechanism mechanism)
