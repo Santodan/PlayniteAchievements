@@ -473,6 +473,13 @@ namespace PlayniteAchievements.Services
                 timer.Stop();
             }
 
+            // Applying results fans out to UI-thread subscribers (theme state, start page,
+            // Playnite DB updates), whose 3-6 ms bodies land as dropped frames in a running
+            // notification slide. Deferring here, before any observation is applied, covers
+            // every marshaled subscriber at once; the bound keeps a leaked gate from ever
+            // holding progress back for more than one slide's worth of time.
+            await RenderQuietGate.WhenClearAsync(maxDeferMs: 800).ConfigureAwait(false);
+
             try
             {
                 var byGame = results

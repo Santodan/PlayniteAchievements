@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Tests.TestInfrastructure;
@@ -182,9 +183,12 @@ namespace PlayniteAchievements.Tests.Views
                 normalizedAsyncImageSource,
                 "if (!sourceIdentityChanged && GetUri(d) is ImageSource)",
                 "A shared mutable source must not be reapplied on every GIF frame.");
+            // Whitespace-collapsed so the invariant survives reformatting: what matters is the
+            // argument order — the static bitmap goes in as the fallback, never displayed first.
+            var collapsedAsyncImageSource = Regex.Replace(normalizedAsyncImageSource, @"\s+", " ");
             StringAssert.Contains(
-                normalizedAsyncImageSource,
-                "await TryStartNativeGifAsync(\n                        image,\n                        uriString,\n                        bmp,",
+                collapsedAsyncImageSource,
+                "await TryStartNativeGifAsync(image, uriString, bmp,",
                 "The native decoder must receive the static bitmap as fallback without first displaying it.");
         }
 

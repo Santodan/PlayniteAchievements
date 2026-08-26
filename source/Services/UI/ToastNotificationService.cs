@@ -106,6 +106,10 @@ namespace PlayniteAchievements.Services.UI
         // Shadow-layer captures this wave (each costs two with-effect renders); reported in the
         // sampling summary — a number near the sample count means the recapture guard failed.
         private int _waveShadowCaptureCount;
+        // Cards whose first pixel frame came from the pre-slide prime rather than an in-slide
+        // rasterization; reported in the sampling summary so a wave that fell back to rendering
+        // mid-slide is visible in the log.
+        private int _wavePrimedSubmitCount;
         private FrameworkElement _activeSlideHost;
         private TranslateTransform _activeSlideTransform;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
@@ -140,6 +144,10 @@ namespace PlayniteAchievements.Services.UI
         private bool _activeSlideOutTravels = true;
         // The storyboard currently running, so StopActiveSlide can stop the right one.
         private Storyboard _runningSlideStoryboard;
+        // The quiet scope covering the running slide's span. Opened when a slide storyboard
+        // begins; released by the storyboard's Completed, the Begin failure path, and
+        // StopActiveSlide as the backstop, whichever runs first.
+        private IDisposable _activeSlideQuiet;
         // Per-wave placement state: the offset between where SetWindowPos is asked to put the toast
         // and where its HWND lands (measured once, on the wave's first settled placement), and whether
         // this wave has already logged that its placement needed rescuing.
@@ -791,9 +799,20 @@ namespace PlayniteAchievements.Services.UI
 
             /// <summary>
             /// Whether this card has contributed at least one pixel frame. A card must have one
-            /// before its samples can repeat it, so the first tick of a slide still rasterizes.
+            /// before its samples can repeat it; the pre-slide prime supplies that frame so the
+            /// first tick of a slide-in submits stashed pixels instead of rasterizing mid-slide.
             /// </summary>
             public bool HasPixelFrame;
+
+            /// <summary>
+            /// The card's pixels rendered before the slide began, awaiting the first sample tick.
+            /// Rented from the recorder: ownership passes to the worker on submit, or back via
+            /// ReturnRentedBuffer when the first tick cannot use them (a theme fade mid-ramp).
+            /// A wave torn down before its first tick just drops the array with the scratch.
+            /// </summary>
+            public byte[] PrimedPixels;
+            public int PrimedW;
+            public int PrimedH;
         }
 
         /// <summary>
@@ -1236,6 +1255,30 @@ namespace PlayniteAchievements.Services.UI
                 var scratch = GetCardScratch(vm);
                 var glowScale = ComputeGlowScale(scratch, hostOpacity);
 
+                // A frame primed before the slide substitutes for the first tick's rasterization:
+                // submitting it is only an enqueue, so the slide-in's early frames carry no render
+                // cost. Deliberately ahead of the stagger — no rasterization happens either way.
+                // A fade theme's first tick must not submit opacity-1 pixels primed before the
+                // fade began, so mid-fade the buffer goes back and the live path runs instead.
+                if (scratch.PrimedPixels != null)
+                {
+                    var primed = scratch.PrimedPixels;
+                    scratch.PrimedPixels = null;
+                    if (hostOpacity >= 0.999 && recorder.CanAcceptFrame(vm))
+                    {
+                        recorder.Sample(
+                            vm, primed, scratch.PrimedW, scratch.PrimedH,
+                            scratch.LastCardWPhys, scratch.LastCardHPhys, slideXPhys, slideYPhys,
+                            glowScale, hostOpacity,
+                            clientPhys.Width, clientPhys.Height, elapsedMs);
+                        scratch.HasPixelFrame = true;
+                        _wavePrimedSubmitCount++;
+                        continue;
+                    }
+
+                    recorder.ReturnRentedBuffer(vm, primed);
+                }
+
                 // A stacked wave staggers rasterization — one card's pixels per tick — so the
                 // per-tick UI cost stays a single card render. Positions and glow scale are
                 // recorded for every card every tick regardless (they are what the export
@@ -1495,6 +1538,70 @@ namespace PlayniteAchievements.Services.UI
                     CaptureShadowLayer(
                         recorder, window, container, toastItems[i], scratch, effects, captureScale);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Renders each card's first pixel frame before the slide starts, so the sampler's first
+        /// in-slide tick submits stashed pixels instead of rasterizing (7-25 ms measured) inside
+        /// the slide-in span. The render is exactly the sampler's bare render — effects and ray
+        /// bursts detached — so the export's shadow/ray layering composes over it like any later
+        /// frame. A card whose render fails is simply left unprimed and its first tick rasterizes
+        /// live, as before. Runs after the warm frames, so the primed pixels match what that
+        /// first tick would have produced. UI thread only.
+        /// </summary>
+        private void PrimeWaveCardPixels(
+            ToastOverlayTrackRecorder recorder, Window window,
+            IReadOnlyList<AchievementToastViewModel> toastItems)
+        {
+            if (recorder == null ||
+                !TryGetTrackGeometry(window, out var itemsControl, out var clientPhys, out _, out _, out _))
+            {
+                return;
+            }
+
+            var captureScale = CurrentCaptureScale(clientPhys);
+            for (var i = 0; i < toastItems.Count; i++)
+            {
+                var vm = toastItems[i];
+                var container = itemsControl.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
+                if (container == null)
+                {
+                    continue;
+                }
+
+                var scratch = GetCardScratch(vm);
+                var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
+                var rayBursts = new List<Views.Controls.RarityRayBurst>();
+                CollectEffects(container, effects, rayBursts);
+                StripEffects(effects);
+                HideRayBursts(rayBursts);
+                byte[] pixels;
+                int pw, ph, cardWPhys, cardHPhys;
+                bool rendered;
+                try
+                {
+                    rendered = TryRenderToastItemBytes(
+                        window, container, scratch, len => recorder.RentBuffer(vm, len),
+                        applyHostOpacity: true, captureScale, probeCase: null,
+                        out pixels, out pw, out ph, out cardWPhys, out cardHPhys);
+                }
+                finally
+                {
+                    RestoreRayBursts(rayBursts);
+                    RestoreEffects(effects);
+                }
+
+                if (!rendered)
+                {
+                    continue;
+                }
+
+                scratch.PrimedPixels = pixels;
+                scratch.PrimedW = pw;
+                scratch.PrimedH = ph;
+                scratch.LastCardWPhys = cardWPhys;
+                scratch.LastCardHPhys = cardHPhys;
             }
         }
 
@@ -2289,7 +2396,9 @@ namespace PlayniteAchievements.Services.UI
                     _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
                     trackSampleCount = 0;
                     _waveShadowCaptureCount = 0;
+                    _wavePrimedSubmitCount = 0;
                     CaptureWaveShadowLayers(trackRecorder, window, cardItems);
+                    PrimeWaveCardPixels(trackRecorder, window, cardItems);
                 }
 
                 SlideInPhysical(window, reveal: visible);
@@ -2475,6 +2584,10 @@ namespace PlayniteAchievements.Services.UI
 
                 var endedHidden = await HoldWaveAsync(remainingMs).ConfigureAwait(true);
 
+                // The hold is over, so the bar has reached (or is a skewed frame from) empty;
+                // detach its clock so nothing but the slide animates through the slide-out.
+                StopCountdownBars(window);
+
                 if (onRendering != null)
                 {
                     CompositionTarget.Rendering -= onRendering;
@@ -2505,12 +2618,13 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Info(string.Format(
                         System.Globalization.CultureInfo.InvariantCulture,
                         "[Recording] Toast sampling: {0} samples, card render avg {1:0.0} ms, max {2:0.0} ms " +
-                        "(sample interval {3:0.0} ms), shadow captures {4}",
+                        "(sample interval {3:0.0} ms), shadow captures {4}, primed {5}",
                         trackSampleCount,
                         trackRenderWatch.Elapsed.TotalMilliseconds / trackSampleCount,
                         trackRenderMaxMs,
                         TrackSampleIntervalMs(),
-                        _waveShadowCaptureCount));
+                        _waveShadowCaptureCount,
+                        _wavePrimedSubmitCount));
                 }
 
                 ToastCaptureProbe.ReportWave(_logger);
@@ -3853,6 +3967,13 @@ namespace PlayniteAchievements.Services.UI
             _activeSlideTick = tick;
             _runningSlideStoryboard = storyboard;
 
+            // The quiet span covers exactly the storyboard's run: everything else that animates
+            // or invalidates stands down so the slide gets the whole frame budget. Completed
+            // releases it at the slide's natural end (attached before Begin — later subscribers
+            // never reach the running clock); StopActiveSlide backstops every cut-short path.
+            _activeSlideQuiet = new SlideQuietScope(host);
+            storyboard.Completed += (s, e) => DisposeSlideQuiet();
+
             transform.Y = restDip;
             CompositionTarget.Rendering += tick;
             try
@@ -3864,6 +3985,7 @@ namespace PlayniteAchievements.Services.UI
                 // Begin can throw on a theme storyboard that survived resolution but cannot bind to this
                 // tree. Land the card where the slide would have left it rather than mid-travel.
                 _logger?.Debug(ex, "Toast slide storyboard failed to start; snapping to the slide's end.");
+                DisposeSlideQuiet();
                 CompositionTarget.Rendering -= tick;
                 _activeSlideTick = null;
                 _runningSlideStoryboard = null;
@@ -4185,8 +4307,91 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// Everything that stands down for one slide's span: the process-wide quiet gate (ray
+        /// invalidations, deferred periodic work) plus the card's own animation clocks (glow
+        /// pulse, GIF decoders), which freeze so the slide owns the frame budget. Each step is
+        /// independently guarded so a failure in one can never leave another unreleased, and
+        /// disposal is idempotent because three paths race to release it.
+        /// </summary>
+        private sealed class SlideQuietScope : IDisposable
+        {
+            private readonly FrameworkElement _host;
+            private IDisposable _gate;
+            private bool _disposed;
+
+            public SlideQuietScope(FrameworkElement host)
+            {
+                _host = host;
+                _gate = RenderQuietGate.Engage();
+
+                try
+                {
+                    RarityGlowPulse.PauseUnder(host);
+                }
+                catch
+                {
+                    // A pause that fails just leaves that animation running for the slide.
+                }
+
+                try
+                {
+                    AsyncImage.PauseGifAnimationsUnder(host);
+                }
+                catch
+                {
+                    // Same: the slide runs, merely without this stand-down.
+                }
+
+                // Deliberately no BitmapCache on the host: SlideCadenceProbe measured it changing
+                // nothing at the refresh ceiling AND under GPU saturation (both configurations
+                // drop identically) — the contended cost is the layered window's composition, not
+                // card re-rasterization, which the retained tree already avoids for a static card.
+            }
+
+            public void Dispose()
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
+
+                try
+                {
+                    AsyncImage.ResumeGifAnimationsUnder(_host);
+                }
+                catch
+                {
+                    // The window may be tearing down; a decoder that never resumes dies with it.
+                }
+
+                try
+                {
+                    RarityGlowPulse.ResumeUnder(_host);
+                }
+                catch
+                {
+                    // Same teardown tolerance as above.
+                }
+
+                _gate?.Dispose();
+                _gate = null;
+            }
+        }
+
+        private void DisposeSlideQuiet()
+        {
+            var quiet = _activeSlideQuiet;
+            _activeSlideQuiet = null;
+            quiet?.Dispose();
+        }
+
         private void StopActiveSlide()
         {
+            DisposeSlideQuiet();
+
             if (_activeSlideTick != null)
             {
                 CompositionTarget.Rendering -= _activeSlideTick;
@@ -4391,6 +4596,26 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// Detaches every countdown bar's animation, holding the bar at its current animated
+        /// value. Called right before slide-out: the bar's clock nominally completes as the hold
+        /// ends, but that is timing skew (dispatcher latency, a theme-authored storyboard), not a
+        /// guarantee, and a clock still producing values during the slide-out costs it frames.
+        /// Reassigning the read value in the same dispatcher callback leaves no visible gap.
+        /// </summary>
+        private static void StopCountdownBars(DependencyObject root)
+        {
+            foreach (var bar in FindCountdownBars(root))
+            {
+                if (bar.RenderTransform is ScaleTransform scale)
+                {
+                    var current = scale.ScaleX;
+                    scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                    scale.ScaleX = current;
+                }
+            }
+        }
+
         private static IEnumerable<FrameworkElement> FindCountdownBars(DependencyObject root)
         {
             var results = new List<FrameworkElement>();
@@ -4466,6 +4691,7 @@ namespace PlayniteAchievements.Services.UI
             _disposed = true;
             PlayniteAchievementsPlugin.AchievementUnlocked -= OnAchievementUnlocked;
             _queue.Clear();
+            DisposeSlideQuiet();
             try
             {
                 _activeWindow?.Close();
