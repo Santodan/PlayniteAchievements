@@ -151,6 +151,18 @@ namespace PlayniteAchievements.Tests.Services.UI
                 "The mid-fade discard path is gone; a fade theme's clip would pop in fully opaque.");
         }
 
+        [TestMethod]
+        public void ProgressApplication_DefersWhileASlideRuns_WithABound()
+        {
+            var monitor = File.ReadAllText(FindRepoFile("source", "Services", "InGameAchievementMonitor.cs"));
+
+            // Unbounded, a leaked gate would stall unlock detection; unguarded, the ~550 ms apply
+            // cadence lands its UI fan-out inside slides as the maxGap spikes the log shows.
+            Assert.IsTrue(
+                Regex.IsMatch(monitor, @"RenderQuietGate\.WhenClearAsync\(maxDeferMs:\s*\d+\)"),
+                "Progress application no longer defers (with a numeric bound) while a slide runs.");
+        }
+
         private static string ReadToastService()
         {
             return File.ReadAllText(FindRepoFile("source", "Services", "UI", "ToastNotificationService.cs"));
