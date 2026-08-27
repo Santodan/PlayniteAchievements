@@ -98,8 +98,8 @@
                                     <ComboBoxItem Tag="uncommon" Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}"/>
                                     <ComboBoxItem Tag="rare" Content="{DynamicResource LOCPlayAch_Rarity_Rare}" IsSelected="True"/>
                                     <ComboBoxItem Tag="ultrarare" Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}"/>
-                                    <ComboBoxItem Tag="capstone" Content="{DynamicResource LOCPlayAch_Completed}"/>
-                                    <ComboBoxItem Tag="complete" Content="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
+                                    <ComboBoxItem Tag="capstone" Content="{DynamicResource LOCPlayAch_Settings_ToastPreviewCapstone}"/>
+                                    <ComboBoxItem Tag="complete" Content="{DynamicResource LOCPlayAch_Settings_ToastPreviewComplete}"/>
                                     <ComboBoxItem Tag="friend" Content="{DynamicResource LOCPlayAch_Settings_ToastPreviewFriend}"/>
                                 </ComboBox>
                             </StackPanel>
@@ -175,8 +175,8 @@
                                     <ComboBoxItem Tag="uncommon" Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}"/>
                                     <ComboBoxItem Tag="rare" Content="{DynamicResource LOCPlayAch_Rarity_Rare}" IsSelected="True"/>
                                     <ComboBoxItem Tag="ultrarare" Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}"/>
-                                    <ComboBoxItem Tag="capstone" Content="{DynamicResource LOCPlayAch_Completed}"/>
-                                    <ComboBoxItem Tag="complete" Content="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
+                                    <ComboBoxItem Tag="capstone" Content="{DynamicResource LOCPlayAch_Settings_ToastPreviewCapstone}"/>
+                                    <ComboBoxItem Tag="complete" Content="{DynamicResource LOCPlayAch_Settings_ToastPreviewComplete}"/>
                                 </ComboBox>
                             </StackPanel>
                             <WrapPanel Margin="0,0,0,10">
