@@ -421,7 +421,6 @@ namespace PlayniteAchievements.Services.Images
                     unlockedCandidate,
                     lockedCandidate,
                     useSeparateLockedIcons,
-                    !string.IsNullOrWhiteSpace(resolvedUnlockedOverride),
                     !string.IsNullOrWhiteSpace(resolvedLockedOverride));
             }
         }
@@ -866,9 +865,6 @@ namespace PlayniteAchievements.Services.Images
             bool useSeparateLockedIcons)
         {
             var finalLockedCandidate = resolvedLockedCandidate ?? achievement.LockedIconPath;
-            var hasExplicitUnlockedIcon = _managedCustomIconService.IsManagedCustomIconPath(
-                finalUnlockedPath,
-                gameId);
             var hasExplicitLockedIcon = _managedCustomIconService.IsManagedCustomIconPath(
                     finalLockedCandidate,
                     gameId) &&
@@ -877,7 +873,6 @@ namespace PlayniteAchievements.Services.Images
                 finalUnlockedPath,
                 finalLockedCandidate,
                 useSeparateLockedIcons,
-                hasExplicitUnlockedIcon,
                 hasExplicitLockedIcon);
         }
 
