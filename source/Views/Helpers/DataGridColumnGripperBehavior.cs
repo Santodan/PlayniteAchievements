@@ -99,6 +99,7 @@ namespace PlayniteAchievements.Views.Helpers
 
                 _isAttached = true;
                 _grid.Loaded += OnLoaded;
+                _grid.Unloaded += OnUnloaded;
                 _grid.ColumnReordered += OnColumnReordered;
                 if (_grid.Columns is INotifyCollectionChanged columns)
                 {
@@ -118,6 +119,7 @@ namespace PlayniteAchievements.Views.Helpers
 
                 _isAttached = false;
                 _grid.Loaded -= OnLoaded;
+                _grid.Unloaded -= OnUnloaded;
                 _grid.ColumnReordered -= OnColumnReordered;
                 if (_grid.Columns is INotifyCollectionChanged columns)
                 {
@@ -129,7 +131,23 @@ namespace PlayniteAchievements.Views.Helpers
 
             private void OnLoaded(object sender, RoutedEventArgs e)
             {
+                // Re-hook: the columns are released on unload (see OnUnloaded), and a grid can
+                // be unloaded and reloaded any number of times - tab switches, re-parenting.
+                // HookColumns unhooks first, so a Loaded without an intervening Unloaded cannot
+                // double-subscribe.
+                HookColumns();
                 QueueUpdate();
+            }
+
+            private void OnUnloaded(object sender, RoutedEventArgs e)
+            {
+                // DependencyPropertyDescriptor.AddValueChanged registers the handler in a
+                // process-wide static table that is only ever cleared by RemoveValueChanged.
+                // A grid left hooked after it leaves the tree therefore roots itself through
+                // that table - and with it its DataContext and the whole hosting view - for
+                // the rest of the session. Detach() alone is not enough: it only runs when the
+                // attached property is switched off, which never happens when a window closes.
+                UnhookColumns();
             }
 
             private void OnColumnReordered(object sender, DataGridColumnEventArgs e)
