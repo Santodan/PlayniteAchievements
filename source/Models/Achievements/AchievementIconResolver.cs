@@ -237,8 +237,21 @@ namespace PlayniteAchievements.Models.Achievements
                 return true;
             }
 
+            // A remote source is usable: MemoryImageService downloads http(s) URIs through the disk
+            // cache and grayscales afterwards. Requiring File.Exists here made a URL-valued locked
+            // override fall through to the grayscaled unlocked icon, while an identical unlocked
+            // override rendered fine because GetUnlockedDisplayIcon never checked at all.
+            if (IsHttpUrl(value))
+            {
+                return true;
+            }
+
             return File.Exists(value);
         }
+
+        private static bool IsHttpUrl(string value) =>
+            value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
         private static string BuildDisplayIcon(string iconPath, bool gray)
         {
