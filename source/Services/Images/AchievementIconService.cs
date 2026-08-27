@@ -865,6 +865,14 @@ namespace PlayniteAchievements.Services.Images
             bool useSeparateLockedIcons)
         {
             var finalLockedCandidate = resolvedLockedCandidate ?? achievement.LockedIconPath;
+
+            // A download that did not resolve leaves the remote URL in place. The cache stores local
+            // paths only, so treat it as absent rather than persisting a path that can never render.
+            if (IsHttpIconPath(finalLockedCandidate))
+            {
+                finalLockedCandidate = null;
+            }
+
             var hasExplicitLockedIcon = _managedCustomIconService.IsManagedCustomIconPath(
                     finalLockedCandidate,
                     gameId) &&
