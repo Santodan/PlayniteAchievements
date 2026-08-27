@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Providers.Epic
@@ -99,7 +100,10 @@ query playerProfileAchievementsByProductId($EpicAccountId: String!, $ProductId: 
         private readonly HttpClient _httpClient;
         private readonly ILogger _logger;
         private readonly EpicSessionManager _sessionManager;
-        private readonly PersistedSettings _settings;
+        // The settings wrapper, not its PersistedSettings: CancelEdit replaces the
+        // Persisted instance, and this client lives for the whole session, so a captured
+        // instance would freeze the request locale at its startup value.
+        private readonly PlayniteAchievementsSettings _settingsHost;
         private readonly SemaphoreSlim _cacheSemaphore = new SemaphoreSlim(1, 1);
 
         private string _cachedAssetsToken;
@@ -107,13 +111,15 @@ query playerProfileAchievementsByProductId($EpicAccountId: String!, $ProductId: 
         private readonly Dictionary<string, AchievementSchemaResponse> _schemaCache =
             new Dictionary<string, AchievementSchemaResponse>(StringComparer.OrdinalIgnoreCase);
 
-        public EpicApiClient(HttpClient httpClient, ILogger logger, EpicSessionManager sessionManager, PersistedSettings settings)
+        public EpicApiClient(HttpClient httpClient, ILogger logger, EpicSessionManager sessionManager, PlayniteAchievementsSettings settings)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _logger = logger;
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _settingsHost = settings ?? throw new ArgumentNullException(nameof(settings));
         }
+
+        private PersistedSettings Persisted => _settingsHost.Persisted;
 
         public async Task<List<EpicAchievementItem>> GetAchievementsAsync(
             string gameId,
@@ -152,7 +158,7 @@ query playerProfileAchievementsByProductId($EpicAccountId: String!, $ProductId: 
                 return new List<EpicAchievementItem>();
             }
 
-            var locale = MapGlobalLanguageToEpicLocale(_settings?.GlobalLanguage);
+            var locale = MapGlobalLanguageToEpicLocale(Persisted?.GlobalLanguage);
             var schema = await GetCachedAchievementSchemaAsync(asset.Namespace, locale, token, ct).ConfigureAwait(false);
             if (schema?.Data?.Achievement?.ProductAchievementsRecordBySandbox?.Achievements == null)
             {
@@ -435,7 +441,7 @@ query playerProfileAchievementsByProductId($EpicAccountId: String!, $ProductId: 
             };
 
             var json = JsonConvert.SerializeObject(payload);
-            var locale = MapGlobalLanguageToEpicLocale(_settings?.GlobalLanguage);
+            var locale = MapGlobalLanguageToEpicLocale(Persisted?.GlobalLanguage);
             using (var request = new HttpRequestMessage(HttpMethod.Post, UrlGraphQl))
             {
                 request.Content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -508,7 +514,7 @@ query playerProfileAchievementsByProductId($EpicAccountId: String!, $ProductId: 
         private async Task<RequestResult<T>> TrySendGetAsync<T>(string url, string token, CancellationToken ct)
             where T : class
         {
-            var locale = MapGlobalLanguageToEpicLocale(_settings?.GlobalLanguage);
+            var locale = MapGlobalLanguageToEpicLocale(Persisted?.GlobalLanguage);
             using (var request = new HttpRequestMessage(HttpMethod.Get, url))
             {
                 AddStandardHeaders(request, token, locale);
