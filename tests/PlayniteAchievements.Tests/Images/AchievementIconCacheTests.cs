@@ -198,7 +198,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 var enabledService = new AchievementIconService(
                     enabledDiskImageService,
                     new ManagedCustomIconService(enabledDiskImageService, logger: null),
-                    enabledSettings,
+                    () => enabledSettings,
                     logger: null);
                 var unlockedTarget = enabledDiskImageService.GetAchievementIconCachePath(
                     gameId.ToString("D"),
@@ -237,7 +237,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 var disabledService = new AchievementIconService(
                     disabledDiskImageService,
                     new ManagedCustomIconService(disabledDiskImageService, logger: null),
-                    disabledSettings,
+                    () => disabledSettings,
                     logger: null);
                 var disabledUnlockedTarget = disabledDiskImageService.GetAchievementIconCachePath(
                     gameId.ToString("D"),
@@ -294,7 +294,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 var iconService = new AchievementIconService(
                     diskImageService,
                     new ManagedCustomIconService(diskImageService, logger: null),
-                    settings,
+                    () => settings,
                     logger: null);
                 var unlockedTarget = diskImageService.GetAchievementIconCachePath(
                     gameId.ToString("D"),
@@ -349,7 +349,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 var iconService = new AchievementIconService(
                     diskImageService,
                     managedCustomIconService,
-                    settings,
+                    () => settings,
                     logger: null);
 
                 var unlockedSource = Path.Combine(tempDir, "override-unlocked.png");
@@ -424,7 +424,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 var iconService = new AchievementIconService(
                     diskImageService,
                     managedCustomIconService,
-                    settings,
+                    () => settings,
                     logger: null);
                 var unlockedSource = Path.Combine(tempDir, "override-unlocked.png");
                 WriteSolidColorPng(unlockedSource, Colors.Red);
@@ -489,7 +489,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 var iconService = new AchievementIconService(
                     diskImageService,
                     new ManagedCustomIconService(diskImageService, logger: null),
-                    settings,
+                    () => settings,
                     logger: null);
                 var sourceOne = Path.Combine(tempDir, "source-one.png");
                 var sourceTwo = Path.Combine(tempDir, "source-two.png");
@@ -551,7 +551,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 var iconService = new AchievementIconService(
                     diskImageService,
                     managedCustomIconService,
-                    settings,
+                    () => settings,
                     logger: null);
 
                 var changedSource = Path.Combine(tempDir, "override-changed.png");
@@ -622,7 +622,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 var iconService = new AchievementIconService(
                     diskImageService,
                     managedCustomIconService,
-                    settings,
+                    () => settings,
                     logger: null);
 
                 var providerSource = Path.Combine(tempDir, "provider.png");
@@ -992,7 +992,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 var iconService = new AchievementIconService(
                     diskImageService,
                     new ManagedCustomIconService(diskImageService, logger: null),
-                    settings,
+                    () => settings,
                     logger: null);
 
                 const string providerKey = "Steam";
@@ -1058,7 +1058,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 var iconService = new AchievementIconService(
                     diskImageService,
                     new ManagedCustomIconService(diskImageService, logger: null),
-                    new PersistedSettings(),
+                    () => new PersistedSettings(),
                     logger: null);
 
                 var result = await iconService.PopulateFriendGameImageCacheAsync(
@@ -1118,7 +1118,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 var iconService = new AchievementIconService(
                     diskImageService,
                     new ManagedCustomIconService(diskImageService, logger: null),
-                    new PersistedSettings(),
+                    () => new PersistedSettings(),
                     logger: null);
 
                 var result = await iconService.PopulateFriendGameImageCacheAsync(
@@ -1150,7 +1150,7 @@ namespace PlayniteAchievements.Services.Images.Tests
                 var iconService = new AchievementIconService(
                     diskImageService,
                     new ManagedCustomIconService(diskImageService, logger: null),
-                    new PersistedSettings(),
+                    () => new PersistedSettings(),
                     logger: null);
 
                 var stem = AchievementIconCachePathBuilder.BuildFileStems(new[] { "ach" })["ach"];
