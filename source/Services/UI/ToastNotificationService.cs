@@ -1999,14 +1999,16 @@ namespace PlayniteAchievements.Services.UI
 
             var anchor = items[anchorIndex];
             var end = anchorIndex;
-            // Completion notifications never share a wave with achievement unlocks: they follow
-            // in their own wave (multiple completions of the same kind may stack together).
+            // Completion-grade notifications never share a wave with regular achievement unlocks:
+            // the standalone 100% notification and a capstone unlock each get their own wave
+            // (multiple completions of the same kind may stack together).
             while (end < items.Count &&
                    result.Count < max &&
                    items[end].NotifyReadyAtUtc <= now &&
                    items[end].IsFriendUnlock == anchor.IsFriendUnlock &&
                    items[end].PlayniteGameId == anchor.PlayniteGameId &&
                    items[end].IsGameCompleted == anchor.IsGameCompleted &&
+                   items[end].IsCapstone == anchor.IsCapstone &&
                    ShouldToast(items[end].IsPreview, items[end].IsFriendUnlock, items[end].ProviderKey) ==
                        ShouldToast(anchor.IsPreview, anchor.IsFriendUnlock, anchor.ProviderKey))
             {
