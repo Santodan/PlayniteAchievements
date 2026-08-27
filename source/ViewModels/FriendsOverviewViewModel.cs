@@ -186,7 +186,9 @@ namespace PlayniteAchievements.ViewModels
             _friendCompare = new FriendVsFriendCompareController(
                 () => SelectedFriend,
                 GetCompareFriendOptions,
-                row => IsSameGame(row, SelectedGame));
+                row => IsSameGame(row, SelectedGame),
+                () => _friendCache?.LoadCurrentUserIdentities(),
+                logger);
             AchievementsControlBar = CreateAchievementsControlBar();
             FriendRefreshModes = new ObservableCollection<RefreshMode>(CreateFriendRefreshModes());
 
