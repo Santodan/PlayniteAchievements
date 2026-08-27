@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
 
@@ -57,6 +58,7 @@ namespace PlayniteAchievements.ViewModels.Items
                     OnPropertyChanged(nameof(CanReveal));
                     OnPropertyChanged(nameof(IsHidden));
                     OnPropertyChanged(nameof(IsIconHidden));
+                    OnPropertyChanged(nameof(IsLockedIconHidden));
                     OnPropertyChanged(nameof(IsTitleHidden));
                     OnPropertyChanged(nameof(IsDescriptionHidden));
                     OnPropertyChanged(nameof(DisplayNameResolved));
@@ -103,25 +105,20 @@ namespace PlayniteAchievements.ViewModels.Items
         public bool CanEditUnlockTime => IsUnlocked && HasUnlockTime;
 
         /// <summary>
-        /// Icon URL for display.
-        /// For hidden achievements that aren't revealed, uses placeholder icon.
-        /// Otherwise uses the unlocked icon or the resolved locked-icon display path.
+        /// Icon for display: the user's hidden or locked cover while this row is masked, otherwise
+        /// the real artwork. Routed through the shared resolver so this row, which sits outside the
+        /// AchievementDisplayItem hierarchy, makes the same decision every grid does.
         /// </summary>
         public string DisplayIconUrl
         {
             get
             {
-                // For hidden achievements that aren't revealed, use placeholder
-                if (IsHidden)
-                {
-                    return DefaultIcon;
-                }
-
-                var candidate = IsUnlocked
-                    ? AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconUrl)
-                    : AchievementIconResolver.GetLockedDisplayIcon(
-                        UnlockedIconUrl,
-                        UseSeparateLockedIconsWhenAvailable ? LockedIconUrl : null);
+                var candidate = AchievementIconResolver.ResolveRowDisplayIcon(
+                    IsIconHidden,
+                    IsLockedIconHidden,
+                    IsUnlocked,
+                    UnlockedIconUrl,
+                    UseSeparateLockedIconsWhenAvailable ? LockedIconUrl : null);
 
                 return !string.IsNullOrWhiteSpace(candidate) ? candidate : DefaultIcon;
             }
@@ -134,18 +131,30 @@ namespace PlayniteAchievements.ViewModels.Items
                 _playniteGameId,
                 PlayniteAchievementsPlugin.Instance?.Settings?.Persisted);
 
+        private static PersistedSettings Persisted =>
+            PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+
+        private static bool ShowHiddenIcon => Persisted?.ShowHiddenIcon ?? false;
+        private static bool ShowHiddenTitle => Persisted?.ShowHiddenTitle ?? false;
+        private static bool ShowHiddenDescription => Persisted?.ShowHiddenDescription ?? false;
+        private static bool ShowLockedIcon => Persisted?.ShowLockedIcon ?? true;
+
         /// <summary>
-        /// Whether this hidden achievement can be revealed (hidden and not unlocked).
+        /// Whether this row can be revealed. Mirrors AchievementDisplayItem.CanReveal: a locked row
+        /// qualifies when its icon is covered, and a hidden locked row when any hiding setting is on.
         /// </summary>
-        public bool CanReveal => Hidden && !IsUnlocked;
+        public bool CanReveal => !IsUnlocked &&
+            (!ShowLockedIcon ||
+             (Hidden && (!ShowHiddenIcon || !ShowHiddenTitle || !ShowHiddenDescription)));
 
         /// <summary>
         /// Whether the achievement info should be hidden (can reveal and not yet revealed).
         /// </summary>
         public bool IsHidden => CanReveal && !_isRevealed;
-        public bool IsIconHidden => IsHidden;
-        public bool IsTitleHidden => IsHidden;
-        public bool IsDescriptionHidden => IsHidden;
+        public bool IsIconHidden => IsHidden && Hidden && !ShowHiddenIcon;
+        public bool IsLockedIconHidden => !IsUnlocked && !ShowLockedIcon && !_isRevealed;
+        public bool IsTitleHidden => IsHidden && Hidden && !ShowHiddenTitle;
+        public bool IsDescriptionHidden => IsHidden && !ShowHiddenDescription;
         public string HiddenTitleSuffix => string.Empty;
 
         /// <summary>
@@ -160,8 +169,10 @@ namespace PlayniteAchievements.ViewModels.Items
                 {
                     _isRevealed = value;
                     OnPropertyChanged(nameof(IsRevealed));
+                    OnPropertyChanged(nameof(CanReveal));
                     OnPropertyChanged(nameof(IsHidden));
                     OnPropertyChanged(nameof(IsIconHidden));
+                    OnPropertyChanged(nameof(IsLockedIconHidden));
                     OnPropertyChanged(nameof(IsTitleHidden));
                     OnPropertyChanged(nameof(IsDescriptionHidden));
                     OnPropertyChanged(nameof(DisplayIconUrl));
@@ -174,23 +185,48 @@ namespace PlayniteAchievements.ViewModels.Items
         }
 
         /// <summary>
-        /// Display name, masked if hidden and not revealed.
+        /// Display name, masked if hidden and not revealed. Text masking is gated on Hidden as well,
+        /// so a row that is only locked-masked keeps its title and description.
         /// </summary>
-        public string DisplayNameResolved => IsHidden
+        public string DisplayNameResolved => IsTitleHidden
             ? ResourceProvider.GetString("LOCPlayAch_Achievements_HiddenTitle")
             : DisplayName;
 
         /// <summary>
         /// Description, masked if hidden and not revealed.
         /// </summary>
-        public string DescriptionResolved => IsHidden
+        public string DescriptionResolved => IsHidden && Hidden && !ShowHiddenDescription
             ? ResourceProvider.GetString("LOCPlayAch_Achievements_ClickToReveal")
             : Description;
 
         /// <summary>
         /// API name, hidden until a hidden achievement is revealed.
         /// </summary>
-        public string ApiNameResolved => IsHidden ? string.Empty : ApiName;
+        public string ApiNameResolved =>
+            IsHidden && Hidden && !ShowHiddenDescription ? string.Empty : ApiName;
+
+        /// <summary>
+        /// Re-raises every icon- and masking-derived property. Called after the underlying
+        /// <see cref="Source"/> icon paths or the appearance settings change, so the row repaints
+        /// without rebuilding it and losing the user's unsaved unlock edits. The masking settings
+        /// are read live, so this picks up cover-image and reveal-toggle changes too.
+        /// </summary>
+        public void NotifyIconDisplayChanged()
+        {
+            OnPropertyChanged(nameof(UnlockedIconUrl));
+            OnPropertyChanged(nameof(LockedIconUrl));
+            OnPropertyChanged(nameof(CanReveal));
+            OnPropertyChanged(nameof(IsHidden));
+            OnPropertyChanged(nameof(IsIconHidden));
+            OnPropertyChanged(nameof(IsLockedIconHidden));
+            OnPropertyChanged(nameof(IsTitleHidden));
+            OnPropertyChanged(nameof(IsDescriptionHidden));
+            OnPropertyChanged(nameof(DisplayIconUrl));
+            OnPropertyChanged(nameof(DisplayIcon));
+            OnPropertyChanged(nameof(DisplayNameResolved));
+            OnPropertyChanged(nameof(DescriptionResolved));
+            OnPropertyChanged(nameof(ApiNameResolved));
+        }
 
         /// <summary>
         /// Toggles the reveal state if the achievement can be revealed.
@@ -234,6 +270,7 @@ namespace PlayniteAchievements.ViewModels.Items
                         OnPropertyChanged(nameof(CanReveal));
                         OnPropertyChanged(nameof(IsHidden));
                         OnPropertyChanged(nameof(IsIconHidden));
+                        OnPropertyChanged(nameof(IsLockedIconHidden));
                         OnPropertyChanged(nameof(IsTitleHidden));
                         OnPropertyChanged(nameof(IsDescriptionHidden));
                         OnPropertyChanged(nameof(DisplayNameResolved));
