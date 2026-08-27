@@ -1450,8 +1450,7 @@ namespace PlayniteAchievements.Services
                 return;
             }
 
-            var persisted = _settings?.Persisted;
-            if (persisted == null)
+            if (_settings?.Persisted == null)
             {
                 return;
             }
@@ -1460,7 +1459,7 @@ namespace PlayniteAchievements.Services
             {
                 var hydrator = new GameDataHydrator(
                     _api,
-                    persisted,
+                    _settings,
                     PlayniteAchievementsPlugin.Instance?.GameCustomDataStore);
                 hydrator.Hydrate(data);
             }

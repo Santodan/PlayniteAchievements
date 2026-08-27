@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.GameCustomData;
@@ -60,7 +61,7 @@ namespace PlayniteAchievements.Tests.Services
 
         private static void Hydrate(List<AchievementDetail> details, ResolvedGameCustomData customData)
         {
-            new AchievementDetailHydrator(new PersistedSettings()).HydrateAllWithCapstoneOverride(
+            new AchievementDetailHydrator(new PlayniteAchievementsSettings()).HydrateAllWithCapstoneOverride(
                 details,
                 Guid.Empty,
                 "steam",
