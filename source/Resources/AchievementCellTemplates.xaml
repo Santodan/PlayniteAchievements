@@ -559,9 +559,11 @@
                     <Style TargetType="Image">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsIconHidden}" Value="True">
+                                <Setter Property="Cursor" Value="Hand"/>
                                 <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsLockedIconHidden}" Value="True">
+                                <Setter Property="Cursor" Value="Hand"/>
                                 <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"/>
                             </DataTrigger>
                         </Style.Triggers>
