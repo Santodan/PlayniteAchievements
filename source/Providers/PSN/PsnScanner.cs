@@ -4,6 +4,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.PSN.Models;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
@@ -113,14 +114,71 @@ namespace PlayniteAchievements.Providers.PSN
 
         private async Task<GameAchievementData> FetchGameDataAsync(HttpClient http, Game game, CancellationToken cancel)
         {
-            var npCommId = await ResolveNpCommunicationIdAsync(http, game, cancel).ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(npCommId))
+            var sets = await ResolveTrophySetsAsync(http, game, cancel).ConfigureAwait(false);
+            if (sets == null || sets.Count == 0)
             {
                 return null;
             }
 
             var normalizedId = NormalizeGameId(game?.GameId);
             var serviceSuffixCandidates = PsnSuffixRetryHelper.BuildSuffixCandidates(normalizedId);
+            var isCollection = sets.Count > 1;
+
+            var achievements = new List<AchievementDetail>();
+            var categoryArt = new List<(string Label, string IconUrl)>();
+            foreach (var set in sets)
+            {
+                cancel.ThrowIfCancellationRequested();
+                var setResult = await FetchSetAchievementsAsync(http, game, set, serviceSuffixCandidates, isCollection, cancel)
+                    .ConfigureAwait(false);
+
+                // A failed set fails the whole game so the destructive cache write cannot erase
+                // the missing set's previously stored trophies.
+                if (setResult == null)
+                {
+                    return null;
+                }
+
+                achievements.AddRange(setResult.Achievements);
+                if (isCollection &&
+                    !string.IsNullOrWhiteSpace(setResult.CategoryLabel) &&
+                    !string.IsNullOrWhiteSpace(set.IconUrl))
+                {
+                    categoryArt.Add((setResult.CategoryLabel, set.IconUrl));
+                }
+            }
+
+            await DownloadCategoryImagesAsync(game?.Id, categoryArt, cancel).ConfigureAwait(false);
+
+            return new GameAchievementData
+            {
+                ProviderKey = "PSN",
+                ProviderGameKey = PsnTrophySetResolutionHelper.BuildProviderGameKey(sets),
+                LibrarySourceName = game?.Source?.Name,
+                GameName = game?.Name,
+                PlayniteGameId = game?.Id,
+                HasAchievements = achievements.Count > 0,
+                Achievements = achievements,
+                LastUpdatedUtc = DateTime.UtcNow
+            };
+        }
+
+        private sealed class PsnSetFetchResult
+        {
+            public List<AchievementDetail> Achievements { get; set; }
+
+            public string CategoryLabel { get; set; }
+        }
+
+        private async Task<PsnSetFetchResult> FetchSetAchievementsAsync(
+            HttpClient http,
+            Game game,
+            PsnResolvedTrophySet set,
+            IReadOnlyList<string> serviceSuffixCandidates,
+            bool isCollection,
+            CancellationToken cancel)
+        {
+            var npCommId = set.NpCommunicationId;
 
             string userJson = null;
             try
@@ -129,7 +187,7 @@ namespace PlayniteAchievements.Providers.PSN
                     suffix => GetStringWithAuthRetryAsync(
                         http,
                         string.Format(UrlTrophiesUserAll, npCommId) + suffix,
-                        $"user trophies for '{game?.Name}'",
+                        $"user trophies for '{game?.Name}' ({npCommId})",
                         cancel),
                     serviceSuffixCandidates).ConfigureAwait(false);
                 cancel.ThrowIfCancellationRequested();
@@ -141,7 +199,7 @@ namespace PlayniteAchievements.Providers.PSN
             catch (Exception ex)
             {
                 // Private profile or no earned progress data is non-fatal.
-                _logger?.Debug(ex, $"[PSNAch] User trophies fetch failed for '{game?.Name}'");
+                _logger?.Debug(ex, $"[PSNAch] User trophies fetch failed for '{game?.Name}' ({npCommId})");
                 userJson = null;
             }
 
@@ -152,7 +210,7 @@ namespace PlayniteAchievements.Providers.PSN
                     suffix => GetStringWithAuthRetryAsync(
                         http,
                         string.Format(UrlTrophiesDetailsAll, npCommId) + suffix,
-                        $"trophy details for '{game?.Name}'",
+                        $"trophy details for '{game?.Name}' ({npCommId})",
                         cancel),
                     serviceSuffixCandidates).ConfigureAwait(false);
                 cancel.ThrowIfCancellationRequested();
@@ -176,11 +234,27 @@ namespace PlayniteAchievements.Providers.PSN
             var groupNameById = await FetchGroupNamesAsync(http, npCommId, serviceSuffixCandidates, game, cancel)
                 .ConfigureAwait(false);
 
+            // Collections label each set's trophies with the set title so every included game
+            // renders as its own category: lookup title, then base-group name, then npCommId.
+            string setTitle = null;
+            if (isCollection)
+            {
+                setTitle = set.Title;
+                if (string.IsNullOrWhiteSpace(setTitle))
+                {
+                    groupNameById.TryGetValue("default", out setTitle);
+                }
+
+                if (string.IsNullOrWhiteSpace(setTitle))
+                {
+                    setTitle = npCommId;
+                }
+            }
+
             var userByKey = PsnTrophyMatchHelper.BuildUserTrophyLookupByGroupAndId(user?.Trophies);
             var userByTrophyId = PsnTrophyMatchHelper.BuildUserTrophyLookupById(user?.Trophies);
 
             var achievements = new List<AchievementDetail>();
-            var unlockedCount = 0;
             var fallbackMatchCount = 0;
             var fallbackNonDefaultGroupCount = 0;
             foreach (var detail in (details?.Trophies ?? new List<PsnTrophyDetail>())
@@ -208,8 +282,6 @@ namespace PlayniteAchievements.Providers.PSN
                 var unlocked = userEntry != null && userEntry.Earned;
                 if (unlocked)
                 {
-                    unlockedCount++;
-
                     if (!string.IsNullOrWhiteSpace(userEntry.EarnedDateTime))
                     {
                         if (DateTime.TryParse(
@@ -233,12 +305,15 @@ namespace PlayniteAchievements.Providers.PSN
 
                 achievements.Add(new AchievementDetail
                 {
-                    ApiName = PsnTrophyMatchHelper.GetTrophyKey(detail),
+                    ApiName = PsnTrophySetResolutionHelper.BuildApiName(
+                        isCollection, npCommId, PsnTrophyMatchHelper.GetTrophyKey(detail)),
                     DisplayName = detail.TrophyName,
                     Description = detail.TrophyDetail,
                     UnlockedIconPath = detail.TrophyIconUrl,
                     CategoryType = PsnTrophyCategoryHelper.MapTrophyGroupToCategoryType(detail.TrophyGroupId),
-                    Category = PsnTrophyCategoryHelper.ResolveCategory(detail.TrophyGroupId, groupNameById),
+                    Category = isCollection
+                        ? PsnTrophyCategoryHelper.ResolveCollectionCategory(detail.TrophyGroupId, groupNameById, setTitle)
+                        : PsnTrophyCategoryHelper.ResolveCategory(detail.TrophyGroupId, groupNameById),
                     Hidden = detail.Hidden,
                     Unlocked = unlocked,
                     UnlockTimeUtc = unlockUtc,
@@ -264,25 +339,75 @@ namespace PlayniteAchievements.Providers.PSN
             if (fallbackMatchCount > 0)
             {
                 _logger?.Debug(
-                    $"[PSNAch] User trophy fallback-by-id matched {fallbackMatchCount} trophies for '{game?.Name}' (non-default groups: {fallbackNonDefaultGroupCount}).");
+                    $"[PSNAch] User trophy fallback-by-id matched {fallbackMatchCount} trophies for '{game?.Name}' ({npCommId}, non-default groups: {fallbackNonDefaultGroupCount}).");
             }
 
             if (fallbackNonDefaultGroupCount > 0)
             {
                 _logger?.Debug(
-                    $"[PSNAch] User trophy fallback-by-id used for non-default groups in '{game?.Name}' ({fallbackNonDefaultGroupCount} trophies).");
+                    $"[PSNAch] User trophy fallback-by-id used for non-default groups in '{game?.Name}' ({npCommId}, {fallbackNonDefaultGroupCount} trophies).");
             }
 
-            return new GameAchievementData
+            return new PsnSetFetchResult
             {
-                ProviderKey = "PSN",
-                LibrarySourceName = game?.Source?.Name,
-                GameName = game?.Name,
-                PlayniteGameId = game?.Id,
-                HasAchievements = achievements.Count > 0,
                 Achievements = achievements,
-                LastUpdatedUtc = DateTime.UtcNow
+                CategoryLabel = setTitle
             };
+        }
+
+        // Downloads each set's title icon as default category art for its category label, so a
+        // collection's category groups render with per-game art. Uses the shared provider-default
+        // convention read by CategoryDefaultImageResolver: existing art is kept and user overrides
+        // win over defaults. Best-effort: failures never fail the scan, and existing targets are
+        // skipped so re-scans cost nothing.
+        private async Task DownloadCategoryImagesAsync(
+            Guid? playniteGameId,
+            IReadOnlyList<(string Label, string IconUrl)> entries,
+            CancellationToken cancel)
+        {
+            if (entries == null || entries.Count == 0 ||
+                playniteGameId == null || playniteGameId.Value == Guid.Empty)
+            {
+                return;
+            }
+
+            var diskImageService = PlayniteAchievementsPlugin.Instance?.DiskImageService;
+            if (diskImageService == null)
+            {
+                return;
+            }
+
+            var gameIdText = playniteGameId.Value.ToString("D");
+            var seenLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in entries)
+            {
+                cancel.ThrowIfCancellationRequested();
+                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Label);
+                if (string.Equals(
+                        label,
+                        AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    !seenLabels.Add(label))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var artTarget = diskImageService.GetDefaultCategoryImagePath(gameIdText, label);
+                    // decodeSize 0 stores the original bytes: no square crop, original aspect.
+                    await diskImageService.GetOrDownloadIconToPathAsync(entry.IconUrl, artTarget, decodeSize: 0, cancel)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[PSNAch] Default category image download failed for category '{entry.Label}'.");
+                }
+            }
         }
 
         private void SetAuthorizationHeader(HttpClient http, string token)
@@ -567,27 +692,39 @@ namespace PlayniteAchievements.Providers.PSN
             return "en-US";
         }
 
-        private async Task<string> ResolveNpCommunicationIdAsync(HttpClient http, Game game, CancellationToken cancel)
+        // Resolves every trophy set belonging to the game. Compilations (Spyro Reignited Trilogy,
+        // Crash Bandicoot N.Sane Trilogy, Kingdom Hearts 1.5+2.5) list one set per included game
+        // under the SKU's npTitleId, so the lookup can return several sets. An empty list means
+        // "unresolved" and preserves any cached achievements.
+        private async Task<IReadOnlyList<PsnResolvedTrophySet>> ResolveTrophySetsAsync(HttpClient http, Game game, CancellationToken cancel)
         {
-            // A per-game override supplies the NP Communication ID directly, bypassing GameId lookup.
+            var empty = new List<PsnResolvedTrophySet>();
+
+            // A per-game override supplies the NP Communication ID(s) directly, bypassing GameId lookup.
             if (game != null &&
-                GameCustomDataLookup.TryGetProviderOverrideValue(game.Id, "PSN", out var overrideCommId) &&
-                PsnNpCommIdHelper.TryNormalize(overrideCommId, out var normalizedOverride))
+                GameCustomDataLookup.TryGetProviderOverrideValue(game.Id, "PSN", out var overrideValue))
             {
-                return normalizedOverride;
+                var overrideSets = PsnTrophySetResolutionHelper.ParseOverrideSets(overrideValue);
+                if (overrideSets.Count > 0)
+                {
+                    return overrideSets;
+                }
             }
 
             var raw = game?.GameId?.Trim();
             if (string.IsNullOrWhiteSpace(raw))
             {
                 _logger?.Warn($"[PSNAch] GameId is empty for '{game?.Name}'");
-                return null;
+                return empty;
             }
 
             var normalized = NormalizeGameId(raw);
             if (normalized.IndexOf("NPWR", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                return normalized;
+                return new List<PsnResolvedTrophySet>
+                {
+                    new PsnResolvedTrophySet { NpCommunicationId = normalized }
+                };
             }
 
             try
@@ -601,10 +738,10 @@ namespace PlayniteAchievements.Providers.PSN
                 cancel.ThrowIfCancellationRequested();
 
                 var titles = JsonConvert.DeserializeObject<PsnTrophyTitleLookup>(json);
-                var comm = titles?.Titles?.FirstOrDefault()?.TrophyTitles?.FirstOrDefault()?.NpCommunicationId;
-                if (!string.IsNullOrWhiteSpace(comm))
+                var sets = PsnTrophySetResolutionHelper.ExtractSets(titles);
+                if (sets.Count > 0)
                 {
-                    return comm;
+                    return sets;
                 }
             }
             catch (PsnAuthRequiredException)
@@ -630,10 +767,10 @@ namespace PlayniteAchievements.Providers.PSN
                     cancel.ThrowIfCancellationRequested();
 
                     var titles2 = JsonConvert.DeserializeObject<PsnTrophyTitleLookup>(json2);
-                    var comm2 = titles2?.Titles?.FirstOrDefault()?.TrophyTitles?.FirstOrDefault()?.NpCommunicationId;
-                    if (!string.IsNullOrWhiteSpace(comm2))
+                    var sets2 = PsnTrophySetResolutionHelper.ExtractSets(titles2);
+                    if (sets2.Count > 0)
                     {
-                        return comm2;
+                        return sets2;
                     }
                 }
                 catch (PsnAuthRequiredException)
@@ -648,21 +785,21 @@ namespace PlayniteAchievements.Providers.PSN
 
             // Fallback: search user's trophy titles by game name
             var nameBasedResult = await ResolveByNameAsync(http, game?.Name, cancel).ConfigureAwait(false);
-            if (!string.IsNullOrWhiteSpace(nameBasedResult))
+            if (nameBasedResult != null)
             {
-                _logger?.Info($"[PSNAch] Resolved '{game?.Name}' via name search to '{nameBasedResult}'");
-                return nameBasedResult;
+                _logger?.Info($"[PSNAch] Resolved '{game?.Name}' via name search to '{nameBasedResult.NpCommunicationId}'");
+                return new List<PsnResolvedTrophySet> { nameBasedResult };
             }
 
             _logger?.Warn($"[PSNAch] Unable to resolve npCommunicationId for '{game?.Name}' (GameId='{normalized}')");
-            return null;
+            return empty;
         }
 
         /// <summary>
         /// Fallback method that searches the user's trophy titles by game name.
         /// This matches SuccessStory's GetNPWR_2 approach.
         /// </summary>
-        private async Task<string> ResolveByNameAsync(HttpClient http, string gameName, CancellationToken cancel)
+        private async Task<PsnResolvedTrophySet> ResolveByNameAsync(HttpClient http, string gameName, CancellationToken cancel)
         {
             if (string.IsNullOrWhiteSpace(gameName))
             {
@@ -688,7 +825,16 @@ namespace PlayniteAchievements.Providers.PSN
                 var match = response.TrophyTitles.FirstOrDefault(t =>
                     NormalizeGameName(t?.TrophyTitleName) == normalizedSearch);
 
-                return match?.NpCommunicationId;
+                if (string.IsNullOrWhiteSpace(match?.NpCommunicationId))
+                {
+                    return null;
+                }
+
+                return new PsnResolvedTrophySet
+                {
+                    NpCommunicationId = match.NpCommunicationId,
+                    Title = string.IsNullOrWhiteSpace(match.TrophyTitleName) ? null : match.TrophyTitleName.Trim()
+                };
             }
             catch (PsnAuthRequiredException)
             {
