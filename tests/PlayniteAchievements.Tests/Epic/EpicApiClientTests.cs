@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Epic;
 using System;
@@ -53,10 +54,8 @@ namespace PlayniteAchievements.Epic.Tests
         [TestMethod]
         public async Task GetAchievementsAsync_RequeriesSchemaWhenLanguageChanges()
         {
-            var settings = new PersistedSettings
-            {
-                GlobalLanguage = "english"
-            };
+            var settings = new PlayniteAchievementsSettings();
+            settings.Persisted.GlobalLanguage = "english";
 
             var session = new EpicSessionManager
             {
@@ -71,7 +70,7 @@ namespace PlayniteAchievements.Epic.Tests
 
                 var english = await api.GetAchievementsAsync("test-game", "stub-account", CancellationToken.None).ConfigureAwait(false);
 
-                settings.GlobalLanguage = "german";
+                settings.Persisted.GlobalLanguage = "german";
                 var german = await api.GetAchievementsAsync("test-game", "stub-account", CancellationToken.None).ConfigureAwait(false);
 
                 Assert.AreEqual(1, english.Count);

@@ -626,7 +626,7 @@ namespace PlayniteAchievements
                     _tagSyncService = new TagSyncService(
                         PlayniteApi,
                         _logger,
-                        settings.Persisted,
+                        settings,
                         GetPluginLocalizationDirectory());
                     _tagSyncService.InitializeAndSubscribeTaggingSettings();
 
@@ -1208,6 +1208,24 @@ namespace PlayniteAchievements
             _tagSyncService?.HandlePersistedSettingsPropertyChanged(e);
         }
 
+        // Runs when CancelEdit replaces the whole PersistedSettings instance. Every
+        // per-property side effect above may have been reverted in one step without a
+        // property change firing, so re-derive all of them against the new instance.
+        private void OnPersistedSettingsInstanceChanged()
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+
+            RestartBackgroundUpdater();
+            ReconfigureInGameMonitor();
+            RarityAppearanceHelper.ApplyBadgeApplicationResources(persisted);
+            AchievementRarityResolver.RoundDisplayPercentages = persisted?.RoundRarityPercentages ?? false;
+            FormattingCulture.Refresh();
+            _achievementHotkeyService?.RefreshConfiguration();
+            InvalidateFriendDataCoordinators();
+            InvalidateStartPageData();
+            _tagSyncService?.InitializeAndSubscribeTaggingSettings();
+        }
+
         private void FriendCacheManager_FriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)
         {
             InvalidateFriendDataCoordinators(e);
@@ -1434,11 +1452,18 @@ namespace PlayniteAchievements
                     });
                 }
 
-                var persisted = _settingsViewModel?.Settings?.Persisted;
-                if (persisted != null)
+                // Subscribes through the settings wrapper: CancelEdit replaces the whole
+                // PersistedSettings instance, and a direct subscription would be left on
+                // the orphan, silently stopping every settings-driven side effect below
+                // for the rest of the session.
+                var settings = _settingsViewModel?.Settings;
+                if (settings != null)
                 {
-                    persisted.PropertyChanged += PersistedSettings_PropertyChanged;
-                    _eventSubscriptions.Add(() => persisted.PropertyChanged -= PersistedSettings_PropertyChanged);
+                    var subscription = new PersistedSettingsSubscription(
+                        settings,
+                        PersistedSettings_PropertyChanged,
+                        OnPersistedSettingsInstanceChanged);
+                    _eventSubscriptions.Add(() => subscription.Dispose());
                 }
 
                 _eventSubscriptions.Add(() => _tagSyncService?.DetachTaggingSettingsSubscription());

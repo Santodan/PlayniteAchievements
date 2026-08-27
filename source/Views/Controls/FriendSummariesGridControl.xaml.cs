@@ -23,7 +23,7 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly ILogger Logger = LogManager.GetLogger();
         private DataGridColumnLayoutService _columnPersistence;
         private bool _isAttached;
-        private PersistedSettings _subscribedPersisted;
+        private PersistedSettingsSubscription _persistedSubscription;
 
         private static readonly IReadOnlyDictionary<string, bool> DefaultVisibility =
             new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
@@ -267,10 +267,15 @@ namespace PlayniteAchievements.Views.Controls
             UpdateRealizedRowHeights();
             UpdateDateDisplayMode(settings);
 
-            if (_subscribedPersisted == null)
+            // Tracks the current Persisted instance: CancelEdit replaces it, and a direct
+            // subscription would leave this grid on the orphan, keeping the reverted date
+            // mode for the rest of the session.
+            if (_persistedSubscription == null)
             {
-                _subscribedPersisted = settings.Persisted;
-                _subscribedPersisted.PropertyChanged += OnPersistedSettingsChanged;
+                _persistedSubscription = new PersistedSettingsSubscription(
+                    settings,
+                    OnPersistedSettingsChanged,
+                    () => UpdateDateDisplayMode(settings));
             }
 
             DataGridAlignmentBehavior.SetColumnCellAlignmentOverridesProvider(
@@ -665,11 +670,8 @@ namespace PlayniteAchievements.Views.Controls
 
             _columnPersistence?.Dispose();
             _columnPersistence = null;
-            if (_subscribedPersisted != null)
-            {
-                _subscribedPersisted.PropertyChanged -= OnPersistedSettingsChanged;
-                _subscribedPersisted = null;
-            }
+            _persistedSubscription?.Dispose();
+            _persistedSubscription = null;
 
             DataGridAlignmentBehavior.SetColumnCellAlignmentOverridesProvider(FriendSummariesGrid, null);
             DataGridAlignmentBehavior.SetColumnCellVerticalAlignmentOverridesProvider(FriendSummariesGrid, null);

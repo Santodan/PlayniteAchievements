@@ -1,9 +1,8 @@
 using System;
 using System.ComponentModel;
 using PlayniteAchievements.Models;
-using PlayniteAchievements.Models.Settings;
 
-namespace PlayniteAchievements.Views.Settings
+namespace PlayniteAchievements.Models.Settings
 {
     /// <summary>
     /// Tracks the current <see cref="PersistedSettings"/> instance on a settings object.

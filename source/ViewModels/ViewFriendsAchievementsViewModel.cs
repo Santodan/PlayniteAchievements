@@ -34,6 +34,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
+        private PersistedSettingsSubscription _persistedSubscription;
         private readonly AchievementGridControlBarAdapter _achievementControlBar =
             new AchievementGridControlBarAdapter();
         private readonly SearchTextIndex<FriendSummaryItem> _friendSearchIndex =
@@ -103,10 +104,15 @@ namespace PlayniteAchievements.ViewModels
             if (_settings != null)
             {
                 _settings.PropertyChanged += OnSettingsChanged;
-                if (_settings.Persisted != null)
-                {
-                    _settings.Persisted.PropertyChanged += OnPersistedSettingsChanged;
-                }
+
+                // Tracks the current Persisted instance: CancelEdit replaces it, and a
+                // direct subscription would leave the provider-colour and spoiler paths
+                // bound to the orphan. The swap re-derives them, the same as a settings
+                // change with no name.
+                _persistedSubscription = new PersistedSettingsSubscription(
+                    _settings,
+                    OnPersistedSettingsChanged,
+                    () => OnPersistedSettingsChanged(this, new PropertyChangedEventArgs(null)));
             }
 
             _refreshRuntime.RebuildProgress += OnRebuildProgress;
@@ -444,11 +450,10 @@ namespace PlayniteAchievements.ViewModels
             if (_settings != null)
             {
                 _settings.PropertyChanged -= OnSettingsChanged;
-                if (_settings.Persisted != null)
-                {
-                    _settings.Persisted.PropertyChanged -= OnPersistedSettingsChanged;
-                }
             }
+
+            _persistedSubscription?.Dispose();
+            _persistedSubscription = null;
 
             _loadCts?.Cancel();
             _loadCts?.Dispose();
