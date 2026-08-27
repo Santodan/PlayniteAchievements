@@ -98,6 +98,7 @@
     <Compile Include="..\..\source\Providers\PSN\PsnNpCommIdHelper.cs" Link="Source\Providers\PSN\PsnNpCommIdHelper.cs" />
     <Compile Include="..\..\source\Providers\PSN\PsnTrophyCategoryHelper.cs" Link="Source\Providers\PSN\PsnTrophyCategoryHelper.cs" />
     <Compile Include="..\..\source\Providers\PSN\PsnTrophyMatchHelper.cs" Link="Source\Providers\PSN\PsnTrophyMatchHelper.cs" />
+    <Compile Include="..\..\source\Providers\PSN\PsnTrophySetResolutionHelper.cs" Link="Source\Providers\PSN\PsnTrophySetResolutionHelper.cs" />
     <Compile Include="..\..\source\Providers\PSN\Models\PsnTrophyModels.cs" Link="Source\Providers\PSN\Models\PsnTrophyModels.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementIconOverrideHelper.cs" Link="Source\Services\Achievements\AchievementIconOverrideHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementNoteHelper.cs" Link="Source\Services\Achievements\AchievementNoteHelper.cs" />
