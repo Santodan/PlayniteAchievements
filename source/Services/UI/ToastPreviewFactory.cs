@@ -49,9 +49,9 @@ namespace PlayniteAchievements.Services.UI
                 case "ultrarare":
                     return SampleUnlock("UltraRare", 1.8, false);
                 case "capstone":
-                    var capstone = SampleUnlock("UltraRare", 1.2, true);
-                    capstone.IsCompletionAchievement = true;
-                    return capstone;
+                    // A capstone unlock below 100%: IsCapstone alone carries the
+                    // completion-grade sound/capture treatment.
+                    return SampleUnlock("UltraRare", 1.2, true);
                 case "complete":
                     // The standalone completion notification (own wave after the unlock wave).
                     return new AchievementUnlockedEventArgs

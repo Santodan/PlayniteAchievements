@@ -1052,8 +1052,9 @@ namespace PlayniteAchievements.Services
         {
             var game = state.Game;
             // Both snapshots take the custom-data overlay. A manual capstone lives in the custom
-            // data store rather than the cache row, so an unhydrated "before" reads as incomplete
-            // and every unlock landing after the capstone looks like it completed the game.
+            // data store rather than the cache row, so an unhydrated snapshot would drop the
+            // IsCapstone flag from the toast args; hydration also stamps DefaultOrderIndex for
+            // the emission sort below.
             HydrateForToast(before);
             HydrateForToast(after);
             var allowed = new HashSet<string>(
@@ -1087,16 +1088,18 @@ namespace PlayniteAchievements.Services
             _logger?.Debug(
                 $"[InGameMonitor] User progress complete: game={game.Name}, elapsedMs={elapsedMs}, unlocks={unlocks.Count}.");
 
-            // This batch completes the game when the data crossed from incomplete to complete
-            // (all unlocked, or the capstone unlocked) with at least one new unlock in hand. Both
-            // snapshots are hydrated above, so the two sides of the comparison agree on capstones.
-            var completesGame = unlocks.Count > 0 && before?.IsCompleted != true && after?.IsCompleted == true;
+            // This batch reaches 100% when the data crossed from not-all-unlocked to all-unlocked
+            // with at least one new unlock in hand. Deliberately not IsCompleted: a capstone
+            // unlock marks the game completed library-wide, but the standalone completion
+            // notification is reserved for true 100% (the capstone's own toast, flagged
+            // IsCapstone, is the capstone notification).
+            var reaches100Percent = unlocks.Count > 0 && before?.IsFullyUnlocked != true && after?.IsFullyUnlocked == true;
 
-            // The single unlock that finished the game: the newly-unlocked capstone (a capstone
-            // unlock alone marks completion), otherwise the last achievement to unlock (100%
-            // reached). Null when this batch does not complete the game — so a regular unlock
-            // landing after the game was already complete is never flagged as the completion.
-            var completingApiName = completesGame ? ResolveCompletingApiName(unlocks) : null;
+            // The single unlock that finished the game: the capstone when it lands in the
+            // 100%-reaching batch, otherwise the last achievement to unlock. Null when this batch
+            // does not reach 100% — so a regular unlock landing after the game was already
+            // complete is never flagged as the completion.
+            var completingApiName = reaches100Percent ? ResolveCompletingApiName(unlocks) : null;
 
             var numberByApiName = BuildAchievementNumberMap(after);
             foreach (var achievement in unlocks)
@@ -1117,7 +1120,7 @@ namespace PlayniteAchievements.Services
             // completing batch. Null when the provider supplies no timestamps, so the completion
             // toast shows no datetime exactly when its unlocks don't.
             var completionTimeUtc = unlocks.Select(a => a?.UnlockTimeUtc).Max();
-            return completesGame
+            return reaches100Percent
                 ? CreateUserCompletionEventArgs(game, after, completionTimeUtc, observedUtc, anchorPolicy)
                 : null;
         }
@@ -1343,26 +1346,20 @@ namespace PlayniteAchievements.Services
                 return (0, null);
             }
 
-            // This batch completes the friend's game when the rows are complete now (all
-            // unlocked, or an unlocked capstone) and were not complete before these fresh
-            // unlocks landed.
-            var freshKeys = new HashSet<string>(
-                fresh.Where(row => row != null).Select(row => row.ApiName ?? string.Empty),
-                StringComparer.OrdinalIgnoreCase);
+            // This batch reaches 100% for the friend when the rows are all unlocked now and were
+            // not before these fresh unlocks landed. A friend's capstone unlock is a regular
+            // friend unlock notification, not a completion — mirroring the own-unlock rule that
+            // reserves the standalone completion notification for true 100%.
             var unlockedNow = rows.Count(row => row?.Unlocked == true);
-            var completeNow =
-                (rows.Count > 0 && unlockedNow >= rows.Count) ||
-                rows.Any(row => row?.IsCapstone == true && row.Unlocked);
-            var completeBefore =
-                (rows.Count > 0 && unlockedNow - fresh.Count >= rows.Count) ||
-                rows.Any(row => row?.IsCapstone == true && row.Unlocked && !freshKeys.Contains(row.ApiName ?? string.Empty));
-            var completesGame = completeNow && !completeBefore;
+            var completeNow = rows.Count > 0 && unlockedNow >= rows.Count;
+            var completeBefore = rows.Count > 0 && unlockedNow - fresh.Count >= rows.Count;
+            var reaches100Percent = completeNow && !completeBefore;
 
-            // The single fresh unlock that finished the friend's game: the newly-unlocked capstone,
-            // otherwise the last to unlock by timestamp (falling back to the last item). Null unless
-            // this batch completes the game, so a fresh unlock landing after the friend's game was
-            // already complete is never flagged as the completion.
-            var completingFriendApiName = completesGame
+            // The single fresh unlock that finished the friend's game: the capstone when it lands
+            // in the 100%-reaching batch, otherwise the last to unlock by timestamp (falling back
+            // to the last item). Null unless this batch reaches 100%, so a fresh unlock landing
+            // after the friend's game was already complete is never flagged as the completion.
+            var completingFriendApiName = reaches100Percent
                 ? (fresh.LastOrDefault(row => row?.IsCapstone == true)
                     ?? fresh
                         .OrderBy(row => row?.UnlockTimeUtc ?? DateTime.MinValue)
@@ -1379,7 +1376,7 @@ namespace PlayniteAchievements.Services
             // The completion time is the triggering achievement's unlock time — the latest in the
             // completing batch — and null when the provider supplies no timestamps.
             var completionTimeUtc = fresh.Select(row => row?.UnlockTimeUtc).Max();
-            return (fresh.Count, completesGame ? CreateFriendCompletionEventArgs(state.Game, target, rows, completionTimeUtc) : null);
+            return (fresh.Count, reaches100Percent ? CreateFriendCompletionEventArgs(state.Game, target, rows, completionTimeUtc) : null);
         }
 
         private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarget target)
@@ -1612,10 +1609,11 @@ namespace PlayniteAchievements.Services
         }
 
         /// <summary>
-        /// The ApiName of the achievement that finished the game within a completing batch: the
-        /// newly-unlocked capstone (an unlocked capstone alone marks completion), otherwise the
-        /// last achievement to unlock by timestamp (falling back to the last item when the
-        /// provider supplies no unlock times). Callers pass only batches that complete the game.
+        /// The ApiName of the achievement that finished the game within a 100%-reaching batch:
+        /// the capstone when it is part of the batch (e.g. a platinum landing with the final
+        /// trophies), otherwise the last achievement to unlock by timestamp (falling back to the
+        /// last item when the provider supplies no unlock times). Callers pass only batches that
+        /// reach 100%.
         /// </summary>
         private static string ResolveCompletingApiName(IReadOnlyList<AchievementDetail> unlocks)
         {

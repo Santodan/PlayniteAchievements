@@ -42,7 +42,7 @@
                  Gated on the notification-level glow rather than the icon's, so the card's halo and
                  its rays come and go together. -->
             <controls:RarityRayBurst Rarity="{Binding Rarity}"
-                                     UseCompletedColors="{Binding IsGameCompleted}"
+                                     UseCompletedColors="{Binding UsesCompletionColors}"
                                      IsActive="{Binding AnimateRarityGlows}"
                                      PhaseLock="{Binding IsPreview}"
                                      BurstScale="1.14"
@@ -229,7 +229,7 @@
                              notification swaps in a prebuilt badge image with no path to trace, and
                              falls back to a rounded rectangle. -->
                         <controls:RarityRayBurst Rarity="{Binding Rarity}"
-                                                 UseCompletedColors="{Binding IsGameCompleted}"
+                                                 UseCompletedColors="{Binding UsesCompletionColors}"
                                                  IsActive="{Binding AnimateRarityGlows}"
                                                  PhaseLock="{Binding IsPreview}"
                                                  SubjectUri="{Binding IconPath}"

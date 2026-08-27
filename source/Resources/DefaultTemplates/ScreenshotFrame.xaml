@@ -76,7 +76,7 @@
                                  from the cache, which the capture path warms beforehand, since
                                  nothing here can await. -->
                             <controls:RarityRayBurst Rarity="{Binding Rarity}"
-                                                     UseCompletedColors="{Binding IsGameCompleted}"
+                                                     UseCompletedColors="{Binding UsesCompletionColors}"
                                                      PhaseLock="False"
                                                      SubjectUri="{Binding IconPath}"
                                                      Visibility="{Binding FrameShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>

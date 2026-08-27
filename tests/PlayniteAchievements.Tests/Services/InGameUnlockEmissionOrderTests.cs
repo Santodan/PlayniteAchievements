@@ -57,6 +57,38 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void SameTimestamp_CapstoneEmitsAfterRegularUnlocks()
+        {
+            // A platinum-style capstone is often listed first in game order but pops with the
+            // final trophy; its wave must follow the unlocks that earned it.
+            var sorted = InGameUnlockEmissionOrder.Sort(new List<AchievementDetail>
+            {
+                Detail("capstone", Tied, defaultOrderIndex: 0, isCapstone: true),
+                Detail("regular", Tied, defaultOrderIndex: 1)
+            });
+
+            CollectionAssert.AreEqual(
+                new[] { "regular", "capstone" },
+                sorted.Select(a => a.ApiName).ToArray());
+        }
+
+        [TestMethod]
+        public void DistinctTimestamps_ChronologyDominatesCapstonePlacement()
+        {
+            // A capstone unlocked earlier (e.g. a mid-game win condition caught in a backlog
+            // batch) keeps its chronological slot rather than being forced last.
+            var sorted = InGameUnlockEmissionOrder.Sort(new List<AchievementDetail>
+            {
+                Detail("later-regular", Tied.AddMinutes(5), defaultOrderIndex: 1),
+                Detail("earlier-capstone", Tied, defaultOrderIndex: 0, isCapstone: true)
+            });
+
+            CollectionAssert.AreEqual(
+                new[] { "earlier-capstone", "later-regular" },
+                sorted.Select(a => a.ApiName).ToArray());
+        }
+
+        [TestMethod]
         public void UnstampedBatch_KeepsInputOrder()
         {
             // A batch whose hydration failed sits entirely at int.MaxValue; the stable sort keeps
@@ -75,7 +107,8 @@ namespace PlayniteAchievements.Tests.Services
         private static AchievementDetail Detail(
             string apiName,
             DateTime? unlockTimeUtc,
-            int defaultOrderIndex = int.MaxValue)
+            int defaultOrderIndex = int.MaxValue,
+            bool isCapstone = false)
         {
             return new AchievementDetail
             {
@@ -83,7 +116,8 @@ namespace PlayniteAchievements.Tests.Services
                 DisplayName = apiName,
                 Unlocked = true,
                 UnlockTimeUtc = unlockTimeUtc,
-                DefaultOrderIndex = defaultOrderIndex
+                DefaultOrderIndex = defaultOrderIndex,
+                IsCapstone = isCapstone
             };
         }
     }

@@ -9,6 +9,7 @@ using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 
 namespace PlayniteAchievements.Tests.ViewModels
@@ -247,6 +248,46 @@ namespace PlayniteAchievements.Tests.ViewModels
                 Assert.IsNotNull(viewModel.CompletedBadgeImage);
                 Assert.IsNotNull(viewModel.RarityBrush);
             });
+        }
+
+        [TestMethod]
+        public void CapstoneUnlock_GlowsWithCompletionColorsNotRarity()
+        {
+            var settings = new PersistedSettings
+            {
+                NotificationStyle = new NotificationStyleSettings
+                {
+                    Toast = new NotificationSurfaceStyle { ShowRarityGlow = true, NotificationBorderGlow = true },
+                    Frame = new NotificationSurfaceStyle { ShowRarityGlow = true }
+                }
+            };
+            var capstone = new AchievementToastViewModel(
+                new AchievementUnlockedEventArgs
+                {
+                    RarityTier = "UltraRare",
+                    GlobalPercent = 1.2,
+                    IsCapstone = true
+                },
+                settings);
+            var regular = new AchievementToastViewModel(
+                new AchievementUnlockedEventArgs
+                {
+                    RarityTier = "UltraRare",
+                    GlobalPercent = 1.2
+                },
+                settings);
+
+            var completedColor = ((DropShadowEffect)RarityAppearanceHelper
+                .GetCompletedGlow(useEndColor: true, settings)).Color;
+
+            // The capstone's halo, frame halo, and card border glow all take the completion
+            // color, matching its completion-colored accent; a regular unlock keeps its tier's.
+            Assert.IsTrue(capstone.UsesCompletionColors);
+            Assert.AreEqual(completedColor, ((DropShadowEffect)capstone.RarityGlowEffect).Color);
+            Assert.AreEqual(completedColor, ((DropShadowEffect)capstone.FrameRarityGlowEffect).Color);
+            Assert.AreEqual(completedColor, ((DropShadowEffect)capstone.BorderGlowEffect).Color);
+            Assert.IsFalse(regular.UsesCompletionColors);
+            Assert.AreNotEqual(completedColor, ((DropShadowEffect)regular.RarityGlowEffect).Color);
         }
 
         [TestMethod]
