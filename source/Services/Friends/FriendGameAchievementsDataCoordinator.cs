@@ -1,5 +1,6 @@
 using Playnite.SDK;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.ViewModels;
@@ -110,6 +111,14 @@ namespace PlayniteAchievements.Services.Friends
             // Bounded staleness: reflect the cache as of build start rather than rebuilding in a
             // loop when invalidations land mid-build; the next SnapshotInvalidated fire converges.
             return snapshot ?? new FriendsOverviewSnapshot();
+        }
+
+        // The signed-in account per provider, read by the compare dropdown to label the current
+        // user's side of a self comparison.
+        public IReadOnlyList<FriendIdentity> LoadCurrentUserIdentities()
+        {
+            return (IReadOnlyList<FriendIdentity>)_friendCache?.LoadCurrentUserIdentities()
+                ?? Array.Empty<FriendIdentity>();
         }
 
         public void Dispose()

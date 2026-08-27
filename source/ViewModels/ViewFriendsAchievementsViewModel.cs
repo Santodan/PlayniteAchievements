@@ -87,7 +87,10 @@ namespace PlayniteAchievements.ViewModels
             // Overview pair view does: compare them against another friend with data for it.
             _friendCompare = new FriendVsFriendCompareController(
                 () => SelectedFriend,
-                GetCompareFriendOptions);
+                GetCompareFriendOptions,
+                isRowInScope: null,
+                loadCurrentUserIdentities: () => _dataCoordinator.LoadCurrentUserIdentities(),
+                logger: logger);
             _achievementControlBar.AttachFriendCompare(_friendCompare);
 
             RefreshCommand = new RelayCommand(async _ => await RefreshAllFriendsForGameAsync(), _ => !IsRefreshing);
