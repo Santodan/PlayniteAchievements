@@ -155,15 +155,30 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
-        public void GetLockedDisplayIcon_FallsBackToGrayUnlockedWhenLockedIconIsUnavailable()
+        public void GetLockedDisplayIcon_UsesARemoteLockedIconAsIs()
         {
+            // A URL is a usable source: the image loader downloads http(s) through the disk cache.
+            // Rejecting it here used to send a URL-valued locked override to the grayscaled unlocked
+            // icon, while the same URL as an unlocked override rendered fine.
             var unlockedPath = @"C:\icons\unlocked.png";
             var remoteLockedPath = "https://cdn.example.com/locked.png";
 
             var displayPath = AchievementIconResolver.GetLockedDisplayIcon(unlockedPath, remoteLockedPath);
 
+            Assert.AreEqual(remoteLockedPath, displayPath);
+            Assert.IsTrue(AchievementIconResolver.HasExplicitLockedIcon(remoteLockedPath, unlockedPath));
+        }
+
+        [TestMethod]
+        public void GetLockedDisplayIcon_FallsBackToGrayUnlockedWhenLockedIconIsMissingLocally()
+        {
+            var unlockedPath = @"C:\icons\unlocked.png";
+            var missingLockedPath = @"C:\icons\does-not-exist.png";
+
+            var displayPath = AchievementIconResolver.GetLockedDisplayIcon(unlockedPath, missingLockedPath);
+
             Assert.AreEqual("gray:" + unlockedPath, displayPath);
-            Assert.IsFalse(AchievementIconResolver.HasExplicitLockedIcon(remoteLockedPath, unlockedPath));
+            Assert.IsFalse(AchievementIconResolver.HasExplicitLockedIcon(missingLockedPath, unlockedPath));
         }
 
         [TestMethod]
