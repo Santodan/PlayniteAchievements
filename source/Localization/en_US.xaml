@@ -773,8 +773,8 @@
 
     <sys:String x:Key="LOCPlayAch_Settings_ExportDatabase">Export database tables to CSV for debugging</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ExportDatabaseButton">Export CSV</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_FallbackIcons">Fallback Icons</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_FallbackIcons_Help">Drag in an image link or file, or browse for one. Clear restores the built-in icon.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_FallbackIcons">Cover Images</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_FallbackIcons_Help">These images cover a locked or hidden icon until it is revealed, so the locked cover only appears while Reveal Locked Icon is off. Drag in an image link or file, or browse for one; Clear restores the built-in image.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ForceHashIndexRebuild">Rebuild File Scan Cache</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_HashIndexMaxAgeDays">File Scan Cache Max Age (days)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements">Achievement Visibility</sys:String>
