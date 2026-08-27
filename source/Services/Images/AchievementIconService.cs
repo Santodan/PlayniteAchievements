@@ -425,7 +425,6 @@ namespace PlayniteAchievements.Services.Images
                     unlockedCandidate,
                     lockedCandidate,
                     useSeparateLockedIcons,
-                    !string.IsNullOrWhiteSpace(resolvedUnlockedOverride),
                     !string.IsNullOrWhiteSpace(resolvedLockedOverride));
             }
         }
@@ -870,9 +869,14 @@ namespace PlayniteAchievements.Services.Images
             bool useSeparateLockedIcons)
         {
             var finalLockedCandidate = resolvedLockedCandidate ?? achievement.LockedIconPath;
-            var hasExplicitUnlockedIcon = _managedCustomIconService.IsManagedCustomIconPath(
-                finalUnlockedPath,
-                gameId);
+
+            // A download that did not resolve leaves the remote URL in place. The cache stores local
+            // paths only, so treat it as absent rather than persisting a path that can never render.
+            if (IsHttpIconPath(finalLockedCandidate))
+            {
+                finalLockedCandidate = null;
+            }
+
             var hasExplicitLockedIcon = _managedCustomIconService.IsManagedCustomIconPath(
                     finalLockedCandidate,
                     gameId) &&
@@ -881,7 +885,6 @@ namespace PlayniteAchievements.Services.Images
                 finalUnlockedPath,
                 finalLockedCandidate,
                 useSeparateLockedIcons,
-                hasExplicitUnlockedIcon,
                 hasExplicitLockedIcon);
         }
 

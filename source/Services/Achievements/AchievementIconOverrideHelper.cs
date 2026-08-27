@@ -29,11 +29,19 @@ namespace PlayniteAchievements.Services.Achievements
             return NormalizeKey(value);
         }
 
+        /// <summary>
+        /// The locked path to persist for one achievement: an explicit locked override when there is
+        /// one, otherwise the real locked icon while separate locked icons are enabled, otherwise the
+        /// unlocked path.
+        ///
+        /// A custom *unlocked* override does not suppress the locked icon. It used to, which
+        /// discarded the provider's locked path in the cache and left nothing to reveal behind a
+        /// locked cover.
+        /// </summary>
         public static string ResolveEffectiveLockedPath(
             string unlockedIconPath,
             string lockedIconPath,
             bool useSeparateLockedIcons,
-            bool hasExplicitUnlockedIcon,
             bool hasExplicitLockedIcon)
         {
             if (hasExplicitLockedIcon && !string.IsNullOrWhiteSpace(lockedIconPath))
@@ -41,7 +49,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return lockedIconPath;
             }
 
-            if (hasExplicitUnlockedIcon || !useSeparateLockedIcons)
+            if (!useSeparateLockedIcons)
             {
                 return unlockedIconPath;
             }

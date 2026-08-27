@@ -155,15 +155,30 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
-        public void GetLockedDisplayIcon_FallsBackToGrayUnlockedWhenLockedIconIsUnavailable()
+        public void GetLockedDisplayIcon_UsesARemoteLockedIconAsIs()
         {
+            // A URL is a usable source: the image loader downloads http(s) through the disk cache.
+            // Rejecting it here used to send a URL-valued locked override to the grayscaled unlocked
+            // icon, while the same URL as an unlocked override rendered fine.
             var unlockedPath = @"C:\icons\unlocked.png";
             var remoteLockedPath = "https://cdn.example.com/locked.png";
 
             var displayPath = AchievementIconResolver.GetLockedDisplayIcon(unlockedPath, remoteLockedPath);
 
+            Assert.AreEqual(remoteLockedPath, displayPath);
+            Assert.IsTrue(AchievementIconResolver.HasExplicitLockedIcon(remoteLockedPath, unlockedPath));
+        }
+
+        [TestMethod]
+        public void GetLockedDisplayIcon_FallsBackToGrayUnlockedWhenLockedIconIsMissingLocally()
+        {
+            var unlockedPath = @"C:\icons\unlocked.png";
+            var missingLockedPath = @"C:\icons\does-not-exist.png";
+
+            var displayPath = AchievementIconResolver.GetLockedDisplayIcon(unlockedPath, missingLockedPath);
+
             Assert.AreEqual("gray:" + unlockedPath, displayPath);
-            Assert.IsFalse(AchievementIconResolver.HasExplicitLockedIcon(remoteLockedPath, unlockedPath));
+            Assert.IsFalse(AchievementIconResolver.HasExplicitLockedIcon(missingLockedPath, unlockedPath));
         }
 
         [TestMethod]
@@ -407,7 +422,80 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
-        public async Task PopulateAchievementIconCacheAsync_ExplicitUnlockedOverrideSuppressesProviderLockedDownload()
+        public async Task PopulateAchievementIconCacheAsync_ExplicitUnlockedOverrideKeepsAResolvableProviderLockedIcon()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var gameId = Guid.NewGuid();
+                var apiName = "custom_unlocked_with_provider_locked";
+                var settings = new PersistedSettings
+                {
+                    UseSeparateLockedIconsWhenAvailable = true
+                };
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var managedCustomIconService = new ManagedCustomIconService(diskImageService, logger: null);
+                var iconService = new AchievementIconService(
+                    diskImageService,
+                    managedCustomIconService,
+                    () => settings,
+                    logger: null);
+
+                var overrideSource = Path.Combine(tempDir, "override-unlocked.png");
+                WriteSolidColorPng(overrideSource, Colors.Red);
+                var providerUnlockedSource = Path.Combine(tempDir, "provider-unlocked.png");
+                WriteSolidColorPng(providerUnlockedSource, Colors.Green);
+                var providerLockedSource = Path.Combine(tempDir, "provider-locked.png");
+                WriteSolidColorPng(providerLockedSource, Colors.Gray);
+
+                var stem = AchievementIconCachePathBuilder.BuildFileStems(new[] { apiName })[apiName];
+                var lockedTarget = diskImageService.GetAchievementIconCachePath(
+                    gameId.ToString("D"),
+                    stem,
+                    AchievementIconVariant.Locked);
+                WritePlaceholderFile(lockedTarget);
+
+                var achievement = new AchievementDetail
+                {
+                    ApiName = apiName,
+                    UnlockedIconPath = providerUnlockedSource,
+                    LockedIconPath = providerLockedSource
+                };
+                var data = new GameAchievementData
+                {
+                    PlayniteGameId = gameId,
+                    Achievements = { achievement }
+                };
+
+                await iconService.PopulateAchievementIconCacheAsync(
+                    data,
+                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        [apiName] = overrideSource
+                    },
+                    null,
+                    CancellationToken.None);
+
+                var unlockedTarget = managedCustomIconService.GetAchievementCustomIconPath(
+                    gameId.ToString("D"),
+                    stem,
+                    AchievementIconVariant.Unlocked);
+
+                // A custom unlocked override must not discard the provider's locked icon: the locked
+                // cover has to have real artwork to reveal.
+                Assert.AreEqual(unlockedTarget, achievement.UnlockedIconPath);
+                Assert.AreEqual(lockedTarget, achievement.LockedIconPath);
+                Assert.AreNotEqual(achievement.UnlockedIconPath, achievement.LockedIconPath);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task PopulateAchievementIconCacheAsync_ExplicitUnlockedOverrideDoesNotPersistAnUnresolvableLockedUrl()
         {
             var tempDir = CreateTempDirectory();
 
@@ -462,6 +550,9 @@ namespace PlayniteAchievements.Services.Images.Tests
                     stem,
                     AchievementIconVariant.Locked);
 
+                // The provider locked URL cannot be fetched here, so nothing local backs it. The cache
+                // stores local paths only, so the locked variant falls back to the unlocked path
+                // rather than persisting a URL that could never render.
                 Assert.AreEqual(unlockedTarget, achievement.UnlockedIconPath);
                 Assert.AreEqual(unlockedTarget, achievement.LockedIconPath);
                 Assert.IsTrue(File.Exists(unlockedTarget));

@@ -870,15 +870,20 @@ namespace PlayniteAchievements.ViewModels
         {
             var cachedData = _achievementDataService.GetRawGameAchievementData(_playniteGame.Id);
             var hydratedData = _achievementDataService.GetGameAchievementData(_playniteGame.Id);
-            string providerKey = cachedData?.ProviderKey;
-            var achievements = cachedData?.Achievements?
+
+            // Rows are built from hydrated details so the per-achievement icon overrides set in the
+            // Icons tab show up here; the raw cache rows carry provider art only. Both loads return
+            // independent clones, and only ApiName/unlock state is read back out when saving, so
+            // the overlay fields hydration adds are never persisted.
+            string providerKey = hydratedData?.ProviderKey;
+            var achievements = hydratedData?.Achievements?
                 .Where(a => a != null)
                 .ToList();
 
             if (achievements == null || achievements.Count == 0)
             {
-                providerKey = hydratedData?.ProviderKey;
-                achievements = hydratedData?.Achievements?
+                providerKey = cachedData?.ProviderKey;
+                achievements = cachedData?.Achievements?
                     .Where(a => a != null)
                     .ToList();
             }
@@ -1300,6 +1305,57 @@ namespace PlayniteAchievements.ViewModels
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "Failed to rollback transient manual cache state after refresh did not complete.");
+            }
+        }
+
+        /// <summary>
+        /// Re-applies the current per-achievement icon overrides to the rows already on screen and
+        /// repaints them. Deliberately not a full reload: recreating this tab discards the wizard
+        /// stage and any unsaved unlock edits, so an icon change must not cost the user their work.
+        /// </summary>
+        public void RefreshAchievementIcons()
+        {
+            if (CurrentStage != WizardStage.Editing || AllAchievements.Count == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                var hydrated = _achievementDataService.GetGameAchievementData(_playniteGame.Id);
+                var byApiName = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+                if (hydrated?.Achievements != null)
+                {
+                    foreach (var detail in hydrated.Achievements)
+                    {
+                        var apiName = detail?.ApiName?.Trim();
+                        if (!string.IsNullOrWhiteSpace(apiName))
+                        {
+                            byApiName[apiName] = detail;
+                        }
+                    }
+                }
+
+                foreach (var item in AllAchievements)
+                {
+                    var apiName = item?.ApiName?.Trim();
+                    if (item == null || string.IsNullOrWhiteSpace(apiName))
+                    {
+                        continue;
+                    }
+
+                    if (byApiName.TryGetValue(apiName, out var fresh) && fresh != null)
+                    {
+                        item.Source.UnlockedIconPath = fresh.UnlockedIconPath;
+                        item.Source.LockedIconPath = fresh.LockedIconPath;
+                    }
+
+                    item.NotifyIconDisplayChanged();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed refreshing manual tracking achievement icons.");
             }
         }
 

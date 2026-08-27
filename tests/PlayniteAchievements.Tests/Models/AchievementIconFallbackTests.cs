@@ -8,11 +8,12 @@ using System.Windows.Media.Imaging;
 namespace PlayniteAchievements.Models.Achievements.Tests
 {
     /// <summary>
-    /// Covers how the user's custom locked and hidden fallback images take effect in
-    /// <see cref="AchievementIconResolver"/>, and that leaving them unset preserves the
-    /// historical behaviour exactly.
+    /// Covers how the user's custom locked and hidden images take effect in
+    /// <see cref="AchievementIconResolver"/>. They are cover art for the masked state only: the
+    /// real-artwork paths never consult them, so revealing a cover shows the achievement's own icon.
     /// </summary>
     [TestClass]
+    [DoNotParallelize]
     public class AchievementIconFallbackTests
     {
         private const string BuiltInPlaceholder =
@@ -78,27 +79,30 @@ namespace PlayniteAchievements.Models.Achievements.Tests
                 AchievementIconResolver.GetLockedDisplayIcon(null, null));
         }
 
-        // --- Configured: the custom image replaces the grayscale fallback ---
+        // --- Configured: the cover image stays out of the real-artwork path ---
 
         [TestMethod]
-        public void ConfiguredLockedFallback_ReplacesTheGrayscaleUnlockedFallback()
+        public void ConfiguredLockedCover_LeavesTheGrayscaleUnlockedIconAlone()
         {
             AchievementIconResolver.LockedFallbackPathAccessor = () => _customLocked;
 
             var resolved = AchievementIconResolver.GetLockedDisplayIcon(_providerUnlocked, null);
 
-            StringAssert.Contains(resolved, "custom-locked.png");
-            Assert.IsFalse(resolved.Contains("gray:"), "A user-supplied image renders as-is.");
+            StringAssert.Contains(resolved, "gray:");
+            StringAssert.Contains(resolved, "provider-unlocked.png");
+            Assert.IsFalse(
+                resolved.Contains("custom-locked.png"),
+                "The cover image belongs to the masked state, not the revealed artwork.");
         }
 
         [TestMethod]
-        public void ConfiguredLockedFallback_ReplacesTheNoIconAtAllPlaceholder()
+        public void ConfiguredLockedCover_LeavesTheNoIconAtAllPlaceholderAlone()
         {
             AchievementIconResolver.LockedFallbackPathAccessor = () => _customLocked;
 
             var resolved = AchievementIconResolver.GetLockedDisplayIcon(null, null);
 
-            StringAssert.Contains(resolved, "custom-locked.png");
+            Assert.AreEqual(BuiltInPlaceholder, resolved);
         }
 
         [TestMethod]
@@ -137,6 +141,91 @@ namespace PlayniteAchievements.Models.Achievements.Tests
             var after = AchievementIconResolver.GetLockedFallbackIcon();
 
             Assert.AreNotEqual(before, after);
+        }
+
+        // --- ResolveRowDisplayIcon: the shared masked-vs-real decision ---
+
+        [TestMethod]
+        public void RowIcon_HiddenMaskedUsesTheHiddenCover()
+        {
+            AchievementIconResolver.LockedFallbackPathAccessor = () => _customLocked;
+            AchievementIconResolver.HiddenFallbackPathAccessor = () => _customHidden;
+
+            // Both masks active: hidden is the more spoiler-sensitive state and must win.
+            var resolved = AchievementIconResolver.ResolveRowDisplayIcon(
+                isIconHidden: true,
+                isLockedIconHidden: true,
+                unlocked: false,
+                unlockedIconPath: _providerUnlocked,
+                lockedIconPath: _providerLocked);
+
+            StringAssert.Contains(resolved, "custom-hidden.png");
+        }
+
+        [TestMethod]
+        public void RowIcon_LockedMaskedUsesTheLockedCover()
+        {
+            AchievementIconResolver.LockedFallbackPathAccessor = () => _customLocked;
+            AchievementIconResolver.HiddenFallbackPathAccessor = () => _customHidden;
+
+            var resolved = AchievementIconResolver.ResolveRowDisplayIcon(
+                isIconHidden: false,
+                isLockedIconHidden: true,
+                unlocked: false,
+                unlockedIconPath: _providerUnlocked,
+                lockedIconPath: null);
+
+            StringAssert.Contains(resolved, "custom-locked.png");
+        }
+
+        [TestMethod]
+        public void RowIcon_RevealedLockedRowShowsItsOwnArtwork()
+        {
+            AchievementIconResolver.LockedFallbackPathAccessor = () => _customLocked;
+            AchievementIconResolver.HiddenFallbackPathAccessor = () => _customHidden;
+
+            var resolved = AchievementIconResolver.ResolveRowDisplayIcon(
+                isIconHidden: false,
+                isLockedIconHidden: false,
+                unlocked: false,
+                unlockedIconPath: _providerUnlocked,
+                lockedIconPath: null);
+
+            StringAssert.Contains(resolved, "gray:");
+            StringAssert.Contains(resolved, "provider-unlocked.png");
+            Assert.IsFalse(resolved.Contains("custom-locked.png"));
+        }
+
+        [TestMethod]
+        public void RowIcon_UnlockedRowIgnoresBothCovers()
+        {
+            AchievementIconResolver.LockedFallbackPathAccessor = () => _customLocked;
+            AchievementIconResolver.HiddenFallbackPathAccessor = () => _customHidden;
+
+            var resolved = AchievementIconResolver.ResolveRowDisplayIcon(
+                isIconHidden: false,
+                isLockedIconHidden: false,
+                unlocked: true,
+                unlockedIconPath: _providerUnlocked,
+                lockedIconPath: _providerLocked);
+
+            StringAssert.Contains(resolved, "provider-unlocked.png");
+            Assert.IsFalse(resolved.Contains("gray:"));
+        }
+
+        [TestMethod]
+        public void RowIcon_UnmaskedRowWithNoArtworkUsesTheBuiltInPlaceholder()
+        {
+            AchievementIconResolver.LockedFallbackPathAccessor = () => _customLocked;
+
+            var resolved = AchievementIconResolver.ResolveRowDisplayIcon(
+                isIconHidden: false,
+                isLockedIconHidden: false,
+                unlocked: false,
+                unlockedIconPath: null,
+                lockedIconPath: null);
+
+            Assert.AreEqual(BuiltInPlaceholder, resolved);
         }
 
         // --- Robustness ---

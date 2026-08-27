@@ -272,6 +272,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 EnsureManualControl(forceRecreate: false);
                 if (_manualRefreshPending && !IsManualViewModelRefreshing() && _manualControl != null)
                 {
+                    // Icons only, not a reload: recreating this tab cancels an in-flight refresh
+                    // and throws away the wizard stage plus any unsaved unlock edits.
+                    _manualViewModel?.RefreshAchievementIcons();
                     _manualRefreshPending = false;
                 }
             }
