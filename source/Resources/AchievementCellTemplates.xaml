@@ -546,12 +546,28 @@
                 </Image>
             </Border>
 
+            <!-- Front icon. While the row is masked this is the user's locked or hidden cover, so it
+                 advertises the click-to-reveal that the surrounding row already handles. ToolTip is
+                 set only by the triggers; an unmasked icon shows none. -->
             <Image Stretch="Uniform"
                    Margin="2"
                    RenderOptions.BitmapScalingMode="HighQuality"
                    SnapsToDevicePixels="True"
                    helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                   helpers:AsyncImage.DecodePixel="128"/>
+                   helpers:AsyncImage.DecodePixel="128">
+                <Image.Style>
+                    <Style TargetType="Image">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsIconHidden}" Value="True">
+                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsLockedIconHidden}" Value="True">
+                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Image.Style>
+            </Image>
 
             <!-- Solid rarity border for Hardcore achievements (replaces the glow).
                  Negative margin draws the border just OUTSIDE the icon (icon margin 2 - thickness 3)
