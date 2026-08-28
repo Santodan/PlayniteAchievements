@@ -202,9 +202,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                                  ResolveSharedImage(artSource, item => item?.GameCoverPath)
             };
 
-            row._renameOverrideText = string.Equals(row.CategoryLabel, row.ProviderCategoryLabel, StringComparison.OrdinalIgnoreCase)
-                ? string.Empty
-                : row.CategoryLabel;
+            // Leaf-scoped, the same as after an edit: seeding the whole path would put a separator
+            // in a box that rejects one.
+            row.ResetRenameOverrideTextFromCurrentCategory();
             row._baselineArtOverrideValue = row.ResolveOverrideInputValue(imageOverride?.Art);
             row._artOverrideValue = row._baselineArtOverrideValue ?? string.Empty;
             row._baselineIsSummarySelected = isSummarySelected;
