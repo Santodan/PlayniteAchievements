@@ -107,7 +107,10 @@
                                                    Margin="0,12,0,0"
                                                    TextWrapping="Wrap"/>
 
-                                        <TextBlock Style="{StaticResource MutedTextStyle}"
+                                        <!-- Full strength rather than MutedTextStyle: this is an
+                                             actionable setup step with a link, matching how the
+                                             Hoyoverse and Battle.net tabs present theirs. -->
+                                        <TextBlock Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                    Margin="0,8,0,0"
                                                    TextWrapping="Wrap"
                                                    helpers:HyperlinkFormatText.Format="{DynamicResource LOCPlayAch_Settings_FFXIV_CollectNote}"
