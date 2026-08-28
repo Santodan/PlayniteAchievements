@@ -489,7 +489,7 @@ namespace PlayniteAchievements.Tests.Services.Summaries
         }
 
         [TestMethod]
-        public void BuildTree_TitlesRowsWithLeafNamesAndIndentsThemWhenAsked()
+        public void BuildTree_TitlesRowsWithLeafNamesAndGuidesThemWhenAsked()
         {
             var items = new List<AchievementDisplayItem>
             {
@@ -507,9 +507,12 @@ namespace PlayniteAchievements.Tests.Services.Summaries
                 tree.Select(r => r.GameName).ToArray(),
                 "an indented list titles its rows with the leaf name");
             CollectionAssert.AreEqual(
-                new[] { 0d, 16d, 32d, 0d },
-                tree.Select(r => r.NameIndent.Left).ToArray(),
-                "depth is carried by the name cell's inset");
+                new[] { 0d, 22d, 38d, 0d },
+                tree.Select(r => r.NameGuideWidth).ToArray(),
+                "the guide arrow lengthens with depth, and a root has none");
+            Assert.IsNull(tree[0].NameGuide, "a root category is not guided");
+            Assert.IsNotNull(tree[1].NameGuide);
+            Assert.IsTrue(tree[1].NameGuide.IsFrozen, "guides are shared across rows");
         }
 
         [TestMethod]

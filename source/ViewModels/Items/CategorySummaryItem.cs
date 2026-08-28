@@ -1,5 +1,6 @@
-using System;
-using System.Windows;
+using System.Collections.Concurrent;
+using System.Globalization;
+using System.Windows.Media;
 
 namespace PlayniteAchievements.ViewModels.Items
 {
@@ -24,8 +25,8 @@ namespace PlayniteAchievements.ViewModels.Items
         public string CategoryLeafName { get; set; }
 
         /// <summary>
-        /// Depth of the path, 1 for a root category. Setting it also sets the name cell's inset,
-        /// so a list holding every node of the tree reads as one.
+        /// Depth of the path, 1 for a root category. Setting it also builds the name cell's tree
+        /// guide, so a list holding every node of the tree reads as one.
         /// </summary>
         public int CategoryDepth
         {
@@ -33,13 +34,56 @@ namespace PlayniteAchievements.ViewModels.Items
             set
             {
                 _categoryDepth = value;
-                NameIndent = new Thickness(NestingIndentPerLevel * Math.Max(0, value - 1), 0, 0, 0);
+                NameGuideWidth = GetGuideWidth(value);
+                NameGuide = GetGuide(value);
             }
         }
 
-        private const double NestingIndentPerLevel = 16;
-
         private int _categoryDepth = 1;
+
+        // Geometry of the guide: a leg dropping from the row above, turning right into an arrowhead
+        // that points at the label. Length carries the depth, so a glance reads nesting without
+        // counting blank space.
+        private const double GuideLeadIn = 6;
+        private const double GuidePerLevel = 16;
+        private const double GuideMidY = 6;
+        private const double GuideHeadSize = 3.5;
+
+        // Depths are capped at CategoryPathHelper.MaxDepth, so this holds at most a handful of
+        // frozen geometries shared by every row at that depth.
+        private static readonly ConcurrentDictionary<int, Geometry> GuideByDepth =
+            new ConcurrentDictionary<int, Geometry>();
+
+        private static double GetGuideWidth(int depth)
+        {
+            return depth <= 1 ? 0 : GuideLeadIn + (GuidePerLevel * (depth - 1));
+        }
+
+        private static Geometry GetGuide(int depth)
+        {
+            if (depth <= 1)
+            {
+                return null;
+            }
+
+            return GuideByDepth.GetOrAdd(depth, d =>
+            {
+                var tipX = GetGuideWidth(d) - 4;
+                var geometry = Geometry.Parse(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "M {0},0 L {0},{1} L {2},{1} M {3},{4} L {2},{1} L {3},{5}",
+                    GuideLeadIn - 1,
+                    GuideMidY,
+                    tipX,
+                    tipX - GuideHeadSize,
+                    GuideMidY - GuideHeadSize,
+                    GuideMidY + GuideHeadSize));
+
+                // Frozen so one instance is shared across rows and threads.
+                geometry.Freeze();
+                return geometry;
+            });
+        }
 
         /// <summary>
         /// How many immediate child categories this row aggregates. Zero for a leaf, which is what

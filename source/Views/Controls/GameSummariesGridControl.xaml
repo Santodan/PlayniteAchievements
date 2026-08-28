@@ -257,10 +257,30 @@
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
-                            <!-- NameIndent is zero for a game row; a nested category row sets it
-                                 from its depth so this one column renders a tree as well. -->
-                            <Grid Margin="{Binding NameIndent}">
-                                <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                            <!-- NameGuide is null for a game row and for a root category; a nested
+                                 category row draws an elbow arrow whose length carries its depth,
+                                 so this one column renders a tree as well. -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Path Grid.Column="0"
+                                      Data="{Binding NameGuide}"
+                                      Width="{Binding NameGuideWidth}"
+                                      Stretch="None"
+                                      Stroke="{DynamicResource PlayAch.Brush.Text}"
+                                      StrokeThickness="1"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      Opacity="{StaticResource PlayAch.Opacity.Muted}"
+                                      VerticalAlignment="Center"
+                                      SnapsToDevicePixels="True"/>
+
+                                <StackPanel Grid.Column="1"
+                                            VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                             HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
                                     <TextBlock Text="{Binding GameName}"

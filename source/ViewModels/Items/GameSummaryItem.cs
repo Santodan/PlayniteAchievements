@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
-using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using Playnite.SDK.Data;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
@@ -32,12 +32,20 @@ namespace PlayniteAchievements.ViewModels.Items
         private string _gameName;
         public string GameName { get => _gameName; set => SetValue(ref _gameName, value); }
 
-        // Left inset for the name cell. Zero for a game row; a category row nested under another
-        // sets it from its depth so one shared column renders both a flat list and a tree.
-        private Thickness _nameIndent;
+        // Tree guide drawn to the left of the name: an elbow dropping from the parent and turning
+        // into an arrow that points at the label. Null for a game row and for a root category; a
+        // nested category row sets it from its depth, and the arrow lengthens as depth grows, so
+        // one shared column renders both a flat list and a tree.
+        private Geometry _nameGuide;
         [DontSerialize]
         [IgnoreDataMember]
-        public Thickness NameIndent { get => _nameIndent; set => SetValue(ref _nameIndent, value); }
+        public Geometry NameGuide { get => _nameGuide; set => SetValue(ref _nameGuide, value); }
+
+        // Width the guide occupies, which is also the label's offset from the column edge.
+        private double _nameGuideWidth;
+        [DontSerialize]
+        [IgnoreDataMember]
+        public double NameGuideWidth { get => _nameGuideWidth; set => SetValue(ref _nameGuideWidth, value); }
 
         // Session-only: true when this game has any saved unlock captures on disk. Set by the
         // capture presence marker after the summaries are built; gates the Captures column button.
