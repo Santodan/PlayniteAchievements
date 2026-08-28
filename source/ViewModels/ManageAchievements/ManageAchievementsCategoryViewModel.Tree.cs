@@ -609,82 +609,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void RenameCategoryMetadata(string sourceCategory, string targetCategory)
         {
-            var normalizedSource = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(sourceCategory);
-            var normalizedTarget = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(targetCategory);
-            if (string.IsNullOrWhiteSpace(normalizedSource) ||
-                string.IsNullOrWhiteSpace(normalizedTarget) ||
-                string.Equals(normalizedSource, normalizedTarget, StringComparison.OrdinalIgnoreCase))
+            var renamed = CategoryMetadataRenamer.Rename(
+                _gameId,
+                sourceCategory,
+                targetCategory,
+                _achievementOverridesService,
+                _settings?.Persisted);
+
+            if (renamed)
             {
-                return;
+                RaiseCategoryMetadataPersisted();
             }
-
-            var currentOrder = GameCustomDataLookup.GetAchievementCategoryOrder(_gameId, _settings?.Persisted);
-            var currentImages = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted);
-            var nextOrder = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var label in currentOrder ?? Enumerable.Empty<string>())
-            {
-                var normalized = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(label);
-                if (string.IsNullOrWhiteSpace(normalized))
-                {
-                    continue;
-                }
-
-                if (string.Equals(normalized, normalizedSource, StringComparison.OrdinalIgnoreCase))
-                {
-                    normalized = normalizedTarget;
-                }
-
-                if (seen.Add(normalized))
-                {
-                    nextOrder.Add(normalized);
-                }
-            }
-
-            var nextImages = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in currentImages ?? new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase))
-            {
-                var key = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
-                if (string.IsNullOrWhiteSpace(key) || pair.Value == null)
-                {
-                    continue;
-                }
-
-                if (string.Equals(key, normalizedSource, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                nextImages[key] = pair.Value.Clone();
-            }
-
-            if (currentImages != null &&
-                currentImages.TryGetValue(normalizedSource, out var sourceImages) &&
-                sourceImages != null)
-            {
-                if (!nextImages.TryGetValue(normalizedTarget, out var targetImages) || targetImages == null)
-                {
-                    nextImages[normalizedTarget] = sourceImages.Clone();
-                }
-                else if (string.IsNullOrWhiteSpace(targetImages.Art))
-                {
-                    targetImages.Art = sourceImages.Art;
-                }
-            }
-
-            var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted);
-            if (summaryCategory != null &&
-                string.Equals(summaryCategory.Label, normalizedSource, StringComparison.OrdinalIgnoreCase))
-            {
-                summaryCategory = new GameSummaryCategoryData
-                {
-                    Label = normalizedTarget,
-                    ProviderLabel = summaryCategory.ProviderLabel
-                };
-            }
-
-            _achievementOverridesService.SetAchievementCategoryMetadata(_gameId, nextOrder, nextImages, summaryCategory);
-            RaiseCategoryMetadataPersisted();
         }
 
         private void MergeCategoryMetadata(string sourceCategory, string targetCategory)
