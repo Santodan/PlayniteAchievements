@@ -272,12 +272,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// removed rather than set when the resulting value matches the achievement's provider default.
         /// Returns true when at least one achievement was affected and something changed.
         /// </summary>
+        /// <param name="rewriteDescendantPaths">
+        /// True for a rename or reparent, where a descendant keeps its position beneath the moved
+        /// node ("DLC::Winter" follows "DLC" to "Extras::Winter"). False for a merge, which folds
+        /// the whole subtree flat into the target.
+        /// </param>
         private bool ReassignEffectiveCategoryRows(
             string normalizedSource,
             string normalizedTarget,
             Dictionary<string, string> categoryOverrideMap,
             Dictionary<string, string> categoryTypeOverrideMap,
-            IReadOnlyList<string> targetGroupTypes)
+            IReadOnlyList<string> targetGroupTypes,
+            bool rewriteDescendantPaths = false)
         {
             var affectedCount = 0;
             var changed = false;
@@ -290,16 +296,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     continue;
                 }
 
-                var effectiveCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.Category);
-                if (!string.Equals(effectiveCategory, normalizedSource, StringComparison.OrdinalIgnoreCase))
+                var effectiveCategory = CategoryPathHelper.NormalizePath(item.Category);
+                if (!CategoryPathHelper.IsSelfOrDescendantOf(effectiveCategory, normalizedSource))
                 {
                     continue;
                 }
 
                 affectedCount++;
 
-                var providerCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.ProviderCategory);
-                if (string.Equals(providerCategory, normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                var writtenCategory = rewriteDescendantPaths
+                    ? CategoryPathHelper.RewritePrefix(effectiveCategory, normalizedSource, normalizedTarget)
+                    : normalizedTarget;
+
+                // Compare the value actually being written against the provider label, so the
+                // economy of dropping a redundant override still holds per achievement.
+                var providerCategory = CategoryPathHelper.NormalizePath(item.ProviderCategory);
+                if (CategoryPathHelper.IsSame(providerCategory, writtenCategory))
                 {
                     if (categoryOverrideMap.Remove(apiName))
                     {
@@ -307,9 +319,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     }
                 }
                 else if (!categoryOverrideMap.TryGetValue(apiName, out var existingCategory) ||
-                         !string.Equals(existingCategory, normalizedTarget, StringComparison.Ordinal))
+                         !string.Equals(existingCategory, writtenCategory, StringComparison.Ordinal))
                 {
-                    categoryOverrideMap[apiName] = normalizedTarget;
+                    categoryOverrideMap[apiName] = writtenCategory;
                     changed = true;
                 }
 

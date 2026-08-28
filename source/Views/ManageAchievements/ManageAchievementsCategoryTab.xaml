@@ -491,10 +491,44 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
+                        <!-- Nesting controls. Indent puts the row under the category above it;
+                             outdent moves it out one level. -->
+                        <DataGridTemplateColumn Width="60" MinWidth="60" MaxWidth="60" CanUserResize="False" CanUserSort="False">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Visibility="{Binding IsDefaultCategory, Converter={StaticResource InverseBoolToVis}}">
+                                        <Button Content="&#x21E4;"
+                                                Width="24"
+                                                Height="24"
+                                                Padding="0"
+                                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_Outdent}"
+                                                IsEnabled="{Binding IsNested}"
+                                                Command="{Binding DataContext.OutdentCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="&#x21E5;"
+                                                Width="24"
+                                                Height="24"
+                                                Padding="0"
+                                                Margin="2,0,0,0"
+                                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_Indent}"
+                                                Command="{Binding DataContext.IndentCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
                         <DataGridTemplateColumn Width="3*" MinWidth="260" Header="{DynamicResource LOCPlayAch_Common_Label_Category}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <StackPanel VerticalAlignment="Center">
+                                    <!-- Depth is shown by indentation; the row edits its own name
+                                         only, and the full path is on hover. -->
+                                    <StackPanel VerticalAlignment="Center"
+                                                Margin="{Binding IndentMargin}"
+                                                ToolTip="{Binding CategoryPathDisplay}">
                                         <Grid>
                                             <TextBox x:Name="CategoryRenameTextBox"
                                                      Text="{Binding RenameOverrideText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
@@ -503,7 +537,7 @@
                                                      IsEnabled="{Binding IsDefaultCategory, Converter={StaticResource InvertBoolConverter}}"
                                                      Padding="6,4"
                                                      VerticalContentAlignment="Center" />
-                                            <TextBlock Text="{Binding ProviderCategoryDisplay}"
+                                            <TextBlock Text="{Binding ProviderCategoryLeafDisplay}"
                                                        VerticalAlignment="Center"
                                                        Margin="9,0,0,0"
                                                        TextTrimming="CharacterEllipsis"

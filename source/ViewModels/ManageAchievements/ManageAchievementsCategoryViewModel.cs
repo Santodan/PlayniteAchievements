@@ -108,6 +108,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 });
             ClearSearchCommand = new RelayCommand(_ => SearchText = string.Empty);
             OpenCategoryImagesFolderCommand = new RelayCommand(_ => OpenCategoryImagesFolder());
+            IndentCategoryCommand = new RelayCommand(parameter => IndentOrOutdentFromCommand(parameter, indent: true));
+            OutdentCategoryCommand = new RelayCommand(parameter => IndentOrOutdentFromCommand(parameter, indent: false));
 
             ReloadData();
         }
@@ -120,6 +122,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public RelayCommand ClearSearchCommand { get; }
         public RelayCommand OpenCategoryImagesFolderCommand { get; }
+
+        /// <summary>Nests the row under the sibling above it. Parameter is the row.</summary>
+        public RelayCommand IndentCategoryCommand { get; }
+
+        /// <summary>Promotes the row to sit beside its parent. Parameter is the row.</summary>
+        public RelayCommand OutdentCategoryCommand { get; }
         public bool HasAchievements
         {
             get => _hasAchievements;

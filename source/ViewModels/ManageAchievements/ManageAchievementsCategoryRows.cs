@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
@@ -76,6 +77,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string CategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(CategoryLabel);
 
         /// <summary>
+        /// Depth of this row's category path, 1 for a root. The grid is a flat list, so nesting is
+        /// conveyed by indentation rather than by a tree control - the single metadata writer
+        /// rebuilds order and art from the rendered rows, which a virtualizing tree would break.
+        /// </summary>
+        public int CategoryDepth { get; internal set; } = 1;
+
+        public Thickness IndentMargin => new Thickness(16 * Math.Max(0, CategoryDepth - 1), 0, 0, 0);
+
+        /// <summary>
+        /// The last path segment, which is what the row shows and what renaming edits. Ancestry is
+        /// conveyed by the indentation, and the full path by the row's tooltip.
+        /// </summary>
+        public string CategoryLeafDisplay => CategoryPathHelper.ToDisplayLeaf(CategoryLabel);
+
+        /// <summary>Full path, shown on hover where the row itself only has room for the leaf.</summary>
+        public string CategoryPathDisplay => CategoryPathHelper.ToDisplayPath(CategoryLabel);
+
+        public bool IsNested => CategoryDepth > 1;
+
+        /// <summary>
         /// True for the Default bucket row. It cannot be renamed or merged away because it is
         /// the fallback bucket for achievements without an explicit category.
         /// </summary>
@@ -87,6 +108,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string ProviderCategoryLabel { get; private set; }
 
         public string ProviderCategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(ProviderCategoryLabel);
+
+        /// <summary>Placeholder for the leaf-scoped rename box.</summary>
+        public string ProviderCategoryLeafDisplay => CategoryPathHelper.ToDisplayLeaf(ProviderCategoryLabel);
 
         public string RenameOverrideText
         {
@@ -234,11 +258,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
         }
 
+        // Editing is leaf-scoped: the row's indentation already conveys where it sits, and typing a
+        // whole path would be a second way to express nesting alongside indent/outdent.
         public void ResetRenameOverrideTextFromCurrentCategory()
         {
             RenameOverrideText = string.Equals(CategoryLabel, ProviderCategoryLabel, StringComparison.OrdinalIgnoreCase)
                 ? string.Empty
-                : CategoryLabel;
+                : CategoryPathHelper.GetLeafName(CategoryLabel);
         }
 
         private string GetDisplayOverrideValue()

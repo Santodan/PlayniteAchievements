@@ -257,6 +257,9 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Filter_Type">Filter by Category Type</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Hint">Set categories for this game's achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_InputPlaceholder">Category label for selected achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Indent">Nest under the category above</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Outdent">Move out one level</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_PathSeparatorNotAllowed">Category names cannot contain "::". Use the nesting buttons to place a category under another.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_ManageHint">Rename categories, choose category images, and drag categories into their display order.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeDialog_Hint">Move all achievements from this category into another. Group-based types (Base, DLC, Update, Subset) are inherited from the target; other types are kept.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeDialog_Target">Merge into</sys:String>

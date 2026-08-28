@@ -250,6 +250,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// The single funnel for moving a category, whether the user renamed it, indented it, or
+        /// dragged it onto another. Descendants follow, so one cycle guard covers every gesture.
+        /// </summary>
         public bool RenameCategoryLabel(string sourceCategoryLabel, string targetCategoryLabel)
         {
             var normalizedSourceCategory = AchievementCategoryTypeHelper.NormalizeCategory(sourceCategoryLabel);
@@ -264,30 +268,167 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            var normalizedTargetCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(targetCategoryLabel);
+            normalizedSourceCategory = CategoryPathHelper.NormalizePath(normalizedSourceCategory);
+            var normalizedTargetCategory = CategoryPathHelper.NormalizePath(targetCategoryLabel);
             if (string.IsNullOrWhiteSpace(normalizedTargetCategory) ||
-                string.Equals(normalizedSourceCategory, normalizedTargetCategory, StringComparison.OrdinalIgnoreCase))
+                CategoryPathHelper.IsSame(normalizedSourceCategory, normalizedTargetCategory))
+            {
+                return false;
+            }
+
+            // A node cannot become its own descendant, and nothing may nest under Default: it has
+            // no provider identity and refuses rename and merge, so a child there is unreachable.
+            if (CategoryPathHelper.IsDescendantOf(normalizedTargetCategory, normalizedSourceCategory) ||
+                string.Equals(
+                    CategoryPathHelper.Split(normalizedTargetCategory)[0],
+                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                    StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
 
             var categoryOverrideMap = GetCurrentCategoryOverrideMap();
-            if (!ReassignEffectiveCategoryRows(
-                    normalizedSourceCategory,
-                    normalizedTargetCategory,
-                    categoryOverrideMap,
-                    categoryTypeOverrideMap: null,
-                    targetGroupTypes: null))
+            var rowsChanged = ReassignEffectiveCategoryRows(
+                normalizedSourceCategory,
+                normalizedTargetCategory,
+                categoryOverrideMap,
+                categoryTypeOverrideMap: null,
+                targetGroupTypes: null,
+                rewriteDescendantPaths: true);
+
+            if (rowsChanged)
+            {
+                var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
+                PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
+                ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
+            }
+
+            // Metadata moves even when no achievement did: an intermediate node can exist purely
+            // as ordering and art, and it still has to follow its subtree.
+            RenameCategoryMetadata(normalizedSourceCategory, normalizedTargetCategory);
+            RefreshCategoryRows();
+            return true;
+        }
+
+        /// <summary>
+        /// Row-scoped entry point for the indent and outdent buttons. The keyboard path in the tab
+        /// passes the whole grid selection instead.
+        /// </summary>
+        private void IndentOrOutdentFromCommand(object parameter, bool indent)
+        {
+            if (!(parameter is ManageAchievementsCategoryMetadataItem row))
+            {
+                return;
+            }
+
+            var labels = new List<string> { row.CategoryLabel };
+            if (indent)
+            {
+                IndentCategoryRows(labels);
+            }
+            else
+            {
+                OutdentCategoryRows(labels);
+            }
+        }
+
+        /// <summary>
+        /// Moves a category under a new parent, keeping its leaf name. A null parent makes it a root.
+        /// </summary>
+        public bool ReparentCategory(string sourcePath, string newParentPath)
+        {
+            return RenameCategoryLabel(sourcePath, CategoryPathHelper.Reparent(sourcePath, newParentPath));
+        }
+
+        /// <summary>
+        /// Nests each row under the nearest category above it that can be its parent - the sibling
+        /// immediately preceding it, the way an outliner indents. Rows already as deep as they can
+        /// go are left alone.
+        /// </summary>
+        public bool IndentCategoryRows(IReadOnlyList<string> labels)
+        {
+            return MoveCategoryRowsByDepth(labels, indent: true);
+        }
+
+        /// <summary>Promotes each row to sit beside its current parent.</summary>
+        public bool OutdentCategoryRows(IReadOnlyList<string> labels)
+        {
+            return MoveCategoryRowsByDepth(labels, indent: false);
+        }
+
+        private bool MoveCategoryRowsByDepth(IReadOnlyList<string> labels, bool indent)
+        {
+            if (labels == null || labels.Count == 0)
             {
                 return false;
             }
 
-            var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
-            PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
-            RenameCategoryMetadata(normalizedSourceCategory, normalizedTargetCategory);
-            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
-            RefreshCategoryRows();
-            return true;
+            // Deepest first so moving one row cannot invalidate another's resolved parent, and
+            // dragged descendants are skipped because their ancestor carries them along.
+            var targets = labels
+                .Select(CategoryPathHelper.NormalizePath)
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            targets = targets
+                .Where(label => !targets.Any(other => CategoryPathHelper.IsDescendantOf(label, other)))
+                .OrderByDescending(CategoryPathHelper.GetDepth)
+                .ToList();
+
+            var changed = false;
+            foreach (var label in targets)
+            {
+                var parent = indent ? ResolveIndentParent(label) : CategoryPathHelper.GetParentPath(
+                    CategoryPathHelper.GetParentPath(label) ?? label);
+
+                if (indent && parent == null)
+                {
+                    continue;
+                }
+
+                if (!indent && CategoryPathHelper.GetDepth(label) <= 1)
+                {
+                    continue;
+                }
+
+                if (ReparentCategory(label, parent))
+                {
+                    changed = true;
+                }
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// The row directly above <paramref name="label"/> that shares its parent. Null when the
+        /// row is already first among its siblings, since there is nothing to nest under.
+        /// </summary>
+        private string ResolveIndentParent(string label)
+        {
+            var parent = CategoryPathHelper.GetParentPath(label);
+            string previousSibling = null;
+
+            foreach (var row in CategoryRows)
+            {
+                var candidate = CategoryPathHelper.NormalizePath(row?.CategoryLabel);
+                if (CategoryPathHelper.IsSame(candidate, label))
+                {
+                    break;
+                }
+
+                if (string.Equals(
+                        CategoryPathHelper.GetParentPath(candidate) ?? string.Empty,
+                        parent ?? string.Empty,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    !row.IsDefaultCategory)
+                {
+                    previousSibling = candidate;
+                }
+            }
+
+            return previousSibling;
         }
 
         /// <summary>
@@ -346,12 +487,27 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            var sourceCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.CategoryLabel);
-            var targetCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
-                row.GetNormalizedRenameOverrideValue() ?? row.ProviderCategoryLabel);
+            var sourceCategory = CategoryPathHelper.NormalizePath(row.CategoryLabel);
+            var typed = row.GetNormalizedRenameOverrideValue();
+
+            // Typed labels are a single segment: nesting is expressed by indenting a row, not by
+            // spelling out a path, so the two gestures cannot disagree about where a row belongs.
+            if (typed != null && CategoryPathHelper.ContainsSeparator(typed))
+            {
+                SetCategoryImageStatus(L("LOCPlayAch_ManageAchievements_Category_PathSeparatorNotAllowed"), isError: true);
+                row.ResetRenameOverrideTextFromCurrentCategory();
+                return false;
+            }
+
+            // The row keeps its place in the tree; only its own name changes.
+            var targetLeaf = typed ?? CategoryPathHelper.GetLeafName(row.ProviderCategoryLabel);
+            var targetCategory = CategoryPathHelper.Join(
+                CategoryPathHelper.GetParentPath(sourceCategory),
+                targetLeaf);
+
             if (string.IsNullOrWhiteSpace(sourceCategory) ||
                 string.IsNullOrWhiteSpace(targetCategory) ||
-                string.Equals(sourceCategory, targetCategory, StringComparison.OrdinalIgnoreCase))
+                CategoryPathHelper.IsSame(sourceCategory, targetCategory))
             {
                 row.ResetRenameOverrideTextFromCurrentCategory();
                 return false;
@@ -452,9 +608,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             HasCustomCategoryArt = categoryImages != null && categoryImages.Count > 0;
             HasCustomSummaryCategory = summaryCategory != null;
 
-            var orderedLabels = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
-                _definitionOrderedRows.Count > 0 ? _definitionOrderedRows : _allRows,
-                row => row?.Category,
+            // Tree order rather than a flat first-seen list: siblings stay contiguous, a subtree is
+            // never split, and every ancestor gets a row even when it holds nothing itself - which
+            // it must, because the single metadata writer rebuilds order and art from the rendered
+            // rows and would otherwise drop an intermediate node's art.
+            var sourceLabels = (_definitionOrderedRows.Count > 0 ? _definitionOrderedRows : _allRows)
+                .Where(row => row != null)
+                .Select(row => row.Category)
+                .ToList();
+
+            // A label carrying user state but no achievements still needs a row, or the metadata
+            // writer - which rebuilds from the rendered rows - would drop that state. Deliberately
+            // not seeded from the order list: a stale entry there would surface as a phantom row.
+            sourceLabels.AddRange(categoryImages?.Keys ?? Enumerable.Empty<string>());
+            if (summaryCategory?.Label != null)
+            {
+                sourceLabels.Add(summaryCategory.Label);
+            }
+
+            var orderedLabels = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryTree(
+                sourceLabels,
                 categoryOrder);
             EnsureDefaultCategoryLabel(orderedLabels, categoryOrder);
             var fileStems = AchievementIconCachePathBuilder.BuildCategoryFileStems(orderedLabels);
@@ -462,13 +635,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             foreach (var label in orderedLabels)
             {
-                // The Default row is kept even with no achievements in it so its art can
-                // be set and selected for game summaries ahead of time.
-                if ((!groups.TryGetValue(label, out var bucket) || bucket.Count == 0) &&
-                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
+                groups.TryGetValue(label, out var bucket);
 
                 if (!fileStems.TryGetValue(label, out var fileStem) || string.IsNullOrWhiteSpace(fileStem))
                 {
@@ -478,7 +645,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 CategoryImageOverrideData imageOverride = null;
                 categoryImages?.TryGetValue(label, out imageOverride);
                 var providerCategoryLabel = ResolveSharedCategory(bucket, item => item?.ProviderCategory) ?? label;
-                rows.Add(ManageAchievementsCategoryMetadataItem.Create(
+                var row = ManageAchievementsCategoryMetadataItem.Create(
                     label,
                     providerCategoryLabel,
                     bucket,
@@ -488,7 +655,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     _managedCustomIconService,
                     isSummarySelected: summaryCategory != null &&
                         string.Equals(summaryCategory.Label, label, StringComparison.OrdinalIgnoreCase),
-                    artFallbackSource: _allRows));
+                    artFallbackSource: _allRows);
+                row.CategoryDepth = CategoryPathHelper.GetDepth(label);
+                rows.Add(row);
             }
 
             HasCustomCategoryNames = rows.Any(row =>

@@ -49,21 +49,21 @@ namespace PlayniteAchievements.Services.Achievements
 
             var currentOrder = GameCustomDataLookup.GetAchievementCategoryOrder(gameId, fallbackSettings, store);
             var currentImages = GameCustomDataLookup.GetAchievementCategoryImageOverrides(gameId, fallbackSettings, store);
+
+            // Rewriting by prefix rather than exact match is what makes a rename cascade: moving
+            // "DLC" to "Extras" has to carry "DLC::Winter" to "Extras::Winter" with it, or the
+            // subtree's art and ordering are stranded under a label nothing points at any more.
             var nextOrder = new List<string>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var label in currentOrder ?? Enumerable.Empty<string>())
             {
-                var normalized = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(label);
+                var normalized = CategoryPathHelper.NormalizePath(label);
                 if (string.IsNullOrWhiteSpace(normalized))
                 {
                     continue;
                 }
 
-                if (string.Equals(normalized, normalizedSource, StringComparison.OrdinalIgnoreCase))
-                {
-                    normalized = normalizedTarget;
-                }
-
+                normalized = CategoryPathHelper.RewritePrefix(normalized, normalizedSource, normalizedTarget);
                 if (seen.Add(normalized))
                 {
                     nextOrder.Add(normalized);
@@ -71,25 +71,27 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var nextImages = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            CategoryImageOverrideData sourceImages = null;
             foreach (var pair in currentImages ?? new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase))
             {
-                var key = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var key = CategoryPathHelper.NormalizePath(pair.Key);
                 if (string.IsNullOrWhiteSpace(key) || pair.Value == null)
                 {
                     continue;
                 }
 
-                if (string.Equals(key, normalizedSource, StringComparison.OrdinalIgnoreCase))
+                // The source's own art is folded into the target below, where the target's
+                // existing art wins; descendants just have their keys rewritten.
+                if (CategoryPathHelper.IsSame(key, normalizedSource))
                 {
+                    sourceImages = pair.Value;
                     continue;
                 }
 
-                nextImages[key] = pair.Value.Clone();
+                nextImages[CategoryPathHelper.RewritePrefix(key, normalizedSource, normalizedTarget)] = pair.Value.Clone();
             }
 
-            if (currentImages != null &&
-                currentImages.TryGetValue(normalizedSource, out var sourceImages) &&
-                sourceImages != null)
+            if (sourceImages != null)
             {
                 if (!nextImages.TryGetValue(normalizedTarget, out var targetImages) || targetImages == null)
                 {
@@ -103,11 +105,11 @@ namespace PlayniteAchievements.Services.Achievements
 
             var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(gameId, fallbackSettings, store);
             if (summaryCategory != null &&
-                string.Equals(summaryCategory.Label, normalizedSource, StringComparison.OrdinalIgnoreCase))
+                CategoryPathHelper.IsSelfOrDescendantOf(summaryCategory.Label, normalizedSource))
             {
                 summaryCategory = new GameSummaryCategoryData
                 {
-                    Label = normalizedTarget,
+                    Label = CategoryPathHelper.RewritePrefix(summaryCategory.Label, normalizedSource, normalizedTarget),
                     ProviderLabel = summaryCategory.ProviderLabel
                 };
             }
