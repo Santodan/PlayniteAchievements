@@ -154,11 +154,19 @@ namespace PlayniteAchievements.Providers.Ffxiv
                 return new RebuildPayload { Summary = new RebuildSummary() };
             }
 
-            // No obtained data means every achievement would be written as locked, which
-            // erases previously stored unlocks. Report it and leave the stored data alone.
-            if (character?.Achievements == null || character.Achievements.Public == false)
+            // Either way there is no obtained data, and importing the catalog against an
+            // empty obtained map would write every achievement as locked over stored unlocks.
+            if (character?.Achievements == null)
             {
-                _logger?.Warn($"[FFXIV] Character '{providerSettings.CharacterName}' returned no readable achievement data; achievements are hidden on the Lodestone or absent from FFXIV Collect.");
+                // FFXIV Collect answered for the character but returned no achievement block.
+                // The cause is not knowable from here, so log it rather than assert one.
+                _logger?.Warn($"[FFXIV] Character '{providerSettings.CharacterName}' returned no achievement data from FFXIV Collect; skipping this run.");
+                return new RebuildPayload { Summary = new RebuildSummary() };
+            }
+
+            if (!character.Achievements.Public)
+            {
+                _logger?.Warn($"[FFXIV] Character '{providerSettings.CharacterName}' has achievements hidden on the Lodestone; skipping this run rather than importing them all as locked.");
                 ShowNotification(AchievementsPrivateNotificationId, "LOCPlayAch_Settings_FFXIV_AchievementsPrivate", null);
                 return new RebuildPayload { Summary = new RebuildSummary() };
             }
