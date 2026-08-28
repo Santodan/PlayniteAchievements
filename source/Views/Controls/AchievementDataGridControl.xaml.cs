@@ -1552,8 +1552,11 @@ namespace PlayniteAchievements.Views.Controls
             // A node can hold both child categories and achievements of its own, so the two panes
             // are not mutually exclusive: children render above a divider, its own achievements
             // below, the way a file manager lists folders before files.
+            // The root is not such a node: every achievement sits under one of the categories
+            // listed there (the Default bucket included), so the root lists categories only and
+            // the achievements arrive by drilling in.
             var hasChildRows = grouping && CategorySummaries != null && CategorySummaries.Any();
-            var hasOwnAchievements = !grouping || !drill || HasDirectAchievements();
+            var hasOwnAchievements = !grouping || (drill && HasDirectAchievements());
 
             CategoryListVisible = hasChildRows;
             AchievementGridVisible = hasOwnAchievements || !hasChildRows;
