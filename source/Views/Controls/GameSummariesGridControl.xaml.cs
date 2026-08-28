@@ -1537,6 +1537,19 @@ namespace PlayniteAchievements.Views.Controls
             return true;
         }
 
+        /// <summary>
+        /// Brings a row into view without selecting it. Hosts where selection is the navigation
+        /// gesture need the one without the other - returning to a list should restore the place
+        /// it was left at, not re-enter the row that was left.
+        /// </summary>
+        public void ScrollRowIntoView(GameSummaryItem item)
+        {
+            if (item != null)
+            {
+                GameSummariesGrid?.ScrollIntoView(item);
+            }
+        }
+
         public void SetSortIndicator(string sortMemberPath, ListSortDirection? direction)
         {
             DataGridSortingHelper.SetSortIndicator(GameSummariesGrid, sortMemberPath, direction);
