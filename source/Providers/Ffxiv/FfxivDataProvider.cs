@@ -154,6 +154,9 @@ namespace PlayniteAchievements.Providers.Ffxiv
                 return new RebuildPayload { Summary = new RebuildSummary() };
             }
 
+            // The character answered, so whatever prompted the indexing warning is resolved.
+            ClearNotification(NotOnCollectNotificationId);
+
             // Either way there is no obtained data, and importing the catalog against an
             // empty obtained map would write every achievement as locked over stored unlocks.
             if (character?.Achievements == null)
@@ -171,7 +174,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
                 return new RebuildPayload { Summary = new RebuildSummary() };
             }
 
-            ClearNotifications();
+            ClearNotification(AchievementsPrivateNotificationId);
 
             var obtained = BuildObtainedMap(character);
 
@@ -246,10 +249,10 @@ namespace PlayniteAchievements.Providers.Ffxiv
         }
 
         /// <summary>
-        /// Drops both provider notifications once a run gets far enough to read character
-        /// data, so a stale warning does not outlive the problem it described.
+        /// Drops one provider notification once the run gets past the condition it described,
+        /// so a stale warning does not outlive the problem.
         /// </summary>
-        private void ClearNotifications()
+        private void ClearNotification(string notificationId)
         {
             if (_playniteApi?.Notifications == null)
             {
@@ -258,12 +261,11 @@ namespace PlayniteAchievements.Providers.Ffxiv
 
             try
             {
-                _playniteApi.Notifications.Remove(NotOnCollectNotificationId);
-                _playniteApi.Notifications.Remove(AchievementsPrivateNotificationId);
+                _playniteApi.Notifications.Remove(notificationId);
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[FFXIV] Failed to clear provider notifications.");
+                _logger?.Debug(ex, $"[FFXIV] Failed to clear notification {notificationId}.");
             }
         }
 
