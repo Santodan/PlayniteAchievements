@@ -57,11 +57,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             var game = data.Game;
             var captureSet = AchievementCapturePathResolver.ResolveGameSet(data);
+            var categoryArtMemo = new CategoryArtChainMemo();
             for (int i = 0; i < achievements.Count; i++)
             {
                 if (achievements[i] != null)
                 {
-                    ApplyAchievementPresentation(achievements[i], data, captureSet);
+                    ApplyAchievementPresentation(achievements[i], data, captureSet, categoryArtMemo);
                 }
             }
 
@@ -137,7 +138,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private static void ApplyAchievementPresentation(
             AchievementDetail achievement,
             GameAchievementData data,
-            GameCaptureSet captureSet)
+            GameCaptureSet captureSet,
+            CategoryArtChainMemo categoryArtMemo = null)
         {
             if (achievement == null)
             {
@@ -148,41 +150,37 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             // Ensure selected-game snapshots always carry this context.
             achievement.Game = data?.Game;
             achievement.ProviderKey = data?.EffectiveProviderKey;
-            ApplyCategoryImagePresentation(achievement, data);
+            ApplyCategoryImagePresentation(achievement, data, categoryArtMemo);
             AchievementCapturePathResolver.Apply(achievement, captureSet);
         }
 
         private static void ApplyCategoryImagePresentation(
             AchievementDetail achievement,
-            GameAchievementData data)
+            GameAchievementData data,
+            CategoryArtChainMemo categoryArtMemo = null)
         {
             if (achievement == null)
             {
                 return;
             }
 
-            CategoryImageOverrideData imageOverride = null;
-            var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category);
+            var category = CategoryPathHelper.NormalizePath(achievement.Category);
             achievement.CategoryOrderIndex =
                 AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(category, data?.AchievementCategoryOrder);
-            if (!string.IsNullOrWhiteSpace(category) &&
-                data?.AchievementCategoryImageOverrides != null)
-            {
-                data.AchievementCategoryImageOverrides.TryGetValue(category, out imageOverride);
-            }
 
-            // Default images are keyed by the provider label; renames only change Category.
-            var providerCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+            // Default images are keyed by the provider label; renames only change Category. A
+            // nested label inherits its ancestors' art when nothing at its own level resolves;
+            // for a flat label this is the same override-then-provider-default chain as before.
+            var providerCategory = CategoryPathHelper.NormalizePath(
                 achievement.ProviderCategory ?? achievement.Category);
-            achievement.CategoryArtPath =
-                NormalizeImageOverridePath(imageOverride?.Art) ??
-                CategoryDefaultImageResolver.Resolve(data?.PlayniteGameId, providerCategory);
-        }
-
-        private static string NormalizeImageOverridePath(string value)
-        {
-            var normalized = (value ?? string.Empty).Trim();
-            return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+            achievement.CategoryArtPath = CategoryArtChainResolver.Resolve(
+                data?.PlayniteGameId,
+                category,
+                providerCategory,
+                data?.AchievementCategoryImageOverrides,
+                resolveOverridePath: null,
+                probeEffectiveLabelDefault: false,
+                categoryArtMemo);
         }
 
     }
