@@ -810,13 +810,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var label in currentOrder ?? Enumerable.Empty<string>())
             {
-                var normalized = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(label);
+                var normalized = CategoryPathHelper.NormalizePath(label);
                 if (string.IsNullOrWhiteSpace(normalized))
                 {
                     continue;
                 }
 
-                if (string.Equals(normalized, normalizedSource, StringComparison.OrdinalIgnoreCase))
+                // The whole subtree collapses onto the target, so a descendant of the source
+                // folds too rather than being left pointing at a label that no longer exists.
+                if (CategoryPathHelper.IsSelfOrDescendantOf(normalized, normalizedSource))
                 {
                     normalized = normalizedTarget;
                 }
@@ -827,18 +829,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
             }
 
-            // Drop the source's per-category art override. Unlike the rename path, a merge does not
+            // Drop the merged-away subtree's art overrides. Unlike the rename path, a merge does not
             // fold the source's art into the target: the target is left exactly as it was.
             var nextImages = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in currentImages ?? new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase))
             {
-                var key = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var key = CategoryPathHelper.NormalizePath(pair.Key);
                 if (string.IsNullOrWhiteSpace(key) || pair.Value == null)
                 {
                     continue;
                 }
 
-                if (string.Equals(key, normalizedSource, StringComparison.OrdinalIgnoreCase))
+                // A merge folds the whole subtree, so a descendant's art goes with it rather than
+                // being stranded under a label nothing points at any more.
+                if (CategoryPathHelper.IsSelfOrDescendantOf(key, normalizedSource))
                 {
                     continue;
                 }
@@ -850,7 +854,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // other selection (including the target's) untouched.
             var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted);
             if (summaryCategory != null &&
-                string.Equals(summaryCategory.Label, normalizedSource, StringComparison.OrdinalIgnoreCase))
+                CategoryPathHelper.IsSelfOrDescendantOf(summaryCategory.Label, normalizedSource))
             {
                 summaryCategory = null;
             }
