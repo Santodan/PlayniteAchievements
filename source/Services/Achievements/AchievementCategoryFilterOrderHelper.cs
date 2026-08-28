@@ -134,6 +134,36 @@ namespace PlayniteAchievements.Services.Achievements
                 return result;
             }
 
+            var nodes = ExpandToNodes(labels);
+            AppendCategoryTreeLevel(result, nodes, null, preferredOrder);
+            return result;
+        }
+
+        /// <summary>
+        /// The immediate children of <paramref name="parentPath"/>, in the order they should
+        /// render. A null or blank parent gives the roots. This is one level of
+        /// <see cref="BuildOrderedCategoryTree"/>, for surfaces that show a single level at a time.
+        /// </summary>
+        public static List<string> BuildOrderedCategoryLevel(
+            IEnumerable<string> labels,
+            string parentPath,
+            IReadOnlyList<string> preferredOrder)
+        {
+            if (labels == null)
+            {
+                return new List<string>();
+            }
+
+            var nodes = ExpandToNodes(labels);
+            return OrderLevel(nodes, parentPath, preferredOrder);
+        }
+
+        /// <summary>
+        /// Every distinct label plus every ancestor of one, in first-seen order, so a node that
+        /// holds no achievements of its own is still part of the tree.
+        /// </summary>
+        private static List<string> ExpandToNodes(IEnumerable<string> labels)
+        {
             var nodes = new List<string>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var label in labels)
@@ -147,8 +177,20 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
-            AppendCategoryTreeLevel(result, nodes, null, preferredOrder);
-            return result;
+            return nodes;
+        }
+
+        private static List<string> OrderLevel(
+            List<string> nodes,
+            string parentPath,
+            IReadOnlyList<string> preferredOrder)
+        {
+            return CategoryPathHelper.GetChildPaths(nodes, parentPath)
+                .Select((path, firstSeen) => new { Path = path, FirstSeen = firstSeen })
+                .OrderBy(entry => ResolveCategoryOrderIndexForSubtree(entry.Path, nodes, preferredOrder))
+                .ThenBy(entry => entry.FirstSeen)
+                .Select(entry => entry.Path)
+                .ToList();
         }
 
         private static void AppendCategoryTreeLevel(
@@ -157,15 +199,10 @@ namespace PlayniteAchievements.Services.Achievements
             string parentPath,
             IReadOnlyList<string> preferredOrder)
         {
-            var ordered = CategoryPathHelper.GetChildPaths(nodes, parentPath)
-                .Select((path, firstSeen) => new { Path = path, FirstSeen = firstSeen })
-                .OrderBy(entry => ResolveCategoryOrderIndexForSubtree(entry.Path, nodes, preferredOrder))
-                .ThenBy(entry => entry.FirstSeen);
-
-            foreach (var entry in ordered)
+            foreach (var path in OrderLevel(nodes, parentPath, preferredOrder))
             {
-                result.Add(entry.Path);
-                AppendCategoryTreeLevel(result, nodes, entry.Path, preferredOrder);
+                result.Add(path);
+                AppendCategoryTreeLevel(result, nodes, path, preferredOrder);
             }
         }
     }

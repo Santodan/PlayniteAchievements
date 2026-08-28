@@ -309,5 +309,222 @@ namespace PlayniteAchievements.Tests.Services.Summaries
                 CategoryOrderIndex = categoryOrderIndex
             };
         }
+
+        private static AchievementDisplayItem NestedItem(
+            string label,
+            bool unlocked = false,
+            params string[] ancestorArt)
+        {
+            var item = DisplayItem(label, unlocked);
+            if (ancestorArt != null && ancestorArt.Length > 0)
+            {
+                item.CategoryAncestorArtPaths = ancestorArt;
+                item.CategoryArtPath = ancestorArt.LastOrDefault(a => !string.IsNullOrEmpty(a))
+                    ?? ancestorArt.FirstOrDefault(a => !string.IsNullOrEmpty(a));
+            }
+
+            return item;
+        }
+
+        // ---- BuildLevel
+
+        [TestMethod]
+        public void BuildLevel_EmitsOneRowPerImmediateChildAggregatingItsSubtree()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter", unlocked: true),
+                NestedItem("DLC::Winter::Week1", unlocked: true),
+                NestedItem("DLC::Summer"),
+                NestedItem("Multiplayer")
+            };
+
+            var roots = CategorySummaryBuilder.BuildLevel(items, null).Cast<CategorySummaryItem>().ToList();
+
+            CollectionAssert.AreEqual(new[] { "DLC", "Multiplayer" }, roots.Select(r => r.CategoryPath).ToArray());
+
+            var dlc = roots[0];
+            Assert.AreEqual(3, dlc.TotalAchievements, "DLC aggregates its whole subtree");
+            Assert.AreEqual(2, dlc.UnlockedAchievements);
+            Assert.AreEqual(2, dlc.ChildCategoryCount);
+            Assert.AreEqual(0, dlc.DirectAchievementCount, "nothing sits directly on DLC");
+            Assert.AreEqual(1, dlc.CategoryDepth);
+        }
+
+        [TestMethod]
+        public void BuildLevel_RowsAtOneLevelPartitionTheSubtreeExactlyOnce()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC"),
+                NestedItem("DLC::Winter"),
+                NestedItem("DLC::Winter::Week1"),
+                NestedItem("DLC::Summer"),
+                NestedItem("DLC::Summer::Wave2")
+            };
+
+            var children = CategorySummaryBuilder.BuildLevel(items, "DLC").Cast<CategorySummaryItem>().ToList();
+            var parent = CategorySummaryBuilder.BuildLevel(items, null).Cast<CategorySummaryItem>().Single();
+
+            // Children are disjoint, and together with the parent's own achievements they account
+            // for the whole subtree - the invariant that stops a level double-counting.
+            Assert.AreEqual(
+                parent.TotalAchievements,
+                children.Sum(c => c.TotalAchievements) + parent.DirectAchievementCount);
+            Assert.AreEqual(1, parent.DirectAchievementCount);
+        }
+
+        [TestMethod]
+        public void BuildLevel_TitlesRowsWithTheLeafNameByDefault()
+        {
+            var items = new List<AchievementDisplayItem> { NestedItem("DLC::Winter") };
+
+            var leafNamed = CategorySummaryBuilder.BuildLevel(items, "DLC").Cast<CategorySummaryItem>().Single();
+            Assert.AreEqual("Winter", leafNamed.GameName);
+            Assert.AreEqual("Winter", leafNamed.CategoryLeafName);
+            Assert.AreEqual("DLC::Winter", leafNamed.CategoryPath);
+            Assert.AreEqual(2, leafNamed.CategoryDepth);
+
+            var fullyNamed = CategorySummaryBuilder
+                .BuildLevel(items, "DLC", CategoryCompletionBadgeMode.All, useLeafNames: false)
+                .Cast<CategorySummaryItem>()
+                .Single();
+            Assert.AreEqual("DLC > Winter", fullyNamed.GameName);
+        }
+
+        [TestMethod]
+        public void BuildLevel_ReportsAMixedNodeAsHavingBothChildrenAndOwnAchievements()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC"),
+                NestedItem("DLC"),
+                NestedItem("DLC::Winter")
+            };
+
+            var dlc = CategorySummaryBuilder.BuildLevel(items, null).Cast<CategorySummaryItem>().Single();
+
+            Assert.IsTrue(dlc.HasChildCategories);
+            Assert.AreEqual(1, dlc.ChildCategoryCount);
+            Assert.AreEqual(2, dlc.DirectAchievementCount);
+            Assert.AreEqual(3, dlc.TotalAchievements);
+        }
+
+        [TestMethod]
+        public void BuildLevel_UsesTheNodesOwnArtRatherThanADescendants()
+        {
+            // Members of a subtree disagree on CategoryArtPath, so the shared-image resolution a
+            // leaf row uses returns null for a parent. The per-level art carries the answer.
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter", false, "dlc.png", "winter.png"),
+                NestedItem("DLC::Summer", false, "dlc.png", "summer.png")
+            };
+
+            var dlc = CategorySummaryBuilder.BuildLevel(items, null).Cast<CategorySummaryItem>().Single();
+
+            Assert.AreEqual("dlc.png", dlc.GameLogo);
+            Assert.AreEqual("dlc.png", dlc.GameCoverPath);
+        }
+
+        [TestMethod]
+        public void BuildLevel_FallsBackToSharedArtWhenTheNodeHasNoneOfItsOwn()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter", false, null, "shared.png"),
+                NestedItem("DLC::Summer", false, null, "shared.png")
+            };
+
+            var dlc = CategorySummaryBuilder.BuildLevel(items, null).Cast<CategorySummaryItem>().Single();
+
+            Assert.AreEqual("shared.png", dlc.GameLogo);
+        }
+
+        [TestMethod]
+        public void BuildLevel_AppliesTheFirstBadgeToTheFirstRowOfTheLevelShown()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter", unlocked: true),
+                NestedItem("DLC::Summer", unlocked: true)
+            };
+
+            var children = CategorySummaryBuilder
+                .BuildLevel(items, "DLC", CategoryCompletionBadgeMode.First)
+                .Cast<CategorySummaryItem>()
+                .ToList();
+
+            Assert.IsTrue(children[0].AllowCompletionBadge);
+            Assert.IsFalse(children[1].AllowCompletionBadge);
+        }
+
+        [TestMethod]
+        public void BuildLevel_IsEmptyForALeafOrAnUnknownParent()
+        {
+            var items = new List<AchievementDisplayItem> { NestedItem("DLC::Winter") };
+
+            Assert.AreEqual(0, CategorySummaryBuilder.BuildLevel(items, "DLC::Winter").Count);
+            Assert.AreEqual(0, CategorySummaryBuilder.BuildLevel(items, "Nope").Count);
+        }
+
+        // ---- BuildTree
+
+        [TestMethod]
+        public void BuildTree_WalksEveryNodePreOrder()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter"),
+                NestedItem("DLC::Summer"),
+                NestedItem("Multiplayer")
+            };
+
+            var tree = CategorySummaryBuilder.BuildTree(items).Cast<CategorySummaryItem>().ToList();
+
+            CollectionAssert.AreEqual(
+                new[] { "DLC", "DLC::Winter", "DLC::Summer", "Multiplayer" },
+                tree.Select(r => r.CategoryPath).ToArray());
+            Assert.AreEqual("DLC > Winter", tree[1].GameName, "tree rows carry the full display path");
+        }
+
+        [TestMethod]
+        public void BuildTree_LeavesFlatInputIdenticalToBuild()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                DisplayItem("DLC", unlocked: true),
+                DisplayItem("Base", unlocked: false)
+            };
+
+            var flat = CategorySummaryBuilder.Build(items).Cast<CategorySummaryItem>().ToList();
+            var tree = CategorySummaryBuilder.BuildTree(items).Cast<CategorySummaryItem>().ToList();
+
+            CollectionAssert.AreEqual(
+                flat.Select(r => r.CategoryLabel).ToArray(),
+                tree.Select(r => r.CategoryLabel).ToArray());
+            CollectionAssert.AreEqual(
+                flat.Select(r => r.TotalAchievements).ToArray(),
+                tree.Select(r => r.TotalAchievements).ToArray());
+        }
+
+        [TestMethod]
+        public void Build_StillEmitsOneRowPerLabelWithNestedInput()
+        {
+            // The theme surface publishes this shape: leaf rows only, so a theme summing the
+            // published rows still counts each achievement exactly once.
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter"),
+                NestedItem("DLC::Summer")
+            };
+
+            var rows = CategorySummaryBuilder.Build(items).Cast<CategorySummaryItem>().ToList();
+
+            CollectionAssert.AreEqual(
+                new[] { "DLC::Winter", "DLC::Summer" },
+                rows.Select(r => r.CategoryPath).ToArray());
+            Assert.AreEqual(2, rows.Sum(r => r.TotalAchievements));
+        }
     }
 }
