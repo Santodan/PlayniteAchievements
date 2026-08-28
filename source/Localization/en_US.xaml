@@ -885,9 +885,12 @@
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_CharacterName">Character name</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_World">Home world</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_PublicNote">Achievements must be set to public on the Lodestone to be tracked.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_FFXIV_CollectNote">Unlock data comes from {0}, which indexes characters on demand. Search for your character there and select Add if it is not listed yet.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_Verifying">Checking character...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_CharacterNotFound">No matching character found for the name, world, and region.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_AchievementsPrivate">Character found, but achievements are private on the Lodestone.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_FFXIV_NotOnCollect">Character found on the Lodestone but not on FFXIV Collect. Search for it at ffxivcollect.com and select Add, then try again.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_FFXIV_LodestoneUnavailable">The Lodestone could not be reached to look up the character. Try again later.</sys:String>
 
     <!-- Provider: RetroAchievements -->
     <sys:String x:Key="LOCPlayAch_Settings_RaUsername">Username</sys:String>
