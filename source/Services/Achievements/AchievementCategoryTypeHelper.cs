@@ -342,6 +342,19 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// Leaf variant of <see cref="ToCategoryLabelDisplayText"/>, for surfaces that convey
+        /// ancestry structurally rather than in the text - a nested dropdown, an indented row.
+        /// "DLC::Season Pass" reads as "Season Pass".
+        /// </summary>
+        public static string ToCategoryLeafDisplayText(string rawValue)
+        {
+            var label = CategoryPathHelper.NormalizePath(rawValue);
+            return string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
+                ? L("LOCPlayAch_Common_Default", DefaultCategoryLabel)
+                : CategoryPathHelper.ToDisplayLeaf(label);
+        }
+
+        /// <summary>
         /// Grid-cell variant of <see cref="ToCategoryLabelDisplayText"/>: the Default bucket
         /// renders as an empty string instead of the localized "Default" placeholder. Category
         /// management rows, summaries, and theme options keep the named bucket.
