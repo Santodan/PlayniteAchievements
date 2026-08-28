@@ -1,3 +1,6 @@
+using System;
+using System.Windows;
+
 namespace PlayniteAchievements.ViewModels.Items
 {
     /// <summary>
@@ -20,8 +23,23 @@ namespace PlayniteAchievements.ViewModels.Items
         /// <summary>Last path segment - what a drilled level titles its rows with.</summary>
         public string CategoryLeafName { get; set; }
 
-        /// <summary>Depth of the path, 1 for a root category.</summary>
-        public int CategoryDepth { get; set; } = 1;
+        /// <summary>
+        /// Depth of the path, 1 for a root category. Setting it also sets the name cell's inset,
+        /// so a list holding every node of the tree reads as one.
+        /// </summary>
+        public int CategoryDepth
+        {
+            get => _categoryDepth;
+            set
+            {
+                _categoryDepth = value;
+                NameIndent = new Thickness(NestingIndentPerLevel * Math.Max(0, value - 1), 0, 0, 0);
+            }
+        }
+
+        private const double NestingIndentPerLevel = 16;
+
+        private int _categoryDepth = 1;
 
         /// <summary>
         /// How many immediate child categories this row aggregates. Zero for a leaf, which is what

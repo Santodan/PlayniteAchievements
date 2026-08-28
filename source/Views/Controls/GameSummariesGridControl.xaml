@@ -257,7 +257,9 @@
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
-                            <Grid>
+                            <!-- NameIndent is zero for a game row; a nested category row sets it
+                                 from its depth so this one column renders a tree as well. -->
+                            <Grid Margin="{Binding NameIndent}">
                                 <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                             HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}">

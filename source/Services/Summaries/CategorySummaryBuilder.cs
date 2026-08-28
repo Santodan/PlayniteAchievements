@@ -92,9 +92,14 @@ namespace PlayniteAchievements.Services.Summaries
         /// subtree. Rows overlap by design - a parent covers its descendants - so a consumer must
         /// treat this as a tree rather than a flat list to sum.
         /// </summary>
+        /// <param name="useLeafNames">
+        /// True to title rows with the last path segment, for a surface that conveys ancestry
+        /// structurally - an indented list. False to use the full display path.
+        /// </param>
         public static List<GameSummaryItem> BuildTree(
             IEnumerable<AchievementDisplayItem> achievements,
-            CategoryCompletionBadgeMode badgeMode = CategoryCompletionBadgeMode.All)
+            CategoryCompletionBadgeMode badgeMode = CategoryCompletionBadgeMode.All,
+            bool useLeafNames = false)
         {
             var source = Materialize(achievements);
             if (source == null)
@@ -107,7 +112,7 @@ namespace PlayniteAchievements.Services.Summaries
                 groups.Keys,
                 ResolvePreferredOrder(source));
 
-            return BuildRows(groups, order, aggregateSubtree: true, useLeafNames: false, badgeMode);
+            return BuildRows(groups, order, aggregateSubtree: true, useLeafNames, badgeMode);
         }
 
         private static IReadOnlyList<AchievementDisplayItem> Materialize(

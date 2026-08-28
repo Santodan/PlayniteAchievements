@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
+using System.Windows;
 using System.Windows.Input;
 using Playnite.SDK.Data;
 using PlayniteAchievements.Common;
@@ -30,6 +31,13 @@ namespace PlayniteAchievements.ViewModels.Items
 
         private string _gameName;
         public string GameName { get => _gameName; set => SetValue(ref _gameName, value); }
+
+        // Left inset for the name cell. Zero for a game row; a category row nested under another
+        // sets it from its depth so one shared column renders both a flat list and a tree.
+        private Thickness _nameIndent;
+        [DontSerialize]
+        [IgnoreDataMember]
+        public Thickness NameIndent { get => _nameIndent; set => SetValue(ref _nameIndent, value); }
 
         // Session-only: true when this game has any saved unlock captures on disk. Set by the
         // capture presence marker after the summaries are built; gates the Captures column button.
