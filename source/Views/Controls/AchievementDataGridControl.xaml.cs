@@ -660,13 +660,15 @@ namespace PlayniteAchievements.Views.Controls
 
         // ---- Category-summaries mode -------------------------------------------------------
         // When EnableCategoryMode is set, a toggle is injected into the control bar (right of the
-        // category dropdowns). Toggling it swaps the flat achievement grid for a per-category
-        // summary grid; clicking a category drills into a filtered achievement list. All state is
-        // self-contained here so any surface hosting this control opts in with a single attribute.
+        // category dropdowns). Toggling it swaps the flat achievement grid for a summary grid
+        // holding every category in the tree, indented by depth; clicking any row, at any depth,
+        // replaces that list with the achievements of its whole subtree, and Back returns. One hop
+        // each way. All state is self-contained here so any surface hosting this control opts in
+        // with a single attribute.
 
         private bool _isCategoryMode;
-        // Segments rather than the joined path: popping a level and rendering a breadcrumb are the
-        // two things this state exists for, and both are trivial on segments.
+        // Segments rather than the joined path: rendering a breadcrumb and jumping to an ancestor
+        // are the two things this state exists for, and both are trivial on segments.
         private readonly List<string> _drillPath = new List<string>();
 
         private bool IsDrilled => _drillPath.Count > 0;
@@ -1407,11 +1409,28 @@ namespace PlayniteAchievements.Views.Controls
             // Build from the unfiltered source (when provided) so achievement filters applied while
             // drilled never change the category rollups; fall back to ItemsSource otherwise.
             var items = (CategorySummarySource ?? ItemsSource)?.ToList();
-            // One level at a time: the children of wherever the drill currently sits, each
-            // aggregating its own subtree. At the root this is the top-level categories.
+            // Every node of the tree at once, indented by depth, rather than one level per click:
+            // the list is the whole map, so any category is one click away and one click back.
+            //
+            // A manual column sort breaks the pre-order run that makes indentation readable - a
+            // child can land anywhere - so a sorted list drops the indent and titles each row with
+            // its full path instead, which stands on its own wherever the row ends up.
+            var isSorted = _categorySortDirection.HasValue && !string.IsNullOrWhiteSpace(_categorySortPath);
             _allCategorySummaries = items == null || items.Count == 0
                 ? null
-                : CategorySummaryBuilder.BuildLevel(items, DrilledPath, ResolveCategoryCompletionBadgeMode());
+                : CategorySummaryBuilder.BuildTree(
+                    items,
+                    ResolveCategoryCompletionBadgeMode(),
+                    useLeafNames: !isSorted);
+
+            if (isSorted && _allCategorySummaries != null)
+            {
+                foreach (var row in _allCategorySummaries)
+                {
+                    row.NameIndent = default(Thickness);
+                }
+            }
+
             ApplyCategoryNameFilter();
         }
 
@@ -1482,8 +1501,9 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// Steps up one level, ending category mode's drill only at the root. Distinct from
-        /// <see cref="ExitDrilledCategory"/>, which host headers use to leave entirely.
+        /// Returns to the category list, which holds every node: one click in, one click back, at
+        /// any depth. Ancestors remain individually reachable through the breadcrumb. Distinct from
+        /// <see cref="ExitDrilledCategory"/>, which host headers use to leave category mode.
         /// </summary>
         public void PopDrilledCategory()
         {
@@ -1492,16 +1512,34 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            _drillPath.RemoveAt(_drillPath.Count - 1);
-            if (CategoryListGrid != null)
+            var leaving = DrilledPath;
+            DrillToPath(null);
+            ScrollCategoryRowIntoView(leaving);
+        }
+
+        /// <summary>
+        /// Restores the reading position in the category list after coming back from a row, without
+        /// selecting it - selection is what drills, so re-selecting would bounce straight back in.
+        /// </summary>
+        private void ScrollCategoryRowIntoView(string path)
+        {
+            if (CategoryListGrid == null || string.IsNullOrWhiteSpace(path))
             {
-                CategoryListGrid.SelectedItem = null;
+                return;
             }
 
-            RefreshDrillState();
-            ResetAchievementFilters();
-            ApplyCategoryViewState();
-            ApplyControlBarModeState();
+            var row = CategorySummaries?
+                .OfType<CategorySummaryItem>()
+                .FirstOrDefault(c => CategoryPathHelper.IsSame(c.CategoryPath, path));
+            if (row == null)
+            {
+                return;
+            }
+
+            // After the visibility flip the list has not laid out its rows yet.
+            CategoryListGrid.Dispatcher.BeginInvoke(
+                new Action(() => CategoryListGrid?.ScrollRowIntoView(row)),
+                System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         /// <summary>
@@ -1549,17 +1587,13 @@ namespace PlayniteAchievements.Views.Controls
 
             var drill = grouping && IsDrilled;
 
-            // A node can hold both child categories and achievements of its own, so the two panes
-            // are not mutually exclusive: children render above a divider, its own achievements
-            // below, the way a file manager lists folders before files.
-            // The root is not such a node: every achievement sits under one of the categories
-            // listed there (the Default bucket included), so the root lists categories only and
-            // the achievements arrive by drilling in.
-            var hasChildRows = grouping && CategorySummaries != null && CategorySummaries.Any();
-            var hasOwnAchievements = !grouping || (drill && HasDirectAchievements());
+            // The two panes replace each other rather than sharing the area: the category list is
+            // the whole tree, so once a row is picked its subtree of achievements is all there is
+            // left to show, and it gets the full height.
+            var hasCategoryRows = grouping && CategorySummaries != null && CategorySummaries.Any();
 
-            CategoryListVisible = hasChildRows;
-            AchievementGridVisible = hasOwnAchievements || !hasChildRows;
+            CategoryListVisible = hasCategoryRows && !drill;
+            AchievementGridVisible = !hasCategoryRows || drill;
             DrillHeaderVisible = drill && !HideCategorySummaryRow;
             DrilledCategory = drill ? DrilledPath : null;
 
@@ -1568,23 +1602,8 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// True when achievements sit on the drilled node itself rather than only beneath it.
-        /// </summary>
-        private bool HasDirectAchievements()
-        {
-            var drilled = DrilledPath;
-            if (drilled == null)
-            {
-                return true;
-            }
-
-            return (ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
-                .Any(i => i != null && CategoryPathHelper.IsSame(i.CategoryLabel, drilled));
-        }
-
-        /// <summary>
-        /// Splits the pane area. Each pane takes the whole cell when it is the only one showing;
-        /// when both show, the child list sizes to its content above the achievements.
+        /// Gives the whole pane area to whichever grid is showing. The two are mutually exclusive,
+        /// so neither is ever capped to make room for the other.
         /// </summary>
         private void ApplyCategoryPaneLayout()
         {
@@ -1593,9 +1612,8 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            var both = CategoryListVisible && AchievementGridVisible;
             CategoryPaneRow.Height = CategoryListVisible
-                ? (both ? GridLength.Auto : new GridLength(1, GridUnitType.Star))
+                ? new GridLength(1, GridUnitType.Star)
                 : new GridLength(0);
             AchievementPaneRow.Height = AchievementGridVisible
                 ? new GridLength(1, GridUnitType.Star)
@@ -1603,10 +1621,7 @@ namespace PlayniteAchievements.Views.Controls
 
             if (CategoryListGrid != null)
             {
-                // Keep a long child list from crowding out the achievements below it.
-                CategoryListGrid.MaxHeight = both && CategoryPaneHost?.ActualHeight > 0
-                    ? CategoryPaneHost.ActualHeight / 2
-                    : double.PositiveInfinity;
+                CategoryListGrid.MaxHeight = double.PositiveInfinity;
             }
         }
 
@@ -1614,11 +1629,12 @@ namespace PlayniteAchievements.Views.Controls
         {
             if (IsCategoryGroupingEffective() && IsDrilled)
             {
-                // Exactly this node, never its descendants: those are already counted by the child
-                // summary rows shown above, and including them here would double-count.
+                // The node and everything beneath it, matching the count its row showed: with the
+                // child rows gone from the screen there is nothing left to double-count, and a
+                // parent reads as the broad view its indented children narrow.
                 var drilled = DrilledPath;
                 var filtered = (ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
-                    .Where(i => CategoryPathHelper.IsSame(i?.CategoryLabel, drilled))
+                    .Where(i => i != null && CategoryPathHelper.IsSelfOrDescendantOf(i.CategoryLabel, drilled))
                     .ToList();
 
                 // Mutate a stable collection in place rather than reassigning a new list, so the grid
@@ -1816,7 +1832,9 @@ namespace PlayniteAchievements.Views.Controls
                 _categorySortDirection = sortAction.Direction;
             }
 
-            ApplyCategoryNameFilter();
+            // Rebuild rather than re-filter: a sorted list no longer reads as a tree, so the rows
+            // have to retitle themselves with their full paths.
+            RebuildCategorySummaries();
         }
 
         private void CategoryList_RowPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -2001,9 +2019,9 @@ namespace PlayniteAchievements.Views.Controls
                 System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
 
-        // Stepping back goes up one level rather than all the way out, so a deep path unwinds the
-        // way it was entered. ResetAchievementFilters runs inside PopDrilledCategory, so the next
-        // drill starts clean; summaries stay full regardless.
+        // Back always lands on the category list, whatever the depth: the list holds every node, so
+        // unwinding a path level by level would be steps through views the user never chose.
+        // ResetAchievementFilters runs inside PopDrilledCategory, so the next drill starts clean.
         private void CategoryBackToList()
         {
             PopDrilledCategory();

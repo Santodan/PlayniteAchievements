@@ -58,9 +58,8 @@
                                            DisableRowSelection="True"
                                            RowPreviewMouseLeftButtonDown="CategoryDrillHeader_RowPreviewMouseLeftButtonDown"/>
 
-        <!-- Child categories above, this node's own achievements below. A node can hold both, so
-             the two panes share the area rather than replacing each other; the row heights are set
-             in code so whichever pane is alone still fills the space. -->
+        <!-- The category tree or a category's achievements, never both: the row heights are set in
+             code so whichever pane is showing takes the whole area. -->
         <Grid Grid.Row="1" x:Name="CategoryPaneHost">
             <Grid.RowDefinitions>
                 <RowDefinition x:Name="CategoryPaneRow" Height="*"/>
