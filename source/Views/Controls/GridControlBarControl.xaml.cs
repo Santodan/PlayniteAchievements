@@ -113,6 +113,14 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        private void BreadcrumbSegment_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is GridBreadcrumbSegment segment)
+            {
+                segment.Invoke();
+            }
+        }
+
         private void MultiSelectFilter_Click(object sender, RoutedEventArgs e)
         {
             var button = sender as Button;

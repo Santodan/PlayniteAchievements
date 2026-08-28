@@ -475,6 +475,40 @@
                         Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}"/>
             </DataTemplate>
 
+            <!-- Category drill path. Hops are buttons styled like the other bar actions; the
+                 current level is inert since clicking it would go nowhere. -->
+            <DataTemplate DataType="{x:Type vm:GridBreadcrumb}">
+                <ItemsControl ItemsSource="{Binding Segments}"
+                              VerticalAlignment="Center"
+                              Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
+                              Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Style="{StaticResource GridActionButtonStyle}"
+                                        Content="{Binding Content}"
+                                        Click="BreadcrumbSegment_Click"
+                                        Height="{StaticResource PlayAch.Size.Control.Height}"
+                                        VerticalAlignment="Center"
+                                        ToolTip="{Binding ToolTip}"
+                                        IsEnabled="{Binding IsNavigable}"/>
+                                <TextBlock Text="&gt;"
+                                           VerticalAlignment="Center"
+                                           Margin="2,0"
+                                           Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           Visibility="{Binding ShowSeparator, Converter={StaticResource GridControlBarBoolToVis}}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type vm:GridModeToggle}">
                 <ToggleButton x:Name="ModeToggleButton"
                               Style="{StaticResource GridModeToggleButtonStyle}"

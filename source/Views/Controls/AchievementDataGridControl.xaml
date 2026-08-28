@@ -58,9 +58,18 @@
                                            DisableRowSelection="True"
                                            RowPreviewMouseLeftButtonDown="CategoryDrillHeader_RowPreviewMouseLeftButtonDown"/>
 
-        <Grid Grid.Row="1">
-            <!-- Category-summaries list (one row per category label). -->
+        <!-- Child categories above, this node's own achievements below. A node can hold both, so
+             the two panes share the area rather than replacing each other; the row heights are set
+             in code so whichever pane is alone still fills the space. -->
+        <Grid Grid.Row="1" x:Name="CategoryPaneHost">
+            <Grid.RowDefinitions>
+                <RowDefinition x:Name="CategoryPaneRow" Height="*"/>
+                <RowDefinition x:Name="AchievementPaneRow" Height="0"/>
+            </Grid.RowDefinitions>
+
+            <!-- Category-summaries list (one row per child category of the current level). -->
             <controls:GameSummariesGridControl x:Name="CategoryListGrid"
+                                               Grid.Row="0"
                                                Visibility="{Binding CategoryListVisible, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, Converter={StaticResource CategoryModeBoolToVis}}"
                                                ItemsSource="{Binding CategorySummaries, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
                                                ColumnSettingsKey="{Binding ResolvedCategoryColumnSettingsKey, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
@@ -78,6 +87,7 @@
                                                SelectionChanged="CategoryList_SelectionChanged"/>
 
     <DataGrid x:Name="AchievementsDataGrid"
+              Grid.Row="1"
               Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
               Visibility="{Binding AchievementGridVisible, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, Converter={StaticResource CategoryModeBoolToVis}}"
               ItemsSource="{Binding EffectiveAchievements, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"

@@ -496,6 +496,108 @@ namespace PlayniteAchievements.ViewModels.Items
         }
     }
 
+    /// <summary>
+    /// One hop in a <see cref="GridBreadcrumb"/>. <see cref="Depth"/> is how many path segments to
+    /// keep when this hop is clicked, so 0 is the root.
+    /// </summary>
+    public sealed class GridBreadcrumbSegment : PlayniteAchievements.Common.ObservableObject
+    {
+        private readonly Action<int> _navigate;
+
+        internal GridBreadcrumbSegment(string content, int depth, bool isCurrent, Action<int> navigate, string toolTip = null)
+        {
+            Content = content;
+            Depth = depth;
+            IsCurrent = isCurrent;
+            ToolTip = toolTip;
+            _navigate = navigate;
+        }
+
+        public string Content { get; }
+
+        public int Depth { get; }
+
+        /// <summary>The level being shown. Rendered inert, since clicking it would go nowhere.</summary>
+        public bool IsCurrent { get; }
+
+        public bool IsNavigable => !IsCurrent;
+
+        /// <summary>The separator trails every hop except the last.</summary>
+        public bool ShowSeparator => !IsCurrent;
+
+        public string ToolTip { get; }
+
+        public void Invoke()
+        {
+            if (!IsCurrent)
+            {
+                _navigate?.Invoke(Depth);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Path affordance for a nested category drill, replacing a plain Back button: its
+    /// second-to-last hop already is "back one level", and it also gives direct access to the
+    /// ancestors above that.
+    ///
+    /// Deliberately short. The control bar has little room, so only the nearest couple of ancestors
+    /// are shown and anything above them collapses into a single elided hop that jumps there.
+    /// </summary>
+    public sealed class GridBreadcrumb : GridControlBarItem
+    {
+        internal const int MaxVisibleAncestors = 2;
+        private const string Ellipsis = "…";
+
+        private readonly Action<int> _navigate;
+        private readonly string _rootContent;
+
+        public GridBreadcrumb(Action<int> navigateToDepth, string rootContent, string toolTip = null)
+        {
+            _navigate = navigateToDepth;
+            _rootContent = rootContent;
+            ToolTip = toolTip;
+        }
+
+        public ObservableCollection<GridBreadcrumbSegment> Segments { get; } =
+            new ObservableCollection<GridBreadcrumbSegment>();
+
+        /// <summary>
+        /// Rebuilds the hops in place. <paramref name="displaySegments"/> is the drilled path's
+        /// segments, root first.
+        /// </summary>
+        public void SetPath(IReadOnlyList<string> displaySegments)
+        {
+            Segments.Clear();
+            if (displaySegments == null || displaySegments.Count == 0)
+            {
+                return;
+            }
+
+            var fullPath = string.Join(" > ", displaySegments);
+            Segments.Add(new GridBreadcrumbSegment(_rootContent, 0, isCurrent: false, _navigate, _rootContent));
+
+            // Everything above the visible window collapses to one hop that jumps to its deepest
+            // hidden level, so a long path stays one click from where the user was.
+            var firstVisible = Math.Max(0, displaySegments.Count - MaxVisibleAncestors - 1);
+            if (firstVisible > 0)
+            {
+                Segments.Add(new GridBreadcrumbSegment(Ellipsis, firstVisible, isCurrent: false, _navigate, fullPath));
+            }
+
+            for (var i = firstVisible; i < displaySegments.Count; i++)
+            {
+                var isCurrent = i == displaySegments.Count - 1;
+                Segments.Add(new GridBreadcrumbSegment(
+                    displaySegments[i],
+                    i + 1,
+                    isCurrent,
+                    _navigate,
+                    isCurrent ? fullPath : null));
+            }
+        }
+    }
+
     public sealed class GridProviderPlatformFilter : GridControlBarItem
     {
         private readonly Func<string> _getDisplayText;
