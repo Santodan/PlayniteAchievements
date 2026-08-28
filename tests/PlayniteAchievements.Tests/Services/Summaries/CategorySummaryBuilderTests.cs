@@ -489,6 +489,30 @@ namespace PlayniteAchievements.Tests.Services.Summaries
         }
 
         [TestMethod]
+        public void BuildTree_TitlesRowsWithLeafNamesAndIndentsThemWhenAsked()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter::Frost"),
+                NestedItem("Multiplayer")
+            };
+
+            var tree = CategorySummaryBuilder
+                .BuildTree(items, CategoryCompletionBadgeMode.All, useLeafNames: true)
+                .Cast<CategorySummaryItem>()
+                .ToList();
+
+            CollectionAssert.AreEqual(
+                new[] { "DLC", "Winter", "Frost", "Multiplayer" },
+                tree.Select(r => r.GameName).ToArray(),
+                "an indented list titles its rows with the leaf name");
+            CollectionAssert.AreEqual(
+                new[] { 0d, 16d, 32d, 0d },
+                tree.Select(r => r.NameIndent.Left).ToArray(),
+                "depth is carried by the name cell's inset");
+        }
+
+        [TestMethod]
         public void BuildTree_LeavesFlatInputIdenticalToBuild()
         {
             var items = new List<AchievementDisplayItem>
