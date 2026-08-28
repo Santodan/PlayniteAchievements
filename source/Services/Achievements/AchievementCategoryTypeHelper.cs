@@ -162,6 +162,48 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// The group-based type signature shared by a set of category type values, picking the most
+        /// common signature so a coherent single group wins over a mixture (never Base+DLC). Values
+        /// carrying no group-based type form their own signature and are counted, so a category that
+        /// is mostly untagged resolves to no group. Empty when the input is empty.
+        /// </summary>
+        public static IReadOnlyList<string> ResolveDominantGroupType(IEnumerable<string> categoryTypeValues)
+        {
+            if (categoryTypeValues == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+            var bySignature = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+
+            foreach (var value in categoryTypeValues)
+            {
+                var group = GetGroupTypeComponents(value);
+                var signature = string.Join("|", group);
+                counts.TryGetValue(signature, out var count);
+                counts[signature] = count + 1;
+                if (!bySignature.ContainsKey(signature))
+                {
+                    bySignature[signature] = group;
+                }
+            }
+
+            if (counts.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var bestSignature = counts
+                .OrderByDescending(pair => pair.Value)
+                .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+                .First()
+                .Key;
+
+            return bySignature[bestSignature];
+        }
+
+        /// <summary>
         /// The non-group components of a category type value (everything except Base/DLC/Update/
         /// Subset), in canonical order. These are preserved when an achievement is merged into
         /// another category.

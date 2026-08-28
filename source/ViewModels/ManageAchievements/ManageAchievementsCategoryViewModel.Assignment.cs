@@ -341,46 +341,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>
         /// The group-based type signature (Base/DLC/Update/Subset) shared by the achievements currently
-        /// in <paramref name="targetLabel"/>, picking the most common signature so a coherent single
-        /// group wins (never Base+DLC). Empty when the target category carries no group-based type.
+        /// in <paramref name="targetLabel"/>. Empty when the target category carries no group-based type.
         /// </summary>
         private IReadOnlyList<string> ResolveGroupTypesForCategory(string targetLabel)
         {
             var normalizedTarget = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(targetLabel);
 
-            var counts = new Dictionary<string, int>(StringComparer.Ordinal);
-            var bySignature = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
-
-            foreach (var item in _allRows.Where(row => row != null))
-            {
-                var effectiveCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.Category);
-                if (!string.Equals(effectiveCategory, normalizedTarget, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var group = AchievementCategoryTypeHelper.GetGroupTypeComponents(item.CategoryType);
-                var signature = string.Join("|", group);
-                counts.TryGetValue(signature, out var count);
-                counts[signature] = count + 1;
-                if (!bySignature.ContainsKey(signature))
-                {
-                    bySignature[signature] = group;
-                }
-            }
-
-            if (counts.Count == 0)
-            {
-                return Array.Empty<string>();
-            }
-
-            var bestSignature = counts
-                .OrderByDescending(pair => pair.Value)
-                .ThenBy(pair => pair.Key, StringComparer.Ordinal)
-                .First()
-                .Key;
-
-            return bySignature[bestSignature];
+            return AchievementCategoryTypeHelper.ResolveDominantGroupType(
+                _allRows
+                    .Where(row => row != null)
+                    .Where(row => string.Equals(
+                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
+                        normalizedTarget,
+                        StringComparison.OrdinalIgnoreCase))
+                    .Select(row => row.CategoryType));
         }
 
         public void ResetBulkEditorInputs()
