@@ -924,6 +924,16 @@ namespace PlayniteAchievements.ViewModels.Items
         }
 
         /// <summary>
+        /// Art resolved at each level of this achievement's category path, root first, null where a
+        /// level has none. Index (depth - 1) is that level's own art.
+        ///
+        /// An aggregate summary row needs the art belonging to its own depth, not whatever its
+        /// descendants resolved to. Carrying it here keeps that lookup off the disk: the rollup
+        /// builder reads it from its members instead of probing per node.
+        /// </summary>
+        public IReadOnlyList<string> CategoryAncestorArtPaths { get; set; }
+
+        /// <summary>
         /// Category column binding target when the grid shows icons: art, else the game icon.
         /// </summary>
         public string CategoryIconDisplayPath => CategoryArtPath ?? GameIconPath;
@@ -1393,6 +1403,7 @@ namespace PlayniteAchievements.ViewModels.Items
             clone.GameCoverPath = _gameCoverPath;
             clone.CategoryOrderIndex = _categoryOrderIndex;
             clone.CategoryArtPath = _categoryArtPath;
+            clone.CategoryAncestorArtPaths = CategoryAncestorArtPaths;
             clone.CleanCapturePath = _cleanCapturePath;
             clone.NotificationCapturePath = _notificationCapturePath;
             clone.FramedCapturePath = _framedCapturePath;
@@ -1417,10 +1428,18 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 public int OrderIndex { get; set; }
                 public string ArtPath { get; set; }
+                public IReadOnlyList<string> AncestorArtPaths { get; set; }
             }
 
             private readonly Dictionary<string, Entry> _entries =
                 new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+
+            /// <summary>
+            /// Shares one art memo across the pass. The entry cache above is keyed per
+            /// (label, provider label) pair, so without this an ancestor common to several
+            /// subtrees would be probed once per distinct leaf beneath it.
+            /// </summary>
+            internal CategoryArtChainMemo ArtMemo { get; } = new CategoryArtChainMemo();
 
             internal bool TryGet(string key, out Entry entry) => _entries.TryGetValue(key, out entry);
 
@@ -1787,12 +1806,12 @@ namespace PlayniteAchievements.ViewModels.Items
                 return;
             }
 
-            var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryLabel);
+            var normalizedCategory = CategoryPathHelper.NormalizePath(categoryLabel);
 
             // Default images are keyed by the provider label (renames only affect the
             // displayed label); fall back to the effective label when no provider label
             // is available, e.g. un-hydrated details where the two are identical.
-            var providerCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+            var providerCategory = CategoryPathHelper.NormalizePath(
                 string.IsNullOrWhiteSpace(providerCategoryLabel) ? categoryLabel : providerCategoryLabel);
 
             string memoKey = null;
@@ -1803,6 +1822,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 {
                     item.CategoryOrderIndex = cached.OrderIndex;
                     item.CategoryArtPath = cached.ArtPath;
+                    item.CategoryAncestorArtPaths = cached.AncestorArtPaths;
                     return;
                 }
             }
@@ -1810,31 +1830,36 @@ namespace PlayniteAchievements.ViewModels.Items
             var orderIndex = AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(normalizedCategory, categoryOrder);
             item.CategoryOrderIndex = orderIndex;
 
-            CategoryImageOverrideData imageOverride = null;
-            if (!string.IsNullOrWhiteSpace(normalizedCategory) &&
-                categoryImageOverrides != null)
-            {
-                categoryImageOverrides.TryGetValue(normalizedCategory, out imageOverride);
-            }
-
             // Default art is normally keyed by the provider label, but an achievement recategorized
             // into another category (e.g. via a category merge) keeps its original provider label
             // while its effective label now points at the target category. Probe the effective label
             // first so every achievement in the target category resolves the target's art (rather than
             // its old category's), then fall back to the provider label for un-merged categories,
             // including renames where the effective label has no default file of its own.
-            var artPath =
-                ResolveCategoryImageOverridePath(imageOverride?.Art, playniteGameId) ??
-                CategoryDefaultImageResolver.Resolve(playniteGameId, normalizedCategory) ??
-                CategoryDefaultImageResolver.Resolve(playniteGameId, providerCategory);
+            //
+            // A nested label then inherits from its ancestors when none of that yields art, so a
+            // subcategory shows its parent's image rather than dropping straight to the game icon.
+            // For a flat label the ancestor walk is empty and this is the chain it always was.
+            var artPath = CategoryArtChainResolver.Resolve(
+                playniteGameId,
+                normalizedCategory,
+                providerCategory,
+                categoryImageOverrides,
+                value => ResolveCategoryImageOverridePath(value, playniteGameId),
+                probeEffectiveLabelDefault: true,
+                categoryMemo?.ArtMemo,
+                out var ancestorArtPaths);
+
             item.CategoryArtPath = artPath;
+            item.CategoryAncestorArtPaths = ancestorArtPaths;
 
             if (memoKey != null)
             {
                 categoryMemo.Set(memoKey, new CategoryPresentationMemo.Entry
                 {
                     OrderIndex = orderIndex,
-                    ArtPath = artPath
+                    ArtPath = artPath,
+                    AncestorArtPaths = ancestorArtPaths
                 });
             }
         }
