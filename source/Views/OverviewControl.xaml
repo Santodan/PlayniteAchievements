@@ -736,7 +736,6 @@
                                                                  ColumnSettingsKey="OverviewSelectedGameAchievements"
                                                                  ShowGameColumn="True"
                                                                  EnableCategoryMode="True"
-                                                                 HideBackButton="True"
                                                                  HideCategorySummaryRow="{Binding OverviewSelectedGameAchievementsHideCategorySummaryRow}"
                                                                  CategoryUseCoverImages="{Binding OverviewSelectedGameCategorySummariesUseCoverImages}"
                                                                  CategoryShowCompletionGlow="{Binding OverviewSelectedGameCategorySummariesShowCompletionGlow}"

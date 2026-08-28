@@ -288,7 +288,6 @@
                                                  RevealCommand="{Binding RevealAchievementCommand}"
                                                  ColumnSettingsKey="SingleGame"
                                                  EnableCategoryMode="True"
-                                                 HideBackButton="True"
                                                  HideCategorySummaryRow="{Binding HideCategorySummaryRow}"
                                                  DrilledCategory="{Binding SelectedCategoryName, Mode=OneWayToSource}"
                                                  CategoryUseCoverImages="{Binding CategorySummariesUseCoverImages}"

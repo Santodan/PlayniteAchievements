@@ -435,7 +435,6 @@
                                                      CategorySummarySource="{Binding SelectedFriendGameAllAchievements}"
                                                      ColumnSettingsKey="{Binding AchievementColumnSettingsKey}"
                                                      EnableCategoryMode="{Binding HasFriendGameSelection}"
-                                                     HideBackButton="True"
                                                      HideCategorySummaryRow="{Binding Settings.Persisted.FriendsOverviewAchievementsHideCategorySummaryRow}"
                                                      DrilledCategory="{Binding SelectedCategoryName, Mode=OneWayToSource}"
                                                      CategoryUseCoverImages="{Binding Settings.Persisted.FriendsOverviewCategorySummariesUseCoverImages}"
