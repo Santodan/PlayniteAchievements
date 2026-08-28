@@ -457,7 +457,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 row => row?.Category,
                 categoryOrder);
             EnsureDefaultCategoryLabel(orderedLabels, categoryOrder);
-            var fileStems = AchievementIconCachePathBuilder.BuildFileStems(orderedLabels);
+            var fileStems = AchievementIconCachePathBuilder.BuildCategoryFileStems(orderedLabels);
             var rows = new List<ManageAchievementsCategoryMetadataItem>();
 
             foreach (var label in orderedLabels)
