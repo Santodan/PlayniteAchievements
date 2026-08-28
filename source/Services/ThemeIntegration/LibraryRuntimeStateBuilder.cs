@@ -499,9 +499,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return;
             }
 
-            // Default images are keyed by the provider label; renames only change Category. A
-            // nested label inherits its ancestors' art when nothing at its own level resolves;
-            // for a flat label this is the same override-then-provider-default chain as before.
+            // One shared chain with the achievement grid: the effective label is probed before
+            // the provider label so a merged category resolves the target's art, and a nested
+            // label inherits its ancestors' art when nothing at its own level resolves. Emits a
+            // plain path - the theme surface must not carry the cache-bust encoding.
             var providerCategory = CategoryPathHelper.NormalizePath(
                 achievement.ProviderCategory ?? achievement.Category);
             achievement.CategoryArtPath = CategoryArtChainResolver.Resolve(
@@ -509,8 +510,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 category,
                 providerCategory,
                 data?.AchievementCategoryImageOverrides,
-                resolveOverridePath: null,
-                probeEffectiveLabelDefault: false,
+                CategoryArtDisplayMode.FilePath,
                 categoryArtMemo);
         }
 

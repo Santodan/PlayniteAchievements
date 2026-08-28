@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
+using PlayniteAchievements.Models.Achievements;
 
 namespace PlayniteAchievements.Services.Images
 {
@@ -152,6 +153,40 @@ namespace PlayniteAchievements.Services.Images
             {
                 return normalized;
             }
+        }
+
+        /// <summary>
+        /// Turns a stored category art override into a path a surface can render. Callers reach
+        /// this through <see cref="CategoryArtChainResolver.OverrideDisplayPathResolver"/>, so
+        /// every surface resolves an override the same way.
+        ///
+        /// The managed-path step is idempotent: hydration already resolves the overrides carried on
+        /// game data, while the cached-summary path passes stored values through raw, and an
+        /// already-rooted path is returned unchanged.
+        /// </summary>
+        internal string ResolveCategoryArtDisplayPath(
+            string storedValue,
+            Guid? playniteGameId,
+            CategoryArtDisplayMode displayMode)
+        {
+            var normalized = NormalizePath(storedValue);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return null;
+            }
+
+            var resolved = playniteGameId.HasValue
+                ? ResolveManagedDisplayPath(normalized, playniteGameId.Value.ToString("D"))
+                : normalized;
+
+            // Category graphics are overwritten in place at a stable managed path, so a surface
+            // rendering through the plugin's image pipeline needs the cache-bust token or it keeps
+            // serving the bitmap from before the replacement. The theme surface deliberately does
+            // not get the token: it is a public contract that theme XAML may bind straight to an
+            // Image, which would not understand the encoding.
+            return displayMode == CategoryArtDisplayMode.PluginImagePipeline
+                ? AchievementIconResolver.ApplyCacheBust(resolved)
+                : resolved;
         }
 
         public string ResolveManagedDisplayPath(string value, string gameId)

@@ -482,6 +482,9 @@ namespace PlayniteAchievements
                     CategoryDefaultImageResolver.DiskImageServiceAccessor = () => _diskImageService;
                     _managedCustomIconService = new ManagedCustomIconService(_diskImageService, _logger);
                     GameSummaryArtResolver.ManagedCustomIconServiceAccessor = () => _managedCustomIconService;
+                    CategoryArtChainResolver.OverrideDisplayPathResolver =
+                        (storedValue, gameId, displayMode) => _managedCustomIconService
+                            .ResolveCategoryArtDisplayPath(storedValue, gameId, displayMode);
                     _notificationImageStore = new NotificationImageStore(_diskImageService, _logger);
                     _fallbackIconStore = new FallbackIconStore(_diskImageService, _logger);
                     // Read through Settings.Persisted on every call: the settings dialog mutates the

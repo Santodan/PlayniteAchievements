@@ -1830,23 +1830,15 @@ namespace PlayniteAchievements.ViewModels.Items
             var orderIndex = AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(normalizedCategory, categoryOrder);
             item.CategoryOrderIndex = orderIndex;
 
-            // Default art is normally keyed by the provider label, but an achievement recategorized
-            // into another category (e.g. via a category merge) keeps its original provider label
-            // while its effective label now points at the target category. Probe the effective label
-            // first so every achievement in the target category resolves the target's art (rather than
-            // its old category's), then fall back to the provider label for un-merged categories,
-            // including renames where the effective label has no default file of its own.
-            //
-            // A nested label then inherits from its ancestors when none of that yields art, so a
-            // subcategory shows its parent's image rather than dropping straight to the game icon.
-            // For a flat label the ancestor walk is empty and this is the chain it always was.
+            // Rendered through the plugin's own image pipeline, so the resolved path carries the
+            // cache-bust token: category graphics are overwritten in place at a stable managed
+            // path and would otherwise keep serving the pre-replacement bitmap.
             var artPath = CategoryArtChainResolver.Resolve(
                 playniteGameId,
                 normalizedCategory,
                 providerCategory,
                 categoryImageOverrides,
-                value => ResolveCategoryImageOverridePath(value, playniteGameId),
-                probeEffectiveLabelDefault: true,
+                CategoryArtDisplayMode.PluginImagePipeline,
                 categoryMemo?.ArtMemo,
                 out var ancestorArtPaths);
 
@@ -1862,23 +1854,6 @@ namespace PlayniteAchievements.ViewModels.Items
                     AncestorArtPaths = ancestorArtPaths
                 });
             }
-        }
-
-        private static string ResolveCategoryImageOverridePath(string value, Guid? playniteGameId)
-        {
-            var normalized = NormalizeImagePath(value);
-            if (string.IsNullOrWhiteSpace(normalized))
-            {
-                return null;
-            }
-
-            var managedCustomIconService = PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService;
-            var resolved = playniteGameId.HasValue
-                ? managedCustomIconService?.ResolveManagedDisplayPath(normalized, playniteGameId.Value.ToString("D")) ?? normalized
-                : normalized;
-            // Category graphics are overwritten in place at a stable managed path, so the
-            // display path needs a cache-bust token or stale bitmaps are served after replacement.
-            return AchievementIconResolver.ApplyCacheBust(resolved);
         }
 
         private static string ResolveGameAssetPath(string value)
