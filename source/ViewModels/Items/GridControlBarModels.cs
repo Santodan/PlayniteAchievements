@@ -522,10 +522,14 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public int Depth { get; }
 
-        /// <summary>The level being shown. Rendered inert, since clicking it would go nowhere.</summary>
+        /// <summary>The level being shown, rendered as the trail's end.</summary>
         public bool IsCurrent { get; }
 
-        public bool IsNavigable => !IsCurrent;
+        /// <summary>
+        /// Every hop navigates, the current one included: hops lead back to the category list
+        /// rather than into a level, so the last one is "leave this category, land on its row".
+        /// </summary>
+        public bool IsNavigable => true;
 
         /// <summary>The separator trails every hop except the last.</summary>
         public bool ShowSeparator => !IsCurrent;
@@ -534,17 +538,14 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public void Invoke()
         {
-            if (!IsCurrent)
-            {
-                _navigate?.Invoke(Depth);
-            }
+            _navigate?.Invoke(Depth);
         }
     }
 
     /// <summary>
-    /// Path affordance for a nested category drill, replacing a plain Back button: its
-    /// second-to-last hop already is "back one level", and it also gives direct access to the
-    /// ancestors above that.
+    /// Path affordance for a nested category drill, replacing a plain Back button: every hop
+    /// returns to the category list, the last landing on the row just left and the ones above it
+    /// on that ancestor, so a sibling anywhere in the tree is two clicks away.
     ///
     /// Deliberately short. The control bar has little room, so only the nearest couple of ancestors
     /// are shown and anything above them collapses into a single elided hop that jumps there.

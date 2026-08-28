@@ -878,8 +878,9 @@ namespace PlayniteAchievements.Views.Controls
             DependencyProperty.Register(nameof(DrilledCategory), typeof(string),
                 typeof(AchievementDataGridControl), new PropertyMetadata(null));
 
-        // Reports the currently drilled-into category label (null when not drilled) so a host can
-        // scope its own header counts to the drilled category. Written by the control; bind OneWayToSource.
+        // Reports the currently drilled-into category in display form - "DLC > Season Pass", never
+        // the storage separator - so a host can title its header with it (null when not drilled).
+        // Written by the control; bind OneWayToSource. Not an identity: it is text for a person.
         public string DrilledCategory
         {
             get => (string)GetValue(DrilledCategoryProperty);
@@ -1108,12 +1109,12 @@ namespace PlayniteAchievements.Views.Controls
                     HasMultipleCategories);
             }
 
-            // The breadcrumb replaces the Back button: its second-to-last hop already is "back one
-            // level", and it also reaches the ancestors above that.
+            // The breadcrumb replaces the Back button: every hop returns to the category list, the
+            // last one landing on the row just left and the ones above it on that ancestor.
             if (_breadcrumb == null && !HideBackButton)
             {
                 _breadcrumb = new GridBreadcrumb(
-                    DrillToDepth,
+                    NavigateToAncestorInList,
                     CategoryModeText("LOCPlayAch_ManageAchievements_Tab_Category", "Categories"));
             }
 
@@ -1412,9 +1413,9 @@ namespace PlayniteAchievements.Views.Controls
             // Every node of the tree at once, indented by depth, rather than one level per click:
             // the list is the whole map, so any category is one click away and one click back.
             //
-            // A manual column sort breaks the pre-order run that makes indentation readable - a
-            // child can land anywhere - so a sorted list drops the indent and titles each row with
-            // its full path instead, which stands on its own wherever the row ends up.
+            // A manual column sort breaks the pre-order run that makes the tree guides readable - a
+            // child can land anywhere - so a sorted list drops them and titles each row with its
+            // full path instead, which stands on its own wherever the row ends up.
             var isSorted = _categorySortDirection.HasValue && !string.IsNullOrWhiteSpace(_categorySortPath);
             _allCategorySummaries = items == null || items.Count == 0
                 ? null
@@ -1427,7 +1428,8 @@ namespace PlayniteAchievements.Views.Controls
             {
                 foreach (var row in _allCategorySummaries)
                 {
-                    row.NameIndent = default(Thickness);
+                    row.NameGuide = null;
+                    row.NameGuideWidth = 0;
                 }
             }
 
@@ -1543,23 +1545,20 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// Navigates to the ancestor formed by the first <paramref name="depth"/> segments of the
-        /// current path. Depth 0 is the root, which leaves the drill entirely.
+        /// Breadcrumb navigation: returns to the category list positioned at the ancestor formed by
+        /// the first <paramref name="depth"/> segments, rather than drilling into it. The list is
+        /// the map, so landing on it next to that ancestor's own children is what makes moving
+        /// sideways cheap; drilling in from there is the same one click it is anywhere else.
+        /// Depth 0 is the list itself.
         /// </summary>
-        private void DrillToDepth(int depth)
+        private void NavigateToAncestorInList(int depth)
         {
-            if (depth <= 0)
-            {
-                DrillToPath(null);
-                return;
-            }
+            var target = depth <= 0 || depth > _drillPath.Count
+                ? null
+                : CategoryPathHelper.Join(_drillPath.Take(depth));
 
-            if (depth >= _drillPath.Count)
-            {
-                return;
-            }
-
-            DrillToPath(CategoryPathHelper.Join(_drillPath.Take(depth)));
+            DrillToPath(null);
+            ScrollCategoryRowIntoView(target);
         }
 
         /// <summary>Navigates to an ancestor of the current path, or to the root when null.</summary>
@@ -1595,7 +1594,9 @@ namespace PlayniteAchievements.Views.Controls
             CategoryListVisible = hasCategoryRows && !drill;
             AchievementGridVisible = !hasCategoryRows || drill;
             DrillHeaderVisible = drill && !HideCategorySummaryRow;
-            DrilledCategory = drill ? DrilledPath : null;
+            // Display form: hosts bind this straight into a header TextBlock, and the storage
+            // separator is internal - never shown to a user.
+            DrilledCategory = drill ? CategoryPathHelper.ToDisplayPath(DrilledPath) : null;
 
             ApplyCategoryPaneLayout();
             RecomputeEffectiveAchievements();
