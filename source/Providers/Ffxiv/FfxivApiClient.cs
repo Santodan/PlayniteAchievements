@@ -79,23 +79,38 @@ namespace PlayniteAchievements.Providers.Ffxiv
 
         /// <summary>
         /// Fetches a character with its obtained achievement ids and unlock times.
+        /// Throws <see cref="FfxivCharacterNotIndexedException"/> when FFXIV Collect
+        /// has no record of the character.
         /// </summary>
         public async Task<FfxivCharacter> FetchCharacterAsync(long lodestoneId, CancellationToken cancel)
         {
             var uri = new Uri(ApiBase, $"characters/{lodestoneId.ToString(CultureInfo.InvariantCulture)}?times=true");
-            var json = await GetRawAsync(uri, cancel).ConfigureAwait(false);
+
+            string json;
+            try
+            {
+                json = await GetRawAsync(uri, cancel).ConfigureAwait(false);
+            }
+            catch (FfxivApiException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                // FFXIV Collect indexes characters on demand, so a valid Lodestone id
+                // 404s here until someone adds the character on the site.
+                throw new FfxivCharacterNotIndexedException(lodestoneId);
+            }
+
             return JsonConvert.DeserializeObject<FfxivCharacter>(json);
         }
 
         /// <summary>
         /// Resolves a Lodestone character id from a character name and world by
-        /// parsing the public Lodestone search page. Returns null when no match.
+        /// parsing the public Lodestone search page. Keeps "matched nothing" distinct
+        /// from "could not ask" so callers do not blame the user's input for an outage.
         /// </summary>
-        public async Task<long?> ResolveCharacterIdAsync(string name, string world, string region, CancellationToken cancel)
+        public async Task<FfxivCharacterResolution> ResolveCharacterIdAsync(string name, string world, string region, CancellationToken cancel)
         {
             if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(world))
             {
-                return null;
+                return FfxivCharacterResolution.NoMatch();
             }
 
             var subdomain = NormalizeRegion(region);
@@ -110,22 +125,27 @@ namespace PlayniteAchievements.Providers.Ffxiv
             catch (Exception ex)
             {
                 _logger?.Warn(ex, $"[FFXIV] Lodestone character search failed for '{name}' @ '{world}'.");
-                return null;
+                return FfxivCharacterResolution.LookupFailed();
             }
 
             if (string.IsNullOrWhiteSpace(html))
             {
-                return null;
+                _logger?.Warn($"[FFXIV] Lodestone character search returned an empty page for '{name}' @ '{world}'.");
+                return FfxivCharacterResolution.LookupFailed();
             }
 
             try
             {
-                return FfxivParsing.ParseLodestoneCharacterId(html, name, world);
+                var id = FfxivParsing.ParseLodestoneCharacterId(html, name, world);
+                return id.HasValue
+                    ? FfxivCharacterResolution.Resolved(id.Value)
+                    : FfxivCharacterResolution.NoMatch();
             }
             catch (Exception ex)
             {
+                // A parse failure means the page shape changed, not that the character is absent.
                 _logger?.Warn(ex, "[FFXIV] Failed to parse Lodestone search results.");
-                return null;
+                return FfxivCharacterResolution.LookupFailed();
             }
         }
 
@@ -145,7 +165,13 @@ namespace PlayniteAchievements.Providers.Ffxiv
 
             using (response)
             {
-                response.EnsureSuccessStatusCode();
+                if (!response.IsSuccessStatusCode)
+                {
+                    // EnsureSuccessStatusCode would collapse the status into an
+                    // untranslated message string; callers need to act on 404.
+                    throw new FfxivApiException(response.StatusCode, uri);
+                }
+
                 return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             }
         }
@@ -224,20 +250,6 @@ namespace PlayniteAchievements.Providers.Ffxiv
             }
 
             return null;
-        }
-
-        /// <summary>
-        /// Rewrites the FFXIV Collect icon URL from webp to png. WebP decoding depends on an
-        /// optional OS component, so requesting png keeps these icons readable on every machine.
-        /// </summary>
-        private static string NormalizeIconUrl(string url)
-        {
-            if (string.IsNullOrWhiteSpace(url))
-            {
-                return url;
-            }
-
-            return url.Replace("format=webp", "format=png");
         }
 
         private static string NormalizeRegion(string region)

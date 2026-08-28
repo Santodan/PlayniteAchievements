@@ -9,6 +9,7 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -26,8 +27,16 @@ namespace PlayniteAchievements.Providers.Ffxiv
         // Presence-only binding: forces a game to be treated as FFXIV (account/character-wide data).
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.None();
 
+        // Playnite notification ids. Stable so repeated refreshes replace the entry
+        // rather than stacking, and so a run that gets through can clear them.
+        private const string NotOnCollectNotificationId = "PA_FFXIV_NotOnCollect";
+        private const string AchievementsPrivateNotificationId = "PA_FFXIV_AchievementsPrivate";
+
+        private const string CollectCharactersUrl = "https://ffxivcollect.com/characters";
+
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
+        private readonly IPlayniteAPI _playniteApi;
         private readonly string _pluginUserDataPath;
 
         private readonly object _initLock = new object();
@@ -38,6 +47,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _playniteApi = playniteApi;
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
         }
 
@@ -111,21 +121,62 @@ namespace PlayniteAchievements.Providers.Ffxiv
 
             EnsureInitialized();
 
-            var characterId = await ResolveCharacterIdAsync(providerSettings, cancel).ConfigureAwait(false);
-            if (characterId <= 0)
+            var resolution = await ResolveCharacterIdAsync(providerSettings, cancel).ConfigureAwait(false);
+            if (resolution.Outcome == FfxivResolveOutcome.LookupFailed)
+            {
+                // The Lodestone could not be asked, so nothing is known about the character.
+                // Reporting this as a configuration problem would be wrong.
+                _logger?.Warn($"[FFXIV] Lodestone lookup failed for '{providerSettings.CharacterName}' @ '{providerSettings.World}'; skipping this run.");
+                return new RebuildPayload { Summary = new RebuildSummary() };
+            }
+
+            if (resolution.Outcome != FfxivResolveOutcome.Resolved)
             {
                 _logger?.Warn($"[FFXIV] Could not resolve character '{providerSettings.CharacterName}' @ '{providerSettings.World}'.");
                 return new RebuildPayload { Summary = new RebuildSummary(), AuthRequired = true };
             }
 
+            var characterId = resolution.CharacterId;
             var catalog = await _catalogCache.GetCatalogAsync(_apiClient, cancel).ConfigureAwait(false);
-            var character = await _apiClient.FetchCharacterAsync(characterId, cancel).ConfigureAwait(false);
+
+            FfxivCharacter character;
+            try
+            {
+                character = await _apiClient.FetchCharacterAsync(characterId, cancel).ConfigureAwait(false);
+            }
+            catch (FfxivCharacterNotIndexedException ex)
+            {
+                _logger?.Warn($"[FFXIV] Character {ex.LodestoneId} is not indexed on FFXIV Collect; it has to be added there once before achievements can be read.");
+                ShowNotification(
+                    NotOnCollectNotificationId,
+                    "LOCPlayAch_Settings_FFXIV_NotOnCollect",
+                    () => OpenUrl(CollectCharactersUrl));
+                return new RebuildPayload { Summary = new RebuildSummary() };
+            }
+
+            // The character answered, so whatever prompted the indexing warning is resolved.
+            ClearNotification(NotOnCollectNotificationId);
+
+            // Either way there is no obtained data, and importing the catalog against an
+            // empty obtained map would write every achievement as locked over stored unlocks.
+            if (character?.Achievements == null)
+            {
+                // FFXIV Collect answered for the character but returned no achievement block.
+                // The cause is not knowable from here, so log it rather than assert one.
+                _logger?.Warn($"[FFXIV] Character '{providerSettings.CharacterName}' returned no achievement data from FFXIV Collect; skipping this run.");
+                return new RebuildPayload { Summary = new RebuildSummary() };
+            }
+
+            if (!character.Achievements.Public)
+            {
+                _logger?.Warn($"[FFXIV] Character '{providerSettings.CharacterName}' has achievements hidden on the Lodestone; skipping this run rather than importing them all as locked.");
+                ShowNotification(AchievementsPrivateNotificationId, "LOCPlayAch_Settings_FFXIV_AchievementsPrivate", null);
+                return new RebuildPayload { Summary = new RebuildSummary() };
+            }
+
+            ClearNotification(AchievementsPrivateNotificationId);
 
             var obtained = BuildObtainedMap(character);
-            if (character?.Achievements?.Public == false)
-            {
-                _logger?.Warn($"[FFXIV] Character '{providerSettings.CharacterName}' has achievements hidden on the Lodestone; all will appear locked.");
-            }
 
             return await ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
@@ -151,27 +202,83 @@ namespace PlayniteAchievements.Providers.Ffxiv
                 cancel).ConfigureAwait(false);
         }
 
-        private async Task<long> ResolveCharacterIdAsync(FfxivSettings providerSettings, CancellationToken cancel)
+        private async Task<FfxivCharacterResolution> ResolveCharacterIdAsync(FfxivSettings providerSettings, CancellationToken cancel)
         {
             if (providerSettings.ResolvedCharacterId > 0)
             {
-                return providerSettings.ResolvedCharacterId;
+                return FfxivCharacterResolution.Resolved(providerSettings.ResolvedCharacterId);
             }
 
-            var resolved = await _apiClient.ResolveCharacterIdAsync(
+            var resolution = await _apiClient.ResolveCharacterIdAsync(
                 providerSettings.CharacterName,
                 providerSettings.World,
                 providerSettings.Region,
                 cancel).ConfigureAwait(false);
 
-            if (resolved.HasValue && resolved.Value > 0)
+            if (resolution.Outcome == FfxivResolveOutcome.Resolved)
             {
-                providerSettings.ResolvedCharacterId = resolved.Value;
+                providerSettings.ResolvedCharacterId = resolution.CharacterId;
                 ProviderRegistry.Write(providerSettings);
-                return resolved.Value;
             }
 
-            return 0;
+            return resolution;
+        }
+
+        /// <summary>
+        /// Raises a Playnite notification under a stable id, so repeated refreshes of the
+        /// same unresolved problem leave one entry rather than a stack of them.
+        /// </summary>
+        private void ShowNotification(string notificationId, string messageKey, Action onClick)
+        {
+            if (_playniteApi?.Notifications == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var message = ResourceProvider.GetString(messageKey);
+                _playniteApi.Notifications.Add(onClick == null
+                    ? new NotificationMessage(notificationId, message, NotificationType.Error)
+                    : new NotificationMessage(notificationId, message, NotificationType.Error, onClick));
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[FFXIV] Failed to show notification {notificationId}.");
+            }
+        }
+
+        /// <summary>
+        /// Drops one provider notification once the run gets past the condition it described,
+        /// so a stale warning does not outlive the problem.
+        /// </summary>
+        private void ClearNotification(string notificationId)
+        {
+            if (_playniteApi?.Notifications == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _playniteApi.Notifications.Remove(notificationId);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[FFXIV] Failed to clear notification {notificationId}.");
+            }
+        }
+
+        private void OpenUrl(string url)
+        {
+            try
+            {
+                Process.Start(url);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[FFXIV] Failed to open {url}.");
+            }
         }
 
         private GameAchievementData BuildGameData(

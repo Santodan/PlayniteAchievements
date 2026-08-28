@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using Newtonsoft.Json;
 
 namespace PlayniteAchievements.Providers.Ffxiv
@@ -127,5 +128,91 @@ namespace PlayniteAchievements.Providers.Ffxiv
         /// </summary>
         [JsonProperty("time")]
         public DateTime? Time { get; set; }
+    }
+
+    /// <summary>
+    /// Non-success response from an FFXIV Collect or Lodestone request. Carries the
+    /// status code so callers can act on it; EnsureSuccessStatusCode
+    /// discards it into an untranslated message string.
+    /// </summary>
+    internal sealed class FfxivApiException : Exception
+    {
+        public FfxivApiException(HttpStatusCode statusCode, Uri requestUri)
+            : base($"FFXIV request to {requestUri} failed with HTTP {(int)statusCode}.")
+        {
+            StatusCode = statusCode;
+            RequestUri = requestUri;
+        }
+
+        public HttpStatusCode StatusCode { get; }
+
+        public Uri RequestUri { get; }
+    }
+
+    /// <summary>
+    /// The character resolves on the Lodestone but FFXIV Collect has no record of it.
+    /// FFXIV Collect indexes characters on demand: one has to be added there once,
+    /// via the Add button on its search result, before the character endpoint answers.
+    /// </summary>
+    internal sealed class FfxivCharacterNotIndexedException : Exception
+    {
+        public FfxivCharacterNotIndexedException(long lodestoneId)
+            : base($"Character {lodestoneId} is not indexed on FFXIV Collect.")
+        {
+            LodestoneId = lodestoneId;
+        }
+
+        public long LodestoneId { get; }
+    }
+
+    /// <summary>
+    /// Outcome of a Lodestone character lookup.
+    /// </summary>
+    internal enum FfxivResolveOutcome
+    {
+        /// <summary>The search returned a character id.</summary>
+        Resolved,
+
+        /// <summary>The search ran and the name, world, and region matched nothing.</summary>
+        NoMatch,
+
+        /// <summary>The search could not be completed, so match status is unknown.</summary>
+        LookupFailed
+    }
+
+    /// <summary>
+    /// Result of <c>FfxivApiClient.ResolveCharacterIdAsync</c>. Keeps "matched nothing"
+    /// distinct from "could not ask", so a Lodestone outage is not reported as a
+    /// mistyped character name.
+    /// </summary>
+    internal sealed class FfxivCharacterResolution
+    {
+        private FfxivCharacterResolution(FfxivResolveOutcome outcome, long characterId)
+        {
+            Outcome = outcome;
+            CharacterId = characterId;
+        }
+
+        public FfxivResolveOutcome Outcome { get; }
+
+        /// <summary>The resolved id, or 0 for any outcome other than <see cref="FfxivResolveOutcome.Resolved"/>.</summary>
+        public long CharacterId { get; }
+
+        public static FfxivCharacterResolution Resolved(long characterId)
+        {
+            return characterId > 0
+                ? new FfxivCharacterResolution(FfxivResolveOutcome.Resolved, characterId)
+                : NoMatch();
+        }
+
+        public static FfxivCharacterResolution NoMatch()
+        {
+            return new FfxivCharacterResolution(FfxivResolveOutcome.NoMatch, 0);
+        }
+
+        public static FfxivCharacterResolution LookupFailed()
+        {
+            return new FfxivCharacterResolution(FfxivResolveOutcome.LookupFailed, 0);
+        }
     }
 }
