@@ -140,7 +140,9 @@ namespace PlayniteAchievements.Providers.Ffxiv
 
                     var character = await client.FetchCharacterAsync(resolution.CharacterId, CancellationToken.None).ConfigureAwait(true);
 
-                    if (character?.Achievements?.Public == false)
+                    // Same condition the refresh path bails on, so a check that reports
+                    // success cannot be followed by a refresh that finds nothing readable.
+                    if (character?.Achievements == null || character.Achievements.Public == false)
                     {
                         SetAuthStatusVisualState(pending: false, success: false);
                         AuthStatus = ResourceProvider.GetString("LOCPlayAch_Settings_FFXIV_AchievementsPrivate");
