@@ -329,12 +329,16 @@ namespace PlayniteAchievements.Services.Achievements
             return L($"LOCPlayAch_ManageAchievements_Category_Type_{canonical}", canonical);
         }
 
+        /// <summary>
+        /// A nested label renders with its separator spelled out: "DLC::Season Pass" reads as
+        /// "DLC &gt; Season Pass". A flat label is returned exactly as before.
+        /// </summary>
         public static string ToCategoryLabelDisplayText(string rawValue)
         {
-            var label = NormalizeCategoryOrDefault(rawValue);
+            var label = CategoryPathHelper.NormalizePath(rawValue);
             return string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
                 ? L("LOCPlayAch_Common_Default", DefaultCategoryLabel)
-                : label;
+                : CategoryPathHelper.ToDisplayPath(label);
         }
 
         /// <summary>
@@ -344,10 +348,15 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         public static string ToCategoryLabelCellText(string rawValue)
         {
-            var label = NormalizeCategory(rawValue);
-            return label == null || string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
+            if (NormalizeCategory(rawValue) == null)
+            {
+                return string.Empty;
+            }
+
+            var label = CategoryPathHelper.NormalizePath(rawValue);
+            return string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
                 ? string.Empty
-                : label;
+                : CategoryPathHelper.ToDisplayPath(label);
         }
 
         private static string L(string key, string fallback)
