@@ -37,12 +37,11 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public int Depth { get; }
 
-        /// <summary>The level being shown. Rendered inert: it is where the user already is.</summary>
+        /// <summary>Last hop in the path; the separator trails every hop except this one.</summary>
         public bool IsCurrent { get; }
 
         public bool IsNavigable { get; }
 
-        /// <summary>The separator trails every hop except the last.</summary>
         public bool ShowSeparator => !IsCurrent;
 
         public string ToolTip { get; }
@@ -68,13 +67,13 @@ namespace PlayniteAchievements.ViewModels.Items
         }
 
         /// <summary>
-        /// Builds the hops for a drilled path: the level directly above the one being shown, and
-        /// that level itself. Anything above them collapses into a single inert marker, so a header
-        /// reads "Game &gt; ... &gt; Winter &gt; Frost".
+        /// Builds the hops for a drilled path: the level being viewed, preceded by an inert marker
+        /// when there are levels above it, so a header reads "Game &gt; ... &gt; Frost".
         ///
-        /// The header has little room, the game name already sits to the left, and every level is
-        /// reachable from the category list anyway - so spelling the whole chain out costs width
-        /// without buying navigation.
+        /// Only the one hop, because every hop now does the same thing - return to the category
+        /// list at the position it was left. An ancestor hop would have been a second control with
+        /// identical behaviour. The list holds every node, so it is one click from there to
+        /// anywhere; the marker just says the path runs deeper than the name shown.
         ///
         /// Empty when nothing is drilled, so a host can bind an ItemsControl straight to it.
         /// </summary>
@@ -88,10 +87,9 @@ namespace PlayniteAchievements.ViewModels.Items
             }
 
             var last = pathSegments.Count - 1;
-            var first = Math.Max(0, last - 1);
-            var result = new List<CategoryPathSegment>(3);
+            var result = new List<CategoryPathSegment>(2);
 
-            if (first > 0)
+            if (last > 0)
             {
                 result.Add(new CategoryPathSegment(
                     Ellipsis,
@@ -101,19 +99,16 @@ namespace PlayniteAchievements.ViewModels.Items
                     navigate: null,
                     toolTip: string.Join(
                         " > ",
-                        pathSegments.Take(first).Select(CategoryPathHelper.ToDisplayLeaf))));
+                        pathSegments.Take(last).Select(CategoryPathHelper.ToDisplayLeaf))));
             }
 
-            for (var index = first; index <= last; index++)
-            {
-                result.Add(new CategoryPathSegment(
-                    CategoryPathHelper.ToDisplayLeaf(pathSegments[index]),
-                    index + 1,
-                    isCurrent: index == last,
-                    isNavigable: index != last,
-                    navigate,
-                    toolTip: null));
-            }
+            result.Add(new CategoryPathSegment(
+                CategoryPathHelper.ToDisplayLeaf(pathSegments[last]),
+                last + 1,
+                isCurrent: true,
+                isNavigable: true,
+                navigate,
+                toolTip: null));
 
             return result;
         }

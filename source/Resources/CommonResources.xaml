@@ -1084,11 +1084,8 @@
                              colour, bold, underlined, hand cursor. -->
                         <Setter Property="FontWeight" Value="Bold"/>
                         <Style.Triggers>
-                            <!-- The level being shown is the destination, not a link. -->
-                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                <Setter Property="Cursor" Value="Arrow"/>
-                            </DataTrigger>
-                            <!-- The elided middle is a marker, not a hop. -->
+                            <!-- The elided marker is not a hop: it stands for levels above the one
+                                 being viewed, which the category list itself already reaches. -->
                             <DataTrigger Binding="{Binding Depth}" Value="0">
                                 <Setter Property="FontWeight" Value="Normal"/>
                                 <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Subtle}"/>

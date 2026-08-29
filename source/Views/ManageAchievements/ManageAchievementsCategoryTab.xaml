@@ -493,28 +493,35 @@
 
                         <!-- Nesting controls. Indent puts the row under the category above it;
                              outdent moves it out one level. -->
-                        <DataGridTemplateColumn Width="60" MinWidth="60" MaxWidth="60" CanUserResize="False" CanUserSort="False">
+                        <!-- Stacked rather than side by side: the rows are tall and the column is
+                             narrow, so two buttons in a row ran past the cell edge. -->
+                        <DataGridTemplateColumn Width="38" MinWidth="38" MaxWidth="38" CanUserResize="False" CanUserSort="False">
+                            <DataGridTemplateColumn.CellStyle>
+                                <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
+                                    <Setter Property="Padding" Value="0" />
+                                </Style>
+                            </DataGridTemplateColumn.CellStyle>
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <StackPanel Orientation="Horizontal"
+                                    <StackPanel Orientation="Vertical"
                                                 HorizontalAlignment="Center"
                                                 VerticalAlignment="Center"
                                                 Visibility="{Binding IsDefaultCategory, Converter={StaticResource InverseBoolToVis}}">
-                                        <Button Content="&#x21E4;"
-                                                Width="24"
-                                                Height="24"
+                                        <Button Content="&#x21E5;"
+                                                Width="26"
+                                                Height="22"
                                                 Padding="0"
+                                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_Indent}"
+                                                Command="{Binding DataContext.IndentCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="&#x21E4;"
+                                                Width="26"
+                                                Height="22"
+                                                Padding="0"
+                                                Margin="0,3,0,0"
                                                 ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_Outdent}"
                                                 IsEnabled="{Binding IsNested}"
                                                 Command="{Binding DataContext.OutdentCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}" />
-                                        <Button Content="&#x21E5;"
-                                                Width="24"
-                                                Height="24"
-                                                Padding="0"
-                                                Margin="2,0,0,0"
-                                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_Indent}"
-                                                Command="{Binding DataContext.IndentCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}" />
                                     </StackPanel>
                                 </DataTemplate>
