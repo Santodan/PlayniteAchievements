@@ -422,6 +422,12 @@
             </DataGridTemplateColumn>
 
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Label_Category}" SortMemberPath="CategoryLabel" helpers:ColumnVisibilityHelper.ColumnKey="CategoryLabel">
+                <DataGridTemplateColumn.CellStyle>
+                    <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
+                        <!-- The cell shows the leaf, so hovering reveals where it sits. -->
+                        <Setter Property="ToolTip" Value="{Binding CategoryLabelPathDisplay}"/>
+                    </Style>
+                </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding CategoryLabelDisplay}"

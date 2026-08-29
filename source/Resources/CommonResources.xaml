@@ -1080,20 +1080,17 @@
                     ToolTip="{Binding ToolTip}">
                 <Button.Style>
                     <Style TargetType="Button" BasedOn="{StaticResource PlayAch.CategoryPathLinkStyle}">
-                        <!-- A hop is a link, so it is accent-coloured and underlined; without that
-                             the only cue was a hover underline, which reads as plain text. -->
-                        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        <!-- Matches the game-name hop the hosts render to the left: normal text
+                             colour, bold, underlined, hand cursor. -->
+                        <Setter Property="FontWeight" Value="Bold"/>
                         <Style.Triggers>
-                            <!-- The level being shown is the destination, not a link: plain text
-                                 colour, bold, no underline, no hand cursor. -->
+                            <!-- The level being shown is the destination, not a link. -->
                             <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                                <Setter Property="FontWeight" Value="Bold"/>
                                 <Setter Property="Cursor" Value="Arrow"/>
                             </DataTrigger>
                             <!-- The elided middle is a marker, not a hop. -->
                             <DataTrigger Binding="{Binding Depth}" Value="0">
-                                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                                <Setter Property="FontWeight" Value="Normal"/>
                                 <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Subtle}"/>
                                 <Setter Property="Cursor" Value="Arrow"/>
                             </DataTrigger>
