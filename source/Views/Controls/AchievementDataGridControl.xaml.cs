@@ -1392,30 +1392,19 @@ namespace PlayniteAchievements.Views.Controls
             // Build from the unfiltered source (when provided) so achievement filters applied while
             // drilled never change the category rollups; fall back to ItemsSource otherwise.
             var items = (CategorySummarySource ?? ItemsSource)?.ToList();
-            // Every node of the tree at once, indented by depth, rather than one level per click:
-            // the list is the whole map, so any category is one click away and one click back.
+            // Every node of the tree at once rather than one level per click: the list is the whole
+            // map, so any category is one click away and one click back.
             //
-            // A manual column sort breaks the pre-order run that makes the tree guides readable - a
-            // child can land anywhere - so a sorted list drops them. Rows keep their leaf names
-            // either way: the name column sorts on what it shows, and retitling to full paths made
-            // sorting swap the whole column's text for long shared prefixes. A nested row's path is
-            // on hover instead.
-            var isSorted = _categorySortDirection.HasValue && !string.IsNullOrWhiteSpace(_categorySortPath);
+            // Rendered as a flat list - nesting is a backend concept here, with no depth cue on the
+            // row. Rows are titled with their leaf name: the name column sorts on what it shows, and
+            // retitling to full paths made sorting swap the whole column's text for long shared
+            // prefixes. A nested row's path is on hover instead.
             _allCategorySummaries = items == null || items.Count == 0
                 ? null
                 : CategorySummaryBuilder.BuildTree(
                     items,
                     ResolveCategoryCompletionBadgeMode(),
                     useLeafNames: true);
-
-            if (isSorted && _allCategorySummaries != null)
-            {
-                foreach (var row in _allCategorySummaries)
-                {
-                    row.NameGuide = null;
-                    row.NameGuideWidth = 0;
-                }
-            }
 
             ApplyCategoryNameFilter();
         }
