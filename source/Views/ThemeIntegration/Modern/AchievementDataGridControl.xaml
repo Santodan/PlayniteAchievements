@@ -95,6 +95,7 @@
                                              ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=modern:AchievementDataGridControl}}"
                                              ColumnSettingsKey="DesktopTheme"
                                              EnableCategoryMode="True"
+                                             HideBackButton="True"
                                              HideCategorySummaryRow="{Binding DataContext.Persisted.DesktopThemeAchievementGridHideCategorySummaryRow, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                              DrilledCategory="{Binding SelectedCategoryName, Mode=OneWayToSource, RelativeSource={RelativeSource AncestorType=modern:AchievementDataGridControl}}"
                                              CategoryUseCoverImages="{Binding DataContext.Persisted.DesktopThemeCategorySummariesUseCoverImages, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
