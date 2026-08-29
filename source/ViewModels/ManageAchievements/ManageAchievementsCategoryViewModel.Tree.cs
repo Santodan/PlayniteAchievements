@@ -37,7 +37,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var images = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted);
             var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted);
-            _achievementOverridesService.SetAchievementCategoryMetadata(_gameId, Array.Empty<string>(), images, summaryCategory);
+            // Order only: the selection and its art are written back exactly as they stand.
+            _achievementOverridesService.SetAchievementCategoryMetadata(
+                _gameId,
+                Array.Empty<string>(),
+                images,
+                summaryCategory,
+                affectsSummaryData: MarkLibraryRefreshDeferred(false));
             RaiseCategoryMetadataPersisted();
             RefreshCategoryRows();
             return true;
@@ -315,6 +321,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var images = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted);
             var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted);
             var summaryCategoryBefore = summaryCategory;
+            var imagesBefore = images;
 
             var applied = false;
             foreach (var move in moves)
@@ -360,7 +367,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 order,
                 images,
                 summaryCategory,
-                affectsSummaryData: SummaryCategoryChanged(summaryCategoryBefore, summaryCategory));
+                affectsSummaryData: MarkLibraryRefreshDeferred(SummaryArtChanged(
+                    summaryCategoryBefore,
+                    imagesBefore,
+                    summaryCategory,
+                    images)));
             ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
             RaiseCategoryMetadataPersisted();
             RefreshCategoryRows();
@@ -538,6 +549,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // One write for both halves: membership and the label-keyed metadata. Two would each
             // fan out a synchronous whole-library recompute.
             var summaryCategoryBefore = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted);
+            var imagesBefore = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted);
             var metadata = PlanCategoryMergeMetadata(normalizedSourceCategory, normalizedTargetCategory);
             _achievementOverridesService.SetAchievementCategoryAssignmentAndMetadata(
                 _gameId,
@@ -546,7 +558,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 metadata.Order,
                 metadata.Images,
                 metadata.SummaryCategory,
-                affectsSummaryData: SummaryCategoryChanged(summaryCategoryBefore, metadata.SummaryCategory));
+                affectsSummaryData: MarkLibraryRefreshDeferred(SummaryArtChanged(
+                    summaryCategoryBefore,
+                    imagesBefore,
+                    metadata.SummaryCategory,
+                    metadata.Images)));
             ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
             RaiseCategoryMetadataPersisted();
             RefreshCategoryRows();
@@ -846,11 +862,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     }
                     : null;
 
+                // Reordering rows and editing art on categories other than the summary source are
+                // per-game display state. Firing the library-wide pass per edit is what made every
+                // drag step and every art box feel like the whole library was being rebuilt.
                 _achievementOverridesService.SetAchievementCategoryMetadata(
                     _gameId,
                     categoryOrder,
                     imageOverrides,
-                    summaryCategory);
+                    summaryCategory,
+                    affectsSummaryData: MarkLibraryRefreshDeferred(SummaryArtChanged(
+                        GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted),
+                        GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted),
+                        summaryCategory,
+                        imageOverrides)));
                 RaiseCategoryMetadataPersisted();
 
                 foreach (var row in CategoryRows.Where(row => row != null && !row.HasArtOverrideValidationError))
@@ -964,19 +988,78 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Whether the game-summary category selection moved. That selection is the only part of a
-        /// category edit a library rollup reads, so it is what decides whether the write is worth a
-        /// library-wide overview pass.
+        /// Whether a metadata write can move the game's summary art, which is the only thing this
+        /// tab edits that a library-wide surface reads. GameSummaryArtResolver looks at exactly two
+        /// things: which category is selected, and that one category's art override.
+        /// Order, art on any other category, and which achievement sits in which category are all
+        /// per-game display state, so a write that leaves this tuple alone is scoped out of the
+        /// summary and projection passes.
         /// </summary>
-        private static bool SummaryCategoryChanged(GameSummaryCategoryData before, GameSummaryCategoryData after)
+        private static bool SummaryArtChanged(
+            GameSummaryCategoryData before,
+            IReadOnlyDictionary<string, CategoryImageOverrideData> beforeImages,
+            GameSummaryCategoryData after,
+            IReadOnlyDictionary<string, CategoryImageOverrideData> afterImages)
         {
             if (before == null || after == null)
             {
                 return !ReferenceEquals(before, after);
             }
 
-            return !string.Equals(before.Label, after.Label, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(before.ProviderLabel, after.ProviderLabel, StringComparison.OrdinalIgnoreCase);
+            if (!string.Equals(before.Label, after.Label, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(before.ProviderLabel, after.ProviderLabel, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // A move can fold the source category's art onto an unchanged target label, so the
+            // selection matching is not on its own enough to call the art unchanged.
+            return !string.Equals(
+                ResolveCategoryArtOverride(beforeImages, before.Label),
+                ResolveCategoryArtOverride(afterImages, after.Label),
+                StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Records whether a write skipped the library-wide passes, and passes the flag straight
+        /// back so it can wrap the argument at the call site. A write that did fan out clears the
+        /// debt rather than adding to it: it has already brought the library surfaces up to date.
+        /// </summary>
+        private bool MarkLibraryRefreshDeferred(bool affectsSummaryData)
+        {
+            _hasDeferredLibraryRefresh = !affectsSummaryData;
+            return affectsSummaryData;
+        }
+
+        /// <summary>
+        /// Brings the library-scope surfaces - the overview grid's per-game achievement rows and
+        /// the theme's library-wide lists - onto this game's edited categories in one pass. The
+        /// edits themselves are written without those passes, which is what keeps a click on this
+        /// tab from costing a whole-library recompute; this pays for them once, on teardown,
+        /// instead of once per click.
+        /// </summary>
+        public void FlushDeferredLibraryRefresh()
+        {
+            if (!_hasDeferredLibraryRefresh)
+            {
+                return;
+            }
+
+            _hasDeferredLibraryRefresh = false;
+            DeferredLibraryRefreshRequired?.Invoke(this, EventArgs.Empty);
+        }
+
+        private static string ResolveCategoryArtOverride(
+            IReadOnlyDictionary<string, CategoryImageOverrideData> images,
+            string categoryLabel)
+        {
+            CategoryImageOverrideData imageOverride = null;
+            if (images != null && !string.IsNullOrWhiteSpace(categoryLabel))
+            {
+                images.TryGetValue(categoryLabel, out imageOverride);
+            }
+
+            return (imageOverride?.Art ?? string.Empty).Trim();
         }
 
         /// <summary>The stored metadata as it stands, for a plan that turns out to be a no-op.</summary>

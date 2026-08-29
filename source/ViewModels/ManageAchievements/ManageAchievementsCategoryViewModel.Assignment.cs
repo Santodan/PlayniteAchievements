@@ -378,6 +378,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             IReadOnlyDictionary<string, string> categoryOverrideMap,
             IReadOnlyDictionary<string, string> categoryTypeOverrideMap)
         {
+            // Membership is scoped out of the library-wide passes inside the service, so the
+            // catch-up has to be booked here.
+            MarkLibraryRefreshDeferred(false);
             _achievementOverridesService.SetAchievementCategoryOverrides(
                 _gameId,
                 categoryOverrideMap,

@@ -64,6 +64,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isEnforcingSummarySelection;
         private bool _isPersistingCategoryMetadata;
         private bool _hasCategoryImageValidationErrors;
+        private bool _hasDeferredLibraryRefresh;
         private string _categoryImageStatusText;
         private bool _categoryImageStatusIsError;
 
@@ -80,6 +81,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// selection lands nowhere and the row has to be found and clicked again for each level.
         /// </summary>
         public event EventHandler<IReadOnlyList<string>> CategoryRowsMoved;
+
+        /// <summary>
+        /// Raised once, on teardown, when edits were written without the library-wide passes, so
+        /// the host can invalidate this game everywhere in a single step. See
+        /// <see cref="FlushDeferredLibraryRefresh"/>.
+        /// </summary>
+        public event EventHandler DeferredLibraryRefreshRequired;
 
         public ManageAchievementsCategoryViewModel(
             Guid gameId,
