@@ -329,7 +329,7 @@ namespace PlayniteAchievements.Tests.Services.Summaries
         // ---- BuildLevel
 
         [TestMethod]
-        public void BuildLevel_EmitsOneRowPerImmediateChildAggregatingItsSubtree()
+        public void BuildLevel_EmitsOneRowPerImmediateChildCountingItsOwnMembers()
         {
             var items = new List<AchievementDisplayItem>
             {
@@ -344,15 +344,15 @@ namespace PlayniteAchievements.Tests.Services.Summaries
             CollectionAssert.AreEqual(new[] { "DLC", "Multiplayer" }, roots.Select(r => r.CategoryPath).ToArray());
 
             var dlc = roots[0];
-            Assert.AreEqual(3, dlc.TotalAchievements, "DLC aggregates its whole subtree");
-            Assert.AreEqual(2, dlc.UnlockedAchievements);
-            Assert.AreEqual(2, dlc.ChildCategoryCount);
-            Assert.AreEqual(0, dlc.DirectAchievementCount, "nothing sits directly on DLC");
+            Assert.AreEqual(0, dlc.TotalAchievements, "DLC holds none of its own");
+            Assert.AreEqual(0, dlc.UnlockedAchievements);
+            Assert.AreEqual(2, dlc.ChildCategoryCount, "it still knows it has children");
+            Assert.AreEqual(0, dlc.DirectAchievementCount);
             Assert.AreEqual(1, dlc.CategoryDepth);
         }
 
         [TestMethod]
-        public void BuildLevel_RowsAtOneLevelPartitionTheSubtreeExactlyOnce()
+        public void BuildLevel_CountsANodeWithoutItsDescendants()
         {
             var items = new List<AchievementDisplayItem>
             {
@@ -366,12 +366,14 @@ namespace PlayniteAchievements.Tests.Services.Summaries
             var children = CategorySummaryBuilder.BuildLevel(items, "DLC").Cast<CategorySummaryItem>().ToList();
             var parent = CategorySummaryBuilder.BuildLevel(items, null).Cast<CategorySummaryItem>().Single();
 
-            // Children are disjoint, and together with the parent's own achievements they account
-            // for the whole subtree - the invariant that stops a level double-counting.
-            Assert.AreEqual(
-                parent.TotalAchievements,
-                children.Sum(c => c.TotalAchievements) + parent.DirectAchievementCount);
+            // A row reports what it holds, not what hangs beneath it, so no total on this screen is
+            // ever a sum of another one.
+            Assert.AreEqual(1, parent.TotalAchievements, "only the achievement labelled DLC itself");
             Assert.AreEqual(1, parent.DirectAchievementCount);
+            CollectionAssert.AreEqual(
+                new[] { 1, 1 },
+                children.Select(c => c.TotalAchievements).ToArray(),
+                "each child counts itself, not its own grandchild");
         }
 
         [TestMethod]
@@ -407,7 +409,7 @@ namespace PlayniteAchievements.Tests.Services.Summaries
             Assert.IsTrue(dlc.HasChildCategories);
             Assert.AreEqual(1, dlc.ChildCategoryCount);
             Assert.AreEqual(2, dlc.DirectAchievementCount);
-            Assert.AreEqual(3, dlc.TotalAchievements);
+            Assert.AreEqual(2, dlc.TotalAchievements, "its own two, not the child's");
         }
 
         [TestMethod]

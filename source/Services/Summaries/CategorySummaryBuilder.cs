@@ -53,14 +53,12 @@ namespace PlayniteAchievements.Services.Summaries
         }
 
         /// <summary>
-        /// Builds one row per immediate child of <paramref name="parentPath"/>, each aggregating
-        /// its whole subtree. A null or blank parent gives the root level.
+        /// Builds one row per immediate child of <paramref name="parentPath"/>. A null or blank
+        /// parent gives the root level.
         ///
-        /// Rows at one level are disjoint by construction - every label has exactly one ancestor
-        /// that is an immediate child of the parent - so summing them cannot double-count.
-        /// Achievements sitting directly on the parent belong to no row here; the grid renders
-        /// those alongside, which is what makes a node with both children and its own achievements
-        /// display correctly.
+        /// Each row counts only the achievements labelled exactly that node, so it reports the same
+        /// numbers the node shows everywhere else. Art still resolves down the subtree, so a node
+        /// with children but no art of its own inherits a descendant's.
         /// </summary>
         /// <param name="useLeafNames">
         /// True to title rows with the last path segment, for a drilled view whose breadcrumb
@@ -115,7 +113,7 @@ namespace PlayniteAchievements.Services.Summaries
                 groups.Keys,
                 ResolvePreferredOrder(source));
 
-            return BuildRows(groups, order, aggregateSubtree: true, useLeafNames, badgeMode, countSubtree: false);
+            return BuildRows(groups, order, aggregateSubtree: true, useLeafNames, badgeMode);
         }
 
         private static IReadOnlyList<AchievementDisplayItem> Materialize(
@@ -163,19 +161,12 @@ namespace PlayniteAchievements.Services.Summaries
         /// parent inherit a descendant's art and what keeps a synthesized intermediate node from
         /// being dropped for holding nothing of its own.
         /// </param>
-        /// <param name="countSubtree">
-        /// True to count the whole subtree, false to count only achievements labelled exactly this
-        /// node. Separate from <paramref name="aggregateSubtree"/> because a tree view wants each
-        /// row to report its own achievements - a parent and its children reporting the same ones
-        /// reads as double-counting - while still inheriting art down the tree.
-        /// </param>
         private static List<GameSummaryItem> BuildRows(
             Dictionary<string, List<AchievementDisplayItem>> groups,
             IReadOnlyList<string> orderedNodes,
             bool aggregateSubtree,
             bool useLeafNames,
-            CategoryCompletionBadgeMode badgeMode,
-            bool countSubtree = true)
+            CategoryCompletionBadgeMode badgeMode)
         {
             var result = new List<GameSummaryItem>();
 
@@ -188,12 +179,11 @@ namespace PlayniteAchievements.Services.Summaries
                     continue;
                 }
 
-                // What the row reports. An intermediate node with none of its own reads 0/0, which
-                // is what it holds; the row itself still renders, since `members` above is what
-                // decides whether the node exists.
-                var counted = countSubtree
-                    ? members
-                    : (IReadOnlyList<AchievementDisplayItem>)directMembers ?? Array.Empty<AchievementDisplayItem>();
+                // What the row reports: its own members, never a descendant's. Every surface counts
+                // a node this way, so a parent that is purely a folder reads 0/0 rather than
+                // restating its children. The row still renders - `members` above is what decides
+                // the node exists - and art still resolves down the subtree.
+                var counted = (IReadOnlyList<AchievementDisplayItem>)directMembers ?? Array.Empty<AchievementDisplayItem>();
 
                 var depth = CategoryPathHelper.GetDepth(node);
                 var display = useLeafNames && depth > 1

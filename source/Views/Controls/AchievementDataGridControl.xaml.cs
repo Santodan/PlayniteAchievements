@@ -1602,12 +1602,12 @@ namespace PlayniteAchievements.Views.Controls
         {
             if (IsCategoryGroupingEffective() && IsDrilled)
             {
-                // The node and everything beneath it, matching the count its row showed: with the
-                // child rows gone from the screen there is nothing left to double-count, and a
-                // parent reads as the broad view its indented children narrow.
+                // This node only, never its descendants. Every count in the plugin reports a node
+                // on its own members, so a grid that pulled in the subtree would disagree with both
+                // the row that was clicked to reach it and the header above it.
                 var drilled = DrilledPath;
                 var filtered = (ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
-                    .Where(i => i != null && CategoryPathHelper.IsSelfOrDescendantOf(i.CategoryLabel, drilled))
+                    .Where(i => i != null && CategoryPathHelper.IsSame(i.CategoryLabel, drilled))
                     .ToList();
 
                 // Mutate a stable collection in place rather than reassigning a new list, so the grid
