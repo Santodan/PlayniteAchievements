@@ -517,7 +517,7 @@ namespace PlayniteAchievements.Tests.Services.Summaries
         }
 
         [TestMethod]
-        public void BuildTree_AggregatesCountsForEveryNode()
+        public void BuildTree_CountsEachNodeOnItsOwnMembers()
         {
             var items = new List<AchievementDisplayItem>
             {
@@ -530,20 +530,24 @@ namespace PlayniteAchievements.Tests.Services.Summaries
             var tree = CategorySummaryBuilder.BuildTree(items).Cast<CategorySummaryItem>().ToList();
             var byPath = tree.ToDictionary(r => r.CategoryPath, r => r, StringComparer.OrdinalIgnoreCase);
 
-            Assert.AreEqual(3, byPath["DLC"].TotalAchievements, "a parent counts its whole subtree");
-            Assert.AreEqual(2, byPath["DLC"].UnlockedAchievements);
-            Assert.AreEqual(2, byPath["DLC::Winter"].TotalAchievements);
+            // Rows partition the set: a parent reports only what is labelled exactly itself, so a
+            // node that is purely a folder reads 0/0 rather than restating its children's counts.
+            Assert.AreEqual(0, byPath["DLC"].TotalAchievements, "a folder-only parent holds none of its own");
+            Assert.AreEqual(0, byPath["DLC"].UnlockedAchievements);
+            Assert.AreEqual(1, byPath["DLC::Winter"].TotalAchievements);
             Assert.AreEqual(1, byPath["DLC::Winter"].UnlockedAchievements);
             Assert.AreEqual(1, byPath["DLC::Winter::Frost"].TotalAchievements);
             Assert.AreEqual(0, byPath["DLC::Winter::Frost"].UnlockedAchievements);
             Assert.AreEqual(1, byPath["Multiplayer"].TotalAchievements);
+            Assert.AreEqual(items.Count, tree.Sum(r => r.TotalAchievements), "the rows partition the set");
         }
 
         [TestMethod]
-        public void BuildTree_CountsNodesSeveralLevelsDown()
+        public void BuildTree_StillEmitsNodesSeveralLevelsDownThatHoldNothing()
         {
             // Achievements only ever sit on the deepest labels, so every node above them has an
-            // empty bucket of its own and has to count its subtree to show anything at all.
+            // empty bucket. Those nodes still get a row - the subtree is what decides a node
+            // exists - they just report 0/0, which is what they hold.
             var items = new List<AchievementDisplayItem>
             {
                 NestedItem("A::B::C::D", unlocked: true),
@@ -556,11 +560,12 @@ namespace PlayniteAchievements.Tests.Services.Summaries
                 .Cast<CategorySummaryItem>()
                 .ToDictionary(r => r.CategoryPath, r => r, StringComparer.OrdinalIgnoreCase);
 
-            Assert.AreEqual(4, byPath["A"].TotalAchievements);
-            Assert.AreEqual(2, byPath["A"].UnlockedAchievements);
-            Assert.AreEqual(4, byPath["A::B"].TotalAchievements);
-            Assert.AreEqual(3, byPath["A::B::C"].TotalAchievements);
+            Assert.AreEqual(0, byPath["A"].TotalAchievements);
+            Assert.AreEqual(0, byPath["A"].UnlockedAchievements);
+            Assert.AreEqual(0, byPath["A::B"].TotalAchievements);
+            Assert.AreEqual(0, byPath["A::B::C"].TotalAchievements);
             Assert.AreEqual(2, byPath["A::B::C::D"].TotalAchievements);
+            Assert.AreEqual(1, byPath["A::B::C::D"].UnlockedAchievements);
             Assert.AreEqual(1, byPath["A::B::C::E"].TotalAchievements);
             Assert.AreEqual(1, byPath["A::B::F"].TotalAchievements);
         }
