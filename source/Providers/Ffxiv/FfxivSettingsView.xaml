@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              mc:Ignorable="d"
              d:DesignHeight="500"
              d:DesignWidth="700">
@@ -105,6 +106,16 @@
                                                    Style="{StaticResource MutedTextStyle}"
                                                    Margin="0,12,0,0"
                                                    TextWrapping="Wrap"/>
+
+                                        <!-- Full strength rather than MutedTextStyle: this is an
+                                             actionable setup step with a link, matching how the
+                                             Hoyoverse and Battle.net tabs present theirs. -->
+                                        <TextBlock Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                   Margin="0,8,0,0"
+                                                   TextWrapping="Wrap"
+                                                   helpers:HyperlinkFormatText.Format="{DynamicResource LOCPlayAch_Settings_FFXIV_CollectNote}"
+                                                   helpers:HyperlinkFormatText.LinkText="FFXIV Collect"
+                                                   helpers:HyperlinkFormatText.NavigateUri="https://ffxivcollect.com/characters"/>
 
                                         <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
                                                 Click="CheckCharacter_Click"

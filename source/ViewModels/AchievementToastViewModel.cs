@@ -449,8 +449,8 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>Screenshot-frame counterpart to <see cref="RarityGlowEffect"/>.</summary>
         public Effect FrameRarityGlowEffect =>
-            _style.Frame.ShowRarityGlow && !HardcoreTakesBorder && HasSoftGlowTier
-                ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
+            _style.Frame.ShowRarityGlow && !HardcoreTakesBorder
+                ? SoftGlowForKind
                 : null;
 
         // Header texts honor the surface's user edits with the localized strings as fallback.
@@ -569,6 +569,13 @@ namespace PlayniteAchievements.ViewModels
             ? RarityAppearanceHelper.GetCompletedBrush(_settings)
             : RarityAppearanceHelper.GetBrush(_rarity, _settings);
 
+        /// <summary>
+        /// True for the completion-grade kinds — the standalone 100% notification and a capstone
+        /// unlock — whose glows, edges, and rays take the completion colors instead of the rarity
+        /// tier's, matching <see cref="AccentBrush"/>'s capstone precedence.
+        /// </summary>
+        public bool UsesCompletionColors => IsGameCompleted || IsCapstone;
+
         // Completion palette, always available regardless of this notification's kind so the
         // bundled templates (and themes) apply completion styling with triggers on
         // IsGameCompleted / IsCompletionAchievement. The glows honor the rarity-glow toggles.
@@ -647,10 +654,19 @@ namespace PlayniteAchievements.ViewModels
         public Brush IconBorderBrush => RarityAppearanceHelper.GetShineBrush(_rarity, _settings);
 
         // Soft rarity glow for non-hardcore unlocks whose tier is selected for it (matches the
-        // datagrids' glow, BlurRadius 20).
-        public Effect RarityGlowEffect => _style.Toast.ShowRarityGlow && !HardcoreTakesBorder && HasSoftGlowTier
-            ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
+        // datagrids' glow, BlurRadius 20). Completion-grade kinds take the completion glow,
+        // gated on the selection's Completed entry like CompletedGlowEffect.
+        public Effect RarityGlowEffect => _style.Toast.ShowRarityGlow && !HardcoreTakesBorder
+            ? SoftGlowForKind
             : null;
+
+        /// <summary>
+        /// The soft halo for this notification's kind: the completion glow for completion-grade
+        /// kinds, the rarity tier's glow otherwise. Each side honors its own tier selection.
+        /// </summary>
+        private Effect SoftGlowForKind => UsesCompletionColors
+            ? (HasSoftCompletionGlow ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings) : null)
+            : (HasSoftGlowTier ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings) : null);
 
         /// <summary>
         /// True when the notification icon carries the rotating sunburst behind its soft halo: this
@@ -669,14 +685,18 @@ namespace PlayniteAchievements.ViewModels
         /// to read as a line along the artwork rather than a glow around it. It follows the alpha
         /// because it is a blur of the picture itself, which is the only way to hug cut-out art.
         /// </summary>
-        public Effect RarityEdgeEffect => ShowRayBurst
-            ? RarityAppearanceHelper.GetGlow(_rarity, RayEdgeBlurRadius, _settings)
-            : null;
+        public Effect RarityEdgeEffect => ShowRayBurst ? EdgeForKind : null;
 
         /// <summary>Screenshot-frame counterpart to <see cref="RarityEdgeEffect"/>.</summary>
-        public Effect FrameRarityEdgeEffect => FrameShowRayBurst
-            ? RarityAppearanceHelper.GetGlow(_rarity, RayEdgeBlurRadius, _settings)
-            : null;
+        public Effect FrameRarityEdgeEffect => FrameShowRayBurst ? EdgeForKind : null;
+
+        /// <summary>
+        /// The ray edge for this notification's kind: completion-colored for completion-grade
+        /// kinds, the rarity tier's color otherwise.
+        /// </summary>
+        private Effect EdgeForKind => UsesCompletionColors
+            ? RarityAppearanceHelper.GetCompletedEdge(_settings)
+            : RarityAppearanceHelper.GetGlow(_rarity, RayEdgeBlurRadius, _settings);
 
         /// <summary>Matches the ConverterParameter the grid templates pass for the same edge.</summary>
         private const double RayEdgeBlurRadius = 4;
@@ -692,7 +712,7 @@ namespace PlayniteAchievements.ViewModels
         /// notification is matched against the selection's completion entry rather than a rarity tier,
         /// since it carries no rarity of its own.
         /// </summary>
-        private bool HasRaySelection => IsGameCompleted
+        private bool HasRaySelection => UsesCompletionColors
             ? _settings.RarityGlowRayTiers.IncludesCompleted()
             : _settings.RarityGlowRayTiers.Contains(_rarity);
 
@@ -761,7 +781,7 @@ namespace PlayniteAchievements.ViewModels
                     return null;
                 }
 
-                var glow = IsGameCompleted
+                var glow = UsesCompletionColors
                     ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings)?.Clone()
                     : RarityAppearanceHelper.GetGlow(_rarity, BorderGlowBlurRadius, _settings)?.Clone();
                 if (glow is DropShadowEffect dropShadow)

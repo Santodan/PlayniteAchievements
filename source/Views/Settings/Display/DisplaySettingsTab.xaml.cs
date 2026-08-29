@@ -23,6 +23,7 @@ namespace PlayniteAchievements.Views.Settings.Display
         private SettingsNavigationItem _friendsOverviewNavigationItem;
         private SettingsNavigationItem _friendsAchievementsNavigationItem;
         private PlayniteAchievementsSettings _settings;
+        private PersistedSettingsSubscription _persistedSubscription;
 
         private DisplayGeneralSection _generalSection;
         private AppearanceSection _appearanceSection;
@@ -171,7 +172,13 @@ namespace PlayniteAchievements.Views.Settings.Display
             MasterDetail.ItemsSource = _navigationItems;
             MasterDetail.SelectedItem = _navigationItems[0];
 
-            settings.Persisted.PropertyChanged += Persisted_PropertyChanged;
+            // Tracks the current Persisted instance: the plugin's own settings popout can
+            // overlap a Playnite addon-settings session, so a cancel in one can replace the
+            // instance under the other.
+            _persistedSubscription = new PersistedSettingsSubscription(
+                settings,
+                Persisted_PropertyChanged,
+                SyncFriendsNavigationItems);
         }
 
         private void Persisted_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -181,7 +188,12 @@ namespace PlayniteAchievements.Views.Settings.Display
                 return;
             }
 
-            if (_settings.Persisted.EnableFriendsFeatures)
+            SyncFriendsNavigationItems();
+        }
+
+        private void SyncFriendsNavigationItems()
+        {
+            if (_settings?.Persisted?.EnableFriendsFeatures == true)
             {
                 InsertFriendsNavigationItems();
             }
@@ -245,10 +257,8 @@ namespace PlayniteAchievements.Views.Settings.Display
 
         public void Dispose()
         {
-            if (_settings != null)
-            {
-                _settings.Persisted.PropertyChanged -= Persisted_PropertyChanged;
-            }
+            _persistedSubscription?.Dispose();
+            _persistedSubscription = null;
             _generalSection?.Dispose();
             _appearanceSection?.Dispose();
             _startPageSection?.Dispose();

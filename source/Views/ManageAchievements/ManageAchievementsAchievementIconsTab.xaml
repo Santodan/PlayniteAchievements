@@ -186,7 +186,18 @@
                                                Height="{StaticResource PlayAch.Size.Control.Height}"
                                               Stretch="Uniform"
                                                helpers:AsyncImage.Uri="{Binding UnlockedPreviewPath}"
-                                               helpers:AsyncImage.DecodePixel="72" />
+                                               helpers:AsyncImage.DecodePixel="72">
+                                            <Image.Style>
+                                                <Style TargetType="Image">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsIconHidden}" Value="True">
+                                                            <Setter Property="Cursor" Value="Hand" />
+                                                            <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Image.Style>
+                                        </Image>
                                     </Border>
 
                                     <Grid Grid.Column="2"
@@ -257,7 +268,22 @@
                                                Height="{StaticResource PlayAch.Size.Control.Height}"
                                               Stretch="Uniform"
                                                helpers:AsyncImage.Uri="{Binding LockedPreviewPath}"
-                                               helpers:AsyncImage.DecodePixel="72" />
+                                               helpers:AsyncImage.DecodePixel="72">
+                                            <Image.Style>
+                                                <Style TargetType="Image">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsIconHidden}" Value="True">
+                                                            <Setter Property="Cursor" Value="Hand" />
+                                                            <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsLockedIconHidden}" Value="True">
+                                                            <Setter Property="Cursor" Value="Hand" />
+                                                            <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Image.Style>
+                                        </Image>
                                     </Border>
 
                                     <Grid Grid.Column="2"

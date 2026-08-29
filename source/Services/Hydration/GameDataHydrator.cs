@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Playnite.SDK;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
@@ -17,20 +18,24 @@ namespace PlayniteAchievements.Services.Hydration
     public class GameDataHydrator
     {
         private readonly IPlayniteAPI _api;
-        private readonly PersistedSettings _settings;
+        // The settings wrapper, not its PersistedSettings: CancelEdit replaces the
+        // Persisted instance, and this hydrator outlives a settings dialog.
+        private readonly PlayniteAchievementsSettings _settingsHost;
         private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly AchievementDetailHydrator _achievementHydrator;
 
         public GameDataHydrator(
             IPlayniteAPI api,
-            PersistedSettings settings,
+            PlayniteAchievementsSettings settings,
             GameCustomDataStore gameCustomDataStore = null)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _settingsHost = settings ?? throw new ArgumentNullException(nameof(settings));
             _gameCustomDataStore = gameCustomDataStore;
             _achievementHydrator = new AchievementDetailHydrator(settings);
         }
+
+        private PersistedSettings Persisted => _settingsHost.Persisted;
 
         /// <summary>
         /// Hydrates a single GameAchievementData with non-persisted properties.
@@ -43,7 +48,7 @@ namespace PlayniteAchievements.Services.Hydration
             }
 
             var gameId = data.PlayniteGameId.Value;
-            var customData = GameCustomDataLookup.ResolveGameCustomData(gameId, _settings, _gameCustomDataStore);
+            var customData = GameCustomDataLookup.ResolveGameCustomData(gameId, Persisted, _gameCustomDataStore);
 
             // Populate ExcludedByUser from settings
             data.ExcludedByUser = customData.ExcludedFromRefreshes;
@@ -99,7 +104,7 @@ namespace PlayniteAchievements.Services.Hydration
             }
 
             var gameId = data.PlayniteGameId.Value;
-            var customData = GameCustomDataLookup.ResolveGameCustomData(gameId, _settings, _gameCustomDataStore);
+            var customData = GameCustomDataLookup.ResolveGameCustomData(gameId, Persisted, _gameCustomDataStore);
 
             data.ExcludedFromSummaries = customData.ExcludedFromSummaries;
             data.UseSeparateLockedIconsWhenAvailable = customData.UseSeparateLockedIcons;

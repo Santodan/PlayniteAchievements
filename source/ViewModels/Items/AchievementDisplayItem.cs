@@ -1199,6 +1199,17 @@ namespace PlayniteAchievements.ViewModels.Items
             ShowFriendSpoilers = resolved.ShowFriendSpoilers;
         }
 
+        /// <summary>
+        /// Re-raises the icon display properties. The cover images are read live from settings
+        /// rather than stored on the item, so nothing on the item changes when the user picks a new
+        /// one and <see cref="ApplyAppearanceSettings(AppearanceSettingsSnapshot)"/> short-circuits
+        /// in every setter. Callers reacting to a cover-path change use this instead.
+        /// </summary>
+        public void RefreshIconDisplay()
+        {
+            NotifyIconDisplayChanged();
+        }
+
         public static AppearanceSettingsSnapshot CreateAppearanceSettingsSnapshot(
             PlayniteAchievementsSettings settings,
             Guid? playniteGameId,
@@ -1492,6 +1503,25 @@ namespace PlayniteAchievements.ViewModels.Items
                 case nameof(PersistedSettings.SeparateLockedIconEnabledGameIds):
                 case nameof(PersistedSettings.UseUniformRarityBadges):
                 case nameof(PersistedSettings.RarityColors):
+                case nameof(PersistedSettings.LockedFallbackIconPath):
+                case nameof(PersistedSettings.HiddenFallbackIconPath):
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// True for the appearance settings that change only which cover image is drawn. These are
+        /// read live rather than stored on the item, so applying the snapshot is a no-op for them
+        /// and consumers must call <see cref="RefreshIconDisplay"/> instead.
+        /// </summary>
+        public static bool IsIconCoverPropertyName(string propertyName)
+        {
+            switch (NormalizePersistedPropertyName(propertyName))
+            {
+                case nameof(PersistedSettings.LockedFallbackIconPath):
+                case nameof(PersistedSettings.HiddenFallbackIconPath):
                     return true;
                 default:
                     return false;

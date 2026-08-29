@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Views.Helpers;
 

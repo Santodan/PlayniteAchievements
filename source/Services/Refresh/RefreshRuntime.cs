@@ -233,7 +233,7 @@ namespace PlayniteAchievements.Services.Refresh
             _achievementIconService = new AchievementIconService(
                 _diskImageService,
                 managedCustomIconService ?? throw new ArgumentNullException(nameof(managedCustomIconService)),
-                settings?.Persisted,
+                () => _settings?.Persisted,
                 _logger);
             _progressReportingService = new ProgressReportingService(_logger, PostToUi);
             _refreshStateManager = new RefreshStateManager();

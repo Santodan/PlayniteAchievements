@@ -98,6 +98,7 @@
     <Compile Include="..\..\source\Providers\PSN\PsnNpCommIdHelper.cs" Link="Source\Providers\PSN\PsnNpCommIdHelper.cs" />
     <Compile Include="..\..\source\Providers\PSN\PsnTrophyCategoryHelper.cs" Link="Source\Providers\PSN\PsnTrophyCategoryHelper.cs" />
     <Compile Include="..\..\source\Providers\PSN\PsnTrophyMatchHelper.cs" Link="Source\Providers\PSN\PsnTrophyMatchHelper.cs" />
+    <Compile Include="..\..\source\Providers\PSN\PsnTrophySetResolutionHelper.cs" Link="Source\Providers\PSN\PsnTrophySetResolutionHelper.cs" />
     <Compile Include="..\..\source\Providers\PSN\Models\PsnTrophyModels.cs" Link="Source\Providers\PSN\Models\PsnTrophyModels.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementIconOverrideHelper.cs" Link="Source\Services\Achievements\AchievementIconOverrideHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementNoteHelper.cs" Link="Source\Services\Achievements\AchievementNoteHelper.cs" />
@@ -289,6 +290,7 @@
     <Compile Include="..\..\source\ViewModels\Items\FriendSummaryItem.cs" Link="Source\ViewModels\Items\FriendSummaryItem.cs" />
     <Compile Include="..\..\source\ViewModels\IOverviewRefreshHeaderViewModel.cs" Link="Source\ViewModels\IOverviewRefreshHeaderViewModel.cs" />
     <Compile Include="..\..\source\ViewModels\RefreshHeaderProgressTracker.cs" Link="Source\ViewModels\RefreshHeaderProgressTracker.cs" />
+    <Compile Include="..\..\source\Models\Settings\PersistedSettingsSubscription.cs" Link="Source\Models\Settings\PersistedSettingsSubscription.cs" />
     <Compile Include="..\..\source\ViewModels\FriendsOverviewViewModel.cs" Link="Source\ViewModels\FriendsOverviewViewModel.cs" />
     <Compile Include="..\..\source\ViewModels\Items\GameSummaryItem.cs" Link="Source\ViewModels\Items\GameSummaryItem.cs" />
     <Compile Include="..\..\source\ViewModels\AchievementGridControlBarAdapter.cs" Link="Source\ViewModels\AchievementGridControlBarAdapter.cs" />
