@@ -867,6 +867,9 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public string CategoryLabelDisplay => AchievementCategoryTypeHelper.ToCategoryLabelCellText(CategoryLabel);
 
+        /// <summary>Full path for the category cell's tooltip; the cell itself shows the leaf.</summary>
+        public string CategoryLabelPathDisplay => AchievementCategoryTypeHelper.ToCategoryLabelCellPathText(CategoryLabel);
+
         /// <summary>
         /// Path to the game's icon image.
         /// Used by the Game column in overview recent achievements.

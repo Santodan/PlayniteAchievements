@@ -49,7 +49,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             set => SetValue(ref _isSelected, value);
         }
 
-        public string CategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(Category);
+        public string CategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(Category);
+
+        /// <summary>Full path for the category cell's tooltip; the cell itself shows the leaf.</summary>
+        public string CategoryPathDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(Category);
     }
 
     public sealed class ManageAchievementsCategoryMetadataItem : ObservableObject

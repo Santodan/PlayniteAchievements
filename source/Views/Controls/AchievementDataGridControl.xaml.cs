@@ -695,7 +695,6 @@ namespace PlayniteAchievements.Views.Controls
         }
         private GridModeToggle _modeToggle;
         private GridMultiSelectFilter _connectedCategoryFilter;
-        private GridBreadcrumb _breadcrumb;
         private GridControlBarViewModel _controlBarWithToggle;
         private INotifyCollectionChanged _observedItemsSource;
         private INotifyCollectionChanged _observedCategorySummarySource;
@@ -725,18 +724,6 @@ namespace PlayniteAchievements.Views.Controls
             {
                 control.SyncModeToggle();
             }
-        }
-
-        public static readonly DependencyProperty HideBackButtonProperty =
-            DependencyProperty.Register(nameof(HideBackButton), typeof(bool),
-                typeof(AchievementDataGridControl), new PropertyMetadata(false));
-
-        // When true, the in-grid Back button is never created, letting a host's own breadcrumb
-        // header (which calls ExitDrilledCategory()) be the only way back to the category list.
-        public bool HideBackButton
-        {
-            get => (bool)GetValue(HideBackButtonProperty);
-            set => SetValue(HideBackButtonProperty, value);
         }
 
         public static readonly DependencyProperty HideCategorySummaryRowProperty =
@@ -885,6 +872,18 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (string)GetValue(DrilledCategoryProperty);
             set => SetValue(DrilledCategoryProperty, value);
+        }
+
+        public static readonly DependencyProperty DrilledCategorySegmentsProperty =
+            DependencyProperty.Register(nameof(DrilledCategorySegments), typeof(IReadOnlyList<CategoryPathSegment>),
+                typeof(AchievementDataGridControl), new PropertyMetadata(null));
+
+        // The same path as DrilledCategory, but as clickable hops so a host header can offer the
+        // ancestors instead of one dead string. Empty at the root. Written by the control.
+        public IReadOnlyList<CategoryPathSegment> DrilledCategorySegments
+        {
+            get => (IReadOnlyList<CategoryPathSegment>)GetValue(DrilledCategorySegmentsProperty);
+            set => SetValue(DrilledCategorySegmentsProperty, value);
         }
 
         public static readonly DependencyProperty AchievementGridVisibleProperty =
@@ -1109,15 +1108,6 @@ namespace PlayniteAchievements.Views.Controls
                     HasMultipleCategories);
             }
 
-            // The breadcrumb replaces the Back button: every hop returns to the category list, the
-            // last one landing on the row just left and the ones above it on that ancestor.
-            if (_breadcrumb == null && !HideBackButton)
-            {
-                _breadcrumb = new GridBreadcrumb(
-                    NavigateToAncestorInList,
-                    CategoryModeText("LOCPlayAch_ManageAchievements_Tab_Category", "Categories"));
-            }
-
             if (!ReferenceEquals(_controlBarWithToggle, ControlBar))
             {
                 // The category-label dropdown is the last category-scoped filter (Type is added
@@ -1195,18 +1185,6 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             PositionModeToggle(bar, grouping);
-
-            if (_isCategoryMode)
-            {
-                if (_breadcrumb != null && !bar.LeadingItems.Contains(_breadcrumb))
-                {
-                    bar.LeadingItems.Insert(0, _breadcrumb);
-                }
-            }
-            else if (_breadcrumb != null)
-            {
-                bar.LeadingItems.Remove(_breadcrumb);
-            }
         }
 
         // Slots the toggle for the current mode. Moves rather than removes and re-inserts, so the
@@ -1271,9 +1249,7 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             bar.Items.Remove(_modeToggle);
-            bar.Items.Remove(_breadcrumb);
             bar.LeadingItems.Remove(_modeToggle);
-            bar.LeadingItems.Remove(_breadcrumb);
             foreach (var item in bar.Items)
             {
                 if (item is GridMultiSelectFilter filter)
@@ -1336,17 +1312,6 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             SyncSegmentedUnit();
-
-            if (_breadcrumb != null)
-            {
-                _breadcrumb.IsVisible = drilled;
-                if (drilled)
-                {
-                    _breadcrumb.SetPath(_drillPath
-                        .Select(CategoryPathHelper.ToDisplayLeaf)
-                        .ToList());
-                }
-            }
 
             if (list)
             {
@@ -1414,15 +1379,17 @@ namespace PlayniteAchievements.Views.Controls
             // the list is the whole map, so any category is one click away and one click back.
             //
             // A manual column sort breaks the pre-order run that makes the tree guides readable - a
-            // child can land anywhere - so a sorted list drops them and titles each row with its
-            // full path instead, which stands on its own wherever the row ends up.
+            // child can land anywhere - so a sorted list drops them. Rows keep their leaf names
+            // either way: the name column sorts on what it shows, and retitling to full paths made
+            // sorting swap the whole column's text for long shared prefixes. A nested row's path is
+            // on hover instead.
             var isSorted = _categorySortDirection.HasValue && !string.IsNullOrWhiteSpace(_categorySortPath);
             _allCategorySummaries = items == null || items.Count == 0
                 ? null
                 : CategorySummaryBuilder.BuildTree(
                     items,
                     ResolveCategoryCompletionBadgeMode(),
-                    useLeafNames: !isSorted);
+                    useLeafNames: true);
 
             if (isSorted && _allCategorySummaries != null)
             {
@@ -1525,6 +1492,12 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         private void ScrollCategoryRowIntoView(string path)
         {
+            // Clear first so a stale mark never lingers, including when the target has gone.
+            foreach (var summary in CategorySummaries ?? Enumerable.Empty<GameSummaryItem>())
+            {
+                summary.IsHighlighted = false;
+            }
+
             if (CategoryListGrid == null || string.IsNullOrWhiteSpace(path))
             {
                 return;
@@ -1537,6 +1510,10 @@ namespace PlayniteAchievements.Views.Controls
             {
                 return;
             }
+
+            // Marked rather than selected: selection is the drill gesture in this grid, so
+            // selecting the row the user just came back to would send them straight back in.
+            row.IsHighlighted = true;
 
             // After the visibility flip the list has not laid out its rows yet.
             CategoryListGrid.Dispatcher.BeginInvoke(
@@ -1597,6 +1574,9 @@ namespace PlayniteAchievements.Views.Controls
             // Display form: hosts bind this straight into a header TextBlock, and the storage
             // separator is internal - never shown to a user.
             DrilledCategory = drill ? CategoryPathHelper.ToDisplayPath(DrilledPath) : null;
+            DrilledCategorySegments = drill
+                ? CategoryPathSegment.Build(_drillPath, NavigateToAncestorInList)
+                : null;
 
             ApplyCategoryPaneLayout();
             RecomputeEffectiveAchievements();
@@ -1779,12 +1759,14 @@ namespace PlayniteAchievements.Views.Controls
             var items = (CategorySummarySource ?? ItemsSource)?.ToList();
             var match = items == null || items.Count == 0
                 ? null
+                // Leaf name only: the header path above the grid already carries the ancestry, so
+                // spelling the full path here again just crowds the row.
                 : CategorySummaryBuilder
                     .BuildLevel(
                         items,
                         CategoryPathHelper.GetParentPath(drilled),
                         ResolveCategoryCompletionBadgeMode(),
-                        useLeafNames: false)
+                        useLeafNames: true)
                     .OfType<CategorySummaryItem>()
                     .FirstOrDefault(c => CategoryPathHelper.IsSame(c.CategoryPath, drilled));
 
@@ -1970,8 +1952,8 @@ namespace PlayniteAchievements.Views.Controls
             _drillItems.ReplaceAll(items);
         }
 
-        // Public entry point for a host's own breadcrumb header to navigate back to the category
-        // summary list, for surfaces where HideBackButton suppresses the in-grid Back button.
+        // Public entry point for a host header to navigate back to the category summary list; the
+        // path segments above the grid are the only way back.
         public void ExitDrilledCategory() => CategoryBackToList();
 
         /// <summary>

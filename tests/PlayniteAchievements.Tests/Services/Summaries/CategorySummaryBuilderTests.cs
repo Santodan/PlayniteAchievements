@@ -506,13 +506,14 @@ namespace PlayniteAchievements.Tests.Services.Summaries
                 new[] { "DLC", "Winter", "Frost", "Multiplayer" },
                 tree.Select(r => r.GameName).ToArray(),
                 "an indented list titles its rows with the leaf name");
+
+            // Depth is the builder's contract; how a surface draws it is not. Asserting the guide
+            // geometry here pinned pixel math to the summary builder and would have to be rewritten
+            // alongside any change to how nesting is marked on screen.
             CollectionAssert.AreEqual(
-                new[] { 0d, 22d, 38d, 0d },
-                tree.Select(r => r.NameGuideWidth).ToArray(),
-                "the guide arrow lengthens with depth, and a root has none");
-            Assert.IsNull(tree[0].NameGuide, "a root category is not guided");
-            Assert.IsNotNull(tree[1].NameGuide);
-            Assert.IsTrue(tree[1].NameGuide.IsFrozen, "guides are shared across rows");
+                new[] { 1, 2, 3, 1 },
+                tree.Select(r => r.CategoryDepth).ToArray(),
+                "each row reports its own depth");
         }
 
         [TestMethod]

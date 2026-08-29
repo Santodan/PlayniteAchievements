@@ -358,8 +358,30 @@ namespace PlayniteAchievements.Services.Achievements
         /// Grid-cell variant of <see cref="ToCategoryLabelDisplayText"/>: the Default bucket
         /// renders as an empty string instead of the localized "Default" placeholder. Category
         /// management rows, summaries, and theme options keep the named bucket.
+        ///
+        /// Shows the leaf only. A grid column has no room for a path, and a column of paths sharing
+        /// long prefixes is harder to scan than a column of names; the full path is the cell's
+        /// tooltip - see <see cref="ToCategoryLabelCellPathText"/>.
         /// </summary>
         public static string ToCategoryLabelCellText(string rawValue)
+        {
+            if (NormalizeCategory(rawValue) == null)
+            {
+                return string.Empty;
+            }
+
+            var label = CategoryPathHelper.NormalizePath(rawValue);
+            return string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
+                ? string.Empty
+                : CategoryPathHelper.ToDisplayLeaf(label);
+        }
+
+        /// <summary>
+        /// Tooltip companion to <see cref="ToCategoryLabelCellText"/>: the full path, so hovering a
+        /// cell reveals where a nested category sits. For a flat label this is the label itself,
+        /// which also keeps the pre-existing reveal of a name the column had to ellipsize.
+        /// </summary>
+        public static string ToCategoryLabelCellPathText(string rawValue)
         {
             if (NormalizeCategory(rawValue) == null)
             {

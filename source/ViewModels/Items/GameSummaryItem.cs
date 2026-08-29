@@ -50,9 +50,29 @@ namespace PlayniteAchievements.ViewModels.Items
         // Session-only: true when this game has any saved unlock captures on disk. Set by the
         // capture presence marker after the summaries are built; gates the Captures column button.
         private bool _hasCaptures;
+        private bool _isHighlighted;
+        private string _nameToolTip;
         [DontSerialize]
         [IgnoreDataMember]
         public bool HasCaptures { get => _hasCaptures; set => SetValue(ref _hasCaptures, value); }
+
+        /// <summary>
+        /// Draws attention to a row the user was sent to rather than one they picked. Selection is
+        /// the drill gesture in this grid, so arriving at a row cannot select it - this marks it
+        /// instead, and clears when the next navigation happens.
+        /// </summary>
+        public bool IsHighlighted { get => _isHighlighted; set => SetValue(ref _isHighlighted, value); }
+
+        /// <summary>
+        /// Hover text for the name cell, or null for none. A category row shows its leaf, so this
+        /// carries the full path - two leaves with the same name under different parents are
+        /// otherwise indistinguishable once a column sort breaks the tree order.
+        /// </summary>
+        public string NameToolTip
+        {
+            get => _nameToolTip ?? _gameName;
+            set => SetValue(ref _nameToolTip, value);
+        }
 
         private string _sortingName;
         public string SortingName { get => _sortingName; set => SetValue(ref _sortingName, value); }

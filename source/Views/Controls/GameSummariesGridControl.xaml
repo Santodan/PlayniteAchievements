@@ -36,6 +36,15 @@
                 <EventSetter Event="PreviewMouseLeftButtonDown" Handler="DataGridRow_PreviewMouseLeftButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="DataGridRow_PreviewMouseRightButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonUp" Handler="DataGridRow_PreviewMouseRightButtonUp"/>
+                <Style.Triggers>
+                    <!-- Marks a row the user was sent to, e.g. by a path hop above the grid.
+                         Selecting it is not an option: selection is the drill gesture here. -->
+                    <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        <Setter Property="BorderThickness" Value="1"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="GameSummaryGridTextStyle"
@@ -251,7 +260,9 @@
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Game}" SortMemberPath="SortingName" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryName">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
-                        <Setter Property="ToolTip" Value="{Binding GameName}"/>
+                        <!-- Falls back to the row's name, so a game row is unchanged; a nested
+                             category row shows its full path, since the cell holds only the leaf. -->
+                        <Setter Property="ToolTip" Value="{Binding NameToolTip}"/>
                     </Style>
                 </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>

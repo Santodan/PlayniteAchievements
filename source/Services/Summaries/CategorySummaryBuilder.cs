@@ -188,7 +188,11 @@ namespace PlayniteAchievements.Services.Summaries
                     DirectAchievementCount = directMembers?.Count ?? 0,
                     PlayniteGameId = ResolveSharedGameId(members),
                     GameName = display,
-                    SortingName = display
+                    SortingName = display,
+                    // Sorting orders by the name shown, so a nested row needs its path on hover:
+                    // once a column sort breaks the tree order, two leaves that happen to share a
+                    // name have nothing else to tell them apart.
+                    NameToolTip = depth > 1 ? AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(node) : null
                 };
 
                 // Category art fills both image slots so the grid's icon/cover toggle only

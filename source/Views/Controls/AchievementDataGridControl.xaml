@@ -452,7 +452,7 @@
                     <Style TargetType="DataGridCell"
                         BasedOn="{StaticResource AchievementCellStyle}">
                         <Setter Property="Padding" Value="0"/>
-                        <Setter Property="ToolTip" Value="{Binding CategoryLabelDisplay}"/>
+                        <Setter Property="ToolTip" Value="{Binding CategoryLabelPathDisplay}"/>
                     </Style>
                 </DataGridTemplateColumn.CellStyle>
             </DataGridTemplateColumn>

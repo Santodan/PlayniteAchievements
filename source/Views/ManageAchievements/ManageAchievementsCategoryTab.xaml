@@ -241,7 +241,7 @@
                             <Setter Property="TextAlignment" Value="Center" />
                             <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                             <Setter Property="Opacity" Value="0.85" />
-                            <Setter Property="ToolTip" Value="{Binding CategoryDisplay}" />
+                            <Setter Property="ToolTip" Value="{Binding CategoryPathDisplay}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                     <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}" />
