@@ -527,14 +527,18 @@
                                     <!-- Depth is shown by indentation; the row edits its own name
                                          only, and the full path is on hover. -->
                                     <StackPanel VerticalAlignment="Center"
-                                                Margin="{Binding IndentMargin}"
-                                                ToolTip="{Binding CategoryPathDisplay}">
+                                                Margin="{Binding IndentMargin}">
                                         <Grid>
+                                            <!-- The tooltip sits on the TextBox, not the panel: the
+                                                 box covers the cell, and a panel's tooltip never
+                                                 surfaces from under a child that has its own. -->
                                             <TextBox x:Name="CategoryRenameTextBox"
                                                      Text="{Binding RenameOverrideText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                      LostFocus="CategoryRenameTextBox_LostFocus"
                                                      KeyDown="CategoryRenameTextBox_KeyDown"
                                                      IsEnabled="{Binding IsDefaultCategory, Converter={StaticResource InvertBoolConverter}}"
+                                                     ToolTip="{Binding CategoryPathDisplay}"
+                                                     ToolTipService.ShowOnDisabled="True"
                                                      Padding="6,4"
                                                      VerticalContentAlignment="Center" />
                                             <TextBlock Text="{Binding ProviderCategoryLeafDisplay}"

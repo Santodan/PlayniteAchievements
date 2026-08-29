@@ -517,6 +517,55 @@ namespace PlayniteAchievements.Tests.Services.Summaries
         }
 
         [TestMethod]
+        public void BuildTree_AggregatesCountsForEveryNode()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter", unlocked: true),
+                NestedItem("DLC::Winter::Frost"),
+                NestedItem("DLC::Summer", unlocked: true),
+                NestedItem("Multiplayer")
+            };
+
+            var tree = CategorySummaryBuilder.BuildTree(items).Cast<CategorySummaryItem>().ToList();
+            var byPath = tree.ToDictionary(r => r.CategoryPath, r => r, StringComparer.OrdinalIgnoreCase);
+
+            Assert.AreEqual(3, byPath["DLC"].TotalAchievements, "a parent counts its whole subtree");
+            Assert.AreEqual(2, byPath["DLC"].UnlockedAchievements);
+            Assert.AreEqual(2, byPath["DLC::Winter"].TotalAchievements);
+            Assert.AreEqual(1, byPath["DLC::Winter"].UnlockedAchievements);
+            Assert.AreEqual(1, byPath["DLC::Winter::Frost"].TotalAchievements);
+            Assert.AreEqual(0, byPath["DLC::Winter::Frost"].UnlockedAchievements);
+            Assert.AreEqual(1, byPath["Multiplayer"].TotalAchievements);
+        }
+
+        [TestMethod]
+        public void BuildTree_CountsNodesSeveralLevelsDown()
+        {
+            // Achievements only ever sit on the deepest labels, so every node above them has an
+            // empty bucket of its own and has to count its subtree to show anything at all.
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("A::B::C::D", unlocked: true),
+                NestedItem("A::B::C::D"),
+                NestedItem("A::B::C::E", unlocked: true),
+                NestedItem("A::B::F")
+            };
+
+            var byPath = CategorySummaryBuilder.BuildTree(items)
+                .Cast<CategorySummaryItem>()
+                .ToDictionary(r => r.CategoryPath, r => r, StringComparer.OrdinalIgnoreCase);
+
+            Assert.AreEqual(4, byPath["A"].TotalAchievements);
+            Assert.AreEqual(2, byPath["A"].UnlockedAchievements);
+            Assert.AreEqual(4, byPath["A::B"].TotalAchievements);
+            Assert.AreEqual(3, byPath["A::B::C"].TotalAchievements);
+            Assert.AreEqual(2, byPath["A::B::C::D"].TotalAchievements);
+            Assert.AreEqual(1, byPath["A::B::C::E"].TotalAchievements);
+            Assert.AreEqual(1, byPath["A::B::F"].TotalAchievements);
+        }
+
+        [TestMethod]
         public void BuildTree_LeavesFlatInputIdenticalToBuild()
         {
             var items = new List<AchievementDisplayItem>

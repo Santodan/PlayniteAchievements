@@ -50,9 +50,14 @@ namespace PlayniteAchievements.ViewModels.Items
         /// <summary>
         /// Command form, so the shared template needs no code-behind in any of the hosts that
         /// render a path.
+        ///
+        /// Deliberately always executable: this RelayCommand never raises CanExecuteChanged
+        /// through CommandManager, so a CanExecute predicate is evaluated once and can leave the
+        /// button dead. <see cref="Invoke"/> guards instead, and the template disables the button
+        /// from <see cref="IsNavigable"/> for the affordance.
         /// </summary>
         public ICommand NavigateCommand => _navigateCommand ??
-            (_navigateCommand = new RelayCommand(_ => Invoke(), _ => IsNavigable));
+            (_navigateCommand = new RelayCommand(_ => Invoke()));
 
         public void Invoke()
         {

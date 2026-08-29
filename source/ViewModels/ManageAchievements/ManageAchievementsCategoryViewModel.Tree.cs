@@ -642,13 +642,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     continue;
                 }
 
+                // Count the whole subtree, not just achievements labelled exactly this node. A
+                // parent usually holds none of its own, so counting only its own bucket showed
+                // every parent as 0/0.
+                var subtree = groups
+                    .Where(pair => CategoryPathHelper.IsSelfOrDescendantOf(pair.Key, label))
+                    .SelectMany(pair => pair.Value)
+                    .ToList();
+
                 CategoryImageOverrideData imageOverride = null;
                 categoryImages?.TryGetValue(label, out imageOverride);
+                // The provider label describes this node itself, so it comes from its own bucket.
                 var providerCategoryLabel = ResolveSharedCategory(bucket, item => item?.ProviderCategory) ?? label;
                 var row = ManageAchievementsCategoryMetadataItem.Create(
                     label,
                     providerCategoryLabel,
-                    bucket,
+                    subtree,
                     imageOverride,
                     _gameIdText,
                     fileStem,

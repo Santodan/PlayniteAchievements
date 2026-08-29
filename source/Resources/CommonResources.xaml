@@ -1056,16 +1056,16 @@
                                Text="{TemplateBinding Content}"
                                Foreground="{TemplateBinding Foreground}"
                                FontSize="{TemplateBinding FontSize}"
+                               FontWeight="{TemplateBinding FontWeight}"
+                               TextDecorations="Underline"
                                TextTrimming="CharacterEllipsis"
                                VerticalAlignment="Center"/>
                     <ControlTemplate.Triggers>
-                        <MultiTrigger>
-                            <MultiTrigger.Conditions>
-                                <Condition Property="IsMouseOver" Value="True"/>
-                                <Condition Property="IsEnabled" Value="True"/>
-                            </MultiTrigger.Conditions>
-                            <Setter TargetName="PathText" Property="TextDecorations" Value="Underline"/>
-                        </MultiTrigger>
+                        <!-- Only a navigable hop is underlined. The current level and the elided
+                             marker are both disabled, so this covers each of them. -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="PathText" Property="TextDecorations" Value="{x:Null}"/>
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -1080,13 +1080,20 @@
                     ToolTip="{Binding ToolTip}">
                 <Button.Style>
                     <Style TargetType="Button" BasedOn="{StaticResource PlayAch.CategoryPathLinkStyle}">
+                        <!-- A hop is a link, so it is accent-coloured and underlined; without that
+                             the only cue was a hover underline, which reads as plain text. -->
+                        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
                         <Style.Triggers>
-                            <!-- The level being shown reads as the destination, not a link. -->
+                            <!-- The level being shown is the destination, not a link: plain text
+                                 colour, bold, no underline, no hand cursor. -->
                             <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                                 <Setter Property="FontWeight" Value="Bold"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
                             </DataTrigger>
                             <!-- The elided middle is a marker, not a hop. -->
                             <DataTrigger Binding="{Binding Depth}" Value="0">
+                                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                                 <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Subtle}"/>
                                 <Setter Property="Cursor" Value="Arrow"/>
                             </DataTrigger>
