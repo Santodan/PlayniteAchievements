@@ -61,6 +61,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 MoveItemsToEnd = labels => ViewModel?.MoveCategoryRowsToEndByLabel(labels) == true,
                 RestoreSelection = RestoreCategoryManagerSelectionByLabels
             });
+
+            viewModel.CategoryRowsMoved += (_, labels) => RestoreCategoryManagerSelectionByLabels(labels);
         }
 
         private ManageAchievementsCategoryViewModel ViewModel => DataContext as ManageAchievementsCategoryViewModel;

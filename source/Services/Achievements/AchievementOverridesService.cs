@@ -310,6 +310,41 @@ namespace PlayniteAchievements.Services.Achievements
             });
         }
 
+        /// <summary>
+        /// Writes a category rename's two halves - the ApiName-keyed membership and the label-keyed
+        /// order, art and summary selection - in one store update.
+        /// </summary>
+        /// <param name="affectsSummaryData">
+        /// False when the write cannot move any library-level rollup. Moving an achievement between
+        /// this game's categories does not change what it has unlocked, so the default true would
+        /// queue a library-wide overview recompute per click for nothing. Pass true only when the
+        /// game-summary category selection actually changed, since that does drive the game's row.
+        /// </param>
+        public void SetAchievementCategoryAssignmentAndMetadata(
+            Guid gameId,
+            IReadOnlyDictionary<string, string> categoryOverrides,
+            IReadOnlyDictionary<string, string> categoryTypeOverrides,
+            IReadOnlyList<string> categoryOrder,
+            IReadOnlyDictionary<string, CategoryImageOverrideData> categoryImageOverrides,
+            GameSummaryCategoryData gameSummaryCategory,
+            bool affectsSummaryData = true)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
+                customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
+                customData.AchievementCategoryOrder = CopyCategoryOrder(categoryOrder);
+                customData.AchievementCategoryImageOverrides = CopyCategoryImageOverrides(categoryImageOverrides);
+                customData.GameSummaryCategory = GameCustomDataNormalizer.NormalizeGameSummaryCategory(gameSummaryCategory);
+            },
+            affectsSummaryData);
+        }
+
         public void SetAchievementCategoryMetadata(
             Guid gameId,
             IReadOnlyList<string> categoryOrder,

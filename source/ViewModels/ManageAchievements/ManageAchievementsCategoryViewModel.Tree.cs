@@ -314,9 +314,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var order = GameCustomDataLookup.GetAchievementCategoryOrder(_gameId, _settings?.Persisted);
             var images = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted);
             var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted);
+            var summaryCategoryBefore = summaryCategory;
 
             var applied = false;
-            using (PerfScope.Start(_logger, "Categories.Moves.Reassign", thresholdMs: 25, context: moves.Count + " moves"))
             foreach (var move in moves)
             {
                 if (ReassignEffectiveCategoryRows(
@@ -349,31 +349,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            using (PerfScope.Start(_logger, "Categories.Moves.Persist", thresholdMs: 25))
-            {
-                _achievementOverridesService.SetAchievementCategoryAssignmentAndMetadata(
-                    _gameId,
-                    categoryOverrideMap,
-                    categoryTypeOverrideMap,
-                    order,
-                    images,
-                    summaryCategory);
-            }
-
-            using (PerfScope.Start(_logger, "Categories.Moves.ApplyToRows", thresholdMs: 25))
-            {
-                ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
-            }
-
+            // Moving an achievement between this game's categories changes nothing any library
+            // rollup reads, so the write is scoped out of the overview's delta tick. That tick
+            // recomputes library-wide state whatever changed, and firing one per click is what
+            // made an indent feel like a full library update long after the row had moved.
+            _achievementOverridesService.SetAchievementCategoryAssignmentAndMetadata(
+                _gameId,
+                categoryOverrideMap,
+                categoryTypeOverrideMap,
+                order,
+                images,
+                summaryCategory,
+                affectsSummaryData: SummaryCategoryChanged(summaryCategoryBefore, summaryCategory));
+            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
             RaiseCategoryMetadataPersisted();
-
-            using (PerfScope.Start(_logger, "Categories.Moves.RefreshRows", thresholdMs: 25))
-            {
-                RefreshCategoryRows();
-            }
-
+            RefreshCategoryRows();
+            CategoryRowsMoved?.Invoke(this, moves.Select(move => move.Value).ToList());
             return true;
         }
+
 
         /// <summary>
         /// Row-scoped entry point for the indent and outdent buttons. The keyboard path in the tab
@@ -543,6 +537,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // One write for both halves: membership and the label-keyed metadata. Two would each
             // fan out a synchronous whole-library recompute.
+            var summaryCategoryBefore = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted);
             var metadata = PlanCategoryMergeMetadata(normalizedSourceCategory, normalizedTargetCategory);
             _achievementOverridesService.SetAchievementCategoryAssignmentAndMetadata(
                 _gameId,
@@ -550,7 +545,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 categoryTypeOverrideMap,
                 metadata.Order,
                 metadata.Images,
-                metadata.SummaryCategory);
+                metadata.SummaryCategory,
+                affectsSummaryData: SummaryCategoryChanged(summaryCategoryBefore, metadata.SummaryCategory));
             ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
             RaiseCategoryMetadataPersisted();
             RefreshCategoryRows();
@@ -606,12 +602,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 row.PropertyChanged -= CategoryMetadataRow_PropertyChanged;
             }
 
-            CategoryRows.Clear();
-            foreach (var row in rows ?? Enumerable.Empty<ManageAchievementsCategoryMetadataItem>())
+            var nextRows = (rows ?? Enumerable.Empty<ManageAchievementsCategoryMetadataItem>()).ToList();
+            foreach (var row in nextRows)
             {
                 row.PropertyChanged += CategoryMetadataRow_PropertyChanged;
-                CategoryRows.Add(row);
             }
+
+            // One Reset rather than a Clear plus an Add per row: the grid rebuilds a container and
+            // lays it out on every notification, and each of these rows carries category art.
+            CategoryRows.ReplaceAll(nextRows);
 
             RefreshCategoryMetadataState();
             OnPropertyChanged(nameof(CanMergeCategories));
@@ -962,6 +961,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 Images = nextImages,
                 SummaryCategory = summaryCategory
             };
+        }
+
+        /// <summary>
+        /// Whether the game-summary category selection moved. That selection is the only part of a
+        /// category edit a library rollup reads, so it is what decides whether the write is worth a
+        /// library-wide overview pass.
+        /// </summary>
+        private static bool SummaryCategoryChanged(GameSummaryCategoryData before, GameSummaryCategoryData after)
+        {
+            if (before == null || after == null)
+            {
+                return !ReferenceEquals(before, after);
+            }
+
+            return !string.Equals(before.Label, after.Label, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(before.ProviderLabel, after.ProviderLabel, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>The stored metadata as it stands, for a plan that turns out to be a no-op.</summary>

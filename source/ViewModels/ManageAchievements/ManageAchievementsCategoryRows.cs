@@ -99,6 +99,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool IsNested => CategoryDepth > 1;
 
+        private bool _canIndent;
+
+        /// <summary>
+        /// Whether this row has a preceding sibling to nest under. Stamped by the view model, which
+        /// is the only place that knows the rendered order; false disables the indent button rather
+        /// than letting the click resolve to nothing.
+        /// </summary>
+        public bool CanIndent
+        {
+            get => _canIndent;
+            internal set => SetValue(ref _canIndent, value);
+        }
+
         /// <summary>
         /// True for the Default bucket row. It cannot be renamed or merged away because it is
         /// the fallback bucket for achievements without an explicit category.
@@ -263,9 +276,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         // Editing is leaf-scoped: the row's indentation already conveys where it sits, and typing a
         // whole path would be a second way to express nesting alongside indent/outdent.
+        //
+        // Which is why the comparison is leaf against leaf. Comparing full paths filled the box on
+        // any indent - the path changes, the name does not - so moving a row read as renaming it,
+        // and the text it left behind could later be applied as a rename nobody asked for.
         public void ResetRenameOverrideTextFromCurrentCategory()
         {
-            RenameOverrideText = string.Equals(CategoryLabel, ProviderCategoryLabel, StringComparison.OrdinalIgnoreCase)
+            RenameOverrideText = string.Equals(
+                CategoryPathHelper.GetLeafName(CategoryLabel),
+                CategoryPathHelper.GetLeafName(ProviderCategoryLabel),
+                StringComparison.OrdinalIgnoreCase)
                 ? string.Empty
                 : CategoryPathHelper.GetLeafName(CategoryLabel);
         }

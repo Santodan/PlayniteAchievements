@@ -16,39 +16,32 @@ namespace PlayniteAchievements.Services.Achievements
     internal static class CategoryMetadataRenamer
     {
         /// <summary>
-        /// Moves every label-keyed metadata entry from <paramref name="sourceCategory"/> to
+        /// The label-keyed metadata a rename produces, computed rather than written so the caller
+        /// can land it together with the ApiName-keyed membership rewrite in one store update.
+        /// Chaining plans is what lets a multi-row indent collapse into a single write: every write
+        /// fans out a synchronous whole-library recompute, so one per moved row made it crawl.
+        ///
+        /// Every entry moves from <paramref name="sourceCategory"/> to
         /// <paramref name="targetCategory"/>. Art already stored against the target wins, so a
         /// rename that collapses two labels keeps the target's own art and inherits the source's
         /// only where the target has none.
         /// </summary>
-        /// <returns>
-        /// True when the metadata was written. False for a no-op: a blank label on either side, or
-        /// a rename onto the same label.
-        /// </returns>
-        public static bool Rename(
-            Guid gameId,
+        /// <returns>Null for a no-op: a blank label on either side, or a rename onto the same label.</returns>
+        public static CategoryMetadataPlan Plan(
             string sourceCategory,
             string targetCategory,
-            AchievementOverridesService overridesService,
-            PersistedSettings fallbackSettings = null,
-            GameCustomDataStore store = null)
+            IReadOnlyList<string> currentOrder,
+            IReadOnlyDictionary<string, CategoryImageOverrideData> currentImages,
+            GameSummaryCategoryData currentSummaryCategory)
         {
-            if (overridesService == null)
-            {
-                return false;
-            }
-
             var normalizedSource = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(sourceCategory);
             var normalizedTarget = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(targetCategory);
             if (string.IsNullOrWhiteSpace(normalizedSource) ||
                 string.IsNullOrWhiteSpace(normalizedTarget) ||
                 string.Equals(normalizedSource, normalizedTarget, StringComparison.OrdinalIgnoreCase))
             {
-                return false;
+                return null;
             }
-
-            var currentOrder = GameCustomDataLookup.GetAchievementCategoryOrder(gameId, fallbackSettings, store);
-            var currentImages = GameCustomDataLookup.GetAchievementCategoryImageOverrides(gameId, fallbackSettings, store);
 
             // Rewriting by prefix rather than exact match is what makes a rename cascade: moving
             // "DLC" to "Extras" has to carry "DLC::Winter" to "Extras::Winter" with it, or the
@@ -103,7 +96,7 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
-            var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(gameId, fallbackSettings, store);
+            var summaryCategory = currentSummaryCategory;
             if (summaryCategory != null &&
                 CategoryPathHelper.IsSelfOrDescendantOf(summaryCategory.Label, normalizedSource))
             {
@@ -114,8 +107,22 @@ namespace PlayniteAchievements.Services.Achievements
                 };
             }
 
-            overridesService.SetAchievementCategoryMetadata(gameId, nextOrder, nextImages, summaryCategory);
-            return true;
+            return new CategoryMetadataPlan
+            {
+                Order = nextOrder,
+                Images = nextImages,
+                SummaryCategory = summaryCategory
+            };
         }
+    }
+
+    /// <summary>The label-keyed per-game metadata a rename produces, before it is written.</summary>
+    internal sealed class CategoryMetadataPlan
+    {
+        public List<string> Order { get; set; }
+
+        public Dictionary<string, CategoryImageOverrideData> Images { get; set; }
+
+        public GameSummaryCategoryData SummaryCategory { get; set; }
     }
 }

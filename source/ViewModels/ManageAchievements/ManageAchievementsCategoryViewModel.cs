@@ -74,6 +74,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public event EventHandler CategoryMetadataPersisted;
 
+        /// <summary>
+        /// Raised after a move with the labels the moved rows now carry, so the view can keep them
+        /// selected. A move rebuilds every row and renames the moved ones, so without this the
+        /// selection lands nowhere and the row has to be found and clicked again for each level.
+        /// </summary>
+        public event EventHandler<IReadOnlyList<string>> CategoryRowsMoved;
+
         public ManageAchievementsCategoryViewModel(
             Guid gameId,
             AchievementOverridesService achievementOverridesService,
@@ -91,7 +98,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _logger = logger;
 
             AchievementRows = new BulkObservableCollection<ManageAchievementsCategoryItem>();
-            CategoryRows = new ObservableCollection<ManageAchievementsCategoryMetadataItem>();
+            CategoryRows = new BulkObservableCollection<ManageAchievementsCategoryMetadataItem>();
             CategoryLabelFilterOptions = new ObservableCollection<string>();
             TypeSelectionOptions = CreateCategoryTypeOptions(
                 AchievementCategoryTypeHelper.AssignableCategoryTypes,
@@ -115,7 +122,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         public ObservableCollection<ManageAchievementsCategoryItem> AchievementRows { get; }
-        public ObservableCollection<ManageAchievementsCategoryMetadataItem> CategoryRows { get; }
+        /// <summary>
+        /// Bulk rather than plain observable: every rebuild replaces the whole list, and one Add
+        /// notification per row makes the grid realize a container - and lay it out - per row. That
+        /// cost lands after the rebuild call returns, which is why it does not show up in the
+        /// Categories.Moves spans while still being what a click waits on.
+        /// </summary>
+        public BulkObservableCollection<ManageAchievementsCategoryMetadataItem> CategoryRows { get; }
         public ObservableCollection<string> CategoryLabelFilterOptions { get; }
         public ObservableCollection<CategoryTypeSelectionOption> TypeSelectionOptions { get; }
         public ObservableCollection<CategoryTypeSelectionOption> TypeFilterOptions { get; }

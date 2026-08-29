@@ -507,14 +507,27 @@
                                                 HorizontalAlignment="Center"
                                                 VerticalAlignment="Center"
                                                 Visibility="{Binding IsDefaultCategory, Converter={StaticResource InverseBoolToVis}}">
-                                        <Button Content="&#x21E5;"
+                                        <!-- IcoFont simple-right / simple-left. The arrow-to-bar
+                                             characters render hairline-thin in the body font, and
+                                             IcoFont's own indent/outdent are text-editor icons -
+                                             stacked rules plus an arrow - which turn to mush in a
+                                             26x22 button. A plain chevron survives the size.
+                                             Codepoints read from the shipped icofont.ttf glyph
+                                             names rather than IcoFont's published CSS, so they
+                                             match the build Playnite actually loads. -->
+                                        <Button Content="&#xEAB8;"
+                                                FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                FontSize="18"
                                                 Width="26"
                                                 Height="22"
                                                 Padding="0"
                                                 ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_Indent}"
+                                                IsEnabled="{Binding CanIndent}"
                                                 Command="{Binding DataContext.IndentCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}" />
-                                        <Button Content="&#x21E4;"
+                                        <Button Content="&#xEAB5;"
+                                                FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                FontSize="18"
                                                 Width="26"
                                                 Height="22"
                                                 Padding="0"
