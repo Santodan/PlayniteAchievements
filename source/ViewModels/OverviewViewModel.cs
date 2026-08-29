@@ -3821,12 +3821,13 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (isDrilled)
                 {
-                    // Scope to the drilled category and everything under it, respecting any active
-                    // filter applied within it. Matching is on the storage path: the display form
-                    // spells its separators out and never equals a stored label.
+                    // Scope to the drilled category itself, not its subtree: the header counts what
+                    // the grid below is showing, and that grid holds this node's own achievements
+                    // only. Matching is on the storage path - the display form spells its separators
+                    // out and never equals a stored label.
                     var drilledPath = SelectedGameDrilledCategoryPath;
                     var scoped = (_filteredSelectedGameAchievements ?? new List<AchievementDisplayItem>())
-                        .Where(item => CategoryPathHelper.IsSelfOrDescendantOf(item?.CategoryLabel, drilledPath))
+                        .Where(item => CategoryPathHelper.IsSame(item?.CategoryLabel, drilledPath))
                         .ToList();
                     total = scoped.Count;
                     unlocked = scoped.Count(item => item?.Unlocked == true);

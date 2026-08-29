@@ -287,26 +287,91 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            var categoryOverrideMap = GetCurrentCategoryOverrideMap();
-            var rowsChanged = ReassignEffectiveCategoryRows(
-                normalizedSourceCategory,
-                normalizedTargetCategory,
-                categoryOverrideMap,
-                categoryTypeOverrideMap: null,
-                targetGroupTypes: null,
-                rewriteDescendantPaths: true);
-
-            if (rowsChanged)
+            return ApplyCategoryMoves(new[]
             {
-                var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
-                PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
+                new KeyValuePair<string, string>(normalizedSourceCategory, normalizedTargetCategory)
+            });
+        }
+
+        /// <summary>
+        /// Applies a run of source-to-target label moves as one unit: membership is rewritten in a
+        /// single pass over the achievements, the label-keyed metadata plans are chained, and both
+        /// halves land in one store write followed by one row rebuild.
+        ///
+        /// Doing this per move is what made indenting slow. Each store write fans out a synchronous
+        /// whole-library recompute, and each row rebuild re-probes every category's art on disk, so
+        /// a rename cost two recomputes and a multi-row indent paid that per row.
+        /// </summary>
+        private bool ApplyCategoryMoves(IReadOnlyList<KeyValuePair<string, string>> moves)
+        {
+            if (moves == null || moves.Count == 0)
+            {
+                return false;
+            }
+
+            var categoryOverrideMap = GetCurrentCategoryOverrideMap();
+            var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
+            var order = GameCustomDataLookup.GetAchievementCategoryOrder(_gameId, _settings?.Persisted);
+            var images = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted);
+            var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted);
+
+            var applied = false;
+            using (PerfScope.Start(_logger, "Categories.Moves.Reassign", thresholdMs: 25, context: moves.Count + " moves"))
+            foreach (var move in moves)
+            {
+                if (ReassignEffectiveCategoryRows(
+                        move.Key,
+                        move.Value,
+                        categoryOverrideMap,
+                        categoryTypeOverrideMap: null,
+                        targetGroupTypes: null,
+                        rewriteDescendantPaths: true))
+                {
+                    applied = true;
+                }
+
+                // Metadata moves even when no achievement did: an intermediate node can exist purely
+                // as ordering and art, and it still has to follow its subtree.
+                var plan = CategoryMetadataRenamer.Plan(move.Key, move.Value, order, images, summaryCategory);
+                if (plan == null)
+                {
+                    continue;
+                }
+
+                order = plan.Order;
+                images = plan.Images;
+                summaryCategory = plan.SummaryCategory;
+                applied = true;
+            }
+
+            if (!applied)
+            {
+                return false;
+            }
+
+            using (PerfScope.Start(_logger, "Categories.Moves.Persist", thresholdMs: 25))
+            {
+                _achievementOverridesService.SetAchievementCategoryAssignmentAndMetadata(
+                    _gameId,
+                    categoryOverrideMap,
+                    categoryTypeOverrideMap,
+                    order,
+                    images,
+                    summaryCategory);
+            }
+
+            using (PerfScope.Start(_logger, "Categories.Moves.ApplyToRows", thresholdMs: 25))
+            {
                 ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
             }
 
-            // Metadata moves even when no achievement did: an intermediate node can exist purely
-            // as ordering and art, and it still has to follow its subtree.
-            RenameCategoryMetadata(normalizedSourceCategory, normalizedTargetCategory);
-            RefreshCategoryRows();
+            RaiseCategoryMetadataPersisted();
+
+            using (PerfScope.Start(_logger, "Categories.Moves.RefreshRows", thresholdMs: 25))
+            {
+                RefreshCategoryRows();
+            }
+
             return true;
         }
 
@@ -333,14 +398,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Moves a category under a new parent, keeping its leaf name. A null parent makes it a root.
-        /// </summary>
-        public bool ReparentCategory(string sourcePath, string newParentPath)
-        {
-            return RenameCategoryLabel(sourcePath, CategoryPathHelper.Reparent(sourcePath, newParentPath));
-        }
-
-        /// <summary>
         /// Nests each row under the nearest category above it that can be its parent - the sibling
         /// immediately preceding it, the way an outliner indents. Rows already as deep as they can
         /// go are left alone.
@@ -363,8 +420,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            // Deepest first so moving one row cannot invalidate another's resolved parent, and
-            // dragged descendants are skipped because their ancestor carries them along.
+            // Deepest first, and a dragged descendant is dropped because its ancestor carries it.
             var targets = labels
                 .Select(CategoryPathHelper.NormalizePath)
                 .Where(label => !string.IsNullOrWhiteSpace(label))
@@ -376,11 +432,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .OrderByDescending(CategoryPathHelper.GetDepth)
                 .ToList();
 
-            var changed = false;
+            // Every destination is resolved against the rows as they stand now, before anything
+            // moves. Resolving as we went read a list that earlier moves had already rewritten, so
+            // a later row could land under a row that had just been reparented itself - producing
+            // nesting the user never asked for.
+            var snapshot = SnapshotCategoryLabels();
+            var moves = new List<KeyValuePair<string, string>>();
             foreach (var label in targets)
             {
-                var parent = indent ? ResolveIndentParent(label) : CategoryPathHelper.GetParentPath(
-                    CategoryPathHelper.GetParentPath(label) ?? label);
+                var parent = indent
+                    ? ResolveIndentParent(snapshot, label)
+                    : CategoryPathHelper.GetParentPath(CategoryPathHelper.GetParentPath(label) ?? label);
 
                 if (indent && parent == null)
                 {
@@ -392,27 +454,34 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     continue;
                 }
 
-                if (ReparentCategory(label, parent))
-                {
-                    changed = true;
-                }
+                moves.Add(new KeyValuePair<string, string>(label, CategoryPathHelper.Reparent(label, parent)));
             }
 
-            return changed;
+            return ApplyCategoryMoves(moves);
+        }
+
+        /// <summary>Rendered category labels in render order, normalized, Default excluded.</summary>
+        private List<string> SnapshotCategoryLabels()
+        {
+            return CategoryRows
+                .Where(row => row != null && !row.IsDefaultCategory)
+                .Select(row => CategoryPathHelper.NormalizePath(row.CategoryLabel))
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .ToList();
         }
 
         /// <summary>
-        /// The row directly above <paramref name="label"/> that shares its parent. Null when the
-        /// row is already first among its siblings, since there is nothing to nest under.
+        /// The label directly above <paramref name="label"/> that shares its parent. Null when the
+        /// row is already first among its siblings, since there is nothing to nest under - which is
+        /// also what disables the indent button for that row.
         /// </summary>
-        private string ResolveIndentParent(string label)
+        private static string ResolveIndentParent(IReadOnlyList<string> orderedLabels, string label)
         {
             var parent = CategoryPathHelper.GetParentPath(label);
             string previousSibling = null;
 
-            foreach (var row in CategoryRows)
+            foreach (var candidate in orderedLabels)
             {
-                var candidate = CategoryPathHelper.NormalizePath(row?.CategoryLabel);
                 if (CategoryPathHelper.IsSame(candidate, label))
                 {
                     break;
@@ -421,8 +490,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (string.Equals(
                         CategoryPathHelper.GetParentPath(candidate) ?? string.Empty,
                         parent ?? string.Empty,
-                        StringComparison.OrdinalIgnoreCase) &&
-                    !row.IsDefaultCategory)
+                        StringComparison.OrdinalIgnoreCase))
                 {
                     previousSibling = candidate;
                 }
@@ -473,9 +541,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
-            MergeCategoryMetadata(normalizedSourceCategory, normalizedTargetCategory);
+            // One write for both halves: membership and the label-keyed metadata. Two would each
+            // fan out a synchronous whole-library recompute.
+            var metadata = PlanCategoryMergeMetadata(normalizedSourceCategory, normalizedTargetCategory);
+            _achievementOverridesService.SetAchievementCategoryAssignmentAndMetadata(
+                _gameId,
+                categoryOverrideMap,
+                categoryTypeOverrideMap,
+                metadata.Order,
+                metadata.Images,
+                metadata.SummaryCategory);
             ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
+            RaiseCategoryMetadataPersisted();
             RefreshCategoryRows();
             return true;
         }
@@ -642,13 +719,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     continue;
                 }
 
-                // Count the whole subtree, not just achievements labelled exactly this node. A
-                // parent usually holds none of its own, so counting only its own bucket showed
-                // every parent as 0/0.
-                var subtree = groups
-                    .Where(pair => CategoryPathHelper.IsSelfOrDescendantOf(pair.Key, label))
-                    .SelectMany(pair => pair.Value)
-                    .ToList();
+                // Each node counts only what is labelled exactly this node - a parent that holds
+                // no achievements of its own reads 0/0, which is what it is. Rolling the subtree up
+                // would make a parent and its children report the same achievements twice over.
+                var members = bucket ?? new List<ManageAchievementsCategoryItem>();
 
                 CategoryImageOverrideData imageOverride = null;
                 categoryImages?.TryGetValue(label, out imageOverride);
@@ -657,7 +731,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var row = ManageAchievementsCategoryMetadataItem.Create(
                     label,
                     providerCategoryLabel,
-                    subtree,
+                    members,
                     imageOverride,
                     _gameIdText,
                     fileStem,
@@ -669,9 +743,34 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 rows.Add(row);
             }
 
-            HasCustomCategoryNames = rows.Any(row =>
-                !string.Equals(row.CategoryLabel, row.ProviderCategoryLabel, StringComparison.OrdinalIgnoreCase));
+            // Leaves, not full paths: indenting a row changes its path without renaming anything,
+            // and comparing paths would report a move as a custom name.
+            HasCustomCategoryNames = rows.Any(row => !string.Equals(
+                CategoryPathHelper.GetLeafName(row.CategoryLabel),
+                CategoryPathHelper.GetLeafName(row.ProviderCategoryLabel),
+                StringComparison.OrdinalIgnoreCase));
+            StampIndentAffordances(rows);
             ReplaceCategoryRows(rows);
+        }
+
+        /// <summary>
+        /// Marks which rows have somewhere to indent to. Resolved against the same ordered label
+        /// list the gesture itself uses, so the button is enabled exactly when the click would do
+        /// something.
+        /// </summary>
+        private static void StampIndentAffordances(IReadOnlyList<ManageAchievementsCategoryMetadataItem> rows)
+        {
+            var orderedLabels = rows
+                .Where(row => row != null && !row.IsDefaultCategory)
+                .Select(row => CategoryPathHelper.NormalizePath(row.CategoryLabel))
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .ToList();
+
+            foreach (var row in rows.Where(row => row != null))
+            {
+                row.CanIndent = !row.IsDefaultCategory &&
+                    ResolveIndentParent(orderedLabels, CategoryPathHelper.NormalizePath(row.CategoryLabel)) != null;
+            }
         }
 
         // Inserts the Default label when no achievement currently falls into it, at its
@@ -785,22 +884,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             HasCustomSummaryCategory = hasSummaryCategory;
         }
 
-        private void RenameCategoryMetadata(string sourceCategory, string targetCategory)
-        {
-            var renamed = CategoryMetadataRenamer.Rename(
-                _gameId,
-                sourceCategory,
-                targetCategory,
-                _achievementOverridesService,
-                _settings?.Persisted);
-
-            if (renamed)
-            {
-                RaiseCategoryMetadataPersisted();
-            }
-        }
-
-        private void MergeCategoryMetadata(string sourceCategory, string targetCategory)
+        /// <summary>
+        /// The label-keyed metadata a merge produces. Computed rather than written so the caller
+        /// can land it together with the membership rewrite in a single store update.
+        /// </summary>
+        private CategoryMetadataPlan PlanCategoryMergeMetadata(string sourceCategory, string targetCategory)
         {
             var normalizedSource = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(sourceCategory);
             var normalizedTarget = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(targetCategory);
@@ -808,7 +896,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 string.IsNullOrWhiteSpace(normalizedTarget) ||
                 string.Equals(normalizedSource, normalizedTarget, StringComparison.OrdinalIgnoreCase))
             {
-                return;
+                return CurrentCategoryMetadataPlan();
             }
 
             var currentOrder = GameCustomDataLookup.GetAchievementCategoryOrder(_gameId, _settings?.Persisted);
@@ -868,8 +956,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 summaryCategory = null;
             }
 
-            _achievementOverridesService.SetAchievementCategoryMetadata(_gameId, nextOrder, nextImages, summaryCategory);
-            RaiseCategoryMetadataPersisted();
+            return new CategoryMetadataPlan
+            {
+                Order = nextOrder,
+                Images = nextImages,
+                SummaryCategory = summaryCategory
+            };
+        }
+
+        /// <summary>The stored metadata as it stands, for a plan that turns out to be a no-op.</summary>
+        private CategoryMetadataPlan CurrentCategoryMetadataPlan()
+        {
+            return new CategoryMetadataPlan
+            {
+                Order = GameCustomDataLookup.GetAchievementCategoryOrder(_gameId, _settings?.Persisted)?.ToList(),
+                Images = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted)
+                    ?.ToDictionary(pair => pair.Key, pair => pair.Value?.Clone(), StringComparer.OrdinalIgnoreCase),
+                SummaryCategory = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted)
+            };
         }
 
         private void RaiseCategoryMetadataPersisted()
