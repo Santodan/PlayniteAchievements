@@ -66,11 +66,12 @@ namespace PlayniteAchievements.Services.UI
     {
         /// <summary>
         /// The score at which a window is trusted as the game's and the desktop is no longer
-        /// re-scanned for a better one. Set so that a window of the started process can never
-        /// reach it, even in the foreground: that is the tier a launcher's own window occupies,
-        /// and latching onto it is the failure this ranking exists to prevent.
+        /// re-scanned for a better one: the strongest evidence, confirmed by the user having had
+        /// the window in the foreground. Nothing weaker settles, because nothing weaker separates
+        /// the game's render window from another window of the same process — a launcher's, or the
+        /// game's own configuration dialog.
         /// </summary>
-        public const int ConclusiveScore = 3;
+        public const int ConclusiveScore = ((int)GameWindowEvidence.InstallDirectory * 2) + 1;
 
         /// <summary>
         /// Evidence dominates, and being the foreground window adds one step within it. Foreground
@@ -85,11 +86,22 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// How much larger an equally-scored window must be to take over: 1.5x the incumbent's
+        /// client area. Some evidence cannot tell two windows of one process apart — a game's
+        /// configuration dialog and its render window both live in the install directory — and
+        /// there the larger surface is the one being played. Requiring half again as much area
+        /// bounds this: two windows cannot trade the target back and forth.
+        /// </summary>
+        private const int AreaPromotionNumerator = 3;
+        private const int AreaPromotionDenominator = 2;
+
+        /// <summary>
         /// Whether <paramref name="candidate"/> should take over from <paramref name="current"/>.
-        /// Strictly better only: an equal score keeps the incumbent, so a capture that is already
-        /// running is never torn down to swap between two equally plausible windows. A stronger
-        /// observation of the window already in use also passes — the handle does not change, so
-        /// nothing is retargeted, but the record it is held under gets its better evidence.
+        /// A higher score always wins; an equal score wins only by being substantially larger (see
+        /// <see cref="AreaPromotionNumerator"/>), so a running capture is never torn down to swap
+        /// between two equally plausible windows of the same size. A stronger observation of the
+        /// window already in use also passes — the handle does not change, so nothing is
+        /// retargeted, but the record it is held under gets its better evidence.
         /// </summary>
         public static bool ShouldReplace(GameWindowCandidate current, GameWindowCandidate candidate)
         {
@@ -98,7 +110,21 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            return current.IsEmpty || Score(candidate) > Score(current);
+            if (current.IsEmpty)
+            {
+                return true;
+            }
+
+            var currentScore = Score(current);
+            var candidateScore = Score(candidate);
+            if (candidateScore != currentScore)
+            {
+                return candidateScore > currentScore;
+            }
+
+            return current.Hwnd != candidate.Hwnd &&
+                   candidate.ClientArea * AreaPromotionDenominator >
+                   current.ClientArea * AreaPromotionNumerator;
         }
 
         /// <summary>
@@ -137,10 +163,12 @@ namespace PlayniteAchievements.Services.UI
         /// <summary>
         /// Whether a learned window is strong enough to stop looking. Below this the answer was a
         /// best guess made while the game was still starting and the real window may have appeared
-        /// since, so the caller keeps re-scanning. A game whose executable sits outside its install
-        /// directory (an emulator, say) never reaches it and is re-scanned for as long as it runs;
-        /// that costs one throttled window enumeration over cached classifications, and it is what
-        /// stops a launcher window from owning the session.
+        /// since, so the caller keeps re-scanning. A game window the user never brings to the
+        /// foreground — one an overlay such as Lossless Scaling is presenting on its behalf, or an
+        /// emulator whose executable sits outside the install directory — never reaches it and is
+        /// re-scanned for as long as the game runs. That costs one throttled window enumeration
+        /// over cached classifications, and it is what stops a launcher window from owning the
+        /// session.
         /// </summary>
         public static bool IsConclusive(GameWindowCandidate candidate)
         {
