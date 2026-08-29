@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using Playnite.SDK;
 using Playnite.SDK.Models;
+using PlayniteAchievements.Common;
 
 namespace PlayniteAchievements.Services.UI
 {
@@ -21,8 +22,8 @@ namespace PlayniteAchievements.Services.UI
     }
 
     /// <summary>
-    /// Maps the foreground window to a running Playnite game so screenshots, toasts, and video
-    /// capture follow the game the user is actually playing.
+    /// Maps windows to running Playnite games so screenshots, toasts, and video capture follow the
+    /// game the user is actually playing.
     ///
     /// The source of truth is one synchronous question — "which tracked game owns the current
     /// foreground window?" — answered on demand by <see cref="IsGameForeground"/> (a
@@ -30,6 +31,13 @@ namespace PlayniteAchievements.Services.UI
     /// process id (started-pid match, executable path under the game's install directory,
     /// bounded parent-process walk) runs once per pid and is cached until the tracked set
     /// changes.
+    ///
+    /// Which window is "the game's" is a separate question, and a game rarely has only one
+    /// candidate: for a launcher-wrapped title the process Playnite started is the launcher, so
+    /// the launcher's own window classifies as the game just as the game's does. Candidates are
+    /// therefore scored (see <see cref="GameWindowRanking"/>) rather than taken first-found, and
+    /// the desktop is re-scanned until one is conclusive, so a window resolved before the game had
+    /// drawn anything is a starting point rather than the answer for the whole session.
     ///
     /// Only when two or more games run at once does a light poll (every
     /// <see cref="MultiGamePollMs"/> ms) watch for the foreground moving between games, raising
@@ -43,23 +51,46 @@ namespace PlayniteAchievements.Services.UI
         private const int MultiGamePollMs = 3000;
         private const int StableConfirmationPolls = 2;
         private const int MaxParentChainDepth = 10;
+        // How often the desktop is re-scanned for a better window while the learned one is not yet
+        // conclusive. Each scan is one EnumWindows pass over cached pid classifications, so this is
+        // cheap; it is throttled because the recorder asks for the handle every second.
+        private const int RediscoverIntervalMs = 3000;
+        // Below this, in either dimension, a window is a stub — a minimized window parked off
+        // screen, a message-only helper, a splash sliver — not a surface anything is played on.
+        private const int MinCandidateDimension = 120;
 
         private sealed class TrackedGame
         {
             public Game Game;
             public int? StartedProcessId;
             public int? LearnedProcessId;
-            public IntPtr LearnedHwnd;
+            public GameWindowCandidate Learned;
+            public DateTime LastDiscoveryUtc;
             public string NormalizedInstallDirectory;
+        }
+
+        /// <summary>A pid's owning game, with the strength of the evidence that tied them.</summary>
+        private readonly struct PidClassification
+        {
+            public PidClassification(Guid? gameId, GameWindowEvidence evidence)
+            {
+                GameId = gameId;
+                Evidence = evidence;
+            }
+
+            public Guid? GameId { get; }
+
+            public GameWindowEvidence Evidence { get; }
         }
 
         private readonly ILogger _logger;
         private readonly object _sync = new object();
         private readonly Dictionary<Guid, TrackedGame> _tracked = new Dictionary<Guid, TrackedGame>();
-        // Foreground pid -> owning game id (null: classified as not a tracked game). Cleared
-        // whenever the tracked set changes so stale attributions never outlive a session. Only
-        // conclusive classifications are cached (see ClassifyProcessLocked).
-        private readonly Dictionary<int, Guid?> _pidGameCache = new Dictionary<int, Guid?>();
+        // pid -> owning game and evidence strength (a null game id: classified as not a tracked
+        // game). Cleared whenever the tracked set changes so stale attributions never outlive a
+        // session. Only conclusive classifications are cached (see ClassifyProcessLocked).
+        private readonly Dictionary<int, PidClassification> _pidGameCache =
+            new Dictionary<int, PidClassification>();
 
         private Timer _pollTimer;
         private Guid? _stableForegroundGameId;
@@ -159,7 +190,7 @@ namespace PlayniteAchievements.Services.UI
                 lock (_sync)
                 {
                     var gameId = pid != 0 && !_disposed && _tracked.Count > 0
-                        ? ClassifyProcessLocked((int)pid)
+                        ? ClassifyProcessLocked((int)pid).GameId
                         : null;
                     classified = gameId.HasValue && _tracked.TryGetValue(gameId.Value, out var tracked)
                         ? $"trackedGame='{tracked.Game?.Name}'"
@@ -233,9 +264,15 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Best window handle for a tracked game: the foreground-learned handle when still valid
-        /// (correct for launcher-wrapped titles whose started process is a dead bootstrapper),
-        /// otherwise the started process's main window. IntPtr.Zero when neither resolves.
+        /// Best window handle for a tracked game: the best-scoring window learned so far while it
+        /// is still valid, otherwise the started process's main window. IntPtr.Zero when neither
+        /// resolves.
+        ///
+        /// While the learned window is not yet conclusive (see <see cref="GameWindowRanking"/>),
+        /// this re-scans the desktop on a throttle and promotes a better candidate — that is how a
+        /// target resolved during launch, when the launcher's window may be the only one open,
+        /// stops being the answer once the game itself has a window. Callers that poll (the video
+        /// recorder asks once a second) therefore follow the game without restarting anything.
         /// </summary>
         public IntPtr TryGetWindowHandle(Guid gameId)
         {
@@ -247,20 +284,27 @@ namespace PlayniteAchievements.Services.UI
                     return IntPtr.Zero;
                 }
 
-                if (tracked.LearnedHwnd != IntPtr.Zero && IsWindow(tracked.LearnedHwnd))
+                if (!tracked.Learned.IsEmpty && !IsWindow(tracked.Learned.Hwnd))
                 {
-                    return tracked.LearnedHwnd;
+                    // The window we were following is gone (a game recreating its window during a
+                    // loading screen, a launcher closing behind the game). Drop it and scan now
+                    // rather than at the next throttle tick.
+                    tracked.Learned = default(GameWindowCandidate);
+                    tracked.LastDiscoveryUtc = DateTime.MinValue;
+                }
+                else if (GameWindowRanking.IsConclusive(tracked.Learned) ||
+                         (!tracked.Learned.IsEmpty && !IsRediscoveryDueLocked(tracked)))
+                {
+                    return tracked.Learned.Hwnd;
                 }
 
-                tracked.LearnedHwnd = IntPtr.Zero;
                 pid = tracked.LearnedProcessId ?? tracked.StartedProcessId;
             }
 
-            // Proactively find the game's window by classifying each visible top-level window's
+            // Proactively find the game's window by classifying each eligible top-level window's
             // owning process, so a backgrounded game's window is resolvable before it has ever been
             // foreground — the first hotkey no longer needs the game focused first, and the video
-            // recorder finds the window immediately. The result is learned, so this runs only until
-            // the handle is known.
+            // recorder finds the window immediately.
             var discovered = DiscoverGameWindow(gameId);
             if (discovered != IntPtr.Zero)
             {
@@ -285,20 +329,27 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        private bool IsRediscoveryDueLocked(TrackedGame tracked)
+        {
+            return (DateTime.UtcNow - tracked.LastDiscoveryUtc).TotalMilliseconds >= RediscoverIntervalMs;
+        }
+
         /// <summary>
-        /// Enumerates visible top-level windows and returns the first whose owning process classifies
-        /// as <paramref name="gameId"/> (executable under the install dir, or the started/parent pid),
-        /// learning it. IntPtr.Zero when none is found. Classification is pid-cached, so this is cheap
-        /// after the first pass.
+        /// Scores every eligible top-level window whose owning process classifies as
+        /// <paramref name="gameId"/> and learns the best of them, keeping the one already in use
+        /// unless a candidate beats it. Returns the learned handle, or IntPtr.Zero when nothing
+        /// was found and nothing was known. Classification is pid-cached, so repeat scans cost
+        /// little more than the enumeration itself.
         /// </summary>
         private IntPtr DiscoverGameWindow(Guid gameId)
         {
-            var found = IntPtr.Zero;
+            var candidates = new List<GameWindowCandidate>();
+            var foreground = TryGetForegroundWindow();
             try
             {
                 EnumWindows((hwnd, _) =>
                 {
-                    if (!IsWindowVisible(hwnd))
+                    if (!IsEligibleWindow(hwnd))
                     {
                         return true;
                     }
@@ -309,6 +360,7 @@ namespace PlayniteAchievements.Services.UI
                         return true;
                     }
 
+                    GameWindowEvidence evidence;
                     lock (_sync)
                     {
                         if (_disposed || _tracked.Count == 0)
@@ -316,13 +368,21 @@ namespace PlayniteAchievements.Services.UI
                             return false;
                         }
 
-                        if (ClassifyProcessLocked((int)pid) == gameId && _tracked.TryGetValue(gameId, out var tracked))
+                        var classification = ClassifyProcessLocked((int)pid);
+                        if (classification.GameId != gameId)
                         {
-                            tracked.LearnedHwnd = hwnd;
-                            tracked.LearnedProcessId = (int)pid;
-                            found = hwnd;
-                            return false;
+                            return true;
                         }
+
+                        evidence = classification.Evidence;
+                    }
+
+                    // Measured only for the game's own windows: every rect is read inside a DPI
+                    // awareness scope, and paying that for each of the desktop's windows on every
+                    // scan would not be worth what it buys.
+                    if (TryMeasureCandidateArea(hwnd, out var clientArea))
+                    {
+                        candidates.Add(new GameWindowCandidate(hwnd, evidence, hwnd == foreground, clientArea));
                     }
 
                     return true;
@@ -333,7 +393,125 @@ namespace PlayniteAchievements.Services.UI
                 _logger?.Debug(ex, "[WindowTracker] Game window discovery failed.");
             }
 
-            return found;
+            var best = GameWindowRanking.SelectBest(candidates);
+            lock (_sync)
+            {
+                if (_disposed || !_tracked.TryGetValue(gameId, out var tracked))
+                {
+                    return IntPtr.Zero;
+                }
+
+                tracked.LastDiscoveryUtc = DateTime.UtcNow;
+                LearnCandidateLocked(tracked, best);
+                return tracked.Learned.Hwnd;
+            }
+        }
+
+        /// <summary>
+        /// Whether a window could be the surface a game is played on, judged by style alone.
+        /// Rejects what a capture can never use or a player never sees: minimized windows (parked
+        /// off screen at a stub size with an empty client area), windows cloaked by DWM (a
+        /// suspended store app, a window on another virtual desktop), tool windows, and owned
+        /// windows — the dialogs, splashes and tooltips that belong to a real window.
+        /// </summary>
+        private static bool IsEligibleWindow(IntPtr hwnd)
+        {
+            if (!IsWindowVisible(hwnd) || IsIconic(hwnd))
+            {
+                return false;
+            }
+
+            if (GetWindow(hwnd, GW_OWNER) != IntPtr.Zero)
+            {
+                return false;
+            }
+
+            if ((GetWindowLong(hwnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOOLWINDOW) != 0)
+            {
+                return false;
+            }
+
+            return !IsCloaked(hwnd);
+        }
+
+        /// <summary>
+        /// The window's capture area in square physical pixels, or false when it is too small to
+        /// be a game's picture. Measured through <see cref="WindowRectangles"/> — the one place
+        /// window rects are read — so the area is Per-Monitor-V2 correct and comparable across
+        /// monitors of different scale.
+        /// </summary>
+        private static bool TryMeasureCandidateArea(IntPtr hwnd, out long clientArea)
+        {
+            clientArea = 0;
+            var area = WindowRectangles.Measure(hwnd).PreferredCaptureArea;
+            if (area.Width < MinCandidateDimension || area.Height < MinCandidateDimension)
+            {
+                return false;
+            }
+
+            clientArea = (long)area.Width * area.Height;
+            return true;
+        }
+
+        private static bool IsCloaked(IntPtr hwnd)
+        {
+            try
+            {
+                return DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, out var cloaked, sizeof(int)) == 0 &&
+                       cloaked != 0;
+            }
+            catch
+            {
+                // Not a reason to discard a window: an unavailable DWM says nothing about it.
+                return false;
+            }
+        }
+
+        private static IntPtr TryGetForegroundWindow()
+        {
+            try
+            {
+                return GetForegroundWindow();
+            }
+            catch
+            {
+                return IntPtr.Zero;
+            }
+        }
+
+        /// <summary>
+        /// Adopts <paramref name="candidate"/> as the game's window when it beats what is already
+        /// known. A change of handle is logged: it is the only record of which window a clip or
+        /// screenshot was taken from, and the answer a report of "it captured the launcher" needs.
+        /// </summary>
+        private void LearnCandidateLocked(TrackedGame tracked, GameWindowCandidate candidate)
+        {
+            if (!GameWindowRanking.ShouldReplace(tracked.Learned, candidate))
+            {
+                return;
+            }
+
+            var previous = tracked.Learned;
+            tracked.Learned = candidate;
+
+            GetWindowThreadProcessId(candidate.Hwnd, out var pid);
+            if (pid != 0)
+            {
+                tracked.LearnedProcessId = (int)pid;
+            }
+
+            if (previous.Hwnd == candidate.Hwnd)
+            {
+                return;
+            }
+
+            var exe = pid != 0 ? TryGetProcessImagePath((int)pid) : null;
+            _logger?.Info(
+                $"[WindowTracker] '{tracked.Game?.Name}' window " +
+                $"{(previous.IsEmpty ? "resolved" : "promoted")} to {candidate} " +
+                $"exe:{(string.IsNullOrEmpty(exe) ? "?" : Path.GetFileName(exe))} " +
+                $"title:'{TryGetWindowTitle(candidate.Hwnd)}'" +
+                $"{(previous.IsEmpty ? string.Empty : $" (was {previous})")}.");
         }
 
         /// <summary>
@@ -409,6 +587,9 @@ namespace PlayniteAchievements.Services.UI
                     return null;
                 }
 
+                // Measured before the lock; both calls are pure syscalls on the handle.
+                long clientArea = 0;
+                var eligible = IsEligibleWindow(hwnd) && TryMeasureCandidateArea(hwnd, out clientArea);
                 lock (_sync)
                 {
                     if (_disposed || _tracked.Count == 0)
@@ -416,14 +597,20 @@ namespace PlayniteAchievements.Services.UI
                         return null;
                     }
 
-                    var gameId = ClassifyProcessLocked((int)pid);
-                    if (gameId.HasValue && _tracked.TryGetValue(gameId.Value, out var tracked))
+                    var classification = ClassifyProcessLocked((int)pid);
+                    if (eligible && classification.GameId.HasValue &&
+                        _tracked.TryGetValue(classification.GameId.Value, out var tracked))
                     {
-                        tracked.LearnedHwnd = hwnd;
-                        tracked.LearnedProcessId = (int)pid;
+                        // The user looking at a window is the strongest confirmation available
+                        // that it is the one being played, but it is a boost within the window's
+                        // evidence rather than an override: focusing the launcher mid-session must
+                        // not hand the launcher's window the target.
+                        LearnCandidateLocked(
+                            tracked,
+                            new GameWindowCandidate(hwnd, classification.Evidence, true, clientArea));
                     }
 
-                    return gameId;
+                    return classification.GameId;
                 }
             }
             catch (Exception ex)
@@ -519,7 +706,7 @@ namespace PlayniteAchievements.Services.UI
 
         // === pid -> game classification ===
 
-        private Guid? ClassifyProcessLocked(int pid)
+        private PidClassification ClassifyProcessLocked(int pid)
         {
             if (_pidGameCache.TryGetValue(pid, out var cached))
             {
@@ -538,22 +725,19 @@ namespace PlayniteAchievements.Services.UI
             return result;
         }
 
-        private Guid? ClassifyProcessCore(int pid, out bool conclusive)
+        /// <summary>
+        /// Ties a pid to a tracked game and reports how strong the tie is. The rules are tried
+        /// strongest-evidence first — not in the order they are cheapest — so a pid that satisfies
+        /// several is described by its best one: the process Playnite started is also, for a
+        /// launcher-wrapped title, the launcher, and calling that a match on equal terms with the
+        /// game's own executable is what let a launcher window be captured for a whole session.
+        /// </summary>
+        private PidClassification ClassifyProcessCore(int pid, out bool conclusive)
         {
             conclusive = true;
 
-            // 1. Direct pid match against started or previously learned pids (direct-exe games
-            //    and emulators, where Playnite started the process itself).
-            foreach (var entry in _tracked)
-            {
-                if (entry.Value.StartedProcessId == pid || entry.Value.LearnedProcessId == pid)
-                {
-                    return entry.Key;
-                }
-            }
-
-            // 2. Executable path under a tracked game's install directory (launcher-wrapped
-            //    titles whose started process is a dead bootstrapper).
+            // 1. Executable path under a tracked game's install directory: the game's own process,
+            //    whether Playnite started it or a launcher did.
             var exePath = TryGetProcessImagePath(pid);
             if (!string.IsNullOrEmpty(exePath))
             {
@@ -565,7 +749,7 @@ namespace PlayniteAchievements.Services.UI
                     {
                         _logger?.Debug(
                             $"[WindowTracker] pid {pid} classified as '{entry.Value.Game?.Name}' via install directory.");
-                        return entry.Key;
+                        return new PidClassification(entry.Key, GameWindowEvidence.InstallDirectory);
                     }
                 }
             }
@@ -574,16 +758,26 @@ namespace PlayniteAchievements.Services.UI
                 conclusive = false;
             }
 
-            // 3. Parent chain up to a tracked started pid (launcher alive with the game exe
-            //    outside the install directory).
+            // 2. Parent chain up to a tracked started pid: something the launcher spawned, so more
+            //    likely the game than the launcher itself — but the chain cannot prove which.
             var ancestorGame = ClassifyByParentChain(pid);
             if (ancestorGame.HasValue)
             {
                 conclusive = true;
-                return ancestorGame;
+                return new PidClassification(ancestorGame, GameWindowEvidence.ProcessTree);
             }
 
-            return null;
+            // 3. The process Playnite started, or one already learned to own a window of this
+            //    game. Weakest: for a launcher-wrapped title this is the launcher.
+            foreach (var entry in _tracked)
+            {
+                if (entry.Value.StartedProcessId == pid || entry.Value.LearnedProcessId == pid)
+                {
+                    return new PidClassification(entry.Key, GameWindowEvidence.StartedProcess);
+                }
+            }
+
+            return default(PidClassification);
         }
 
         private Guid? ClassifyByParentChain(int pid)
@@ -753,7 +947,36 @@ namespace PlayniteAchievements.Services.UI
 
         private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
         private const uint TH32CS_SNAPPROCESS = 0x00000002;
+        private const uint GW_OWNER = 4;
+        private const int GWL_EXSTYLE = -20;
+        private const long WS_EX_TOOLWINDOW = 0x00000080;
+        private const int DWMWA_CLOAKED = 14;
         private static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
+        private static extern int GetWindowLong32(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+        private static extern IntPtr GetWindowLongPtr64(IntPtr hWnd, int nIndex);
+
+        // GetWindowLongPtrW does not exist in 32-bit user32; the 32-bit entry point is the only one
+        // exported there, so the pointer size decides which to call.
+        private static IntPtr GetWindowLong(IntPtr hWnd, int nIndex)
+        {
+            return IntPtr.Size == 8
+                ? GetWindowLongPtr64(hWnd, nIndex)
+                : new IntPtr(GetWindowLong32(hWnd, nIndex));
+        }
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmGetWindowAttribute(
+            IntPtr hWnd,
+            int dwAttribute,
+            out int pvAttribute,
+            int cbAttribute);
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
