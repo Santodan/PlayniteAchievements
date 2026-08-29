@@ -36,16 +36,6 @@
                 <EventSetter Event="PreviewMouseLeftButtonDown" Handler="DataGridRow_PreviewMouseLeftButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="DataGridRow_PreviewMouseRightButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonUp" Handler="DataGridRow_PreviewMouseRightButtonUp"/>
-                <Style.Triggers>
-                    <!-- Marks a row the user was sent to, e.g. by a path hop above the grid.
-                         Selecting it is not an option: selection is the drill gesture here.
-                         Background is deliberately untouched - DataGrid pushes RowBackground onto
-                         the row as a local value, which outranks any setter here. -->
-                    <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                        <Setter Property="BorderThickness" Value="1"/>
-                    </DataTrigger>
-                </Style.Triggers>
             </Style>
 
             <Style x:Key="GameSummaryGridTextStyle"
@@ -275,21 +265,10 @@
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Marks a row navigated to from the path above the grid. Lives in
-                                     the cell because DataGrid pushes RowBackground onto the row as
-                                     a local value, which outranks a row-level style trigger. -->
-                                <Border Grid.Column="0"
-                                        Width="3"
-                                        Margin="0,2,6,2"
-                                        CornerRadius="2"
-                                        Background="{DynamicResource PlayAch.Brush.Accent}"
-                                        Visibility="{Binding IsHighlighted, Converter={StaticResource BoolToVis}}"/>
-
-                                <Path Grid.Column="1"
+                                <Path Grid.Column="0"
                                       Data="{Binding NameGuide}"
                                       Width="{Binding NameGuideWidth}"
                                       Stretch="None"
@@ -302,7 +281,7 @@
                                       VerticalAlignment="Center"
                                       SnapsToDevicePixels="True"/>
 
-                                <StackPanel Grid.Column="2"
+                                <StackPanel Grid.Column="1"
                                             VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                             HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}">

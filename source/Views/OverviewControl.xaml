@@ -747,6 +747,7 @@
                                                                  CategoryColumnSettingsKey="OverviewSelectedGameCategorySummaries"
                                                                  CategorySummarySource="{Binding SelectedGameAllAchievements}"
                                                                  DrilledCategory="{Binding SelectedGameDrilledCategory, Mode=OneWayToSource}"
+                                                                 DrilledCategoryPath="{Binding SelectedGameDrilledCategoryPath, Mode=OneWayToSource}"
                                                                  DataGridMaxHeight="{x:Static sys:Double.NaN}"
                                                                  ShowRarityGlow="{Binding ShowRarityGlowSelectedGame}"
                                                                  ColorNamesByRarity="{Binding ColorNamesByRaritySelectedGame}"

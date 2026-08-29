@@ -1550,6 +1550,25 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        /// <summary>
+        /// The grid's current vertical scroll offset, or 0 before it has been realized. Paired with
+        /// <see cref="ScrollToVerticalOffset"/> so a caller can put the list back exactly where the
+        /// user left it.
+        /// </summary>
+        public double VerticalScrollOffset =>
+            VisualTreeHelpers.FindVisualChild<ScrollViewer>(GameSummariesGrid)?.VerticalOffset ?? 0d;
+
+        public void ScrollToVerticalOffset(double offset)
+        {
+            if (offset <= 0)
+            {
+                return;
+            }
+
+            var scrollViewer = VisualTreeHelpers.FindVisualChild<ScrollViewer>(GameSummariesGrid);
+            scrollViewer?.ScrollToVerticalOffset(offset);
+        }
+
         public void SetSortIndicator(string sortMemberPath, ListSortDirection? direction)
         {
             DataGridSortingHelper.SetSortIndicator(GameSummariesGrid, sortMemberPath, direction);

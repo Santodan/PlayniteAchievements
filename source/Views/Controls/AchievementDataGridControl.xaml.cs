@@ -671,6 +671,10 @@ namespace PlayniteAchievements.Views.Controls
         // are the two things this state exists for, and both are trivial on segments.
         private readonly List<string> _drillPath = new List<string>();
 
+        // Scroll position of the category list at the moment of drilling in, so stepping back out
+        // returns to the same place instead of the top.
+        private double _categoryListScrollOffset;
+
         private bool IsDrilled => _drillPath.Count > 0;
 
         private string DrilledPath => _drillPath.Count == 0 ? null : CategoryPathHelper.Join(_drillPath);
@@ -884,6 +888,19 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (IReadOnlyList<CategoryPathSegment>)GetValue(DrilledCategorySegmentsProperty);
             set => SetValue(DrilledCategorySegmentsProperty, value);
+        }
+
+        public static readonly DependencyProperty DrilledCategoryPathProperty =
+            DependencyProperty.Register(nameof(DrilledCategoryPath), typeof(string),
+                typeof(AchievementDataGridControl), new PropertyMetadata(null));
+
+        // The drilled category in storage form ("DLC::Season Pass"), for a host that has to match
+        // it against achievement labels. DrilledCategory is the display form and is text for a
+        // person - comparing labels against that silently matches nothing.
+        public string DrilledCategoryPath
+        {
+            get => (string)GetValue(DrilledCategoryPathProperty);
+            set => SetValue(DrilledCategoryPathProperty, value);
         }
 
         public static readonly DependencyProperty AchievementGridVisibleProperty =
@@ -1461,6 +1478,10 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            // Remember where the list was before it is replaced, so coming back does not dump the
+            // user at the top of a long tree.
+            _categoryListScrollOffset = CategoryListGrid?.VerticalScrollOffset ?? 0d;
+
             // Summary rows carry a fully qualified path, so set the drill rather than appending:
             // the click is then idempotent however the row was reached.
             SetDrillPath(item.CategoryLabel);
@@ -1481,61 +1502,36 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            var leaving = DrilledPath;
             DrillToPath(null);
-            ScrollCategoryRowIntoView(leaving);
         }
 
         /// <summary>
-        /// Restores the reading position in the category list after coming back from a row, without
-        /// selecting it - selection is what drills, so re-selecting would bounce straight back in.
+        /// Puts the category list back where the user left it when they drilled in, so stepping in
+        /// and out of a category does not lose their place in a long list.
         /// </summary>
-        private void ScrollCategoryRowIntoView(string path)
+        private void RestoreCategoryListScroll()
         {
-            // Clear first so a stale mark never lingers, including when the target has gone.
-            foreach (var summary in CategorySummaries ?? Enumerable.Empty<GameSummaryItem>())
-            {
-                summary.IsHighlighted = false;
-            }
-
-            if (CategoryListGrid == null || string.IsNullOrWhiteSpace(path))
+            if (CategoryListGrid == null || _categoryListScrollOffset <= 0)
             {
                 return;
             }
 
-            var row = CategorySummaries?
-                .OfType<CategorySummaryItem>()
-                .FirstOrDefault(c => CategoryPathHelper.IsSame(c.CategoryPath, path));
-            if (row == null)
-            {
-                return;
-            }
-
-            // Marked rather than selected: selection is the drill gesture in this grid, so
-            // selecting the row the user just came back to would send them straight back in.
-            row.IsHighlighted = true;
+            var offset = _categoryListScrollOffset;
 
             // After the visibility flip the list has not laid out its rows yet.
             CategoryListGrid.Dispatcher.BeginInvoke(
-                new Action(() => CategoryListGrid?.ScrollRowIntoView(row)),
+                new Action(() => CategoryListGrid?.ScrollToVerticalOffset(offset)),
                 System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         /// <summary>
-        /// Breadcrumb navigation: returns to the category list positioned at the ancestor formed by
-        /// the first <paramref name="depth"/> segments, rather than drilling into it. The list is
-        /// the map, so landing on it next to that ancestor's own children is what makes moving
-        /// sideways cheap; drilling in from there is the same one click it is anywhere else.
-        /// Depth 0 is the list itself.
+        /// Path navigation: returns to the category list rather than drilling into the hop. The
+        /// list is the map and holds every node, so it is one click from there to anywhere - and
+        /// coming back lands on the same scroll position the user drilled in from.
         /// </summary>
         private void NavigateToAncestorInList(int depth)
         {
-            var target = depth <= 0 || depth > _drillPath.Count
-                ? null
-                : CategoryPathHelper.Join(_drillPath.Take(depth));
-
             DrillToPath(null);
-            ScrollCategoryRowIntoView(target);
         }
 
         /// <summary>Navigates to an ancestor of the current path, or to the root when null.</summary>
@@ -1574,11 +1570,18 @@ namespace PlayniteAchievements.Views.Controls
             // Display form: hosts bind this straight into a header TextBlock, and the storage
             // separator is internal - never shown to a user.
             DrilledCategory = drill ? CategoryPathHelper.ToDisplayPath(DrilledPath) : null;
+            DrilledCategoryPath = drill ? DrilledPath : null;
             DrilledCategorySegments = drill
                 ? CategoryPathSegment.Build(_drillPath, NavigateToAncestorInList)
                 : null;
 
             ApplyCategoryPaneLayout();
+
+            if (!drill && CategoryListVisible)
+            {
+                RestoreCategoryListScroll();
+            }
+
             RecomputeEffectiveAchievements();
         }
 
