@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
-using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using Playnite.SDK;
@@ -180,8 +179,8 @@ namespace PlayniteAchievements.Services.Recording
                             }
                             else
                             {
-                                _micName = micDevice.FriendlyName;
-                                _micCapture = new WasapiCapture(micDevice);
+                                _micName = micDevice.Describe();
+                                _micCapture = ProcessLoopbackCapture.ForCaptureEndpoint(micDevice.Id);
                                 _micBuffer = NewBuffer(_micCapture.WaveFormat);
                                 _micCapture.DataAvailable += (s, e) => Append(_micBuffer, e);
 
@@ -346,44 +345,45 @@ namespace PlayniteAchievements.Services.Recording
             }
             try
             {
-                using (var enumerator = new MMDeviceEnumerator())
-                using (var speaker = enumerator.GetDefaultAudioEndpoint(
-                    DataFlow.Render,
-                    Role.Console))
+                var speaker = AudioEndpointEnumerator.TryGetDefaultEndpoint(
+                    AudioDataFlow.Render, AudioEndpointRole.Console);
+                if (speaker == null || string.IsNullOrEmpty(speaker.Id))
                 {
-                    if (RenderEndpointScan.IsHapticEndpoint(speaker))
-                    {
-                        ProcessLoopbackCapture native = null;
-                        try
-                        {
-                            native = ProcessLoopbackCapture.ForEndpointNative(speaker.ID);
-                            if (ProcessLoopbackCapture.IsDualSenseActuatorFormat(native.WaveFormat))
-                            {
-                                _extractControllerProgramAudio = true;
-                                _hapticExclusionProven = true;
-                                _logger?.Info(
-                                    "[Recording] The default output is a controller; recording its " +
-                                    "native front L/R channels and excluding actuator channels 2/3.");
-                                return native;
-                            }
-                        }
-                        finally
-                        {
-                            if (!_extractControllerProgramAudio)
-                            {
-                                try { native?.Dispose(); } catch { }
-                            }
-                        }
+                    throw new InvalidOperationException("There is no default render endpoint.");
+                }
 
-                        _logger?.Warn(
-                            "[Recording] The default controller output did not expose the proven " +
-                            "4-channel layout; retaining audible endpoint audio, which may include haptics.");
+                if (RenderEndpointScan.IsHapticEndpoint(speaker))
+                {
+                    ProcessLoopbackCapture native = null;
+                    try
+                    {
+                        native = ProcessLoopbackCapture.ForEndpointNative(speaker.Id);
+                        if (ProcessLoopbackCapture.IsDualSenseActuatorFormat(native.WaveFormat))
+                        {
+                            _extractControllerProgramAudio = true;
+                            _hapticExclusionProven = true;
+                            _logger?.Info(
+                                "[Recording] The default output is a controller; recording its " +
+                                "native front L/R channels and excluding actuator channels 2/3.");
+                            return native;
+                        }
+                    }
+                    finally
+                    {
+                        if (!_extractControllerProgramAudio)
+                        {
+                            try { native?.Dispose(); } catch { }
+                        }
                     }
 
-                    var endpoint = ProcessLoopbackCapture.ForEndpoint(speaker.ID);
-                    _hapticExclusionProven = true;
-                    return endpoint;
+                    _logger?.Warn(
+                        "[Recording] The default controller output did not expose the proven " +
+                        "4-channel layout; retaining audible endpoint audio, which may include haptics.");
                 }
+
+                var endpoint = ProcessLoopbackCapture.ForEndpoint(speaker.Id);
+                _hapticExclusionProven = true;
+                return endpoint;
             }
             catch (Exception ex)
             {
@@ -392,8 +392,21 @@ namespace PlayniteAchievements.Services.Recording
                     "[Recording] Timestamped speaker capture unavailable; using ordinary " +
                     "speaker loopback. Audio is retained, but haptic exclusion cannot be proven on " +
                     "this fallback.");
-                return new WasapiLoopbackCapture();
             }
+
+            // The multimedia default, which on most machines is the same endpoint reached a second
+            // way. Deliberately not NAudio's WasapiLoopbackCapture: it builds the same device
+            // enumerator the primary path just failed on, so it could only ever rethrow — which is
+            // what turned one endpoint failure into silent clips.
+            var fallbackId = AudioEndpointEnumerator.TryGetDefaultEndpointId(
+                AudioDataFlow.Render, AudioEndpointRole.Multimedia);
+            if (string.IsNullOrEmpty(fallbackId))
+            {
+                throw new InvalidOperationException(
+                    "No render endpoint could be resolved for speaker capture.");
+            }
+
+            return ProcessLoopbackCapture.ForEndpoint(fallbackId);
         }
 
         /// <summary>
