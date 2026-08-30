@@ -128,6 +128,32 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void Migration_StandsDownEntirelyWhenAnyNestedLabelAlreadyExists()
+        {
+            // An unrelated nested label proves the game is past the flat era, so the dash form is
+            // no longer evidence of an unmigrated label and must not be matched on.
+            var plan = ProviderCategoryPathMigration.Plan(
+                new[] { "Game A::DLC Pack" },
+                new List<string> { "Game A - DLC Pack", "Something::Nested" },
+                currentImages: null,
+                currentSummaryCategory: null);
+
+            Assert.IsNull(plan);
+        }
+
+        [TestMethod]
+        public void Migration_StandsDownWhenOnlyTheSummarySelectionIsNested()
+        {
+            var plan = ProviderCategoryPathMigration.Plan(
+                new[] { "Game A::DLC Pack" },
+                new List<string> { "Game A - DLC Pack" },
+                currentImages: null,
+                currentSummaryCategory: new GameSummaryCategoryData { Label = "Elsewhere::Deep" });
+
+            Assert.IsNull(plan);
+        }
+
+        [TestMethod]
         public void Migration_IgnoresFlatProviderLabels()
         {
             var plan = ProviderCategoryPathMigration.Plan(
