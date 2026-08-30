@@ -50,6 +50,21 @@ internal static class ChimeRoundTripProbe
 
         var failures = 0;
 
+        // Does the search FIND the lag that was injected? Everything else is downstream of this.
+        Console.WriteLine();
+        Console.WriteLine("=== LAG SEARCH ACCURACY (captured sidecar, maxLag 12000) ===");
+        CapturedPath = true;
+        foreach (var ms in new[] { 0, 2, 5, 10, 15, 20, 30, 60 })
+        {
+            failures += Run($"skew {ms,3} ms", ms, 0, 1.0, wavOut);
+        }
+
+        CapturedPath = false;
+        if (args.Length > 0 && args[0] == "--lag-only")
+        {
+            return failures;
+        }
+
         // Direction check. The file reference sits at the sound LAUNCH stamp and the real chime
         // renders AFTER it, so the mixture's copy is later than the reference — a positive offset
         // here. A negative offset is the opposite sign, which is the shape the older selftest
@@ -86,6 +101,43 @@ internal static class ChimeRoundTripProbe
         failures += RunTwo("skewed apart 5/25 ms", 5, 25, 1.0, 1.0);
         failures += RunTwo("second quieter (1.0/0.3)", 10, 10, 1.0, 0.3);
         failures += RunTwo("second much quieter (1.0/0.05)", 10, 10, 1.0, 0.05);
+        CapturedPath = false;
+
+        // The real shape: a ~2 s chime inside a ~22 s clip window, sidecar skewed 15 ms, which is
+        // what the field log shows (lag=15.469ms correlation=0.441 suppression=6.5dB blocks=0/1
+        // restored=1). One block spanning the whole window cannot clear a 10 dB keep gate on
+        // window-wide suppression, because the chime is nowhere near 90% of the window's energy,
+        // so the block is always restored and nothing is removed. Half-second blocks score the
+        // chime locally, which is what 3.1.3 did by default.
+        Console.WriteLine();
+        Console.WriteLine("=== REAL WINDOW SHAPE (22 s window, 2 s chime, 15 ms skew) ===");
+        Console.WriteLine("blocking                         outcome              chimeErr  gameDmg  verdict");
+        Console.WriteLine("-------------------------------- -------------------- --------  -------  -------");
+        CapturedPath = true;
+        failures += RunLongWindow("whole window (current)", null);
+        failures += RunLongWindow("half-second blocks (3.1.3)", 24000);
+        CapturedPath = false;
+
+        // Block size has to hold for any chime length in any window length. Blocked scoring should
+        // make the result independent of window length -- each block is judged where it sits -- and
+        // the block only has to be short enough that a block the chime occupies is dominated by
+        // the chime. This sweep is what that claim is checked against rather than assumed.
+        Console.WriteLine();
+        Console.WriteLine("=== BLOCK SIZE x CHIME LENGTH x WINDOW LENGTH (15 ms skew) ===");
+        Console.WriteLine("window  chime   block     outcome              chimeErr  gameDmg  verdict");
+        Console.WriteLine("------  ------  --------  -------------------- --------  -------  -------");
+        CapturedPath = true;
+        foreach (var windowSeconds in new[] { 8, 22, 45 })
+        {
+            foreach (var chimeSeconds in new[] { 0.3, 1.0, 2.0, 4.0 })
+            {
+                foreach (var block in new[] { 6000, 12000, 24000, 48000 })
+                {
+                    failures += RunMatrix(windowSeconds, chimeSeconds, block);
+                }
+            }
+        }
+
         CapturedPath = false;
 
         Console.WriteLine();
@@ -179,6 +231,97 @@ internal static class ChimeRoundTripProbe
         var ok = e1 <= ResidueTargetDb && e2 <= ResidueTargetDb;
         Console.WriteLine(
             $"{label,-32} {outcome,-20} {e1,7:0.0}dB {e2,7:0.0}dB  {(ok ? "ok" : "FAIL")}");
+        return ok ? 0 : 1;
+    }
+
+    /// <summary>
+    /// A short chime inside a long clip window, which is the shape that actually ships. The chime
+    /// is a small fraction of the window's energy, so a keep gate scored across the whole window
+    /// is unreachable however well the chime itself was cancelled.
+    /// </summary>
+    private static int RunLongWindow(string label, int? blockFrames)
+    {
+        const int frames = SampleRate * 22;
+        var chimeFile = Chime(SampleRate * 2);
+        var chimeFrames = chimeFile.Length / Channels;
+        var at = SampleRate * 15;                       // where the card lands in a 22 s window
+        var rendered = at + (15 * SampleRate / 1000);   // the 15 ms skew the field log reports
+
+        var gameBed = GameBed(frames);
+        var reference = new short[frames * Channels];
+        Place(reference, chimeFile, at, 1.0, 0);
+
+        var mixture = new short[frames * Channels];
+        Array.Copy(gameBed, mixture, gameBed.Length);
+        Place(mixture, chimeFile, rendered, 1.0, 0);
+
+        var truth = new short[frames * Channels];
+        Place(truth, chimeFile, rendered, 1.0, 0);
+
+        var mixBytes = ToBytes(mixture);
+        var outcome = ReferenceCancellationPolicy.Subtract(
+            mixBytes, ToBytes(reference), out var d,
+            residualPass: false, blockFrames: blockFrames, maxLagFrames: 12000, detectClean: true);
+
+        var cancelled = ToShorts(mixBytes);
+        var error = new short[frames * Channels];
+        for (var i = 0; i < error.Length; i++)
+        {
+            error[i] = Clamp(cancelled[i] - gameBed[i]);
+        }
+
+        var errDb = RelativeDb(error, truth, rendered, chimeFrames);
+        var dmgDb = RelativeDbOutside(error, gameBed, rendered, chimeFrames);
+        var ok = errDb <= ResidueTargetDb && dmgDb <= -30.0;
+        Console.WriteLine(
+            $"{label,-32} {outcome,-20} {errDb,7:0.0}dB {dmgDb,7:0.0}dB  {(ok ? "ok" : "FAIL")}");
+        Console.WriteLine(
+            $"    suppression={d.SuppressionDb:0.0}dB correlation={d.Correlation:0.000} " +
+            $"blocks={d.SubtractedBlocks}/{d.TotalBlocks} restored={d.RestoredBlocks}");
+        return ok ? 0 : 1;
+    }
+
+    /// <summary>One cell of the block-size sweep: chime length and window length both vary.</summary>
+    private static int RunMatrix(int windowSeconds, double chimeSeconds, int blockFrames)
+    {
+        var frames = SampleRate * windowSeconds;
+        var chimeFile = Chime((int)(SampleRate * chimeSeconds));
+        var chimeFrames = chimeFile.Length / Channels;
+
+        // Sit the chime late in the window, as a card near the end of a clip does, while leaving
+        // room for its own length.
+        var at = Math.Max(SampleRate, frames - chimeFrames - (SampleRate * 2));
+        var rendered = at + (15 * SampleRate / 1000);
+
+        var gameBed = GameBed(frames);
+        var reference = new short[frames * Channels];
+        Place(reference, chimeFile, at, 1.0, 0);
+
+        var mixture = new short[frames * Channels];
+        Array.Copy(gameBed, mixture, gameBed.Length);
+        Place(mixture, chimeFile, rendered, 1.0, 0);
+
+        var truth = new short[frames * Channels];
+        Place(truth, chimeFile, rendered, 1.0, 0);
+
+        var mixBytes = ToBytes(mixture);
+        var outcome = ReferenceCancellationPolicy.Subtract(
+            mixBytes, ToBytes(reference), out var d,
+            residualPass: false, blockFrames: blockFrames, maxLagFrames: 12000, detectClean: true);
+
+        var cancelled = ToShorts(mixBytes);
+        var error = new short[frames * Channels];
+        for (var i = 0; i < error.Length; i++)
+        {
+            error[i] = Clamp(cancelled[i] - gameBed[i]);
+        }
+
+        var errDb = RelativeDb(error, truth, rendered, chimeFrames);
+        var dmgDb = RelativeDbOutside(error, gameBed, rendered, chimeFrames);
+        var ok = errDb <= ResidueTargetDb && dmgDb <= -30.0;
+        Console.WriteLine(
+            $"{windowSeconds,4}s   {chimeSeconds,4:0.0}s  {blockFrames / (double)SampleRate,6:0.000}s  " +
+            $"{outcome,-20} {errDb,7:0.0}dB {dmgDb,7:0.0}dB  {(ok ? "ok" : "FAIL")}");
         return ok ? 0 : 1;
     }
 
@@ -279,8 +422,14 @@ internal static class ChimeRoundTripProbe
         var dmgDb = RelativeDbOutside(gameDamage, gameBed, renderedAt, chimeFile.Length / Channels);
 
         var ok = errDb <= ResidueTargetDb && dmgDb <= -30.0;
+
+        // The lag it FOUND against the lag actually injected. The reference here is shifted by a
+        // whole number of frames, so a correct lag makes the subtraction exact; anything short of
+        // that is the search missing, not the audio being uncancellable.
+        var trueLagMs = -(renderedAt - chimeAtFrame) * 1000.0 / SampleRate;
         Console.WriteLine(
-            $"{label,-32} {outcome,-20} {errDb,7:0.0}dB {dmgDb,7:0.0}dB  {(ok ? "ok" : "FAIL")}");
+            $"{label,-32} {outcome,-20} {errDb,7:0.0}dB {dmgDb,7:0.0}dB  {(ok ? "ok" : "FAIL")}" +
+            $"   lag found={d.StartLagMs,8:0.000}ms true={trueLagMs,8:0.000}ms gain={d.Gain:0.000}");
 
         if (wavOut != null)
         {
@@ -295,21 +444,37 @@ internal static class ChimeRoundTripProbe
     }
 
     /// <summary>A chime-like decaying triad, which is what these jingles actually are.</summary>
+    /// <summary>
+    /// A chime-like decaying tone with a percussive attack and INHARMONIC partials, which is what
+    /// a real jingle is. Harmonic partials alone are near-periodic, so their autocorrelation at a
+    /// 15 ms lag is almost as high as at zero and no lag search can be expected to tell those
+    /// apart -- a synthetic detail that looks exactly like a broken search. The inharmonic ratios
+    /// and the attack transient give the autocorrelation a single distinct peak, so a lag miss
+    /// here is the search's, not the signal's.
+    /// </summary>
     private static short[] Chime(int frames)
     {
         var data = new short[frames * Channels];
-        double[] partials = { 880.0, 1320.0, 1760.0 };
+        double[] partials = { 880.0, 1279.0, 1834.0, 2503.0, 3391.0 };
+        double[] decays = { 3.0, 4.1, 5.7, 7.3, 9.1 };
+        var random = new Random(99);
         for (var f = 0; f < frames; f++)
         {
             var t = f / (double)SampleRate;
-            var envelope = Math.Exp(-3.0 * t);
             var sum = 0.0;
             for (var p = 0; p < partials.Length; p++)
             {
-                sum += Math.Sin(2 * Math.PI * partials[p] * t) / (p + 1);
+                sum += Math.Exp(-decays[p] * t) * Math.Sin(2 * Math.PI * partials[p] * t) / (p + 1);
             }
 
-            var v = (short)Math.Round(9000 * envelope * sum / 1.84);
+            // 4 ms noise transient: every struck or plucked sound has one, and it is what makes a
+            // correlation peak unambiguous.
+            if (t < 0.004)
+            {
+                sum += (random.NextDouble() - 0.5) * 2.0 * Math.Exp(-600.0 * t);
+            }
+
+            var v = (short)Math.Round(9000 * sum / 1.9);
             data[f * Channels] = v;
             data[f * Channels + 1] = v;
         }
