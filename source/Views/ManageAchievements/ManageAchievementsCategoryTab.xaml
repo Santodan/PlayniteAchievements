@@ -542,7 +542,8 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTemplateColumn Width="3*" MinWidth="260" Header="{DynamicResource LOCPlayAch_Common_Label_Category}">
+                        <DataGridTemplateColumn Width="3*" MinWidth="260" Header="{DynamicResource LOCPlayAch_Common_Label_Category}"
+                                                CellStyle="{StaticResource PlayAch.TreeGuideDataGridCellStyle}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                   <!-- Depth is shown by the same tree connectors the category-mode
@@ -555,7 +556,10 @@
                                                                 LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
                                                                 NodeBrush="{DynamicResource PlayAch.Brush.Accent}"
                                                                 NodeHoleBrush="{DynamicResource PlayAch.Brush.Grid.RowBackground}"/>
-                                    <StackPanel VerticalAlignment="Center">
+                                    <!-- Padding lives here, not on the cell: the guide beside it has
+                                         to reach the row edges for its lanes to join up. -->
+                                    <StackPanel VerticalAlignment="Center"
+                                                Margin="0,6,10,6">
                                         <Grid>
                                             <!-- The tooltip sits on the TextBox, not the panel: the
                                                  box covers the cell, and a panel's tooltip never
