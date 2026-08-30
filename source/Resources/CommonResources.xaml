@@ -435,6 +435,23 @@
         </Setter>
     </Style>
 
+    <!-- Container for a category row that draws its own tree connectors, the drop-down counterpart
+         of PlayAch.TreeGuideDataGridCellStyle. Padding is zero so the guide reaches the row's top
+         and bottom edges: a lane is drawn by every row it passes through, and a padded container
+         would break each one. The padding moves onto the label in the item template instead.
+
+         The item's own DataContext supplies both setters, so every category drop-down gets the
+         hover path and the structural-row rule without repeating them. -->
+    <Style x:Key="PlayAch.CategoryTreeComboBoxItemStyle" TargetType="ComboBoxItem"
+           BasedOn="{StaticResource PlayAch.ComboBoxItem.BaseStyle}">
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        <Setter Property="ToolTip" Value="{Binding PathDisplay}"/>
+        <!-- A row synthesised to carry the tree is drawn, so the shape reads, but it is not a
+             category this picker offers. -->
+        <Setter Property="IsEnabled" Value="{Binding IsSelectable}"/>
+    </Style>
+
     <Style x:Key="PlayAch.ComboBox.BaseStyle" TargetType="ComboBox">
         <Setter Property="MinHeight" Value="{StaticResource PlayAch.Size.Control.Height}"/>
         <Setter Property="Padding" Value="8,4"/>
