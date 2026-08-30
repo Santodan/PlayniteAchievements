@@ -27,9 +27,9 @@ namespace PlayniteAchievements.Services.Achievements
         /// <summary>
         /// Plans the repoint for one game, or returns null when nothing moved.
         ///
-        /// Self-limiting: a move is only planned where the game holds metadata under the old flat
-        /// label and holds none under the new path. Once migrated the old label is gone, so every
-        /// later refresh plans nothing and no one-time flag is needed.
+        /// Self-limiting, so no one-time flag is needed: the whole plan is abandoned once the game
+        /// holds any nested label at all, and an individual move is only planned where the game
+        /// holds metadata under the old flat label and none under the new path.
         /// </summary>
         public static CategoryMetadataPlan Plan(
             IEnumerable<string> providerCategories,
@@ -39,6 +39,15 @@ namespace PlayniteAchievements.Services.Achievements
         {
             var known = BuildKnownLabels(currentOrder, currentImages, currentSummaryCategory);
             if (known.Count == 0)
+            {
+                return null;
+            }
+
+            // Only a game whose metadata is entirely flat can still be pre-nesting. The moment any
+            // nested label exists - this migration already ran, or the user built the nesting by
+            // hand - the dash form is no longer evidence of an unmigrated label, and matching on it
+            // would move something the user meant to keep.
+            if (known.Any(label => CategoryPathHelper.GetDepth(label) > 1))
             {
                 return null;
             }
