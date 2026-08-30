@@ -24,14 +24,20 @@ namespace PlayniteAchievements.Views.Helpers
         /// <summary>Mirrors CategoryPathHelper.MaxDepth; deeper input clamps to the last lane.</summary>
         private const int CategoryPathHelperMaxDepth = 8;
 
-        /// <summary>Gap between the junction dot and the row's text.</summary>
-        public const double TextGap = 7d;
+        /// <summary>
+        /// Gap between the centre of the junction bead and the row's text. Clears the bead's own
+        /// radius as well as the space after it, so it is larger than it looks.
+        /// </summary>
+        public const double TextGap = 11d;
 
         /// <summary>Radius of the rounded corner on a closing elbow.</summary>
-        public const double CornerRadius = 5d;
+        public const double CornerRadius = 7d;
 
-        /// <summary>Radius of the junction dot at the end of a row's arm.</summary>
-        public const double NodeRadius = 3d;
+        /// <summary>Radius of the solid bead marking a node that has children.</summary>
+        public const double NodeRadius = 4d;
+
+        /// <summary>Radius of the outlined bead marking a leaf.</summary>
+        public const double LeafNodeRadius = 3.5d;
 
         public static double MaxGuideWidth => LaneCentres[LaneCentres.Length - 1] + TextGap;
 
