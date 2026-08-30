@@ -2140,18 +2140,32 @@ namespace PlayniteAchievements.Services.Recording
                     startUtc, endUtc, out var noChimesFired);
                 if (!noChimesFired)
                 {
-                    if (fileChimeReference != null)
+                    // Captured slice FIRST. It is recorded on the same capture clock as the mix it
+                    // is being subtracted from, so the chime sits at the same place in both and a
+                    // narrow search finds it. The file reference is placed at the sound LAUNCH
+                    // stamp instead, which the real onset trails by a variable out-of-process
+                    // spin-up, and ChimeRoundTripProbe measures what that costs: aligned it removes
+                    // the chime by 37.7 dB, but 120 ms out it removes 5.7 dB and 500 ms out it
+                    // reports the window clean and removes nothing -- while damaging the game bed
+                    // by ~16 dB on the way. Running it first therefore left the live chime under
+                    // the composited copy (two chimes) AND handed the aligned pass a mixture it had
+                    // already disturbed. This is the order 3.1.3 effectively had, before the
+                    // file-based reference existed at all.
+                    var capturedChimeReference = TryReadCapturedChimeReference(
+                        session, startUtc, endUtc);
+                    var captured = capturedChimeReference != null &&
+                        ChimePass(capturedChimeReference, "capture", 12000) ==
+                            PcmCancellationOutcome.CancelledVerified;
+
+                    // Only when the aligned reference could not do it: no sidecar this session, or
+                    // it failed to verify. A cold player's onset is time-warped enough that the
+                    // capture cannot match it either, and then a wide file search is the only
+                    // thing left to try.
+                    if (!captured && fileChimeReference != null)
                     {
                         ChimePass(fileChimeReference, "file", 36000);
                     }
-
-                    var capturedChimeReference = TryReadCapturedChimeReference(
-                        session, startUtc, endUtc);
-                    if (capturedChimeReference != null)
-                    {
-                        ChimePass(capturedChimeReference, "capture", 12000);
-                    }
-                    else if (fileChimeReference == null)
+                    else if (capturedChimeReference == null && fileChimeReference == null)
                     {
                         _logger?.Info(
                             "[Recording] A chime fired inside this window but no removal " +
@@ -2245,6 +2259,11 @@ namespace PlayniteAchievements.Services.Recording
                 verificationLagRadiusFrames: 480);
         }
 
+        /// <summary>
+        /// Cancels a known reference out of captured audio. The thresholds live in
+        /// <see cref="ReferenceCancellationPolicy"/> so the capture harness can exercise the real
+        /// ones rather than a copy; see tools/capture-harness/ChimeRoundTripProbe.
+        /// </summary>
         private static PcmCancellationOutcome SubtractNonGame(
             byte[] mixture,
             byte[] reference,
@@ -2254,32 +2273,14 @@ namespace PlayniteAchievements.Services.Recording
             int maxLagFrames = 12000,
             bool detectClean = false)
         {
-            var floor = residualPass ? 0.001 : 0.005;
-            return PcmAudio.CancelCorrelated(
+            return ReferenceCancellationPolicy.Subtract(
                 mixture,
                 reference,
                 out diagnostics,
-                muteUnverifiedBlocks: false,
-                maxLagFrames: maxLagFrames,
-                minimumGain: floor,
-                maximumGain: 20,
-                blockGainFloor: floor,
-                keepBlockSuppressionDb: 10,
-                cancellationBlockFrames: blockFrames ?? mixture.Length / PcmAudio.BlockAlign,
-                // The residual ceiling exists to catch a reference that is not this signal. A
-                // chime-file caller's reference is definitionally this signal, and the ceiling was
-                // observed discarding a verified 20+ dB removal because the leftovers of an
-                // earlier pass still correlated with the file.
-                maximumResidualCorrelation: detectClean ? double.MaxValue : 0.35,
-                commitVerifiedBlocksOnWeakPass: true,
-                minimumCorrelation: residualPass ? 0.03 : 0.15,
-                // A chime-file caller wants "the reference does not project" reported as
-                // CleanNoGameDetected — proof of absence — rather than attempted anyway.
-                attemptVerifiedBlocksWhenGloballyClean: !detectClean,
-                verificationLagRadiusFrames: 128,
-                independentChannelGains: true,
-                gainCrossfadeFrames: 0,
-                fractionalLagSteps: 32);
+                residualPass,
+                blockFrames,
+                maxLagFrames,
+                detectClean);
         }
 
         /// <summary>Removes the temporary cleaned-audio chunk once the exporter has read it.</summary>
