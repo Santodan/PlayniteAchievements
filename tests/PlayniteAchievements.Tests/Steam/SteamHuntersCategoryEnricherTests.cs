@@ -79,7 +79,10 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.AreEqual("DLC", achievements[0].CategoryType);
             Assert.AreEqual("Expansion", achievements[0].Category);
             Assert.AreEqual("DLC|Update", achievements[1].CategoryType);
-            Assert.AreEqual("Booster Pack #5", achievements[1].Category);
+            Assert.AreEqual(
+                "Expansion::Booster Pack #5",
+                achievements[1].Category,
+                "An update to a DLC nests under that DLC rather than floating at the root.");
         }
 
         [TestMethod]
