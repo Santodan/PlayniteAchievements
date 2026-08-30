@@ -3538,7 +3538,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.DynamicAchievementsCategoryLabelFilterLabel =
                 string.Equals(categoryKey, DynamicThemeViewKeys.All, StringComparison.OrdinalIgnoreCase)
                     ? DynamicThemeLabels.GetLabel(DynamicThemeViewKeys.All, DynamicThemeViewKeys.All)
-                    : AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(categoryKey);
+                    // Leaf, matching the options list this label summarizes.
+                    : AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(categoryKey);
             _settings.ModernTheme.DynamicAchievementCategoryLabelFilterOptions =
                 DynamicThemeOptionFactory.CreateCategoryLabelOptions(
                     state?.AllAchievements,
