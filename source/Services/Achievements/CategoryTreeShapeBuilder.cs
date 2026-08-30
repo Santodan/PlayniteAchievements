@@ -18,6 +18,62 @@ namespace PlayniteAchievements.Services.Achievements
         private static readonly bool[] NoLanes = new bool[0];
 
         /// <summary>
+        /// Stamps the rows with the geometry that draws them as a tree, or clears it.
+        ///
+        /// Filtering the rows first is fine - the lanes are resolved against whatever is in the
+        /// list, so a filtered subset still connects only the rows actually present. Sorting is not:
+        /// a re-sorted list is no longer pre-order, so callers pass enabled: false there and the
+        /// guide disappears rather than drawing lanes between unrelated rows.
+        ///
+        /// A list with no nesting left in it clears too, so a flat game pays nothing for a feature
+        /// it has no use for.
+        /// </summary>
+        public static void Stamp(IReadOnlyList<GameSummaryItem> rows, bool enabled)
+        {
+            if (rows == null || rows.Count == 0)
+            {
+                return;
+            }
+
+            var categories = new List<CategorySummaryItem>(rows.Count);
+            foreach (var row in rows)
+            {
+                if (row is CategorySummaryItem category)
+                {
+                    categories.Add(category);
+                }
+            }
+
+            var nests = false;
+            for (var i = 0; i < categories.Count && !nests; i++)
+            {
+                nests = CategoryPathHelper.GetDepth(categories[i].CategoryPath) > 1;
+            }
+
+            if (!enabled || !nests || categories.Count != rows.Count)
+            {
+                foreach (var row in rows)
+                {
+                    row.TreeShape = null;
+                }
+
+                return;
+            }
+
+            var paths = new string[categories.Count];
+            for (var i = 0; i < categories.Count; i++)
+            {
+                paths[i] = categories[i].CategoryPath;
+            }
+
+            var shapes = Build(paths);
+            for (var i = 0; i < categories.Count; i++)
+            {
+                categories[i].TreeShape = shapes[i];
+            }
+        }
+
+        /// <summary>
         /// Builds one shape per path, positionally. Input must be pre-order (each node immediately
         /// followed by its own subtree), which is what
         /// <see cref="AchievementCategoryFilterOrderHelper.BuildOrderedCategoryTree"/> emits.
