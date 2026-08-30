@@ -81,6 +81,11 @@ namespace PlayniteAchievements.Services.Refresh
         /// cache holds unlocked and the payload reports locked, so persisting the payload cannot erase
         /// an unlock the plugin already recorded. The cached unlock time comes along, because the
         /// payload carries none for an achievement it believes is locked.
+        /// <para>
+        /// A recorded unlock time is also never traded for a null on an achievement the payload
+        /// agrees is unlocked: some sources date only their most recent unlock, so the moment the
+        /// plugin already captured is the better answer.
+        /// </para>
         /// </summary>
         /// <returns>The number of unlocks carried forward.</returns>
         public static int PreserveCachedUnlocks(
@@ -103,16 +108,28 @@ namespace PlayniteAchievements.Services.Refresh
             foreach (var achievement in incomingAchievements)
             {
                 if (achievement == null ||
-                    achievement.Unlocked ||
                     string.IsNullOrWhiteSpace(achievement.ApiName) ||
                     !cachedUnlocks.TryGetValue(achievement.ApiName.Trim(), out var cached))
                 {
                     continue;
                 }
 
-                achievement.Unlocked = true;
-                achievement.UnlockTimeUtc = cached.UnlockTimeUtc;
-                preserved++;
+                if (!achievement.Unlocked)
+                {
+                    achievement.Unlocked = true;
+                    achievement.UnlockTimeUtc = cached.UnlockTimeUtc;
+                    preserved++;
+                    continue;
+                }
+
+                // A payload can report an achievement unlocked while carrying no moment for it -
+                // a source that only dates its most recent unlock, or a scrape that renders a date
+                // for some rows and not others. The cached time is the better answer, so an unlock
+                // time already recorded is never traded for a null.
+                if (!achievement.UnlockTimeUtc.HasValue && cached.UnlockTimeUtc.HasValue)
+                {
+                    achievement.UnlockTimeUtc = cached.UnlockTimeUtc;
+                }
             }
 
             return preserved;
