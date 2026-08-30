@@ -380,6 +380,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     };
 
                 case "FFXIV":
+                case "Riot":
                     return new ProviderOverrideData
                     {
                         ProviderKey = providerKey,
@@ -574,6 +575,11 @@ namespace PlayniteAchievements.Services.GameCustomData
             if (string.Equals(normalized, "GameJolt", StringComparison.OrdinalIgnoreCase))
             {
                 return "GameJolt";
+            }
+
+            if (string.Equals(normalized, "Riot", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Riot";
             }
 
             return null;
