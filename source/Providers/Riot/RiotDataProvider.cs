@@ -19,7 +19,8 @@ namespace PlayniteAchievements.Providers.Riot
     /// expose achievements only on console (covered by the PSN and Xbox providers), Legends of
     /// Runeterra has none, and the Riot Forge titles ship on Steam/GOG/Epic.
     /// </summary>
-    internal sealed class RiotDataProvider : DataProviderBase<RiotSettings>, IDataProvider, IProviderOverride, IDisposable
+    internal sealed class RiotDataProvider
+        : DataProviderBase<RiotSettings>, IDataProvider, IProviderOverride, IRepeatableUnlockProvider, IDisposable
     {
         // Riot Games Library (third-party Playnite plugin, ASchoe311/RiotGamesLibrary). It imports
         // League, Valorant, Legends of Runeterra and 2XKO under one plugin id, so the game id
@@ -78,6 +79,11 @@ namespace PlayniteAchievements.Providers.Riot
         public string ProviderColorHex => "#D13639";
 
         public bool IsAuthenticated => ProviderSettings.HasCredentials;
+
+        // A challenge is earned again each time the player reaches a higher tier, and the Riot API
+        // is the single source for when that happened, so a newer unlock time is a real new earn
+        // rather than a second reader disagreeing about the first one.
+        public bool ReportsRepeatUnlocks => true;
 
         // The Riot key is entered in settings rather than obtained through a login flow, so there
         // is no live session to probe.

@@ -195,6 +195,36 @@ namespace PlayniteAchievements
             handler.Invoke(null, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// Whether the named provider has opted in to announcing an achievement earned again
+        /// (<see cref="Providers.IRepeatableUnlockProvider"/>). Resolved per call rather than
+        /// captured, so it reflects the providers actually built and their current settings.
+        /// </summary>
+        private bool ProviderReportsRepeatUnlocks(string providerKey)
+        {
+            if (string.IsNullOrWhiteSpace(providerKey))
+            {
+                return false;
+            }
+
+            var providers = _refreshService?.Providers;
+            if (providers == null)
+            {
+                return false;
+            }
+
+            foreach (var provider in providers)
+            {
+                if (provider is Providers.IRepeatableUnlockProvider repeatable &&
+                    string.Equals(provider.ProviderKey, providerKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    return repeatable.ReportsRepeatUnlocks;
+                }
+            }
+
+            return false;
+        }
+
         public static void NotifyAchievementUnlocked(AchievementUnlockedEventArgs args)
         {
             if (args == null)
@@ -619,7 +649,9 @@ namespace PlayniteAchievements
                         _cacheManager,
                         _refreshService,
                         (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
-                        NotifyAchievementUnlocked);
+                        NotifyAchievementUnlocked,
+                        differ: null,
+                        reportsRepeatUnlocks: ProviderReportsRepeatUnlocks);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
                     // Create tag sync service
