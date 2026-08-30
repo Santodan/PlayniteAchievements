@@ -121,6 +121,12 @@ namespace PlayniteAchievements.Services.Recording
         /// </para>
         /// </summary>
         private const double ChimeUnknownVolumeGain = 0.4;
+
+        // Half-second blocks at 48 kHz: PcmAudio's own pre-3.1.4 default, and the granularity the
+        // non-game stage escalates to. Small enough that a ~2 s chime dominates the blocks it
+        // occupies, so its removal is scored where it happened rather than diluted across a
+        // 22 s clip window.
+        private const int ChimeBlockFrames = 24000;
         private const int PruneIntervalSeconds = 30;
         private const int DrainTimeoutSeconds = 45;
         // Fallbacks matching the PersistedSettings defaults, used when settings are unavailable.
@@ -2044,11 +2050,30 @@ namespace PlayniteAchievements.Services.Recording
                 PcmCancellationOutcome ChimePass(
                     byte[] chimeReference, string source, int maxLag)
                 {
+                    // Half-second blocks, which is what PcmAudio defaulted to through 3.1.3 and
+                    // what this pass silently lost when the caller began overriding the block size
+                    // with the whole window.
+                    //
+                    // A chime is ~2 s inside a ~22 s clip window, so it is a small fraction of the
+                    // window's energy. Scored as ONE block, even a perfect cancellation moves
+                    // window-wide suppression by only a few dB and can never clear the 10 dB keep
+                    // gate -- so the block was always restored and nothing was ever removed. The
+                    // field log shows exactly that: correlation 0.441 and lag 15.5 ms (the chime
+                    // found, and matching) but suppression 6.5 dB, blocks=0/1, restored=1. The
+                    // composite then added its copy on top, which is the double chime.
+                    //
+                    // Blocks score the chime where it actually is. A block the reference is silent
+                    // through fits a gain under blockGainFloor and is left alone, so this cannot
+                    // inject an inverted copy into game-only audio -- provided the ORDINARY floors
+                    // are used, not the residual pass's (0.001 / 0.03), which do let a silent
+                    // block fit noise. That distinction is why the earlier blocked attempt made
+                    // the doubling worse.
                     var passOutcome = SubtractNonGame(
                         mixture,
                         chimeReference,
                         out var chimePass,
                         residualPass: false,
+                        blockFrames: ChimeBlockFrames,
                         maxLagFrames: maxLag,
                         detectClean: true);
                     if (passOutcome == PcmCancellationOutcome.Unseparable ||

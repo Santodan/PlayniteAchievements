@@ -222,10 +222,16 @@ namespace PlayniteAchievements.Services.Tests.Recording
             Assert.IsTrue(end > chimePass);
             var body = service.Substring(chimePass, end - chimePass);
 
+            StringAssert.Contains(body, "blockFrames: ChimeBlockFrames",
+                "A chime is a small part of a clip window, so scoring its removal across the whole " +
+                "window cannot clear the keep gate and the block is restored (field: suppression " +
+                "6.5 dB, blocks=0/1, restored=1, nothing removed). Half-second blocks are what " +
+                "PcmAudio defaulted to through 3.1.3.");
             Assert.IsFalse(
-                body.Contains("blockFrames:"),
-                "Block-fitting the chime passes over the whole window injects inverted copies " +
-                "into blocks that hold no chime; scope any re-fit to the chime's own span first.");
+                body.Contains("residualPass: true,\r\n                        blockFrames:") ||
+                body.Contains("residualPass: true,\n                        blockFrames:"),
+                "Blocks must use the ordinary floors. On the residual pass's floors (0.001/0.03) a " +
+                "block the reference is silent through fits noise and subtracts an inverted copy.");
         }
 
         /// <summary>
