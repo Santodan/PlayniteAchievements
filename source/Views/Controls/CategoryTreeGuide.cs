@@ -63,7 +63,7 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(LineBrushProperty, value);
         }
 
-        /// <summary>Fill for the junction dot of a node that has children; falls back to the line brush.</summary>
+        /// <summary>Fill for the junction bead; falls back to the line brush.</summary>
         public static readonly DependencyProperty NodeBrushProperty =
             DependencyProperty.Register(
                 nameof(NodeBrush),
@@ -75,6 +75,44 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (Brush)GetValue(NodeBrushProperty);
             set => SetValue(NodeBrushProperty, value);
+        }
+
+        /// <summary>
+        /// Fill punched into a leaf's bead, normally the row background. Without it a leaf bead is a
+        /// ring with the lane running through it; with it the bead sits on the line.
+        /// </summary>
+        public static readonly DependencyProperty NodeHoleBrushProperty =
+            DependencyProperty.Register(
+                nameof(NodeHoleBrush),
+                typeof(Brush),
+                typeof(CategoryTreeGuide),
+                new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+        public Brush NodeHoleBrush
+        {
+            get => (Brush)GetValue(NodeHoleBrushProperty);
+            set => SetValue(NodeHoleBrushProperty, value);
+        }
+
+        /// <summary>
+        /// Opacity of the connector lines. Held below the beads deliberately: the lines are
+        /// structure and the beads are the rows, so the beads should read first. It also separates
+        /// the lanes from the grid's own row separators, which are full-strength border brush.
+        ///
+        /// Applied uniformly rather than per lane depth - a lane is drawn by every row it passes
+        /// through, so any per-row variation would show up as the line changing weight mid-column.
+        /// </summary>
+        public static readonly DependencyProperty LineOpacityProperty =
+            DependencyProperty.Register(
+                nameof(LineOpacity),
+                typeof(double),
+                typeof(CategoryTreeGuide),
+                new FrameworkPropertyMetadata(0.55d, FrameworkPropertyMetadataOptions.AffectsRender));
+
+        public double LineOpacity
+        {
+            get => (double)GetValue(LineOpacityProperty);
+            set => SetValue(LineOpacityProperty, value);
         }
 
         protected override Size MeasureOverride(Size availableSize)
@@ -115,6 +153,9 @@ namespace PlayniteAchievements.Views.Controls
             // straddling two and rendering as a soft 2px smear.
             drawingContext.PushGuidelineSet(BuildGuidelines(shape, dotX, mid));
             drawingContext.PushClip(new RectangleGeometry(new Rect(RenderSize)));
+
+            // Lines under the beads: the structure recedes, the rows read first.
+            drawingContext.PushOpacity(Math.Max(0d, Math.Min(1d, LineOpacity)));
             try
             {
                 DrawAncestorLanes(drawingContext, pen, shape, height);
@@ -124,7 +165,14 @@ namespace PlayniteAchievements.Views.Controls
                 {
                     drawingContext.DrawLine(pen, new Point(dotX, mid), new Point(dotX, height));
                 }
+            }
+            finally
+            {
+                drawingContext.Pop();
+            }
 
+            try
+            {
                 DrawJunction(drawingContext, pen, shape, dotX, mid);
             }
             finally
@@ -198,8 +246,10 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// Filled for a node that opens a subtree, hollow for a leaf. This is the one cue that
-        /// survives the guide clipping on a narrow column, so it carries folder-or-leaf on its own.
+        /// A solid bead for a node that opens a subtree, an outlined one for a leaf. This is the
+        /// one cue that survives the guide clipping on a narrow column, so it carries
+        /// folder-or-leaf on its own, and it is drawn at full strength - it is the part of the
+        /// guide meant to be seen, against lanes that are deliberately faint.
         /// </summary>
         private void DrawJunction(
             DrawingContext drawingContext,
@@ -209,10 +259,11 @@ namespace PlayniteAchievements.Views.Controls
             double mid)
         {
             var centre = new Point(dotX, mid);
+            var beadBrush = NodeBrush ?? pen.Brush;
             if (shape.HasChildren)
             {
                 drawingContext.DrawEllipse(
-                    NodeBrush ?? pen.Brush,
+                    beadBrush,
                     null,
                     centre,
                     CategoryTreeGuideMetrics.NodeRadius,
@@ -220,8 +271,11 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            var leafRadius = Math.Max(1d, CategoryTreeGuideMetrics.NodeRadius - 1d);
-            drawingContext.DrawEllipse(null, pen, centre, leafRadius, leafRadius);
+            // Hole fill first, so the lane does not show through the middle of a leaf bead.
+            var leafRadius = CategoryTreeGuideMetrics.LeafNodeRadius;
+            var outline = new Pen(beadBrush, 1.5d);
+            outline.Freeze();
+            drawingContext.DrawEllipse(NodeHoleBrush, outline, centre, leafRadius, leafRadius);
         }
 
         private static GuidelineSet BuildGuidelines(CategoryTreeShape shape, double dotX, double mid)
