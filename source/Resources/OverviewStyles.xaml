@@ -74,9 +74,20 @@
                 <ControlTemplate TargetType="{x:Type DataGridRow}">
                     <Border x:Name="DGR_Border"
                             Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
                             SnapsToDevicePixels="True">
+                      <Grid>
+                        <!-- The separator is drawn behind the cells rather than as the border of
+                             this Border. As a border it would inset the content by its own
+                             thickness, which leaves a one-pixel break in anything a cell draws to
+                             the row edge - the category tree connectors run the full height of
+                             every row and have to cross it unbroken. Behind the cells it still
+                             reads as a separator everywhere else, since nothing else paints over
+                             it. BorderThickness is left unbound for the same reason. -->
+                        <Rectangle x:Name="DGR_Separator"
+                                   Height="1"
+                                   VerticalAlignment="Bottom"
+                                   Fill="{TemplateBinding BorderBrush}"
+                                   SnapsToDevicePixels="True"/>
                         <SelectiveScrollingGrid>
                             <SelectiveScrollingGrid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -101,6 +112,7 @@
                                                Visibility="{Binding HeadersVisibility, ConverterParameter={x:Static DataGridHeadersVisibility.Row}, Converter={x:Static DataGrid.HeadersVisibilityConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"/>
 
                         </SelectiveScrollingGrid>
+                      </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
