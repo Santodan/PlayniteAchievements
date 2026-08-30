@@ -49,7 +49,9 @@ namespace PlayniteAchievements.Services.Summaries
                 item => item.CategoryLabel,
                 ResolvePreferredOrder(source));
 
-            return BuildRows(groups, order, aggregateSubtree: false, useLeafNames: false, badgeMode);
+            // Leaf names: this is the theme-facing shape, and a theme renders these rows flat with
+            // nothing to carry ancestry. The row still keeps its full path on CategoryPath.
+            return BuildRows(groups, order, aggregateSubtree: false, useLeafNames: true, badgeMode);
         }
 
         /// <summary>
