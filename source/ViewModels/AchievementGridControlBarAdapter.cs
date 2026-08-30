@@ -403,7 +403,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 Width = 140,
                 IsCategoryFilter = true,
-                NestsCategoryPaths = true,
+                RendersCategoryTree = true,
                 ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Label")
             });
             _friendCompareFilter = new GridMultiSelectFilter(

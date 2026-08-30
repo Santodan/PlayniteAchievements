@@ -763,7 +763,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 Width = 132,
                 IsCategoryFilter = true,
-                NestsCategoryPaths = true
+                RendersCategoryTree = true
             });
             controlBar.Items.Add(new GridMultiSelectFilter(
                 _friendCompare,

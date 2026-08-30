@@ -137,7 +137,7 @@ namespace PlayniteAchievements.Views.Controls
             // Every checkable item created for this opening, so a click can re-sync its siblings.
             var checkableItems = new List<MenuItem>();
 
-            if (filter.NestsCategoryPaths)
+            if (filter.RendersCategoryTree)
             {
                 AppendCategoryTreeItems(
                     menu.Items,
