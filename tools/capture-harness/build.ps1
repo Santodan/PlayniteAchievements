@@ -65,19 +65,25 @@ $refs = $framework + $sharp + $tuple
 $tools = @(
     'CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss',
     'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe', 'ChimeCancelProbe',
-    'ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe', 'ComposerProbe')
+    'ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe', 'ComposerProbe',
+    'ChimeRoundTripProbe')
 # Tools that compile plugin source files in directly, so they always test the current algorithm
 # rather than a built DLL.
 $extraSources = @{
     ChimeCancelProbe = @((Join-Path $repo 'source\Services\Capture\PcmAudio.cs'))
+    ChimeRoundTripProbe = @(
+        (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
+        (Join-Path $repo 'source\Services\Capture\ReferenceCancellationPolicy.cs'))
     ChimeSeparationProbe = @(
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
+        (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
     ChimeBurstProbe = @(
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ChimeSoundFile.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
+        (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioLoopbackRecorder.cs'),
         (Join-Path $repo 'source\Services\Recording\RenderEndpointScan.cs'),
         (Join-Path $repo 'source\Services\Recording\MicrophoneSelector.cs'),
@@ -93,6 +99,8 @@ $extraSources = @{
         (Join-Path $here 'ReferenceFramePath.cs'))
     HapticProbe = @(
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
+        (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
+        (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'),
         (Join-Path $repo 'source\Services\Recording\RenderEndpointScan.cs'),
         (Join-Path $repo 'source\Services\Recording\MicrophoneSelector.cs'),
         (Join-Path $repo 'source\Services\Recording\HapticEndpointClassifier.cs'),

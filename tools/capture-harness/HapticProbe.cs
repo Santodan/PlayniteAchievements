@@ -67,7 +67,7 @@ internal static class HapticProbe
                 return 2;
             }
 
-            MMDevice controller;
+            EndpointIdentity controller;
             if (args[0] == "--auto")
             {
                 var controllers = devices.Where(RenderEndpointScan.IsHapticEndpoint).ToList();
@@ -102,7 +102,7 @@ internal static class HapticProbe
                 return 2;
             }
 
-            Console.WriteLine($"testing '{controller.FriendlyName}': left actuator, then right actuator");
+            Console.WriteLine($"testing '{controller.Describe()}': left actuator, then right actuator");
             Measure(controller, 2);
             Measure(controller, 3);
             Console.WriteLine();
@@ -111,32 +111,35 @@ internal static class HapticProbe
         }
         finally
         {
-            foreach (var device in devices)
-            {
-                try { device.Dispose(); } catch { }
-            }
+            // EndpointIdentity holds no COM reference, so there is nothing to release here.
         }
     }
 
-    private static List<MMDevice> ListDevices()
+    /// <summary>
+    /// An NAudio device for RENDERING a test tone, by endpoint id. The plugin never renders, so
+    /// only this probe needs one; identity and classification still come from
+    /// <see cref="AudioEndpointEnumerator"/>, which is the path the plugin uses.
+    /// </summary>
+    private static MMDevice RenderDeviceFor(string endpointId)
     {
-        var devices = new List<MMDevice>();
-        using (var enumerator = new MMDeviceEnumerator())
-        {
-            var defaultId = enumerator.HasDefaultAudioEndpoint(DataFlow.Render, Role.Console)
-                ? enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console).ID
-                : null;
+        return new MMDeviceEnumerator().GetDevice(endpointId);
+    }
 
-            Console.WriteLine("active render endpoints:");
-            foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
-            {
-                devices.Add(device);
-                var marks =
-                    (string.Equals(device.ID, defaultId, StringComparison.OrdinalIgnoreCase)
-                        ? " [default]" : string.Empty) +
-                    (RenderEndpointScan.IsHapticEndpoint(device) ? " [controller]" : string.Empty);
-                Console.WriteLine($"  {devices.Count - 1,2}  {device.FriendlyName}{marks}");
-            }
+    private static List<EndpointIdentity> ListDevices()
+    {
+        var defaultId = AudioEndpointEnumerator.TryGetDefaultEndpointId(
+            AudioDataFlow.Render, AudioEndpointRole.Console);
+
+        Console.WriteLine("active render endpoints:");
+        var devices = AudioEndpointEnumerator.EnumerateActive(AudioDataFlow.Render);
+        for (var i = 0; i < devices.Count; i++)
+        {
+            var device = devices[i];
+            var marks =
+                (string.Equals(device.Id, defaultId, StringComparison.OrdinalIgnoreCase)
+                    ? " [default]" : string.Empty) +
+                (RenderEndpointScan.IsHapticEndpoint(device) ? " [controller]" : string.Empty);
+            Console.WriteLine($"  {i,2}  {device.Describe()}{marks}");
         }
 
         Console.WriteLine();
@@ -150,15 +153,15 @@ internal static class HapticProbe
         Console.WriteLine(
             "  -> " + (chosen == null
                 ? "omitted (no verified safe input)"
-                : "'" + chosen.FriendlyName + "'"));
-        try { chosen?.Dispose(); } catch { }
+                : "'" + chosen.Describe() + "'"));
         Console.WriteLine();
     }
 
-    private static int Measure(MMDevice controller, int actuatorChannel)
+    private static int Measure(EndpointIdentity controller, int actuatorChannel)
     {
         WaveFormat nativeFormat;
-        using (var client = controller.AudioClient)
+        using (var controllerDevice = RenderDeviceFor(controller.Id))
+        using (var client = controllerDevice.AudioClient)
         {
             nativeFormat = client.MixFormat;
         }
@@ -170,26 +173,33 @@ internal static class HapticProbe
             return 2;
         }
 
-        using (var enumerator = new MMDeviceEnumerator())
-        using (var output = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console))
+        var outputIdentity = AudioEndpointEnumerator.TryGetDefaultEndpoint(
+            AudioDataFlow.Render, AudioEndpointRole.Console);
+        if (outputIdentity == null)
         {
-            var outputIsController = RenderEndpointScan.IsHapticEndpoint(output);
+            Console.WriteLine("no default render endpoint");
+            return 2;
+        }
+
+        using (var output = RenderDeviceFor(outputIdentity.Id))
+        {
+            var outputIsController = RenderEndpointScan.IsHapticEndpoint(outputIdentity);
             ProcessLoopbackCapture endpointCapture;
             var keepProgramChannels = false;
             if (outputIsController)
             {
-                endpointCapture = ProcessLoopbackCapture.ForEndpointNative(output.ID);
+                endpointCapture = ProcessLoopbackCapture.ForEndpointNative(outputIdentity.Id);
                 keepProgramChannels =
                     ProcessLoopbackCapture.IsDualSenseActuatorFormat(endpointCapture.WaveFormat);
                 if (!keepProgramChannels)
                 {
                     endpointCapture.Dispose();
-                    endpointCapture = ProcessLoopbackCapture.ForEndpoint(output.ID);
+                    endpointCapture = ProcessLoopbackCapture.ForEndpoint(outputIdentity.Id);
                 }
             }
             else
             {
-                endpointCapture = ProcessLoopbackCapture.ForEndpoint(output.ID);
+                endpointCapture = ProcessLoopbackCapture.ForEndpoint(outputIdentity.Id);
             }
 
             using (var process = new FloatCollector(
@@ -199,8 +209,8 @@ internal static class HapticProbe
             {
                 Console.WriteLine();
                 Console.WriteLine(
-                    $"channel {actuatorChannel}: game -> '{output.FriendlyName}', " +
-                    $"haptics -> '{controller.FriendlyName}'");
+                    $"channel {actuatorChannel}: game -> '{outputIdentity.Describe()}', " +
+                    $"haptics -> '{controller.Describe()}'");
 
                 process.Start();
                 speaker.Start();
@@ -211,7 +221,7 @@ internal static class HapticProbe
                 { IsBackground = true };
                 var haptic = new Thread(
                     () => PlayTone(
-                        controller,
+                        RenderDeviceFor(controller.Id),
                         HapticToneHz,
                         6,
                         0.05,

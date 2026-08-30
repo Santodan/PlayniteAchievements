@@ -940,7 +940,7 @@ internal static class ChimeBurstProbe
                     .EnumerateAudioEndPoints(
                         NAudio.CoreAudioApi.DataFlow.Render,
                         NAudio.CoreAudioApi.DeviceState.Active)
-                    .Where(RenderEndpointScan.IsHapticEndpoint)
+                    .Where(d => HapticEndpointIds().Contains(d.ID))
                     .ToList();
                 if (controllers.Count == 1)
                 {
@@ -962,6 +962,25 @@ internal static class ChimeBurstProbe
     }
 
     /// <summary>
+    /// Endpoint ids the recorder classifies as controller outputs. Classification goes through
+    /// AudioEndpointEnumerator (the path the plugin uses); NAudio is still how this probe RENDERS
+    /// its test tones, so the two are matched up by endpoint id.
+    /// </summary>
+    private static HashSet<string> HapticEndpointIds()
+    {
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var endpoint in AudioEndpointEnumerator.EnumerateActive(AudioDataFlow.Render))
+        {
+            if (RenderEndpointScan.IsHapticEndpoint(endpoint))
+            {
+                ids.Add(endpoint.Id);
+            }
+        }
+
+        return ids;
+    }
+
+    /// <summary>
     /// Child helper: renders the haptic marker tone to the single controller endpoint's left
     /// actuator channel (native channel 2 on a DualSense) for the whole child tone duration.
     /// </summary>
@@ -975,7 +994,7 @@ internal static class ChimeBurstProbe
                     .EnumerateAudioEndPoints(
                         NAudio.CoreAudioApi.DataFlow.Render,
                         NAudio.CoreAudioApi.DeviceState.Active)
-                    .Where(RenderEndpointScan.IsHapticEndpoint)
+                    .Where(d => HapticEndpointIds().Contains(d.ID))
                     .ToList();
                 if (controllers.Count != 1)
                 {
