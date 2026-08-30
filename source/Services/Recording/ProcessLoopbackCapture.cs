@@ -195,6 +195,13 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>48 kHz stereo 32-bit IEEE float — the format the loopback client mixes the process to.</summary>
         public WaveFormat WaveFormat { get; set; } = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2);
 
+        /// <summary>
+        /// Priority of every capture poll thread. A seam for
+        /// <c>tools/capture-harness/CaptureStarvationProbe</c>, which A/Bs it under CPU load to
+        /// show what a missed 200 ms deadline costs. Nothing in the plugin changes it.
+        /// </summary>
+        internal static ThreadPriority PollThreadPriority { get; set; } = ThreadPriority.AboveNormal;
+
         /// <summary>Process-loopback activation exists on Windows 10 build 19041+ (20H1).</summary>
         public static bool IsSupported
         {
@@ -509,9 +516,19 @@ namespace PlayniteAchievements.Services.Recording
             {
                 IsBackground = true,
                 Name = "PA-ProcLoopback",
-                // Background capture work. WASAPI buffers the packets this loop drains, so yielding
-                // to the game and the shell costs latency here, not audio.
-                Priority = ThreadPriority.BelowNormal,
+                // This loop has a HARD 200 ms deadline: that is the client's buffer duration
+                // (2_000_000 in 100-ns units, see InitializeClient), and WASAPI overwrites the ring
+                // once it is full. A late wake here does not cost latency, it destroys audio --
+                // the engine's device position jumps and TakeGapBefore pads the hole with silence
+                // that never played.
+                //
+                // It ran BelowNormal, which held while a GPU-bound title left CPU headroom and
+                // collapsed under an emulator that did not: a field log shows a RetroArch session
+                // reporting more padded dropout and discarded overflow than the session was long,
+                // heard as continuous stutter. There are up to four of these clients live at once
+                // (endpoint, game reference, non-game, chime sidecar), so all four have to make
+                // the deadline.
+                Priority = PollThreadPriority,
             };
             _pollThread.Start();
         }
