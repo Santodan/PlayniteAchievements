@@ -66,11 +66,15 @@ $tools = @(
     'CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss',
     'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe', 'ChimeCancelProbe',
     'ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe', 'ComposerProbe',
-    'ChimeRoundTripProbe')
+    'ChimeRoundTripProbe', 'CaptureStarvationProbe')
 # Tools that compile plugin source files in directly, so they always test the current algorithm
 # rather than a built DLL.
 $extraSources = @{
     ChimeCancelProbe = @((Join-Path $repo 'source\Services\Capture\PcmAudio.cs'))
+    CaptureStarvationProbe = @(
+        (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
+        (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
+        (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
     ChimeRoundTripProbe = @(
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Capture\ReferenceCancellationPolicy.cs'))
@@ -109,7 +113,7 @@ $extraSources = @{
 }
 # Tools that need Environment.OSVersion to report the real Windows version (the manifest opts out
 # of the 6.2 compatibility shim); ProcessLoopbackCapture.IsSupported depends on it.
-$manifestTools = @('ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe')
+$manifestTools = @('ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe', 'CaptureStarvationProbe')
 $failed = @()
 foreach ($tool in $tools) {
     $source = Join-Path $here ($tool + '.cs')
