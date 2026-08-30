@@ -10,6 +10,7 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views.Controls
 {
@@ -126,9 +127,6 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             menu.Items.Clear();
-            var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
-            var submenuStyle = button.TryFindResource("AchievementMultiSelectSubmenuItemStyle") as Style;
-            var separatorStyle = button.TryFindResource("AchievementContextMenuSeparatorStyle") as Style;
             var options = (filter.Options ?? Enumerable.Empty<string>())
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .ToList();
@@ -136,25 +134,22 @@ namespace PlayniteAchievements.Views.Controls
             // marked the dropdown drops the gutter entirely and labels sit flush left.
             var showMarkerGutter = filter.HasMarker && options.Any(filter.IsMarked);
 
-            // Every checkable item created for this opening, at any depth, so a click can re-sync
-            // the ones nested in submenus alongside its own siblings.
+            // Every checkable item created for this opening, so a click can re-sync its siblings.
             var checkableItems = new List<MenuItem>();
 
             if (filter.NestsCategoryPaths)
             {
-                AppendCategoryPathItems(
+                AppendCategoryTreeItems(
                     menu.Items,
-                    null,
+                    button,
                     filter,
                     options,
-                    itemStyle,
-                    submenuStyle,
-                    separatorStyle,
                     showMarkerGutter,
                     checkableItems);
             }
             else
             {
+                var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
                 foreach (var option in options)
                 {
                     menu.Items.Add(CreateMultiSelectItem(
@@ -171,94 +166,73 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// Renders category-path options as the tree they describe: each level shows leaf names,
-        /// and a node with children opens a submenu instead of the flat list spelling out every
-        /// full path. A node that also holds achievements of its own leads its submenu with a
-        /// checkable entry for itself, because WPF gives a submenu header no click of its own.
+        /// Renders category-path options as the tree they describe: one row per node showing its
+        /// leaf name, with the connectors the category grid draws standing in for the path.
+        ///
+        /// Flat rather than nested submenus, so every option and every checkmark is visible at
+        /// once - which is what a multi-select dropdown is for, and it matches the category grid
+        /// and the Manage Achievements dropdowns.
+        ///
+        /// A node absent from the options holds no achievements of its own. It is drawn, because
+        /// its children need a parent to hang off, but it is not checkable: it would match nothing.
         /// </summary>
-        private static void AppendCategoryPathItems(
+        private static void AppendCategoryTreeItems(
             ItemCollection target,
-            string parentPath,
+            FrameworkElement resourceOwner,
             GridMultiSelectFilter filter,
             IReadOnlyList<string> options,
-            Style itemStyle,
-            Style submenuStyle,
-            Style separatorStyle,
             bool showMarkerGutter,
             List<MenuItem> checkableItems)
         {
-            foreach (var path in CategoryPathHelper.GetChildPaths(options, parentPath))
+            var rows = CategoryFilterMenuBuilder.BuildRows(options);
+            var itemStyle = CategoryFilterMenuBuilder.ResolveItemStyle(resourceOwner, rows);
+
+            foreach (var row in rows)
             {
-                var label = AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(path);
-                // Select through the option string itself rather than the path rebuilt from its
-                // segments, so selections stay comparable to the option list that prunes them.
-                var selectableOption = options.FirstOrDefault(option => CategoryPathHelper.IsSame(option, path));
-                var children = CategoryPathHelper.GetChildPaths(options, path);
-                if (children.Count == 0)
+                if (!row.IsSelectable)
                 {
-                    target.Add(CreateMultiSelectItem(
-                        filter,
-                        selectableOption ?? path,
-                        label,
+                    // Structure only: never checked, never re-synced, and nothing to select.
+                    target.Add(CategoryFilterMenuBuilder.CreateItem(
+                        row,
                         itemStyle,
-                        showMarkerGutter,
-                        checkableItems));
+                        _ => false,
+                        (_, __) => { }));
                     continue;
                 }
 
-                var node = new MenuItem { Header = label };
-                if (submenuStyle != null)
-                {
-                    node.Style = submenuStyle;
-                }
-
-                // An intermediate node holding no achievements of its own is not one of the
-                // options, and so has nothing to select: it is only a way through to its children.
-                if (selectableOption != null)
-                {
-                    node.Items.Add(CreateMultiSelectItem(
-                        filter,
-                        selectableOption,
-                        label,
-                        itemStyle,
-                        showMarkerGutter,
-                        checkableItems));
-
-                    var separator = new Separator();
-                    if (separatorStyle != null)
-                    {
-                        separator.Style = separatorStyle;
-                    }
-
-                    node.Items.Add(separator);
-                }
-
-                AppendCategoryPathItems(
-                    node.Items,
-                    path,
+                target.Add(CreateMultiSelectItem(
                     filter,
-                    options,
+                    row.Option,
+                    row.LeafDisplay,
                     itemStyle,
-                    submenuStyle,
-                    separatorStyle,
                     showMarkerGutter,
-                    checkableItems);
-                target.Add(node);
+                    checkableItems,
+                    row.TreeShape,
+                    row.PathDisplay));
             }
         }
 
+        /// <summary>
+        /// One checkable row. <paramref name="treeShape"/> and <paramref name="toolTip"/> are set
+        /// only for category paths, where the row also has to say where it sits and offer its full
+        /// path on hover; every other dropdown leaves them null and the guide collapses away.
+        /// </summary>
         private static MenuItem CreateMultiSelectItem(
             GridMultiSelectFilter filter,
             string value,
             string label,
             Style itemStyle,
             bool showMarkerGutter,
-            List<MenuItem> checkableItems)
+            List<MenuItem> checkableItems,
+            CategoryTreeShape treeShape = null,
+            string toolTip = null)
         {
             var header = BuildMultiSelectHeader(filter, value, label, showMarkerGutter);
-            var item = new MenuItem
+            var item = new CategoryTreeMenuItem
             {
                 Header = header,
+                ToolTip = toolTip,
+                TreeShape = treeShape,
                 IsCheckable = true,
                 StaysOpenOnClick = true,
                 IsChecked = filter.IsSelected(value),

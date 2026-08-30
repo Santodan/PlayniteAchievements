@@ -125,16 +125,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            OpenMultiSelectFilterContextMenu(
+            OpenCategoryFilterContextMenu(
                 CategoryLabelFilterSelectionButton,
                 CategoryLabelFilterSelectionContextMenu,
                 ViewModel.CategoryLabelFilterOptions,
                 option => ViewModel.IsCategoryLabelFilterSelected(option),
-                (option, isSelected) => ViewModel.SetCategoryLabelFilterSelected(option, isSelected),
-                // Leaf in the item, full path on hover: a flat menu of paths sharing long prefixes
-                // is hard to scan, but two leaves can share a name under different parents.
-                AchievementCategoryTypeHelper.ToCategoryLeafDisplayText,
-                AchievementCategoryTypeHelper.ToCategoryLabelDisplayText);
+                (option, isSelected) => ViewModel.SetCategoryLabelFilterSelected(option, isSelected));
         }
 
         private void ApplyBulk()
@@ -1032,46 +1028,19 @@ namespace PlayniteAchievements.Views.ManageAchievements
             OpenSelectorContextMenu(button, menu);
         }
 
-        private static void OpenMultiSelectFilterContextMenu(
+        /// <summary>
+        /// Opens the category filter dropdown: one row per category, leaf names with the full path
+        /// on hover, and the connectors that place each row in the tree.
+        /// </summary>
+        private static void OpenCategoryFilterContextMenu(
             Button button,
             ContextMenu menu,
             IEnumerable<string> options,
             Func<string, bool> isSelected,
-            Action<string, bool> setSelection,
-            Func<string, string> displayText = null,
-            Func<string, string> toolTipText = null)
+            Action<string, bool> setSelection)
         {
-            if (button == null || menu == null || isSelected == null || setSelection == null)
-            {
-                return;
-            }
-
-            menu.Items.Clear();
-            if (options == null)
-            {
-                return;
-            }
-
-            var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
-            foreach (var option in options.Where(value => !string.IsNullOrWhiteSpace(value)))
-            {
-                var item = new MenuItem
-                {
-                    Header = displayText?.Invoke(option) ?? option,
-                    ToolTip = toolTipText?.Invoke(option),
-                    IsCheckable = true,
-                    StaysOpenOnClick = true,
-                    IsChecked = isSelected(option)
-                };
-                if (itemStyle != null)
-                {
-                    item.Style = itemStyle;
-                }
-                item.Click += (_, __) => setSelection(option, item.IsChecked);
-                menu.Items.Add(item);
-            }
-
-            if (menu.Items.Count == 0)
+            if (button == null ||
+                !CategoryFilterMenuBuilder.Populate(button, menu, options, isSelected, setSelection))
             {
                 return;
             }

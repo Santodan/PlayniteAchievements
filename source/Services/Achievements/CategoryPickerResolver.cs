@@ -36,8 +36,7 @@ namespace PlayniteAchievements.Services.Achievements
 
         /// <summary>
         /// Connector geometry for this row, or null when the list has no nesting to show. A null
-        /// shape collapses <see cref="PlayniteAchievements.Views.Controls.CategoryTreeGuide"/> to
-        /// zero width, so a flat list costs nothing.
+        /// shape collapses the tree guide to zero width, so a flat list costs nothing.
         /// </summary>
         public CategoryTreeShape TreeShape { get; }
 
