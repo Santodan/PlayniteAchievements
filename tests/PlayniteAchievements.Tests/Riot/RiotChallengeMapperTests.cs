@@ -17,8 +17,8 @@ namespace PlayniteAchievements.Riot.Tests
         /// by id string, with no id field inside the entries.
         ///
         /// "0" is the crystal root and "1" a category meter (both skipped); "101000" is a capstone
-        /// parented to that category; "101001" and "101002" are leaves under the capstone; "900001"
-        /// is a retired challenge; "900002" is reverse-direction.
+        /// parented to that category with four tiers; "101001" and "101002" are leaves under the
+        /// capstone; "900001" is retired; "900002" is reverse-direction.
         /// </summary>
         private const string MetadataJson = @"{
             ""challenges"": {
@@ -102,14 +102,15 @@ namespace PlayniteAchievements.Riot.Tests
         }";
 
         /// <summary>
-        /// "101002" has a populated Iron figure. "900001" has Riot's zero-as-absent gap at the
-        /// lower tiers with a real figure higher up, the shape live data actually returns (Iron 0
-        /// alongside Master 0.029, which cannot both be literal).
+        /// "101000" carries a distinct figure per tier plus Riot's zero-as-absent gap at GOLD.
+        /// "900001" has the gap at its only tier, with a real figure higher up - the shape live data
+        /// returns (IRON 0 alongside a populated MASTER, which cannot both be literal).
         /// </summary>
         private const string PercentilesJson = @"{
+            ""101000"": { ""IRON"": 0.6, ""BRONZE"": 0.3, ""SILVER"": 0.04, ""GOLD"": 0.0 },
+            ""101001"": { ""IRON"": 0.6, ""BRONZE"": 0.2 },
             ""101002"": { ""NONE"": 1.0, ""IRON"": 0.08 },
-            ""900001"": { ""NONE"": 1.0, ""IRON"": 0.0, ""BRONZE"": 0.0, ""SILVER"": 0.12 },
-            ""101000"": { ""NONE"": 1.0, ""IRON"": 0.4, ""GOLD"": 0.0 }
+            ""900001"": { ""NONE"": 1.0, ""IRON"": 0.0, ""BRONZE"": 0.0, ""SILVER"": 0.12 }
         }";
 
         private static readonly Dictionary<string, string> CategoryNames = new Dictionary<string, string>
@@ -139,65 +140,91 @@ namespace PlayniteAchievements.Riot.Tests
         private static AchievementDetail Get(string apiName) => Build().Single(a => a.ApiName == apiName);
 
         [TestMethod]
-        public void BuildAchievements_SkipsCategoryAndRootNodes()
+        public void BuildAchievements_EmitsOneAchievementPerThresholdTier()
         {
             var achievements = Build();
 
+            // 101000 has four tiers, 101001 and 900002 two each, 101002 and 900001 one each.
+            Assert.AreEqual(10, achievements.Count);
             CollectionAssert.AreEquivalent(
-                new[] { "101000", "101001", "101002", "900001", "900002" },
-                achievements.Select(a => a.ApiName).ToArray(),
+                new[]
+                {
+                    "101000:IRON", "101000:BRONZE", "101000:SILVER", "101000:GOLD",
+                    "101001:IRON", "101001:BRONZE",
+                    "101002:IRON",
+                    "900001:IRON",
+                    "900002:IRON", "900002:BRONZE"
+                },
+                achievements.Select(a => a.ApiName).ToArray());
+        }
+
+        [TestMethod]
+        public void BuildAchievements_SkipsCategoryAndRootNodes()
+        {
+            Assert.IsFalse(
+                Build().Any(a => a.ApiName.StartsWith("0:") || a.ApiName.StartsWith("1:")),
                 "The crystal root and category meters are point totals, not achievements.");
         }
 
         [TestMethod]
-        public void BuildAchievements_MapsUnlockTime()
+        public void BuildAchievements_UnlocksEveryTierUpToThePlayersOwn()
         {
-            var capstone = Get("101000");
+            // The player holds GOLD on 101000, so all four tiers up to it are earned.
+            foreach (var tier in new[] { "IRON", "BRONZE", "SILVER", "GOLD" })
+            {
+                Assert.IsTrue(Get("101000:" + tier).Unlocked, $"{tier} is at or below the player's tier.");
+            }
 
-            Assert.IsTrue(capstone.Unlocked);
+            // The player holds IRON on 101001, so BRONZE is still to come.
+            Assert.IsTrue(Get("101001:IRON").Unlocked);
+            Assert.IsFalse(Get("101001:BRONZE").Unlocked);
+        }
+
+        [TestMethod]
+        public void BuildAchievements_TimestampsOnlyTheTierThePlayerCurrentlyHolds()
+        {
+            // Riot reports one achievedTime, for the current tier. Backfilling the tiers below it
+            // would invent unlock moments the unlock feed then orders by.
             Assert.AreEqual(
                 new DateTime(2025, 8, 24, 1, 46, 40, DateTimeKind.Utc),
-                capstone.UnlockTimeUtc,
-                "achievedTime is epoch milliseconds in UTC.");
+                Get("101000:GOLD").UnlockTimeUtc);
+
+            foreach (var tier in new[] { "IRON", "BRONZE", "SILVER" })
+            {
+                var lower = Get("101000:" + tier);
+                Assert.IsTrue(lower.Unlocked, $"{tier} is earned.");
+                Assert.IsNull(lower.UnlockTimeUtc, $"{tier} is earned but Riot does not say when.");
+            }
         }
 
         [TestMethod]
         public void BuildAchievements_LeavesUnstartedChallengeLocked()
         {
-            var locked = Get("101002");
+            var locked = Get("101002:IRON");
 
             Assert.IsFalse(locked.Unlocked, "A challenge absent from player-data has never been started.");
             Assert.IsNull(locked.UnlockTimeUtc);
         }
 
         [TestMethod]
-        public void BuildAchievements_NeverSetsTrophyType()
+        public void BuildAchievements_NeverSetsTrophyTypeOrCapstone()
         {
             // TrophyType drives PlayStation trophy art and the platinum/gold/silver/bronze summary
-            // counts. A challenge tier there renders as a PSN trophy - "platinum" reading as the
-            // completion marker - and the tiers with no matching art render blank.
-            Assert.IsTrue(
-                Build().All(a => a.TrophyType == null),
-                "No challenge may carry a trophy type; the tier is conveyed by its own token icon.");
+            // counts; a challenge tier there renders as a PSN trophy.
+            var achievements = Build();
+            Assert.IsTrue(achievements.All(a => a.TrophyType == null), "Tiers are conveyed by token art.");
+            Assert.IsTrue(achievements.All(a => !a.IsCapstone), "Riot's capstones are grouping nodes, not completion markers.");
         }
 
         [TestMethod]
-        public void BuildAchievements_ProgressTargetsTheNextUnreachedTier()
+        public void BuildAchievements_MeasuresProgressAgainstEachTiersOwnThreshold()
         {
-            var capstone = Get("101000");
+            // An earned tier reads full; the tier above shows how far the same running value came.
+            Assert.AreEqual(10, Get("101001:IRON").ProgressNum);
+            Assert.AreEqual(10, Get("101001:IRON").ProgressDenom);
 
-            Assert.AreEqual(
-                360,
-                capstone.ProgressDenom,
-                "GOLD is the highest defined tier here, so the bar targets GOLD itself.");
-            Assert.AreEqual(
-                360,
-                capstone.ProgressNum,
-                "The raw value of 372 is past GOLD, and the top tier pins the bar full.");
-
-            var leaf = Get("101001");
-            Assert.AreEqual(18, leaf.ProgressNum);
-            Assert.AreEqual(25, leaf.ProgressDenom, "At IRON the next unreached tier is BRONZE.");
+            Assert.AreEqual(18, Get("101001:BRONZE").ProgressNum);
+            Assert.AreEqual(25, Get("101001:BRONZE").ProgressDenom);
         }
 
         [TestMethod]
@@ -207,154 +234,111 @@ namespace PlayniteAchievements.Riot.Tests
             {
                 Assert.IsTrue(
                     achievement.ProgressNum <= achievement.ProgressDenom,
-                    $"'{achievement.DisplayName}' rendered past 100%. Leaderboard-gated tiers let the " +
-                    "raw value pass a threshold without the tier being awarded, so the bar must pin full.");
+                    $"'{achievement.ApiName}' rendered past 100%.");
             }
-        }
-
-        [TestMethod]
-        public void BuildAchievements_PinsProgressFullWhenTheValuePassesAnUnawardedTier()
-        {
-            // The player sits at GOLD with a value of 372 against a GOLD threshold of 360 — the
-            // shape Riot returns when Grandmaster and Challenger are top-N leaderboard places.
-            var capstone = Get("101000");
-
-            Assert.AreEqual(360, capstone.ProgressDenom);
-            Assert.AreEqual(360, capstone.ProgressNum);
         }
 
         [TestMethod]
         public void BuildAchievements_OmitsProgressForReverseDirectionChallenges()
         {
-            var reverse = Get("900002");
+            var reverse = Get("900002:BRONZE");
 
             Assert.IsNull(reverse.ProgressNum, "Lower is better, so a rising bar would read backwards.");
             Assert.IsNull(reverse.ProgressDenom);
-            Assert.IsTrue(reverse.Unlocked, "The challenge is still reported as earned.");
+            Assert.IsTrue(reverse.Unlocked, "The tier is still reported as earned.");
         }
 
         [TestMethod]
-        public void BuildAchievements_ScalesPercentileToRarity()
+        public void BuildAchievements_ReadsRarityFromEachTiersOwnPercentile()
         {
-            var rare = Get("101000");
-            Assert.AreEqual(4d, rare.GlobalPercentUnlocked.Value, 0.001, "Riot reports a 0..1 fraction.");
-            Assert.AreEqual(RarityTier.UltraRare, rare.Rarity);
+            // Per-tier achievements read the table at their own tier, so rarity climbs with the tier
+            // instead of every tier sharing one figure.
+            Assert.AreEqual(60d, Get("101000:IRON").GlobalPercentUnlocked.Value, 0.001);
+            Assert.AreEqual(RarityTier.Common, Get("101000:IRON").Rarity);
 
-            var common = Get("101001");
-            Assert.AreEqual(60d, common.GlobalPercentUnlocked.Value, 0.001);
-            Assert.AreEqual(RarityTier.Common, common.Rarity);
-        }
+            Assert.AreEqual(30d, Get("101000:BRONZE").GlobalPercentUnlocked.Value, 0.001);
+            Assert.AreEqual(RarityTier.Uncommon, Get("101000:BRONZE").Rarity);
 
-        [TestMethod]
-        public void BuildAchievements_GivesLockedChallengesRarityFromTheIronPercentile()
-        {
-            var locked = Get("101002");
-
-            Assert.AreEqual(
-                8d,
-                locked.GlobalPercentUnlocked.Value,
-                0.001,
-                "A locked challenge borrows the share of players who reached its first tier.");
-            Assert.AreEqual(RarityTier.Rare, locked.Rarity);
+            Assert.AreEqual(4d, Get("101000:SILVER").GlobalPercentUnlocked.Value, 0.001);
+            Assert.AreEqual(RarityTier.UltraRare, Get("101000:SILVER").Rarity);
         }
 
         [TestMethod]
         public void BuildAchievements_TreatsAZeroPercentileAsAbsentRatherThanUltraRare()
         {
-            // Riot writes 0.0 where it has no figure. Reading it literally made every challenge
-            // with a data gap look rarer than the rarest real achievement in the game.
-            var gapped = Get("900001");
+            // Riot writes 0.0 where it has no figure. Reading it literally made every tier with a
+            // data gap look rarer than the rarest real achievement in the game.
+            Assert.AreEqual(
+                4d,
+                Get("101000:GOLD").GlobalPercentUnlocked.Value,
+                0.001,
+                "GOLD is zero-filled, so the nearest populated tier below it answers.");
 
             Assert.AreEqual(
                 12d,
-                gapped.GlobalPercentUnlocked.Value,
+                Get("900001:IRON").GlobalPercentUnlocked.Value,
                 0.001,
-                "Iron and Bronze are zero-filled, so the nearest populated tier supplies the figure.");
-            Assert.AreEqual(RarityTier.Uncommon, gapped.Rarity);
-        }
-
-        [TestMethod]
-        public void BuildAchievements_FallsBackToTheTableWhenThePlayerPercentileIsZeroFilled()
-        {
-            // 101000 is unlocked at GOLD, but its GOLD entry is zero-filled, so the nearest
-            // populated tier below it answers instead.
-            var capstone = Get("101000");
-
-            Assert.AreEqual(4d, capstone.GlobalPercentUnlocked.Value, 0.001, "The player's own percentile wins when it is real.");
-
-            var zeroed = RiotChallengeMapper.BuildAchievements(
-                RiotChallengeMapper.ParseMetadata(MetadataJson),
-                new RiotPlayerChallengeState
-                {
-                    Challenges = new List<RiotChallengeInfoDto>
-                    {
-                        new RiotChallengeInfoDto { ChallengeId = 101000, Level = "GOLD", Value = 372d, Percentile = 0d }
-                    },
-                    LevelPercentiles = RiotChallengeMapper.ParsePercentiles(PercentilesJson)
-                },
-                CategoryNames,
-                Now).Single(a => a.ApiName == "101000");
-
-            Assert.AreEqual(
-                40d,
-                zeroed.GlobalPercentUnlocked.Value,
-                0.001,
-                "With the player figure and the GOLD entry both zero-filled, IRON is the nearest real one.");
+                "Nothing populated below IRON, so the search continues upward.");
         }
 
         [TestMethod]
         public void BuildAchievements_LeavesRarityUnsetWhenNoPercentileExists()
         {
-            var noPercentile = Get("900002");
-            Assert.IsNotNull(noPercentile.GlobalPercentUnlocked, "This one is unlocked, so it has its own percentile.");
-
-            var metadata = RiotChallengeMapper.ParseMetadata(MetadataJson);
             var bare = RiotChallengeMapper.BuildAchievements(
-                metadata,
+                RiotChallengeMapper.ParseMetadata(MetadataJson),
                 new RiotPlayerChallengeState { Challenges = new List<RiotChallengeInfoDto>() },
                 CategoryNames,
                 Now);
 
             Assert.IsTrue(
                 bare.All(a => !a.GlobalPercentUnlocked.HasValue),
-                "With no player data and no percentile table there is nothing to derive rarity from.");
+                "With no percentile table there is nothing to derive rarity from.");
         }
 
         [TestMethod]
         public void BuildAchievements_UsesParentCapstoneNameAsCategory()
         {
-            Assert.AreEqual("ARAM Authority", Get("101001").Category, "A leaf takes its parent capstone's name.");
+            Assert.AreEqual("ARAM Authority", Get("101001:IRON").Category, "A leaf takes its parent capstone's name.");
             Assert.AreEqual(
                 "Imagination",
-                Get("101000").Category,
+                Get("101000:GOLD").Category,
                 "A capstone parented to a category takes the localized category label.");
         }
 
         [TestMethod]
         public void BuildAchievements_MarksRetiredChallengesMissable()
         {
-            Assert.AreEqual("Missable", Get("900001").CategoryType, "Its end timestamp has passed.");
-            Assert.IsNull(Get("101001").CategoryType, "An open-ended challenge carries no category type.");
+            Assert.AreEqual("Missable", Get("900001:IRON").CategoryType, "Its end timestamp has passed.");
+            Assert.IsNull(Get("101001:IRON").CategoryType, "An open-ended challenge carries no category type.");
         }
 
         [TestMethod]
-        public void BuildAchievements_PicksTokenArtForTheCurrentTier()
+        public void BuildAchievements_GivesEachTierItsOwnTokenArt()
         {
             Assert.AreEqual(
                 "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/challenges/config/101000/tokens/gold.png",
-                Get("101000").UnlockedIconPath,
-                "An unlocked challenge shows the art for the tier it is at.");
+                Get("101000:GOLD").UnlockedIconPath);
 
             Assert.AreEqual(
-                "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/challenges/config/101002/tokens/iron.png",
-                Get("101002").UnlockedIconPath,
-                "A locked challenge falls back to the lowest tier's art rather than showing nothing.");
+                "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/challenges/config/101000/tokens/iron.png",
+                Get("101000:IRON").UnlockedIconPath,
+                "Each tier shows its own token, which is what tells the rows apart.");
+        }
+
+        [TestMethod]
+        public void BuildAchievements_FallsBackToTheLowestAvailableArtForATierWithNone()
+        {
+            // 101000 ships art only for IRON and GOLD, so BRONZE and SILVER borrow rather than
+            // rendering nothing.
+            Assert.AreEqual(
+                "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/challenges/config/101000/tokens/iron.png",
+                Get("101000:SILVER").UnlockedIconPath);
         }
 
         [TestMethod]
         public void BuildAchievements_UsesTheSameArtForLockedAndUnlockedPaths()
         {
-            var achievement = Get("101001");
+            var achievement = Get("101001:BRONZE");
 
             Assert.AreEqual(
                 achievement.UnlockedIconPath,
@@ -363,13 +347,43 @@ namespace PlayniteAchievements.Riot.Tests
         }
 
         [TestMethod]
+        public void BuildAchievements_NamesEveryTierAfterItsChallenge()
+        {
+            foreach (var tier in new[] { "IRON", "BRONZE", "SILVER", "GOLD" })
+            {
+                Assert.AreEqual(
+                    "ARAM Authority",
+                    Get("101000:" + tier).DisplayName,
+                    "Tiers share the challenge name; the token art distinguishes them.");
+            }
+        }
+
+        [TestMethod]
         public void BuildAchievements_FallsBackToShortDescription()
         {
-            Assert.AreEqual("Feed poros", Get("101002").Description, "description is empty, so descriptionShort wins.");
-            Assert.AreEqual(
-                "Hit enemies with snowballs.",
-                Get("101001").Description,
-                "The full description wins when it is present.");
+            Assert.AreEqual("Feed poros", Get("101002:IRON").Description, "description is empty, so descriptionShort wins.");
+            Assert.AreEqual("Hit enemies with snowballs.", Get("101001:IRON").Description);
+        }
+
+        [TestMethod]
+        public void BuildAchievements_OrdersTiersOfAChallengeTogetherAndAscending()
+        {
+            var ordered = Build()
+                .Select(a => a.ApiName)
+                .Where(name => name.StartsWith("101000:"))
+                .ToArray();
+
+            CollectionAssert.AreEqual(
+                new[] { "101000:IRON", "101000:BRONZE", "101000:SILVER", "101000:GOLD" },
+                ordered,
+                "Provider order drives the default grid order, so tiers must climb.");
+        }
+
+        [TestMethod]
+        public void BuildTierApiName_IsStableAndCanonical()
+        {
+            Assert.AreEqual("101000:GOLD", RiotChallengeMapper.BuildTierApiName(101000, "gold"));
+            Assert.AreEqual("101000:GOLD", RiotChallengeMapper.BuildTierApiName(101000, "GOLD"));
         }
 
         [TestMethod]

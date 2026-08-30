@@ -91,10 +91,10 @@ namespace PlayniteAchievements.Providers.Riot
             IReadOnlyDictionary<string, string> categoryDisplayNames,
             DateTime nowUtc)
         {
-            var results = new List<AchievementDetail>();
+            var results = new List<TierEntry>();
             if (metadata?.Challenges == null || metadata.Challenges.Count == 0)
             {
-                return results;
+                return new List<AchievementDetail>();
             }
 
             var playerByChallenge = BuildPlayerIndex(playerState);
@@ -121,7 +121,7 @@ namespace PlayniteAchievements.Providers.Riot
                 playerByChallenge.TryGetValue(challengeId, out var playerInfo);
                 percentiles.TryGetValue(challengeId, out var challengePercentiles);
 
-                results.Add(BuildAchievement(
+                results.AddRange(BuildTierAchievements(
                     challengeId,
                     challenge,
                     playerInfo,
@@ -132,14 +132,34 @@ namespace PlayniteAchievements.Providers.Riot
             }
 
             // Group by category so the default (provider) order reads the way the League client
-            // presents challenges, with a stable tiebreak on name.
+            // presents challenges, then keep a challenge's tiers together and in ladder order.
             return results
-                .OrderBy(a => a.Category ?? string.Empty, StringComparer.CurrentCultureIgnoreCase)
-                .ThenBy(a => a.DisplayName ?? string.Empty, StringComparer.CurrentCultureIgnoreCase)
+                .OrderBy(entry => entry.Achievement.Category ?? string.Empty, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(entry => entry.ChallengeSortName, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(entry => entry.TierRank)
+                .Select(entry => entry.Achievement)
                 .ToList();
         }
 
-        private static AchievementDetail BuildAchievement(
+        /// <summary>
+        /// Carries the sort keys alongside the achievement so ordering does not have to re-parse
+        /// the composed display name.
+        /// </summary>
+        private sealed class TierEntry
+        {
+            public AchievementDetail Achievement { get; set; }
+
+            public string ChallengeSortName { get; set; }
+
+            public int TierRank { get; set; }
+        }
+
+        /// <summary>
+        /// One achievement per tier of a challenge. A challenge is earned again at each successive
+        /// tier, so a tier is the only thing here that is actually all-or-nothing, and modelling it
+        /// that way lets a tier climb be an ordinary locked-to-unlocked transition.
+        /// </summary>
+        private static IEnumerable<TierEntry> BuildTierAchievements(
             long challengeId,
             CDragonChallenge challenge,
             RiotChallengeInfoDto playerInfo,
@@ -148,88 +168,118 @@ namespace PlayniteAchievements.Providers.Riot
             IReadOnlyDictionary<string, string> categoryDisplayNames,
             DateTime nowUtc)
         {
-            var level = RiotChallengeLevels.Normalize(playerInfo?.Level);
-            var unlocked = RiotChallengeLevels.IsUnlocked(level);
-            var iconUrl = ResolveIconUrl(challenge, level);
-            var percent = ResolveGlobalPercent(playerInfo, challengePercentiles, unlocked);
-
-            var achievement = new AchievementDetail
+            var ladder = BuildThresholdLadder(challenge);
+            if (ladder.Count == 0)
             {
-                ApiName = challengeId.ToString(CultureInfo.InvariantCulture),
-                DisplayName = challenge.Name,
-                Description = FirstNonBlank(challenge.Description, challenge.DescriptionShort),
-                UnlockedIconPath = iconUrl,
-
-                // Challenge token art has no separate locked variant; the display layer derives the
-                // greyscale locked rendering from the same source.
-                LockedIconPath = iconUrl,
-
-                Unlocked = unlocked,
-                UnlockTimeUtc = unlocked ? ToUtc(playerInfo?.AchievedTime) : null,
-
-                // TrophyType is deliberately left null. It drives the PlayStation trophy art and
-                // tooltips in the Trophy column and feeds the platinum/gold/silver/bronze summary
-                // counts, so a challenge tier there renders as a PSN trophy - "platinum" reading as
-                // the completion marker - and the five tiers with no matching art render blank.
-                // The tier is already carried by the challenge's own token icon.
-                Category = ResolveCategory(challenge, allChallenges, categoryDisplayNames),
-                CategoryType = IsRetired(challenge, nowUtc) ? MissableCategoryType : null,
-                GlobalPercentUnlocked = percent
-            };
-
-            if (percent.HasValue)
-            {
-                achievement.Rarity = PercentRarityHelper.GetRarityTier(percent.Value);
+                yield break;
             }
 
-            ApplyProgress(achievement, challenge, playerInfo, level);
-            return achievement;
+            var playerRank = RiotChallengeLevels.GetRank(playerInfo?.Level);
+            var value = playerInfo?.Value ?? 0d;
+            var category = ResolveCategory(challenge, allChallenges, categoryDisplayNames);
+            var categoryType = IsRetired(challenge, nowUtc) ? MissableCategoryType : null;
+            var description = FirstNonBlank(challenge.Description, challenge.DescriptionShort);
+
+            foreach (var tier in ladder)
+            {
+                var tierName = RiotChallengeLevels.Ascending[tier.Rank];
+                var unlocked = playerRank >= tier.Rank;
+                var iconUrl = ResolveIconUrl(challenge, tierName);
+                var percent = ResolveTierPercent(challengePercentiles, tier.Rank);
+
+                var achievement = new AchievementDetail
+                {
+                    ApiName = BuildTierApiName(challengeId, tierName),
+
+                    // Every tier of a challenge shares its name; the tier's own token art is what
+                    // tells the rows apart, so no tier label is composed into the name.
+                    DisplayName = challenge.Name,
+                    Description = description,
+                    UnlockedIconPath = iconUrl,
+
+                    // Challenge token art has no separate locked variant; the display layer derives
+                    // the greyscale locked rendering from the same source.
+                    LockedIconPath = iconUrl,
+
+                    Unlocked = unlocked,
+
+                    // Riot timestamps only the tier the player currently holds. Lower tiers are
+                    // known to be earned but not when, and an invented timestamp would be a lie the
+                    // unlock feed would then order by.
+                    UnlockTimeUtc = tier.Rank == playerRank ? ToUtc(playerInfo?.AchievedTime) : null,
+
+                    Category = category,
+                    CategoryType = categoryType,
+                    GlobalPercentUnlocked = percent
+                };
+
+                if (percent.HasValue)
+                {
+                    achievement.Rarity = PercentRarityHelper.GetRarityTier(percent.Value);
+                }
+
+                ApplyTierProgress(achievement, challenge, value, tier.Value);
+
+                yield return new TierEntry
+                {
+                    Achievement = achievement,
+                    ChallengeSortName = challenge.Name ?? string.Empty,
+                    TierRank = tier.Rank
+                };
+            }
         }
 
         /// <summary>
-        /// Fills <c>ProgressNum</c>/<c>ProgressDenom</c> from the player's raw value and the next
-        /// unreached tier threshold. Skipped for reverse-direction challenges (lower is better),
-        /// where a rising progress bar would read backwards.
+        /// Stable per-tier identity. It keys the icon cache, overrides, goals and notes, so it must
+        /// never shift with a rename or a locale change.
         /// </summary>
-        private static void ApplyProgress(
+        internal static string BuildTierApiName(long challengeId, string tierName)
+            => challengeId.ToString(CultureInfo.InvariantCulture) + ":" + RiotChallengeLevels.Normalize(tierName);
+
+        /// <summary>
+        /// Progress toward this tier's own threshold. An earned tier reads full; the tiers above it
+        /// show how far the same running value has come, which is what a locked achievement's
+        /// progress bar means everywhere else.
+        /// </summary>
+        private static void ApplyTierProgress(
             AchievementDetail achievement,
             CDragonChallenge challenge,
-            RiotChallengeInfoDto playerInfo,
-            string level)
+            double value,
+            double threshold)
         {
-            if (challenge.ReverseDirection || challenge.Thresholds == null || challenge.Thresholds.Count == 0)
+            // A reverse-direction challenge counts down, so a rising bar would read backwards.
+            if (challenge.ReverseDirection || threshold <= 0)
             {
                 return;
             }
 
-            var ladder = challenge.Thresholds
+            achievement.ProgressNum = ToProgressInt(Math.Min(value, threshold));
+            achievement.ProgressDenom = ToProgressInt(threshold);
+        }
+
+        private sealed class ThresholdTier
+        {
+            public int Rank { get; set; }
+
+            public double Value { get; set; }
+        }
+
+        private static List<ThresholdTier> BuildThresholdLadder(CDragonChallenge challenge)
+        {
+            if (challenge.Thresholds == null || challenge.Thresholds.Count == 0)
+            {
+                return new List<ThresholdTier>();
+            }
+
+            return challenge.Thresholds
                 .Where(pair => RiotChallengeLevels.GetRank(pair.Key) > 0 && pair.Value != null)
-                .Select(pair => new { Rank = RiotChallengeLevels.GetRank(pair.Key), pair.Value.Value })
-                .OrderBy(item => item.Rank)
+                .Select(pair => new ThresholdTier
+                {
+                    Rank = RiotChallengeLevels.GetRank(pair.Key),
+                    Value = pair.Value.Value
+                })
+                .OrderBy(tier => tier.Rank)
                 .ToList();
-
-            if (ladder.Count == 0)
-            {
-                return;
-            }
-
-            var currentRank = RiotChallengeLevels.GetRank(level);
-            var value = playerInfo?.Value ?? 0d;
-
-            var next = ladder.FirstOrDefault(item => item.Rank > currentRank);
-            var target = next?.Value ?? ladder[ladder.Count - 1].Value;
-
-            if (target <= 0)
-            {
-                return;
-            }
-
-            // The value can legitimately pass the next threshold without the tier being awarded:
-            // 181 of 400 challenges gate Grandmaster and Challenger on a top-N leaderboard place
-            // rather than on a number. Pinning the bar full says "the number is met" without
-            // rendering past 100%.
-            achievement.ProgressNum = ToProgressInt(Math.Min(value, target));
-            achievement.ProgressDenom = ToProgressInt(target);
         }
 
         /// <summary>
@@ -240,25 +290,13 @@ namespace PlayniteAchievements.Providers.Riot
         /// live data shows tables such as IRON=0 with MASTER=0.029, and nobody can hold Master
         /// without holding Iron. Zeroes are therefore treated as absent, not as ultra-rare.
         /// </summary>
-        private static double? ResolveGlobalPercent(
-            RiotChallengeInfoDto playerInfo,
+        private static double? ResolveTierPercent(
             IReadOnlyDictionary<string, double> challengePercentiles,
-            bool unlocked)
+            int tierRank)
         {
-            // Riot computes the player's own percentile for the tier they hold, so it beats the
-            // shared table whenever it carries a figure.
-            if (unlocked && IsRealPercentile(playerInfo?.Percentile))
-            {
-                return ScalePercentile(playerInfo.Percentile.Value);
-            }
-
-            // An unlocked challenge is measured at the tier the player holds; a locked one at the
-            // first tier, which is the share of players who have it at all.
-            var targetRank = unlocked
-                ? RiotChallengeLevels.GetRank(playerInfo?.Level)
-                : RiotChallengeLevels.GetRank(RiotChallengeLevels.Iron);
-
-            var nearest = FindNearestPercentile(challengePercentiles, Math.Max(targetRank, 1));
+            // Per-tier achievements read the table at their own tier, which is exactly the share of
+            // players holding that tier - no estimating from the player's own figure needed.
+            var nearest = FindNearestPercentile(challengePercentiles, Math.Max(tierRank, 1));
 
             // Nothing usable in the table leaves rarity unset rather than guessed; the display layer
             // treats an absent percentage as the common default.
