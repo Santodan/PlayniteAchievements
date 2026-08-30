@@ -765,7 +765,39 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 CategoryPathHelper.GetLeafName(row.ProviderCategoryLabel),
                 StringComparison.OrdinalIgnoreCase));
             StampIndentAffordances(rows);
+            StampCategoryTreeShapes(rows);
             ReplaceCategoryRows(rows);
+        }
+
+        /// <summary>
+        /// Gives each row the connectors that place it in the tree. Resolved here rather than on the
+        /// row because a lane's continuation depends on what follows in the rendered order, which
+        /// only this pass knows. Cleared outright when nothing nests, so a flat list stays flat.
+        /// </summary>
+        private static void StampCategoryTreeShapes(IReadOnlyList<ManageAchievementsCategoryMetadataItem> rows)
+        {
+            var paths = rows.Select(row => row?.CategoryLabel).ToList();
+            if (!CategoryTreeShapeBuilder.HasNesting(paths))
+            {
+                foreach (var row in rows)
+                {
+                    if (row != null)
+                    {
+                        row.TreeShape = null;
+                    }
+                }
+
+                return;
+            }
+
+            var shapes = CategoryTreeShapeBuilder.Build(paths);
+            for (var i = 0; i < rows.Count; i++)
+            {
+                if (rows[i] != null)
+                {
+                    rows[i].TreeShape = shapes[i];
+                }
+            }
         }
 
         /// <summary>
@@ -814,6 +846,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         break;
                     }
                 }
+            }
+
+            // Land on a root boundary. The ranked position can fall between a parent and its
+            // children, and Default is a root - dropped there it would split a subtree, which reads
+            // as an unrelated row wearing that subtree's connectors.
+            while (insertIndex < orderedLabels.Count &&
+                   CategoryPathHelper.GetDepth(orderedLabels[insertIndex]) > 1)
+            {
+                insertIndex++;
             }
 
             orderedLabels.Insert(insertIndex, AchievementCategoryTypeHelper.DefaultCategoryLabel);
