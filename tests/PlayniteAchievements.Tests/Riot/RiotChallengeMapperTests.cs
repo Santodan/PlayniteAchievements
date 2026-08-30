@@ -101,9 +101,15 @@ namespace PlayniteAchievements.Riot.Tests
             ]
         }";
 
+        /// <summary>
+        /// "101002" has a populated Iron figure. "900001" has Riot's zero-as-absent gap at the
+        /// lower tiers with a real figure higher up, the shape live data actually returns (Iron 0
+        /// alongside Master 0.029, which cannot both be literal).
+        /// </summary>
         private const string PercentilesJson = @"{
             ""101002"": { ""NONE"": 1.0, ""IRON"": 0.08 },
-            ""900001"": { ""NONE"": 1.0, ""IRON"": 0.9 }
+            ""900001"": { ""NONE"": 1.0, ""IRON"": 0.0, ""BRONZE"": 0.0, ""SILVER"": 0.12 },
+            ""101000"": { ""NONE"": 1.0, ""IRON"": 0.4, ""GOLD"": 0.0 }
         }";
 
         private static readonly Dictionary<string, string> CategoryNames = new Dictionary<string, string>
@@ -186,13 +192,26 @@ namespace PlayniteAchievements.Riot.Tests
         }
 
         [TestMethod]
-        public void BuildAchievements_ClampsProgressAtTheTopTier()
+        public void BuildAchievements_NeverLetsProgressExceedItsDenominator()
         {
+            foreach (var achievement in Build().Where(a => a.ProgressDenom.HasValue))
+            {
+                Assert.IsTrue(
+                    achievement.ProgressNum <= achievement.ProgressDenom,
+                    $"'{achievement.DisplayName}' rendered past 100%. Leaderboard-gated tiers let the " +
+                    "raw value pass a threshold without the tier being awarded, so the bar must pin full.");
+            }
+        }
+
+        [TestMethod]
+        public void BuildAchievements_PinsProgressFullWhenTheValuePassesAnUnawardedTier()
+        {
+            // The player sits at GOLD with a value of 372 against a GOLD threshold of 360 — the
+            // shape Riot returns when Grandmaster and Challenger are top-N leaderboard places.
             var capstone = Get("101000");
 
-            Assert.IsTrue(
-                capstone.ProgressNum <= capstone.ProgressDenom,
-                "Nothing is left to chase at the top tier, so the bar must not exceed its denominator.");
+            Assert.AreEqual(360, capstone.ProgressDenom);
+            Assert.AreEqual(360, capstone.ProgressNum);
         }
 
         [TestMethod]
@@ -228,6 +247,50 @@ namespace PlayniteAchievements.Riot.Tests
                 0.001,
                 "A locked challenge borrows the share of players who reached its first tier.");
             Assert.AreEqual(RarityTier.Rare, locked.Rarity);
+        }
+
+        [TestMethod]
+        public void BuildAchievements_TreatsAZeroPercentileAsAbsentRatherThanUltraRare()
+        {
+            // Riot writes 0.0 where it has no figure. Reading it literally made every challenge
+            // with a data gap look rarer than the rarest real achievement in the game.
+            var gapped = Get("900001");
+
+            Assert.AreEqual(
+                12d,
+                gapped.GlobalPercentUnlocked.Value,
+                0.001,
+                "Iron and Bronze are zero-filled, so the nearest populated tier supplies the figure.");
+            Assert.AreEqual(RarityTier.Uncommon, gapped.Rarity);
+        }
+
+        [TestMethod]
+        public void BuildAchievements_FallsBackToTheTableWhenThePlayerPercentileIsZeroFilled()
+        {
+            // 101000 is unlocked at GOLD, but its GOLD entry is zero-filled, so the nearest
+            // populated tier below it answers instead.
+            var capstone = Get("101000");
+
+            Assert.AreEqual(4d, capstone.GlobalPercentUnlocked.Value, 0.001, "The player's own percentile wins when it is real.");
+
+            var zeroed = RiotChallengeMapper.BuildAchievements(
+                RiotChallengeMapper.ParseMetadata(MetadataJson),
+                new RiotPlayerChallengeState
+                {
+                    Challenges = new List<RiotChallengeInfoDto>
+                    {
+                        new RiotChallengeInfoDto { ChallengeId = 101000, Level = "GOLD", Value = 372d, Percentile = 0d }
+                    },
+                    LevelPercentiles = RiotChallengeMapper.ParsePercentiles(PercentilesJson)
+                },
+                CategoryNames,
+                Now).Single(a => a.ApiName == "101000");
+
+            Assert.AreEqual(
+                40d,
+                zeroed.GlobalPercentUnlocked.Value,
+                0.001,
+                "With the player figure and the GOLD entry both zero-filled, IRON is the nearest real one.");
         }
 
         [TestMethod]
