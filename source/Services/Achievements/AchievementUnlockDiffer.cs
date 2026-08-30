@@ -8,6 +8,38 @@ namespace PlayniteAchievements.Services.Achievements
 {
     internal sealed class AchievementUnlockDiffer
     {
+        private readonly Func<string, bool> _reportsRepeatUnlocks;
+
+        /// <param name="reportsRepeatUnlocks">
+        /// Answers, for a provider key, whether that provider's achievements can be earned again
+        /// (see <see cref="Providers.IRepeatableUnlockProvider"/>). Null means no provider does.
+        /// </param>
+        public AchievementUnlockDiffer(Func<string, bool> reportsRepeatUnlocks = null)
+        {
+            _reportsRepeatUnlocks = reportsRepeatUnlocks;
+        }
+
+        /// <summary>
+        /// True when an already-unlocked achievement carries a newer unlock time than the baseline
+        /// and its provider has opted in to repeat unlocks.
+        /// </summary>
+        public bool IsRepeatUnlock(string providerKey, AchievementDetail previous, AchievementDetail current)
+        {
+            if (previous?.Unlocked != true || current?.Unlocked != true)
+            {
+                return false;
+            }
+
+            var currentTime = NormalizeUnlockTime(current.UnlockTimeUtc);
+            var previousTime = NormalizeUnlockTime(previous.UnlockTimeUtc);
+            if (!currentTime.HasValue || !previousTime.HasValue || currentTime.Value <= previousTime.Value)
+            {
+                return false;
+            }
+
+            return _reportsRepeatUnlocks?.Invoke(providerKey) == true;
+        }
+
         public IReadOnlyList<AchievementDetail> DiffUserUnlocks(
             GameAchievementData before,
             GameAchievementData after)
@@ -33,6 +65,15 @@ namespace PlayniteAchievements.Services.Achievements
                 // rendered time. Treating that shift as new re-announces the whole set.
                 beforeByKey.TryGetValue(key, out var previous);
                 if (previous == null || previous.Unlocked != true)
+                {
+                    result.Add(current);
+                    continue;
+                }
+
+                // The exception is a provider that has opted in because its achievements are earned
+                // again rather than once (IRepeatableUnlockProvider). It has one authoritative
+                // source, so a newer timestamp is a new earn, not two readers disagreeing.
+                if (IsRepeatUnlock(after.ProviderKey, previous, current))
                 {
                     result.Add(current);
                 }

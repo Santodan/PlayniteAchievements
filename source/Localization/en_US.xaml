@@ -192,6 +192,7 @@
     <sys:String x:Key="LOCPlayAch_Provider_Manual">Manual</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_PSN">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_RetroAchievements">RetroAchievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Riot">Riot Games</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_RPCS3">RPCS3</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_ShadPS4">ShadPS4</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Steam">Steam</sys:String>
@@ -917,6 +918,17 @@
     <sys:String x:Key="LOCPlayAch_Settings_RaEmulatorLogTracking">Instant unlocks (emulator log)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaEmulatorLogTracking_Help">Detects unlocks instantly from your emulator's log file instead of polling the RetroAchievements website. Turn on log-to-file in the emulator; set a path override below only if the log isn't found automatically.</sys:String>
 
+    <!-- Provider: Riot -->
+    <sys:String x:Key="LOCPlayAch_Settings_Riot_Help">Reading League of Legends Challenges uses Riot's official API, which needs a free API key tied to your Riot account. Riot publishes no per-player endpoint that works without one:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Riot_SetupStep1">1. Open the {0} and sign in with your Riot account.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Riot_SetupStep2">2. Copy the development API key shown on the dashboard into the API Key box below. Use the regenerate button there if it has expired.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Riot_SetupStep3">3. Enter your Riot ID and pick the region your account plays on, then click Check.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Riot_Expiry">A development key stops working after 24 hours and has to be regenerated each time. For a key that does not expire, use Register Product on the portal to apply for a personal key.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Riot_Note">Riot reviews personal and production applications separately; the {0} explains what to expect.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RiotId">Riot ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RiotId_Help">Your in-game name and tag, for example Faker and KR1. The tag is the part after the # on your profile.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RiotApiKey">API Key</sys:String>
+
     <!-- Provider: Steam -->
     <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories">Use SteamHunters for Categories</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories_Help">Fills achievement categories and Base/DLC types from SteamHunters during Steam refreshes. Category art defaults to Steam store banners (changeable per game in Manage Achievements).</sys:String>
@@ -1222,6 +1234,8 @@
     <sys:String x:Key="LOCPlayAch_Toast_CompletedTheGame">completed the game!</sys:String>
     <!-- Text_UnknownAchievement: fallback shown when an achievement's name cannot be resolved -->
     <sys:String x:Key="LOCPlayAch_Text_UnknownAchievement">Unknown achievement</sys:String>
+    <!-- Riot_AccountNotFound: {0} is the Riot ID that failed to resolve -->
+    <sys:String x:Key="LOCPlayAch_Riot_AccountNotFound">{0} was not found. Check the Riot ID and the selected region.</sys:String>
     <!-- Xenia_NotFoundWarning: {0} is the missing item (TitleID or a .gpd filename), {1} is the game name -->
     <sys:String x:Key="LOCPlayAch_Xenia_NotFoundWarning">{0} not found for {1}. Launch the game once in Xenia, then refresh.</sys:String>
 
@@ -1244,6 +1258,13 @@
     <sys:String x:Key="LOCPlayAch_GroupByUnlocked">Group by unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_NoLockedAchievements">No locked achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_NoUnlockedAchievements">No unlocked achievements</sys:String>
+    <!-- Riot_ChallengeCategory_*: the five top-level League of Legends challenge categories, which
+         Riot's game data exposes only as untranslated codes -->
+    <sys:String x:Key="LOCPlayAch_Riot_ChallengeCategory_Collection">Collection</sys:String>
+    <sys:String x:Key="LOCPlayAch_Riot_ChallengeCategory_Expertise">Expertise</sys:String>
+    <sys:String x:Key="LOCPlayAch_Riot_ChallengeCategory_Imagination">Imagination</sys:String>
+    <sys:String x:Key="LOCPlayAch_Riot_ChallengeCategory_Teamwork">Teamwork &amp; Strategy</sys:String>
+    <sys:String x:Key="LOCPlayAch_Riot_ChallengeCategory_Veterancy">Veterancy</sys:String>
     <sys:String x:Key="LOCPlayAch_Tooltip_RightClickShowHide">Right Click to Show/Hide</sys:String>
 
     <!-- ================================================================= -->

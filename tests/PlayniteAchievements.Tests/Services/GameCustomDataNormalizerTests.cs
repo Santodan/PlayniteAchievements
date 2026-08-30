@@ -819,6 +819,27 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void NormalizeInternal_RiotProviderOverride_PreservesKeyWithNullValue()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "riot",
+                        Value = null
+                    }
+                },
+                gameId);
+
+            // Riot challenges belong to the account in settings rather than to a game, so the
+            // override is presence-only. An unregistered key here would silently drop it on save.
+            AssertProviderOverride(normalized, "Riot", null);
+        }
+
+        [TestMethod]
         public void NormalizeInternal_Rpcs3ProviderOverride_NormalizesCanonicalValue()
         {
             var gameId = Guid.NewGuid();

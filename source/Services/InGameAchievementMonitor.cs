@@ -85,6 +85,7 @@ namespace PlayniteAchievements.Services
 
         private readonly Action<AchievementUnlockedEventArgs> _notifyUnlocked;
         private readonly AchievementUnlockDiffer _differ;
+        private readonly Func<string, bool> _reportsRepeatUnlocks;
         private readonly IInGameProgressCacheWriter _progressWriter;
         private readonly ExactFileWatcherPool _watchers;
         private readonly object _stateLock = new object();
@@ -107,8 +108,10 @@ namespace PlayniteAchievements.Services
             RefreshRuntime refreshRuntime,
             Func<RefreshRequest, RefreshExecutionPolicy, Task> executeRefreshAsync,
             Action<AchievementUnlockedEventArgs> notifyUnlocked,
-            AchievementUnlockDiffer differ = null)
+            AchievementUnlockDiffer differ = null,
+            Func<string, bool> reportsRepeatUnlocks = null)
         {
+            _reportsRepeatUnlocks = reportsRepeatUnlocks;
             _api = api;
             _settings = settings;
             _logger = logger;
@@ -117,7 +120,7 @@ namespace PlayniteAchievements.Services
             _refreshRuntime = refreshRuntime;
             _executeRefreshAsync = executeRefreshAsync ?? throw new ArgumentNullException(nameof(executeRefreshAsync));
             _notifyUnlocked = notifyUnlocked;
-            _differ = differ ?? new AchievementUnlockDiffer();
+            _differ = differ ?? new AchievementUnlockDiffer(reportsRepeatUnlocks);
             _progressWriter = cacheManager as IInGameProgressCacheWriter;
             _watchers = new ExactFileWatcherPool(logger);
         }
@@ -1076,7 +1079,7 @@ namespace PlayniteAchievements.Services
             lock (_stateLock)
             {
                 claimed = candidates
-                    .Where(achievement => state.ToastedUserKeys.Add(achievement.ApiName))
+                    .Where(achievement => state.ToastedUserKeys.Add(BuildToastClaimKey(after, achievement)))
                     .ToList();
             }
 
@@ -1123,6 +1126,26 @@ namespace PlayniteAchievements.Services
             return reaches100Percent
                 ? CreateUserCompletionEventArgs(game, after, completionTimeUtc, observedUtc, anchorPolicy)
                 : null;
+        }
+
+        /// <summary>
+        /// The per-session claim key that keeps the two prongs from both notifying one unlock.
+        /// For a provider whose achievements are earned again (<see cref="IRepeatableUnlockProvider"/>),
+        /// the unlock time joins the key: both prongs still see the same instant and dedupe against
+        /// each other, but a second earn later in the session is a distinct key rather than one the
+        /// first earn already consumed.
+        /// </summary>
+        private string BuildToastClaimKey(GameAchievementData after, AchievementDetail achievement)
+        {
+            var apiName = achievement?.ApiName;
+            if (_reportsRepeatUnlocks?.Invoke(after?.ProviderKey) != true ||
+                !achievement.UnlockTimeUtc.HasValue)
+            {
+                return apiName;
+            }
+
+            return apiName + "@" + achievement.UnlockTimeUtc.Value.ToUniversalTime().Ticks
+                .ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         /// <summary>
