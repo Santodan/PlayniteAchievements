@@ -258,8 +258,10 @@
                 </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
-                          <DockPanel LastChildFill="True">
+                        <!-- The guide sits outside the cell frame, not inside it: the frame pads
+                             its content by six pixels top and bottom, which would break every lane
+                             once per row. The frame keeps padding the text. -->
+                        <DockPanel LastChildFill="True">
                             <!-- Tree connectors for a nested category row, and the row's indent:
                                  the guide's own width is what pushes the name right, so nothing
                                  here needs a per-depth margin. Collapses to zero width on a game
@@ -273,6 +275,7 @@
                                                         LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
                                                         NodeBrush="{DynamicResource PlayAch.Brush.Accent}"
                                                         NodeHoleBrush="{DynamicResource PlayAch.Brush.Grid.RowBackground}"/>
+                          <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
                             <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                         HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
@@ -303,8 +306,8 @@
                                     </TextBlock.Visibility>
                                 </TextBlock>
                             </StackPanel>
-                          </DockPanel>
-                        </ContentControl>
+                          </ContentControl>
+                        </DockPanel>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
