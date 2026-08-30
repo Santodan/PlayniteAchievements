@@ -143,8 +143,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            var pen = new Pen(lineBrush, 1d);
-            pen.Freeze();
+            var pen = CreatePen(lineBrush, 1d);
 
             var mid = Math.Round(height / 2d);
             var dotX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth);
@@ -273,9 +272,28 @@ namespace PlayniteAchievements.Views.Controls
 
             // Hole fill first, so the lane does not show through the middle of a leaf bead.
             var leafRadius = CategoryTreeGuideMetrics.LeafNodeRadius;
-            var outline = new Pen(beadBrush, 1.5d);
-            outline.Freeze();
+            var outline = CreatePen(beadBrush, 1.5d);
             drawingContext.DrawEllipse(NodeHoleBrush, outline, centre, leafRadius, leafRadius);
+        }
+
+        /// <summary>
+        /// Builds a pen, frozen only when it actually can be.
+        ///
+        /// The brush comes from a theme resource, and a Playnite theme brush routinely resolves
+        /// through DynamicResource or carries unfrozen sub-values - which makes the pen built from
+        /// it unfreezable. Freeze() throws on such a pen rather than returning false, and an
+        /// exception out of OnRender takes the whole application down, so the CanFreeze check is
+        /// load-bearing rather than defensive.
+        /// </summary>
+        private static Pen CreatePen(Brush brush, double thickness)
+        {
+            var pen = new Pen(brush, thickness);
+            if (pen.CanFreeze)
+            {
+                pen.Freeze();
+            }
+
+            return pen;
         }
 
         private static GuidelineSet BuildGuidelines(CategoryTreeShape shape, double dotX, double mid)
