@@ -114,7 +114,12 @@ namespace PlayniteAchievements.Views.Controls
 
         private void RebuildOptions()
         {
-            _options = CategoryPickerResolver.BuildOptions(Categories);
+            // Tree order, so the connectors the item template draws line up with the list: an
+            // ancestor synthesised to complete the tree stays selectable here, because a category
+            // holding no achievements of its own is still somewhere to file one.
+            _options = CategoryPickerResolver.BuildOptions(
+                Categories,
+                synthesizedAreSelectable: true);
             var carriedText = PickerComboBox.Text;
             PickerComboBox.ItemsSource = _options;
             PickerComboBox.Text = carriedText;
