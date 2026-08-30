@@ -1,5 +1,6 @@
 using Newtonsoft.Json;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -431,27 +432,47 @@ namespace PlayniteAchievements.Providers.Riot
             IReadOnlyDictionary<string, CDragonChallenge> allChallenges,
             IReadOnlyDictionary<string, string> categoryDisplayNames)
         {
+            // A challenge hangs off a capstone, and the capstone off one of the five top-level
+            // categories, so climb until a category resolves rather than stopping at the first
+            // hop. A challenge parented straight to a category still yields the single segment
+            // this returned before. The visited set guards against a cycle in the parent tags.
+            var segments = new List<string>();
+            var visited = new HashSet<string>(StringComparer.Ordinal);
             var parentId = GetTag(challenge, ParentTag);
-            if (string.IsNullOrWhiteSpace(parentId))
+
+            while (!string.IsNullOrWhiteSpace(parentId) && visited.Add(parentId))
             {
-                return null;
+                if (categoryDisplayNames != null &&
+                    categoryDisplayNames.TryGetValue(parentId, out var localized) &&
+                    !string.IsNullOrWhiteSpace(localized))
+                {
+                    segments.Insert(0, localized);
+                    break;
+                }
+
+                if (allChallenges == null ||
+                    !allChallenges.TryGetValue(parentId, out var parent) ||
+                    parent == null)
+                {
+                    break;
+                }
+
+                // The only category node missing from the display map is the crystal root, which
+                // is a progress total rather than a grouping, so it never becomes a segment.
+                if (IsCategoryNode(parent))
+                {
+                    break;
+                }
+
+                if (!string.IsNullOrWhiteSpace(parent.Name))
+                {
+                    segments.Insert(0, parent.Name);
+                }
+
+                parentId = GetTag(parent, ParentTag);
             }
 
-            if (categoryDisplayNames != null &&
-                categoryDisplayNames.TryGetValue(parentId, out var localized) &&
-                !string.IsNullOrWhiteSpace(localized))
-            {
-                return localized;
-            }
-
-            if (allChallenges != null &&
-                allChallenges.TryGetValue(parentId, out var parent) &&
-                !string.IsNullOrWhiteSpace(parent?.Name))
-            {
-                return parent.Name;
-            }
-
-            return null;
+            return segments.Count == 0 ? null : CategoryPathHelper.JoinRaw(segments.ToArray());
         }
 
         private static bool IsRetired(CDragonChallenge challenge, DateTime nowUtc)
