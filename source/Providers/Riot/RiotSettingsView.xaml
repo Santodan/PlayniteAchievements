@@ -88,7 +88,7 @@
                                    VerticalAlignment="Top"
                                    Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
 
-                        <Border Grid.Column="1" Style="{StaticResource ProviderConfigStatusBorderStyle}">
+                        <Border Grid.Column="1" Style="{StaticResource AuthStatusBorderStyle}">
                             <StackPanel>
 
                                 <Grid Margin="0,0,0,10">
@@ -98,12 +98,11 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
+                                    <!-- No local RenderTransform here: the style installs a
+                                         RotateTransform that the checking state animates, and a
+                                         local value would replace it and kill the spinner. -->
                                     <TextBlock Grid.Column="0"
-                                               Style="{StaticResource ProviderConfigStatusIconStyle}">
-                                        <TextBlock.RenderTransform>
-                                            <ScaleTransform ScaleX="1.5" ScaleY="1.5"/>
-                                        </TextBlock.RenderTransform>
-                                    </TextBlock>
+                                               Style="{StaticResource AuthStatusIconStyle}"/>
 
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
