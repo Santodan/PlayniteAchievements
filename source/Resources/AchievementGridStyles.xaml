@@ -291,6 +291,28 @@
            BasedOn="{StaticResource AchievementCellStyle}">
     </Style>
 
+    <!-- For a column whose content has to reach the row's top and bottom edges - the category tree
+         connectors, which only read as continuous lines if consecutive rows meet. The shared cell
+         padding would inset them by six pixels at each end, breaking every lane once per row.
+         Padding moves onto the cell's own content, and the presenter stretches instead of honouring
+         the per-column vertical alignment, which would otherwise collapse a zero-height guide. -->
+    <Style x:Key="PlayAch.TreeGuideDataGridCellStyle"
+           TargetType="DataGridCell"
+           BasedOn="{StaticResource AchievementCellStyle}">
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridCell">
+                    <Border Background="{TemplateBinding Background}"
+                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <ContentPresenter VerticalAlignment="Stretch"
+                                          HorizontalAlignment="Stretch"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="PlayAch.StretchDataGridCellStyle"
            TargetType="DataGridCell"
            BasedOn="{StaticResource AchievementCellStyle}">
@@ -477,9 +499,18 @@
                 <ControlTemplate TargetType="{x:Type DataGridRow}">
                     <Border x:Name="DGR_Border"
                             Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
                             SnapsToDevicePixels="True">
+                      <Grid>
+                        <!-- Separator behind the cells rather than as this Border's own border: a
+                             border insets the content by its thickness, leaving a one-pixel break
+                             in anything a cell draws to the row edge. The category tree connectors
+                             run the full height of every row and have to cross it unbroken.
+                             BorderThickness is left unbound for the same reason. -->
+                        <Rectangle x:Name="DGR_Separator"
+                                   Height="1"
+                                   VerticalAlignment="Bottom"
+                                   Fill="{TemplateBinding BorderBrush}"
+                                   SnapsToDevicePixels="True"/>
                         <SelectiveScrollingGrid>
                             <SelectiveScrollingGrid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -503,6 +534,7 @@
                                                SelectiveScrollingGrid.SelectiveScrollingOrientation="Vertical"
                                                Visibility="{Binding HeadersVisibility, ConverterParameter={x:Static DataGridHeadersVisibility.Row}, Converter={x:Static DataGrid.HeadersVisibilityConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"/>
                         </SelectiveScrollingGrid>
+                      </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
