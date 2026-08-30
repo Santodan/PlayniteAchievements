@@ -340,7 +340,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         .ToList();
                 }
 
-                return string.Join(", ", ordered.Select(AchievementCategoryTypeHelper.ToCategoryLabelDisplayText));
+                // Leaf names, matching the dropdown this summarizes. A list of full paths sharing long
+
+                // prefixes overflows the button and reads as repetition rather than a selection.
+
+                return string.Join(", ", ordered.Select(AchievementCategoryTypeHelper.ToCategoryLeafDisplayText));
             }
         }
 
