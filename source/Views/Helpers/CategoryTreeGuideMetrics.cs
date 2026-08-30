@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Views.Helpers
         /// invariants the renderer depends on are that it is strictly increasing and that it covers
         /// <see cref="CategoryPathHelperMaxDepth"/> entries.
         /// </summary>
-        private static readonly double[] LaneCentres = { 7d, 21d, 32d, 40d, 46d, 51d, 55d, 58d };
+        private static readonly double[] LaneCentres = { 12d, 30d, 43d, 52d, 58d, 63d, 67d, 70d };
 
         /// <summary>Mirrors CategoryPathHelper.MaxDepth; deeper input clamps to the last lane.</summary>
         private const int CategoryPathHelperMaxDepth = 8;
