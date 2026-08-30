@@ -299,6 +299,7 @@
     <Compile Include="..\..\source\ViewModels\RefreshHeaderProgressTracker.cs" Link="Source\ViewModels\RefreshHeaderProgressTracker.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettingsSubscription.cs" Link="Source\Models\Settings\PersistedSettingsSubscription.cs" />
     <Compile Include="..\..\source\ViewModels\FriendsOverviewViewModel.cs" Link="Source\ViewModels\FriendsOverviewViewModel.cs" />
+    <Compile Include="..\..\source\ViewModels\Items\CategoryTreeShape.cs" Link="Source\ViewModels\Items\CategoryTreeShape.cs" />
     <Compile Include="..\..\source\ViewModels\Items\GameSummaryItem.cs" Link="Source\ViewModels\Items\GameSummaryItem.cs" />
     <Compile Include="..\..\source\ViewModels\AchievementGridControlBarAdapter.cs" Link="Source\ViewModels\AchievementGridControlBarAdapter.cs" />
     <Compile Include="..\..\source\ViewModels\FriendCompareController.cs" Link="Source\ViewModels\FriendCompareController.cs" />
