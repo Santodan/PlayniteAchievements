@@ -3,6 +3,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Overrides;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
@@ -329,7 +330,13 @@ namespace PlayniteAchievements.Providers.Ffxiv
                 Description = achievement.Description,
                 UnlockedIconPath = achievement.Icon,
                 Points = achievement.Points,
-                Category = achievement.Category?.Name,
+                // FFXIV Collect's "type" is the in-game achievement tab (Battle, Quests, ...) and
+                // "category" the section inside it. A category name is only unique within its type
+                // - "General" occurs under six of them, "Seasonal Events" under two - so the flat
+                // label merged unrelated sections into one bucket.
+                Category = CategoryPathHelper.JoinRaw(achievement.Type?.Name, achievement.Category?.Name),
+
+                // Keyed on the leaf: the Missable rule matches a category name, not a path.
                 CategoryType = FfxivParsing.ResolveCategoryType(achievement.Category?.Name),
                 UnlockTimeUtc = unlockTimeUtc,
                 Unlocked = unlocked,
