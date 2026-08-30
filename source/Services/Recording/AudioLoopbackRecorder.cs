@@ -218,10 +218,14 @@ namespace PlayniteAchievements.Services.Recording
                     {
                         IsBackground = true,
                         Name = "PA-AudioPump",
-                        // Background capture work: yield to the game and the shell. The pump is
-                        // wall-clock paced and reads whatever accumulated, so a late wake costs
-                        // nothing but a slightly larger read.
-                        Priority = ThreadPriority.BelowNormal,
+                        // A late wake costs nothing but a larger read -- until the read is larger
+                        // than the ring, at which point BufferedWaveProvider silently discards the
+                        // excess (DiscardOnBufferOverflow) and the track loses that audio for good.
+                        // The deadline is BufferSeconds, far slacker than the capture threads' 200
+                        // ms, but BelowNormal under a CPU-saturating emulator was missing even
+                        // that. Normal keeps it out of the way of the capture threads above it
+                        // while still being scheduled against the game.
+                        Priority = ThreadPriority.Normal,
                     };
                     _pumpThread.Start();
 
@@ -807,25 +811,46 @@ namespace PlayniteAchievements.Services.Recording
         /// Reports whatever this track lost or stood in for. Silent when nothing did, so a line here
         /// always means the recorded audio does not represent an unbroken stretch of real time.
         /// </summary>
-        private void LogTimelineNotices(params IWaveIn[] captures)
+        /// <summary>
+        /// Reports what the CLIP TRACK lost: audio the ring buffer refused, and engine dropouts the
+        /// main capture padded with silence.
+        /// <para>
+        /// Only <paramref name="clipTrack"/> counts toward that. The sidecars were summed in here
+        /// once, and they are sparse by design — a process-loopback client whose target is silent
+        /// delivers no packets, so every idle span reads as a "dropout". That pushed the figures
+        /// past the session length (a field log claimed 1446 s of loss in a 483 s session) and sent
+        /// a starvation hunt looking at cancellation instead. Sidecar padding is reported
+        /// separately, and without alarm.
+        /// </para>
+        /// </summary>
+        private void LogTimelineNotices(IWaveIn clipTrack, params IWaveIn[] sidecars)
         {
             var discarded = Interlocked.Read(ref _discardedBytes);
-            var paddedFrames = 0L;
-            foreach (var capture in captures ?? new IWaveIn[0])
-            {
-                paddedFrames += (capture as ProcessLoopbackCapture)?.PaddedGapFrames ?? 0;
-            }
-            if (discarded == 0 && paddedFrames == 0)
-            {
-                return;
-            }
-
+            var paddedFrames = (clipTrack as ProcessLoopbackCapture)?.PaddedGapFrames ?? 0;
             var bytesPerSecond = Math.Max(1, _outputFormat?.AverageBytesPerSecond ?? 1);
             var sampleRate = Math.Max(1, _outputFormat?.SampleRate ?? 1);
-            _logger?.Warn(
-                $"[Recording] Audio track has gaps: {discarded / (double)bytesPerSecond:0.###}s dropped to " +
-                $"buffer overflow, {paddedFrames / (double)sampleRate:0.###}s of engine dropouts padded " +
-                "with silence.");
+
+            if (discarded > 0 || paddedFrames > 0)
+            {
+                _logger?.Warn(
+                    $"[Recording] Audio track has gaps: {discarded / (double)bytesPerSecond:0.###}s dropped to " +
+                    $"buffer overflow, {paddedFrames / (double)sampleRate:0.###}s of engine dropouts padded " +
+                    "with silence. Both mean the capture threads missed their deadline.");
+            }
+
+            var sidecarFrames = 0L;
+            foreach (var capture in sidecars ?? new IWaveIn[0])
+            {
+                sidecarFrames += (capture as ProcessLoopbackCapture)?.PaddedGapFrames ?? 0;
+            }
+
+            if (sidecarFrames > 0)
+            {
+                // Expected: these follow one process tree and pad whenever it is quiet.
+                _logger?.Debug(
+                    $"[Recording] Sidecar silence padding: {sidecarFrames / (double)sampleRate:0.###}s " +
+                    "across the reference tracks (idle spans, not dropouts).");
+            }
         }
 
         /// <summary>
