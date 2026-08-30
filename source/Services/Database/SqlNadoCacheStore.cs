@@ -6639,7 +6639,10 @@ namespace PlayniteAchievements.Services.Database
 
                 var apiName = achievement.ApiName.Trim();
                 desiredApiNames.Add(apiName);
-                var incomingCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category);
+                // Canonicalize the path here so the stored label is the same form the change
+                // detection below compares against, and a provider that starts emitting a nested
+                // path does not read back as a change on every refresh.
+                var incomingCategory = CategoryPathHelper.NormalizePath(achievement.Category);
                 var incomingCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(achievement.CategoryType);
                 var incomingGlobalPercent = NormalizeStoredPercent(achievement.GlobalPercentUnlocked);
                 var incomingRarity = achievement.Rarity.ToString();
