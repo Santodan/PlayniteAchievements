@@ -49,9 +49,30 @@
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Riot_Note}"
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"
+                                   helpers:HyperlinkFormatText.Format="{DynamicResource LOCPlayAch_Settings_Riot_SetupStep1}"
+                                   helpers:HyperlinkFormatText.LinkText="Riot Developer Portal"
+                                   helpers:HyperlinkFormatText.NavigateUri="https://developer.riotgames.com/"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Riot_SetupStep2}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Riot_SetupStep3}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Riot_Expiry}"
                                    Style="{StaticResource MutedTextStyle}"
-                                   TextWrapping="Wrap"/>
+                                   TextWrapping="Wrap"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                        <TextBlock Style="{StaticResource MutedTextStyle}"
+                                   TextWrapping="Wrap"
+                                   helpers:HyperlinkFormatText.Format="{DynamicResource LOCPlayAch_Settings_Riot_Note}"
+                                   helpers:HyperlinkFormatText.LinkText="application process"
+                                   helpers:HyperlinkFormatText.NavigateUri="https://developer.riotgames.com/application-process.html"/>
                     </StackPanel>
 
                     <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
@@ -138,12 +159,6 @@
                                                    Margin="0,12,0,8"/>
                                         <TextBox Text="{Binding Settings.RiotApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="4"/>
-                                        <TextBlock Style="{StaticResource MutedTextStyle}"
-                                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
-                                                   TextWrapping="Wrap"
-                                                   helpers:HyperlinkFormatText.Format="{DynamicResource LOCPlayAch_Settings_RiotApiKey_Help}"
-                                                   helpers:HyperlinkFormatText.LinkText="Riot Developer Portal"
-                                                   helpers:HyperlinkFormatText.NavigateUri="https://developer.riotgames.com/"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
