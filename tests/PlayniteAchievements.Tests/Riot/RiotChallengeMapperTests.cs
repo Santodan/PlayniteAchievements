@@ -296,9 +296,12 @@ namespace PlayniteAchievements.Riot.Tests
         }
 
         [TestMethod]
-        public void BuildAchievements_UsesParentCapstoneNameAsCategory()
+        public void BuildAchievements_NestsALeafUnderItsCapstoneAndCategory()
         {
-            Assert.AreEqual("ARAM Authority", Get("101001:IRON").Category, "A leaf takes its parent capstone's name.");
+            Assert.AreEqual(
+                "Imagination::ARAM Authority",
+                Get("101001:IRON").Category,
+                "A leaf climbs past its capstone to the top-level category.");
             Assert.AreEqual(
                 "Imagination",
                 Get("101000:GOLD").Category,
