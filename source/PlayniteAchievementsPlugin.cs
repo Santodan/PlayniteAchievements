@@ -512,6 +512,9 @@ namespace PlayniteAchievements
                     CategoryDefaultImageResolver.DiskImageServiceAccessor = () => _diskImageService;
                     _managedCustomIconService = new ManagedCustomIconService(_diskImageService, _logger);
                     GameSummaryArtResolver.ManagedCustomIconServiceAccessor = () => _managedCustomIconService;
+                    CategoryArtChainResolver.OverrideDisplayPathResolver =
+                        (storedValue, gameId, displayMode) => _managedCustomIconService
+                            .ResolveCategoryArtDisplayPath(storedValue, gameId, displayMode);
                     _notificationImageStore = new NotificationImageStore(_diskImageService, _logger);
                     _fallbackIconStore = new FallbackIconStore(_diskImageService, _logger);
                     // Read through Settings.Persisted on every call: the settings dialog mutates the
@@ -658,7 +661,7 @@ namespace PlayniteAchievements
                     _tagSyncService = new TagSyncService(
                         PlayniteApi,
                         _logger,
-                        settings.Persisted,
+                        settings,
                         GetPluginLocalizationDirectory());
                     _tagSyncService.InitializeAndSubscribeTaggingSettings();
 
@@ -1240,6 +1243,24 @@ namespace PlayniteAchievements
             _tagSyncService?.HandlePersistedSettingsPropertyChanged(e);
         }
 
+        // Runs when CancelEdit replaces the whole PersistedSettings instance. Every
+        // per-property side effect above may have been reverted in one step without a
+        // property change firing, so re-derive all of them against the new instance.
+        private void OnPersistedSettingsInstanceChanged()
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+
+            RestartBackgroundUpdater();
+            ReconfigureInGameMonitor();
+            RarityAppearanceHelper.ApplyBadgeApplicationResources(persisted);
+            AchievementRarityResolver.RoundDisplayPercentages = persisted?.RoundRarityPercentages ?? false;
+            FormattingCulture.Refresh();
+            _achievementHotkeyService?.RefreshConfiguration();
+            InvalidateFriendDataCoordinators();
+            InvalidateStartPageData();
+            _tagSyncService?.InitializeAndSubscribeTaggingSettings();
+        }
+
         private void FriendCacheManager_FriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)
         {
             InvalidateFriendDataCoordinators(e);
@@ -1466,11 +1487,18 @@ namespace PlayniteAchievements
                     });
                 }
 
-                var persisted = _settingsViewModel?.Settings?.Persisted;
-                if (persisted != null)
+                // Subscribes through the settings wrapper: CancelEdit replaces the whole
+                // PersistedSettings instance, and a direct subscription would be left on
+                // the orphan, silently stopping every settings-driven side effect below
+                // for the rest of the session.
+                var settings = _settingsViewModel?.Settings;
+                if (settings != null)
                 {
-                    persisted.PropertyChanged += PersistedSettings_PropertyChanged;
-                    _eventSubscriptions.Add(() => persisted.PropertyChanged -= PersistedSettings_PropertyChanged);
+                    var subscription = new PersistedSettingsSubscription(
+                        settings,
+                        PersistedSettings_PropertyChanged,
+                        OnPersistedSettingsInstanceChanged);
+                    _eventSubscriptions.Add(() => subscription.Dispose());
                 }
 
                 _eventSubscriptions.Add(() => _tagSyncService?.DetachTaggingSettingsSubscription());
@@ -1488,7 +1516,12 @@ namespace PlayniteAchievements
         // deferred.
         private static readonly TimeSpan CustomDataChangeCoalesceDelay = TimeSpan.FromMilliseconds(400);
         private readonly object _customDataChangeSync = new object();
-        private readonly HashSet<Guid> _pendingCustomDataChangeIds = new HashSet<Guid>();
+
+        // Value is whether any change coalesced into this burst could move a library rollup. A
+        // burst that cannot - category order, art and membership, goal reordering - still has to
+        // repaint the game's own theme surface, but nothing library-wide reads it, so the tag
+        // sync, the start page and the whole-library theme lists are left alone.
+        private readonly Dictionary<Guid, bool> _pendingCustomDataChangeIds = new Dictionary<Guid, bool>();
         private Timer _customDataChangeTimer;
 
         private void GameCustomDataStore_CustomDataChanged(object sender, GameCustomDataChangedEventArgs e)
@@ -1500,7 +1533,8 @@ namespace PlayniteAchievements
 
             lock (_customDataChangeSync)
             {
-                _pendingCustomDataChangeIds.Add(e.PlayniteGameId);
+                _pendingCustomDataChangeIds.TryGetValue(e.PlayniteGameId, out var pendingAffectsSummaryData);
+                _pendingCustomDataChangeIds[e.PlayniteGameId] = pendingAffectsSummaryData || e.AffectsSummaryData;
                 if (_customDataChangeTimer == null)
                 {
                     _customDataChangeTimer = new Timer(
@@ -1518,37 +1552,45 @@ namespace PlayniteAchievements
 
         private void FlushPendingCustomDataChanges()
         {
-            List<Guid> gameIds;
+            List<KeyValuePair<Guid, bool>> pending;
             lock (_customDataChangeSync)
             {
-                gameIds = _pendingCustomDataChangeIds.ToList();
+                pending = _pendingCustomDataChangeIds.ToList();
                 _pendingCustomDataChangeIds.Clear();
             }
 
-            foreach (var gameId in gameIds)
+            foreach (var change in pending)
             {
-                HandleCustomDataChanged(gameId);
+                HandleCustomDataChanged(change.Key, change.Value);
             }
         }
 
-        private void HandleCustomDataChanged(Guid gameId)
+        private void HandleCustomDataChanged(Guid gameId, bool affectsSummaryData)
         {
             var persisted = _settingsViewModel?.Settings?.Persisted;
-            if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
+            if (affectsSummaryData &&
+                _tagSyncService != null &&
+                persisted?.TaggingSettings?.EnableTagging == true)
             {
+                // Tags carry completion status, which only a summary-affecting change can move.
                 QueueTagSync(gameId);
             }
 
             try
             {
-                _themeIntegrationService?.NotifyCustomDataChanged(gameId);
+                // The game's own theme surface still repaints - a category edit is visible there -
+                // but the whole-library theme lists are rebuilt only when something they read moved.
+                _themeIntegrationService?.NotifyCustomDataChanged(gameId, refreshLibraryState: affectsSummaryData);
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, $"Failed to refresh theme state after custom-data change for gameId={gameId}.");
             }
 
-            InvalidateStartPageData();
+            if (affectsSummaryData)
+            {
+                InvalidateStartPageData();
+            }
         }
 
         // A capstone write is a SQLite save, and a theme button click arrives on the UI thread, so

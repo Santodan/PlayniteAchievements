@@ -43,5 +43,28 @@ namespace PlayniteAchievements.Providers.PSN
 
             return null;
         }
+
+        // Resolves the free-text category label for a trophy inside a multi-set collection.
+        // The base group takes the set title so each included game renders as its own category;
+        // a named DLC group composes "{setTitle} - {groupName}"; an unnamed DLC group falls back
+        // to the set title.
+        internal static string ResolveCollectionCategory(
+            string trophyGroupId,
+            IReadOnlyDictionary<string, string> groupNameById,
+            string setTitle)
+        {
+            var title = string.IsNullOrWhiteSpace(setTitle) ? null : setTitle.Trim();
+            var categoryType = MapTrophyGroupToCategoryType(trophyGroupId);
+            if (string.Equals(categoryType, "DLC", StringComparison.OrdinalIgnoreCase))
+            {
+                var groupName = ResolveCategory(trophyGroupId, groupNameById);
+                if (!string.IsNullOrWhiteSpace(groupName))
+                {
+                    return title == null ? groupName : $"{title} - {groupName}";
+                }
+            }
+
+            return title;
+        }
     }
 }

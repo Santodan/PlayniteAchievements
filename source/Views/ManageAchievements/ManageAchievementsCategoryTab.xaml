@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.ManageAchievements"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              mc:Ignorable="d"
@@ -241,7 +242,7 @@
                             <Setter Property="TextAlignment" Value="Center" />
                             <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                             <Setter Property="Opacity" Value="0.85" />
-                            <Setter Property="ToolTip" Value="{Binding CategoryDisplay}" />
+                            <Setter Property="ToolTip" Value="{Binding CategoryPathDisplay}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                     <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}" />
@@ -320,36 +321,15 @@
                             Height="{StaticResource PlayAch.Size.Control.Height}"
                             Margin="8,6,0,0" />
 
-                    <TextBox x:Name="CategoryInputTextBox"
-                             Grid.Row="2"
-                             Grid.Column="0"
-                             Padding="8,6"
-                             VerticalAlignment="Center"
-                             KeyDown="CategoryInputTextBox_KeyDown"
-                             Margin="{StaticResource PlayAch.Thickness.Top.Sm}" />
-
-                    <TextBlock Grid.Row="2"
-                               Grid.Column="0"
-                               Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
-                               VerticalAlignment="Center"
-                               Margin="9,8,0,0"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
-                               IsHitTestVisible="False">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ElementName=CategoryInputTextBox, Path=Text}" Value="">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ElementName=CategoryInputTextBox, Path=Text}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+                    <!-- Pick a category the game already has, or type a new one. The options are
+                         the same list the category filter offers, so the two stay in step. -->
+                    <controls:CategoryPickerBox x:Name="CategoryInputPicker"
+                                                Grid.Row="2"
+                                                Grid.Column="0"
+                                                VerticalAlignment="Center"
+                                                Categories="{Binding CategoryLabelFilterOptions}"
+                                                Placeholder="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
+                                                Margin="{StaticResource PlayAch.Thickness.Top.Sm}" />
 
                         <Button x:Name="ApplyBulkButton"
                             Grid.Row="2"
@@ -491,19 +471,87 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTemplateColumn Width="3*" MinWidth="260" Header="{DynamicResource LOCPlayAch_Common_Label_Category}">
+                        <!-- Nesting controls. Indent puts the row under the category above it;
+                             outdent moves it out one level. -->
+                        <!-- Stacked rather than side by side: the rows are tall and the column is
+                             narrow, so two buttons in a row ran past the cell edge. -->
+                        <DataGridTemplateColumn Width="38" MinWidth="38" MaxWidth="38" CanUserResize="False" CanUserSort="False">
+                            <DataGridTemplateColumn.CellStyle>
+                                <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
+                                    <Setter Property="Padding" Value="0" />
+                                </Style>
+                            </DataGridTemplateColumn.CellStyle>
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <StackPanel VerticalAlignment="Center">
+                                    <StackPanel Orientation="Vertical"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Visibility="{Binding IsDefaultCategory, Converter={StaticResource InverseBoolToVis}}">
+                                        <!-- IcoFont simple-right / simple-left. The arrow-to-bar
+                                             characters render hairline-thin in the body font, and
+                                             IcoFont's own indent/outdent are text-editor icons -
+                                             stacked rules plus an arrow - which turn to mush in a
+                                             26x22 button. A plain chevron survives the size.
+                                             Codepoints read from the shipped icofont.ttf glyph
+                                             names rather than IcoFont's published CSS, so they
+                                             match the build Playnite actually loads. -->
+                                        <Button Content="&#xEAB8;"
+                                                FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                FontSize="18"
+                                                Width="26"
+                                                Height="22"
+                                                Padding="0"
+                                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_Indent}"
+                                                IsEnabled="{Binding CanIndent}"
+                                                Command="{Binding DataContext.IndentCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="&#xEAB5;"
+                                                FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                                FontSize="18"
+                                                Width="26"
+                                                Height="22"
+                                                Padding="0"
+                                                Margin="0,3,0,0"
+                                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_Outdent}"
+                                                IsEnabled="{Binding IsNested}"
+                                                Command="{Binding DataContext.OutdentCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTemplateColumn Width="3*" MinWidth="260" Header="{DynamicResource LOCPlayAch_Common_Label_Category}"
+                                                CellStyle="{StaticResource PlayAch.TreeGuideDataGridCellStyle}">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                  <!-- Depth is shown by the same tree connectors the category-mode
+                                       grid draws; the row edits its own name only, and the full
+                                       path is on hover. The guide's own width is the indent. -->
+                                  <DockPanel LastChildFill="True">
+                                    <controls:CategoryTreeGuide DockPanel.Dock="Left"
+                                                                VerticalAlignment="Stretch"
+                                                                Shape="{Binding TreeShape}"
+                                                                LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                                                NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
+                                    <!-- Padding lives here, not on the cell: the guide beside it has
+                                         to reach the row edges for its lanes to join up. -->
+                                    <StackPanel VerticalAlignment="Center"
+                                                Margin="0,6,10,6">
                                         <Grid>
+                                            <!-- The tooltip sits on the TextBox, not the panel: the
+                                                 box covers the cell, and a panel's tooltip never
+                                                 surfaces from under a child that has its own. -->
                                             <TextBox x:Name="CategoryRenameTextBox"
                                                      Text="{Binding RenameOverrideText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                      LostFocus="CategoryRenameTextBox_LostFocus"
                                                      KeyDown="CategoryRenameTextBox_KeyDown"
                                                      IsEnabled="{Binding IsDefaultCategory, Converter={StaticResource InvertBoolConverter}}"
+                                                     ToolTip="{Binding CategoryPathDisplay}"
+                                                     ToolTipService.ShowOnDisabled="True"
                                                      Padding="6,4"
                                                      VerticalContentAlignment="Center" />
-                                            <TextBlock Text="{Binding ProviderCategoryDisplay}"
+                                            <TextBlock Text="{Binding ProviderCategoryLeafDisplay}"
                                                        VerticalAlignment="Center"
                                                        Margin="9,0,0,0"
                                                        TextTrimming="CharacterEllipsis"
@@ -531,6 +579,7 @@
                                                    FontSize="{DynamicResource PlayAch.FontSize.Caption}"
                                                    Margin="0,3,0,0" />
                                     </StackPanel>
+                                  </DockPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>

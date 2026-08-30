@@ -23,7 +23,7 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly ILogger Logger = LogManager.GetLogger();
         private DataGridColumnLayoutService _columnPersistence;
         private bool _isAttached;
-        private PersistedSettings _subscribedPersisted;
+        private PersistedSettingsSubscription _persistedSubscription;
         private const double DefaultCoverColumnWidth = 96;
         private const double DefaultPlatformColumnWidth = 44;
         private const double DefaultCapturesColumnWidth = 56;
@@ -581,10 +581,15 @@ namespace PlayniteAchievements.Views.Controls
             UpdateLastPlayedDateMode(settings);
             UpdateColorRarityColumnsByRarity(settings);
             UpdateShowNameAboveProgress(settings);
-            if (_subscribedPersisted == null)
+            // Tracks the current Persisted instance: CancelEdit replaces it, and a direct
+            // subscription would leave this grid on the orphan, keeping the reverted
+            // display modes for the rest of the session.
+            if (_persistedSubscription == null)
             {
-                _subscribedPersisted = settings.Persisted;
-                _subscribedPersisted.PropertyChanged += OnPersistedSettingsChanged;
+                _persistedSubscription = new PersistedSettingsSubscription(
+                    settings,
+                    OnPersistedSettingsChanged,
+                    () => OnPersistedSettingsChanged(this, new PropertyChangedEventArgs(null)));
             }
             RarityAppearanceHelper.AppearanceChanged -= RarityAppearanceHelper_AppearanceChanged;
             RarityAppearanceHelper.AppearanceChanged += RarityAppearanceHelper_AppearanceChanged;
@@ -1532,6 +1537,38 @@ namespace PlayniteAchievements.Views.Controls
             return true;
         }
 
+        /// <summary>
+        /// Brings a row into view without selecting it. Hosts where selection is the navigation
+        /// gesture need the one without the other - returning to a list should restore the place
+        /// it was left at, not re-enter the row that was left.
+        /// </summary>
+        public void ScrollRowIntoView(GameSummaryItem item)
+        {
+            if (item != null)
+            {
+                GameSummariesGrid?.ScrollIntoView(item);
+            }
+        }
+
+        /// <summary>
+        /// The grid's current vertical scroll offset, or 0 before it has been realized. Paired with
+        /// <see cref="ScrollToVerticalOffset"/> so a caller can put the list back exactly where the
+        /// user left it.
+        /// </summary>
+        public double VerticalScrollOffset =>
+            VisualTreeHelpers.FindVisualChild<ScrollViewer>(GameSummariesGrid)?.VerticalOffset ?? 0d;
+
+        public void ScrollToVerticalOffset(double offset)
+        {
+            if (offset <= 0)
+            {
+                return;
+            }
+
+            var scrollViewer = VisualTreeHelpers.FindVisualChild<ScrollViewer>(GameSummariesGrid);
+            scrollViewer?.ScrollToVerticalOffset(offset);
+        }
+
         public void SetSortIndicator(string sortMemberPath, ListSortDirection? direction)
         {
             DataGridSortingHelper.SetSortIndicator(GameSummariesGrid, sortMemberPath, direction);
@@ -1572,11 +1609,8 @@ namespace PlayniteAchievements.Views.Controls
 
             _columnPersistence?.Dispose();
             _columnPersistence = null;
-            if (_subscribedPersisted != null)
-            {
-                _subscribedPersisted.PropertyChanged -= OnPersistedSettingsChanged;
-                _subscribedPersisted = null;
-            }
+            _persistedSubscription?.Dispose();
+            _persistedSubscription = null;
             RarityAppearanceHelper.AppearanceChanged -= RarityAppearanceHelper_AppearanceChanged;
             DataGridAlignmentBehavior.SetColumnCellAlignmentOverridesProvider(GameSummariesGrid, null);
             DataGridAlignmentBehavior.SetColumnCellVerticalAlignmentOverridesProvider(GameSummariesGrid, null);

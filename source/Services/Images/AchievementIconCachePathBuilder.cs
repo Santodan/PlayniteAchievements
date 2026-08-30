@@ -161,6 +161,49 @@ namespace PlayniteAchievements.Services.Images
                 fileName);
         }
 
+        /// <summary>
+        /// Stem for a category's user-supplied art. Unlike <see cref="BuildFileStems"/> the hash is
+        /// unconditional, so the stem is a pure function of the label rather than of the batch it
+        /// was computed in.
+        ///
+        /// Batch-scoped de-collision means introducing a label that sanitizes like an existing one
+        /// changes the *existing* label's stem, and nesting makes such near-collisions ordinary
+        /// since "A::B", "A:B" and "A_B" all sanitize to "A_B". Already-stored art keeps working
+        /// either way, because an override persists the resolved path rather than a stem - what a
+        /// shifting stem actually costs is a stale file left behind on the next write, and
+        /// reasoning that has to account for which labels happened to share a batch.
+        ///
+        /// Existing files are untouched and still referenced by their stored paths, so there is
+        /// nothing to migrate.
+        /// </summary>
+        public static string BuildCategoryFileStem(string categoryLabel)
+        {
+            var normalizedLabel = (categoryLabel ?? string.Empty).Trim();
+            var stem = SanitizeApiName(normalizedLabel);
+            var suffix = "_" + GetApiNameHashSuffix(normalizedLabel.ToLowerInvariant());
+            return TrimStemForSuffix(stem, suffix.Length) + suffix;
+        }
+
+        public static IReadOnlyDictionary<string, string> BuildCategoryFileStems(IEnumerable<string> categoryLabels)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var label in categoryLabels ?? Array.Empty<string>())
+            {
+                if (string.IsNullOrWhiteSpace(label))
+                {
+                    continue;
+                }
+
+                var key = label.Trim();
+                if (!result.ContainsKey(key))
+                {
+                    result[key] = BuildCategoryFileStem(key);
+                }
+            }
+
+            return result;
+        }
+
         public static string BuildCustomCategoryRelativePath(
             string gameId,
             string fileStem)

@@ -65,5 +65,55 @@ namespace PlayniteAchievements.Tests.Providers
         {
             Assert.AreEqual(expected, PsnTrophyCategoryHelper.MapTrophyGroupToCategoryType(groupId));
         }
+
+        [DataTestMethod]
+        [DataRow(null)]
+        [DataRow("")]
+        [DataRow("default")]
+        public void ResolveCollectionCategory_BaseGroup_ReturnsSetTitle(string groupId)
+        {
+            // Each included game of a collection renders as its own category, named by its set,
+            // rather than by the shared base-group title.
+            Assert.AreEqual(
+                "Spyro the Dragon",
+                PsnTrophyCategoryHelper.ResolveCollectionCategory(groupId, Groups(), "  Spyro the Dragon  "));
+        }
+
+        [TestMethod]
+        public void ResolveCollectionCategory_DlcGroupWithName_ReturnsTitleDashGroup()
+        {
+            Assert.AreEqual(
+                "Horizon Zero Dawn - Frozen Wilds",
+                PsnTrophyCategoryHelper.ResolveCollectionCategory("001", Groups(), "Horizon Zero Dawn"));
+        }
+
+        [DataTestMethod]
+        [DataRow("002")]
+        [DataRow("999")]
+        public void ResolveCollectionCategory_DlcGroupWithoutName_ReturnsSetTitle(string groupId)
+        {
+            Assert.AreEqual(
+                "Horizon Zero Dawn",
+                PsnTrophyCategoryHelper.ResolveCollectionCategory(groupId, Groups(), "Horizon Zero Dawn"));
+        }
+
+        [TestMethod]
+        public void ResolveCollectionCategory_NoSetTitle_FallsBackToGroupNameForDlc()
+        {
+            // Without a set title a named DLC group still labels itself; the base group has no
+            // label left to use, so the hydrator renders its localized default.
+            Assert.AreEqual(
+                "Frozen Wilds",
+                PsnTrophyCategoryHelper.ResolveCollectionCategory("001", Groups(), "   "));
+            Assert.IsNull(PsnTrophyCategoryHelper.ResolveCollectionCategory("default", Groups(), null));
+        }
+
+        [TestMethod]
+        public void ResolveCollectionCategory_NullMap_ReturnsSetTitle()
+        {
+            Assert.AreEqual(
+                "Spyro the Dragon",
+                PsnTrophyCategoryHelper.ResolveCollectionCategory("001", null, "Spyro the Dragon"));
+        }
     }
 }

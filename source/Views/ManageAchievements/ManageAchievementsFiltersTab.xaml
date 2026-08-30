@@ -256,7 +256,7 @@
                             <Setter Property="TextAlignment" Value="Center" />
                             <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                             <Setter Property="Opacity" Value="0.85" />
-                            <Setter Property="ToolTip" Value="{Binding CategoryLabelDisplay}" />
+                            <Setter Property="ToolTip" Value="{Binding CategoryLabelPathDisplay}" />
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>

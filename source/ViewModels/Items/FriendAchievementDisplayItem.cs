@@ -39,6 +39,14 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public bool UnlockedBySelf { get; set; }
 
+        public DateTime? SelfUnlockTimeUtc { get; set; }
+
+        /// <summary>
+        /// True when the current user has cached progress for this row's Playnite game,
+        /// so a self comparison shows real data instead of an all-locked column.
+        /// </summary>
+        public bool SelfHasGameData { get; set; }
+
         /// <summary>
         /// Unless spoilers are shown, visibility decisions use the current user's
         /// unlock state instead of the friend's, so achievements the user has not

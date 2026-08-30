@@ -34,6 +34,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly RefreshRuntime _refreshRuntime;
         private readonly PlayniteAchievementsSettings _settings;
+        private PersistedSettingsSubscription _persistedSubscription;
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _playniteApi;
         private readonly Func<Guid?, string, FriendCustomRefreshOptions> _showCustomRefreshDialog;
@@ -186,7 +187,9 @@ namespace PlayniteAchievements.ViewModels
             _friendCompare = new FriendVsFriendCompareController(
                 () => SelectedFriend,
                 GetCompareFriendOptions,
-                row => IsSameGame(row, SelectedGame));
+                row => IsSameGame(row, SelectedGame),
+                () => _friendCache?.LoadCurrentUserIdentities(),
+                logger);
             AchievementsControlBar = CreateAchievementsControlBar();
             FriendRefreshModes = new ObservableCollection<RefreshMode>(CreateFriendRefreshModes());
 
@@ -215,9 +218,15 @@ namespace PlayniteAchievements.ViewModels
                 _friendCache.FriendCacheInvalidated += OnFriendCacheInvalidated;
             }
 
-            if (_settings?.Persisted != null)
+            if (_settings != null)
             {
-                _settings.Persisted.PropertyChanged += OnPersistedSettingsChanged;
+                // Tracks the current Persisted instance: CancelEdit replaces it, and a
+                // direct subscription would leave this view bound to the orphan. The swap
+                // re-derives everything, the same as a settings change with no name.
+                _persistedSubscription = new PersistedSettingsSubscription(
+                    _settings,
+                    OnPersistedSettingsChanged,
+                    () => OnPersistedSettingsChanged(this, new PropertyChangedEventArgs(null)));
             }
 
             PlayniteAchievementsPlugin.SettingsSaved += OnPluginSettingsSaved;
@@ -753,7 +762,8 @@ namespace PlayniteAchievements.ViewModels
                 SetCategoryFilterSelected)
             {
                 Width = 132,
-                IsCategoryFilter = true
+                IsCategoryFilter = true,
+                NestsCategoryPaths = true
             });
             controlBar.Items.Add(new GridMultiSelectFilter(
                 _friendCompare,
@@ -2825,10 +2835,8 @@ namespace PlayniteAchievements.ViewModels
                 _cacheInvalidationDebounceTimer = null;
             }
 
-            if (_settings?.Persisted != null)
-            {
-                _settings.Persisted.PropertyChanged -= OnPersistedSettingsChanged;
-            }
+            _persistedSubscription?.Dispose();
+            _persistedSubscription = null;
 
             PlayniteAchievementsPlugin.SettingsSaved -= OnPluginSettingsSaved;
             _friendsOverviewDataCoordinator.SnapshotInvalidated -= OnFriendsOverviewSnapshotInvalidated;

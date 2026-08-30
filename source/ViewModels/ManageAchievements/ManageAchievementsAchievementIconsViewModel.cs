@@ -1083,9 +1083,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private string ResolveUnlockedPreviewSource()
         {
+            // A masked row shows the same cover here as it does in every grid, so the editor
+            // reflects what the user actually sees. Clicking the card reveals the real preview.
             if (IsIconHidden)
             {
-                return AchievementIconResolver.GetDefaultIcon();
+                return AchievementIconResolver.GetHiddenFallbackIcon();
             }
 
             var previewOverride = ResolvePreviewOverrideValue(
@@ -1101,9 +1103,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private string ResolveLockedPreviewSource()
         {
-            if (IsIconHidden || IsLockedIconHidden)
+            // Hidden is tested first so the more spoiler-sensitive cover wins when a row is both
+            // hidden and locked-masked, matching the grid ordering.
+            if (IsIconHidden)
             {
-                return AchievementIconResolver.GetDefaultIcon();
+                return AchievementIconResolver.GetHiddenFallbackIcon();
+            }
+
+            if (IsLockedIconHidden)
+            {
+                return AchievementIconResolver.GetLockedFallbackIcon();
             }
 
             var previewOverride = ResolvePreviewOverrideValue(

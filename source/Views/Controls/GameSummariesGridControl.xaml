@@ -251,45 +251,62 @@
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Game}" SortMemberPath="SortingName" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryName">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
-                        <Setter Property="ToolTip" Value="{Binding GameName}"/>
+                        <!-- Falls back to the row's name, so a game row is unchanged; a nested
+                             category row shows its full path, since the cell holds only the leaf. -->
+                        <Setter Property="ToolTip" Value="{Binding NameToolTip}"/>
                     </Style>
                 </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
-                            <Grid>
-                                <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
-                                            HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
-                                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
-                                    <TextBlock Text="{Binding GameName}"
-                                               HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
-                                               Style="{StaticResource GameSummaryNameTextStyle}"/>
-                                    <TextBlock HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
-                                               Style="{StaticResource OverviewGameMetadataTextStyle}">
-                                        <TextBlock.Text>
-                                            <MultiBinding Converter="{StaticResource GameMetadataText}">
-                                                <Binding Path="PlatformText"/>
-                                                <Binding Path="PlaytimeText"/>
-                                                <Binding Path="RegionText"/>
-                                                <Binding Path="ShowMetadataPlatform" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
-                                                <Binding Path="ShowMetadataPlaytime" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
-                                                <Binding Path="ShowMetadataRegion" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
-                                            </MultiBinding>
-                                        </TextBlock.Text>
-                                        <TextBlock.Visibility>
-                                            <MultiBinding Converter="{StaticResource GameMetadataText}">
-                                                <Binding Path="PlatformText"/>
-                                                <Binding Path="PlaytimeText"/>
-                                                <Binding Path="RegionText"/>
-                                                <Binding Path="ShowMetadataPlatform" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
-                                                <Binding Path="ShowMetadataPlaytime" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
-                                                <Binding Path="ShowMetadataRegion" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
-                                            </MultiBinding>
-                                        </TextBlock.Visibility>
-                                    </TextBlock>
-                                </StackPanel>
-                            </Grid>
-                        </ContentControl>
+                        <!-- The guide sits outside the cell frame, not inside it: the frame pads
+                             its content by six pixels top and bottom, which would break every lane
+                             once per row. The frame keeps padding the text. -->
+                        <DockPanel LastChildFill="True">
+                            <!-- Tree connectors for a nested category row, and the row's indent:
+                                 the guide's own width is what pushes the name right, so nothing
+                                 here needs a per-depth margin. Collapses to zero width on a game
+                                 row, which has no TreeShape.
+
+                                 The name column rather than whichever column is leftmost: the
+                                 leftmost one is normally the cover, and a per-depth indent there
+                                 would shrink the art by a different amount on every row. -->
+                            <controls:CategoryTreeGuide DockPanel.Dock="Left"
+                                                        Shape="{Binding TreeShape}"
+                                                        LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                                        NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
+                          <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                            <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                        HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
+                                <TextBlock Text="{Binding GameName}"
+                                           HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                           Style="{StaticResource GameSummaryNameTextStyle}"/>
+                                <TextBlock HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                           Style="{StaticResource OverviewGameMetadataTextStyle}">
+                                    <TextBlock.Text>
+                                        <MultiBinding Converter="{StaticResource GameMetadataText}">
+                                            <Binding Path="PlatformText"/>
+                                            <Binding Path="PlaytimeText"/>
+                                            <Binding Path="RegionText"/>
+                                            <Binding Path="ShowMetadataPlatform" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="ShowMetadataPlaytime" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="ShowMetadataRegion" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                    <TextBlock.Visibility>
+                                        <MultiBinding Converter="{StaticResource GameMetadataText}">
+                                            <Binding Path="PlatformText"/>
+                                            <Binding Path="PlaytimeText"/>
+                                            <Binding Path="RegionText"/>
+                                            <Binding Path="ShowMetadataPlatform" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="ShowMetadataPlaytime" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="ShowMetadataRegion" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                        </MultiBinding>
+                                    </TextBlock.Visibility>
+                                </TextBlock>
+                            </StackPanel>
+                          </ContentControl>
+                        </DockPanel>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>

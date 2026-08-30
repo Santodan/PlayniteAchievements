@@ -279,7 +279,9 @@
                                           Visibility="{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
 
-                            <!-- Custom fallback images for the two placeholder states previewed above. -->
+                            <!-- Custom cover images for the two masked states previewed above. Each
+                                 covers its icon until the row is revealed; the real artwork below is
+                                 never replaced. -->
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FallbackIcons}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>

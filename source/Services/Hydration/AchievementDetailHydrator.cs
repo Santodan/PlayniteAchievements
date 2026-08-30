@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
@@ -13,12 +14,16 @@ namespace PlayniteAchievements.Services.Hydration
     /// </summary>
     public class AchievementDetailHydrator
     {
-        private readonly PersistedSettings _settings;
+        // The settings wrapper, not its PersistedSettings: CancelEdit replaces the
+        // Persisted instance, and this hydrator outlives a settings dialog.
+        private readonly PlayniteAchievementsSettings _settingsHost;
 
-        public AchievementDetailHydrator(PersistedSettings settings)
+        public AchievementDetailHydrator(PlayniteAchievementsSettings settings)
         {
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _settingsHost = settings ?? throw new ArgumentNullException(nameof(settings));
         }
+
+        private PersistedSettings Persisted => _settingsHost.Persisted;
 
         /// <summary>
         /// Hydrates multiple AchievementDetail instances and applies manual capstone
@@ -37,7 +42,7 @@ namespace PlayniteAchievements.Services.Hydration
 
             var detailList = details as IList<AchievementDetail> ?? details.ToList();
 
-            customData ??= GameCustomDataLookup.ResolveGameCustomData(playniteGameId, _settings);
+            customData ??= GameCustomDataLookup.ResolveGameCustomData(playniteGameId, Persisted);
 
             // The incoming list is provider-ordered (cache reads sort by definition rowid), so its
             // position under the custom-order overlay is the game's default order. Unlock-time

@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
-using NAudio.CoreAudioApi;
 
 namespace PlayniteAchievements.Services.Recording
 {
-    /// <summary>Adapts an NAudio render endpoint to the pure controller-endpoint classifier.</summary>
+    /// <summary>Adapts a render endpoint's read identity to the pure controller-endpoint classifier.</summary>
     internal static class RenderEndpointScan
     {
         private static readonly object CacheGate = new object();
@@ -15,14 +14,14 @@ namespace PlayniteAchievements.Services.Recording
         /// Returns whether an endpoint belongs to a controller that carries audio haptics. Endpoint
         /// identity is immutable, so the relatively expensive property-store sweep is cached by id.
         /// </summary>
-        internal static bool IsHapticEndpoint(MMDevice device)
+        internal static bool IsHapticEndpoint(EndpointIdentity endpoint)
         {
-            if (device == null)
+            if (endpoint == null)
             {
                 return false;
             }
 
-            var id = TryRead(() => device.ID) ?? string.Empty;
+            var id = endpoint.Id ?? string.Empty;
             lock (CacheGate)
             {
                 if (Cache.TryGetValue(id, out var cached))
@@ -32,9 +31,9 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             var verdict = HapticEndpointClassifier.IsHapticEndpoint(
-                IdentityCandidates(device),
-                TryRead(() => device.FriendlyName),
-                TryRead(() => device.DeviceFriendlyName));
+                IdentityCandidates(endpoint),
+                endpoint.FriendlyName,
+                endpoint.DeviceFriendlyName);
             lock (CacheGate)
             {
                 Cache[id] = verdict;
@@ -43,37 +42,17 @@ namespace PlayniteAchievements.Services.Recording
             return verdict;
         }
 
-        private static IEnumerable<string> IdentityCandidates(MMDevice device)
+        /// <summary>
+        /// The endpoint's instance id first, then every other string its property store holds:
+        /// which property carries the vendor/product pair varies by driver.
+        /// </summary>
+        internal static IEnumerable<string> IdentityCandidates(EndpointIdentity endpoint)
         {
             var candidates = new List<string>();
-            Collect(candidates, TryRead(() => device.InstanceId));
-            try
+            Collect(candidates, endpoint.InstanceId);
+            foreach (var value in endpoint.PropertyStrings)
             {
-                var properties = device.Properties;
-                for (var index = 0; index < properties.Count; index++)
-                {
-                    try
-                    {
-                        var value = properties.GetValue(index).Value;
-                        if (value is string text)
-                        {
-                            Collect(candidates, text);
-                        }
-                        else if (value is string[] many)
-                        {
-                            foreach (var entry in many)
-                            {
-                                Collect(candidates, entry);
-                            }
-                        }
-                    }
-                    catch
-                    {
-                    }
-                }
-            }
-            catch
-            {
+                Collect(candidates, value);
             }
 
             return candidates;
@@ -86,18 +65,6 @@ namespace PlayniteAchievements.Services.Recording
                  value.IndexOf("VID&", StringComparison.OrdinalIgnoreCase) >= 0))
             {
                 candidates.Add(value);
-            }
-        }
-
-        private static string TryRead(Func<string> read)
-        {
-            try
-            {
-                return read();
-            }
-            catch
-            {
-                return null;
             }
         }
     }

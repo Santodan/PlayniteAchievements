@@ -34,12 +34,34 @@ namespace PlayniteAchievements.ViewModels.Items
         // Session-only: true when this game has any saved unlock captures on disk. Set by the
         // capture presence marker after the summaries are built; gates the Captures column button.
         private bool _hasCaptures;
+        private string _nameToolTip;
         [DontSerialize]
         [IgnoreDataMember]
         public bool HasCaptures { get => _hasCaptures; set => SetValue(ref _hasCaptures, value); }
 
+        /// <summary>
+        /// Hover text for the name cell, or null for none. A category row shows its leaf, so this
+        /// carries the full path - two leaves with the same name under different parents are
+        /// otherwise indistinguishable once a column sort breaks the tree order.
+        /// </summary>
+        public string NameToolTip
+        {
+            get => _nameToolTip ?? _gameName;
+            set => SetValue(ref _nameToolTip, value);
+        }
+
         private string _sortingName;
         public string SortingName { get => _sortingName; set => SetValue(ref _sortingName, value); }
+
+        // Session-only view state, and null on a game row: the connector geometry the name cell
+        // draws to place this row in the category tree. Held on the base rather than on
+        // CategorySummaryItem so the shared name-column template can bind it without a per-row
+        // binding failure on the game surfaces that use the same template.
+        private CategoryTreeShape _treeShape;
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public CategoryTreeShape TreeShape { get => _treeShape; set => SetValue(ref _treeShape, value); }
 
         public bool Owned => PlayniteGameId.HasValue;
 

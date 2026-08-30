@@ -42,7 +42,7 @@ namespace PlayniteAchievements.Providers.Epic
             _httpClient = HttpClientFactory.Create();
             _sessionManager = new EpicSessionManager(playniteApi, logger);
 
-            var apiClient = new EpicApiClient(_httpClient, logger, _sessionManager, settings.Persisted);
+            var apiClient = new EpicApiClient(_httpClient, logger, _sessionManager, settings);
             _scanner = new EpicScanner(settings, apiClient, _sessionManager, logger);
         }
 

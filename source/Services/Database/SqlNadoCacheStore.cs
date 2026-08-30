@@ -335,6 +335,8 @@ namespace PlayniteAchievements.Services.Database
             public string UnlockTimeUtc { get; set; }
             public long? Unlocked { get; set; }
             public long? MyUnlocked { get; set; }
+            public string MyUnlockTimeUtc { get; set; }
+            public long? MyHasGameData { get; set; }
             public int? ProgressNum { get; set; }
             public int? ProgressDenom { get; set; }
             public string IconPath { get; set; }
@@ -5027,7 +5029,8 @@ namespace PlayniteAchievements.Services.Database
                     SELECT
                         cg.PlayniteGameId AS PlayniteGameId,
                         cad.ApiName AS ApiName,
-                        MAX(cua.Unlocked) AS Unlocked
+                        MAX(cua.Unlocked) AS Unlocked,
+                        MAX(cua.UnlockTimeUtc) AS UnlockTimeUtc
                     FROM Users cu
                     INNER JOIN UserGameProgress cugp ON cugp.UserId = cu.Id
                     INNER JOIN Games cg ON cg.Id = cugp.GameId
@@ -5039,6 +5042,15 @@ namespace PlayniteAchievements.Services.Database
                       AND cad.ApiName IS NOT NULL
                       AND TRIM(cad.ApiName) <> ''
                     GROUP BY cg.PlayniteGameId, cad.ApiName
+                ),
+                CurrentUserGames AS (
+                    SELECT DISTINCT cg2.PlayniteGameId AS PlayniteGameId
+                    FROM Users cu2
+                    INNER JOIN UserGameProgress cugp2 ON cugp2.UserId = cu2.Id
+                    INNER JOIN Games cg2 ON cg2.Id = cugp2.GameId
+                    WHERE cu2.IsCurrentUser = 1
+                      AND cg2.PlayniteGameId IS NOT NULL
+                      AND TRIM(cg2.PlayniteGameId) <> ''
                 )
                 SELECT
                     g.ProviderKey AS ProviderKey,
@@ -5067,6 +5079,8 @@ namespace PlayniteAchievements.Services.Database
                     ua.UnlockTimeUtc AS UnlockTimeUtc,
                     COALESCE(ua.Unlocked, 0) AS Unlocked,
                     COALESCE(cu.Unlocked, 0) AS MyUnlocked,
+                    cu.UnlockTimeUtc AS MyUnlockTimeUtc,
+                    CASE WHEN cug.PlayniteGameId IS NULL THEN 0 ELSE 1 END AS MyHasGameData,
                     ua.ProgressNum AS ProgressNum,
                     ua.ProgressDenom AS ProgressDenom,
                     g.IconPath AS IconPath,
@@ -5080,6 +5094,7 @@ namespace PlayniteAchievements.Services.Database
                       AND ua.AchievementDefinitionId = ad.Id
                   LEFT JOIN CurrentUnlocks cu ON cu.PlayniteGameId = g.PlayniteGameId
                       AND cu.ApiName = ad.ApiName
+                  LEFT JOIN CurrentUserGames cug ON cug.PlayniteGameId = g.PlayniteGameId
                   WHERE " + ActiveFriendPredicateSql);
 
             if (unlockedOnly)
@@ -5232,6 +5247,8 @@ namespace PlayniteAchievements.Services.Database
                     UnlockTimeUtc = friendUnlockTimeUtc,
                     Unlocked = isUnlockedByFriend,
                     UnlockedBySelf = isUnlockedByMe,
+                    SelfUnlockTimeUtc = ParseUtc(row.MyUnlockTimeUtc),
+                    SelfHasGameData = row.MyHasGameData.GetValueOrDefault() != 0,
                     ProgressNum = detail.ProgressNum,
                     ProgressDenom = detail.ProgressDenom,
                     ProviderKey = row.ProviderKey,

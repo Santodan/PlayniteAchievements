@@ -634,7 +634,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             RequestFriendStateRefresh();
         }
 
-        public void NotifyCustomDataChanged(Guid? gameId)
+        /// <param name="refreshLibraryState">
+        /// False when the change cannot move anything the library-wide lists read. The selected-game
+        /// surface still rebuilds, so a per-game edit (a category move, a goal reorder) is visible
+        /// where the user made it without paying for a whole-library theme rebuild per edit.
+        /// </param>
+        public void NotifyCustomDataChanged(Guid? gameId, bool refreshLibraryState = true)
         {
             try
             {
@@ -659,6 +664,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Failed to refresh selected-game theme state after custom-data change.");
+            }
+
+            if (!refreshLibraryState)
+            {
+                return;
             }
 
             try

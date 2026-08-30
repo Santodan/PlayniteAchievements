@@ -64,9 +64,13 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
             StringAssert.Contains(recorder, "_source == RecordingAudioSource.GameOnly");
             StringAssert.Contains(recorder, "includeProcessTree: false");
-            StringAssert.Contains(recorder, "ProcessLoopbackCapture.ForEndpoint(speaker.ID)");
-            StringAssert.Contains(recorder, "Role.Console");
-            StringAssert.Contains(recorder, "return new WasapiLoopbackCapture()");
+            StringAssert.Contains(recorder, "ProcessLoopbackCapture.ForEndpoint(speaker.Id)");
+            StringAssert.Contains(recorder, "AudioEndpointRole.Console");
+
+            // Failing open still has to yield audible audio. It must not be NAudio's
+            // WasapiLoopbackCapture: that constructor builds the same device enumerator the
+            // primary path just failed on, so it could only rethrow and leave the session silent.
+            StringAssert.Contains(recorder, "return ProcessLoopbackCapture.ForEndpoint(fallbackId);");
             StringAssert.Contains(recorder, "haptic-free full-system speaker audio");
 
             var source = File.ReadAllText(FindRepoFile(
@@ -297,9 +301,36 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 "source", "Services", "Recording", "RenderEndpointScan.cs"));
 
             var classify = recorder.IndexOf("RenderEndpointScan.IsHapticEndpoint(speaker)", StringComparison.Ordinal);
-            var native = recorder.IndexOf("ProcessLoopbackCapture.ForEndpointNative(speaker.ID)", classify, StringComparison.Ordinal);
+            var native = recorder.IndexOf("ProcessLoopbackCapture.ForEndpointNative(speaker.Id)", classify, StringComparison.Ordinal);
             Assert.IsTrue(classify >= 0 && native > classify);
             StringAssert.Contains(scan, "HapticEndpointClassifier.IsHapticEndpoint");
+        }
+
+        /// <summary>
+        /// NAudio declares its own managed coclass for the MMDeviceEnumerator CLSID, and the CLR's
+        /// CLSID-to-type map is process-wide and first-writer-wins. A second Playnite extension
+        /// shipping NAudio therefore makes every NAudio device-enumeration entry point throw
+        /// InvalidCastException, which once cost a reporting user the audio on every clip. Endpoint
+        /// discovery has to stay on AudioEndpointEnumerator, which activates from the CLSID and
+        /// casts only to interfaces.
+        /// </summary>
+        [TestMethod]
+        public void AudioCapture_NeverReachesEndpointsThroughNAudio()
+        {
+            foreach (var file in new[] { "AudioLoopbackRecorder", "MicrophoneSelector", "RenderEndpointScan" })
+            {
+                var text = File.ReadAllText(FindRepoFile("source", "Services", "Recording", file + ".cs"));
+                Assert.IsFalse(
+                    text.Contains("NAudio.CoreAudioApi"),
+                    file + " must not use NAudio's device enumeration; see AudioEndpointEnumerator.");
+                foreach (var banned in new[] { "new MMDeviceEnumerator(", "new WasapiLoopbackCapture(", "new WasapiCapture(" })
+                {
+                    Assert.IsFalse(
+                        text.Contains(banned),
+                        file + " must not construct " + banned + ": it activates NAudio's coclass for the " +
+                        "MMDeviceEnumerator CLSID and throws whenever a second NAudio is loaded.");
+                }
+            }
         }
 
         [TestMethod]

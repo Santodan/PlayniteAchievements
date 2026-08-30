@@ -559,8 +559,10 @@ namespace PlayniteAchievements.Services.Recording
                                          (processId.HasValue && ProcessHasMainWindow(processId.Value));
                     // Give the started process a short grace to open its main window before
                     // falling back to the foreground window's monitor (usually the same monitor
-                    // the game is launching on). A later-appearing game window on a different
-                    // monitor is handled by the correction watcher below.
+                    // the game is launching on). A window that appears later — on another monitor,
+                    // or belonging to the game rather than the launcher that opened first — is
+                    // picked up by the per-tick resolve in WgcVideoRecorder.PumpLoop, which the
+                    // window tracker answers with a better candidate as one becomes available.
                     var stillLaunching = processId.HasValue &&
                                          !mainWindowResolved &&
                                          CaptureTimelineClock.UtcNow < graceDeadline;

@@ -38,8 +38,7 @@ namespace PlayniteAchievements.Tests.Views
         {
             var xaml = File.ReadAllText(FindRepoFile(
                 "source", "Views", "ManageAchievements", "ManageAchievementsCategoryTab.xaml"));
-            var code = File.ReadAllText(FindRepoFile(
-                "source", "ViewModels", "ManageAchievements", "ManageAchievementsCategoryViewModel.cs"));
+            var code = ReadCategoryViewModelSources();
 
             AssertContainsAll(
                 xaml,
@@ -110,6 +109,22 @@ namespace PlayniteAchievements.Tests.Views
                 .ToList();
 
             CollectionAssert.AreEqual(new List<string>(), missing);
+        }
+
+        /// <summary>
+        /// The category view model is split across partials, with its row types in a fourth file.
+        /// Assert against the whole set so relocating a member between them is a refactor rather
+        /// than a test failure.
+        /// </summary>
+        private static string ReadCategoryViewModelSources()
+        {
+            var anchor = FindRepoFile(
+                "source", "ViewModels", "ManageAchievements", "ManageAchievementsCategoryViewModel.cs");
+
+            return string.Concat(Directory
+                .EnumerateFiles(Path.GetDirectoryName(anchor), "ManageAchievementsCategory*.cs")
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .Select(File.ReadAllText));
         }
 
         private static string FindRepoFile(params string[] parts)

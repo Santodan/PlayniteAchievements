@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+                    xmlns:items="clr-namespace:PlayniteAchievements.ViewModels.Items"
                     xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
@@ -1034,5 +1035,73 @@
     <Style x:Key="PlayAch.ChartColumnSeriesStyle" TargetType="lvc:ColumnSeries">
         <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Accent}"/>
     </Style>
+
+    <!-- Category path shown in a host header above the achievement grid. Lives here because this
+         is the one dictionary every host reaches: the four scoped hosts pull it in through
+         PlayAchImplicitControlStyles, and the Modern theme host merges it directly. -->
+    <Style x:Key="PlayAch.CategoryPathLinkStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <TextBlock x:Name="PathText"
+                               Text="{TemplateBinding Content}"
+                               Foreground="{TemplateBinding Foreground}"
+                               FontSize="{TemplateBinding FontSize}"
+                               FontWeight="{TemplateBinding FontWeight}"
+                               TextDecorations="Underline"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"/>
+                    <ControlTemplate.Triggers>
+                        <!-- Only a navigable hop is underlined. The current level and the elided
+                             marker are both disabled, so this covers each of them. -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="PathText" Property="TextDecorations" Value="{x:Null}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <DataTemplate x:Key="PlayAch.CategoryPathSegmentTemplate" DataType="{x:Type items:CategoryPathSegment}">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Button Content="{Binding Content}"
+                    Command="{Binding NavigateCommand}"
+                    IsEnabled="{Binding IsNavigable}"
+                    ToolTip="{Binding ToolTip}">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource PlayAch.CategoryPathLinkStyle}">
+                        <!-- Matches the game-name hop the hosts render to the left: normal text
+                             colour, bold, underlined, hand cursor. -->
+                        <Setter Property="FontWeight" Value="Bold"/>
+                        <Style.Triggers>
+                            <!-- The elided marker is not a hop: it stands for levels above the one
+                                 being viewed, which the category list itself already reaches. -->
+                            <DataTrigger Binding="{Binding Depth}" Value="0">
+                                <Setter Property="FontWeight" Value="Normal"/>
+                                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Subtle}"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <TextBlock Text=" &gt; "
+                       FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding ShowSeparator, Converter={StaticResource BoolToVis}}"/>
+        </StackPanel>
+    </DataTemplate>
 
 </ResourceDictionary>

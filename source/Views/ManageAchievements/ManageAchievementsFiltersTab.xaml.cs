@@ -170,6 +170,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 ViewModel.CategoryLabelFilterOptions,
                 option => ViewModel.IsCategoryLabelFilterSelected(option),
                 (option, isSelected) => ViewModel.SetCategoryLabelFilterSelected(option, isSelected),
+                // Leaf in the item, full path on hover: a flat menu of paths sharing long prefixes
+                // is hard to scan, but two leaves can share a name under different parents.
+                AchievementCategoryTypeHelper.ToCategoryLeafDisplayText,
                 AchievementCategoryTypeHelper.ToCategoryLabelDisplayText);
         }
 
@@ -252,7 +255,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             IEnumerable<string> options,
             Func<string, bool> isSelected,
             Action<string, bool> setSelection,
-            Func<string, string> displayText = null)
+            Func<string, string> displayText = null,
+            Func<string, string> toolTipText = null)
         {
             if (button == null || menu == null || isSelected == null || setSelection == null)
             {
@@ -271,6 +275,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 var item = new MenuItem
                 {
                     Header = displayText?.Invoke(option) ?? option,
+                    ToolTip = toolTipText?.Invoke(option),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     IsChecked = isSelected(option)

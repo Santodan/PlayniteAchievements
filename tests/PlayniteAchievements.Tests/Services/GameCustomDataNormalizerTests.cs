@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
@@ -662,7 +663,7 @@ namespace PlayniteAchievements.Services.Tests
                 }
             };
 
-            var hydrator = new AchievementDetailHydrator(new PersistedSettings());
+            var hydrator = new AchievementDetailHydrator(new PlayniteAchievementsSettings());
             hydrator.HydrateAllWithCapstoneOverride(details, gameId, "Steam", customData);
 
             Assert.AreEqual("route note", details[0].AchievementNote);
@@ -689,7 +690,7 @@ namespace PlayniteAchievements.Services.Tests
                 }
             };
 
-            var hydrator = new AchievementDetailHydrator(new PersistedSettings());
+            var hydrator = new AchievementDetailHydrator(new PlayniteAchievementsSettings());
             hydrator.HydrateAllWithCapstoneOverride(details, gameId, "Steam", renamed);
 
             Assert.AreEqual("My Renamed DLC", details[0].Category);
