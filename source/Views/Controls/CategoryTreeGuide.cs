@@ -78,23 +78,6 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// Fill punched into a leaf's bead, normally the row background. Without it a leaf bead is a
-        /// ring with the lane running through it; with it the bead sits on the line.
-        /// </summary>
-        public static readonly DependencyProperty NodeHoleBrushProperty =
-            DependencyProperty.Register(
-                nameof(NodeHoleBrush),
-                typeof(Brush),
-                typeof(CategoryTreeGuide),
-                new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
-
-        public Brush NodeHoleBrush
-        {
-            get => (Brush)GetValue(NodeHoleBrushProperty);
-            set => SetValue(NodeHoleBrushProperty, value);
-        }
-
-        /// <summary>
         /// Opacity of the connector lines. Held below the beads deliberately: the lines are
         /// structure and the beads are the rows, so the beads should read first. It also separates
         /// the lanes from the grid's own row separators, which are full-strength border brush.
@@ -147,6 +130,14 @@ namespace PlayniteAchievements.Views.Controls
 
             var mid = Math.Round(height / 2d);
             var dotX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth);
+            var beadRadius = CategoryTreeGuideMetrics.GetBeadRadius(shape.Depth, shape.HasChildren);
+
+            // A leaf's bead is an outline with the row showing through it, so the arm has to stop at
+            // its edge - anything drawn under it shows through the middle. A parent's bead is solid
+            // and hides what it covers, so its arm runs the whole way in.
+            var armEndX = shape.HasChildren
+                ? dotX
+                : Math.Max(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1), dotX - beadRadius);
 
             // Half-pixel offsets on a 1px pen, so the lines land on device pixels instead of
             // straddling two and rendering as a soft 2px smear.
@@ -158,7 +149,7 @@ namespace PlayniteAchievements.Views.Controls
             try
             {
                 DrawAncestorLanes(drawingContext, pen, shape, height);
-                DrawOwnStem(drawingContext, pen, shape, dotX, mid, height);
+                DrawOwnStem(drawingContext, pen, shape, armEndX, mid, height);
 
                 if (shape.HasChildren)
                 {
@@ -172,7 +163,7 @@ namespace PlayniteAchievements.Views.Controls
 
             try
             {
-                DrawJunction(drawingContext, pen, shape, dotX, mid);
+                DrawJunction(drawingContext, pen, shape, dotX, mid, beadRadius);
             }
             finally
             {
@@ -209,7 +200,7 @@ namespace PlayniteAchievements.Views.Controls
             DrawingContext drawingContext,
             Pen pen,
             CategoryTreeShape shape,
-            double dotX,
+            double armEndX,
             double mid,
             double height)
         {
@@ -222,11 +213,11 @@ namespace PlayniteAchievements.Views.Controls
             if (!shape.IsLastSibling)
             {
                 drawingContext.DrawLine(pen, new Point(stemX, 0d), new Point(stemX, height));
-                drawingContext.DrawLine(pen, new Point(stemX, mid), new Point(dotX, mid));
+                drawingContext.DrawLine(pen, new Point(stemX, mid), new Point(armEndX, mid));
                 return;
             }
 
-            var radius = Math.Min(CategoryTreeGuideMetrics.CornerRadius, Math.Max(0d, dotX - stemX));
+            var radius = Math.Min(CategoryTreeGuideMetrics.CornerRadius, Math.Max(0d, armEndX - stemX));
             var geometry = new StreamGeometry();
             using (var context = geometry.Open())
             {
@@ -237,7 +228,7 @@ namespace PlayniteAchievements.Views.Controls
                     new Point(stemX + radius, mid),
                     true,
                     false);
-                context.LineTo(new Point(dotX, mid), true, false);
+                context.LineTo(new Point(armEndX, mid), true, false);
             }
 
             geometry.Freeze();
@@ -249,31 +240,31 @@ namespace PlayniteAchievements.Views.Controls
         /// one cue that survives the guide clipping on a narrow column, so it carries
         /// folder-or-leaf on its own, and it is drawn at full strength - it is the part of the
         /// guide meant to be seen, against lanes that are deliberately faint.
+        ///
+        /// A leaf's bead is left unfilled rather than filled with the row's background colour. The
+        /// row background is a theme resource that plenty of themes leave transparent, and it
+        /// changes under hover and selection regardless - so any fill chosen here is a guess at the
+        /// backdrop. Nothing is drawn under the bead instead (see the arm trim in OnRender), which
+        /// needs no such guess.
         /// </summary>
         private void DrawJunction(
             DrawingContext drawingContext,
             Pen pen,
             CategoryTreeShape shape,
             double dotX,
-            double mid)
+            double mid,
+            double beadRadius)
         {
             var centre = new Point(dotX, mid);
             var beadBrush = NodeBrush ?? pen.Brush;
             if (shape.HasChildren)
             {
-                drawingContext.DrawEllipse(
-                    beadBrush,
-                    null,
-                    centre,
-                    CategoryTreeGuideMetrics.NodeRadius,
-                    CategoryTreeGuideMetrics.NodeRadius);
+                drawingContext.DrawEllipse(beadBrush, null, centre, beadRadius, beadRadius);
                 return;
             }
 
-            // Hole fill first, so the lane does not show through the middle of a leaf bead.
-            var leafRadius = CategoryTreeGuideMetrics.LeafNodeRadius;
             var outline = CreatePen(beadBrush, 1.5d);
-            drawingContext.DrawEllipse(NodeHoleBrush, outline, centre, leafRadius, leafRadius);
+            drawingContext.DrawEllipse(null, outline, centre, beadRadius, beadRadius);
         }
 
         /// <summary>
