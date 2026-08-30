@@ -273,8 +273,7 @@
                             <controls:CategoryTreeGuide DockPanel.Dock="Left"
                                                         Shape="{Binding TreeShape}"
                                                         LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                                                        NodeBrush="{DynamicResource PlayAch.Brush.Accent}"
-                                                        NodeHoleBrush="{DynamicResource PlayAch.Brush.Grid.RowBackground}"/>
+                                                        NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
                           <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
                             <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                         HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
