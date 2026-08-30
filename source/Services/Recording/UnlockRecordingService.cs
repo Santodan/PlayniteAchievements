@@ -111,25 +111,22 @@ namespace PlayniteAchievements.Services.Recording
         private const double ChimeLeadMaxSeconds = 2.0;
 
         /// <summary>
-        /// How loud the composited chime sits against loopback-captured game audio. -8 dB
-        /// approximates a typical notification level; the volume UniPlaySong played the chime at
-        /// scales this, so turning its jingles down quietens the clip too.
+        /// Stands in for the volume UniPlaySong played the chime at when that volume cannot be
+        /// read from its settings, for both the composited chime and the removal reference.
         /// <para>
-        /// This is a mix level, not a playback volume, and the two are not interchangeable.
-        /// Compositing at the played volume alone put the file in at full scale on a default
-        /// UniPlaySong install, which is where "the chime is too loud in clips" came from.
+        /// A played volume, not a mix level: the composited chime is meant to land at the level
+        /// the live one was heard at, and the removal reference has to approximate the amplitude
+        /// actually captured, because the cancellation calibrates its global gain near unity
+        /// against it. Neither wants a level trimmed to taste on top.
         /// </para>
         /// </summary>
-        private const double ChimeCompositeMixGain = 0.4;
+        private const double ChimeUnknownVolumeGain = 0.4;
 
-        /// <summary>
-        /// Fallback for the live-chime REMOVAL reference when the played volume is unknown.
-        /// Deliberately separate from <see cref="ChimeCompositeMixGain"/> despite the equal value:
-        /// this one has to approximate the amplitude actually captured, because the cancellation
-        /// calibrates its global gain near unity against it. Trimming it to taste would
-        /// under-subtract and leave the live chime audible under the composited one.
-        /// </summary>
-        private const double ChimeReferenceFallbackGain = 0.4;
+        // Half-second blocks (48 kHz) for the chime residue re-fit, matching the granularity the
+        // non-game stage escalates to, and the suppression below which that re-fit is worth
+        // attempting. A chime removed by 20 dB or better is inaudible under the composited copy.
+        private const int ChimeBlockFrames = 24000;
+        private const double ChimeResidueSuppressionTargetDb = 20.0;
         private const int PruneIntervalSeconds = 30;
         private const int DrainTimeoutSeconds = 45;
         // Fallbacks matching the PersistedSettings defaults, used when settings are unavailable.
@@ -1674,15 +1671,11 @@ namespace PlayniteAchievements.Services.Recording
                 ChimeTailBeyondToastSeconds;
             if (soundFilePath != null)
             {
-                // The exact file the wave played, mixed at the clip level scaled by the volume
-                // UniPlaySong played it at (its jingles follow MusicVolume): no captured copy, no
-                // separation to verify, and no wait for a sidecar chunk to close. An unreadable
-                // volume leaves the mix level standing on its own.
+                // The exact file the wave played, mixed at the volume UniPlaySong played it at
+                // (its jingles follow MusicVolume): no captured copy, no separation to verify,
+                // and no wait for a sidecar chunk to close.
                 var filePcm = ChimeSoundFile.TryReadPcm(
-                    soundFilePath,
-                    chimeSeconds,
-                    ChimeCompositeMixGain * (soundFileGain ?? 1.0),
-                    _logger);
+                    soundFilePath, chimeSeconds, soundFileGain ?? ChimeUnknownVolumeGain, _logger);
                 if (filePcm != null)
                 {
                     PcmAudio.FadeOutTail(filePcm, ChimeFadeOutSeconds);
@@ -1887,7 +1880,7 @@ namespace PlayniteAchievements.Services.Recording
                 // Decoded at the played volume so the global gain calibrates near unity: a
                 // full-scale reference against a quiet live chime reads as "no chime present".
                 var pcm = ChimeSoundFile.TryReadPcm(
-                    chime.Path, chimeLengthSeconds, chime.Gain ?? ChimeReferenceFallbackGain, _logger);
+                    chime.Path, chimeLengthSeconds, chime.Gain ?? ChimeUnknownVolumeGain, _logger);
                 if (pcm == null)
                 {
                     _logger?.Warn(
@@ -2134,6 +2127,38 @@ namespace PlayniteAchievements.Services.Recording
                             residualPass: true,
                             maxLagFrames: maxLag,
                             detectClean: true);
+                    }
+
+                    // Both passes above fit ONE gain and ONE lag across the whole window. A live
+                    // chime does not hold still against its file for that long: the out-of-process
+                    // onset is late by a variable spin-up and the player's own rate can drift, so a
+                    // single fit lands on the attack and walks off the decay -- leaving the tail
+                    // audible under the composited copy, heard as the chime doubling partway
+                    // through. Re-fit in half-second blocks so gain and lag track that drift, the
+                    // same escalation the non-game stage already makes. Every block still proves
+                    // itself on held-out samples before it commits, so a block that would not
+                    // improve is left alone.
+                    if (passOutcome != PcmCancellationOutcome.CleanNoGameDetected &&
+                        chimePass.SuppressionDb < ChimeResidueSuppressionTargetDb)
+                    {
+                        var blockOutcome = SubtractNonGame(
+                            mixture,
+                            chimeReference,
+                            out var blockPass,
+                            residualPass: true,
+                            blockFrames: ChimeBlockFrames,
+                            maxLagFrames: maxLag,
+                            detectClean: true);
+                        _logger?.Info(
+                            $"[Recording] Live-chime residue re-fit ({source}): outcome={blockOutcome} " +
+                            $"suppression={chimePass.SuppressionDb:0.0}->{blockPass.SuppressionDb:0.0}dB " +
+                            $"blocks={blockPass.SubtractedBlocks}/{blockPass.TotalBlocks} " +
+                            $"restored={blockPass.RestoredBlocks} gated={blockPass.MutedBlocks}.");
+                        if (blockPass.SubtractedBlocks > 0)
+                        {
+                            passOutcome = blockOutcome;
+                            chimePass = blockPass;
+                        }
                     }
 
                     _logger?.Info(
