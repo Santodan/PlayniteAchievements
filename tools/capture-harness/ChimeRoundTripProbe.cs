@@ -35,6 +35,11 @@ internal static class ChimeRoundTripProbe
 
     private static bool Cropped;
 
+    /// <summary>Use the captured sidecar's narrow search rather than the file reference's wide one.</summary>
+    private static bool CapturedPath;
+
+    private static int PassMaxLag => CapturedPath ? 12000 : ChimeMaxLagFrames;
+
     private static int Main(string[] args)
     {
         string wavOut = null;
@@ -57,6 +62,31 @@ internal static class ChimeRoundTripProbe
         {
             failures += Run($"offset {ms,4} ms", ms, 0, 1.0, wavOut);
         }
+
+        // How much slack the ALIGNED path has. The captured chm_ sidecar shares the main track's
+        // clock but is tapped through a different client, so a few ms of engine latency remains.
+        Console.WriteLine();
+        Console.WriteLine("=== ALIGNED-PATH SLACK (captured sidecar, maxLag 12000) ===");
+        Console.WriteLine("scenario                         outcome              chimeErr  gameDmg  verdict");
+        Console.WriteLine("-------------------------------- -------------------- --------  -------  -------");
+        CapturedPath = true;
+        foreach (var ms in new[] { 0, 2, 5, 10, 20, 30 })
+        {
+            failures += Run($"sidecar skew {ms,3} ms", ms, 0, 1.0, wavOut);
+        }
+
+        // Two chimes in one window, which one whole-window fit has to cover with a single gain
+        // and a single lag. Both must come out: the clip re-adds only its own wave's chime.
+        Console.WriteLine();
+        Console.WriteLine("=== TWO CHIMES IN ONE WINDOW (captured sidecar) ===");
+        Console.WriteLine("scenario                         outcome              chime1    chime2   verdict");
+        Console.WriteLine("-------------------------------- -------------------- --------  -------  -------");
+        failures += RunTwo("both aligned, equal volume", 0, 0, 1.0, 1.0);
+        failures += RunTwo("both skewed 10 ms", 10, 10, 1.0, 1.0);
+        failures += RunTwo("skewed apart 5/25 ms", 5, 25, 1.0, 1.0);
+        failures += RunTwo("second quieter (1.0/0.3)", 10, 10, 1.0, 0.3);
+        failures += RunTwo("second much quieter (1.0/0.05)", 10, 10, 1.0, 0.05);
+        CapturedPath = false;
 
         Console.WriteLine();
         Console.WriteLine("chimeErr 0 dB = chime untouched; -20 dB or lower = gone.");
@@ -88,6 +118,68 @@ internal static class ChimeRoundTripProbe
         }
 
         return failures;
+    }
+
+    /// <summary>
+    /// Two non-overlapping chimes in one window, both of which have to be removed: the clip
+    /// re-adds only its own wave's chime, so a survivor from the other wave is a stray chime.
+    /// The chime is 2 s and they are placed 3 s apart, so neither rings into the other.
+    /// </summary>
+    private static int RunTwo(
+        string label, int skew1Ms, int skew2Ms, double gain1, double gain2)
+    {
+        const int frames = SampleRate * 9;
+        var chimeFile = Chime(SampleRate * 2);
+        var chimeFrames = chimeFile.Length / Channels;
+
+        var at1 = SampleRate * 2;
+        var at2 = at1 + (SampleRate * 3);   // 3 s apart, chime is 2 s: no overlap
+        var rendered1 = at1 + (skew1Ms * SampleRate / 1000);
+        var rendered2 = at2 + (skew2Ms * SampleRate / 1000);
+
+        var gameBed = GameBed(frames);
+
+        // The captured sidecar carries both chimes, at their rendered positions.
+        var reference = new short[frames * Channels];
+        Place(reference, chimeFile, at1, gain1, 0);
+        Place(reference, chimeFile, at2, gain2, 0);
+
+        var mixture = new short[frames * Channels];
+        Array.Copy(gameBed, mixture, gameBed.Length);
+        Place(mixture, chimeFile, rendered1, gain1, 0);
+        Place(mixture, chimeFile, rendered2, gain2, 0);
+
+        var truth1 = new short[frames * Channels];
+        Place(truth1, chimeFile, rendered1, gain1, 0);
+        var truth2 = new short[frames * Channels];
+        Place(truth2, chimeFile, rendered2, gain2, 0);
+
+        var mixBytes = ToBytes(mixture);
+        var maxLag = CapturedPath ? 12000 : ChimeMaxLagFrames;
+        var outcome = ReferenceCancellationPolicy.Subtract(
+            mixBytes, ToBytes(reference), out var d,
+            residualPass: false, maxLagFrames: maxLag, detectClean: true);
+        if (outcome == PcmCancellationOutcome.Unseparable ||
+            (outcome == PcmCancellationOutcome.CleanNoGameDetected && d.SubtractedBlocks == 0))
+        {
+            outcome = ReferenceCancellationPolicy.Subtract(
+                mixBytes, ToBytes(reference), out d,
+                residualPass: true, maxLagFrames: maxLag, detectClean: true);
+        }
+
+        var cancelled = ToShorts(mixBytes);
+        var error = new short[frames * Channels];
+        for (var i = 0; i < error.Length; i++)
+        {
+            error[i] = Clamp(cancelled[i] - gameBed[i]);
+        }
+
+        var e1 = RelativeDb(error, truth1, rendered1, chimeFrames);
+        var e2 = RelativeDb(error, truth2, rendered2, chimeFrames);
+        var ok = e1 <= ResidueTargetDb && e2 <= ResidueTargetDb;
+        Console.WriteLine(
+            $"{label,-32} {outcome,-20} {e1,7:0.0}dB {e2,7:0.0}dB  {(ok ? "ok" : "FAIL")}");
+        return ok ? 0 : 1;
     }
 
     private static byte[] Slice(byte[] source, int fromFrame, int lengthFrames)
@@ -155,13 +247,13 @@ internal static class ChimeRoundTripProbe
         {
             outcome = ReferenceCancellationPolicy.Subtract(
                 mixBytes, refBytes, out d,
-                residualPass: false, maxLagFrames: ChimeMaxLagFrames, detectClean: true);
+                residualPass: false, maxLagFrames: PassMaxLag, detectClean: true);
             if (outcome == PcmCancellationOutcome.Unseparable ||
                 (outcome == PcmCancellationOutcome.CleanNoGameDetected && d.SubtractedBlocks == 0))
             {
                 outcome = ReferenceCancellationPolicy.Subtract(
                     mixBytes, refBytes, out d,
-                    residualPass: true, maxLagFrames: ChimeMaxLagFrames, detectClean: true);
+                    residualPass: true, maxLagFrames: PassMaxLag, detectClean: true);
             }
         }
 
