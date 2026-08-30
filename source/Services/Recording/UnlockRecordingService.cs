@@ -121,12 +121,6 @@ namespace PlayniteAchievements.Services.Recording
         /// </para>
         /// </summary>
         private const double ChimeUnknownVolumeGain = 0.4;
-
-        // Half-second blocks (48 kHz) for the chime residue re-fit, matching the granularity the
-        // non-game stage escalates to, and the suppression below which that re-fit is worth
-        // attempting. A chime removed by 20 dB or better is inaudible under the composited copy.
-        private const int ChimeBlockFrames = 24000;
-        private const double ChimeResidueSuppressionTargetDb = 20.0;
         private const int PruneIntervalSeconds = 30;
         private const int DrainTimeoutSeconds = 45;
         // Fallbacks matching the PersistedSettings defaults, used when settings are unavailable.
@@ -2127,38 +2121,6 @@ namespace PlayniteAchievements.Services.Recording
                             residualPass: true,
                             maxLagFrames: maxLag,
                             detectClean: true);
-                    }
-
-                    // Both passes above fit ONE gain and ONE lag across the whole window. A live
-                    // chime does not hold still against its file for that long: the out-of-process
-                    // onset is late by a variable spin-up and the player's own rate can drift, so a
-                    // single fit lands on the attack and walks off the decay -- leaving the tail
-                    // audible under the composited copy, heard as the chime doubling partway
-                    // through. Re-fit in half-second blocks so gain and lag track that drift, the
-                    // same escalation the non-game stage already makes. Every block still proves
-                    // itself on held-out samples before it commits, so a block that would not
-                    // improve is left alone.
-                    if (passOutcome != PcmCancellationOutcome.CleanNoGameDetected &&
-                        chimePass.SuppressionDb < ChimeResidueSuppressionTargetDb)
-                    {
-                        var blockOutcome = SubtractNonGame(
-                            mixture,
-                            chimeReference,
-                            out var blockPass,
-                            residualPass: true,
-                            blockFrames: ChimeBlockFrames,
-                            maxLagFrames: maxLag,
-                            detectClean: true);
-                        _logger?.Info(
-                            $"[Recording] Live-chime residue re-fit ({source}): outcome={blockOutcome} " +
-                            $"suppression={chimePass.SuppressionDb:0.0}->{blockPass.SuppressionDb:0.0}dB " +
-                            $"blocks={blockPass.SubtractedBlocks}/{blockPass.TotalBlocks} " +
-                            $"restored={blockPass.RestoredBlocks} gated={blockPass.MutedBlocks}.");
-                        if (blockPass.SubtractedBlocks > 0)
-                        {
-                            passOutcome = blockOutcome;
-                            chimePass = blockPass;
-                        }
                     }
 
                     _logger?.Info(
