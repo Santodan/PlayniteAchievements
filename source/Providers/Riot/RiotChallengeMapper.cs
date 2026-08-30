@@ -166,7 +166,12 @@ namespace PlayniteAchievements.Providers.Riot
 
                 Unlocked = unlocked,
                 UnlockTimeUtc = unlocked ? ToUtc(playerInfo?.AchievedTime) : null,
-                TrophyType = RiotChallengeLevels.ToTrophyType(level),
+
+                // TrophyType is deliberately left null. It drives the PlayStation trophy art and
+                // tooltips in the Trophy column and feeds the platinum/gold/silver/bronze summary
+                // counts, so a challenge tier there renders as a PSN trophy - "platinum" reading as
+                // the completion marker - and the five tiers with no matching art render blank.
+                // The tier is already carried by the challenge's own token icon.
                 Category = ResolveCategory(challenge, allChallenges, categoryDisplayNames),
                 CategoryType = IsRetired(challenge, nowUtc) ? MissableCategoryType : null,
                 GlobalPercentUnlocked = percent

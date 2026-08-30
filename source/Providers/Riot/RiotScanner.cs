@@ -151,7 +151,6 @@ namespace PlayniteAchievements.Providers.Riot
                     LockedIconPath = achievement.LockedIconPath,
                     Unlocked = achievement.Unlocked,
                     UnlockTimeUtc = achievement.UnlockTimeUtc,
-                    TrophyType = achievement.TrophyType,
                     Category = achievement.Category,
                     CategoryType = achievement.CategoryType,
                     GlobalPercentUnlocked = achievement.GlobalPercentUnlocked,

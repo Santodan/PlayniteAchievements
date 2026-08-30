@@ -58,15 +58,5 @@ namespace PlayniteAchievements.Providers.Riot
 
         /// <summary>Canonical upper-case name, or <see cref="None"/> when unrecognized.</summary>
         public static string Normalize(string level) => Ascending[GetRank(level)];
-
-        /// <summary>
-        /// Lower-case tier name for <c>AchievementDetail.TrophyType</c>, matching the convention
-        /// PSN uses for platinum/gold/silver/bronze. Null when the challenge is not yet started.
-        /// </summary>
-        public static string ToTrophyType(string level)
-        {
-            var rank = GetRank(level);
-            return rank == 0 ? null : Ascending[rank].ToLowerInvariant();
-        }
     }
 }
