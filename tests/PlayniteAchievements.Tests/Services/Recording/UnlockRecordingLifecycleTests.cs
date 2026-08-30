@@ -198,13 +198,14 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         /// <summary>
-        /// The whole-window chime passes fit one gain and one lag across the clip, which lands on
-        /// a live chime's attack and walks off its decay — leaving a tail under the composited
-        /// copy, heard as the chime doubling partway through. The residue has to get the same
-        /// per-block escalation the non-game stage already makes.
+        /// A blocked re-fit of the chime residue on the residual pass's floors (gain floor 0.001,
+        /// correlation 0.03, gain ceiling 20) was tried and reverted: across a whole clip window
+        /// most blocks hold no chime at all, and those thresholds let them "fit" one anyway and
+        /// subtract an inverted copy — audibly a second chime rather than a quieter one. Any
+        /// future attempt has to fit only the chime's own span, not the whole window.
         /// </summary>
         [TestMethod]
-        public void LiveChimeRemoval_EscalatesResidueToPerBlockFitting()
+        public void LiveChimeRemoval_DoesNotBlockFitTheWholeWindowOnResidualFloors()
         {
             var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
@@ -215,13 +216,10 @@ namespace PlayniteAchievements.Services.Tests.Recording
             Assert.IsTrue(end > chimePass);
             var body = service.Substring(chimePass, end - chimePass);
 
-            StringAssert.Contains(body, "blockFrames: ChimeBlockFrames",
-                "The chime residue must be re-fit in blocks, not left on the single whole-window fit.");
-            StringAssert.Contains(body, "ChimeResidueSuppressionTargetDb");
-            StringAssert.Contains(body, "Live-chime residue re-fit",
-                "A field log has to show whether the re-fit ran and what it bought.");
-            StringAssert.Contains(body, "blockPass.SubtractedBlocks > 0",
-                "A re-fit that commits nothing must leave the earlier pass's result standing.");
+            Assert.IsFalse(
+                body.Contains("blockFrames:"),
+                "Block-fitting the chime passes over the whole window injects inverted copies " +
+                "into blocks that hold no chime; scope any re-fit to the chime's own span first.");
         }
 
         /// <summary>
