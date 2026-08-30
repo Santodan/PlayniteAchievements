@@ -79,18 +79,24 @@ namespace PlayniteAchievements.Views.Dialogs
         {
             InitializeComponent();
 
+            // The source is withheld from the input rather than filtered out of the result, so
+            // the tree rebuilds it as structure: its children keep a parent to hang off, and it is
+            // drawn in place without being offered as its own merge target.
+            //
+            // No sort: the caller passes the rows in the order the category grid shows them, and
+            // the tree build keeps that order within each level.
             var options = CategoryPickerResolver.BuildOptions(
                 (targetOptions ?? Enumerable.Empty<string>())
                     .Where(label => !string.IsNullOrWhiteSpace(label))
-                    .Where(label => !string.Equals(label, sourceLabel, StringComparison.OrdinalIgnoreCase))
-                    .OrderBy(label => label, StringComparer.OrdinalIgnoreCase));
+                    .Where(label => !CategoryPathHelper.IsSame(label, sourceLabel)),
+                synthesizedAreSelectable: false);
 
             // Display forms only. The stored label carries the internal path separator, which is
             // never shown to a user.
             SourceDisplay = AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(sourceLabel);
             SourcePathDisplay = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(sourceLabel);
             TargetOptions = options;
-            SelectedOption = options.FirstOrDefault();
+            SelectedOption = options.FirstOrDefault(option => option.IsSelectable);
 
             DataContext = this;
         }

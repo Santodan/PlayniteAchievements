@@ -60,20 +60,18 @@
                        Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_MergeDialog_Target}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        VerticalAlignment="Center" />
-            <!-- Leaf in the row, full path on hover, matching every other category dropdown. -->
+            <!-- Leaf in the row, full path on hover, tree connectors for depth - matching every
+                 other category dropdown. The category being merged away is in the list as
+                 structure, so its children still hang off it, but it cannot be picked as its own
+                 target. -->
             <ComboBox x:Name="TargetComboBox"
                       Grid.Column="1"
                       ItemsSource="{Binding TargetOptions}"
-                      DisplayMemberPath="LeafDisplay"
+                      ItemContainerStyle="{StaticResource PlayAch.CategoryTreeComboBoxItemStyle}"
+                      ItemTemplate="{StaticResource PlayAch.CategoryTreeComboBoxItemTemplate}"
                       SelectedItem="{Binding SelectedOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                       MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                      KeyDown="TargetComboBox_KeyDown">
-                <ComboBox.ItemContainerStyle>
-                    <Style TargetType="ComboBoxItem">
-                        <Setter Property="ToolTip" Value="{Binding PathDisplay}"/>
-                    </Style>
-                </ComboBox.ItemContainerStyle>
-            </ComboBox>
+                      KeyDown="TargetComboBox_KeyDown"/>
         </Grid>
 
         <StackPanel Grid.Row="3"

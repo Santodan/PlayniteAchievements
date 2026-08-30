@@ -2,6 +2,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                     xmlns:items="clr-namespace:PlayniteAchievements.ViewModels.Items"
+                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
                     xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
@@ -451,6 +452,40 @@
              category this picker offers. -->
         <Setter Property="IsEnabled" Value="{Binding IsSelectable}"/>
     </Style>
+
+    <!-- One drop-down row: the connectors that place it, then its leaf. Shared so every category
+         combo box draws the tree the same way and there is one place to change it. Expects a
+         CategoryPickerOption. -->
+    <DataTemplate x:Key="PlayAch.CategoryTreeComboBoxItemTemplate">
+        <DockPanel LastChildFill="True">
+            <controls:CategoryTreeGuide DockPanel.Dock="Left"
+                                        VerticalAlignment="Stretch"
+                                        Shape="{Binding TreeShape}"
+                                        LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                        NodeBrush="{DynamicResource PlayAch.Brush.Accent}">
+                <controls:CategoryTreeGuide.Style>
+                    <Style TargetType="controls:CategoryTreeGuide">
+                        <Style.Triggers>
+                            <!-- A non-editable combo box renders this same template in its closed
+                                 box, where there is no row to place and no ComboBoxItem to find.
+                                 The tree belongs to the list, so it is dropped there. -->
+                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type ComboBoxItem}}}"
+                                         Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </controls:CategoryTreeGuide.Style>
+            </controls:CategoryTreeGuide>
+            <!-- Padding lives here, not on the container: the guide beside it has to reach the row
+                 edges for its lanes to join up. -->
+            <TextBlock Text="{Binding LeafDisplay}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       TextWrapping="NoWrap"
+                       Margin="5"/>
+        </DockPanel>
+    </DataTemplate>
 
     <Style x:Key="PlayAch.ComboBox.BaseStyle" TargetType="ComboBox">
         <Setter Property="MinHeight" Value="{StaticResource PlayAch.Size.Control.Height}"/>

@@ -3,7 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="32"
              d:DesignWidth="320">
@@ -25,30 +24,10 @@
                   StaysOpenOnEdit="True"
                   TextSearch.TextPath="LeafDisplay"
                   ItemContainerStyle="{StaticResource PlayAch.CategoryTreeComboBoxItemStyle}"
+                  ItemTemplate="{StaticResource PlayAch.CategoryTreeComboBoxItemTemplate}"
                   MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                   VerticalContentAlignment="Center"
-                  PreviewKeyDown="PickerComboBox_PreviewKeyDown">
-            <ComboBox.ItemTemplate>
-                <DataTemplate>
-                    <DockPanel LastChildFill="True">
-                        <!-- The guide's own width is the indent, and it collapses to nothing when
-                             the list has no nesting - so a flat picker looks untouched. -->
-                        <controls:CategoryTreeGuide DockPanel.Dock="Left"
-                                                    VerticalAlignment="Stretch"
-                                                    Shape="{Binding TreeShape}"
-                                                    LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                                                    NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
-                        <!-- Padding lives here, not on the container: the guide beside it has to
-                             reach the row edges for its lanes to join up. -->
-                        <TextBlock Text="{Binding LeafDisplay}"
-                                   VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"
-                                   TextWrapping="NoWrap"
-                                   Margin="5"/>
-                    </DockPanel>
-                </DataTemplate>
-            </ComboBox.ItemTemplate>
-        </ComboBox>
+                  PreviewKeyDown="PickerComboBox_PreviewKeyDown"/>
 
         <TextBlock x:Name="PlaceholderText"
                    Text="{Binding Placeholder, RelativeSource={RelativeSource AncestorType=UserControl}}"
