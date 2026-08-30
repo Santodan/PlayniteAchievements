@@ -349,6 +349,8 @@ namespace PlayniteAchievements.ViewModels
 
         public string CategoryArtPath { get; set; }
 
+        public System.Collections.Generic.IReadOnlyList<string> CategoryAncestorArtPaths { get; set; }
+
         public string CleanCapturePath { get; set; }
 
         public string NotificationCapturePath { get; set; }
@@ -571,6 +573,7 @@ namespace PlayniteAchievements.ViewModels
                 CategoryLabel = CategoryLabel,
                 CategoryOrderIndex = CategoryOrderIndex,
                 CategoryArtPath = CategoryArtPath,
+                CategoryAncestorArtPaths = CategoryAncestorArtPaths,
                 CleanCapturePath = CleanCapturePath,
                 NotificationCapturePath = NotificationCapturePath,
                 FramedCapturePath = FramedCapturePath,

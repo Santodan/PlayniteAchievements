@@ -1210,6 +1210,21 @@ namespace PlayniteAchievements.ViewModels
         // Drives the breadcrumb's "> CategoryName" segment and the clickable game-name affordance.
         public bool IsSelectedGameDrilledIntoCategory => !string.IsNullOrEmpty(SelectedGameDrilledCategory);
 
+        // Storage form of the same drill, for matching against achievement labels.
+        // SelectedGameDrilledCategory is the display form and will not compare equal to one.
+        private string _selectedGameDrilledCategoryPath;
+        public string SelectedGameDrilledCategoryPath
+        {
+            get => _selectedGameDrilledCategoryPath;
+            set
+            {
+                if (SetValueAndReturn(ref _selectedGameDrilledCategoryPath, value))
+                {
+                    RefreshSelectedGameHeaderCounts();
+                }
+            }
+        }
+
         public ObservableCollection<ChartDataPoint> SelectedGameDailyUnlocks { get; } = new ObservableCollection<ChartDataPoint>();
 
         #endregion
@@ -3806,12 +3821,13 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (isDrilled)
                 {
-                    // Scope to the drilled category, respecting any active filter applied within it.
+                    // Scope to the drilled category itself, not its subtree: the header counts what
+                    // the grid below is showing, and that grid holds this node's own achievements
+                    // only. Matching is on the storage path - the display form spells its separators
+                    // out and never equals a stored label.
+                    var drilledPath = SelectedGameDrilledCategoryPath;
                     var scoped = (_filteredSelectedGameAchievements ?? new List<AchievementDisplayItem>())
-                        .Where(item => string.Equals(
-                            AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item?.CategoryLabel),
-                            drilledCategory,
-                            StringComparison.OrdinalIgnoreCase))
+                        .Where(item => CategoryPathHelper.IsSame(item?.CategoryLabel, drilledPath))
                         .ToList();
                     total = scoped.Count;
                     unlocked = scoped.Count(item => item?.Unlocked == true);

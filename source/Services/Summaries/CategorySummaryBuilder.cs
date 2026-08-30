@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using PlayniteAchievements.Models.Settings;
@@ -8,11 +9,17 @@ using PlayniteAchievements.ViewModels.Items;
 namespace PlayniteAchievements.Services.Summaries
 {
     /// <summary>
-    /// Builds one <see cref="GameSummaryItem"/> per distinct category label from a set of
-    /// achievement display items. Mirrors <see cref="GameSummaryItemBuilder"/>'s stats
-    /// projection (<see cref="AchievementStatsAccumulator.FromDisplayItems"/> ->
-    /// <see cref="AchievementGameStats.ApplyTo"/>) but keys on the free-form category label
-    /// rather than the game, so the achievement grid can present a per-category rollup.
+    /// Builds <see cref="GameSummaryItem"/> rollup rows from a set of achievement display items,
+    /// keyed on the category label rather than the game. Mirrors
+    /// <see cref="GameSummaryItemBuilder"/>'s stats projection
+    /// (<see cref="AchievementStatsAccumulator.FromDisplayItems"/> ->
+    /// <see cref="AchievementGameStats.ApplyTo"/>), so every rarity, points and goal figure comes
+    /// out of the same accumulator whether a row covers one category or a whole subtree.
+    ///
+    /// Three shapes over one core:
+    /// <see cref="Build"/> emits one row per distinct label, which is what the theme surface
+    /// publishes; <see cref="BuildLevel"/> emits the immediate children of one node, which is what
+    /// a drilled grid shows; <see cref="BuildTree"/> walks every node pre-order.
     /// </summary>
     internal static class CategorySummaryBuilder
     {
@@ -30,15 +37,96 @@ namespace PlayniteAchievements.Services.Summaries
             IEnumerable<AchievementDisplayItem> achievements,
             CategoryCompletionBadgeMode badgeMode = CategoryCompletionBadgeMode.All)
         {
-            var result = new List<GameSummaryItem>();
-            var source = achievements as IReadOnlyList<AchievementDisplayItem>
-                ?? achievements?.ToList();
-            if (source == null || source.Count == 0)
+            var source = Materialize(achievements);
+            if (source == null)
             {
-                return result;
+                return new List<GameSummaryItem>();
             }
 
-            var groups = new Dictionary<string, List<AchievementDisplayItem>>(System.StringComparer.OrdinalIgnoreCase);
+            var groups = GroupByLabel(source);
+            var order = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
+                source,
+                item => item.CategoryLabel,
+                ResolvePreferredOrder(source));
+
+            return BuildRows(groups, order, aggregateSubtree: false, useLeafNames: false, badgeMode);
+        }
+
+        /// <summary>
+        /// Builds one row per immediate child of <paramref name="parentPath"/>. A null or blank
+        /// parent gives the root level.
+        ///
+        /// Each row counts only the achievements labelled exactly that node, so it reports the same
+        /// numbers the node shows everywhere else. Art still resolves down the subtree, so a node
+        /// with children but no art of its own inherits a descendant's.
+        /// </summary>
+        /// <param name="useLeafNames">
+        /// True to title rows with the last path segment, for a drilled view whose breadcrumb
+        /// already shows the ancestry. False to use the full display path.
+        /// </param>
+        public static List<GameSummaryItem> BuildLevel(
+            IEnumerable<AchievementDisplayItem> achievements,
+            string parentPath,
+            CategoryCompletionBadgeMode badgeMode = CategoryCompletionBadgeMode.All,
+            bool useLeafNames = true)
+        {
+            var source = Materialize(achievements);
+            if (source == null)
+            {
+                return new List<GameSummaryItem>();
+            }
+
+            var groups = GroupByLabel(source);
+            var order = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLevel(
+                groups.Keys,
+                parentPath,
+                ResolvePreferredOrder(source));
+
+            return BuildRows(groups, order, aggregateSubtree: true, useLeafNames, badgeMode);
+        }
+
+        /// <summary>
+        /// Builds a row for every node, pre-order: each node immediately followed by its own
+        /// subtree.
+        ///
+        /// Each row counts only the achievements labelled exactly that node, so the rows partition
+        /// the set and a parent holding none of its own reads 0/0. Art still resolves down the
+        /// subtree, so a parent without its own art inherits a descendant's.
+        /// </summary>
+        /// <param name="useLeafNames">
+        /// True to title rows with the last path segment, for a surface that conveys ancestry
+        /// structurally - an indented list. False to use the full display path.
+        /// </param>
+        public static List<GameSummaryItem> BuildTree(
+            IEnumerable<AchievementDisplayItem> achievements,
+            CategoryCompletionBadgeMode badgeMode = CategoryCompletionBadgeMode.All,
+            bool useLeafNames = false)
+        {
+            var source = Materialize(achievements);
+            if (source == null)
+            {
+                return new List<GameSummaryItem>();
+            }
+
+            var groups = GroupByLabel(source);
+            var order = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryTree(
+                groups.Keys,
+                ResolvePreferredOrder(source));
+
+            return BuildRows(groups, order, aggregateSubtree: true, useLeafNames, badgeMode);
+        }
+
+        private static IReadOnlyList<AchievementDisplayItem> Materialize(
+            IEnumerable<AchievementDisplayItem> achievements)
+        {
+            var source = achievements as IReadOnlyList<AchievementDisplayItem> ?? achievements?.ToList();
+            return source == null || source.Count == 0 ? null : source;
+        }
+
+        private static Dictionary<string, List<AchievementDisplayItem>> GroupByLabel(
+            IReadOnlyList<AchievementDisplayItem> source)
+        {
+            var groups = new Dictionary<string, List<AchievementDisplayItem>>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in source)
             {
                 if (item == null)
@@ -46,7 +134,7 @@ namespace PlayniteAchievements.Services.Summaries
                     continue;
                 }
 
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.CategoryLabel);
+                var label = CategoryPathHelper.NormalizePath(item.CategoryLabel);
                 if (!groups.TryGetValue(label, out var bucket))
                 {
                     bucket = new List<AchievementDisplayItem>();
@@ -56,39 +144,81 @@ namespace PlayniteAchievements.Services.Summaries
                 bucket.Add(item);
             }
 
-            var preferredOrder = source
+            return groups;
+        }
+
+        private static List<string> ResolvePreferredOrder(IReadOnlyList<AchievementDisplayItem> source)
+        {
+            return source
                 .Where(item => item != null && item.CategoryOrderIndex < int.MaxValue)
                 .OrderBy(item => item.CategoryOrderIndex)
                 .Select(item => item.CategoryLabel)
                 .ToList();
+        }
 
-            foreach (var label in AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(source, i => i.CategoryLabel, preferredOrder))
+        /// <param name="aggregateSubtree">
+        /// True to resolve a node's art and identity from its whole subtree, which is what lets a
+        /// parent inherit a descendant's art and what keeps a synthesized intermediate node from
+        /// being dropped for holding nothing of its own.
+        /// </param>
+        private static List<GameSummaryItem> BuildRows(
+            Dictionary<string, List<AchievementDisplayItem>> groups,
+            IReadOnlyList<string> orderedNodes,
+            bool aggregateSubtree,
+            bool useLeafNames,
+            CategoryCompletionBadgeMode badgeMode)
+        {
+            var result = new List<GameSummaryItem>();
+
+            foreach (var node in orderedNodes)
             {
-                if (!groups.TryGetValue(label, out var bucket))
+                groups.TryGetValue(node, out var directMembers);
+                var members = aggregateSubtree ? CollectSubtree(groups, node) : directMembers;
+                if (members == null || members.Count == 0)
                 {
                     continue;
                 }
 
-                var display = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(label);
-                // Category art fills both image slots so the grid's icon/cover toggle only
-                // selects the game-asset fallback for categories without art.
-                var sharedArt = ResolveSharedImage(bucket, item => item.CategoryArtPath);
+                // What the row reports: its own members, never a descendant's. Every surface counts
+                // a node this way, so a parent that is purely a folder reads 0/0 rather than
+                // restating its children. The row still renders - `members` above is what decides
+                // the node exists - and art still resolves down the subtree.
+                var counted = (IReadOnlyList<AchievementDisplayItem>)directMembers ?? Array.Empty<AchievementDisplayItem>();
+
+                var depth = CategoryPathHelper.GetDepth(node);
+                var display = useLeafNames && depth > 1
+                    ? CategoryPathHelper.GetLeafName(node)
+                    : AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(node);
+
                 var item = new CategorySummaryItem
                 {
-                    CategoryLabel = label,
-                    PlayniteGameId = ResolveSharedGameId(bucket),
+                    CategoryLabel = node,
+                    CategoryPath = node,
+                    CategoryLeafName = CategoryPathHelper.GetLeafName(node),
+                    CategoryDepth = depth,
+                    ChildCategoryCount = CategoryPathHelper.GetChildPaths(groups.Keys, node).Count,
+                    DirectAchievementCount = directMembers?.Count ?? 0,
+                    PlayniteGameId = ResolveSharedGameId(members),
                     GameName = display,
                     SortingName = display,
-                    GameLogo = sharedArt ?? ResolveSharedImage(bucket, item => item.GameIconPath),
-                    GameCoverPath = sharedArt ?? ResolveSharedImage(bucket, item => item.GameCoverPath)
+                    // Sorting orders by the name shown, so a nested row needs its path on hover:
+                    // once a column sort breaks the tree order, two leaves that happen to share a
+                    // name have nothing else to tell them apart.
+                    NameToolTip = depth > 1 ? AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(node) : null
                 };
 
+                // Category art fills both image slots so the grid's icon/cover toggle only
+                // selects the game-asset fallback for categories without art.
+                var art = ResolveNodeArt(members, depth, aggregateSubtree);
+                item.GameLogo = art ?? ResolveSharedImage(members, member => member.GameIconPath);
+                item.GameCoverPath = art ?? ResolveSharedImage(members, member => member.GameCoverPath);
+
                 AchievementStatsAccumulator
-                    .FromDisplayItems(bucket)
+                    .FromDisplayItems(counted)
                     .ApplyTo(item);
 
-                item.IsCompleted = ComputeIsCompleted(bucket);
-                item.CategoryType = ResolveCategoryType(bucket);
+                item.IsCompleted = ComputeIsCompleted(counted);
+                item.CategoryType = ResolveCategoryType(directMembers, members);
                 item.AllowCompletionBadge = AllowsCompletionBadge(badgeMode, result.Count);
 
                 result.Add(item);
@@ -97,11 +227,54 @@ namespace PlayniteAchievements.Services.Summaries
             return result;
         }
 
+        private static List<AchievementDisplayItem> CollectSubtree(
+            Dictionary<string, List<AchievementDisplayItem>> groups,
+            string node)
+        {
+            var members = new List<AchievementDisplayItem>();
+            foreach (var pair in groups)
+            {
+                if (CategoryPathHelper.IsSelfOrDescendantOf(pair.Key, node))
+                {
+                    members.AddRange(pair.Value);
+                }
+            }
+
+            return members;
+        }
+
+        /// <summary>
+        /// Art for the node at its own depth. A row covering a subtree cannot use
+        /// <see cref="ResolveSharedImage"/> over CategoryArtPath, because members that inherited a
+        /// descendant's art disagree and that returns null - the normal case for a parent. The
+        /// per-level art each member already carries answers it without another disk probe.
+        /// </summary>
+        private static string ResolveNodeArt(
+            IReadOnlyList<AchievementDisplayItem> members,
+            int depth,
+            bool aggregateSubtree)
+        {
+            if (aggregateSubtree)
+            {
+                foreach (var member in members)
+                {
+                    var perLevel = member?.CategoryAncestorArtPaths;
+                    if (perLevel != null && perLevel.Count >= depth && !string.IsNullOrWhiteSpace(perLevel[depth - 1]))
+                    {
+                        return perLevel[depth - 1];
+                    }
+                }
+            }
+
+            return ResolveSharedImage(members, member => member.CategoryArtPath);
+        }
+
         /// <summary>
         /// Whether the row at <paramref name="emittedCount"/> (its zero-based position in the
         /// configured category order) may render the completion badge. Under
         /// <see cref="CategoryCompletionBadgeMode.First"/> only the first category is permitted, so a
-        /// first category that is not completed leaves the whole list badge-free.
+        /// first category that is not completed leaves the whole list badge-free. Each level is its
+        /// own call, so First means the first row of the level being shown.
         /// </summary>
         private static bool AllowsCompletionBadge(CategoryCompletionBadgeMode mode, int emittedCount)
         {
@@ -147,28 +320,32 @@ namespace PlayniteAchievements.Services.Summaries
         }
 
         /// <summary>
-        /// Resolves the bucket's group-based category type token (Base/DLC/Update/Subset) for theme
-        /// binding, falling back to <see cref="AchievementCategoryTypeHelper.DefaultCategoryType"/> when
-        /// the bucket has no group membership. A category label maps 1:1 to a provider set in practice,
-        /// so the group component is uniform; the canonical-first pick is a defensive tiebreak.
+        /// The row's group-based category type token (Base/DLC/Update/Subset), falling back to
+        /// <see cref="AchievementCategoryTypeHelper.DefaultCategoryType"/> when there is no group
+        /// membership.
+        ///
+        /// A node's own achievements describe it best, so they win when it has any; otherwise the
+        /// subtree decides. Either way the pick is the most common signature, which is what stops
+        /// one stray Base member making a DLC parent report Base.
         /// </summary>
-        private static string ResolveCategoryType(IReadOnlyList<AchievementDisplayItem> bucket)
+        private static string ResolveCategoryType(
+            IReadOnlyList<AchievementDisplayItem> directMembers,
+            IReadOnlyList<AchievementDisplayItem> allMembers)
         {
-            var combined = AchievementCategoryTypeHelper.Combine(
-                bucket.Where(item => item != null).Select(item => item.CategoryType));
-            var groupComponents = AchievementCategoryTypeHelper.GetGroupTypeComponents(combined);
-            return groupComponents.Count > 0
-                ? groupComponents[0]
-                : AchievementCategoryTypeHelper.DefaultCategoryType;
+            var source = directMembers != null && directMembers.Count > 0 ? directMembers : allMembers;
+            var group = AchievementCategoryTypeHelper.ResolveDominantGroupType(
+                source.Where(item => item != null).Select(item => item.CategoryType));
+
+            return group.Count > 0 ? group[0] : AchievementCategoryTypeHelper.DefaultCategoryType;
         }
 
-        private static System.Guid? ResolveSharedGameId(IReadOnlyList<AchievementDisplayItem> bucket)
+        private static Guid? ResolveSharedGameId(IReadOnlyList<AchievementDisplayItem> bucket)
         {
-            System.Guid? gameId = null;
+            Guid? gameId = null;
             foreach (var item in bucket)
             {
                 var candidate = item?.PlayniteGameId;
-                if (!candidate.HasValue || candidate.Value == System.Guid.Empty)
+                if (!candidate.HasValue || candidate.Value == Guid.Empty)
                 {
                     continue;
                 }
@@ -188,7 +365,7 @@ namespace PlayniteAchievements.Services.Summaries
 
         private static string ResolveSharedImage(
             IReadOnlyList<AchievementDisplayItem> bucket,
-            System.Func<AchievementDisplayItem, string> selector)
+            Func<AchievementDisplayItem, string> selector)
         {
             if (selector == null)
             {
@@ -208,7 +385,7 @@ namespace PlayniteAchievements.Services.Summaries
                 {
                     image = candidate;
                 }
-                else if (!string.Equals(image, candidate, System.StringComparison.OrdinalIgnoreCase))
+                else if (!string.Equals(image, candidate, StringComparison.OrdinalIgnoreCase))
                 {
                     return null;
                 }

@@ -416,7 +416,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             var portable = LoadNormalizedPortableOrThrow(playniteGameId);
             var fileStems = AchievementIconCachePathBuilder.BuildFileStems(
                 EnumeratePortableIconApiNames(portable));
-            var categoryFileStems = AchievementIconCachePathBuilder.BuildFileStems(
+            var categoryFileStems = AchievementIconCachePathBuilder.BuildCategoryFileStems(
                 EnumeratePortableCategoryLabels(portable));
             var imageSources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -860,7 +860,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             var managedIcons = GetManagedCustomIconServiceOrThrow();
-            var fileStems = AchievementIconCachePathBuilder.BuildFileStems(overrides.Keys);
+            var fileStems = AchievementIconCachePathBuilder.BuildCategoryFileStems(overrides.Keys);
             var gameIdText = playniteGameId.ToString("D");
 
             foreach (var pair in overrides.ToList())
@@ -1389,7 +1389,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 yield return retainedPath;
             }
 
-            var categoryFileStems = AchievementIconCachePathBuilder.BuildFileStems(
+            var categoryFileStems = AchievementIconCachePathBuilder.BuildCategoryFileStems(
                 EnumeratePortableCategoryLabels(data.ToPortable()));
             foreach (var retainedPath in EnumerateManagedCategoryImagePaths(
                 gameIdText,

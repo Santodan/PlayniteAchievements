@@ -12,6 +12,33 @@ namespace PlayniteAchievements.ViewModels.Items
         public string CategoryLabel { get; set; }
 
         /// <summary>
+        /// The category's fully qualified path. Same value as <see cref="CategoryLabel"/>, named
+        /// for what it is once labels can nest.
+        /// </summary>
+        public string CategoryPath { get; set; }
+
+        /// <summary>Last path segment - what a drilled level titles its rows with.</summary>
+        public string CategoryLeafName { get; set; }
+
+        /// <summary>Depth of the path, 1 for a root category.</summary>
+        public int CategoryDepth { get; set; } = 1;
+
+        /// <summary>
+        /// How many immediate child categories this row aggregates. Zero for a leaf, which is what
+        /// tells a surface whether clicking the row drills to another category level or straight to
+        /// the achievements.
+        /// </summary>
+        public int ChildCategoryCount { get; set; }
+
+        public bool HasChildCategories => ChildCategoryCount > 0;
+
+        /// <summary>
+        /// Achievements whose category is exactly this row, as opposed to a descendant's. A node
+        /// with both children and direct achievements is legal and renders as both.
+        /// </summary>
+        public int DirectAchievementCount { get; set; }
+
+        /// <summary>
         /// The category's group-based type token (one of Base/DLC/Update/Subset, or Default when the
         /// bucket has no group membership). Carries the locale-independent classification so the
         /// theme-facing summary can expose type flags (IsBaseCategory, etc.).

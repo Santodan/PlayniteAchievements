@@ -43,7 +43,8 @@
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        VerticalAlignment="Center" />
             <TextBlock Grid.Column="1"
-                       Text="{Binding SourceLabel}"
+                       Text="{Binding SourceDisplay}"
+                       ToolTip="{Binding SourcePathDisplay}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        TextTrimming="CharacterEllipsis"
                        VerticalAlignment="Center" />
@@ -59,12 +60,20 @@
                        Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_MergeDialog_Target}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        VerticalAlignment="Center" />
+            <!-- Leaf in the row, full path on hover, matching every other category dropdown. -->
             <ComboBox x:Name="TargetComboBox"
                       Grid.Column="1"
                       ItemsSource="{Binding TargetOptions}"
-                      SelectedItem="{Binding SelectedTarget, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                      DisplayMemberPath="LeafDisplay"
+                      SelectedItem="{Binding SelectedOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                       MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                      KeyDown="TargetComboBox_KeyDown" />
+                      KeyDown="TargetComboBox_KeyDown">
+                <ComboBox.ItemContainerStyle>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="ToolTip" Value="{Binding PathDisplay}"/>
+                    </Style>
+                </ComboBox.ItemContainerStyle>
+            </ComboBox>
         </Grid>
 
         <StackPanel Grid.Row="3"

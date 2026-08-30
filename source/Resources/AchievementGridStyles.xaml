@@ -291,6 +291,28 @@
            BasedOn="{StaticResource AchievementCellStyle}">
     </Style>
 
+    <!-- For a column whose content has to reach the row's top and bottom edges - the category tree
+         connectors, which only read as continuous lines if consecutive rows meet. The shared cell
+         padding would inset them by six pixels at each end, breaking every lane once per row.
+         Padding moves onto the cell's own content, and the presenter stretches instead of honouring
+         the per-column vertical alignment, which would otherwise collapse a zero-height guide. -->
+    <Style x:Key="PlayAch.TreeGuideDataGridCellStyle"
+           TargetType="DataGridCell"
+           BasedOn="{StaticResource AchievementCellStyle}">
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridCell">
+                    <Border Background="{TemplateBinding Background}"
+                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <ContentPresenter VerticalAlignment="Stretch"
+                                          HorizontalAlignment="Stretch"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="PlayAch.StretchDataGridCellStyle"
            TargetType="DataGridCell"
            BasedOn="{StaticResource AchievementCellStyle}">
@@ -477,9 +499,18 @@
                 <ControlTemplate TargetType="{x:Type DataGridRow}">
                     <Border x:Name="DGR_Border"
                             Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
                             SnapsToDevicePixels="True">
+                      <Grid>
+                        <!-- Separator behind the cells rather than as this Border's own border: a
+                             border insets the content by its thickness, leaving a one-pixel break
+                             in anything a cell draws to the row edge. The category tree connectors
+                             run the full height of every row and have to cross it unbroken.
+                             BorderThickness is left unbound for the same reason. -->
+                        <Rectangle x:Name="DGR_Separator"
+                                   Height="1"
+                                   VerticalAlignment="Bottom"
+                                   Fill="{TemplateBinding BorderBrush}"
+                                   SnapsToDevicePixels="True"/>
                         <SelectiveScrollingGrid>
                             <SelectiveScrollingGrid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -503,6 +534,7 @@
                                                SelectiveScrollingGrid.SelectiveScrollingOrientation="Vertical"
                                                Visibility="{Binding HeadersVisibility, ConverterParameter={x:Static DataGridHeadersVisibility.Row}, Converter={x:Static DataGrid.HeadersVisibilityConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"/>
                         </SelectiveScrollingGrid>
+                      </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
@@ -891,6 +923,122 @@
                             <Setter TargetName="CheckBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
                             <Setter TargetName="CheckBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Control.Background.Hover}"/>
                             <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Submenu variant of AchievementMultiSelectMenuItemStyle, for a category node that has
+         children. The node itself is not checkable: a node that also holds achievements of its
+         own leads its own submenu with a checkable entry, so every checkmark lives on a row that
+         WPF gives a click. The check gutter is reserved but empty so labels stay aligned with the
+         checkable rows beside it. -->
+    <Style x:Key="AchievementMultiSelectSubmenuItemStyle"
+           TargetType="MenuItem">
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="HeaderTemplate">
+            <Setter.Value>
+                <DataTemplate>
+                    <TextBlock Text="{Binding}"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap"/>
+                </DataTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Grid SnapsToDevicePixels="True">
+                        <Border x:Name="MenuItemBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="Transparent"
+                                BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                Margin="0,1"
+                                CornerRadius="3"
+                                SnapsToDevicePixels="True">
+                            <Grid MinWidth="120"
+                                  Margin="4,0,10,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="14"/>
+                                </Grid.ColumnDefinitions>
+                                <!-- Hidden rather than absent: it reserves exactly the width the
+                                     checkable rows spend on their box. -->
+                                <CheckBox Grid.Column="0"
+                                          Style="{StaticResource AchievementMultiSelectMenuCheckBoxStyle}"
+                                          Focusable="False"
+                                          IsTabStop="False"
+                                          IsHitTestVisible="False"
+                                          Visibility="Hidden"/>
+
+                                <ContentPresenter Grid.Column="2"
+                                                  ContentSource="Header"
+                                                  RecognizesAccessKey="True"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalAlignment="Center"
+                                                  TextElement.FontSize="{TemplateBinding FontSize}"
+                                                  TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                                  TextElement.FontFamily="{TemplateBinding FontFamily}"
+                                                  Margin="0,5,0,5"/>
+
+                                <Path x:Name="SubmenuArrow"
+                                      Grid.Column="3"
+                                      Width="5"
+                                      Height="8"
+                                      Data="M 0,0 L 4,4 L 0,8"
+                                      Stroke="{TemplateBinding Foreground}"
+                                      StrokeThickness="1.5"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      HorizontalAlignment="Right"
+                                      VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        <Popup x:Name="PART_Popup"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                               Placement="Right"
+                               PopupAnimation="Fade">
+                            <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                                    BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    Padding="4"
+                                    SnapsToDevicePixels="True">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              MaxHeight="400">
+                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
+                                                    KeyboardNavigation.TabNavigation="Cycle"
+                                                    SnapsToDevicePixels="True"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
+                            <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Trigger>
+                        <Trigger Property="IsSubmenuOpen" Value="True">
+                            <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
+                            <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.55"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

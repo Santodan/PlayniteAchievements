@@ -1491,5 +1491,60 @@ namespace PlayniteAchievements.Services.Images.Tests
             }
         }
 
+        [TestMethod]
+        public void BuildCategoryFileStem_IsAPureFunctionOfTheLabel()
+        {
+            Assert.AreEqual(
+                AchievementIconCachePathBuilder.BuildCategoryFileStem("DLC"),
+                AchievementIconCachePathBuilder.BuildCategoryFileStem("DLC"));
+
+            // Trimmed, and case-insensitive in the hash so a casing change keeps the same file.
+            Assert.AreEqual(
+                AchievementIconCachePathBuilder.BuildCategoryFileStem("DLC"),
+                AchievementIconCachePathBuilder.BuildCategoryFileStem("  DLC  "));
+        }
+
+        [TestMethod]
+        public void BuildCategoryFileStem_SeparatesLabelsThatSanitizeIdentically()
+        {
+            // ':' is invalid in a file name and collapses to '_', so these three labels share a
+            // sanitized stem and are only told apart by the unconditional hash.
+            var stems = new[] { "A::B", "A:B", "A_B" }
+                .Select(AchievementIconCachePathBuilder.BuildCategoryFileStem)
+                .ToList();
+
+            Assert.AreEqual(3, stems.Distinct(StringComparer.Ordinal).Count(), string.Join(", ", stems));
+        }
+
+        [TestMethod]
+        public void BuildCategoryFileStem_DoesNotDependOnOtherLabels()
+        {
+            // The batch-scoped behavior this replaces: adding a colliding label changed the
+            // existing label's stem.
+            var alone = AchievementIconCachePathBuilder.BuildCategoryFileStems(new[] { "A_B" });
+            var withCollision = AchievementIconCachePathBuilder.BuildCategoryFileStems(new[] { "A_B", "A::B" });
+
+            Assert.AreEqual(alone["A_B"], withCollision["A_B"]);
+        }
+
+        [TestMethod]
+        public void BuildCategoryFileStem_StaysWithinTheFileNameBudgetForDeepPaths()
+        {
+            var deep = string.Join("::", Enumerable.Range(1, 8).Select(i => new string((char)('a' + i), 40)));
+            var stem = AchievementIconCachePathBuilder.BuildCategoryFileStem(deep);
+
+            Assert.IsTrue(stem.Length <= 96, $"stem was {stem.Length} chars");
+            Assert.IsFalse(stem.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0, "stem must be a legal file name");
+        }
+
+        [TestMethod]
+        public void BuildCategoryFileStems_SkipsBlankLabelsAndDeduplicates()
+        {
+            var stems = AchievementIconCachePathBuilder.BuildCategoryFileStems(
+                new[] { "DLC", "  ", null, "dlc" });
+
+            Assert.AreEqual(1, stems.Count);
+            Assert.IsTrue(stems.ContainsKey("DLC"));
+        }
     }
 }
