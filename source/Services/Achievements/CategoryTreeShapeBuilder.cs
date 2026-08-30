@@ -44,13 +44,13 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
-            var nests = false;
-            for (var i = 0; i < categories.Count && !nests; i++)
+            var paths = new string[categories.Count];
+            for (var i = 0; i < categories.Count; i++)
             {
-                nests = CategoryPathHelper.GetDepth(categories[i].CategoryPath) > 1;
+                paths[i] = categories[i].CategoryPath;
             }
 
-            if (!enabled || !nests || categories.Count != rows.Count)
+            if (!enabled || !HasNesting(paths) || categories.Count != rows.Count)
             {
                 foreach (var row in rows)
                 {
@@ -60,17 +60,33 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            var paths = new string[categories.Count];
-            for (var i = 0; i < categories.Count; i++)
-            {
-                paths[i] = categories[i].CategoryPath;
-            }
-
             var shapes = Build(paths);
             for (var i = 0; i < categories.Count; i++)
             {
                 categories[i].TreeShape = shapes[i];
             }
+        }
+
+        /// <summary>
+        /// Whether any path in the run is nested. Surfaces gate the guide on this so a game with a
+        /// flat category list pays nothing for it - no lane, no gutter, no reserved width.
+        /// </summary>
+        public static bool HasNesting(IReadOnlyList<string> paths)
+        {
+            if (paths == null)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < paths.Count; i++)
+            {
+                if (CategoryPathHelper.GetDepth(paths[i]) > 1)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
