@@ -190,21 +190,38 @@ namespace PlayniteAchievements.Services.Tests.Recording
             StringAssert.Contains(bridge, "\"exists\"");
             StringAssert.Contains(bridge, "apiVersion",
                 "The bridge should stay documented against UniPlaySong's version-stamped JSON.");
-            // UniPlaySong plays jingles at MusicVolume / 100 (its JingleService); the composited
-            // chime must track that volume rather than decode at full scale, so turning its
-            // jingles down quietens the clip too.
+            // UniPlaySong plays jingles at MusicVolume / 100 (its JingleService); the mixed chime
+            // must be as loud as the live one the user heard, not a full-scale decode.
             StringAssert.Contains(bridge, "MusicVolume");
-            StringAssert.Contains(service, "ChimeCompositeMixGain * (soundFileGain ?? 1.0)");
+            StringAssert.Contains(service, "soundFileGain ?? ChimeUnknownVolumeGain");
+            StringAssert.Contains(service, "chime.Gain ?? ChimeUnknownVolumeGain");
+        }
 
-            // The composite level and the removal reference are different quantities that once
-            // shared one constant, which is how the composited chime ended up at full scale on a
-            // default install. The reference must stay at the captured amplitude: the cancellation
-            // calibrates its global gain near unity against it, so trimming it to taste would
-            // under-subtract and leave the live chime audible beneath the composited one.
-            StringAssert.Contains(service, "chime.Gain ?? ChimeReferenceFallbackGain");
-            Assert.IsFalse(
-                service.Contains("soundFileGain ?? ChimeCompositeMixGain"),
-                "The composite gain must scale the played volume, not stand in for it.");
+        /// <summary>
+        /// The whole-window chime passes fit one gain and one lag across the clip, which lands on
+        /// a live chime's attack and walks off its decay — leaving a tail under the composited
+        /// copy, heard as the chime doubling partway through. The residue has to get the same
+        /// per-block escalation the non-game stage already makes.
+        /// </summary>
+        [TestMethod]
+        public void LiveChimeRemoval_EscalatesResidueToPerBlockFitting()
+        {
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+
+            var chimePass = service.IndexOf("ChimePass(", StringComparison.Ordinal);
+            Assert.IsTrue(chimePass >= 0);
+            var end = service.IndexOf("TryReadFiredChimeReference(", chimePass, StringComparison.Ordinal);
+            Assert.IsTrue(end > chimePass);
+            var body = service.Substring(chimePass, end - chimePass);
+
+            StringAssert.Contains(body, "blockFrames: ChimeBlockFrames",
+                "The chime residue must be re-fit in blocks, not left on the single whole-window fit.");
+            StringAssert.Contains(body, "ChimeResidueSuppressionTargetDb");
+            StringAssert.Contains(body, "Live-chime residue re-fit",
+                "A field log has to show whether the re-fit ran and what it bought.");
+            StringAssert.Contains(body, "blockPass.SubtractedBlocks > 0",
+                "A re-fit that commits nothing must leave the earlier pass's result standing.");
         }
 
         /// <summary>
