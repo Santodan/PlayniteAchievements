@@ -1830,78 +1830,26 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Builds a window-length reference of every chime that fired inside a clip window: each
-        /// wave's resolved sound file, decoded at the volume it played, placed at its fire time.
-        /// The exact source waveforms — immune to capture jitter, graph tears, and haptic
-        /// crossfeed. Returns null when it cannot be built (a chime without a known file or a
-        /// decode failure); <paramref name="noChimesFired"/> is true when the window holds no
-        /// chime at all.
+        /// Whether any wave chime fired inside this window. Only a cheap check of the fire stamps:
+        /// the chime is removed using the captured sidecar, so no file has to be decoded to find
+        /// out whether there is anything to remove.
         /// </summary>
-        private byte[] TryReadFiredChimeReference(
-            DateTime startUtc,
-            DateTime endUtc,
-            out bool noChimesFired)
+        private bool AnyChimeFiredIn(DateTime startUtc, DateTime endUtc)
         {
-            noChimesFired = false;
-            var chimeLengthSeconds = ChimeMaxSliceSeconds + ChimeTailBeyondToastSeconds;
-            List<(DateTime Utc, string Path, double? Gain)> firedInWindow;
+            var span = ChimeMaxSliceSeconds + ChimeTailBeyondToastSeconds;
             lock (_gate)
             {
-                firedInWindow = _firedChimes
-                    .Where(c => c.Utc < endUtc && c.Utc.AddSeconds(chimeLengthSeconds) > startUtc)
-                    .ToList();
-            }
-
-            if (firedInWindow.Count == 0)
-            {
-                noChimesFired = true;
-                return null;
-            }
-
-            if (!firedInWindow.TrueForAll(c => c.Path != null))
-            {
-                return null;
-            }
-
-            var fileReference = new byte[PcmAudio.TicksToAlignedBytes((endUtc - startUtc).Ticks)];
-            if (fileReference.Length < PcmAudio.BlockAlign)
-            {
-                return null;
-            }
-
-            foreach (var chime in firedInWindow)
-            {
-                // Decoded at the played volume so the global gain calibrates near unity: a
-                // full-scale reference against a quiet live chime reads as "no chime present".
-                var pcm = ChimeSoundFile.TryReadPcm(
-                    chime.Path, chimeLengthSeconds, chime.Gain ?? ChimeUnknownVolumeGain, _logger);
-                if (pcm == null)
+                foreach (var chime in _firedChimes)
                 {
-                    _logger?.Warn(
-                        "[Recording] A resolved chime file could not be decoded for live-chime " +
-                        "removal.");
-                    return null;
-                }
-
-                if (chime.Utc >= startUtc)
-                {
-                    PcmAudio.MixInto(
-                        fileReference,
-                        PcmAudio.TicksToAlignedBytes((chime.Utc - startUtc).Ticks),
-                        pcm,
-                        0,
-                        pcm.Length);
-                }
-                else
-                {
-                    var skip = PcmAudio.TicksToAlignedBytes((startUtc - chime.Utc).Ticks);
-                    PcmAudio.MixInto(fileReference, 0, pcm, skip, pcm.Length - skip);
+                    if (chime.Utc < endUtc && chime.Utc.AddSeconds(span) > startUtc)
+                    {
+                        return true;
+                    }
                 }
             }
 
-            return fileReference;
+            return false;
         }
-
         /// <summary>
         /// Builds the CAPTURED live-chime removal reference for a clip window: the Playnite-tree
         /// slice with the game reference cancelled out of it (a Playnite-launched game lives
@@ -2136,39 +2084,33 @@ namespace PlayniteAchievements.Services.Recording
                     return passOutcome;
                 }
 
-                var fileChimeReference = TryReadFiredChimeReference(
-                    startUtc, endUtc, out var noChimesFired);
-                if (!noChimesFired)
+                // Only the captured sidecar is used as a removal reference. It is recorded on the
+                // same capture clock, through the same engine, as the mix it is subtracted from,
+                // so the chime sits at the same place in both and a narrow search finds it.
+                //
+                // The file reference cannot align by construction: it sits at the sound LAUNCH
+                // stamp, which the real onset trails by a variable out-of-process spin-up, and it
+                // has been through none of the resampling or level scaling the engine applied.
+                // ChimeRoundTripProbe measured it against these exact parameters -- aligned it
+                // removes 37.7 dB, 120 ms out 5.7 dB, 500 ms out nothing at all -- and at every
+                // offset it damaged the game bed by ~16 dB doing it. A pass that leaves the chime
+                // and eats the game is worse than no pass, so there is no fallback value in it.
+                // 3.1.3 had no such pass and removed chimes correctly.
+                //
+                // The file stays the source of the COMPOSITED chime, where being pristine is
+                // exactly what is wanted; see TryReadChimePcmAsync.
+                if (AnyChimeFiredIn(startUtc, endUtc))
                 {
-                    // Captured slice FIRST. It is recorded on the same capture clock as the mix it
-                    // is being subtracted from, so the chime sits at the same place in both and a
-                    // narrow search finds it. The file reference is placed at the sound LAUNCH
-                    // stamp instead, which the real onset trails by a variable out-of-process
-                    // spin-up, and ChimeRoundTripProbe measures what that costs: aligned it removes
-                    // the chime by 37.7 dB, but 120 ms out it removes 5.7 dB and 500 ms out it
-                    // reports the window clean and removes nothing -- while damaging the game bed
-                    // by ~16 dB on the way. Running it first therefore left the live chime under
-                    // the composited copy (two chimes) AND handed the aligned pass a mixture it had
-                    // already disturbed. This is the order 3.1.3 effectively had, before the
-                    // file-based reference existed at all.
                     var capturedChimeReference = TryReadCapturedChimeReference(
                         session, startUtc, endUtc);
-                    var captured = capturedChimeReference != null &&
-                        ChimePass(capturedChimeReference, "capture", 12000) ==
-                            PcmCancellationOutcome.CancelledVerified;
-
-                    // Only when the aligned reference could not do it: no sidecar this session, or
-                    // it failed to verify. A cold player's onset is time-warped enough that the
-                    // capture cannot match it either, and then a wide file search is the only
-                    // thing left to try.
-                    if (!captured && fileChimeReference != null)
+                    if (capturedChimeReference != null)
                     {
-                        ChimePass(fileChimeReference, "file", 36000);
+                        ChimePass(capturedChimeReference, "capture", 12000);
                     }
-                    else if (capturedChimeReference == null && fileChimeReference == null)
+                    else
                     {
                         _logger?.Info(
-                            "[Recording] A chime fired inside this window but no removal " +
+                            "[Recording] A chime fired inside this window but no captured " +
                             "reference exists; the live chime stays in the speaker mix.");
                     }
                 }
