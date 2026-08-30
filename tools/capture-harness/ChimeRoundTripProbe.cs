@@ -35,6 +35,9 @@ internal static class ChimeRoundTripProbe
 
     private static bool Cropped;
 
+    /// <summary>Use the periodic chiptune bed instead of the broadband one.</summary>
+    private static bool Chiptune;
+
     /// <summary>Use the captured sidecar's narrow search rather than the file reference's wide one.</summary>
     private static bool CapturedPath;
 
@@ -49,6 +52,31 @@ internal static class ChimeRoundTripProbe
         }
 
         var failures = 0;
+
+        // A CHIPTUNE bed, which is what a Genesis clip carries. Strongly periodic, so it can
+        // correlate with the chime reference where no chime is present. What matters here is the
+        // damage column: subtracting music is far worse than leaving a chime.
+        Console.WriteLine();
+        Console.WriteLine("=== CHIPTUNE GAME BED (Genesis FM, 0.5 s blocks) ===");
+        Console.WriteLine("scenario                         outcome              chimeErr  gameDmg  verdict");
+        Console.WriteLine("-------------------------------- -------------------- --------  -------  -------");
+        Chiptune = true;
+        CapturedPath = true;
+        foreach (var ms in new[] { 0, 5, 15, 30 })
+        {
+            failures += Run($"chiptune skew {ms,3} ms", ms, 0, 1.0, wavOut);
+        }
+
+        // And the case with no chime at all in the window: nothing may be subtracted from music
+        // that has no chime in it.
+        failures += RunNoChime("chiptune, NO chime present");
+        Chiptune = false;
+        CapturedPath = false;
+
+        if (args.Length > 0 && args[0] == "--chiptune-only")
+        {
+            return failures;
+        }
 
         // Does the search FIND the lag that was injected? Everything else is downstream of this.
         Console.WriteLine();
@@ -189,7 +217,7 @@ internal static class ChimeRoundTripProbe
         var rendered1 = at1 + (skew1Ms * SampleRate / 1000);
         var rendered2 = at2 + (skew2Ms * SampleRate / 1000);
 
-        var gameBed = GameBed(frames);
+        var gameBed = Chiptune ? ChiptuneBed(frames) : GameBed(frames);
 
         // The captured sidecar carries both chimes, at their rendered positions.
         var reference = new short[frames * Channels];
@@ -247,7 +275,7 @@ internal static class ChimeRoundTripProbe
         var at = SampleRate * 15;                       // where the card lands in a 22 s window
         var rendered = at + (15 * SampleRate / 1000);   // the 15 ms skew the field log reports
 
-        var gameBed = GameBed(frames);
+        var gameBed = Chiptune ? ChiptuneBed(frames) : GameBed(frames);
         var reference = new short[frames * Channels];
         Place(reference, chimeFile, at, 1.0, 0);
 
@@ -293,7 +321,7 @@ internal static class ChimeRoundTripProbe
         var at = Math.Max(SampleRate, frames - chimeFrames - (SampleRate * 2));
         var rendered = at + (15 * SampleRate / 1000);
 
-        var gameBed = GameBed(frames);
+        var gameBed = Chiptune ? ChiptuneBed(frames) : GameBed(frames);
         var reference = new short[frames * Channels];
         Place(reference, chimeFile, at, 1.0, 0);
 
@@ -325,6 +353,45 @@ internal static class ChimeRoundTripProbe
         return ok ? 0 : 1;
     }
 
+    /// <summary>
+    /// Music with NO chime in the window, against a reference that holds one. Nothing may be
+    /// subtracted: any damage here is the cancellation inventing a chime in the music.
+    /// </summary>
+    private static int RunNoChime(string label)
+    {
+        const int frames = SampleRate * 8;
+        var chimeFile = Chime(SampleRate * 2);
+        var gameBed = Chiptune ? ChiptuneBed(frames) : GameBed(frames);
+
+        // Reference holds a chime; the mixture is music only.
+        var reference = new short[frames * Channels];
+        Place(reference, chimeFile, SampleRate * 3, 1.0, 0);
+
+        var mixture = new short[frames * Channels];
+        Array.Copy(gameBed, mixture, gameBed.Length);
+
+        var mixBytes = ToBytes(mixture);
+        var outcome = ReferenceCancellationPolicy.Subtract(
+            mixBytes, ToBytes(reference), out var d,
+            residualPass: false, blockFrames: 24000, maxLagFrames: 12000, detectClean: true);
+
+        var cancelled = ToShorts(mixBytes);
+        double err = 0, energy = 0;
+        for (var i = 0; i < cancelled.Length; i++)
+        {
+            var d2 = (double)cancelled[i] - gameBed[i];
+            err += d2 * d2;
+            energy += (double)gameBed[i] * gameBed[i];
+        }
+
+        var dmgDb = err <= 0 ? -120.0 : 10.0 * Math.Log10(err / Math.Max(1, energy));
+        var ok = dmgDb <= -60.0;
+        Console.WriteLine(
+            $"{label,-32} {outcome,-20}     n/a  {dmgDb,7:0.0}dB  {(ok ? "ok" : "FAIL")}" +
+            $"   blocks={d.SubtractedBlocks}/{d.TotalBlocks} gain={d.Gain:0.000} corr={d.Correlation:0.000}");
+        return ok ? 0 : 1;
+    }
+
     private static byte[] Slice(byte[] source, int fromFrame, int lengthFrames)
     {
         var bytes = new byte[lengthFrames * Channels * 2];
@@ -339,7 +406,7 @@ internal static class ChimeRoundTripProbe
         var chimeAtFrame = SampleRate * 2;             // reference position (the launch stamp)
         var renderedAt = chimeAtFrame + (spinUpMs * SampleRate / 1000);
 
-        var gameBed = GameBed(frames);
+        var gameBed = Chiptune ? ChiptuneBed(frames) : GameBed(frames);
         var chimeFile = Chime(SampleRate * 2);          // 2 s chime, decaying
 
         // What the file reference looks like: the chime at the launch stamp, at played volume.
@@ -494,6 +561,39 @@ internal static class ChimeRoundTripProbe
             r = (r * 0.85) + (random.NextDouble() - 0.5) * 4000;
             data[f * Channels] = Clamp(l);
             data[f * Channels + 1] = Clamp(r);
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// A chiptune bed: Genesis/Mega Drive FM synthesis, which is what a Streets of Rage 2 clip
+    /// carries. Strongly tonal and periodic, unlike the broadband bed above. This is the hard case
+    /// for cancellation — a periodic bed can correlate with the chime reference at lags where no
+    /// chime is present, and a block that "fits" there subtracts music instead (maximumGain is 20,
+    /// so it can take up to 20x the reference). Damage to this bed is the thing to watch.
+    /// </summary>
+    private static short[] ChiptuneBed(int frames)
+    {
+        var data = new short[frames * Channels];
+        // A bass line, a lead, and a square-ish counter-melody, stepping through notes like a
+        // tracker would.
+        double[] bass = { 55.0, 65.4, 73.4, 49.0 };
+        double[] lead = { 440.0, 523.3, 587.3, 659.3, 587.3, 523.3 };
+        for (var f = 0; f < frames; f++)
+        {
+            var t = f / (double)SampleRate;
+            var bassNote = bass[(int)(t * 2) % bass.Length];
+            var leadNote = lead[(int)(t * 4) % lead.Length];
+
+            // Square waves with a little vibrato, as an FM chip produces.
+            var b = Math.Sign(Math.Sin(2 * Math.PI * bassNote * t)) * 2600.0;
+            var vibrato = 1.0 + (0.004 * Math.Sin(2 * Math.PI * 6.0 * t));
+            var l = Math.Sign(Math.Sin(2 * Math.PI * leadNote * vibrato * t)) * 1700.0;
+            var h = Math.Sin(2 * Math.PI * leadNote * 2 * t) * 900.0;
+
+            data[f * Channels] = Clamp(b + l + h);
+            data[f * Channels + 1] = Clamp(b + (l * 0.8) + (h * 1.2));
         }
 
         return data;
