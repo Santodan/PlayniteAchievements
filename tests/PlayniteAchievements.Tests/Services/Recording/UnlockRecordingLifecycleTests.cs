@@ -190,10 +190,41 @@ namespace PlayniteAchievements.Services.Tests.Recording
             StringAssert.Contains(bridge, "\"exists\"");
             StringAssert.Contains(bridge, "apiVersion",
                 "The bridge should stay documented against UniPlaySong's version-stamped JSON.");
-            // UniPlaySong plays jingles at MusicVolume / 100 (its JingleService); the mixed chime
-            // must be as loud as the live one the user heard, not a full-scale decode.
+            // UniPlaySong plays jingles at MusicVolume / 100 (its JingleService); the composited
+            // chime must track that volume rather than decode at full scale, so turning its
+            // jingles down quietens the clip too.
             StringAssert.Contains(bridge, "MusicVolume");
-            StringAssert.Contains(service, "soundFileGain ?? ChimeFileMixGain");
+            StringAssert.Contains(service, "ChimeCompositeMixGain * (soundFileGain ?? 1.0)");
+
+            // The composite level and the removal reference are different quantities that once
+            // shared one constant, which is how the composited chime ended up at full scale on a
+            // default install. The reference must stay at the captured amplitude: the cancellation
+            // calibrates its global gain near unity against it, so trimming it to taste would
+            // under-subtract and leave the live chime audible beneath the composited one.
+            StringAssert.Contains(service, "chime.Gain ?? ChimeReferenceFallbackGain");
+            Assert.IsFalse(
+                service.Contains("soundFileGain ?? ChimeCompositeMixGain"),
+                "The composite gain must scale the played volume, not stand in for it.");
+        }
+
+        /// <summary>
+        /// The composited card plays its own recorded animation from its first frame, so the chime
+        /// has to lead that frame by the gap the two had live. Modelling it from the sound-align
+        /// delay plus the slide duration measured to the SETTLED card instead, which placed every
+        /// chime a slide-length early — and twice that on the fast path, whose align delay differs.
+        /// </summary>
+        [TestMethod]
+        public void ChimeLead_IsMeasuredFromLiveStampsRatherThanModelled()
+        {
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+
+            StringAssert.Contains(service, "ResolveChimeLeadSeconds");
+            StringAssert.Contains(service, "(track.StartUtc - ownSound.Value).TotalSeconds");
+            StringAssert.Contains(service, "toastStartSeconds - chimeLeadSeconds");
+            Assert.IsFalse(
+                service.Contains("ChimeLeadBeforeToastSeconds"),
+                "The fixed sound-to-settled-card lead double-counted the slide-in; measure instead.");
         }
 
         [TestMethod]
