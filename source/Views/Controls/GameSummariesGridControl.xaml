@@ -15,8 +15,6 @@
             </ResourceDictionary.MergedDictionaries>
 
 
-            <BooleanToVisibilityConverter x:Key="GameSummariesBoolToVis"/>
-
             <!-- Game icon/cover image, switching source and decode size with the
                  grid's UseCoverImages and PreserveImageResolution settings. -->
             <Style x:Key="GameImageStyle" TargetType="Image">
@@ -103,7 +101,6 @@
               Tag="ControllerCellFocus"
               helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
               helpers:DataGridAlignmentBehavior.IsEnabled="True"
-              helpers:DataGridFirstColumnBehavior.IsEnabled="True"
               PreviewMouseRightButtonUp="DataGridColumnMenu_PreviewMouseRightButtonUp">
         <DataGrid.CellStyle>
             <Style TargetType="DataGridCell"
@@ -266,13 +263,15 @@
                             <!-- Tree connectors for a nested category row, and the row's indent:
                                  the guide's own width is what pushes the name right, so nothing
                                  here needs a per-depth margin. Collapses to zero width on a game
-                                 row (no TreeShape) and whenever this column is not the leftmost
-                                 one, since a left-edge connector drawn mid-row connects nothing. -->
+                                 row, which has no TreeShape.
+
+                                 The name column rather than whichever column is leftmost: the
+                                 leftmost one is normally the cover, and a per-depth indent there
+                                 would shrink the art by a different amount on every row. -->
                             <controls:CategoryTreeGuide DockPanel.Dock="Left"
                                                         Shape="{Binding TreeShape}"
                                                         LineBrush="{DynamicResource PlayAch.Brush.Border}"
-                                                        NodeBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                                                        Visibility="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridFirstColumnBehavior.IsFirstColumn), Converter={StaticResource GameSummariesBoolToVis}}"/>
+                                                        NodeBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
                             <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                         HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
