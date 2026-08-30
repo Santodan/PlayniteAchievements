@@ -53,6 +53,16 @@ namespace PlayniteAchievements.ViewModels.Items
         private string _sortingName;
         public string SortingName { get => _sortingName; set => SetValue(ref _sortingName, value); }
 
+        // Session-only view state, and null on a game row: the connector geometry the name cell
+        // draws to place this row in the category tree. Held on the base rather than on
+        // CategorySummaryItem so the shared name-column template can bind it without a per-row
+        // binding failure on the game surfaces that use the same template.
+        private CategoryTreeShape _treeShape;
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public CategoryTreeShape TreeShape { get => _treeShape; set => SetValue(ref _treeShape, value); }
+
         public bool Owned => PlayniteGameId.HasValue;
 
         private string _gameLogo;
