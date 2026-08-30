@@ -554,8 +554,7 @@
                                                                 VerticalAlignment="Stretch"
                                                                 Shape="{Binding TreeShape}"
                                                                 LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                                                                NodeBrush="{DynamicResource PlayAch.Brush.Accent}"
-                                                                NodeHoleBrush="{DynamicResource PlayAch.Brush.Grid.RowBackground}"/>
+                                                                NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
                                     <!-- Padding lives here, not on the cell: the guide beside it has
                                          to reach the row edges for its lanes to join up. -->
                                     <StackPanel VerticalAlignment="Center"
