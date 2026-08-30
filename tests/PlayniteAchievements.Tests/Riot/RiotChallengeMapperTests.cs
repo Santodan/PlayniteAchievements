@@ -150,12 +150,11 @@ namespace PlayniteAchievements.Riot.Tests
         }
 
         [TestMethod]
-        public void BuildAchievements_MapsTierToTrophyTypeAndUnlockTime()
+        public void BuildAchievements_MapsUnlockTime()
         {
             var capstone = Get("101000");
 
             Assert.IsTrue(capstone.Unlocked);
-            Assert.AreEqual("gold", capstone.TrophyType, "The player's current tier lands in TrophyType, lower-cased.");
             Assert.AreEqual(
                 new DateTime(2025, 8, 24, 1, 46, 40, DateTimeKind.Utc),
                 capstone.UnlockTimeUtc,
@@ -169,7 +168,17 @@ namespace PlayniteAchievements.Riot.Tests
 
             Assert.IsFalse(locked.Unlocked, "A challenge absent from player-data has never been started.");
             Assert.IsNull(locked.UnlockTimeUtc);
-            Assert.IsNull(locked.TrophyType, "There is no tier to report before the first one is reached.");
+        }
+
+        [TestMethod]
+        public void BuildAchievements_NeverSetsTrophyType()
+        {
+            // TrophyType drives PlayStation trophy art and the platinum/gold/silver/bronze summary
+            // counts. A challenge tier there renders as a PSN trophy - "platinum" reading as the
+            // completion marker - and the tiers with no matching art render blank.
+            Assert.IsTrue(
+                Build().All(a => a.TrophyType == null),
+                "No challenge may carry a trophy type; the tier is conveyed by its own token icon.");
         }
 
         [TestMethod]
@@ -221,7 +230,7 @@ namespace PlayniteAchievements.Riot.Tests
 
             Assert.IsNull(reverse.ProgressNum, "Lower is better, so a rising bar would read backwards.");
             Assert.IsNull(reverse.ProgressDenom);
-            Assert.AreEqual("bronze", reverse.TrophyType, "The tier is still reported.");
+            Assert.IsTrue(reverse.Unlocked, "The challenge is still reported as earned.");
         }
 
         [TestMethod]
@@ -413,11 +422,12 @@ namespace PlayniteAchievements.Riot.Tests
         }
 
         [TestMethod]
-        public void ToTrophyType_LowerCasesTheTierAndIsNullWhenNotStarted()
+        public void Normalize_CanonicalisesCaseAndUnknownTiers()
         {
-            Assert.AreEqual("platinum", RiotChallengeLevels.ToTrophyType("PLATINUM"));
-            Assert.AreEqual("iron", RiotChallengeLevels.ToTrophyType("iron"));
-            Assert.IsNull(RiotChallengeLevels.ToTrophyType("NONE"));
+            Assert.AreEqual("PLATINUM", RiotChallengeLevels.Normalize("platinum"));
+            Assert.AreEqual("IRON", RiotChallengeLevels.Normalize("iron"));
+            Assert.AreEqual(RiotChallengeLevels.None, RiotChallengeLevels.Normalize("UNRANKED"));
+            Assert.AreEqual(RiotChallengeLevels.None, RiotChallengeLevels.Normalize(null));
         }
     }
 
