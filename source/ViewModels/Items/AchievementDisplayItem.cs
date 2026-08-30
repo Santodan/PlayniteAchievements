@@ -429,7 +429,6 @@ namespace PlayniteAchievements.ViewModels.Items
                     OnPropertyChanged(nameof(UnlockTime));
                     OnPropertyChanged(nameof(ShowUnlockDate));
                     OnPropertyChanged(nameof(ShowLockedProgress));
-                    OnPropertyChanged(nameof(ShowUnlockedProgress));
                 }
             }
         }
@@ -510,7 +509,6 @@ namespace PlayniteAchievements.ViewModels.Items
                     NotifyDescriptionDisplayChanged();
                     OnPropertyChanged(nameof(ShowUnlockDate));
                     OnPropertyChanged(nameof(ShowLockedProgress));
-                    OnPropertyChanged(nameof(ShowUnlockedProgress));
                     OnPropertyChanged(nameof(IsUnlock));
                     OnPropertyChanged(nameof(UnlockedForVisibility));
                 }
@@ -520,15 +518,6 @@ namespace PlayniteAchievements.ViewModels.Items
         public virtual bool ShowUnlockDate => Unlocked;
 
         public virtual bool ShowLockedProgress => !ShowUnlockDate;
-
-        /// <summary>
-        /// Progress that still means something after the achievement is earned. Most providers
-        /// finish an achievement in one step, so this stays false for them; it exists for tiered
-        /// sources such as League of Legends challenges, where being unlocked at one tier and
-        /// partway to the next are true at the same time and the date alone hides the second half.
-        /// </summary>
-        public virtual bool ShowUnlockedProgress =>
-            ShowUnlockDate && HasProgress && ProgressPercent < 100;
 
         public bool IsCapstone
         {
@@ -798,7 +787,6 @@ namespace PlayniteAchievements.ViewModels.Items
                     OnPropertyChanged(nameof(HasProgress));
                     OnPropertyChanged(nameof(ProgressText));
                     OnPropertyChanged(nameof(ProgressPercent));
-                    OnPropertyChanged(nameof(ShowUnlockedProgress));
                 }
             }
         }
@@ -817,7 +805,6 @@ namespace PlayniteAchievements.ViewModels.Items
                     OnPropertyChanged(nameof(HasProgress));
                     OnPropertyChanged(nameof(ProgressText));
                     OnPropertyChanged(nameof(ProgressPercent));
-                    OnPropertyChanged(nameof(ShowUnlockedProgress));
                 }
             }
         }
@@ -1672,7 +1659,6 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(UnlockTime));
             OnPropertyChanged(nameof(ShowUnlockDate));
             OnPropertyChanged(nameof(ShowLockedProgress));
-            OnPropertyChanged(nameof(ShowUnlockedProgress));
             OnPropertyChanged(nameof(GlobalPercentUnlocked));
             OnPropertyChanged(nameof(HasRarityPercent));
             OnPropertyChanged(nameof(GlobalPercentText));
@@ -1688,7 +1674,6 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(Unlocked));
             OnPropertyChanged(nameof(ShowUnlockDate));
             OnPropertyChanged(nameof(ShowLockedProgress));
-            OnPropertyChanged(nameof(ShowUnlockedProgress));
             OnPropertyChanged(nameof(IsCapstone));
             OnPropertyChanged(nameof(IsGoal));
             OnPropertyChanged(nameof(GoalOrderIndex));
@@ -1706,7 +1691,6 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(HasProgress));
             OnPropertyChanged(nameof(ProgressText));
             OnPropertyChanged(nameof(ProgressPercent));
-            OnPropertyChanged(nameof(ShowUnlockedProgress));
             OnPropertyChanged(nameof(TrophyType));
             OnPropertyChanged(nameof(HasTrophyType));
             NotifyRevealStateChanged();
