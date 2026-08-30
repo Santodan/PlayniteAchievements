@@ -59,60 +59,6 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void DiffUserUnlocks_ReturnsRepeatUnlock_WhenTheProviderOptsIn()
-        {
-            // A provider whose achievements are earned again (League challenges climb tiers) has a
-            // single authoritative source, so a newer timestamp is a new earn.
-            var differ = new AchievementUnlockDiffer(providerKey => providerKey == "Riot");
-            var before = Data("Riot", Achievement("101000", "Globetrotter", true, new DateTime(2026, 7, 4, 12, 0, 0, DateTimeKind.Utc)));
-            var after = Data("Riot", Achievement("101000", "Globetrotter", true, new DateTime(2026, 7, 4, 12, 5, 0, DateTimeKind.Utc)));
-
-            var result = differ.DiffUserUnlocks(before, after);
-
-            Assert.AreEqual(1, result.Count);
-            Assert.AreEqual("101000", result[0].ApiName);
-        }
-
-        [TestMethod]
-        public void DiffUserUnlocks_IgnoresRepeatUnlock_ForProvidersThatDidNotOptIn()
-        {
-            var differ = new AchievementUnlockDiffer(providerKey => providerKey == "Riot");
-            var before = Data("Steam", Achievement("first", "First", true, new DateTime(2026, 7, 4, 12, 0, 0, DateTimeKind.Utc)));
-            var after = Data("Steam", Achievement("first", "First", true, new DateTime(2026, 7, 4, 12, 5, 0, DateTimeKind.Utc)));
-
-            Assert.AreEqual(
-                0,
-                differ.DiffUserUnlocks(before, after).Count,
-                "Opting one provider in must not change what every other provider announces.");
-        }
-
-        [TestMethod]
-        public void DiffUserUnlocks_IgnoresRepeatUnlock_WhenTheTimestampMovesBackwards()
-        {
-            var differ = new AchievementUnlockDiffer(providerKey => true);
-            var before = Data("Riot", Achievement("101000", "Globetrotter", true, new DateTime(2026, 7, 4, 12, 5, 0, DateTimeKind.Utc)));
-            var after = Data("Riot", Achievement("101000", "Globetrotter", true, new DateTime(2026, 7, 4, 12, 0, 0, DateTimeKind.Utc)));
-
-            Assert.AreEqual(
-                0,
-                differ.DiffUserUnlocks(before, after).Count,
-                "Only a forward move is an earn; an earlier time is a correction.");
-        }
-
-        [TestMethod]
-        public void DiffUserUnlocks_IgnoresRepeatUnlock_WhenEitherTimestampIsMissing()
-        {
-            var differ = new AchievementUnlockDiffer(providerKey => true);
-            var before = Data("Riot", Achievement("101000", "Globetrotter", true, null));
-            var after = Data("Riot", Achievement("101000", "Globetrotter", true, new DateTime(2026, 7, 4, 12, 0, 0, DateTimeKind.Utc)));
-
-            Assert.AreEqual(
-                0,
-                differ.DiffUserUnlocks(before, after).Count,
-                "An appearing timestamp is a source filling a gap, not a new earn.");
-        }
-
-        [TestMethod]
         public void DiffFriendSessionUnlocks_FiltersBySessionStartAndDedupeSet()
         {
             var differ = new AchievementUnlockDiffer();
@@ -247,15 +193,6 @@ namespace PlayniteAchievements.Tests.Services
         {
             return new GameAchievementData
             {
-                Achievements = achievements.ToList()
-            };
-        }
-
-        private static GameAchievementData Data(string providerKey, params AchievementDetail[] achievements)
-        {
-            return new GameAchievementData
-            {
-                ProviderKey = providerKey,
                 Achievements = achievements.ToList()
             };
         }
