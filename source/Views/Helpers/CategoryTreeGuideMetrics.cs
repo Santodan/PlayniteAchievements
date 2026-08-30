@@ -66,5 +66,27 @@ namespace PlayniteAchievements.Views.Helpers
         {
             return GetLaneCentre(depth) + TextGap;
         }
+
+        /// <summary>
+        /// Radius of a row's bead, capped at half the gap to the lane it hangs off.
+        ///
+        /// Lane spacing decays to three pixels at the deepest levels, which is narrower than a bead,
+        /// so a fixed radius would have deep beads overlapping - and hiding - the lane beside them.
+        /// Tapering keeps every lane visible and reads as depth in its own right.
+        /// </summary>
+        public static double GetBeadRadius(int depth, bool hasChildren)
+        {
+            var preferred = hasChildren ? NodeRadius : LeafNodeRadius;
+            if (depth <= 1)
+            {
+                return preferred;
+            }
+
+            var spacing = GetLaneCentre(depth) - GetLaneCentre(depth - 1);
+            return Math.Max(MinimumBeadRadius, Math.Min(preferred, spacing / 2d));
+        }
+
+        /// <summary>Floor for <see cref="GetBeadRadius"/>; below this a bead stops reading as one.</summary>
+        public const double MinimumBeadRadius = 2d;
     }
 }
