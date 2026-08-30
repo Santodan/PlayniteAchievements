@@ -61,8 +61,12 @@ namespace PlayniteAchievements.Services.Recording
         // AUDCLNT_BUFFERFLAGS_SILENT: the packet is digital silence, so its zeroed buffer stands.
         private const int BufferFlagsSilent = 0x2;
 
-        // The most dropped audio one gap will stand silence in for.
-        private const int MaxGapSeconds = 5;
+        /// <summary>
+        /// The most dropped audio one gap will stand silence in for. A consumer buffering these
+        /// packets must size its ring well above this: the pad arrives as a single burst, so a ring
+        /// merely equal to it is filled by one gap and drops everything else it held.
+        /// </summary>
+        internal const int MaxGapSeconds = 5;
 
         private static readonly Guid IID_IAudioClient = new Guid("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
         private static readonly Guid IID_IAudioCaptureClient = new Guid("C8ADBD64-E71E-48A0-A4DE-185C395CD317");

@@ -46,7 +46,16 @@ namespace PlayniteAchievements.Services.Recording
     {
         // Wall-clock pump cadence and buffered-provider depth.
         private const int PumpIntervalMs = 50;
-        private const int BufferSeconds = 5;
+
+        // The ring has to absorb a maximal gap pad without evicting the audio around it. An
+        // endpoint loopback delivers nothing while the endpoint is silent but its device clock
+        // keeps running, so ProcessLoopbackCapture reads every silent passage as a dropout and
+        // injects up to MaxGapSeconds of silence in one burst. At 5 s -- exactly MaxGapSeconds --
+        // a single such burst filled the ring and DiscardOnBufferOverflow threw away everything
+        // else in it, which is heard as continuous stutter. Field logs show the signature plainly:
+        // discarded tracks padded almost exactly (981.1s vs 985.9s, 306.3 vs 311.2, 1446.0 vs
+        // 1450.7), i.e. what overflowed WAS the padding, and it took the real audio with it.
+        private const int BufferSeconds = 4 * ProcessLoopbackCapture.MaxGapSeconds;
 
         // How long to wait for the first stamped packet before anchoring to the wall clock
         // instead. Only reached when the source is silent from the moment capture starts.
