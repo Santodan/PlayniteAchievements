@@ -1,0 +1,39 @@
+<UserControl x:Class="PlayniteAchievements.Views.Controls.CategoryPickerBox"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="32"
+             d:DesignWidth="320">
+
+    <Grid>
+        <!-- Editable so the same control both picks an existing category and names a new one.
+             Items show the leaf, with the full path on hover: a list of paths sharing long
+             prefixes is hard to scan, but two leaves can share a name under different parents. -->
+        <ComboBox x:Name="PickerComboBox"
+                  IsEditable="True"
+                  IsTextSearchEnabled="True"
+                  IsTextSearchCaseSensitive="False"
+                  StaysOpenOnEdit="True"
+                  DisplayMemberPath="LeafDisplay"
+                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                  VerticalContentAlignment="Center"
+                  PreviewKeyDown="PickerComboBox_PreviewKeyDown">
+            <ComboBox.ItemContainerStyle>
+                <Style TargetType="ComboBoxItem">
+                    <Setter Property="ToolTip" Value="{Binding PathDisplay}"/>
+                </Style>
+            </ComboBox.ItemContainerStyle>
+        </ComboBox>
+
+        <TextBlock x:Name="PlaceholderText"
+                   Text="{Binding Placeholder, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                   VerticalAlignment="Center"
+                   Margin="9,0,0,0"
+                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                   Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                   IsHitTestVisible="False"
+                   Visibility="Collapsed"/>
+    </Grid>
+</UserControl>
