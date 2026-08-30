@@ -4,49 +4,72 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Views.Dialogs
 {
     public partial class MergeCategoryDialog : UserControl
     {
-        public string SourceLabel
+        /// <summary>Leaf of the category being merged away, which is what the dialog shows.</summary>
+        public string SourceDisplay
         {
-            get => (string)GetValue(SourceLabelProperty);
-            set => SetValue(SourceLabelProperty, value);
+            get => (string)GetValue(SourceDisplayProperty);
+            set => SetValue(SourceDisplayProperty, value);
         }
 
-        public static readonly DependencyProperty SourceLabelProperty =
+        public static readonly DependencyProperty SourceDisplayProperty =
             DependencyProperty.Register(
-                nameof(SourceLabel),
+                nameof(SourceDisplay),
                 typeof(string),
                 typeof(MergeCategoryDialog),
                 new PropertyMetadata(string.Empty));
 
-        public IEnumerable<string> TargetOptions
+        /// <summary>Full display path of the source, offered on hover.</summary>
+        public string SourcePathDisplay
         {
-            get => (IEnumerable<string>)GetValue(TargetOptionsProperty);
+            get => (string)GetValue(SourcePathDisplayProperty);
+            set => SetValue(SourcePathDisplayProperty, value);
+        }
+
+        public static readonly DependencyProperty SourcePathDisplayProperty =
+            DependencyProperty.Register(
+                nameof(SourcePathDisplay),
+                typeof(string),
+                typeof(MergeCategoryDialog),
+                new PropertyMetadata(string.Empty));
+
+        public IReadOnlyList<CategoryPickerOption> TargetOptions
+        {
+            get => (IReadOnlyList<CategoryPickerOption>)GetValue(TargetOptionsProperty);
             set => SetValue(TargetOptionsProperty, value);
         }
 
         public static readonly DependencyProperty TargetOptionsProperty =
             DependencyProperty.Register(
                 nameof(TargetOptions),
-                typeof(IEnumerable<string>),
+                typeof(IReadOnlyList<CategoryPickerOption>),
                 typeof(MergeCategoryDialog),
-                new PropertyMetadata(Array.Empty<string>()));
+                new PropertyMetadata(Array.Empty<CategoryPickerOption>()));
 
-        public string SelectedTarget
+        public CategoryPickerOption SelectedOption
         {
-            get => (string)GetValue(SelectedTargetProperty);
-            set => SetValue(SelectedTargetProperty, value);
+            get => (CategoryPickerOption)GetValue(SelectedOptionProperty);
+            set => SetValue(SelectedOptionProperty, value);
         }
 
-        public static readonly DependencyProperty SelectedTargetProperty =
+        public static readonly DependencyProperty SelectedOptionProperty =
             DependencyProperty.Register(
-                nameof(SelectedTarget),
-                typeof(string),
+                nameof(SelectedOption),
+                typeof(CategoryPickerOption),
                 typeof(MergeCategoryDialog),
-                new PropertyMetadata(string.Empty));
+                new PropertyMetadata(null));
+
+        /// <summary>
+        /// Storage label of the chosen target, for the caller to merge into. Read off the selected
+        /// option rather than bound to the box: the box shows leaves, and two categories can share
+        /// one, so the displayed text is not enough to identify the target.
+        /// </summary>
+        public string SelectedTarget => SelectedOption?.Label;
 
         public bool? DialogResult { get; private set; }
 
@@ -56,16 +79,18 @@ namespace PlayniteAchievements.Views.Dialogs
         {
             InitializeComponent();
 
-            var options = (targetOptions ?? Enumerable.Empty<string>())
-                .Where(label => !string.IsNullOrWhiteSpace(label))
-                .Where(label => !string.Equals(label, sourceLabel, StringComparison.OrdinalIgnoreCase))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(label => label, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var options = CategoryPickerResolver.BuildOptions(
+                (targetOptions ?? Enumerable.Empty<string>())
+                    .Where(label => !string.IsNullOrWhiteSpace(label))
+                    .Where(label => !string.Equals(label, sourceLabel, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(label => label, StringComparer.OrdinalIgnoreCase));
 
-            SourceLabel = sourceLabel ?? string.Empty;
+            // Display forms only. The stored label carries the internal path separator, which is
+            // never shown to a user.
+            SourceDisplay = AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(sourceLabel);
+            SourcePathDisplay = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(sourceLabel);
             TargetOptions = options;
-            SelectedTarget = options.FirstOrDefault() ?? string.Empty;
+            SelectedOption = options.FirstOrDefault();
 
             DataContext = this;
         }

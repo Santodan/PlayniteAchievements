@@ -321,36 +321,15 @@
                             Height="{StaticResource PlayAch.Size.Control.Height}"
                             Margin="8,6,0,0" />
 
-                    <TextBox x:Name="CategoryInputTextBox"
-                             Grid.Row="2"
-                             Grid.Column="0"
-                             Padding="8,6"
-                             VerticalAlignment="Center"
-                             KeyDown="CategoryInputTextBox_KeyDown"
-                             Margin="{StaticResource PlayAch.Thickness.Top.Sm}" />
-
-                    <TextBlock Grid.Row="2"
-                               Grid.Column="0"
-                               Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
-                               VerticalAlignment="Center"
-                               Margin="9,8,0,0"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
-                               IsHitTestVisible="False">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ElementName=CategoryInputTextBox, Path=Text}" Value="">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ElementName=CategoryInputTextBox, Path=Text}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+                    <!-- Pick a category the game already has, or type a new one. The options are
+                         the same list the category filter offers, so the two stay in step. -->
+                    <controls:CategoryPickerBox x:Name="CategoryInputPicker"
+                                                Grid.Row="2"
+                                                Grid.Column="0"
+                                                VerticalAlignment="Center"
+                                                Categories="{Binding CategoryLabelFilterOptions}"
+                                                Placeholder="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
+                                                Margin="{StaticResource PlayAch.Thickness.Top.Sm}" />
 
                         <Button x:Name="ApplyBulkButton"
                             Grid.Row="2"

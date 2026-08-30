@@ -63,6 +63,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
             });
 
             viewModel.CategoryRowsMoved += (_, labels) => RestoreCategoryManagerSelectionByLabels(labels);
+
+            // Enter in the bulk picker applies, matching the plain text box it replaced. The
+            // control raises this only when its drop-down is closed, so Enter still picks the
+            // highlighted row while the list is open.
+            CategoryInputPicker.Committed += (_, __) => ApplyBulk();
         }
 
         private ManageAchievementsCategoryViewModel ViewModel => DataContext as ManageAchievementsCategoryViewModel;
@@ -132,15 +137,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 AchievementCategoryTypeHelper.ToCategoryLabelDisplayText);
         }
 
-        private void CategoryInputTextBox_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter)
-            {
-                ApplyBulk();
-                e.Handled = true;
-            }
-        }
-
         private void ApplyBulk()
         {
             if (ViewModel == null)
@@ -154,10 +150,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            var applied = ViewModel.ApplyBulkToSelection(selectedRows, CategoryInputTextBox.Text);
+            var applied = ViewModel.ApplyBulkToSelection(selectedRows, CategoryInputPicker.ResolveSelection());
             if (applied)
             {
-                CategoryInputTextBox.Text = string.Empty;
+                CategoryInputPicker.SetInitialCategory(null);
                 ViewModel.ResetBulkEditorInputs();
                 ViewModel.ClearAllSelections();
             }
@@ -179,7 +175,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var cleared = ViewModel.ClearSelectionOverrides(selectedRows);
             if (cleared)
             {
-                CategoryInputTextBox.Text = string.Empty;
+                CategoryInputPicker.SetInitialCategory(null);
                 ViewModel.ResetBulkEditorInputs();
             }
         }
@@ -438,7 +434,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 elements.Add(TypeSelectionButton);
                 elements.Add(ClearSelectedButton);
-                elements.Add(CategoryInputTextBox);
+                elements.Add(CategoryInputPicker);
                 elements.Add(ApplyBulkButton);
             }
 
@@ -639,10 +635,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            var inputText = contextItem?.CategoryDisplay ?? string.Empty;
-            var inputDialog = new TextInputDialog(
+            var inputDialog = new CategoryPickerDialog(
                 L("LOCPlayAch_ManageAchievements_Category_Context_SetLabelHint"),
-                inputText);
+                ViewModel.CategoryLabelFilterOptions,
+                contextItem?.Category);
             var window = PlayniteUiProvider.CreateExtensionWindow(
                 L("LOCPlayAch_ManageAchievements_Category_Context_SetLabelTitle"),
                 inputDialog,
@@ -664,8 +660,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            inputText = (inputDialog.InputText ?? string.Empty).Trim();
-            ViewModel.SetCategoryLabelForSelection(rows, inputText);
+            ViewModel.SetCategoryLabelForSelection(rows, (inputDialog.SelectedCategory ?? string.Empty).Trim());
         }
 
         private void MergeCategoryButton_Click(object sender, RoutedEventArgs e)
@@ -734,7 +729,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var cleared = ViewModel.ClearSelectionOverrides(rows);
             if (cleared)
             {
-                CategoryInputTextBox.Text = string.Empty;
+                CategoryInputPicker.SetInitialCategory(null);
                 ViewModel.ResetBulkEditorInputs();
             }
         }
@@ -784,7 +779,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var reset = ViewModel.ResetCategoryOverrides();
             if (reset)
             {
-                CategoryInputTextBox.Text = string.Empty;
+                CategoryInputPicker.SetInitialCategory(null);
                 ViewModel.ResetBulkEditorInputs();
             }
 

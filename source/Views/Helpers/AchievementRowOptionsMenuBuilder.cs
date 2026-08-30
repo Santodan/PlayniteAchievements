@@ -354,12 +354,47 @@ namespace PlayniteAchievements.Views.Helpers
             context.ApplyCategoryType(remaining);
         }
 
+        /// <summary>
+        /// Every category the game currently has, in the achievement cache's own order, for the
+        /// Set Category Label picker.
+        ///
+        /// Read from the achievement data rather than rebuilt from the category override maps: the
+        /// overrides only hold categories somebody has already edited, so a picker built from them
+        /// would omit every provider-supplied category - normally the whole list. One cached
+        /// single-game read, on a menu click.
+        /// </summary>
+        private static IReadOnlyList<string> ResolveGameCategoryLabels(Guid gameId)
+        {
+            var achievements = PlayniteAchievementsPlugin.Instance?
+                .AchievementDataService?
+                .GetGameAchievementData(gameId)?
+                .Achievements;
+            if (achievements == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var labels = new List<string>();
+            foreach (var achievement in achievements)
+            {
+                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement?.Category);
+                if (!string.IsNullOrWhiteSpace(label) && seen.Add(label))
+                {
+                    labels.Add(label);
+                }
+            }
+
+            return labels;
+        }
+
         private static bool SetCategoryLabel(
             AchievementRowContext context,
             FrameworkElement resourceOwner)
         {
-            var inputDialog = new TextInputDialog(
+            var inputDialog = new CategoryPickerDialog(
                 L(resourceOwner, "LOCPlayAch_ManageAchievements_Category_Context_SetLabelHint"),
+                ResolveGameCategoryLabels(context.GameId),
                 context.CategoryLabel);
             var window = PlayniteUiProvider.CreateExtensionWindow(
                 L(resourceOwner, "LOCPlayAch_ManageAchievements_Category_Context_SetLabelTitle"),
@@ -382,7 +417,7 @@ namespace PlayniteAchievements.Views.Helpers
                 return false;
             }
 
-            var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(inputDialog.InputText);
+            var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(inputDialog.SelectedCategory);
             if (string.IsNullOrWhiteSpace(normalizedCategory))
             {
                 return false;
