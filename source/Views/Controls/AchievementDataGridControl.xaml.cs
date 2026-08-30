@@ -1395,10 +1395,10 @@ namespace PlayniteAchievements.Views.Controls
             // Every node of the tree at once rather than one level per click: the list is the whole
             // map, so any category is one click away and one click back.
             //
-            // Rendered as a flat list - nesting is a backend concept here, with no depth cue on the
-            // row. Rows are titled with their leaf name: the name column sorts on what it shows, and
-            // retitling to full paths made sorting swap the whole column's text for long shared
-            // prefixes. A nested row's path is on hover instead.
+            // Rows are titled with their leaf name and placed by the connector guide the leftmost
+            // column draws (stamped in ApplyCategoryNameFilter). The name column sorts on what it
+            // shows, and retitling to full paths made sorting swap the whole column's text for long
+            // shared prefixes; a nested row's path stays on hover.
             _allCategorySummaries = items == null || items.Count == 0
                 ? null
                 : CategorySummaryBuilder.BuildTree(
@@ -1455,6 +1455,11 @@ namespace PlayniteAchievements.Views.Controls
                     visible = sorted;
                 }
             }
+
+            // Tree connectors describe the pre-order run the builder emitted, so they survive the
+            // name filter above (the surviving rows keep their order) but not a manual column sort,
+            // which reorders rows into something the lanes would misdescribe.
+            CategoryTreeShapeBuilder.Stamp(visible, enabled: !_categorySortDirection.HasValue);
 
             CategorySummaries = visible;
             CategoryListGrid?.SetSortIndicator(_categorySortPath, _categorySortDirection);
