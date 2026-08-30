@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.ManageAchievements"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              mc:Ignorable="d"
@@ -544,10 +545,17 @@
                         <DataGridTemplateColumn Width="3*" MinWidth="260" Header="{DynamicResource LOCPlayAch_Common_Label_Category}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <!-- Depth is shown by indentation; the row edits its own name
-                                         only, and the full path is on hover. -->
-                                    <StackPanel VerticalAlignment="Center"
-                                                Margin="{Binding IndentMargin}">
+                                  <!-- Depth is shown by the same tree connectors the category-mode
+                                       grid draws; the row edits its own name only, and the full
+                                       path is on hover. The guide's own width is the indent. -->
+                                  <DockPanel LastChildFill="True">
+                                    <controls:CategoryTreeGuide DockPanel.Dock="Left"
+                                                                VerticalAlignment="Stretch"
+                                                                Shape="{Binding TreeShape}"
+                                                                LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                                                NodeBrush="{DynamicResource PlayAch.Brush.Accent}"
+                                                                NodeHoleBrush="{DynamicResource PlayAch.Brush.Grid.RowBackground}"/>
+                                    <StackPanel VerticalAlignment="Center">
                                         <Grid>
                                             <!-- The tooltip sits on the TextBox, not the panel: the
                                                  box covers the cell, and a panel's tooltip never
@@ -589,6 +597,7 @@
                                                    FontSize="{DynamicResource PlayAch.FontSize.Caption}"
                                                    Margin="0,3,0,0" />
                                     </StackPanel>
+                                  </DockPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
