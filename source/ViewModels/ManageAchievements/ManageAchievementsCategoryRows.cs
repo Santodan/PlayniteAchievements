@@ -81,16 +81,28 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>
         /// Depth of this row's category path, 1 for a root. The grid is a flat list, so nesting is
-        /// conveyed by indentation rather than by a tree control - the single metadata writer
-        /// rebuilds order and art from the rendered rows, which a virtualizing tree would break.
+        /// conveyed by the tree connectors the category cell draws rather than by a tree control -
+        /// the single metadata writer rebuilds order and art from the rendered rows, which a
+        /// virtualizing tree would break.
         /// </summary>
         public int CategoryDepth { get; internal set; } = 1;
 
-        public Thickness IndentMargin => new Thickness(16 * Math.Max(0, CategoryDepth - 1), 0, 0, 0);
+        private CategoryTreeShape _treeShape;
+
+        /// <summary>
+        /// Connector geometry for this row, or null when the list has no nesting to draw. Stamped
+        /// by the view model, which is the only place that knows the rendered order - a row cannot
+        /// tell from its own path whether a lane continues past it.
+        /// </summary>
+        public CategoryTreeShape TreeShape
+        {
+            get => _treeShape;
+            internal set => SetValue(ref _treeShape, value);
+        }
 
         /// <summary>
         /// The last path segment, which is what the row shows and what renaming edits. Ancestry is
-        /// conveyed by the indentation, and the full path by the row's tooltip.
+        /// conveyed by the connectors, and the full path by the row's tooltip.
         /// </summary>
         public string CategoryLeafDisplay => CategoryPathHelper.ToDisplayLeaf(CategoryLabel);
 
