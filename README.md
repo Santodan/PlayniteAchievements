@@ -99,7 +99,11 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+
+## 2026-08-30 - v3.1.3.2
+
 - Fixed missing categorized achievements fro `Local` platform
+- Attempt to fix / prevent the `CookiesBadAfterRefresh` in steam refresh
 
 ## 2026-08-24 - v3.1.3.1
 
@@ -112,6 +116,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the multiple folders dropdown not showing correctly
 - Fixed the RA subset selection not been saved after Playnite's restart
 - Added the option in the `Theme Migration` to change the right click behavior for the `StartPage` extension to use the default playnite context menu
+
+## Old Changelogs
+<details>
 
 ## 2026-08-08 - v3.1.1.1
 
@@ -130,9 +137,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Made the `Achievement Notification` screenshot and video recording to work independently if the notification is active or not
   - This way it can be used with the original notification from the original fork with the changes to the settings.
 - Changed the Screenshot behavior to be a mirror of the original fork screenshot mechanism with the additional wildcard in the path and name
-
-## Old Changelogs
-<details>
 
 ## 2026-08-06 - v3.1.0.1
 

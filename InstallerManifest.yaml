@@ -1,5 +1,13 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 3.1.3.2
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-08-13
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v3.1.3.2/PlayniteAchievementsSantodan_3_1_3_2.pext
+    Changelog:
+    - "Fixed missing categorized achievements fro `Local` platform"
+    - "Attempt to fix / prevent the `CookiesBadAfterRefresh` in steam refresh"
+
   - Version: 3.1.3.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-08-13
