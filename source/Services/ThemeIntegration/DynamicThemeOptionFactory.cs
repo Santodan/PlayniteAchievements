@@ -131,9 +131,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     applyCommand)
             };
 
+            // Leaf, not the full path. A theme renders this list flat, with no room and no
+            // structure to carry ancestry, and existing themes were built against plain category
+            // names - a nested category turning into "Base Game > Season Pass" would overflow the
+            // control it lands in. The option's key still carries the full path, so filtering
+            // continues to target the exact category.
             options.AddRange(orderedLabels.Select(label => new DynamicThemeOption(
                 label,
-                AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(label),
+                AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(label),
                 counts.TryGetValue(label, out var count) ? count : 0,
                 IsSelected(label, selectedKey),
                 applyCommand)));
