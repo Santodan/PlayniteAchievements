@@ -53,6 +53,11 @@
     <Compile Include="..\..\source\Providers\GameJolt\GameJoltModels.cs" Link="Source\Providers\GameJolt\GameJoltModels.cs" />
     <Compile Include="..\..\source\Providers\GameJolt\GameJoltTrophyMapper.cs" Link="Source\Providers\GameJolt\GameJoltTrophyMapper.cs" />
 
+    <Compile Include="..\..\source\Providers\Riot\RiotModels.cs" Link="Source\Providers\Riot\RiotModels.cs" />
+    <Compile Include="..\..\source\Providers\Riot\RiotRegions.cs" Link="Source\Providers\Riot\RiotRegions.cs" />
+    <Compile Include="..\..\source\Providers\Riot\RiotChallengeLevels.cs" Link="Source\Providers\Riot\RiotChallengeLevels.cs" />
+    <Compile Include="..\..\source\Providers\Riot\RiotChallengeMapper.cs" Link="Source\Providers\Riot\RiotChallengeMapper.cs" />
+
     <Compile Include="..\..\source\Providers\GOG\GogApiClient.cs" Link="Source\Providers\GOG\GogApiClient.cs" />
     <Compile Include="..\..\source\Providers\GOG\GogAuthModels.cs" Link="Source\Providers\GOG\GogAuthModels.cs" />
     <Compile Include="..\..\source\Providers\GOG\GogClientIdCacheStore.cs" Link="Source\Providers\GOG\GogClientIdCacheStore.cs" />
