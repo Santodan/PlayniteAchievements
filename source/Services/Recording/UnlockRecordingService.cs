@@ -92,20 +92,44 @@ namespace PlayniteAchievements.Services.Recording
         // chimes ring for as long as their toast shows — but is hard-capped at
         // ChimeMaxSliceSeconds. The cap keeps the NEXT sequential wave's chime (which fires
         // ~duration+1s after this one) out of the window with real margin, and shortens the span
-        // the cancellation's drift tracker must cover. ChimeLeadBeforeToastSeconds is how far the
-        // chime onset precedes the toast reveal in the clip (sound fires, then the 450ms
-        // sound-align delay plus ~300ms of slide-in precede the settled card).
+        // the cancellation's drift tracker must cover.
         private const double ChimeTailBeyondToastSeconds = 0.5;
         private const double ChimeMaxSliceSeconds = 4.0;
         private const double ChimeFadeOutSeconds = 0.15;
-        private const double ChimeLeadBeforeToastSeconds = 0.75;
+
+        // How far the chime onset precedes the card in the clip. Measured per clip from the two
+        // stamps that bracket it live -- when the sound fired, and when the card's first frame
+        // rendered -- because the composited card plays its own recorded animation from its first
+        // frame, so that frame is what the chime must lead.
+        //
+        // The constant this replaces was 0.75s, derived as the sound-align delay plus the slide-in
+        // duration, i.e. the distance to the SETTLED card. Subtracting it from the animation start
+        // double-counted the slide and put the chime a slide-length early; on the fast path, whose
+        // sound-align delay is 150ms rather than 450ms, it was early by twice that again. Both are
+        // themeable or version-dependent, so they are read rather than modelled.
+        private const double ChimeLeadFallbackSeconds = 0.45;
+        private const double ChimeLeadMaxSeconds = 2.0;
 
         /// <summary>
-        /// Fallback mix level for a chime composited from its resolved sound file, used only
-        /// when the volume UniPlaySong played it at could not be read from its settings; -8 dB
-        /// approximates a typical notification level against loopback-captured game audio.
+        /// How loud the composited chime sits against loopback-captured game audio. -8 dB
+        /// approximates a typical notification level; the volume UniPlaySong played the chime at
+        /// scales this, so turning its jingles down quietens the clip too.
+        /// <para>
+        /// This is a mix level, not a playback volume, and the two are not interchangeable.
+        /// Compositing at the played volume alone put the file in at full scale on a default
+        /// UniPlaySong install, which is where "the chime is too loud in clips" came from.
+        /// </para>
         /// </summary>
-        private const double ChimeFileMixGain = 0.4;
+        private const double ChimeCompositeMixGain = 0.4;
+
+        /// <summary>
+        /// Fallback for the live-chime REMOVAL reference when the played volume is unknown.
+        /// Deliberately separate from <see cref="ChimeCompositeMixGain"/> despite the equal value:
+        /// this one has to approximate the amplitude actually captured, because the cancellation
+        /// calibrates its global gain near unity against it. Trimming it to taste would
+        /// under-subtract and leave the live chime audible under the composited one.
+        /// </summary>
+        private const double ChimeReferenceFallbackGain = 0.4;
         private const int PruneIntervalSeconds = 30;
         private const int DrainTimeoutSeconds = 45;
         // Fallbacks matching the PersistedSettings defaults, used when settings are unavailable.
@@ -1344,6 +1368,7 @@ namespace PlayniteAchievements.Services.Recording
             var clipOriginUtc = clipStartUtc == default(DateTime) ? window.StartUtc : clipStartUtc;
             var toastStartSeconds = videoLeadSeconds + (overlayStartUtc - clipOriginUtc).TotalSeconds;
             var endSeconds = toastStartSeconds + overlaySeconds;
+            var chimeLeadSeconds = ResolveChimeLeadSeconds(request, track);
 
             // Where the card landed, and how far the real notification was from it. Unlock-anchored,
             // that gap is the provider's detection lag, and seeing it beside the placement makes an
@@ -1356,11 +1381,12 @@ namespace PlayniteAchievements.Services.Recording
                 $"the notification itself appeared " +
                 $"{(track.StartUtc - window.ToastAnchorUtc).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}s later " +
                 $"({Stamp(track.StartUtc)}). lead={videoLeadSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
-                $"end={endSeconds.ToString("F2", CultureInfo.InvariantCulture)}s");
+                $"end={endSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
+                $"chimeLead={chimeLeadSeconds.ToString("F3", CultureInfo.InvariantCulture)}s");
             // The wave's own chime, read from the Playnite-only sidecar at its real time, mixed
-            // in slightly before the composited toast (matching the live sound-to-reveal lead).
+            // in ahead of the composited card by the lead the two actually had live.
             var chimePcm = await TryReadChimePcmAsync(session, request).ConfigureAwait(false);
-            var chimeStartSeconds = toastStartSeconds - ChimeLeadBeforeToastSeconds;
+            var chimeStartSeconds = toastStartSeconds - chimeLeadSeconds;
             var tempPath = Path.Combine(session.BufferDirectory, $"clipovl_{Guid.NewGuid():N}.mp4");
             await _reencodeGate.WaitAsync().ConfigureAwait(false);
             try
@@ -1575,6 +1601,42 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
+        /// How far the chime onset precedes the composited card, from the live stamps: the moment
+        /// the wave sound fired, and the moment the card's first frame rendered. The card plays its
+        /// recorded animation from that first frame, so reproducing this gap reproduces what the
+        /// user heard and saw.
+        /// <para>
+        /// Falls back to the sound-align delay's default when either stamp is missing, or when
+        /// their gap is not plausible — negative means the card beat its own sound, and a very
+        /// large one means the sound belongs to a different wave. Neither should place a chime.
+        /// </para>
+        /// </summary>
+        private double ResolveChimeLeadSeconds(ClipRequest request, ToastOverlayTrack track)
+        {
+            DateTime? ownSound;
+            lock (_gate)
+            {
+                ownSound = request.OwnSoundUtc;
+            }
+
+            if (!ownSound.HasValue || track == null || track.StartUtc == default(DateTime))
+            {
+                return ChimeLeadFallbackSeconds;
+            }
+
+            var measured = (track.StartUtc - ownSound.Value).TotalSeconds;
+            if (measured < 0 || measured > ChimeLeadMaxSeconds)
+            {
+                _logger?.Debug(
+                    $"[Recording] Chime lead {measured.ToString("F3", CultureInfo.InvariantCulture)}s is " +
+                    "outside the plausible range; using the default sound-align lead.");
+                return ChimeLeadFallbackSeconds;
+            }
+
+            return measured;
+        }
+
+        /// <summary>
         /// Reads this request's chime from the Playnite-tree sidecar chunks at the moment its wave
         /// sound actually played. When the game is a Playnite descendant, its same-time game-only
         /// reference is aligned and cancelled first; this is what prevents the sidecar from adding
@@ -1612,11 +1674,15 @@ namespace PlayniteAchievements.Services.Recording
                 ChimeTailBeyondToastSeconds;
             if (soundFilePath != null)
             {
-                // The exact file the wave played, mixed at the volume UniPlaySong played it at
-                // (its jingles follow MusicVolume): no captured copy, no separation to verify,
-                // and no wait for a sidecar chunk to close.
+                // The exact file the wave played, mixed at the clip level scaled by the volume
+                // UniPlaySong played it at (its jingles follow MusicVolume): no captured copy, no
+                // separation to verify, and no wait for a sidecar chunk to close. An unreadable
+                // volume leaves the mix level standing on its own.
                 var filePcm = ChimeSoundFile.TryReadPcm(
-                    soundFilePath, chimeSeconds, soundFileGain ?? ChimeFileMixGain, _logger);
+                    soundFilePath,
+                    chimeSeconds,
+                    ChimeCompositeMixGain * (soundFileGain ?? 1.0),
+                    _logger);
                 if (filePcm != null)
                 {
                     PcmAudio.FadeOutTail(filePcm, ChimeFadeOutSeconds);
@@ -1821,7 +1887,7 @@ namespace PlayniteAchievements.Services.Recording
                 // Decoded at the played volume so the global gain calibrates near unity: a
                 // full-scale reference against a quiet live chime reads as "no chime present".
                 var pcm = ChimeSoundFile.TryReadPcm(
-                    chime.Path, chimeLengthSeconds, chime.Gain ?? ChimeFileMixGain, _logger);
+                    chime.Path, chimeLengthSeconds, chime.Gain ?? ChimeReferenceFallbackGain, _logger);
                 if (pcm == null)
                 {
                     _logger?.Warn(
