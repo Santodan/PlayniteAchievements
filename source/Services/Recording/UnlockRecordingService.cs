@@ -753,10 +753,13 @@ namespace PlayniteAchievements.Services.Recording
                     inFlight = _inFlightTasks.ToArray();
                 }
 
+                var drained = true;
                 if (inFlight.Length > 0)
                 {
-                    await Task.WhenAny(Task.WhenAll(inFlight), Task.Delay(TimeSpan.FromSeconds(DrainTimeoutSeconds)))
-                        .ConfigureAwait(false);
+                    var all = Task.WhenAll(inFlight);
+                    var finished = await Task.WhenAny(
+                        all, Task.Delay(TimeSpan.FromSeconds(DrainTimeoutSeconds))).ConfigureAwait(false);
+                    drained = ReferenceEquals(finished, all);
                 }
 
                 session.WgcRecorder?.Dispose();
@@ -766,7 +769,24 @@ namespace PlayniteAchievements.Services.Recording
                 session.ChimeRecorder?.Dispose();
                 session.ChimeRecorder = null;
 
-                TryDeleteDirectory(session.BufferDirectory);
+                // Only once nothing is still using it. An export that outran the drain writes its
+                // sink INTO this directory, so deleting on timeout pulled the path out from under
+                // it: field log, session stopped 18:03:03, export failed 18:04:03 with
+                // "CreateSinkWriterFromURL ... 0x80070003 The system cannot find the path
+                // specified", and that clip was lost. A directory left behind is swept by
+                // CleanupStaleBufferDirectories on the next session, so the cost of waiting is
+                // bounded disk, while the cost of deleting is the clip.
+                if (drained)
+                {
+                    TryDeleteDirectory(session.BufferDirectory);
+                }
+                else
+                {
+                    _logger?.Warn(
+                        "[Recording] Clip work outran the shutdown drain; leaving " +
+                        $"'{Path.GetFileName(session.BufferDirectory)}' for the next session's sweep " +
+                        "rather than deleting a directory an export is still writing into.");
+                }
             }
             catch (Exception ex)
             {
