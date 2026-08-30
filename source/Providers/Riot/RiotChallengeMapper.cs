@@ -219,38 +219,99 @@ namespace PlayniteAchievements.Providers.Riot
                 return;
             }
 
-            // At the top tier there is nothing left to chase, so the bar is pinned full rather than
-            // showing an overachieving value beyond its own denominator.
-            var current = next == null ? Math.Min(value, target) : value;
-
-            achievement.ProgressNum = ToProgressInt(current);
+            // The value can legitimately pass the next threshold without the tier being awarded:
+            // 181 of 400 challenges gate Grandmaster and Challenger on a top-N leaderboard place
+            // rather than on a number. Pinning the bar full says "the number is met" without
+            // rendering past 100%.
+            achievement.ProgressNum = ToProgressInt(Math.Min(value, target));
             achievement.ProgressDenom = ToProgressInt(target);
         }
 
         /// <summary>
         /// Riot reports percentiles as a 0..1 fraction of the player base at or above a tier, which
         /// is the same "share of players who have it" the rarity model expects once scaled to 0-100.
+        ///
+        /// Riot writes a literal 0.0 where it has no figure, which is not the same as "no players":
+        /// live data shows tables such as IRON=0 with MASTER=0.029, and nobody can hold Master
+        /// without holding Iron. Zeroes are therefore treated as absent, not as ultra-rare.
         /// </summary>
         private static double? ResolveGlobalPercent(
             RiotChallengeInfoDto playerInfo,
             IReadOnlyDictionary<string, double> challengePercentiles,
             bool unlocked)
         {
-            if (unlocked && playerInfo?.Percentile.HasValue == true)
+            // Riot computes the player's own percentile for the tier they hold, so it beats the
+            // shared table whenever it carries a figure.
+            if (unlocked && IsRealPercentile(playerInfo?.Percentile))
             {
                 return ScalePercentile(playerInfo.Percentile.Value);
             }
 
-            // A locked challenge still deserves a rarity, so fall back to the share of players who
-            // have reached its first tier.
-            if (challengePercentiles != null &&
-                challengePercentiles.TryGetValue(RiotChallengeLevels.Iron, out var ironPercentile))
+            // An unlocked challenge is measured at the tier the player holds; a locked one at the
+            // first tier, which is the share of players who have it at all.
+            var targetRank = unlocked
+                ? RiotChallengeLevels.GetRank(playerInfo?.Level)
+                : RiotChallengeLevels.GetRank(RiotChallengeLevels.Iron);
+
+            var nearest = FindNearestPercentile(challengePercentiles, Math.Max(targetRank, 1));
+
+            // Nothing usable in the table leaves rarity unset rather than guessed; the display layer
+            // treats an absent percentage as the common default.
+            return nearest.HasValue ? ScalePercentile(nearest.Value) : (double?)null;
+        }
+
+        /// <summary>
+        /// Finds the closest populated tier to <paramref name="targetRank"/>, searching downward
+        /// first. Percentiles descend as tiers rise, so a lower tier bounds the target from above —
+        /// erring toward "more common" rather than inflating rarity on a gap in Riot's data.
+        /// </summary>
+        private static double? FindNearestPercentile(
+            IReadOnlyDictionary<string, double> challengePercentiles,
+            int targetRank)
+        {
+            if (challengePercentiles == null || challengePercentiles.Count == 0)
             {
-                return ScalePercentile(ironPercentile);
+                return null;
+            }
+
+            for (var rank = targetRank; rank >= 1; rank--)
+            {
+                if (TryGetRealPercentile(challengePercentiles, rank, out var below))
+                {
+                    return below;
+                }
+            }
+
+            for (var rank = targetRank + 1; rank < RiotChallengeLevels.Ascending.Length; rank++)
+            {
+                if (TryGetRealPercentile(challengePercentiles, rank, out var above))
+                {
+                    return above;
+                }
             }
 
             return null;
         }
+
+        private static bool TryGetRealPercentile(
+            IReadOnlyDictionary<string, double> challengePercentiles,
+            int rank,
+            out double percentile)
+        {
+            percentile = 0d;
+
+            if (!challengePercentiles.TryGetValue(RiotChallengeLevels.Ascending[rank], out var value) ||
+                !IsRealPercentile(value))
+            {
+                return false;
+            }
+
+            percentile = value;
+            return true;
+        }
+
+        private static bool IsRealPercentile(double? percentile)
+            => percentile.HasValue && percentile.Value > 0d && !double.IsNaN(percentile.Value);
 
         private static double ScalePercentile(double percentile)
         {
