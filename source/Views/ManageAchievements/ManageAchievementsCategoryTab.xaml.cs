@@ -480,14 +480,43 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             menu.Items.Add(new Separator());
 
-            // Merge is a one-source dialog, so it stays single-row.
+            // Merge is one source into one target, so it stays single-row. The target list is the
+            // same connector tree the subcategory submenu draws; the source's own subtree is
+            // excluded because the merge folds that whole subtree away.
             var mergeRow = rows.Count == 1 ? rows[0] : null;
-            var mergeItem = CreateMenuItem(
-                L("LOCPlayAch_Common_Merge"),
-                () => OpenMergeDialogForRow(mergeRow));
-            mergeItem.ToolTip = L("LOCPlayAch_ManageAchievements_Category_MergeTooltip");
-            mergeItem.IsEnabled = mergeRow != null && !mergeRow.IsDefaultCategory && ViewModel.CanMergeCategories;
-            menu.Items.Add(mergeItem);
+            var mergeMenu = new MenuItem
+            {
+                Header = L("LOCPlayAch_ManageAchievements_Category_MergeDialog_Target"),
+                ToolTip = L("LOCPlayAch_ManageAchievements_Category_MergeTooltip")
+            };
+            if (mergeRow != null && !mergeRow.IsDefaultCategory && ViewModel.CanMergeCategories)
+            {
+                var sourceLabel = mergeRow.CategoryLabel;
+                var mergeTargets = ViewModel.CategoryRows
+                    .Where(candidate => candidate != null &&
+                        !string.IsNullOrWhiteSpace(candidate.CategoryLabel) &&
+                        !CategoryPathHelper.IsSelfOrDescendantOf(candidate.CategoryLabel, sourceLabel))
+                    .Select(candidate => candidate.CategoryLabel)
+                    .ToList();
+                var mergeTargetRows = CategoryFilterMenuBuilder.BuildRows(mergeTargets);
+                var mergeStyle = CategoryFilterMenuBuilder.ResolveItemStyle(this, mergeTargetRows);
+                foreach (var mergeTargetRow in mergeTargetRows)
+                {
+                    mergeMenu.Items.Add(CategoryFilterMenuBuilder.CreateActionItem(
+                        mergeTargetRow,
+                        mergeStyle,
+                        target =>
+                        {
+                            if (ViewModel?.MergeCategoryInto(sourceLabel, target) == true)
+                            {
+                                DataGridRowReorderBehavior.CancelPendingDrag(CategoryManagerDataGrid);
+                            }
+                        }));
+                }
+            }
+
+            mergeMenu.IsEnabled = mergeMenu.Items.Count > 0;
+            menu.Items.Add(mergeMenu);
 
             menu.Items.Add(CreateMenuItem(
                 L("LOCPlayAch_Common_Duplicate"),
@@ -977,56 +1006,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             ViewModel.SetCategoryLabelForSelection(rows, (inputDialog.SelectedCategory ?? string.Empty).Trim());
-        }
-
-        private void OpenMergeDialogForRow(ManageAchievementsCategoryMetadataItem row)
-        {
-            if (ViewModel == null || row == null)
-            {
-                return;
-            }
-
-            var sourceLabel = row.CategoryLabel;
-            var targetOptions = ViewModel.CategoryRows
-                .Where(candidate => candidate != null && !string.IsNullOrWhiteSpace(candidate.CategoryLabel))
-                .Select(candidate => candidate.CategoryLabel)
-                .ToList();
-
-            if (targetOptions.Count(label => !string.Equals(label, sourceLabel, StringComparison.OrdinalIgnoreCase)) == 0)
-            {
-                return;
-            }
-
-            var dialog = new MergeCategoryDialog(sourceLabel, targetOptions);
-            var window = PlayniteUiProvider.CreateExtensionWindow(
-                L("LOCPlayAch_ManageAchievements_Category_MergeDialog_Title"),
-                dialog,
-                new WindowOptions
-                {
-                    ShowMinimizeButton = false,
-                    ShowMaximizeButton = false,
-                    ShowCloseButton = true,
-                    CanBeResizable = false,
-                    Width = 500,
-                    Height = 220
-                });
-
-            WindowPlacementPersistenceService.Attach(
-                window,
-                ViewModel.PlacementSettings,
-                () => PlayniteAchievementsPlugin.Instance?.PersistSettingsForUi(),
-                "ManageAchievementsMergeCategoryDialog",
-                ViewModel.PlacementLogger);
-
-            dialog.RequestClose += (s, args) => window.Close();
-            window.ShowDialog();
-
-            if (dialog.DialogResult != true)
-            {
-                return;
-            }
-
-            ViewModel.MergeCategoryInto(sourceLabel, dialog.SelectedTarget);
         }
 
         private void ClearRowsFromContext(ManageAchievementsCategoryItem contextItem)
