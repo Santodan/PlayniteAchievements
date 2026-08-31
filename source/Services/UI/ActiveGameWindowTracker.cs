@@ -463,8 +463,66 @@ namespace PlayniteAchievements.Services.UI
                 // would keep that advantage for the rest of the session and outrank the game window
                 // that took focus from it.
                 RefreshLearnedFromScanLocked(tracked, candidates);
+                var previousHwnd = tracked.Learned.Hwnd;
                 LearnCandidateLocked(tracked, best);
+
+                // Log the whole field, not just the winner, the first time a game is resolved and
+                // whenever the target moves. Which window won is only half of a diagnosis; the other
+                // half is what it beat and on which signal — and without that, a report of "the clip
+                // shows the launcher" can only be guessed at.
+                if (candidates.Count > 1 && tracked.Learned.Hwnd != previousHwnd)
+                {
+                    LogCandidateField(tracked, candidates);
+                }
+
                 return tracked.Learned.Hwnd;
+            }
+        }
+
+        /// <summary>
+        /// Writes every candidate window with the signals it was ranked on, marking the winner. This
+        /// is the record that makes a mis-targeted capture diagnosable from the log alone, instead of
+        /// from assumptions about how a particular game launches.
+        /// </summary>
+        private void LogCandidateField(TrackedGame tracked, List<GameWindowCandidate> candidates)
+        {
+            var builder = new StringBuilder();
+            builder.Append("[WindowTracker] '").Append(tracked.Game?.Name).Append("' ranked ")
+                   .Append(candidates.Count).Append(" candidate windows:");
+            foreach (var candidate in candidates)
+            {
+                builder.Append(candidate.Hwnd == tracked.Learned.Hwnd ? "\n  CHOSEN  " : "\n          ")
+                       .Append(candidate)
+                       .Append(' ')
+                       .Append(DescribeCandidateProcess(candidate.Hwnd));
+            }
+
+            _logger?.Info(builder.ToString());
+        }
+
+        private static string DescribeCandidateProcess(IntPtr hwnd)
+        {
+            GetWindowThreadProcessId(hwnd, out var pid);
+            if (pid == 0)
+            {
+                return "exe:? pid:0";
+            }
+
+            var exe = TryGetProcessImagePath((int)pid);
+            return $"exe:{(string.IsNullOrEmpty(exe) ? "?" : Path.GetFileName(exe))} pid:{pid} " +
+                   $"class:'{TryGetWindowClass(hwnd)}' title:'{TryGetWindowTitle(hwnd)}'";
+        }
+
+        private static string TryGetWindowClass(IntPtr hwnd)
+        {
+            try
+            {
+                var builder = new StringBuilder(256);
+                return GetClassName(hwnd, builder, builder.Capacity) > 0 ? builder.ToString() : string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
             }
         }
 
