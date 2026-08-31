@@ -61,6 +61,11 @@ namespace PlayniteAchievements.Services.Recording
         // AUDCLNT_BUFFERFLAGS_SILENT: the packet is digital silence, so its zeroed buffer stands.
         private const int BufferFlagsSilent = 0x2;
 
+        // AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR: the engine could not stamp this packet reliably.
+        // Such a stamp can look plausible while being off by tens of milliseconds — enough to
+        // read as a dropout — so gap arithmetic must treat the packet as unstamped.
+        private const int BufferFlagsTimestampError = 0x4;
+
         /// <summary>
         /// The most dropped audio one gap will stand silence in for. A consumer buffering these
         /// packets must size its ring well above this: the pad arrives as a single burst, so a ring
@@ -115,77 +120,48 @@ namespace PlayniteAchievements.Services.Recording
         /// Non-zero means the track carries real glitches — worth reporting before a listener blames
         /// the gaps on a sync bug.
         /// </summary>
-        public long PaddedGapFrames => _paddedGapFrames;
-
-        private long _paddedGapFrames;
-
-        // The device frame position the next packet should begin at; -1 until the first one fixes it.
-        private long _nextDevicePosition = -1;
+        public long PaddedGapFrames => _gapTracker?.PaddedGapFrames ?? 0;
 
         /// <summary>
-        /// Frames missing between where the previous packet ended and where this one begins, per the
-        /// device's own frame counter, and advances that counter past this packet.
-        /// <para>
-        /// A jump is audio the engine dropped before it reached us — the glitch
-        /// AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY reports, whose size only the position reveals. The
-        /// result is capped so a driver reporting a nonsense position cannot make us insert an
-        /// unbounded run of silence, and drivers that never move the position simply report no gaps.
-        /// </para>
-        /// <para>
-        /// The per-gap cap is not enough on its own. <c>devicePosition</c> is the device clock's
-        /// own counter, and a client that asked the engine to convert format (AUTOCONVERTPCM, which
-        /// every forced-format endpoint capture does) cannot assume it advances one-for-one with the
-        /// frames it is handed. A field log shows a 219 s session reporting 658 s of padding — 3x
-        /// wall clock, from one capture. Padding cannot exceed elapsed time by definition, and once
-        /// it does the ring overflows however large it is, because the consumer drains at 1x. So the
-        /// running total is held to what the wall clock allows; the excess is counted separately and
-        /// reported, because it is evidence of the position bug rather than of dropped audio.
-        /// </para>
+        /// Frames of silence to stand in before the packet at hand. The arithmetic lives in
+        /// <see cref="AudioGapTracker"/>: gaps are measured from the packets' QPC stamps, whose
+        /// unit is fixed, rather than from <c>devicePosition</c> deltas, whose unit a client
+        /// that asked the engine to convert format (AUTOCONVERTPCM, which every forced-format
+        /// endpoint capture uses) cannot assume — a field machine advanced that counter at 4x
+        /// the frames delivered and padded 3 s of silence per real second. The position counter
+        /// remains the fallback for packets whose stamp is unusable, and the wall-clock
+        /// allowance still bounds every path.
         /// </summary>
-        private long TakeGapBefore(long devicePosition, uint framesAvailable)
+        private long TakeGapBefore(
+            long devicePosition, uint framesAvailable, long qpcPosition, bool stampUsable)
         {
-            var expected = _nextDevicePosition;
-            _nextDevicePosition = devicePosition + framesAvailable;
-            _deliveredFrames += framesAvailable;
-            if (expected < 0 || devicePosition <= expected)
-            {
-                return 0;
-            }
-
-            var gap = devicePosition - expected;
-            var cap = (long)WaveFormat.SampleRate * MaxGapSeconds;
-            if (gap > cap)
-            {
-                gap = cap;
-            }
-
-            // What the wall clock says can possibly be missing: elapsed real frames, less
-            // everything already delivered or padded. Never negative, never more than the gap.
             var elapsedFrames = (long)(
                 (CaptureTimelineClock.UtcNow - _captureStartedUtc).TotalSeconds * WaveFormat.SampleRate);
-            var allowed = elapsedFrames - _deliveredFrames - _paddedGapFrames;
-            if (allowed < 0)
-            {
-                allowed = 0;
-            }
-
-            if (gap > allowed)
-            {
-                _impossibleGapFrames += gap - allowed;
-                gap = allowed;
-            }
-
-            return gap;
+            return _gapTracker.TakeGapBefore(
+                devicePosition, framesAvailable, qpcPosition, stampUsable, elapsedFrames);
         }
 
         /// <summary>
-        /// Silence the device counter asked for beyond what the wall clock allows. Non-zero means
-        /// <c>devicePosition</c> is not advancing in this capture's own frames — see TakeGapBefore.
+        /// Silence a gap witness asked for beyond what the wall clock allows. Non-zero means a
+        /// witness is lying — a position counter not in this capture's frames, or a wild stamp.
         /// </summary>
-        public long ImpossibleGapFrames => _impossibleGapFrames;
+        public long ImpossibleGapFrames => _gapTracker?.ImpossibleGapFrames ?? 0;
 
-        private long _impossibleGapFrames;
-        private long _deliveredFrames;
+        /// <summary>
+        /// How fast the device position counter actually advances, in its own units per second,
+        /// measured against the packets' QPC stamps. Zero until measurable. Deviation from
+        /// <see cref="WaveFormat"/>'s rate names the unit mismatch the summary above describes.
+        /// </summary>
+        public double MeasuredDevicePositionRate => _gapTracker?.MeasuredDevicePositionRate ?? 0;
+
+        /// <summary>
+        /// Forces gap arithmetic onto the devicePosition fallback, ignoring stamps. A seam for
+        /// <c>tools/capture-harness/CaptureStarvationProbe</c> (--legacy-gap) so the pre-stamp
+        /// behavior stays reproducible from the same binary. Nothing in the plugin changes it.
+        /// </summary>
+        internal static bool ForceDevicePositionGaps { get; set; }
+
+        private AudioGapTracker _gapTracker;
         private DateTime _captureStartedUtc = DateTime.UtcNow;
 
         /// <summary>
@@ -574,10 +550,11 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
-            // The device counter is only meaningful within one run: carrying it across a restart would
-            // read as an enormous gap and pad the track with silence that never happened.
-            _nextDevicePosition = -1;
-            _deliveredFrames = 0;
+            // Neither the device counter nor the stamp chain is meaningful across a restart:
+            // carrying either would read the stopped interval as an enormous gap and pad the
+            // track with silence that never happened.
+            _gapTracker = new AudioGapTracker(
+                WaveFormat.SampleRate, MaxGapSeconds, stampsDisabled: ForceDevicePositionGaps);
             _captureStartedUtc = CaptureTimelineClock.UtcNow;
             _audioClient.Start();
             _capturing = true;
@@ -635,7 +612,13 @@ namespace PlayniteAchievements.Services.Recording
                             _firstPacketCaptureUtc = QpcToUtc(qpcPosition);
                         }
 
-                        var gapFrames = TakeGapBefore(devicePosition, framesAvailable);
+                        // The placement conversion already vetted the stamp (positive, plausibly
+                        // recent); the engine's own error flag vetoes it besides. SILENT packets
+                        // pass through here too — their positions and stamps keep the chain whole.
+                        var stampUsable = packetUtc.HasValue &&
+                            (flags & BufferFlagsTimestampError) == 0;
+                        var gapFrames = TakeGapBefore(
+                            devicePosition, framesAvailable, qpcPosition, stampUsable);
 
                         var buffer = new byte[bytes];
                         if ((flags & BufferFlagsSilent) == 0 && dataPtr != IntPtr.Zero && bytes > 0)
@@ -650,7 +633,6 @@ namespace PlayniteAchievements.Services.Recording
                         // permanently early against picture — A/V drift that never recovers.
                         if (gapFrames > 0)
                         {
-                            _paddedGapFrames += gapFrames;
                             var gapBytes = (int)gapFrames * blockAlign;
                             DataAvailable?.Invoke(this, new WaveInEventArgs(new byte[gapBytes], gapBytes));
                         }

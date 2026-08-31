@@ -73,6 +73,7 @@ $extraSources = @{
     ChimeCancelProbe = @((Join-Path $repo 'source\Services\Capture\PcmAudio.cs'))
     CaptureStarvationProbe = @(
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
+        (Join-Path $repo 'source\Services\Recording\AudioGapTracker.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
     ChimeRoundTripProbe = @(
@@ -81,12 +82,14 @@ $extraSources = @{
     ChimeSeparationProbe = @(
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
+        (Join-Path $repo 'source\Services\Recording\AudioGapTracker.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
     ChimeBurstProbe = @(
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ChimeSoundFile.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
+        (Join-Path $repo 'source\Services\Recording\AudioGapTracker.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioLoopbackRecorder.cs'),
         (Join-Path $repo 'source\Services\Recording\RenderEndpointScan.cs'),
@@ -103,6 +106,7 @@ $extraSources = @{
         (Join-Path $here 'ReferenceFramePath.cs'))
     HapticProbe = @(
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
+        (Join-Path $repo 'source\Services\Recording\AudioGapTracker.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'),
         (Join-Path $repo 'source\Services\Recording\RenderEndpointScan.cs'),
