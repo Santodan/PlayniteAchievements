@@ -183,5 +183,36 @@ namespace PlayniteAchievements.Views.Helpers
 
             return item;
         }
+
+        /// <summary>
+        /// A row with its connectors that fires an action when picked, for menus using the tree
+        /// as a one-shot target chooser rather than a checkable filter. Structural rows render
+        /// disabled: they are ancestry, not choices.
+        /// </summary>
+        public static CategoryTreeMenuItem CreateActionItem(
+            CategoryMenuRow row,
+            Style itemStyle,
+            Action<string> onPick)
+        {
+            var item = new CategoryTreeMenuItem
+            {
+                Header = row.LeafDisplay,
+                ToolTip = row.PathDisplay,
+                TreeShape = row.TreeShape,
+                IsEnabled = row.IsSelectable
+            };
+
+            if (itemStyle != null)
+            {
+                item.Style = itemStyle;
+            }
+
+            if (row.IsSelectable)
+            {
+                item.Click += (_, __) => onPick?.Invoke(row.Option);
+            }
+
+            return item;
+        }
     }
 }
