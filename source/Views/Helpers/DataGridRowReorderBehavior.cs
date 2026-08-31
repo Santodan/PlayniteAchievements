@@ -62,6 +62,13 @@ namespace PlayniteAchievements.Views.Helpers
         /// <summary>Optional: nests the keyed items onto the target item; returns true when applied.</summary>
         public Func<List<string>, object, bool> NestItemsOnTarget { get; set; }
 
+        /// <summary>
+        /// Optional: left inset for the insert line at (target item, insertAfter), letting a host
+        /// whose gaps carry meaning (a tree level) indent the line to say so. Null target = the
+        /// end-of-list line. Unset keeps the full-width line.
+        /// </summary>
+        public Func<object, bool, double> ResolveDropIndicatorInset { get; set; }
+
         /// <summary>Optional: invoked when a reorderable row is pressed outside the drag-handle column.</summary>
         public Action<object, MouseButtonEventArgs> RowPressOutsideDragHandle { get; set; }
 
@@ -621,8 +628,11 @@ namespace PlayniteAchievements.Views.Helpers
 
                     HideNestHighlight();
                     var rowTop = row.TranslatePoint(new Point(0, 0), _grid).Y;
-                    var lineY = zone == DataGridDropZoneKind.InsertAfter ? rowTop + row.ActualHeight : rowTop;
-                    ShowDropIndicator(lineY);
+                    var insertAfter = zone == DataGridDropZoneKind.InsertAfter;
+                    var lineY = insertAfter ? rowTop + row.ActualHeight : rowTop;
+                    ShowDropIndicator(
+                        lineY,
+                        _options.ResolveDropIndicatorInset?.Invoke(targetItem, insertAfter) ?? 0d);
                     return;
                 }
 
@@ -631,7 +641,9 @@ namespace PlayniteAchievements.Views.Helpers
                 HideNestHighlight();
                 if (_grid.Items.Count > 0)
                 {
-                    ShowDropIndicator(_grid.ActualHeight - 1);
+                    ShowDropIndicator(
+                        _grid.ActualHeight - 1,
+                        _options.ResolveDropIndicatorInset?.Invoke(null, false) ?? 0d);
                 }
                 else
                 {
@@ -685,7 +697,7 @@ namespace PlayniteAchievements.Views.Helpers
                 _nestVerdict = false;
             }
 
-            private void ShowDropIndicator(double y)
+            private void ShowDropIndicator(double y, double leftInset = 0d)
             {
                 if (double.IsNaN(y))
                 {
@@ -696,7 +708,12 @@ namespace PlayniteAchievements.Views.Helpers
                 var indicator = _options.DropIndicator;
                 var maxTop = Math.Max(0, _grid.ActualHeight - indicator.Height);
                 var top = Math.Max(0, Math.Min(maxTop, y - (indicator.Height / 2.0)));
-                indicator.Margin = new Thickness(0, top, 0, 0);
+                if (double.IsNaN(leftInset) || leftInset < 0d)
+                {
+                    leftInset = 0d;
+                }
+
+                indicator.Margin = new Thickness(leftInset, top, 0, 0);
                 indicator.Visibility = Visibility.Visible;
             }
 
