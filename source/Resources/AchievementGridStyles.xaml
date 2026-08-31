@@ -955,7 +955,6 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="Transparent"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            Margin="0,1"
                             CornerRadius="3"
                             SnapsToDevicePixels="True">
                         <Grid MinWidth="120"
@@ -1004,13 +1003,11 @@
     </Style>
 
     <!-- Variant of AchievementMultiSelectMenuItemStyle for a category filter whose paths nest.
-         Two differences, both load-bearing:
-
-         The row border loses its 1px vertical margin. A lane is drawn by every row it passes
-         through, so a gap between rows would break every vertical line in the menu.
 
          A guide column sits between the check gutter and the label, so the checkboxes stay in one
-         column and the tree grows to their right. The guide's own width is the indent.
+         column and the tree grows to their right. The guide's own width is the indent. Rows sit
+         flush against each other, as they do in the plain style, because a lane is drawn by every
+         row it passes through and a gap between rows would break every vertical line in the menu.
 
          A row synthesised to carry the tree is not checkable - it holds no achievements, so
          filtering to it would match nothing. Its check box is hidden rather than absent, keeping

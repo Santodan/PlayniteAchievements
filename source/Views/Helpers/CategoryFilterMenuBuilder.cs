@@ -60,7 +60,7 @@ namespace PlayniteAchievements.Views.Helpers
         /// <summary>Style key for a list that nests, which draws the connectors.</summary>
         private const string TreeItemStyleKey = "AchievementCategoryTreeMenuItemStyle";
 
-        /// <summary>Style key for a list with nothing to nest, which stays exactly as it was.</summary>
+        /// <summary>Style key for a list with nothing to nest, which keeps the plain row.</summary>
         private const string FlatItemStyleKey = "AchievementMultiSelectMenuItemStyle";
 
         /// <summary>
@@ -106,8 +106,8 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// The menu-item style these rows want. Only a nesting list pays for the tree style; a flat
-        /// one keeps the plain row style it has always had, down to the 1px it puts between rows.
+        /// The menu-item style these rows want. Only a nesting list pays for the tree style, which
+        /// adds the guide column; a flat one keeps the plain row style it has always had.
         /// </summary>
         public static Style ResolveItemStyle(
             FrameworkElement resourceOwner,
