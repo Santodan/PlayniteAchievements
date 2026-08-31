@@ -56,11 +56,17 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     .Select(item => item.CategoryLabel)
                     .Where(label => !string.IsNullOrWhiteSpace(label))
                     .ToList(),
+                // An insert-line drop means the gap it points at, level included: the dragged
+                // categories become siblings of the row below the gap. The VM falls back to a
+                // flat reorder when the gap is at their current level or the reparent is invalid.
                 MoveItemsRelativeToTarget = (labels, target, insertAfter) =>
                     target is ManageAchievementsCategoryMetadataItem targetItem &&
-                    ViewModel?.MoveCategoryRowsByLabel(labels, targetItem.CategoryLabel, insertAfter) == true,
-                MoveItemsToEnd = labels => ViewModel?.MoveCategoryRowsToEndByLabel(labels) == true,
-                RestoreSelection = RestoreCategoryManagerSelectionByLabels,
+                    ViewModel?.NestCategoryRowsIntoGap(
+                        labels,
+                        ResolveGapRowBelow(targetItem, insertAfter)?.CategoryLabel) == true,
+                MoveItemsToEnd = labels => ViewModel?.NestCategoryRowsIntoGap(labels, null) == true,
+                RestoreSelection = RestoreManagerSelectionAfterReorder,
+                ResolveDropIndicatorInset = ResolveDropLineInset,
                 // Dropping onto a row's middle makes the dragged categories subcategories of that
                 // row. The guards (Default, cycles, depth, no-ops) all live in the planner, so the
                 // drag and the context menu can never disagree about what is allowed.
@@ -1133,6 +1139,75 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 item.IsSelected = selected;
             }
+        }
+
+        /// <summary>
+        /// The row directly below the gap an insert-line drop points at: the target itself for
+        /// insert-before, the next rendered row for insert-after, null past the last row. The
+        /// dropped categories become siblings of this row.
+        /// </summary>
+        private ManageAchievementsCategoryMetadataItem ResolveGapRowBelow(
+            ManageAchievementsCategoryMetadataItem target,
+            bool insertAfter)
+        {
+            if (target == null || ViewModel == null)
+            {
+                return null;
+            }
+
+            if (!insertAfter)
+            {
+                return target;
+            }
+
+            var rows = ViewModel.CategoryRows;
+            var index = rows.IndexOf(target);
+            return index >= 0 && index + 1 < rows.Count ? rows[index + 1] : null;
+        }
+
+        /// <summary>
+        /// Indents the insert line to the level the gap would give the dropped rows, so a line
+        /// inside a subtree visibly differs from one at the root.
+        /// </summary>
+        private double ResolveDropLineInset(object target, bool insertAfter)
+        {
+            var gapRow = ResolveGapRowBelow(target as ManageAchievementsCategoryMetadataItem, insertAfter);
+            var parentDepth = gapRow == null ? 0 : CategoryPathHelper.GetDepth(gapRow.CategoryLabel) - 1;
+            if (parentDepth <= 0 || CategoryManagerDataGrid == null || CategoryManagerDataGrid.Columns.Count < 3)
+            {
+                return 0;
+            }
+
+            // Columns left of the name column (drag handle, indent buttons), then the parent's
+            // guide lane - where the new row's stem would hang.
+            return CategoryManagerDataGrid.Columns[0].ActualWidth +
+                   CategoryManagerDataGrid.Columns[1].ActualWidth +
+                   CategoryTreeGuideMetrics.GetLaneCentre(parentDepth);
+        }
+
+        /// <summary>
+        /// A gap drop can reparent, which rewrites the dragged keys; the VM's CategoryRowsMoved
+        /// has then already restored selection on the new labels, and restoring the stale keys
+        /// here would clear it. Restore only when every dragged key still resolves - a pure
+        /// reorder.
+        /// </summary>
+        private void RestoreManagerSelectionAfterReorder(IReadOnlyList<string> labels)
+        {
+            if (ViewModel == null || labels == null || labels.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var label in labels)
+            {
+                if (!ViewModel.CategoryRows.Any(row =>
+                        row != null && CategoryPathHelper.IsSame(row.CategoryLabel, label)))
+                {
+                    return;
+                }
+            }
+
+            RestoreCategoryManagerSelectionByLabels(labels);
         }
 
         private void RestoreCategoryManagerSelectionByLabels(IEnumerable<string> labels)
