@@ -1050,7 +1050,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 CategoryImageOverrideData imageOverride = null;
                 categoryImages?.TryGetValue(label, out imageOverride);
                 // The provider label describes this node itself, so it comes from its own bucket.
-                var providerCategoryLabel = ResolveSharedCategory(bucket, item => item?.ProviderCategory) ?? label;
+                // The Default bucket keeps its own identity: after a delete or a merge sends
+                // achievements back to it, a shared provider category among them must not make
+                // Default wear that category's name and art (which no reset could clear, since
+                // Default refuses renames).
+                var isDefaultLabel = string.Equals(
+                    label,
+                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                    StringComparison.OrdinalIgnoreCase);
+                var providerCategoryLabel = isDefaultLabel
+                    ? label
+                    : ResolveSharedCategory(bucket, item => item?.ProviderCategory) ?? label;
                 var row = ManageAchievementsCategoryMetadataItem.Create(
                     label,
                     providerCategoryLabel,
