@@ -544,9 +544,16 @@
                                                                 NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
                                     <!-- Padding lives here, not on the cell: the guide beside it has
                                          to reach the row edges for its lanes to join up. -->
-                                    <StackPanel VerticalAlignment="Center"
-                                                Margin="0,6,10,6">
-                                        <Grid>
+                                    <!-- Equal star rows above and below the name box keep its centre
+                                         on the row centre - where the guide draws its junction -
+                                         instead of letting the caption below push the box off it. -->
+                                    <Grid Margin="0,6,10,6">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <Grid Grid.Row="1">
                                             <!-- The tooltip sits on the TextBox, not the panel: the
                                                  box covers the cell, and a panel's tooltip never
                                                  surfaces from under a child that has its own. -->
@@ -581,12 +588,14 @@
                                                 </TextBlock.Style>
                                             </TextBlock>
                                         </Grid>
-                                        <TextBlock Text="{Binding ProgressText}"
+                                        <TextBlock Grid.Row="2"
+                                                   Text="{Binding ProgressText}"
+                                                   VerticalAlignment="Top"
                                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                    Opacity="{StaticResource PlayAch.Opacity.Hint}"
                                                    FontSize="{DynamicResource PlayAch.FontSize.Caption}"
                                                    Margin="0,3,0,0" />
-                                    </StackPanel>
+                                    </Grid>
                                   </DockPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
