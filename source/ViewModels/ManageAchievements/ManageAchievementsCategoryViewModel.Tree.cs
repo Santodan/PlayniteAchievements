@@ -191,7 +191,33 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            CollectionHelper.SynchronizeCollection(CategoryRows, reordered);
+            // Snap the flat move back to tree order before it renders: a dragged parent carries
+            // its subtree immediately and a drop cannot split one. The persisted order was always
+            // rendered tidy on the next rebuild; the grid just showed the stale interleaving with
+            // the old connectors until then.
+            var reorderedLabels = reordered
+                .Select(row => row?.CategoryLabel)
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .ToList();
+            var rowsByLabel = reordered
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
+                .ToDictionary(
+                    row => CategoryPathHelper.NormalizePath(row.CategoryLabel),
+                    row => row,
+                    StringComparer.OrdinalIgnoreCase);
+            var treeOrdered = AchievementCategoryFilterOrderHelper
+                .BuildOrderedCategoryTree(reorderedLabels, reorderedLabels)
+                .Where(rowsByLabel.ContainsKey)
+                .Select(label => rowsByLabel[label])
+                .ToList();
+            if (treeOrdered.Count != reordered.Count)
+            {
+                treeOrdered = reordered;
+            }
+
+            CollectionHelper.SynchronizeCollection(CategoryRows, treeOrdered);
+            StampIndentAffordances(treeOrdered);
+            StampCategoryTreeShapes(treeOrdered);
             PersistCurrentCategoryMetadata();
             return true;
         }
