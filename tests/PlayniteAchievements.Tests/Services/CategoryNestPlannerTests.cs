@@ -184,6 +184,61 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void PlanStructureResetMoves_ReturnsRowsToProviderParentsKeepingLeafRenames()
+        {
+            var moves = CategoryNestPlanner.PlanStructureResetMoves(new[]
+            {
+                // Nested by the user, leaf renamed: goes back under the provider parent as the
+                // renamed leaf.
+                new KeyValuePair<string, string>("Y::Custom", "P::X"),
+                // Leaf renamed in place: structure matches, the name reset owns the rest.
+                new KeyValuePair<string, string>("P::Renamed", "P::Z"),
+                // User-created: provider identity tracks the label, so it stays put.
+                new KeyValuePair<string, string>("Y::New Category", "Y::New Category"),
+                new KeyValuePair<string, string>("Default", "Default")
+            });
+
+            Assert.AreEqual(1, moves.Count);
+            Assert.AreEqual("Y::Custom", moves[0].Key);
+            Assert.AreEqual("P::Custom", moves[0].Value);
+        }
+
+        [TestMethod]
+        public void PlanStructureResetMoves_OrdersDeepestFirstAndResolvesIndependently()
+        {
+            // The user pulled A (with its child) out to the root; both rows deviate and each
+            // returns to its own provider parent, child first.
+            var moves = CategoryNestPlanner.PlanStructureResetMoves(new[]
+            {
+                new KeyValuePair<string, string>("A", "P::A"),
+                new KeyValuePair<string, string>("A::B", "P::A::B")
+            });
+
+            Assert.AreEqual(2, moves.Count);
+            Assert.AreEqual("A::B", moves[0].Key);
+            Assert.AreEqual("P::A::B", moves[0].Value);
+            Assert.AreEqual("A", moves[1].Key);
+            Assert.AreEqual("P::A", moves[1].Value);
+        }
+
+        [TestMethod]
+        public void PlanStructureResetMoves_NeverMergesIntoAStayingOrPlannedLabel()
+        {
+            var moves = CategoryNestPlanner.PlanStructureResetMoves(new[]
+            {
+                // Target P::X already exists as a row that is not moving: skipped.
+                new KeyValuePair<string, string>("Y::X", "P::X"),
+                new KeyValuePair<string, string>("P::X", "P::X"),
+                // Two rows resolving to the same result: only the first survives.
+                new KeyValuePair<string, string>("Y::W", "Q::W"),
+                new KeyValuePair<string, string>("Z::W", "Q::W")
+            });
+
+            Assert.AreEqual(1, moves.Count);
+            Assert.AreEqual("Q::W", moves[0].Value);
+        }
+
+        [TestMethod]
         public void GetSubtreeHeight_CountsDeepestDescendantDistance()
         {
             Assert.AreEqual(1, CategoryNestPlanner.GetSubtreeHeight(Snapshot, "D"));
