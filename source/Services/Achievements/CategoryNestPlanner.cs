@@ -4,6 +4,14 @@ using System.Linq;
 
 namespace PlayniteAchievements.Services.Achievements
 {
+    /// <summary>The order and post-move selection a gap drop produces.</summary>
+    internal sealed class CategoryGapPlan
+    {
+        public List<string> Order { get; set; }
+
+        public List<string> SelectionRoots { get; set; }
+    }
+
     /// <summary>
     /// Plans the move batch for "make these categories subcategories of that one" (or top-level
     /// when the target is null). Pure over label lists so every gesture - context menu, drag,
@@ -118,6 +126,88 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             return moves;
+        }
+
+        /// <summary>
+        /// The rendered order after dropping <paramref name="movingLabels"/> into the gap above
+        /// <paramref name="gapBeforeLabel"/> (null or blank = end of list), with
+        /// <paramref name="moves"/> (from <see cref="PlanNestMoves"/>) already applied to every
+        /// label: each dragged subtree is lifted out as a contiguous block and spliced in at the
+        /// gap, so the order and the reparent land in one write. SelectionRoots are the dragged
+        /// roots under their post-move labels, for restoring selection.
+        /// </summary>
+        public static CategoryGapPlan PlanGapOrder(
+            IReadOnlyList<string> renderedLabels,
+            IReadOnlyList<string> movingLabels,
+            IReadOnlyList<KeyValuePair<string, string>> moves,
+            string gapBeforeLabel)
+        {
+            var rendered = (renderedLabels ?? Array.Empty<string>())
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .Select(CategoryPathHelper.NormalizePath)
+                .ToList();
+            var renderedSet = new HashSet<string>(rendered, StringComparer.OrdinalIgnoreCase);
+
+            // Same moving-set derivation as PlanNestMoves, then rendered order so multi-drag
+            // blocks land in the order the grid showed them.
+            var roots = (movingLabels ?? Array.Empty<string>())
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .Select(CategoryPathHelper.NormalizePath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(label =>
+                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
+                    renderedSet.Contains(label))
+                .ToList();
+            roots = roots
+                .Where(label => !roots.Any(other => CategoryPathHelper.IsDescendantOf(label, other)))
+                .ToList();
+            roots = rendered
+                .Where(label => roots.Any(root => CategoryPathHelper.IsSame(root, label)))
+                .ToList();
+
+            // Move keys are disjoint original paths and no value collides with another key (the
+            // collision guard), so folding every rewrite over a label applies at most one.
+            string MapLabel(string label)
+            {
+                foreach (var move in moves ?? Array.Empty<KeyValuePair<string, string>>())
+                {
+                    label = CategoryPathHelper.RewritePrefix(label, move.Key, move.Value);
+                }
+
+                return label;
+            }
+
+            var mappedRoots = roots.Select(MapLabel).ToList();
+            var working = rendered.Select(MapLabel).ToList();
+            var blocks = new List<List<string>>(mappedRoots.Count);
+            foreach (var root in mappedRoots)
+            {
+                blocks.Add(working.Where(label => CategoryPathHelper.IsSelfOrDescendantOf(label, root)).ToList());
+                working.RemoveAll(label => CategoryPathHelper.IsSelfOrDescendantOf(label, root));
+            }
+
+            var insertAt = working.Count;
+            if (!string.IsNullOrWhiteSpace(gapBeforeLabel))
+            {
+                var anchor = CategoryPathHelper.NormalizePath(gapBeforeLabel);
+                var anchorIndex = working.FindIndex(label => CategoryPathHelper.IsSame(label, anchor));
+                if (anchorIndex >= 0)
+                {
+                    insertAt = anchorIndex;
+                }
+            }
+
+            foreach (var block in blocks)
+            {
+                working.InsertRange(insertAt, block);
+                insertAt += block.Count;
+            }
+
+            return new CategoryGapPlan
+            {
+                Order = working,
+                SelectionRoots = mappedRoots
+            };
         }
 
         /// <summary>1 for a leaf; 1 plus the deepest descendant's distance otherwise.</summary>
