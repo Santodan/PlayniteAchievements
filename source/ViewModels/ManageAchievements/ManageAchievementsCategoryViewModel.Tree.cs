@@ -557,12 +557,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var categoryOverrideMap = GetCurrentCategoryOverrideMap();
             var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
-            if (!ReassignEffectiveCategoryRows(
-                    normalizedSourceCategory,
-                    normalizedTargetCategory,
-                    categoryOverrideMap,
-                    categoryTypeOverrideMap,
-                    targetGroupTypes))
+            var membershipChanged = ReassignEffectiveCategoryRows(
+                normalizedSourceCategory,
+                normalizedTargetCategory,
+                categoryOverrideMap,
+                categoryTypeOverrideMap,
+                targetGroupTypes);
+
+            // A node with no achievements moves none, but it still occupies an order slot and can
+            // hold art, so the merge proceeds on the metadata alone and folds the node away.
+            if (!membershipChanged &&
+                !CategoryRows.Any(row => row != null &&
+                    CategoryPathHelper.IsSame(row.CategoryLabel, normalizedSourceCategory)))
             {
                 return false;
             }
