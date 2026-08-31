@@ -335,7 +335,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// whole-library recompute, and each row rebuild re-probes every category's art on disk, so
         /// a rename cost two recomputes and a multi-row indent paid that per row.
         /// </summary>
-        private bool ApplyCategoryMoves(IReadOnlyList<KeyValuePair<string, string>> moves)
+        private bool ApplyCategoryMoves(
+            IReadOnlyList<KeyValuePair<string, string>> moves,
+            IReadOnlyList<string> orderOverride = null,
+            IReadOnlyList<string> movedSelectionLabels = null)
         {
             if (moves == null || moves.Count == 0)
             {
@@ -383,6 +386,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
+            // A gap drop settles the moved subtrees' positions in the same write as the
+            // reparent, so the order it computed replaces the plans' in-place rewrites.
+            if (orderOverride != null)
+            {
+                order = orderOverride;
+            }
+
             // Moving an achievement between this game's categories changes nothing any library
             // rollup reads, so the write is scoped out of the overview's delta tick. That tick
             // recomputes library-wide state whatever changed, and firing one per click is what
@@ -402,7 +412,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
             RaiseCategoryMetadataPersisted();
             RefreshCategoryRows();
-            CategoryRowsMoved?.Invoke(this, moves.Select(move => move.Value).ToList());
+            CategoryRowsMoved?.Invoke(
+                this,
+                movedSelectionLabels?.ToList() ?? moves.Select(move => move.Value).ToList());
             return true;
         }
 
@@ -502,6 +514,34 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 SnapshotCategoryLabels(),
                 labels,
                 targetParentLabel));
+        }
+
+        /// <summary>
+        /// Drops rows into the gap above <paramref name="gapBeforeLabel"/> (null = end of list),
+        /// adopting the gap's level: dropped between two nested siblings, a category becomes
+        /// their sibling right there; dropped at the end it becomes top level. Falls back to a
+        /// flat reorder when no reparent applies (already at the gap's level, or the reparent is
+        /// invalid), so a drop always does something predictable.
+        /// </summary>
+        public bool NestCategoryRowsIntoGap(IReadOnlyList<string> labels, string gapBeforeLabel)
+        {
+            var parentOfGap = string.IsNullOrWhiteSpace(gapBeforeLabel)
+                ? null
+                : CategoryPathHelper.GetParentPath(CategoryPathHelper.NormalizePath(gapBeforeLabel));
+            var moves = CategoryNestPlanner.PlanNestMoves(SnapshotCategoryLabels(), labels, parentOfGap);
+            if (moves.Count == 0)
+            {
+                return string.IsNullOrWhiteSpace(gapBeforeLabel)
+                    ? MoveCategoryRowsToEndByLabel(labels)
+                    : MoveCategoryRowsByLabel(labels, gapBeforeLabel, insertAfterTarget: false);
+            }
+
+            var rendered = CategoryRows
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
+                .Select(row => row.CategoryLabel)
+                .ToList();
+            var gapPlan = CategoryNestPlanner.PlanGapOrder(rendered, labels, moves, gapBeforeLabel);
+            return ApplyCategoryMoves(moves, gapPlan.Order, gapPlan.SelectionRoots);
         }
 
         /// <summary>Whether <see cref="NestCategoryRowsUnder"/> would move anything.</summary>
