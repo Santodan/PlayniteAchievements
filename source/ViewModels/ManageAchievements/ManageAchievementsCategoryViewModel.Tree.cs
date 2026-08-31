@@ -27,8 +27,36 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     // Category rows, ordering, rename/merge, art, and the single metadata writer.
     public sealed partial class ManageAchievementsCategoryViewModel : ObservableObject
     {
+        /// <summary>
+        /// True when any row sits under a different parent than its provider gave it - the order
+        /// reset restores structure too, so it has work even when no custom order is stored.
+        /// A user-created category never deviates (its provider identity tracks its own label).
+        /// </summary>
+        public bool HasCustomCategoryNesting =>
+            CategoryRows.Any(row => row != null &&
+                !row.IsDefaultCategory &&
+                !string.IsNullOrWhiteSpace(row.CategoryLabel) &&
+                !CategoryPathHelper.IsSame(
+                    CategoryPathHelper.GetParentPath(row.CategoryLabel) ?? string.Empty,
+                    CategoryPathHelper.GetParentPath(row.ProviderCategoryLabel) ?? string.Empty));
+
         public bool ResetCategoryOrder()
         {
+            // Structure first: every row returns to its provider parent, keeping its current
+            // leaf name (leaf renames belong to the name reset), and the custom order clears in
+            // the same write.
+            var structureMoves = CategoryNestPlanner.PlanStructureResetMoves(
+                CategoryRows
+                    .Where(row => row != null &&
+                        !string.IsNullOrWhiteSpace(row.CategoryLabel) &&
+                        !string.IsNullOrWhiteSpace(row.ProviderCategoryLabel))
+                    .Select(row => new KeyValuePair<string, string>(row.CategoryLabel, row.ProviderCategoryLabel))
+                    .ToList());
+            if (structureMoves.Count > 0)
+            {
+                return ApplyCategoryMoves(structureMoves, orderOverride: Array.Empty<string>());
+            }
+
             var order = GameCustomDataLookup.GetAchievementCategoryOrder(_gameId, _settings?.Persisted);
             if (order == null || order.Count == 0)
             {
@@ -390,7 +418,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // reparent, so the order it computed replaces the plans' in-place rewrites.
             if (orderOverride != null)
             {
-                order = orderOverride;
+                order = orderOverride.ToList();
             }
 
             // Moving an achievement between this game's categories changes nothing any library
