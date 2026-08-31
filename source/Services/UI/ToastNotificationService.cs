@@ -2509,9 +2509,15 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Info($"[Toast] Warm: frames={warmFrames}/{WarmFrameCount}, timedOut=true");
                 }
 
-                // Recording setup runs before the slide so its one expensive render — the shadow
-                // layer capture, which rasterizes the effects' software blur once per card — lands
-                // before the slide clock starts instead of eating the slide's first frames. Game
+                // Recording setup runs before the slide so its expensive renders — the shadow
+                // layer capture, which rasterizes the effects' software blur once per card, and
+                // the pixel prime — land before the slide clock starts instead of eating the
+                // slide's first frames. A composed frame is awaited after each block: back to
+                // back the two blocks queue several full card rasterizations into one composition
+                // pass, and the slide's first frame then pays for all of them at once (measured as
+                // the slide-in line's 50 ms first gaps). Interleaved, each block's cost is
+                // presented before the next begins and the slide starts against a drained
+                // composition queue, at the price of two composed frames of extra latency. Game
                 // anchor only — a test fire out of game has no video — and only with recordings
                 // enabled, since nothing else consumes a track.
                 if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero &&
@@ -2525,7 +2531,18 @@ namespace PlayniteAchievements.Services.UI
                     _waveShadowCaptureCount = 0;
                     _wavePrimedSubmitCount = 0;
                     CaptureWaveShadowLayers(trackRecorder, window, cardItems);
+                    await WaitForComposedFramesAsync(1, WarmFrameTimeoutMs).ConfigureAwait(true);
+                    if (_disposed)
+                    {
+                        return;
+                    }
+
                     PrimeWaveCardPixels(trackRecorder, window, cardItems);
+                    await WaitForComposedFramesAsync(1, WarmFrameTimeoutMs).ConfigureAwait(true);
+                    if (_disposed)
+                    {
+                        return;
+                    }
                 }
 
                 SlideInPhysical(window, reveal: visible);
