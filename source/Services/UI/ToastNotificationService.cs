@@ -1334,6 +1334,13 @@ namespace PlayniteAchievements.Services.UI
                 // sides at once — the live slide gets the UI thread back, and the clip gets denser
                 // position samples to interpolate between. The card's appearance is deliberately
                 // treated as static for the slide's span.
+                //
+                // That span outlasts the SlideQuietScope: the scope lifts at the storyboard's
+                // Completed, while _runningSlideStoryboard clears later, in StopActiveSlide at the
+                // settled snap. Between the two the glow pulse and GIFs animate live but the track
+                // still holds this frozen frame; the first tick after the snap re-rasterizes. Kept
+                // that way deliberately — extending the scope would hold the on-screen animations
+                // frozen through the settle window to close a track-only gap.
                 var slideFrozen = _runningSlideStoryboard != null && scratch.HasPixelFrame;
                 if (!rendersThisTick || slideFrozen || !recorder.CanAcceptFrame(vm))
                 {
