@@ -27,11 +27,19 @@ namespace PlayniteAchievements.Services.UI
     /// <summary>One window competing to be "the game's window", with the evidence behind it.</summary>
     internal readonly struct GameWindowCandidate
     {
-        public GameWindowCandidate(IntPtr hwnd, GameWindowEvidence evidence, bool isForeground, long clientArea)
+        public GameWindowCandidate(
+            IntPtr hwnd,
+            GameWindowEvidence evidence,
+            bool isManagedUiShell,
+            DateTime processStartUtc,
+            DateTime firstSeenUtc,
+            long clientArea)
         {
             Hwnd = hwnd;
             Evidence = evidence;
-            IsForeground = isForeground;
+            IsManagedUiShell = isManagedUiShell;
+            ProcessStartUtc = processStartUtc;
+            FirstSeenUtc = firstSeenUtc;
             ClientArea = clientArea;
         }
 
@@ -39,18 +47,38 @@ namespace PlayniteAchievements.Services.UI
 
         public GameWindowEvidence Evidence { get; }
 
-        /// <summary>Whether this window was the foreground window when it was observed.</summary>
-        public bool IsForeground { get; }
+        /// <summary>
+        /// Whether the window is drawn by a managed UI toolkit — its class marks it as WinForms or
+        /// WPF. No game renders its picture through one, so such a window is a launcher, picker,
+        /// settings dialog or crash reporter rather than the surface being played.
+        /// </summary>
+        public bool IsManagedUiShell { get; }
 
-        /// <summary>Client area in square physical pixels; the tiebreaker within a score.</summary>
+        /// <summary>
+        /// When the owning process started, or <see cref="DateTime.MinValue"/> when it could not be
+        /// read. A launcher starts the game, so the game's process is always the younger one.
+        /// </summary>
+        public DateTime ProcessStartUtc { get; }
+
+        /// <summary>When this window was first seen, for ordering windows of one process.</summary>
+        public DateTime FirstSeenUtc { get; }
+
+        /// <summary>Client area in square physical pixels. The last-resort tiebreak.</summary>
         public long ClientArea { get; }
 
         public bool IsEmpty => Hwnd == IntPtr.Zero;
 
         public override string ToString()
         {
-            return $"0x{Hwnd.ToInt64():X} {Evidence}{(IsForeground ? "+foreground" : string.Empty)} " +
-                   $"area={ClientArea} score={GameWindowRanking.Score(this)}";
+            return $"0x{Hwnd.ToInt64():X} {Evidence}" +
+                   $"{(IsManagedUiShell ? " managedUiShell" : string.Empty)} " +
+                   $"procStart={Stamp(ProcessStartUtc)} firstSeen={Stamp(FirstSeenUtc)} " +
+                   $"area={ClientArea}";
+        }
+
+        private static string Stamp(DateTime value)
+        {
+            return value > DateTime.MinValue ? value.ToString("HH:mm:ss.fff") : "?";
         }
     }
 
@@ -58,50 +86,47 @@ namespace PlayniteAchievements.Services.UI
     /// Picks the game's window out of the several a game (or its launcher) has open, and decides
     /// when a newly observed window is good enough to replace the one already in use.
     ///
+    /// The signals, in the order they decide:
+    ///
+    /// 1. Evidence tying the owning process to the game. This separates a store client's window
+    ///    from the game's, because a launcher-wrapped title reaches Playnite as the launcher's
+    ///    process while the game's executable lives under the install directory.
+    /// 2. Whether the window is a managed UI shell. Evidence cannot separate two windows that share
+    ///    a process or an install folder — Shenmue I &amp; II ships its game-picker launcher and both
+    ///    games' executables under one folder — but the picker is a WinForms window and a game's
+    ///    render surface never is.
+    /// 3. Which process started later. A launcher's whole job is to start the game, so the game's
+    ///    process is younger than the launcher's. This settles the launcher question the moment the
+    ///    game's window exists, without waiting for it to be focused or drawn — which matters
+    ///    because focus is not a reliable signal at all: a launcher holds it while the game starts,
+    ///    and an overlay such as Lossless Scaling can hold it for the whole session.
+    /// 4. Which window appeared later, for two windows of one process — a splash and the render
+    ///    window that supersedes it.
+    /// 5. Client area, as a last resort only.
+    ///
     /// Pure: the caller supplies already-measured candidates, so the ranking is testable without a
-    /// desktop. See <see cref="ActiveGameWindowTracker"/> for the enumeration and filtering that
-    /// produce them.
+    /// desktop. See <see cref="ActiveGameWindowTracker"/> for the enumeration, classification and
+    /// measurement that produce them.
     /// </summary>
     internal static class GameWindowRanking
     {
         /// <summary>
-        /// The score at which a window is trusted as the game's and the desktop is no longer
-        /// re-scanned for a better one: the strongest evidence, confirmed by the user having had
-        /// the window in the foreground. Nothing weaker settles, because nothing weaker separates
-        /// the game's render window from another window of the same process — a launcher's, or the
-        /// game's own configuration dialog.
+        /// How much larger a window must be before size decides between two otherwise
+        /// indistinguishable ones: half again the other's client area. Below that they count as
+        /// comparably sized, so a window being dragged or a game changing resolution cannot make
+        /// the target drift.
         /// </summary>
-        public const int ConclusiveScore = ((int)GameWindowEvidence.InstallDirectory * 2) + 1;
+        private const int AreaMarginNumerator = 3;
+        private const int AreaMarginDenominator = 2;
 
         /// <summary>
-        /// Evidence dominates, and being the foreground window adds one step within it. Foreground
-        /// is a boost rather than a tier of its own so that alt-tabbing to the launcher mid-session
-        /// cannot promote the launcher's window over the game's: a foreground launcher window
-        /// (started-process evidence) still scores below a background window that lives in the
-        /// game's install directory.
-        /// </summary>
-        public static int Score(GameWindowCandidate candidate)
-        {
-            return ((int)candidate.Evidence * 2) + (candidate.IsForeground ? 1 : 0);
-        }
-
-        /// <summary>
-        /// How much larger an equally-scored window must be to take over: 1.5x the incumbent's
-        /// client area. Some evidence cannot tell two windows of one process apart — a game's
-        /// configuration dialog and its render window both live in the install directory — and
-        /// there the larger surface is the one being played. Requiring half again as much area
-        /// bounds this: two windows cannot trade the target back and forth.
-        /// </summary>
-        private const int AreaPromotionNumerator = 3;
-        private const int AreaPromotionDenominator = 2;
-
-        /// <summary>
-        /// Whether <paramref name="candidate"/> should take over from <paramref name="current"/>.
-        /// A higher score always wins; an equal score wins only by being substantially larger (see
-        /// <see cref="AreaPromotionNumerator"/>), so a running capture is never torn down to swap
-        /// between two equally plausible windows of the same size. A stronger observation of the
-        /// window already in use also passes — the handle does not change, so nothing is
-        /// retargeted, but the record it is held under gets its better evidence.
+        /// Whether <paramref name="candidate"/> should take over from <paramref name="current"/>:
+        /// better on the first signal that separates them, in the order documented on this class.
+        /// Size alone moves the target only by the margin above, which gives the decision
+        /// hysteresis so two comparable windows cannot trade a running capture back and forth.
+        ///
+        /// A fresh observation of the window already in use can pass, which retargets nothing (the
+        /// handle is unchanged) and refreshes the record it is held under.
         /// </summary>
         public static bool ShouldReplace(GameWindowCandidate current, GameWindowCandidate candidate)
         {
@@ -115,22 +140,35 @@ namespace PlayniteAchievements.Services.UI
                 return true;
             }
 
-            var currentScore = Score(current);
-            var candidateScore = Score(candidate);
-            if (candidateScore != currentScore)
+            if (candidate.Evidence != current.Evidence)
             {
-                return candidateScore > currentScore;
+                return candidate.Evidence > current.Evidence;
             }
 
-            return current.Hwnd != candidate.Hwnd &&
-                   candidate.ClientArea * AreaPromotionDenominator >
-                   current.ClientArea * AreaPromotionNumerator;
+            if (candidate.IsManagedUiShell != current.IsManagedUiShell)
+            {
+                return current.IsManagedUiShell;
+            }
+
+            if (candidate.ProcessStartUtc != current.ProcessStartUtc)
+            {
+                return candidate.ProcessStartUtc > current.ProcessStartUtc;
+            }
+
+            if (candidate.FirstSeenUtc != current.FirstSeenUtc)
+            {
+                return candidate.FirstSeenUtc > current.FirstSeenUtc;
+            }
+
+            return IsSubstantiallyLarger(candidate, current);
         }
 
         /// <summary>
-        /// The best of <paramref name="candidates"/> — highest score, largest client area to break a
-        /// tie (the render window over a splash or helper window of the same process). An empty
-        /// candidate for an empty input.
+        /// The best of <paramref name="candidates"/> on the same signals, ordered strictly — no size
+        /// margin — because this ranks one snapshot of the desktop against itself rather than
+        /// deciding whether to move a running capture. The margin belongs to
+        /// <see cref="ShouldReplace"/>, which the result is then put through. An empty candidate for
+        /// an empty input.
         /// </summary>
         public static GameWindowCandidate SelectBest(IEnumerable<GameWindowCandidate> candidates)
         {
@@ -140,39 +178,45 @@ namespace PlayniteAchievements.Services.UI
                 return best;
             }
 
-            var bestScore = int.MinValue;
             foreach (var candidate in candidates)
             {
-                if (candidate.IsEmpty)
-                {
-                    continue;
-                }
-
-                var score = Score(candidate);
-                if (best.IsEmpty || score > bestScore ||
-                    (score == bestScore && candidate.ClientArea > best.ClientArea))
+                if (!candidate.IsEmpty && (best.IsEmpty || IsBetterInSnapshot(candidate, best)))
                 {
                     best = candidate;
-                    bestScore = score;
                 }
             }
 
             return best;
         }
 
-        /// <summary>
-        /// Whether a learned window is strong enough to stop looking. Below this the answer was a
-        /// best guess made while the game was still starting and the real window may have appeared
-        /// since, so the caller keeps re-scanning. A game window the user never brings to the
-        /// foreground — one an overlay such as Lossless Scaling is presenting on its behalf, or an
-        /// emulator whose executable sits outside the install directory — never reaches it and is
-        /// re-scanned for as long as the game runs. That costs one throttled window enumeration
-        /// over cached classifications, and it is what stops a launcher window from owning the
-        /// session.
-        /// </summary>
-        public static bool IsConclusive(GameWindowCandidate candidate)
+        private static bool IsBetterInSnapshot(GameWindowCandidate candidate, GameWindowCandidate best)
         {
-            return !candidate.IsEmpty && Score(candidate) >= ConclusiveScore;
+            if (candidate.Evidence != best.Evidence)
+            {
+                return candidate.Evidence > best.Evidence;
+            }
+
+            if (candidate.IsManagedUiShell != best.IsManagedUiShell)
+            {
+                return best.IsManagedUiShell;
+            }
+
+            if (candidate.ProcessStartUtc != best.ProcessStartUtc)
+            {
+                return candidate.ProcessStartUtc > best.ProcessStartUtc;
+            }
+
+            if (candidate.FirstSeenUtc != best.FirstSeenUtc)
+            {
+                return candidate.FirstSeenUtc > best.FirstSeenUtc;
+            }
+
+            return candidate.ClientArea > best.ClientArea;
+        }
+
+        private static bool IsSubstantiallyLarger(GameWindowCandidate a, GameWindowCandidate b)
+        {
+            return a.ClientArea * AreaMarginDenominator > b.ClientArea * AreaMarginNumerator;
         }
     }
 }
