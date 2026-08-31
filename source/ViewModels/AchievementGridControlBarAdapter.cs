@@ -148,9 +148,16 @@ namespace PlayniteAchievements.ViewModels
                 .Where(item => item != null)
                 .ToList();
 
-            _searchIndex.Rebuild(items);
             IEnumerable<AchievementDisplayItem> filtered = items;
             var searchQuery = SearchQuery.From(SearchText);
+
+            // Only index while a search is active: SearchTextIndex.Matches lazily fills missing
+            // entries, and hosts that keep their own search pipeline (adapter SearchText empty)
+            // never pay for indexing the source rows.
+            if (searchQuery.HasValue)
+            {
+                _searchIndex.Rebuild(items);
+            }
 
             if (!ShowHidden)
             {
