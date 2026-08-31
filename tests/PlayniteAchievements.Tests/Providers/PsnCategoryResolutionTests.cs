@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Providers.PSN;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Tests.Providers
 {
@@ -80,11 +81,37 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
-        public void ResolveCollectionCategory_DlcGroupWithName_ReturnsTitleDashGroup()
+        public void ResolveCollectionCategory_DlcGroupWithName_NestsTheGroupUnderTheSetTitle()
         {
             Assert.AreEqual(
-                "Horizon Zero Dawn - Frozen Wilds",
+                "Horizon Zero Dawn::Frozen Wilds",
                 PsnTrophyCategoryHelper.ResolveCollectionCategory("001", Groups(), "Horizon Zero Dawn"));
+        }
+
+        [TestMethod]
+        public void ResolveCollectionCategory_KeepsASetTitleContainingADashInOneSegment()
+        {
+            var path = PsnTrophyCategoryHelper.ResolveCollectionCategory(
+                "001",
+                Groups(),
+                "Ratchet & Clank - Size Matters");
+
+            Assert.AreEqual("Ratchet & Clank - Size Matters::Frozen Wilds", path);
+            Assert.AreEqual(2, CategoryPathHelper.Split(path).Count);
+        }
+
+        [TestMethod]
+        public void ResolveCollectionCategory_KeepsAGroupNameContainingTheSeparatorInOneSegment()
+        {
+            var groups = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["001"] = "Act I::Act II"
+            };
+
+            var path = PsnTrophyCategoryHelper.ResolveCollectionCategory("001", groups, "Some Game");
+
+            Assert.AreEqual(2, CategoryPathHelper.Split(path).Count);
+            Assert.AreEqual("Some Game::Act I:Act II", path);
         }
 
         [DataTestMethod]

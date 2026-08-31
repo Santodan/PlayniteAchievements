@@ -716,19 +716,19 @@ namespace PlayniteAchievements.Providers.RPCS3
         {
             if (!isCollection)
             {
-                return trophy?.GroupName;
+                return CategoryPathHelper.SanitizeSegment(trophy?.GroupName);
             }
 
-            var title = string.IsNullOrWhiteSpace(sourceTitle) ? null : sourceTitle.Trim();
-            var groupName = trophy?.GroupName?.Trim();
+            var title = CategoryPathHelper.SanitizeSegment(sourceTitle);
+            var groupName = CategoryPathHelper.SanitizeSegment(trophy?.GroupName);
             var categoryType = MapGroupIdToCategoryType(trophy?.GroupId);
 
             if (string.Equals(categoryType, "DLC", StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(groupName))
             {
-                return string.IsNullOrWhiteSpace(title)
-                    ? groupName
-                    : $"{title} - {groupName}";
+                // Nest the group under the containing game so a collection's DLC groups sort with
+                // their own title rather than as siblings of it. JoinRaw drops a blank title.
+                return CategoryPathHelper.JoinRaw(title, groupName);
             }
 
             return title;

@@ -13,6 +13,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Providers.Steam.Models;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Images;
@@ -1619,6 +1620,10 @@ namespace PlayniteAchievements.Services.Refresh
 
                 Interlocked.Increment(ref _savedGamesInCurrentRun);
 
+                // Runs against what the provider just wrote, so it is the refresh that moves a
+                // game off the old flat "Parent - Child" labels and onto real paths.
+                RepointMigratedCategoryMetadata(game, data);
+
                 // The persisted icon paths now point at original-resolution files, so the game's
                 // retired compressed 128px folder (if any) is no longer referenced and can go.
                 _achievementIconService.DeleteLegacyCompressedIconFolder(key);
@@ -1643,6 +1648,62 @@ namespace PlayniteAchievements.Services.Refresh
             }
 
             return !string.Equals(previous?.Trim(), current.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Moves this game's label-keyed category metadata onto the nested paths a provider now
+        /// supplies, for the providers that used to compose two segments into one flat
+        /// "Parent - Child" label. Membership follows the achievements on its own; only the custom
+        /// order, the category art and the summary selection are keyed by label.
+        ///
+        /// Plans nothing once a game has moved, so this stays a no-op on every later refresh
+        /// rather than needing a one-time flag. Failure is non-fatal: the metadata simply stays
+        /// where it was and the refresh itself has already been persisted.
+        /// </summary>
+        private void RepointMigratedCategoryMetadata(Game game, GameAchievementData data)
+        {
+            try
+            {
+                var gameId = data?.PlayniteGameId ?? Guid.Empty;
+                if (gameId == Guid.Empty || data.Achievements == null || data.Achievements.Count == 0)
+                {
+                    return;
+                }
+
+                var overridesService = PlayniteAchievementsPlugin.Instance?.AchievementOverridesService;
+                if (overridesService == null)
+                {
+                    return;
+                }
+
+                var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(gameId);
+                var plan = ProviderCategoryPathMigration.Plan(
+                    data.Achievements.Select(achievement => achievement?.Category),
+                    GameCustomDataLookup.GetAchievementCategoryOrder(gameId),
+                    GameCustomDataLookup.GetAchievementCategoryImageOverrides(gameId),
+                    summaryCategory);
+
+                if (plan == null)
+                {
+                    return;
+                }
+
+                // Only a moved summary selection changes what a library rollup reads; an order or
+                // art move is per-game display state and must not queue a library-wide pass.
+                overridesService.SetAchievementCategoryMetadata(
+                    gameId,
+                    plan.Order,
+                    plan.Images,
+                    plan.SummaryCategory,
+                    affectsSummaryData: !ReferenceEquals(plan.SummaryCategory, summaryCategory));
+
+                _logger?.Info(
+                    $"Repointed category metadata for '{game?.Name}' onto the provider's nested category paths.");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to repoint category metadata onto provider-supplied nested paths.");
+            }
         }
 
         // Applies icon overrides for the given achievements against the cached game data without

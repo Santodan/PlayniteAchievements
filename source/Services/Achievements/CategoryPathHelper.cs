@@ -136,6 +136,53 @@ namespace PlayniteAchievements.Services.Achievements
             return NormalizePath(string.Concat(parentPath, Separator, childSegment));
         }
 
+        /// <summary>
+        /// Strips the internal separator out of one raw upstream name so a provider label can never
+        /// invent a nesting level. Runs of colons collapse to one, so a group genuinely named
+        /// "Chapter :: One" stays a single segment reading "Chapter : One".
+        /// </summary>
+        public static string SanitizeSegment(string rawSegment)
+        {
+            if (string.IsNullOrWhiteSpace(rawSegment))
+            {
+                return null;
+            }
+
+            var trimmed = rawSegment.Trim();
+
+            // Replace is non-overlapping, so ":::" leaves a "::" behind on the first pass.
+            while (trimmed.IndexOf(Separator, StringComparison.Ordinal) >= 0)
+            {
+                trimmed = trimmed.Replace(Separator, ":");
+            }
+
+            return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+        }
+
+        /// <summary>
+        /// Builds a path out of raw upstream names - the provider entry point. Every segment is
+        /// sanitized before joining, so an upstream group whose own name contains the separator
+        /// stays one node, and blank segments drop out so a missing subcategory degenerates to its
+        /// parent instead of leaving a trailing empty level.
+        ///
+        /// An all-blank chain returns null rather than the Default label: providers signal "no
+        /// category" with null and the hydrator applies the default downstream.
+        /// </summary>
+        public static string JoinRaw(params string[] rawSegments)
+        {
+            if (rawSegments == null)
+            {
+                return null;
+            }
+
+            var segments = rawSegments
+                .Select(SanitizeSegment)
+                .Where(segment => !string.IsNullOrWhiteSpace(segment))
+                .ToList();
+
+            return segments.Count == 0 ? null : Join(segments);
+        }
+
         /// <summary>Depth of a path, 1 for a root label.</summary>
         public static int GetDepth(string rawValue)
         {

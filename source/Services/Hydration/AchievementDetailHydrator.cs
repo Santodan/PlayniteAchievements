@@ -137,7 +137,12 @@ namespace PlayniteAchievements.Services.Hydration
                     }
                 }
 
-                detail.Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(providerCategory);
+                // NormalizePath, not NormalizeCategoryOrDefault: a provider may now supply a nested
+                // path, and this is the one place every provider label passes through, so the depth
+                // cap and empty-segment rules apply to provider input as they do to user input.
+                // Blank still resolves to the Default label, so a provider that supplies nothing is
+                // unaffected.
+                detail.Category = CategoryPathHelper.NormalizePath(providerCategory);
                 detail.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(providerCategoryType);
                 detail.IsFiltered = !string.IsNullOrWhiteSpace(apiName) && filteredApiNames.Contains(apiName);
                 detail.IsFilteredFromSummaries = !string.IsNullOrWhiteSpace(apiName) &&

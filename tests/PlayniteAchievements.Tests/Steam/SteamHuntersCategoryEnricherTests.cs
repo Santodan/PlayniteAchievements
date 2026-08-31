@@ -79,7 +79,10 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.AreEqual("DLC", achievements[0].CategoryType);
             Assert.AreEqual("Expansion", achievements[0].Category);
             Assert.AreEqual("DLC|Update", achievements[1].CategoryType);
-            Assert.AreEqual("Booster Pack #5", achievements[1].Category);
+            Assert.AreEqual(
+                "Expansion::Booster Pack #5",
+                achievements[1].Category,
+                "An update to a DLC nests under that DLC rather than floating at the root.");
         }
 
         [TestMethod]
@@ -154,6 +157,42 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.AreEqual("DLC", achievements[1].CategoryType);
             Assert.AreEqual("DLC", achievements[2].CategoryType);
             Assert.AreEqual("DLC", achievements[3].CategoryType);
+        }
+
+        [TestMethod]
+        public void ApplyGroups_KeepsSingleLevelShapesFlat()
+        {
+            // The endpoint has exactly one two-level shape - a group carrying both a DlcAppName and
+            // a Name - and everything else is a root. Verified against the live endpoint:
+            //   - DLC with no updates: Fallout 4 (six DLC, no Name anywhere), Civilization V
+            //   - a collection routed through dlcandupdate: Mass Effect Legendary Edition, whose
+            //     "Mass Effect 1/2/3" groups carry a bare Name and no DlcAppId
+            // The second shape is indistinguishable from a base-game update (Terraria's "1.4.1"),
+            // so neither can be nested and both stay a single segment.
+            var achievements = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "dlc_only" },
+                new AchievementDetail { ApiName = "collection_entry" }
+            };
+            var groups = new List<SteamHuntersAchievementGroup>
+            {
+                new SteamHuntersAchievementGroup
+                {
+                    DlcAppId = 435870,
+                    DlcAppName = "Automatron",
+                    AchievementApiNames = new List<string> { "dlc_only" }
+                },
+                new SteamHuntersAchievementGroup
+                {
+                    Name = "Mass Effect 2",
+                    AchievementApiNames = new List<string> { "collection_entry" }
+                }
+            };
+
+            SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "My Game");
+
+            Assert.AreEqual("Automatron", achievements[0].Category);
+            Assert.AreEqual("Mass Effect 2", achievements[1].Category);
         }
 
         [TestMethod]
