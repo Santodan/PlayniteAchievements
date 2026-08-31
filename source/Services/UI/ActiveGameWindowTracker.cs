@@ -70,6 +70,13 @@ namespace PlayniteAchievements.Services.UI
             public GameWindowCandidate Learned;
             public DateTime LastDiscoveryUtc;
             public string NormalizedInstallDirectory;
+
+            /// <summary>
+            /// Every process attributed to this game so far, seeded with the one Playnite started.
+            /// Grow-only and per-session: it is what lets a chain still reach the game after the
+            /// launcher that started it has exited, taking its process id with it.
+            /// </summary>
+            public readonly HashSet<int> AttributedPids = new HashSet<int>();
         }
 
         /// <summary>
@@ -80,16 +87,24 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private readonly struct PidClassification
         {
-            public PidClassification(Guid? gameId, GameWindowEvidence evidence, DateTime startTimeUtc)
+            public PidClassification(
+                Guid? gameId,
+                GameWindowEvidence evidence,
+                int treeDepth,
+                DateTime startTimeUtc)
             {
                 GameId = gameId;
                 Evidence = evidence;
+                TreeDepth = treeDepth;
                 StartTimeUtc = startTimeUtc;
             }
 
             public Guid? GameId { get; }
 
             public GameWindowEvidence Evidence { get; }
+
+            /// <summary>Process-creation steps from the process Playnite started.</summary>
+            public int TreeDepth { get; }
 
             public DateTime StartTimeUtc { get; }
         }
@@ -232,12 +247,21 @@ namespace PlayniteAchievements.Services.UI
 
             lock (_sync)
             {
-                _tracked[game.Id] = new TrackedGame
+                var tracked = new TrackedGame
                 {
                     Game = game,
                     StartedProcessId = startedProcessId,
                     NormalizedInstallDirectory = NormalizeDirectory(game.InstallDirectory)
                 };
+
+                // The root of this game's process tree, and the only one known before anything has
+                // been observed. Everything the game goes on to start is measured from here.
+                if (startedProcessId is int startedPid && startedPid > 0)
+                {
+                    tracked.AttributedPids.Add(startedPid);
+                }
+
+                _tracked[game.Id] = tracked;
                 _pidGameCache.Clear();
                 _firstSeenUtc.Clear();
 
@@ -404,9 +428,7 @@ namespace PlayniteAchievements.Services.UI
                         return true;
                     }
 
-                    GameWindowEvidence evidence;
-                    DateTime processStartUtc;
-                    DateTime firstSeenUtc;
+                    GameWindowCandidate candidate;
                     lock (_sync)
                     {
                         if (_disposed || _tracked.Count == 0)
@@ -420,25 +442,15 @@ namespace PlayniteAchievements.Services.UI
                             return true;
                         }
 
-                        evidence = classification.Evidence;
-                        processStartUtc = classification.StartTimeUtc;
-                        firstSeenUtc = NoteFirstSeenLocked(hwnd);
-                    }
-
-                    // Measured only for the game's own windows: every rect is read inside a DPI
-                    // awareness scope, and paying that for each of the desktop's windows on every
-                    // scan would not be worth what it buys.
-                    if (TryMeasureCandidateArea(hwnd, out var clientArea))
-                    {
-                        candidates.Add(new GameWindowCandidate(
+                        candidate = new GameWindowCandidate(
                             hwnd,
-                            evidence,
-                            IsManagedUiShell(hwnd),
-                            processStartUtc,
-                            firstSeenUtc,
-                            clientArea));
+                            classification.TreeDepth,
+                            classification.Evidence,
+                            classification.StartTimeUtc,
+                            NoteFirstSeenLocked(hwnd));
                     }
 
+                    candidates.Add(candidate);
                     return true;
                 }, IntPtr.Zero);
             }
@@ -569,26 +581,19 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            return !IsCloaked(hwnd);
+            return !IsCloaked(hwnd) && !IsStubSized(hwnd);
         }
 
         /// <summary>
-        /// The window's capture area in square physical pixels, or false when it is too small to
-        /// be a game's picture. Measured through <see cref="WindowRectangles"/> — the one place
-        /// window rects are read — so the area is Per-Monitor-V2 correct and comparable across
-        /// monitors of different scale.
+        /// Whether the window is too small for a capture to use at all. Not a judgement about which
+        /// window is the game: a stub-sized window is what a minimized window parked off screen
+        /// looks like, and the H.264 encoder refuses its dimensions outright. Measured through
+        /// <see cref="WindowRectangles"/>, the one place window rects are read.
         /// </summary>
-        private static bool TryMeasureCandidateArea(IntPtr hwnd, out long clientArea)
+        private static bool IsStubSized(IntPtr hwnd)
         {
-            clientArea = 0;
             var area = WindowRectangles.Measure(hwnd).PreferredCaptureArea;
-            if (area.Width < MinCandidateDimension || area.Height < MinCandidateDimension)
-            {
-                return false;
-            }
-
-            clientArea = (long)area.Width * area.Height;
-            return true;
+            return area.Width < MinCandidateDimension || area.Height < MinCandidateDimension;
         }
 
         /// <summary>
@@ -606,33 +611,6 @@ namespace PlayniteAchievements.Services.UI
             seen = DateTime.UtcNow;
             _firstSeenUtc[hwnd] = seen;
             return seen;
-        }
-
-        /// <summary>
-        /// Whether the window's class marks it as drawn by a managed UI toolkit — WinForms
-        /// (<c>WindowsForms10.Window...</c>) or WPF (<c>HwndWrapper[...]</c>). A game's picture is
-        /// never presented through one, so these are launchers, pickers, settings dialogs and crash
-        /// reporters. Treated as a demotion rather than an exclusion: if such a window is the only
-        /// one a game has, it is still the best answer available.
-        /// </summary>
-        private static bool IsManagedUiShell(IntPtr hwnd)
-        {
-            try
-            {
-                var builder = new StringBuilder(256);
-                if (GetClassName(hwnd, builder, builder.Capacity) <= 0)
-                {
-                    return false;
-                }
-
-                var className = builder.ToString();
-                return className.StartsWith("WindowsForms", StringComparison.OrdinalIgnoreCase) ||
-                       className.StartsWith("HwndWrapper[", StringComparison.OrdinalIgnoreCase);
-            }
-            catch
-            {
-                return false;
-            }
         }
 
         private static bool IsCloaked(IntPtr hwnd)
@@ -906,61 +884,145 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Ties a pid to a tracked game and reports how strong the tie is. The rules are tried
-        /// strongest-evidence first — not in the order they are cheapest — so a pid that satisfies
-        /// several is described by its best one: the process Playnite started is also, for a
-        /// launcher-wrapped title, the launcher, and calling that a match on equal terms with the
-        /// game's own executable is what let a launcher window be captured for a whole session.
+        /// Ties a process to a tracked game, and reports how far down that game's process tree it
+        /// sits. Depth is the point: a launcher exists to start the game, so the game is deeper than
+        /// the launcher, and reporting only *that* a process belongs to the game — which is all this
+        /// used to do — throws away the one fact that separates the two.
+        ///
+        /// Attribution roots on the game's <see cref="TrackedGame.AttributedPids"/> rather than on
+        /// its started pid alone. That set only grows, so a chain still resolves after the process
+        /// Playnite started has exited, which for a launcher-wrapped title it routinely does — and
+        /// with the started pid gone, rooting on it alone leaves the game's own process attributed
+        /// to nothing and its window absent from the candidate list entirely.
         /// </summary>
         private PidClassification ClassifyProcessCore(int pid, out bool conclusive)
         {
             conclusive = true;
             var startTimeUtc = TryGetProcessStartTimeUtc(pid);
-
-            // 1. Executable path under a tracked game's install directory: the game's own process,
-            //    whether Playnite started it or a launcher did.
             var exePath = TryGetProcessImagePath(pid);
-            if (!string.IsNullOrEmpty(exePath))
+            if (string.IsNullOrEmpty(exePath))
             {
-                foreach (var entry in _tracked)
-                {
-                    var installDir = entry.Value.NormalizedInstallDirectory;
-                    if (!string.IsNullOrEmpty(installDir) &&
-                        exePath.StartsWith(installDir, StringComparison.OrdinalIgnoreCase))
-                    {
-                        _logger?.Debug(
-                            $"[WindowTracker] pid {pid} classified as '{entry.Value.Game?.Name}' via install directory.");
-                        return new PidClassification(
-                            entry.Key, GameWindowEvidence.InstallDirectory, startTimeUtc);
-                    }
-                }
-            }
-            else
-            {
+                // A process too young or too protected to inspect may still become attributable, so
+                // this answer must not be cached.
                 conclusive = false;
             }
 
-            // 2. Parent chain up to a tracked started pid: something the launcher spawned, so more
-            //    likely the game than the launcher itself — but the chain cannot prove which.
-            var ancestorGame = ClassifyByParentChain(pid);
-            if (ancestorGame.HasValue)
-            {
-                conclusive = true;
-                return new PidClassification(ancestorGame, GameWindowEvidence.ProcessTree, startTimeUtc);
-            }
+            var tree = SnapshotProcessTree();
 
-            // 3. The process Playnite started, or one already learned to own a window of this
-            //    game. Weakest: for a launcher-wrapped title this is the launcher.
+            // Install directory is the strongest tie but a fragile one: it compares the process
+            // image path against the path Playnite recorded, and a library behind a junction or on a
+            // remapped drive spells the same folder two ways. It therefore decides the evidence
+            // tier, never whether the process belongs to the game.
             foreach (var entry in _tracked)
             {
-                if (entry.Value.StartedProcessId == pid || entry.Value.LearnedProcessId == pid)
+                var tracked = entry.Value;
+                var installDirMatch = !string.IsNullOrEmpty(exePath) &&
+                                      !string.IsNullOrEmpty(tracked.NormalizedInstallDirectory) &&
+                                      exePath.StartsWith(
+                                          tracked.NormalizedInstallDirectory, StringComparison.OrdinalIgnoreCase);
+
+                var depth = ResolveTreeDepth(pid, startTimeUtc, tracked, tree);
+                if (depth < 0 && !installDirMatch)
                 {
-                    return new PidClassification(
-                        entry.Key, GameWindowEvidence.StartedProcess, startTimeUtc);
+                    continue;
                 }
+
+                // An install-directory process with a broken chain still belongs to the game; it is
+                // simply at an unknown remove from the launcher, which depth 0 represents.
+                var resolvedDepth = depth < 0 ? 0 : depth;
+                var evidence = installDirMatch
+                    ? GameWindowEvidence.InstallDirectory
+                    : GameWindowEvidence.AttributedProcess;
+
+                if (AttributePidLocked(tracked, pid))
+                {
+                    _logger?.Debug(
+                        $"[WindowTracker] pid {pid} attributed to '{tracked.Game?.Name}' " +
+                        $"at depth {resolvedDepth} via {evidence} " +
+                        $"(exe:{(string.IsNullOrEmpty(exePath) ? "?" : Path.GetFileName(exePath))}).");
+                }
+
+                return new PidClassification(entry.Key, evidence, resolvedDepth, startTimeUtc);
             }
 
             return default(PidClassification);
+        }
+
+        /// <summary>
+        /// Records a pid as belonging to the game so its descendants remain attributable after the
+        /// launcher that spawned them exits. Returns whether this was new. Growing the set can make
+        /// a previously unattributable process attributable, so the classification cache is dropped
+        /// — otherwise a "not this game" answer cached during launch would outlive the reason for it.
+        /// </summary>
+        private bool AttributePidLocked(TrackedGame tracked, int pid)
+        {
+            if (pid <= 0 || !tracked.AttributedPids.Add(pid))
+            {
+                return false;
+            }
+
+            _pidGameCache.Clear();
+            return true;
+        }
+
+        /// <summary>
+        /// How many process-creation steps separate <paramref name="pid"/> from the nearest process
+        /// already attributed to the game, or -1 when the chain does not reach one.
+        ///
+        /// Every step is validated against process start times: a parent cannot have started after
+        /// its child. Windows reuses process ids, so without that check a recycled parent id can
+        /// graft an unrelated process onto the game's tree — and the previous version of this walk
+        /// relied on liveness in a single snapshot, which does not rule that out.
+        /// </summary>
+        private static int ResolveTreeDepth(
+            int pid,
+            DateTime startTimeUtc,
+            TrackedGame tracked,
+            Dictionary<int, ProcessNode> tree)
+        {
+            if (tracked.AttributedPids.Contains(pid))
+            {
+                return 0;
+            }
+
+            if (tree == null)
+            {
+                return -1;
+            }
+
+            var current = pid;
+            var currentStartUtc = startTimeUtc;
+            for (var depth = 1; depth <= MaxParentChainDepth; depth++)
+            {
+                if (!tree.TryGetValue(current, out var node) || node.ParentPid <= 0 ||
+                    node.ParentPid == current)
+                {
+                    return -1;
+                }
+
+                if (!tree.TryGetValue(node.ParentPid, out var parent))
+                {
+                    return -1;
+                }
+
+                // A parent that started after its supposed child is a recycled process id, not an
+                // ancestor. Unknown times (an unreadable process) are not treated as a violation.
+                if (currentStartUtc > DateTime.MinValue && parent.StartUtc > DateTime.MinValue &&
+                    parent.StartUtc > currentStartUtc)
+                {
+                    return -1;
+                }
+
+                if (tracked.AttributedPids.Contains(node.ParentPid))
+                {
+                    return depth;
+                }
+
+                current = node.ParentPid;
+                currentStartUtc = parent.StartUtc;
+            }
+
+            return -1;
         }
 
         /// <summary>
@@ -998,48 +1060,65 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        private Guid? ClassifyByParentChain(int pid)
+        /// <summary>
+        /// One live process: its parent and when it started. The start time is what makes a
+        /// parent-child link checkable, since a process id on its own can have been recycled.
+        /// </summary>
+        private readonly struct ProcessNode
         {
-            var startedPids = new Dictionary<int, Guid>();
-            foreach (var entry in _tracked)
+            public ProcessNode(int parentPid, DateTime startUtc)
             {
-                if (entry.Value.StartedProcessId is int startedPid && startedPid > 0)
-                {
-                    startedPids[startedPid] = entry.Key;
-                }
+                ParentPid = parentPid;
+                StartUtc = startUtc;
             }
 
-            if (startedPids.Count == 0)
+            public int ParentPid { get; }
+
+            public DateTime StartUtc { get; }
+        }
+
+        /// <summary>
+        /// Every live process by id, with its parent and start time. Null when the snapshot could not
+        /// be taken. Start times are read lazily per entry and cost one limited-information handle
+        /// each, so this is the expensive part of a scan; it is taken once per classification rather
+        /// than once per chain step.
+        /// </summary>
+        private Dictionary<int, ProcessNode> SnapshotProcessTree()
+        {
+            var snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+            if (snapshot == IntPtr.Zero || snapshot == INVALID_HANDLE_VALUE)
             {
                 return null;
             }
 
-            var parentByPid = SnapshotParentMap();
-            if (parentByPid == null)
+            try
             {
-                return null;
-            }
-
-            var current = pid;
-            for (var depth = 0; depth < MaxParentChainDepth; depth++)
-            {
-                if (!parentByPid.TryGetValue(current, out var parent) || parent <= 0 || parent == current)
+                var map = new Dictionary<int, ProcessNode>();
+                var entry = new PROCESSENTRY32 { dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32)) };
+                if (!Process32First(snapshot, ref entry))
                 {
                     return null;
                 }
 
-                if (startedPids.TryGetValue(parent, out var gameId))
+                do
                 {
-                    // The snapshot contains the child, so the ancestor pid is still a live process
-                    // in the same snapshot; a reused pid would not appear as this chain's parent.
-                    _logger?.Debug($"[WindowTracker] pid {pid} classified via parent chain (ancestor {parent}).");
-                    return gameId;
+                    var pid = (int)entry.th32ProcessID;
+                    map[pid] = new ProcessNode(
+                        (int)entry.th32ParentProcessID, TryGetProcessStartTimeUtc(pid));
                 }
+                while (Process32Next(snapshot, ref entry));
 
-                current = parent;
+                return map;
             }
-
-            return null;
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[WindowTracker] Process snapshot failed.");
+                return null;
+            }
+            finally
+            {
+                CloseHandle(snapshot);
+            }
         }
 
         private static string TryGetWindowTitle(IntPtr hwnd)
