@@ -507,13 +507,18 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// The current wave's game window handle as learned by the foreground tracker, or
-        /// IntPtr.Zero when no tracker/game is available (callers fall back to pid resolution).
+        /// The current wave's game window handle, or IntPtr.Zero when no tracker/game is available
+        /// (callers fall back to pid resolution).
+        ///
+        /// Resolved focus-first: a wave fires while the player is in the game, so the window they
+        /// are looking at is the one to photograph and to place the notification over. This is not
+        /// the same choice the video recorder makes — it has to pick a target during launch and
+        /// keep it — so the two ask the tracker different questions on purpose.
         /// </summary>
         private IntPtr ResolveWaveWindowHandle()
         {
             return _activeWaveGameId.HasValue && _windowTracker != null
-                ? _windowTracker.TryGetWindowHandle(_activeWaveGameId.Value)
+                ? _windowTracker.TryGetFocusedWindowHandle(_activeWaveGameId.Value)
                 : IntPtr.Zero;
         }
 
