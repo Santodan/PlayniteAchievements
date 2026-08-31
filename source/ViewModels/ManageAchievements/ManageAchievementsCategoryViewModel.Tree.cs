@@ -465,6 +465,27 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return ApplyCategoryMoves(moves);
         }
 
+        /// <summary>
+        /// Makes each row a subcategory of <paramref name="targetParentLabel"/> (null = top level)
+        /// as one batch: one snapshot, one store write, one row rebuild, one selection restore.
+        /// </summary>
+        public bool NestCategoryRowsUnder(IReadOnlyList<string> labels, string targetParentLabel)
+        {
+            return ApplyCategoryMoves(CategoryNestPlanner.PlanNestMoves(
+                SnapshotCategoryLabels(),
+                labels,
+                targetParentLabel));
+        }
+
+        /// <summary>Whether <see cref="NestCategoryRowsUnder"/> would move anything.</summary>
+        public bool CanNestCategoryRowsUnder(IReadOnlyList<string> labels, string targetParentLabel)
+        {
+            return CategoryNestPlanner.PlanNestMoves(
+                SnapshotCategoryLabels(),
+                labels,
+                targetParentLabel).Count > 0;
+        }
+
         /// <summary>Rendered category labels in render order, normalized, Default excluded.</summary>
         private List<string> SnapshotCategoryLabels()
         {
