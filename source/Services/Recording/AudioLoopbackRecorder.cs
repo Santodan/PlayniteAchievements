@@ -844,7 +844,22 @@ namespace PlayniteAchievements.Services.Recording
                 _logger?.Warn(
                     $"[Recording] Audio track has gaps: {discarded / (double)bytesPerSecond:0.###}s dropped to " +
                     $"buffer overflow, {paddedFrames / (double)sampleRate:0.###}s of engine dropouts padded " +
-                    "with silence. Both mean the capture threads missed their deadline.");
+                    "with silence.");
+            }
+
+            // Silence the device counter asked for beyond elapsed real time, which is impossible
+            // and therefore proof that devicePosition is not advancing in this capture's own
+            // frames. Reported on its own because it says something quite different from the line
+            // above: not that audio was lost, but that the gap arithmetic cannot be trusted.
+            var impossible = (clipTrack as ProcessLoopbackCapture)?.ImpossibleGapFrames ?? 0;
+            if (impossible > 0)
+            {
+                _logger?.Warn(
+                    $"[Recording] Device position asked for {impossible / (double)sampleRate:0.###}s more " +
+                    "silence than the session was long; it was refused. The endpoint's device clock is not " +
+                    "counting in the capture's frames. Endpoint mix format: " +
+                    ((clipTrack as ProcessLoopbackCapture)?.NativeMixFormat?.ToString() ?? "unknown") +
+                    $"; capture format: {_outputFormat}.");
             }
 
             var sidecarFrames = 0L;

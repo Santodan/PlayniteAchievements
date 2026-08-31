@@ -131,11 +131,22 @@ namespace PlayniteAchievements.Services.Recording
         /// result is capped so a driver reporting a nonsense position cannot make us insert an
         /// unbounded run of silence, and drivers that never move the position simply report no gaps.
         /// </para>
+        /// <para>
+        /// The per-gap cap is not enough on its own. <c>devicePosition</c> is the device clock's
+        /// own counter, and a client that asked the engine to convert format (AUTOCONVERTPCM, which
+        /// every forced-format endpoint capture does) cannot assume it advances one-for-one with the
+        /// frames it is handed. A field log shows a 219 s session reporting 658 s of padding — 3x
+        /// wall clock, from one capture. Padding cannot exceed elapsed time by definition, and once
+        /// it does the ring overflows however large it is, because the consumer drains at 1x. So the
+        /// running total is held to what the wall clock allows; the excess is counted separately and
+        /// reported, because it is evidence of the position bug rather than of dropped audio.
+        /// </para>
         /// </summary>
         private long TakeGapBefore(long devicePosition, uint framesAvailable)
         {
             var expected = _nextDevicePosition;
             _nextDevicePosition = devicePosition + framesAvailable;
+            _deliveredFrames += framesAvailable;
             if (expected < 0 || devicePosition <= expected)
             {
                 return 0;
@@ -143,8 +154,45 @@ namespace PlayniteAchievements.Services.Recording
 
             var gap = devicePosition - expected;
             var cap = (long)WaveFormat.SampleRate * MaxGapSeconds;
-            return gap > cap ? cap : gap;
+            if (gap > cap)
+            {
+                gap = cap;
+            }
+
+            // What the wall clock says can possibly be missing: elapsed real frames, less
+            // everything already delivered or padded. Never negative, never more than the gap.
+            var elapsedFrames = (long)(
+                (CaptureTimelineClock.UtcNow - _captureStartedUtc).TotalSeconds * WaveFormat.SampleRate);
+            var allowed = elapsedFrames - _deliveredFrames - _paddedGapFrames;
+            if (allowed < 0)
+            {
+                allowed = 0;
+            }
+
+            if (gap > allowed)
+            {
+                _impossibleGapFrames += gap - allowed;
+                gap = allowed;
+            }
+
+            return gap;
         }
+
+        /// <summary>
+        /// Silence the device counter asked for beyond what the wall clock allows. Non-zero means
+        /// <c>devicePosition</c> is not advancing in this capture's own frames — see TakeGapBefore.
+        /// </summary>
+        public long ImpossibleGapFrames => _impossibleGapFrames;
+
+        private long _impossibleGapFrames;
+        private long _deliveredFrames;
+        private DateTime _captureStartedUtc = DateTime.UtcNow;
+
+        /// <summary>
+        /// The endpoint's own mix format, when this capture forced a different one. Null for
+        /// process-loopback clients, which have no endpoint of their own.
+        /// </summary>
+        public WaveFormat NativeMixFormat { get; private set; }
 
         /// <summary>
         /// Converts a GetBuffer QPC stamp (100-ns units on the performance counter's timebase) to
@@ -449,6 +497,21 @@ namespace PlayniteAchievements.Services.Recording
             }
             else
             {
+                // Read the endpoint's own mix format even though we are about to force ours. It is
+                // what the device clock counts in, so it is the first thing to look at when
+                // devicePosition and the frames we are handed disagree — see TakeGapBefore.
+                try
+                {
+                    if (_audioClient.GetMixFormat(out var nativePtr) == 0 && nativePtr != IntPtr.Zero)
+                    {
+                        NativeMixFormat = WaveFormat.MarshalFromPtr(nativePtr);
+                        Marshal.FreeCoTaskMem(nativePtr);
+                    }
+                }
+                catch
+                {
+                }
+
                 var format = new WAVEFORMATEX
                 {
                     wFormatTag = (ushort)WAVE_FORMAT_IEEE_FLOAT,
@@ -514,6 +577,8 @@ namespace PlayniteAchievements.Services.Recording
             // The device counter is only meaningful within one run: carrying it across a restart would
             // read as an enormous gap and pad the track with silence that never happened.
             _nextDevicePosition = -1;
+            _deliveredFrames = 0;
+            _captureStartedUtc = CaptureTimelineClock.UtcNow;
             _audioClient.Start();
             _capturing = true;
             _pollThread = new Thread(PollLoop)
