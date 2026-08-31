@@ -1097,7 +1097,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var menu = new ContextMenu();
             menu.Items.Add(CreateResetMenuItem(
                 L("LOCPlayAch_ManageAchievements_Tab_AchievementOrder"),
-                ViewModel.HasCustomCategoryOrder,
+                ViewModel.HasCustomCategoryOrder || ViewModel.HasCustomCategoryNesting,
                 () => ResetCategoryMetadataAspect(ViewModel.ResetCategoryOrder)));
             menu.Items.Add(CreateResetMenuItem(
                 L("LOCPlayAch_Column_Name"),
