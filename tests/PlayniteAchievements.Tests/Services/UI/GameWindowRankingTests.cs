@@ -4,223 +4,169 @@ using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.Services.Tests.UI
 {
+    /// <summary>
+    /// The launcher shapes this ranking exists to get right. Each is named after the real structure
+    /// it came from, because two earlier fixes failed by reasoning about a shape that was never
+    /// verified.
+    /// </summary>
     [TestClass]
     public class GameWindowRankingTests
     {
-        private const long SmallWindow = 640 * 480;
-        private const long GameWindow = 1920 * 1080;
-
         private static readonly DateTime LauncherStart = new DateTime(2026, 8, 31, 12, 0, 0, DateTimeKind.Utc);
         private static readonly DateTime GameStart = LauncherStart.AddSeconds(8);
 
         private static GameWindowCandidate Candidate(
             int hwnd,
+            int processTreeDepth,
             GameWindowEvidence evidence,
-            bool isManagedUiShell = false,
             DateTime? processStartUtc = null,
-            DateTime? firstSeenUtc = null,
-            long clientArea = GameWindow)
+            DateTime? firstSeenUtc = null)
         {
             return new GameWindowCandidate(
                 new IntPtr(hwnd),
+                processTreeDepth,
                 evidence,
-                isManagedUiShell,
                 processStartUtc ?? GameStart,
-                firstSeenUtc ?? GameStart,
-                clientArea);
+                firstSeenUtc ?? GameStart);
         }
 
-        /// <summary>
-        /// The shape behind the report: Playnite starts the store client, so the client's window is
-        /// the only one that exists at first, and its process is the one Playnite started.
-        /// </summary>
-        private static GameWindowCandidate StoreClientWindow()
+        // === Steam-wrapped: Playnite starts steam.exe, which renders its own UI from a deeper
+        // process than the game it launches. Measured on a real machine: steam.exe at depth 0,
+        // steamwebhelper.exe at depth 2, a game steam.exe starts at depth 1. Depth alone would
+        // therefore pick Steam's own window, which is why evidence has to outrank depth.
+
+        private static GameWindowCandidate SteamClientWindow()
         {
-            return Candidate(
-                1,
-                GameWindowEvidence.StartedProcess,
-                processStartUtc: LauncherStart,
-                firstSeenUtc: LauncherStart);
+            return Candidate(1, 0, GameWindowEvidence.AttributedProcess, LauncherStart, LauncherStart);
         }
 
-        /// <summary>
-        /// Shenmue I &amp; II: the game-picker launcher is a WinForms window living in the same
-        /// install folder as both games, so evidence alone cannot separate it from the game.
-        /// </summary>
+        private static GameWindowCandidate SteamWebHelperWindow()
+        {
+            return Candidate(2, 2, GameWindowEvidence.AttributedProcess, LauncherStart, LauncherStart);
+        }
+
+        private static GameWindowCandidate SteamLaunchedGameWindow()
+        {
+            return Candidate(3, 1, GameWindowEvidence.InstallDirectory);
+        }
+
+        // === Shenmue I & II: the game-picker launcher and both games live under one install folder,
+        // so evidence ties and only tree depth separates the picker from the game.
+
         private static GameWindowCandidate ShenmuePickerWindow()
         {
-            return Candidate(
-                2,
-                GameWindowEvidence.InstallDirectory,
-                isManagedUiShell: true,
-                processStartUtc: LauncherStart,
-                firstSeenUtc: LauncherStart,
-                clientArea: SmallWindow);
+            return Candidate(10, 1, GameWindowEvidence.InstallDirectory, LauncherStart, LauncherStart);
         }
 
-        private static GameWindowCandidate GameRenderWindow(int hwnd = 3)
+        private static GameWindowCandidate ShenmueGameWindow()
         {
-            return Candidate(hwnd, GameWindowEvidence.InstallDirectory);
+            return Candidate(11, 2, GameWindowEvidence.InstallDirectory);
         }
 
         [TestMethod]
-        public void SelectBest_PrefersTheGameOverTheStoreClient_WhicheverIsEnumeratedFirst()
+        public void SteamShape_PrefersTheGameOverTheClientAndItsDeeperHelper()
         {
-            var client = StoreClientWindow();
-            var game = GameRenderWindow();
+            var client = SteamClientWindow();
+            var helper = SteamWebHelperWindow();
+            var game = SteamLaunchedGameWindow();
 
-            Assert.AreEqual(game.Hwnd, GameWindowRanking.SelectBest(new[] { client, game }).Hwnd);
-            Assert.AreEqual(game.Hwnd, GameWindowRanking.SelectBest(new[] { game, client }).Hwnd);
+            Assert.AreEqual(game.Hwnd, GameWindowRanking.SelectBest(new[] { client, helper, game }).Hwnd);
+            Assert.AreEqual(game.Hwnd, GameWindowRanking.SelectBest(new[] { game, helper, client }).Hwnd);
         }
 
         [TestMethod]
-        public void SelectBest_PrefersTheGameOverAPickerInTheSameInstallFolder()
+        public void SteamShape_DepthAloneMustNotWin()
+        {
+            // The helper is deeper than the game. If depth outranked evidence, clips would show the
+            // Steam client instead of the game.
+            var helper = SteamWebHelperWindow();
+            var game = SteamLaunchedGameWindow();
+
+            Assert.IsTrue(helper.ProcessTreeDepth > game.ProcessTreeDepth);
+            Assert.IsTrue(GameWindowRanking.ShouldReplace(helper, game));
+            Assert.IsFalse(GameWindowRanking.ShouldReplace(game, helper));
+        }
+
+        [TestMethod]
+        public void ShenmueShape_DepthSeparatesThePickerFromTheGame()
         {
             var picker = ShenmuePickerWindow();
-            var game = GameRenderWindow();
+            var game = ShenmueGameWindow();
 
+            Assert.AreEqual(game.Evidence, picker.Evidence);
             Assert.AreEqual(game.Hwnd, GameWindowRanking.SelectBest(new[] { picker, game }).Hwnd);
             Assert.AreEqual(game.Hwnd, GameWindowRanking.SelectBest(new[] { game, picker }).Hwnd);
-        }
-
-        [TestMethod]
-        public void SelectBest_PrefersTheYoungerProcessWithinOneTier()
-        {
-            // A launcher's job is to start the game, so the game's process is always the younger.
-            var launcher = Candidate(1, GameWindowEvidence.InstallDirectory, processStartUtc: LauncherStart);
-            var game = Candidate(2, GameWindowEvidence.InstallDirectory, processStartUtc: GameStart);
-
-            Assert.AreEqual(game.Hwnd, GameWindowRanking.SelectBest(new[] { launcher, game }).Hwnd);
-            Assert.AreEqual(game.Hwnd, GameWindowRanking.SelectBest(new[] { game, launcher }).Hwnd);
-        }
-
-        [TestMethod]
-        public void SelectBest_PrefersTheLaterWindowOfOneProcess()
-        {
-            // One process, two windows: the render window supersedes the splash.
-            var splash = Candidate(1, GameWindowEvidence.InstallDirectory, firstSeenUtc: GameStart);
-            var render = Candidate(2, GameWindowEvidence.InstallDirectory, firstSeenUtc: GameStart.AddSeconds(4));
-
-            Assert.AreEqual(render.Hwnd, GameWindowRanking.SelectBest(new[] { splash, render }).Hwnd);
-            Assert.AreEqual(render.Hwnd, GameWindowRanking.SelectBest(new[] { render, splash }).Hwnd);
-        }
-
-        [TestMethod]
-        public void SelectBest_IsEmptyForNoCandidates()
-        {
-            Assert.IsTrue(GameWindowRanking.SelectBest(new GameWindowCandidate[0]).IsEmpty);
-            Assert.IsTrue(GameWindowRanking.SelectBest(null).IsEmpty);
-        }
-
-        [TestMethod]
-        public void ShouldReplace_TakesAnythingWhenNothingIsKnown()
-        {
-            Assert.IsTrue(GameWindowRanking.ShouldReplace(default(GameWindowCandidate), StoreClientWindow()));
-        }
-
-        [TestMethod]
-        public void ShouldReplace_PromotesFromTheStoreClientToTheGame()
-        {
-            var client = StoreClientWindow();
-            var game = GameRenderWindow();
-
-            Assert.IsTrue(GameWindowRanking.ShouldReplace(client, game));
-            Assert.IsFalse(GameWindowRanking.ShouldReplace(game, client));
-        }
-
-        [TestMethod]
-        public void ShouldReplace_PromotesFromTheShenmuePickerToTheGame()
-        {
-            // The case the first fix missed: same evidence tier, and the picker had focus while the
-            // game started. Nothing about it may hold the target once the game has a window.
-            var picker = ShenmuePickerWindow();
-            var game = GameRenderWindow();
-
             Assert.IsTrue(GameWindowRanking.ShouldReplace(picker, game));
             Assert.IsFalse(GameWindowRanking.ShouldReplace(game, picker));
         }
 
         [TestMethod]
-        public void ShouldReplace_NeverFallsBackToAManagedShellFromARealGameWindow()
+        public void LauncherAlone_IsStillChosen()
         {
-            // A crash reporter or settings dialog opening mid-session must not steal the target,
-            // even though its process and window are both younger than the game's.
-            var game = GameRenderWindow();
-            var dialogOpenedLater = Candidate(
-                9,
-                GameWindowEvidence.InstallDirectory,
-                isManagedUiShell: true,
-                processStartUtc: GameStart.AddMinutes(20),
-                firstSeenUtc: GameStart.AddMinutes(20),
-                clientArea: SmallWindow);
+            // The state at capture start: the game has no window yet, so the launcher is the best
+            // answer available and capture must not be skipped.
+            var picker = ShenmuePickerWindow();
 
-            Assert.IsFalse(GameWindowRanking.ShouldReplace(game, dialogOpenedLater));
+            Assert.AreEqual(picker.Hwnd, GameWindowRanking.SelectBest(new[] { picker }).Hwnd);
+            Assert.IsTrue(GameWindowRanking.ShouldReplace(default(GameWindowCandidate), picker));
         }
 
         [TestMethod]
-        public void ShouldReplace_RefusesAnIndistinguishableRivalOfTheSameSize()
+        public void DirectExeAndEmulator_ResolveAtDepthZero()
         {
-            // Two equally plausible windows must not trade the target back and forth: each swap
-            // tears down a running capture and costs a segment boundary.
-            var current = GameRenderWindow(1);
-            var rival = GameRenderWindow(2);
+            // Nothing wraps these: the process Playnite started owns the game window.
+            var directGame = Candidate(20, 0, GameWindowEvidence.InstallDirectory);
+            var emulator = Candidate(21, 0, GameWindowEvidence.AttributedProcess);
+
+            Assert.IsTrue(GameWindowRanking.ShouldReplace(default(GameWindowCandidate), directGame));
+            Assert.IsTrue(GameWindowRanking.ShouldReplace(default(GameWindowCandidate), emulator));
+            Assert.IsFalse(GameWindowRanking.ShouldReplace(directGame, emulator));
+        }
+
+        [TestMethod]
+        public void BrokenProcessChain_StillPrefersTheInstallDirectoryProcess()
+        {
+            // A library behind a junction, or a launcher that exited: depth degrades to 0, and
+            // install-directory evidence is what keeps the game ahead of a deeper launcher process.
+            var game = Candidate(30, 0, GameWindowEvidence.InstallDirectory);
+            var deeperLauncher = Candidate(
+                31, 3, GameWindowEvidence.AttributedProcess, LauncherStart, LauncherStart);
+
+            Assert.IsTrue(GameWindowRanking.ShouldReplace(deeperLauncher, game));
+            Assert.IsFalse(GameWindowRanking.ShouldReplace(game, deeperLauncher));
+        }
+
+        [TestMethod]
+        public void TwoWindowsOfOneProcess_PreferTheLaterOne()
+        {
+            var splash = Candidate(40, 2, GameWindowEvidence.InstallDirectory, firstSeenUtc: GameStart);
+            var render = Candidate(
+                41, 2, GameWindowEvidence.InstallDirectory, firstSeenUtc: GameStart.AddSeconds(4));
+
+            Assert.AreEqual(render.Hwnd, GameWindowRanking.SelectBest(new[] { splash, render }).Hwnd);
+            Assert.IsTrue(GameWindowRanking.ShouldReplace(splash, render));
+            Assert.IsFalse(GameWindowRanking.ShouldReplace(render, splash));
+        }
+
+        [TestMethod]
+        public void IndistinguishableWindows_LeaveTheIncumbentInPlace()
+        {
+            // Every swap tears down a running capture and costs a segment boundary, so a lateral
+            // move must never happen.
+            var current = Candidate(50, 2, GameWindowEvidence.InstallDirectory);
+            var rival = Candidate(51, 2, GameWindowEvidence.InstallDirectory);
 
             Assert.IsFalse(GameWindowRanking.ShouldReplace(current, rival));
             Assert.IsFalse(GameWindowRanking.ShouldReplace(rival, current));
         }
 
         [TestMethod]
-        public void ShouldReplace_UsesSizeOnlyWhenNothingElseSeparatesThem()
+        public void EmptyCandidates_AreNeverTaken()
         {
-            var small = Candidate(1, GameWindowEvidence.InstallDirectory, clientArea: SmallWindow);
-            var large = Candidate(2, GameWindowEvidence.InstallDirectory, clientArea: GameWindow);
-
-            Assert.IsTrue(GameWindowRanking.ShouldReplace(small, large));
-            Assert.IsFalse(GameWindowRanking.ShouldReplace(large, small));
-        }
-
-        [TestMethod]
-        public void ShouldReplace_IgnoresAMarginalSizeDifference()
-        {
-            var current = Candidate(1, GameWindowEvidence.InstallDirectory, clientArea: 1000);
-            var barelyBigger = Candidate(2, GameWindowEvidence.InstallDirectory, clientArea: 1400);
-
-            Assert.IsFalse(GameWindowRanking.ShouldReplace(current, barelyBigger));
-        }
-
-        [TestMethod]
-        public void ShouldReplace_LetsWeakEvidenceWinOnlyWhenItIsTheOnlyCandidate()
-        {
-            // An emulator's window carries only started-process evidence; with nothing better
-            // available it is still the right answer, and it must not be displaced by a store
-            // client window of the same tier that appeared earlier.
-            var emulator = Candidate(1, GameWindowEvidence.StartedProcess);
-            var olderSameTier = Candidate(
-                2,
-                GameWindowEvidence.StartedProcess,
-                processStartUtc: LauncherStart,
-                firstSeenUtc: LauncherStart);
-
-            Assert.IsTrue(GameWindowRanking.ShouldReplace(default(GameWindowCandidate), emulator));
-            Assert.IsFalse(GameWindowRanking.ShouldReplace(emulator, olderSameTier));
-        }
-
-        [TestMethod]
-        public void ShouldReplace_NeverTakesAnEmptyCandidate()
-        {
-            Assert.IsFalse(GameWindowRanking.ShouldReplace(GameRenderWindow(), default(GameWindowCandidate)));
-        }
-
-        [TestMethod]
-        public void ShouldReplace_IsNotDecidedByFocus()
-        {
-            // Focus is not represented in a candidate at all. It cannot be: a launcher holds focus
-            // exactly while the game is starting, which is when the target is first chosen.
-            var picker = ShenmuePickerWindow();
-            var game = GameRenderWindow();
-
-            // Same inputs regardless of which of the two the user happens to be looking at.
-            Assert.IsTrue(GameWindowRanking.ShouldReplace(picker, game));
+            Assert.IsFalse(GameWindowRanking.ShouldReplace(
+                ShenmueGameWindow(), default(GameWindowCandidate)));
+            Assert.IsTrue(GameWindowRanking.SelectBest(new GameWindowCandidate[0]).IsEmpty);
+            Assert.IsTrue(GameWindowRanking.SelectBest(null).IsEmpty);
         }
     }
 }
