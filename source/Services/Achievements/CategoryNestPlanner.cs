@@ -35,11 +35,22 @@ namespace PlayniteAchievements.Services.Achievements
                 return moves;
             }
 
-            var snapshot = new HashSet<string>(
-                orderedLabels
-                    .Where(label => !string.IsNullOrWhiteSpace(label))
-                    .Select(CategoryPathHelper.NormalizePath),
-                StringComparer.OrdinalIgnoreCase);
+            // Keyed case-insensitively but valued with the snapshot's own text, so a
+            // differently-cased caller input cannot rewrite a label's casing as a side effect.
+            var snapshot = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var label in orderedLabels)
+            {
+                if (string.IsNullOrWhiteSpace(label))
+                {
+                    continue;
+                }
+
+                var normalized = CategoryPathHelper.NormalizePath(label);
+                if (!snapshot.ContainsKey(normalized))
+                {
+                    snapshot[normalized] = normalized;
+                }
+            }
 
             // Default never moves (it is the fallback bucket), and a label the grid is not
             // showing cannot be trusted as a move source.
@@ -49,7 +60,8 @@ namespace PlayniteAchievements.Services.Achievements
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Where(label =>
                     !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
-                    snapshot.Contains(label))
+                    snapshot.ContainsKey(label))
+                .Select(label => snapshot[label])
                 .ToList();
 
             // A moving descendant of a moving ancestor is dropped: the ancestor's prefix
@@ -75,7 +87,7 @@ namespace PlayniteAchievements.Services.Achievements
                         CategoryPathHelper.Split(target)[0],
                         AchievementCategoryTypeHelper.DefaultCategoryLabel,
                         StringComparison.OrdinalIgnoreCase) ||
-                    !snapshot.Contains(target) ||
+                    !snapshot.TryGetValue(target, out target) ||
                     moving.Any(label => CategoryPathHelper.IsSelfOrDescendantOf(target, label)))
                 {
                     return moves;
@@ -97,7 +109,7 @@ namespace PlayniteAchievements.Services.Achievements
                     continue;
                 }
 
-                if (snapshot.Contains(reparented) || !plannedResults.Add(reparented))
+                if (snapshot.ContainsKey(reparented) || !plannedResults.Add(reparented))
                 {
                     continue;
                 }
