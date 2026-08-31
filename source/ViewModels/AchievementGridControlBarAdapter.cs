@@ -251,6 +251,17 @@ namespace PlayniteAchievements.ViewModels
             UpdateOptions(null);
         }
 
+        // Replaces the unlock-state toggle availability computed by the last UpdateOptions call.
+        // Used when the options source is a fallback while the exact rows load on demand, so the
+        // toggles can reflect known summary counts instead of the fallback's unlocked-only rows.
+        public void OverrideUnlockStateAvailability(bool hasUnlocked, bool hasLocked, bool hasHiddenLocked)
+        {
+            _hasUnlocked = hasUnlocked;
+            _hasLocked = hasLocked;
+            _hasHiddenLocked = hasHiddenLocked;
+            ControlBar.Refresh();
+        }
+
         // True when any filter deviates from "show everything" (used for header/count logic).
         public bool HasActiveFilters =>
             !string.IsNullOrEmpty(_searchText)
