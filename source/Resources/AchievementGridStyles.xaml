@@ -841,9 +841,16 @@
                                     CornerRadius="5"
                                     Padding="4"
                                     SnapsToDevicePixels="True">
-                                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
-                                                KeyboardNavigation.TabNavigation="Cycle"
-                                                SnapsToDevicePixels="True"/>
+                                <!-- Same scroll cap as the menu itself: a submenu listing every
+                                     category (merge targets, subcategory targets) can outgrow
+                                     the screen. -->
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              MaxHeight="400">
+                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
+                                                    KeyboardNavigation.TabNavigation="Cycle"
+                                                    SnapsToDevicePixels="True"/>
+                                </ScrollViewer>
                             </Border>
                         </Popup>
                     </Grid>
