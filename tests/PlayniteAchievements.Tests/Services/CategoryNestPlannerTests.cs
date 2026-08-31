@@ -141,6 +141,49 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void PlanGapOrder_SplicesTheDroppedRootBetweenNestedSiblings()
+        {
+            var rendered = new[] { "A", "A::B", "A::C", "D", "Default" };
+            var moves = CategoryNestPlanner.PlanNestMoves(
+                new[] { "A", "A::B", "A::C", "D" }, new[] { "D" }, "A");
+
+            var plan = CategoryNestPlanner.PlanGapOrder(rendered, new[] { "D" }, moves, "A::C");
+
+            CollectionAssert.AreEqual(
+                new[] { "A", "A::B", "A::D", "A::C", "Default" },
+                plan.Order);
+            CollectionAssert.AreEqual(new[] { "A::D" }, plan.SelectionRoots);
+        }
+
+        [TestMethod]
+        public void PlanGapOrder_CarriesTheSubtreeAndAppendsAtEndForNullGap()
+        {
+            var rendered = new[] { "A", "A::B", "A::B::C", "D" };
+            var moves = CategoryNestPlanner.PlanNestMoves(
+                new[] { "A", "A::B", "A::B::C", "D" }, new[] { "A::B" }, null);
+
+            var plan = CategoryNestPlanner.PlanGapOrder(rendered, new[] { "A::B" }, moves, null);
+
+            CollectionAssert.AreEqual(new[] { "A", "D", "B", "B::C" }, plan.Order);
+            CollectionAssert.AreEqual(new[] { "B" }, plan.SelectionRoots);
+        }
+
+        [TestMethod]
+        public void PlanGapOrder_KeepsUnmovedDraggedRootsInTheSplicedBlocks()
+        {
+            // E already sits at the gap's level, so it has no move - but it still travels to the
+            // gap with the rest of the drag.
+            var rendered = new[] { "A", "A::B", "A::E", "D" };
+            var moves = CategoryNestPlanner.PlanNestMoves(
+                new[] { "A", "A::B", "A::E", "D" }, new[] { "D", "A::E" }, "A");
+
+            var plan = CategoryNestPlanner.PlanGapOrder(rendered, new[] { "D", "A::E" }, moves, "A::B");
+
+            CollectionAssert.AreEqual(new[] { "A", "A::E", "A::D", "A::B" }, plan.Order);
+            CollectionAssert.AreEqual(new[] { "A::E", "A::D" }, plan.SelectionRoots);
+        }
+
+        [TestMethod]
         public void GetSubtreeHeight_CountsDeepestDescendantDistance()
         {
             Assert.AreEqual(1, CategoryNestPlanner.GetSubtreeHeight(Snapshot, "D"));
