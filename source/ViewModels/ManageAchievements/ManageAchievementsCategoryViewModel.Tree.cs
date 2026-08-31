@@ -673,6 +673,87 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return label;
         }
 
+        /// <summary>
+        /// Creates an empty sibling copy of each node: same parent, art override copied, unique
+        /// leaf name ("DLC (2)"), placed right after the source's subtree. Achievements, the
+        /// subtree, and the summary selection (single-choice) are not copied. One write for the
+        /// whole batch. Returns the created labels in creation order.
+        /// </summary>
+        public List<string> DuplicateCategories(IReadOnlyList<string> labels)
+        {
+            var created = new List<string>();
+            var rendered = CategoryRows
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
+                .Select(row => row.CategoryLabel)
+                .ToList();
+
+            var sources = (labels ?? Array.Empty<string>())
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .Select(CategoryPathHelper.NormalizePath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(label =>
+                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
+                    rendered.Any(existing => CategoryPathHelper.IsSame(existing, label)))
+                .ToList();
+            if (sources.Count == 0)
+            {
+                return created;
+            }
+
+            var order = rendered.ToList();
+            var images = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted)
+                ?.ToDictionary(pair => pair.Key, pair => pair.Value?.Clone(), StringComparer.OrdinalIgnoreCase)
+                ?? new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var source in sources)
+            {
+                var newLabel = CategoryNameGenerator.GenerateUniqueLabel(
+                    order,
+                    CategoryPathHelper.GetParentPath(source),
+                    CategoryPathHelper.GetLeafName(source));
+                if (string.IsNullOrWhiteSpace(newLabel))
+                {
+                    continue;
+                }
+
+                // Beside the whole subtree, not inside it: the copy is a sibling of the source.
+                var insertIndex = order.Count;
+                for (var i = order.Count - 1; i >= 0; i--)
+                {
+                    if (CategoryPathHelper.IsSelfOrDescendantOf(order[i], source))
+                    {
+                        insertIndex = i + 1;
+                        break;
+                    }
+                }
+
+                order.Insert(insertIndex, newLabel);
+                if (images.TryGetValue(source, out var sourceArt) && sourceArt != null)
+                {
+                    images[newLabel] = sourceArt.Clone();
+                }
+
+                created.Add(newLabel);
+            }
+
+            if (created.Count == 0)
+            {
+                return created;
+            }
+
+            // Copies are empty nodes and the summary selection is untouched, so the write stays
+            // scoped out of the library-wide passes.
+            _achievementOverridesService.SetAchievementCategoryMetadata(
+                _gameId,
+                order,
+                images,
+                GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted),
+                affectsSummaryData: MarkLibraryRefreshDeferred(false));
+            RaiseCategoryMetadataPersisted();
+            RefreshCategoryRows();
+            return created;
+        }
+
         private void ReplaceCategoryRows(IEnumerable<ManageAchievementsCategoryMetadataItem> rows)
         {
             foreach (var row in CategoryRows)
