@@ -330,7 +330,8 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.AreEqual(250900, plan[0].Value);
             Assert.AreEqual("Expansion", plan[1].Key);
             Assert.AreEqual(570660, plan[1].Value);
-            Assert.AreEqual("Booster Pack #5", plan[2].Key);
+            // The update group nests under its DLC, so the art plan keys on the full path.
+            Assert.AreEqual("Expansion::Booster Pack #5", plan[2].Key);
             Assert.AreEqual(570660, plan[2].Value);
         }
 
