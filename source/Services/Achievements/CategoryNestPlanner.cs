@@ -210,6 +210,75 @@ namespace PlayniteAchievements.Services.Achievements
             };
         }
 
+        /// <summary>
+        /// Moves that return every row to its provider parent while keeping its current leaf name
+        /// (leaf renames belong to the name reset, not the structure reset). Pairs map each
+        /// rendered label to its provider label; a row whose provider identity tracks its own
+        /// label (a user-created category) never deviates and stays where the user put it.
+        /// Deepest-first, so a child's own move lands before an ancestor's prefix rewrite could
+        /// invalidate its source key. A move is skipped when its result would collide with a
+        /// label that is not itself moving, or with another planned result - a reset must not
+        /// silently merge categories.
+        /// </summary>
+        public static List<KeyValuePair<string, string>> PlanStructureResetMoves(
+            IReadOnlyList<KeyValuePair<string, string>> currentToProviderLabels)
+        {
+            var moves = new List<KeyValuePair<string, string>>();
+            if (currentToProviderLabels == null || currentToProviderLabels.Count == 0)
+            {
+                return moves;
+            }
+
+            var currentLabels = new List<string>();
+            var planned = new List<KeyValuePair<string, string>>();
+            var seenSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in currentToProviderLabels)
+            {
+                if (string.IsNullOrWhiteSpace(pair.Key) || string.IsNullOrWhiteSpace(pair.Value))
+                {
+                    continue;
+                }
+
+                var current = CategoryPathHelper.NormalizePath(pair.Key);
+                if (!seenSources.Add(current))
+                {
+                    continue;
+                }
+
+                currentLabels.Add(current);
+                if (string.Equals(current, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var provider = CategoryPathHelper.NormalizePath(pair.Value);
+                var target = CategoryPathHelper.Join(
+                    CategoryPathHelper.GetParentPath(provider),
+                    CategoryPathHelper.GetLeafName(current));
+                if (!CategoryPathHelper.IsSame(current, target))
+                {
+                    planned.Add(new KeyValuePair<string, string>(current, target));
+                }
+            }
+
+            var movingSources = new HashSet<string>(planned.Select(move => move.Key), StringComparer.OrdinalIgnoreCase);
+            var stayingLabels = new HashSet<string>(
+                currentLabels.Where(label => !movingSources.Contains(label)),
+                StringComparer.OrdinalIgnoreCase);
+            var plannedResults = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var move in planned.OrderByDescending(move => CategoryPathHelper.GetDepth(move.Key)))
+            {
+                if (stayingLabels.Contains(move.Value) || !plannedResults.Add(move.Value))
+                {
+                    continue;
+                }
+
+                moves.Add(move);
+            }
+
+            return moves;
+        }
+
         /// <summary>1 for a leaf; 1 plus the deepest descendant's distance otherwise.</summary>
         public static int GetSubtreeHeight(IReadOnlyList<string> orderedLabels, string label)
         {
