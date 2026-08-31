@@ -33,6 +33,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private static readonly Regex HttpUrlRegex = new Regex(@"https?://[^\s""'<>]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private DataGridRow _pendingRightClickRow;
+        private DataGridRow _pendingManagerRightClickRow;
 
         public ManageAchievementsCategoryTab(ManageAchievementsCategoryViewModel viewModel)
         {
@@ -59,7 +60,17 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     target is ManageAchievementsCategoryMetadataItem targetItem &&
                     ViewModel?.MoveCategoryRowsByLabel(labels, targetItem.CategoryLabel, insertAfter) == true,
                 MoveItemsToEnd = labels => ViewModel?.MoveCategoryRowsToEndByLabel(labels) == true,
-                RestoreSelection = RestoreCategoryManagerSelectionByLabels
+                RestoreSelection = RestoreCategoryManagerSelectionByLabels,
+                // Dropping onto a row's middle makes the dragged categories subcategories of that
+                // row. The guards (Default, cycles, depth, no-ops) all live in the planner, so the
+                // drag and the context menu can never disagree about what is allowed.
+                NestHighlight = CategoryNestHighlight,
+                CanNestOnTarget = (labels, target) =>
+                    target is ManageAchievementsCategoryMetadataItem nestTarget &&
+                    ViewModel?.CanNestCategoryRowsUnder(labels, nestTarget.CategoryLabel) == true,
+                NestItemsOnTarget = (labels, target) =>
+                    target is ManageAchievementsCategoryMetadataItem nestTarget &&
+                    ViewModel?.NestCategoryRowsUnder(labels, nestTarget.CategoryLabel) == true
             });
 
             viewModel.CategoryRowsMoved += (_, labels) => RestoreCategoryManagerSelectionByLabels(labels);
@@ -372,6 +383,309 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
+        private void CategoryManagerRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is DataGridRow row)
+            {
+                e.Handled = true;
+                _pendingManagerRightClickRow = row;
+            }
+        }
+
+        private void CategoryManagerRow_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is DataGridRow row)
+            {
+                e.Handled = true;
+                var targetRow = _pendingManagerRightClickRow ?? row;
+                _pendingManagerRightClickRow = null;
+                OpenManagerContextMenuForRow(targetRow);
+            }
+        }
+
+        private bool OpenManagerContextMenuForRow(DataGridRow row, bool useControllerPlacement = false)
+        {
+            if (!(row?.DataContext is ManageAchievementsCategoryMetadataItem item))
+            {
+                return false;
+            }
+
+            var menu = BuildManagerRowContextMenu(item);
+            if (menu == null || menu.Items.Count == 0)
+            {
+                return false;
+            }
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
+            row.ContextMenu = menu;
+            if (useControllerPlacement)
+            {
+                return FullscreenControllerNavigationService.OpenContextMenu(row, menu);
+            }
+
+            menu.PlacementTarget = row;
+            menu.IsOpen = true;
+            return true;
+        }
+
+        private ContextMenu BuildManagerRowContextMenu(ManageAchievementsCategoryMetadataItem contextItem)
+        {
+            if (ViewModel == null)
+            {
+                return null;
+            }
+
+            var rows = ResolveManagerActionRows(contextItem);
+            var actionLabels = rows
+                .Where(row => row != null && !row.IsDefaultCategory && !string.IsNullOrWhiteSpace(row.CategoryLabel))
+                .Select(row => row.CategoryLabel)
+                .ToList();
+            if (actionLabels.Count == 0)
+            {
+                // The Default bucket has no row actions: it cannot move, merge, duplicate or delete.
+                return null;
+            }
+
+            var menu = new ContextMenu();
+
+            var subcategoryMenu = new MenuItem
+            {
+                Header = L("LOCPlayAch_ManageAchievements_Category_Context_MakeSubcategoryOf")
+            };
+            var validTargets = ViewModel.CategoryRows
+                .Where(candidate => candidate != null &&
+                    !candidate.IsDefaultCategory &&
+                    !string.IsNullOrWhiteSpace(candidate.CategoryLabel) &&
+                    ViewModel.CanNestCategoryRowsUnder(actionLabels, candidate.CategoryLabel))
+                .Select(candidate => candidate.CategoryLabel)
+                .ToList();
+            var targetRows = CategoryFilterMenuBuilder.BuildRows(validTargets);
+            var itemStyle = CategoryFilterMenuBuilder.ResolveItemStyle(this, targetRows);
+            foreach (var targetRow in targetRows)
+            {
+                subcategoryMenu.Items.Add(CategoryFilterMenuBuilder.CreateActionItem(
+                    targetRow,
+                    itemStyle,
+                    target => ViewModel?.NestCategoryRowsUnder(actionLabels, target)));
+            }
+
+            subcategoryMenu.IsEnabled = targetRows.Count > 0;
+            menu.Items.Add(subcategoryMenu);
+
+            var makeTopLevelItem = CreateMenuItem(
+                L("LOCPlayAch_ManageAchievements_Category_Context_MakeTopLevel"),
+                () => ViewModel?.NestCategoryRowsUnder(actionLabels, null));
+            makeTopLevelItem.IsEnabled = actionLabels.Any(label => CategoryPathHelper.GetDepth(label) > 1);
+            menu.Items.Add(makeTopLevelItem);
+
+            menu.Items.Add(new Separator());
+
+            // Merge is a one-source dialog, so it stays single-row.
+            var mergeRow = rows.Count == 1 ? rows[0] : null;
+            var mergeItem = CreateMenuItem(
+                L("LOCPlayAch_Common_Merge"),
+                () => OpenMergeDialogForRow(mergeRow));
+            mergeItem.ToolTip = L("LOCPlayAch_ManageAchievements_Category_MergeTooltip");
+            mergeItem.IsEnabled = mergeRow != null && !mergeRow.IsDefaultCategory && ViewModel.CanMergeCategories;
+            menu.Items.Add(mergeItem);
+
+            menu.Items.Add(CreateMenuItem(
+                L("LOCPlayAch_Common_Duplicate"),
+                () => DuplicateCategoriesFromContext(actionLabels)));
+
+            menu.Items.Add(CreateMenuItem(
+                L("LOCPlayAch_Button_Delete"),
+                () => DeleteCategoriesFromContext(actionLabels)));
+
+            return menu;
+        }
+
+        private List<ManageAchievementsCategoryMetadataItem> ResolveManagerActionRows(
+            ManageAchievementsCategoryMetadataItem contextItem)
+        {
+            if (contextItem == null)
+            {
+                return new List<ManageAchievementsCategoryMetadataItem>();
+            }
+
+            var selected = CategoryManagerDataGrid?.SelectedItems
+                ?.OfType<ManageAchievementsCategoryMetadataItem>()
+                .ToList() ?? new List<ManageAchievementsCategoryMetadataItem>();
+            if (selected.Count > 1 && selected.Contains(contextItem) && ViewModel != null)
+            {
+                // Visual order, so batched moves land the way the grid reads.
+                return selected
+                    .OrderBy(item => ViewModel.CategoryRows.IndexOf(item))
+                    .ToList();
+            }
+
+            return new List<ManageAchievementsCategoryMetadataItem> { contextItem };
+        }
+
+        private void DuplicateCategoriesFromContext(IReadOnlyList<string> labels)
+        {
+            var created = ViewModel?.DuplicateCategories(labels);
+            if (created == null || created.Count == 0)
+            {
+                return;
+            }
+
+            DataGridRowReorderBehavior.CancelPendingDrag(CategoryManagerDataGrid);
+            if (created.Count == 1)
+            {
+                FocusCategoryRenameBox(created[0]);
+            }
+            else
+            {
+                RestoreCategoryManagerSelectionByLabels(created);
+            }
+        }
+
+        private void DeleteCategoriesFromContext(IReadOnlyList<string> labels)
+        {
+            if (ViewModel == null || labels == null || labels.Count == 0)
+            {
+                return;
+            }
+
+            // Deleting an empty branch is quiet; deleting one that holds achievements asks first,
+            // because those achievements fall back to the Default bucket.
+            var affected = ViewModel.CountAchievementsInCategories(labels);
+            if (affected > 0)
+            {
+                var confirmText = labels.Count == 1
+                    ? string.Format(
+                        L("LOCPlayAch_ManageAchievements_Category_DeleteConfirmSingle"),
+                        CategoryPathHelper.ToDisplayPath(labels[0]),
+                        affected)
+                    : string.Format(
+                        L("LOCPlayAch_ManageAchievements_Category_DeleteConfirmSelected"),
+                        labels.Count,
+                        affected);
+                var result = API.Instance?.Dialogs?.ShowMessage(
+                    confirmText,
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning) ?? MessageBoxResult.None;
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+            }
+
+            if (ViewModel.DeleteCategories(labels))
+            {
+                DataGridRowReorderBehavior.CancelPendingDrag(CategoryManagerDataGrid);
+            }
+        }
+
+        private void AddCategoryButton_Click(object sender, RoutedEventArgs e)
+        {
+            var label = ViewModel?.AddNewCategory();
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                return;
+            }
+
+            DataGridRowReorderBehavior.CancelPendingDrag(CategoryManagerDataGrid);
+            FocusCategoryRenameBox(label);
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Scrolls the row for <paramref name="categoryLabel"/> into view, selects it, and focuses
+        /// its inline rename box with the text selected. Deferred to Loaded priority so the
+        /// collection Reset and container generation settle first.
+        /// </summary>
+        private void FocusCategoryRenameBox(string categoryLabel)
+        {
+            if (ViewModel == null || string.IsNullOrWhiteSpace(categoryLabel))
+            {
+                return;
+            }
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                var item = ViewModel?.CategoryRows.FirstOrDefault(row =>
+                    row != null && CategoryPathHelper.IsSame(row.CategoryLabel, categoryLabel));
+                if (item == null || CategoryManagerDataGrid == null)
+                {
+                    return;
+                }
+
+                CategoryManagerDataGrid.SelectedItems.Clear();
+                CategoryManagerDataGrid.SelectedItems.Add(item);
+                CategoryManagerDataGrid.ScrollIntoView(item);
+                CategoryManagerDataGrid.UpdateLayout();
+                var row = CategoryManagerDataGrid.ItemContainerGenerator.ContainerFromItem(item) as DataGridRow;
+                if (row == null)
+                {
+                    return;
+                }
+
+                // The category cell (column 2) holds exactly one TextBox, the rename box; probing
+                // the whole row would find the art-URL box first.
+                var categoryColumn = CategoryManagerDataGrid.Columns.Count > 2
+                    ? CategoryManagerDataGrid.Columns[2]
+                    : null;
+                var cellContent = categoryColumn?.GetCellContent(row);
+                var textBox = cellContent as TextBox
+                    ?? (cellContent == null ? null : VisualTreeHelpers.FindVisualChild<TextBox>(cellContent));
+                if (textBox == null)
+                {
+                    return;
+                }
+
+                textBox.Focus();
+                textBox.SelectAll();
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        private bool TryOpenSelectedManagerRowContextMenu()
+        {
+            var row = GetManagerControllerTargetRow();
+            if (row == null)
+            {
+                return false;
+            }
+
+            return OpenManagerContextMenuForRow(row, useControllerPlacement: true);
+        }
+
+        private DataGridRow GetManagerControllerTargetRow()
+        {
+            var focusedRow = VisualTreeHelpers.FindVisualParent<DataGridRow>(
+                Keyboard.FocusedElement as DependencyObject);
+            if (focusedRow != null &&
+                ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(focusedRow), CategoryManagerDataGrid))
+            {
+                return focusedRow;
+            }
+
+            var index = CategoryManagerDataGrid?.SelectedIndex ?? -1;
+            if (index < 0 && CategoryManagerDataGrid?.Items.Count > 0)
+            {
+                index = 0;
+                CategoryManagerDataGrid.SelectedIndex = index;
+            }
+
+            if (CategoryManagerDataGrid == null || index < 0)
+            {
+                return null;
+            }
+
+            CategoryManagerDataGrid.UpdateLayout();
+            var row = CategoryManagerDataGrid.ItemContainerGenerator.ContainerFromIndex(index) as DataGridRow;
+            if (row == null)
+            {
+                CategoryManagerDataGrid.ScrollIntoView(CategoryManagerDataGrid.Items[index]);
+                CategoryManagerDataGrid.UpdateLayout();
+                row = CategoryManagerDataGrid.ItemContainerGenerator.ContainerFromIndex(index) as DataGridRow;
+            }
+
+            return row;
+        }
+
         public bool HandleFullscreenControllerInput(ControllerInput input)
         {
             if (CategoryManagerDataGrid?.IsKeyboardFocusWithin == true)
@@ -384,6 +698,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     }
 
                     return false;
+                }
+
+                if (FullscreenControllerNavigationService.IsSecondaryClickInput(input))
+                {
+                    return TryOpenSelectedManagerRowContextMenu();
                 }
             }
 
@@ -436,6 +755,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             if (CategorySubTabs?.SelectedIndex == 1)
             {
+                elements.Add(AddCategoryButton);
                 elements.Add(ResetCategoryMetadataButton);
                 elements.Add(OpenCategoryImagesFolderButton);
                 elements.Add(CategoryManagerDataGrid);
@@ -633,7 +953,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var inputDialog = new CategoryPickerDialog(
                 L("LOCPlayAch_ManageAchievements_Category_Context_SetLabelHint"),
-                ViewModel.CategoryLabelFilterOptions,
+                ViewModel.AssignableCategoryOptions,
                 contextItem?.Category);
             var window = PlayniteUiProvider.CreateExtensionWindow(
                 L("LOCPlayAch_ManageAchievements_Category_Context_SetLabelTitle"),
@@ -659,9 +979,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ViewModel.SetCategoryLabelForSelection(rows, (inputDialog.SelectedCategory ?? string.Empty).Trim());
         }
 
-        private void MergeCategoryButton_Click(object sender, RoutedEventArgs e)
+        private void OpenMergeDialogForRow(ManageAchievementsCategoryMetadataItem row)
         {
-            if (ViewModel == null || !TryResolveCategoryImageRow(sender as FrameworkElement, out var row))
+            if (ViewModel == null || row == null)
             {
                 return;
             }
