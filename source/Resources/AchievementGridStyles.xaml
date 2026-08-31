@@ -1055,8 +1055,15 @@
                                       IsHitTestVisible="False"
                                       IsChecked="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}"/>
 
+                            <!-- Bleeds over the row border, top and bottom, by exactly the
+                                 PlayAch.Thickness.Border the highlight chrome reserves. Everything
+                                 inside the border sits 1px in from the row's real edges, which
+                                 would leave a 2px break in every lane at each row boundary; the
+                                 border is transparent until a row is highlighted, so there is
+                                 nothing there for the guide to cover. -->
                             <controls:CategoryTreeGuide Grid.Column="2"
                                                         VerticalAlignment="Stretch"
+                                                        Margin="0,-1"
                                                         Shape="{Binding TreeShape, RelativeSource={RelativeSource TemplatedParent}}"
                                                         LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
                                                         NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
