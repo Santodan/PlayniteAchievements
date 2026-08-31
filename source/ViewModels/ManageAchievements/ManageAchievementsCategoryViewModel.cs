@@ -108,6 +108,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             AchievementRows = new BulkObservableCollection<ManageAchievementsCategoryItem>();
             CategoryRows = new BulkObservableCollection<ManageAchievementsCategoryMetadataItem>();
             CategoryLabelFilterOptions = new ObservableCollection<string>();
+            AssignableCategoryOptions = new ObservableCollection<string>();
             TypeSelectionOptions = CreateCategoryTypeOptions(
                 AchievementCategoryTypeHelper.AssignableCategoryTypes,
                 () =>
@@ -138,6 +139,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public BulkObservableCollection<ManageAchievementsCategoryMetadataItem> CategoryRows { get; }
         public ObservableCollection<string> CategoryLabelFilterOptions { get; }
+
+        /// <summary>
+        /// Every rendered category label, in tree order - the choices for filing an achievement.
+        /// Wider than <see cref="CategoryLabelFilterOptions"/> (achievement-backed labels only)
+        /// because a user-created empty category is somewhere to file an achievement, and a nested
+        /// one cannot be reached by typing (typed input rejects the path separator).
+        /// </summary>
+        public ObservableCollection<string> AssignableCategoryOptions { get; }
         public ObservableCollection<CategoryTypeSelectionOption> TypeSelectionOptions { get; }
         public ObservableCollection<CategoryTypeSelectionOption> TypeFilterOptions { get; }
 
