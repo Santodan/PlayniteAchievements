@@ -754,6 +754,75 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return created;
         }
 
+        /// <summary>
+        /// Removes each category and its subtree from the order, the art overrides, and the
+        /// summary selection in one write. A label is refused when any achievement is filed under
+        /// it or a descendant (those categories are merged away instead), or when it is the
+        /// Default bucket. Returns true when anything was removed.
+        /// </summary>
+        public bool DeleteEmptyCategories(IReadOnlyList<string> labels)
+        {
+            var rendered = CategoryRows
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
+                .Select(row => row.CategoryLabel)
+                .ToList();
+
+            var deletable = (labels ?? Array.Empty<string>())
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .Select(CategoryPathHelper.NormalizePath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(label =>
+                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
+                    rendered.Any(existing => CategoryPathHelper.IsSame(existing, label)) &&
+                    !_allRows.Any(row => row != null && CategoryPathHelper.IsSelfOrDescendantOf(
+                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
+                        label)))
+                .ToList();
+            if (deletable.Count == 0)
+            {
+                return false;
+            }
+
+            var order = rendered
+                .Where(label => !deletable.Any(deleted => CategoryPathHelper.IsSelfOrDescendantOf(label, deleted)))
+                .ToList();
+
+            var imagesBefore = GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted);
+            var images = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in imagesBefore ?? new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase))
+            {
+                if (pair.Value == null || string.IsNullOrWhiteSpace(pair.Key) ||
+                    deletable.Any(deleted => CategoryPathHelper.IsSelfOrDescendantOf(pair.Key, deleted)))
+                {
+                    continue;
+                }
+
+                images[pair.Key] = pair.Value.Clone();
+            }
+
+            var summaryBefore = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted);
+            var summaryCategory = summaryBefore;
+            if (summaryCategory != null &&
+                deletable.Any(deleted => CategoryPathHelper.IsSelfOrDescendantOf(summaryCategory.Label, deleted)))
+            {
+                summaryCategory = null;
+            }
+
+            _achievementOverridesService.SetAchievementCategoryMetadata(
+                _gameId,
+                order,
+                images,
+                summaryCategory,
+                affectsSummaryData: MarkLibraryRefreshDeferred(SummaryArtChanged(
+                    summaryBefore,
+                    imagesBefore,
+                    summaryCategory,
+                    images)));
+            RaiseCategoryMetadataPersisted();
+            RefreshCategoryRows();
+            return true;
+        }
+
         private void ReplaceCategoryRows(IEnumerable<ManageAchievementsCategoryMetadataItem> rows)
         {
             foreach (var row in CategoryRows)
