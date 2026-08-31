@@ -146,6 +146,9 @@
     <Compile Include="..\..\source\Services\Achievements\CategoryTreeShapeBuilder.cs" Link="Source\Services\Achievements\CategoryTreeShapeBuilder.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryPickerResolver.cs" Link="Source\Services\Achievements\CategoryPickerResolver.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryMetadataRenamer.cs" Link="Source\Services\Achievements\CategoryMetadataRenamer.cs" />
+    <Compile Include="..\..\source\Services\Achievements\CategoryNestPlanner.cs" Link="Source\Services\Achievements\CategoryNestPlanner.cs" />
+    <Compile Include="..\..\source\Services\Achievements\CategoryNameGenerator.cs" Link="Source\Services\Achievements\CategoryNameGenerator.cs" />
+    <Compile Include="..\..\source\Views\Helpers\DataGridDropZone.cs" Link="Source\Views\Helpers\DataGridDropZone.cs" />
     <Compile Include="..\..\source\Services\Achievements\ProviderCategoryPathMigration.cs" Link="Source\Services\Achievements\ProviderCategoryPathMigration.cs" />
     <Compile Include="..\..\source\Services\GameSummariesSortHelper.cs" Link="Source\Services\GameSummariesSortHelper.cs" />
     <Compile Include="..\..\source\Services\FriendSummarySortHelper.cs" Link="Source\Services\FriendSummarySortHelper.cs" />
