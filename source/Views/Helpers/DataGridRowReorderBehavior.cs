@@ -218,6 +218,8 @@ namespace PlayniteAchievements.Views.Helpers
                 _grid.PreviewMouseLeftButtonDown += OnPreviewMouseLeftButtonDown;
                 _grid.PreviewMouseLeftButtonUp += OnPreviewMouseLeftButtonUp;
                 _grid.PreviewMouseMove += OnPreviewMouseMove;
+                _grid.PreviewDragOver += OnPreviewDragOver;
+                _grid.PreviewDrop += OnPreviewDrop;
                 _grid.DragOver += OnDragOver;
                 _grid.DragLeave += OnDragLeave;
                 _grid.GiveFeedback += OnGiveFeedback;
@@ -231,6 +233,8 @@ namespace PlayniteAchievements.Views.Helpers
                 _grid.PreviewMouseLeftButtonDown -= OnPreviewMouseLeftButtonDown;
                 _grid.PreviewMouseLeftButtonUp -= OnPreviewMouseLeftButtonUp;
                 _grid.PreviewMouseMove -= OnPreviewMouseMove;
+                _grid.PreviewDragOver -= OnPreviewDragOver;
+                _grid.PreviewDrop -= OnPreviewDrop;
                 _grid.DragOver -= OnDragOver;
                 _grid.DragLeave -= OnDragLeave;
                 _grid.GiveFeedback -= OnGiveFeedback;
@@ -354,6 +358,32 @@ namespace PlayniteAchievements.Views.Helpers
                     ClearDragCaches();
                     _options.DragCompleted?.Invoke();
                 }
+            }
+
+            // Cells can contain controls with their own drag handling - a TextBox rejects any
+            // non-text payload and marks the events handled, which made a row's text boxes dead
+            // zones a drag could hover but never drop on. Claiming OUR payload at the tunneling
+            // stage keeps the whole row a live target while leaving every other payload (image
+            // files or URLs bound for the art box) to the controls that want it.
+            private void OnPreviewDragOver(object sender, DragEventArgs e)
+            {
+                if (!e.Data.GetDataPresent(_options.DragDataFormat))
+                {
+                    return;
+                }
+
+                OnDragOver(sender, e);
+            }
+
+            private void OnPreviewDrop(object sender, DragEventArgs e)
+            {
+                if (!e.Data.GetDataPresent(_options.DragDataFormat))
+                {
+                    return;
+                }
+
+                OnDrop(sender, e);
+                e.Handled = true;
             }
 
             private void OnDragOver(object sender, DragEventArgs e)
@@ -741,8 +771,18 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
 
-                _options.DragCountPopup.HorizontalOffset = cursorPoint.X + 18;
-                _options.DragCountPopup.VerticalOffset = cursorPoint.Y + 18;
+                // GetCursorPos reports physical pixels, but an AbsolutePoint popup's offsets are
+                // device-independent units - without the transform the badge drifts away from the
+                // cursor by the DPI scale factor.
+                var cursor = new Point(cursorPoint.X, cursorPoint.Y);
+                var transform = PresentationSource.FromVisual(_grid)?.CompositionTarget?.TransformFromDevice;
+                if (transform != null)
+                {
+                    cursor = transform.Value.Transform(cursor);
+                }
+
+                _options.DragCountPopup.HorizontalOffset = cursor.X + 18;
+                _options.DragCountPopup.VerticalOffset = cursor.Y + 18;
             }
 
             private bool IsPointWithinGrid(Point point)
