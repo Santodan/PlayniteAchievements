@@ -632,6 +632,47 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return renamed;
         }
 
+        /// <summary>
+        /// Creates an empty top-level category under a unique placeholder name and persists it in
+        /// one write. Returns the created label so the view can focus its rename box, or null when
+        /// nothing was created (no rows rendered, so the label could never render either).
+        /// </summary>
+        public string AddNewCategory()
+        {
+            if (CategoryRows.Count == 0)
+            {
+                return null;
+            }
+
+            var existing = CategoryRows
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
+                .Select(row => row.CategoryLabel)
+                .ToList();
+            var label = CategoryNameGenerator.GenerateUniqueLabel(
+                existing,
+                parentPath: null,
+                baseLeafName: L("LOCPlayAch_ManageAchievements_Category_NewCategoryName"));
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                return null;
+            }
+
+            var order = existing.ToList();
+            order.Add(label);
+
+            // Creating an empty node is pure per-game display state, so the write is scoped out
+            // of the library-wide passes like every other order edit.
+            _achievementOverridesService.SetAchievementCategoryMetadata(
+                _gameId,
+                order,
+                GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted),
+                GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted),
+                affectsSummaryData: MarkLibraryRefreshDeferred(false));
+            RaiseCategoryMetadataPersisted();
+            RefreshCategoryRows();
+            return label;
+        }
+
         private void ReplaceCategoryRows(IEnumerable<ManageAchievementsCategoryMetadataItem> rows)
         {
             foreach (var row in CategoryRows)
