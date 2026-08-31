@@ -731,9 +731,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .ToList();
 
             // A label carrying user state but no achievements still needs a row, or the metadata
-            // writer - which rebuilds from the rendered rows - would drop that state. Deliberately
-            // not seeded from the order list: a stale entry there would surface as a phantom row.
+            // writer - which rebuilds from the rendered rows - would drop that state. The order
+            // list seeds rows too: a user-created category must survive rebuilds and reloads on
+            // the strength of the persisted order alone, and the cost is that a stale order entry
+            // (an upstream rename, say) surfaces as an empty row the user can delete instead of
+            // vanishing silently.
             sourceLabels.AddRange(categoryImages?.Keys ?? Enumerable.Empty<string>());
+            sourceLabels.AddRange(categoryOrder ?? (IReadOnlyList<string>)Array.Empty<string>());
             if (summaryCategory?.Label != null)
             {
                 sourceLabels.Add(summaryCategory.Label);
