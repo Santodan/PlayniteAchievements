@@ -832,35 +832,41 @@ namespace PlayniteAchievements.Services.Recording
         /// separately, and without alarm.
         /// </para>
         /// </summary>
-        private void LogTimelineNotices(IWaveIn clipTrack, params IWaveIn[] sidecars)
+        private void LogTimelineNotices(IWaveIn clipTrack, IWaveIn micTrack, params IWaveIn[] sidecars)
         {
             var discarded = Interlocked.Read(ref _discardedBytes);
             var paddedFrames = (clipTrack as ProcessLoopbackCapture)?.PaddedGapFrames ?? 0;
+            var micPaddedFrames = (micTrack as ProcessLoopbackCapture)?.PaddedGapFrames ?? 0;
             var bytesPerSecond = Math.Max(1, _outputFormat?.AverageBytesPerSecond ?? 1);
             var sampleRate = Math.Max(1, _outputFormat?.SampleRate ?? 1);
 
-            if (discarded > 0 || paddedFrames > 0)
+            if (discarded > 0 || paddedFrames > 0 || micPaddedFrames > 0)
             {
+                // The mic mixes into the same clip, so its pads are audible there too.
+                var mic = micPaddedFrames > 0
+                    ? $", {micPaddedFrames / (double)sampleRate:0.###}s of microphone dropouts padded"
+                    : string.Empty;
                 _logger?.Warn(
                     $"[Recording] Audio track has gaps: {discarded / (double)bytesPerSecond:0.###}s dropped to " +
                     $"buffer overflow, {paddedFrames / (double)sampleRate:0.###}s of engine dropouts padded " +
-                    "with silence.");
+                    $"with silence{mic}.");
             }
 
-            // Silence the device counter asked for beyond elapsed real time, which is impossible
-            // and therefore proof that devicePosition is not advancing in this capture's own
-            // frames. Reported on its own because it says something quite different from the line
-            // above: not that audio was lost, but that the gap arithmetic cannot be trusted.
+            // Silence a gap witness asked for beyond elapsed real time, which is impossible.
+            // Reported on its own because it says something quite different from the line above:
+            // not that audio was lost, but that a witness lied and was refused.
             var impossible = (clipTrack as ProcessLoopbackCapture)?.ImpossibleGapFrames ?? 0;
             if (impossible > 0)
             {
                 _logger?.Warn(
-                    $"[Recording] Device position asked for {impossible / (double)sampleRate:0.###}s more " +
-                    "silence than the session was long; it was refused. The endpoint's device clock is not " +
-                    "counting in the capture's frames. Endpoint mix format: " +
+                    $"[Recording] A gap witness asked for {impossible / (double)sampleRate:0.###}s more " +
+                    "silence than the session was long; it was refused. Endpoint mix format: " +
                     ((clipTrack as ProcessLoopbackCapture)?.NativeMixFormat?.ToString() ?? "unknown") +
                     $"; capture format: {_outputFormat}.");
             }
+
+            LogDevicePositionRate(clipTrack as ProcessLoopbackCapture, "clip");
+            LogDevicePositionRate(micTrack as ProcessLoopbackCapture, "microphone");
 
             var sidecarFrames = 0L;
             foreach (var capture in sidecars ?? new IWaveIn[0])
@@ -875,6 +881,29 @@ namespace PlayniteAchievements.Services.Recording
                     $"[Recording] Sidecar silence padding: {sidecarFrames / (double)sampleRate:0.###}s " +
                     "across the reference tracks (idle spans, not dropouts).");
             }
+        }
+
+        /// <summary>
+        /// Names the unit the device position counter actually ticks in when it is not this
+        /// capture's frames. Informational: gap sizing uses packet stamps, and a deviating rate
+        /// with near-zero padding is a healthy capture on a non-48 kHz endpoint — but when a
+        /// clip does have gaps, this is the number that explains the machine.
+        /// </summary>
+        private void LogDevicePositionRate(ProcessLoopbackCapture capture, string trackName)
+        {
+            var rate = capture?.MeasuredDevicePositionRate ?? 0;
+            var captureRate = capture?.WaveFormat?.SampleRate ?? 0;
+            if (rate <= 0 || captureRate <= 0 ||
+                Math.Abs(rate - captureRate) <= captureRate * 0.01)
+            {
+                return;
+            }
+
+            _logger?.Info(
+                $"[Recording] The {trackName} track's device position counter advances at " +
+                $"~{rate:0}/s against its {captureRate}/s capture format (native mix: " +
+                $"{capture.NativeMixFormat?.ToString() ?? "unknown"}). Gap sizing uses packet " +
+                "timestamps, so this alone costs nothing.");
         }
 
         /// <summary>
@@ -1023,7 +1052,7 @@ namespace PlayniteAchievements.Services.Recording
             {
                 CloseChunkLocked();
                 CloseAuxiliaryTracksLocked();
-                LogTimelineNotices(system, gameReference, nonGame);
+                LogTimelineNotices(system, mic, gameReference, nonGame);
                 _systemCapture = null;
                 _gameReferenceCapture = null;
                 _nonGameCapture = null;
