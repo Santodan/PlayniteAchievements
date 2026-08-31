@@ -218,6 +218,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             CollectionHelper.SynchronizeCollection(CategoryRows, treeOrdered);
             StampIndentAffordances(treeOrdered);
             StampCategoryTreeShapes(treeOrdered);
+            RefreshAssignableCategoryOptions();
             PersistCurrentCategoryMetadata();
             return true;
         }
@@ -916,8 +917,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // lays it out on every notification, and each of these rows carries category art.
             CategoryRows.ReplaceAll(nextRows);
 
+            RefreshAssignableCategoryOptions();
             RefreshCategoryMetadataState();
             OnPropertyChanged(nameof(CanMergeCategories));
+        }
+
+        /// <summary>
+        /// Mirrors the rendered labels into the assignable-category options, so the Assign
+        /// sub-tab's pickers offer every category the manager shows - empty ones included.
+        /// </summary>
+        private void RefreshAssignableCategoryOptions()
+        {
+            CollectionHelper.SynchronizeCollection(
+                AssignableCategoryOptions,
+                CategoryRows
+                    .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
+                    .Select(row => row.CategoryLabel)
+                    .ToList());
         }
 
         private void CategoryMetadataRow_PropertyChanged(object sender, PropertyChangedEventArgs e)
