@@ -443,20 +443,20 @@ namespace PlayniteAchievements.Tests.ViewModels
                 viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
 
             // Unlocked/Locked filter by the friend's unlock state.
-            viewModel.ShowLockedAchievements = false;
+            GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Locked).IsChecked = false;
             CollectionAssert.AreEquivalent(
                 new[] { "Recent Only" },
                 viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
 
-            viewModel.ShowLockedAchievements = true;
-            viewModel.ShowUnlockedAchievements = false;
+            GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Locked).IsChecked = true;
+            GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Unlocked).IsChecked = false;
             CollectionAssert.AreEquivalent(
                 new[] { "Alice Locked", "Alice Hidden Locked" },
                 viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
 
             // Hidden removes only rows hidden-and-locked for the friend.
-            viewModel.ShowUnlockedAchievements = true;
-            viewModel.ShowHiddenAchievements = false;
+            GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Unlocked).IsChecked = true;
+            GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Hidden).IsChecked = false;
             CollectionAssert.AreEquivalent(
                 new[] { "Recent Only", "Alice Locked" },
                 viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
@@ -549,8 +549,8 @@ namespace PlayniteAchievements.Tests.ViewModels
             viewModel.SelectedGame = data.Games[0];
             viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
 
-            viewModel.ShowUnlockedAchievements = false;
-            viewModel.ShowHiddenAchievements = false;
+            GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Unlocked).IsChecked = false;
+            GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Hidden).IsChecked = false;
             CollectionAssert.AreEquivalent(
                 new[] { "Alice Locked" },
                 viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
@@ -558,12 +558,79 @@ namespace PlayniteAchievements.Tests.ViewModels
             // Leaving the pair state resets the toggles so the aggregated friend-only view is
             // unaffected by stale unlock-state filtering.
             viewModel.ClearGameSelection();
-            Assert.IsTrue(viewModel.ShowUnlockedAchievements);
-            Assert.IsTrue(viewModel.ShowLockedAchievements);
-            Assert.IsTrue(viewModel.ShowHiddenAchievements);
+            Assert.IsTrue(GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Unlocked).IsChecked);
+            Assert.IsTrue(GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Locked).IsChecked);
+            Assert.IsTrue(GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Hidden).IsChecked);
             CollectionAssert.AreEquivalent(
                 new[] { "Recent Only", "Alice Game Two" },
                 viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
+        public void PairSelectionTypeAndCategoryOptionsIncludeLockedDefinitionRows()
+        {
+            var data = CreateData();
+            var locked = CreateAchievement(
+                "Steam",
+                "alice",
+                "Alice",
+                "https://cdn.example/alice.png",
+                10,
+                data.Games[0].PlayniteGameId.Value,
+                "Game One",
+                "Alice Locked",
+                "Base|Missable",
+                "Locked Only",
+                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            locked.Unlocked = false;
+            locked.UnlockTimeUtc = null;
+            data.AllAchievements = data.AllUnlockedAchievements.ToList();
+            using (var gate = new ManualResetEventSlim(false))
+            {
+                var cache = new StubFriendCache(data)
+                {
+                    PairAchievements = data.AllUnlockedAchievements.Concat(new[] { locked }).ToList(),
+                    PairLoadGate = gate
+                };
+
+                var viewModel = CreateViewModel(cache);
+                viewModel.LoadAsync().GetAwaiter().GetResult();
+
+                var typeFilter = GetTypeFilter(viewModel);
+                var categoryFilter = GetCategoryFilter(viewModel);
+
+                // No game selected: the option lists are cleared, so the dropdowns auto-hide.
+                Assert.AreEqual(0, typeFilter.Options.Count());
+                Assert.AreEqual(0, categoryFilter.Options.Count());
+
+                // Pair selected while the row fetch is still gated: options come from the
+                // unlocked fallback rows (Alice's single Game One unlock).
+                viewModel.SelectedFriend = data.Friends[0];
+                viewModel.SelectedGame = data.Games[0];
+                CollectionAssert.AreEqual(new[] { "DLC" }, typeFilter.Options.ToArray());
+                CollectionAssert.AreEqual(new[] { "Side" }, categoryFilter.Options.ToArray());
+
+                gate.Set();
+                SettlePairFetch(viewModel);
+
+                // The loaded pair rows carry the game's full definition set: the locked row's
+                // multi-token type contributes both tokens in canonical order, and its
+                // locked-only category joins the list.
+                CollectionAssert.AreEqual(new[] { "Base", "DLC", "Missable" }, typeFilter.Options.ToArray());
+                CollectionAssert.AreEqual(new[] { "Side", "Locked Only" }, categoryFilter.Options.ToArray());
+
+                // A single-token selection matches the multi-token locked row.
+                typeFilter.SetSelected("Missable", true);
+                CollectionAssert.AreEqual(
+                    new[] { "Alice Locked" },
+                    viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+
+                // Leaving the pair state clears the options (dropdowns auto-hide) and prunes
+                // the stale selection.
+                viewModel.ClearGameSelection();
+                Assert.AreEqual(0, typeFilter.Options.Count());
+                Assert.IsFalse(typeFilter.IsSelected("Missable"));
+            }
         }
 
         [TestMethod]
@@ -1034,10 +1101,10 @@ namespace PlayniteAchievements.Tests.ViewModels
             viewModel.SetProviderFilter("Steam");
             viewModel.FriendSearchText = "ali";
             viewModel.SelectedGame = data.Games[0];
-            viewModel.SetTypeFilterSelected("Story", true);
-            viewModel.SetCategoryFilterSelected("Main", true);
+            GetTypeFilter(viewModel).SetSelected("Base", true);
+            GetCategoryFilter(viewModel).SetSelected("Main", true);
 
-            // Game One has two unlocked rows (Alice's Challenge/Side, Bob's Story/Main); the type
+            // Game One has two unlocked rows (Alice's DLC/Side, Bob's Base/Main); the type
             // and category filters compose to keep only Bob's row while the friend search filters
             // the friends grid independently.
             CollectionAssert.AreEqual(
@@ -1525,6 +1592,29 @@ namespace PlayniteAchievements.Tests.ViewModels
             ApplyFiltersMethod.Invoke(viewModel, new object[] { true });
         }
 
+        private static GridToggleFilter GetUnlockStateToggle(
+            FriendsOverviewViewModel viewModel,
+            GridToggleFilterIcon icon)
+        {
+            return viewModel.AchievementsControlBar.Items
+                .OfType<GridToggleFilter>()
+                .Single(toggle => toggle.Icon == icon);
+        }
+
+        private static GridMultiSelectFilter GetTypeFilter(FriendsOverviewViewModel viewModel)
+        {
+            return viewModel.AchievementsControlBar.Items
+                .OfType<GridMultiSelectFilter>()
+                .Single(filter => filter.IsCategoryFilter && !filter.RendersCategoryTree);
+        }
+
+        private static GridMultiSelectFilter GetCategoryFilter(FriendsOverviewViewModel viewModel)
+        {
+            return viewModel.AchievementsControlBar.Items
+                .OfType<GridMultiSelectFilter>()
+                .Single(filter => filter.IsCategoryFilter && filter.RendersCategoryTree);
+        }
+
         private static FriendsOverviewViewModel CreateViewModel(
             FriendsOverviewData data,
             Action<PersistedSettings> configure = null)
@@ -1655,10 +1745,12 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             var allUnlocked = new List<FriendAchievementDisplayItem>
             {
-                CreateAchievement("Steam", "alice", "Alice", "https://cdn.example/alice.png", 10, gameOneId, "Game One", "Recent Only", "Challenge", "Side", new DateTime(2026, 1, 4, 0, 0, 0, DateTimeKind.Utc)),
-                CreateAchievement("Steam", "alice", "Alice", "https://cdn.example/alice.png", 20, gameTwoId, "Game Two", "Alice Game Two", "Story", "Main", new DateTime(2026, 1, 3, 0, 0, 0, DateTimeKind.Utc)),
-                CreateAchievement("Steam", "bob", "Bob", "https://cdn.example/bob.png", 10, gameOneId, "Game One", "Bob Game One", "Story", "Main", new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc)),
-                CreateAchievement("GOG", "cora", "Cora", 30, gogGameId, "GOG Game", "Cora GOG", "Story", "Main", new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc))
+                // Category types use the canonical vocabulary (real rows are canonicalized at the
+                // store boundary, and non-canonical tokens are dropped by ParseValues).
+                CreateAchievement("Steam", "alice", "Alice", "https://cdn.example/alice.png", 10, gameOneId, "Game One", "Recent Only", "DLC", "Side", new DateTime(2026, 1, 4, 0, 0, 0, DateTimeKind.Utc)),
+                CreateAchievement("Steam", "alice", "Alice", "https://cdn.example/alice.png", 20, gameTwoId, "Game Two", "Alice Game Two", "Base", "Main", new DateTime(2026, 1, 3, 0, 0, 0, DateTimeKind.Utc)),
+                CreateAchievement("Steam", "bob", "Bob", "https://cdn.example/bob.png", 10, gameOneId, "Game One", "Bob Game One", "Base", "Main", new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc)),
+                CreateAchievement("GOG", "cora", "Cora", 30, gogGameId, "GOG Game", "Cora GOG", "Base", "Main", new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc))
             };
 
             return new FriendsOverviewData
