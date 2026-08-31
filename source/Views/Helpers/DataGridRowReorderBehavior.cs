@@ -42,8 +42,25 @@ namespace PlayniteAchievements.Views.Helpers
         /// <summary>Moves the keyed items to the end of the collection; returns true when a move occurred.</summary>
         public Func<List<string>, bool> MoveItemsToEnd { get; set; }
 
-        /// <summary>Optional: restores grid selection for the moved keys after a successful drop.</summary>
+        /// <summary>
+        /// Optional: restores grid selection for the moved keys after a successful drop. Reorder
+        /// drops only - after a nest the dragged keys may be stale (a nest rewrites them), so the
+        /// host's own move pipeline is responsible for selection there.
+        /// </summary>
         public Action<IReadOnlyList<string>> RestoreSelection { get; set; }
+
+        /// <summary>
+        /// Optional nest support, all-or-none with <see cref="CanNestOnTarget"/> and
+        /// <see cref="NestItemsOnTarget"/>: row-outline overlay shown while hovering a row's nest
+        /// zone; positioned and toggled by the behavior.
+        /// </summary>
+        public Border NestHighlight { get; set; }
+
+        /// <summary>Optional: whether the dragged keys may nest onto the target row's item.</summary>
+        public Func<List<string>, object, bool> CanNestOnTarget { get; set; }
+
+        /// <summary>Optional: nests the keyed items onto the target item; returns true when applied.</summary>
+        public Func<List<string>, object, bool> NestItemsOnTarget { get; set; }
 
         /// <summary>Optional: invoked when a reorderable row is pressed outside the drag-handle column.</summary>
         public Action<object, MouseButtonEventArgs> RowPressOutsideDragHandle { get; set; }
@@ -136,6 +153,16 @@ namespace PlayniteAchievements.Views.Helpers
                     "DataGridRowReorderOptions requires DragDataFormat, DropIndicator, DragCountPopup, " +
                     "DragCountText, IsReorderableItem, ExtractDragKeys, MoveItemsRelativeToTarget and MoveItemsToEnd.");
             }
+
+            var nestMembers = (options.NestHighlight != null ? 1 : 0) +
+                              (options.CanNestOnTarget != null ? 1 : 0) +
+                              (options.NestItemsOnTarget != null ? 1 : 0);
+            if (nestMembers != 0 && nestMembers != 3)
+            {
+                throw new InvalidOperationException(
+                    "DataGridRowReorderOptions nest support requires NestHighlight, CanNestOnTarget " +
+                    "and NestItemsOnTarget together.");
+            }
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -165,6 +192,13 @@ namespace PlayniteAchievements.Views.Helpers
             private ScrollViewer _scrollViewer;
             private bool _isDragging;
             private int _dragItemCount;
+
+            // Per-drag caches: the payload keys (stable for the whole drag) and the last hovered
+            // row's nest verdict, so DragOver ticks do not re-read the DataObject or re-plan the
+            // move per pixel.
+            private List<string> _dragOverKeys;
+            private object _nestVerdictItem;
+            private bool _nestVerdict;
 
             public ReorderState(DataGrid grid, DataGridRowReorderOptions options)
             {
@@ -206,8 +240,9 @@ namespace PlayniteAchievements.Views.Helpers
 
             public void CancelPendingDrag()
             {
-                HideDropIndicator();
+                HideDropVisuals();
                 HideDragCountPopup();
+                ClearDragCaches();
                 _hasDragStartPoint = false;
                 _dragAnchorItem = null;
             }
@@ -315,7 +350,8 @@ namespace PlayniteAchievements.Views.Helpers
                     _isDragging = false;
                     _dragItemCount = 0;
                     HideDragCountPopup();
-                    HideDropIndicator();
+                    HideDropVisuals();
+                    ClearDragCaches();
                     _options.DragCompleted?.Invoke();
                 }
             }
@@ -331,7 +367,7 @@ namespace PlayniteAchievements.Views.Helpers
                 }
                 else
                 {
-                    HideDropIndicator();
+                    HideDropVisuals();
                 }
 
                 e.Handled = true;
@@ -342,7 +378,7 @@ namespace PlayniteAchievements.Views.Helpers
                 var pointerPosition = Mouse.GetPosition(_grid);
                 if (!IsPointWithinGrid(pointerPosition))
                 {
-                    HideDropIndicator();
+                    HideDropVisuals();
                 }
             }
 
@@ -372,15 +408,17 @@ namespace PlayniteAchievements.Views.Helpers
                 _dragAnchorItem = null;
                 StopAutoScroll();
                 HideDragCountPopup();
-                HideDropIndicator();
+                HideDropVisuals();
+                ClearDragCaches();
             }
 
             private void OnDrop(object sender, DragEventArgs e)
             {
-                HideDropIndicator();
+                HideDropVisuals();
                 if (!e.Data.GetDataPresent(_options.DragDataFormat))
                 {
                     HideDragCountPopup();
+                    ClearDragCaches();
                     return;
                 }
 
@@ -388,30 +426,45 @@ namespace PlayniteAchievements.Views.Helpers
                 if (draggedKeys == null || draggedKeys.Count == 0)
                 {
                     HideDragCountPopup();
+                    ClearDragCaches();
                     return;
                 }
 
                 var row = VisualTreeHelpers.FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
                 bool moved;
+                var isNest = false;
                 var targetItem = row?.DataContext;
                 if (targetItem != null && _options.IsReorderableItem(targetItem))
                 {
-                    var pos = e.GetPosition(row);
-                    var insertAfter = pos.Y > row.ActualHeight / 2.0;
-                    moved = _options.MoveItemsRelativeToTarget(draggedKeys, targetItem, insertAfter);
+                    // The same zone resolution the hover indicator used, so the drop can never
+                    // disagree with what the visuals promised.
+                    var zone = ResolveDropZone(e, row, targetItem);
+                    isNest = zone == DataGridDropZoneKind.NestOnTarget;
+                    moved = isNest
+                        ? _options.NestItemsOnTarget(draggedKeys, targetItem)
+                        : _options.MoveItemsRelativeToTarget(
+                            draggedKeys,
+                            targetItem,
+                            zone == DataGridDropZoneKind.InsertAfter);
                 }
                 else
                 {
                     moved = _options.MoveItemsToEnd(draggedKeys);
                 }
 
+                ClearDragCaches();
                 if (!moved)
                 {
                     HideDragCountPopup();
                     return;
                 }
 
-                _options.RestoreSelection?.Invoke(draggedKeys);
+                // A nest rewrites the dragged keys, so restoring selection from them would clear
+                // the selection the host's own move pipeline just made.
+                if (!isNest)
+                {
+                    _options.RestoreSelection?.Invoke(draggedKeys);
+                }
                 _isDragging = false;
                 _dragItemCount = 0;
                 StopAutoScroll();
@@ -528,14 +581,24 @@ namespace PlayniteAchievements.Views.Helpers
                 var targetItem = row?.DataContext;
                 if (targetItem != null && _options.IsReorderableItem(targetItem))
                 {
-                    var pointerInRow = e.GetPosition(row);
-                    var insertAfter = pointerInRow.Y > row.ActualHeight / 2.0;
+                    var zone = ResolveDropZone(e, row, targetItem);
+                    if (zone == DataGridDropZoneKind.NestOnTarget)
+                    {
+                        HideDropIndicator();
+                        ShowNestHighlight(row);
+                        return;
+                    }
+
+                    HideNestHighlight();
                     var rowTop = row.TranslatePoint(new Point(0, 0), _grid).Y;
-                    var lineY = insertAfter ? rowTop + row.ActualHeight : rowTop;
+                    var lineY = zone == DataGridDropZoneKind.InsertAfter ? rowTop + row.ActualHeight : rowTop;
                     ShowDropIndicator(lineY);
                     return;
                 }
 
+                // Empty space below the last row stays reorder-to-end only: there is no row there
+                // to become a parent.
+                HideNestHighlight();
                 if (_grid.Items.Count > 0)
                 {
                     ShowDropIndicator(_grid.ActualHeight - 1);
@@ -544,6 +607,52 @@ namespace PlayniteAchievements.Views.Helpers
                 {
                     HideDropIndicator();
                 }
+            }
+
+            /// <summary>
+            /// The zone the pointer is in over <paramref name="row"/>. Shared by the hover
+            /// indicator and the drop handler; nesting collapses back to the midpoint split when
+            /// the host offers no nest support or the target refuses these keys.
+            /// </summary>
+            private DataGridDropZoneKind ResolveDropZone(DragEventArgs e, DataGridRow row, object targetItem)
+            {
+                var pointerInRow = e.GetPosition(row);
+                return DataGridDropZone.Resolve(pointerInRow.Y, row.ActualHeight, IsNestAllowed(e, targetItem));
+            }
+
+            private bool IsNestAllowed(DragEventArgs e, object targetItem)
+            {
+                if (_options.NestItemsOnTarget == null || targetItem == null)
+                {
+                    return false;
+                }
+
+                if (ReferenceEquals(_nestVerdictItem, targetItem))
+                {
+                    return _nestVerdict;
+                }
+
+                var keys = GetDragKeys(e);
+                _nestVerdictItem = targetItem;
+                _nestVerdict = keys != null && keys.Count > 0 && _options.CanNestOnTarget(keys, targetItem);
+                return _nestVerdict;
+            }
+
+            private List<string> GetDragKeys(DragEventArgs e)
+            {
+                if (_dragOverKeys == null)
+                {
+                    _dragOverKeys = (e.Data.GetData(_options.DragDataFormat) as IEnumerable<string>)?.ToList();
+                }
+
+                return _dragOverKeys;
+            }
+
+            private void ClearDragCaches()
+            {
+                _dragOverKeys = null;
+                _nestVerdictItem = null;
+                _nestVerdict = false;
             }
 
             private void ShowDropIndicator(double y)
@@ -564,6 +673,45 @@ namespace PlayniteAchievements.Views.Helpers
             private void HideDropIndicator()
             {
                 _options.DropIndicator.Visibility = Visibility.Collapsed;
+            }
+
+            private void ShowNestHighlight(DataGridRow row)
+            {
+                var highlight = _options.NestHighlight;
+                if (highlight == null)
+                {
+                    return;
+                }
+
+                // Clamp to the grid so a row half scrolled out lights only its visible part; a
+                // sliver too thin to read as a row outline hides instead.
+                var top = row.TranslatePoint(new Point(0, 0), _grid).Y;
+                var bottom = Math.Min(_grid.ActualHeight, top + row.ActualHeight);
+                top = Math.Max(0, top);
+                var height = bottom - top;
+                if (double.IsNaN(height) || height <= 4)
+                {
+                    HideNestHighlight();
+                    return;
+                }
+
+                highlight.Margin = new Thickness(0, top, 0, 0);
+                highlight.Height = height;
+                highlight.Visibility = Visibility.Visible;
+            }
+
+            private void HideNestHighlight()
+            {
+                if (_options.NestHighlight != null)
+                {
+                    _options.NestHighlight.Visibility = Visibility.Collapsed;
+                }
+            }
+
+            private void HideDropVisuals()
+            {
+                HideDropIndicator();
+                HideNestHighlight();
             }
 
             private void ShowDragCountPopup()
