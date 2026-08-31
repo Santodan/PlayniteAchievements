@@ -91,6 +91,14 @@ namespace PlayniteAchievements.Services.Capture
         private long _prepareTotalTicks;
         private long _prepareMaxTicks;
         private int _prepareSamples;
+        // Held-frame accounting, pump thread only. Repeats are the frames a tick writes beyond its
+        // first — the held frame re-encoded to cover a schedule stall. Stale frames are writes with
+        // no fresh WGC frame composed since the previous write — a static scene, or delivery
+        // falling behind under contention. Both play back as a held picture, and neither is visible
+        // in any other diagnostic; emitted with the segment diagnostics below.
+        private long _repeatFrames;
+        private long _staleFrames;
+        private bool _latestRefreshed;
         private DateTime _lastDebtLogUtc = DateTime.MinValue;
         private int _suppressedDebtLogs;
         private DateTime _lastRotationFailureUtc = DateTime.MinValue;
@@ -509,6 +517,16 @@ namespace PlayniteAchievements.Services.Capture
 
                                 if (missing > 0)
                                 {
+                                    if (missing > 1)
+                                    {
+                                        _repeatFrames += missing - 1;
+                                    }
+
+                                    if (!_latestRefreshed)
+                                    {
+                                        _staleFrames += missing;
+                                    }
+
                                     // Already cropped, tone-mapped and encoder-sized by the composer,
                                     // so a repeat is the same texture handed over again.
                                     var encodeFrame = _latest;
@@ -519,6 +537,8 @@ namespace PlayniteAchievements.Services.Capture
                                             encodeFrame, pts, PtsForFrame(_segmentFrameIndex + 1) - pts));
                                         _segmentFrameIndex++;
                                     }
+
+                                    _latestRefreshed = false;
                                 }
                             }
                             catch (Exception ex)
@@ -604,6 +624,7 @@ namespace PlayniteAchievements.Services.Capture
                     EnsureLatest(_encW, _encH);
                     _composer.Compose(
                         frameTexture, _latest, _cropX, _cropY, _cropW, _cropH, _hdr, _refWhite);
+                    _latestRefreshed = true;
                 }
             }
         }
@@ -707,7 +728,7 @@ namespace PlayniteAchievements.Services.Capture
                 _logger?.Debug(
                     $"[Recording] WGC-MF segment #{_segmentCount} started ({Path.GetFileName(path)}, {_encW}x{_encH}, " +
                     $"rotate={rotate.ElapsedMilliseconds}ms, prepared={reused}" +
-                    $"{TakeEncodeLatencySummary()}{TakePrepareLatencySummary()}).");
+                    $"{TakeEncodeLatencySummary()}{TakePrepareLatencySummary()}{TakeHeldFrameSummary()}).");
             }
         }
 
@@ -785,6 +806,21 @@ namespace PlayniteAchievements.Services.Capture
             _encodeTotalTicks = 0;
             _encodeMaxTicks = 0;
             _encodeOverBudget = 0;
+            return summary;
+        }
+
+        private string TakeHeldFrameSummary()
+        {
+            // Zero on both counters is the healthy case; keep the line unchanged for it so a
+            // repeats/stale field appearing at all marks the summary window as one with held frames.
+            if (_repeatFrames <= 0 && _staleFrames <= 0)
+            {
+                return string.Empty;
+            }
+
+            var summary = $", repeats={_repeatFrames}, stale={_staleFrames}";
+            _repeatFrames = 0;
+            _staleFrames = 0;
             return summary;
         }
 
