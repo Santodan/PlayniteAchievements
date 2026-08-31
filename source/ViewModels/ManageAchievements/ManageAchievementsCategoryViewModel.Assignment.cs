@@ -40,6 +40,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var emptyCategoryTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             PersistCategoryOverrideMaps(emptyCategories, emptyCategoryTypes);
             ApplyCategoryOverrideMapsToRows(emptyCategories, emptyCategoryTypes);
+            // Membership just moved, so the Manage sub-tab's rows are showing the old grouping.
+            RefreshCategoryRows();
             return true;
         }
 
@@ -108,6 +110,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
                 ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
+                if (categoryChanged)
+                {
+                    // Only a label move regroups the Manage sub-tab; a type edit renders nowhere there.
+                    RefreshCategoryRows();
+                }
             }
 
             return true;
@@ -220,6 +227,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
             PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
             ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
+            RefreshCategoryRows();
             return true;
         }
 
@@ -261,6 +269,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
             ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
+            if (categoryChanged)
+            {
+                RefreshCategoryRows();
+            }
+
             return true;
         }
 
