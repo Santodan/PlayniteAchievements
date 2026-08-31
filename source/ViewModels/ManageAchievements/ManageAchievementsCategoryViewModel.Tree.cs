@@ -787,12 +787,34 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Removes each category and its subtree from the order, the art overrides, and the
-        /// summary selection in one write. A label is refused when any achievement is filed under
-        /// it or a descendant (those categories are merged away instead), or when it is the
-        /// Default bucket. Returns true when anything was removed.
+        /// How many achievements are filed under any of the labels or their descendants - what a
+        /// delete would send back to the Default bucket, for the confirmation prompt.
         /// </summary>
-        public bool DeleteEmptyCategories(IReadOnlyList<string> labels)
+        public int CountAchievementsInCategories(IReadOnlyList<string> labels)
+        {
+            var normalized = (labels ?? Array.Empty<string>())
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .Select(CategoryPathHelper.NormalizePath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (normalized.Count == 0)
+            {
+                return 0;
+            }
+
+            return _allRows.Count(row => row != null && normalized.Any(label =>
+                CategoryPathHelper.IsSelfOrDescendantOf(
+                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
+                    label)));
+        }
+
+        /// <summary>
+        /// Deletes each category and its subtree: every achievement filed inside goes back to the
+        /// Default bucket, and the labels leave the order, the art overrides, and the summary
+        /// selection. Membership and metadata land in one write. The Default bucket itself is
+        /// refused. Returns true when anything was removed.
+        /// </summary>
+        public bool DeleteCategories(IReadOnlyList<string> labels)
         {
             var rendered = CategoryRows
                 .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
@@ -805,14 +827,33 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Where(label =>
                     !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
-                    rendered.Any(existing => CategoryPathHelper.IsSame(existing, label)) &&
-                    !_allRows.Any(row => row != null && CategoryPathHelper.IsSelfOrDescendantOf(
-                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
-                        label)))
+                    rendered.Any(existing => CategoryPathHelper.IsSame(existing, label)))
+                .ToList();
+
+            // A selected descendant of a selected ancestor is dropped: the ancestor's subtree
+            // delete carries it.
+            deletable = deletable
+                .Where(label => !deletable.Any(other => CategoryPathHelper.IsDescendantOf(label, other)))
                 .ToList();
             if (deletable.Count == 0)
             {
                 return false;
+            }
+
+            // Un-categorize the whole subtree's achievements: the reassign sweeps self and
+            // descendants and flattens them onto the target, which for Default is exactly
+            // "no category". Group-type tags follow the Default bucket's, like a merge into it.
+            var categoryOverrideMap = GetCurrentCategoryOverrideMap();
+            var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
+            var defaultGroupTypes = ResolveGroupTypesForCategory(AchievementCategoryTypeHelper.DefaultCategoryLabel);
+            foreach (var label in deletable)
+            {
+                ReassignEffectiveCategoryRows(
+                    label,
+                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                    categoryOverrideMap,
+                    categoryTypeOverrideMap,
+                    defaultGroupTypes);
             }
 
             var order = rendered
@@ -840,8 +881,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 summaryCategory = null;
             }
 
-            _achievementOverridesService.SetAchievementCategoryMetadata(
+            _achievementOverridesService.SetAchievementCategoryAssignmentAndMetadata(
                 _gameId,
+                categoryOverrideMap,
+                categoryTypeOverrideMap,
                 order,
                 images,
                 summaryCategory,
@@ -850,6 +893,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     imagesBefore,
                     summaryCategory,
                     images)));
+            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
             RaiseCategoryMetadataPersisted();
             RefreshCategoryRows();
             return true;
