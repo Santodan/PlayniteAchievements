@@ -66,6 +66,11 @@ namespace PlayniteAchievements.Services.UI
         // (UniPlaySong 1.8.4+) reaches the player directly and needs far less. Both tunable.
         private const int SoundAlignmentDelayMs = 450;
         private const int SoundAlignmentFastPathDelayMs = 150;
+        // Longest the wave waits for an undelayed base capture before creating the toast window,
+        // so the capture's WGC session and readback do not overlap the window's first composition
+        // and slide-in. Sized to the capture's own budget (session setup, 150 ms warmup, one
+        // full-resolution readback) less the wave work that already ran since it was started.
+        private const int BaseCaptureGraceMs = 400;
 
         private bool _disposed;
         // Window-bearing waves shown by this process; see the [Toast] Fire diagnostic line.
@@ -2272,6 +2277,25 @@ namespace PlayniteAchievements.Services.UI
             LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
 
             PrimeWaveVisuals(cardItems);
+
+            // An undelayed base capture is a second WGC session — device, warmup, full-resolution
+            // readback — on the same GPU the clip recorder's deprioritized pump runs on. Left to
+            // overlap the window creation and slide-in below, it lands in the one span where the
+            // recorder is already paying for the toast: affected clips hold duplicated game frames
+            // at the pop-up. Absorb the overlap here, ahead of the chime, so the chime and the
+            // reveal shift together and their alignment holds; bounded, so a stuck capture costs
+            // latency, never the wave. A delayed capture runs after the card is on screen and
+            // never overlaps the pop-up in the first place.
+            if (baseCaptureTask != null && captureDelaySeconds <= 0)
+            {
+                await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+                    .ConfigureAwait(true);
+                if (_disposed)
+                {
+                    DisposeCaptureTask(baseCaptureTask);
+                    return;
+                }
+            }
 
             // Chime and vibration belong to the on-screen notification, so an unrevealed wave skips
             // both — and skips the alignment delay that exists only to line them up with the
