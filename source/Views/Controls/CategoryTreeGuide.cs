@@ -200,9 +200,9 @@ namespace PlayniteAchievements.Views.Controls
         /// <summary>
         /// The row's own connector. A last sibling closes with a rounded elbow and stops at the
         /// middle; anything else keeps the lane running to the bottom for the sibling underneath.
-        /// A root has neither - it has no parent to connect to. A self row keeps only the
-        /// running lane, never an arm: the arm is what claims a row as a node of the tree, and a
-        /// self row is an annotation on the node above it.
+        /// A root has neither - it has no parent to connect to. A self row's arm is dashed and
+        /// runs to an empty terminal: attached to the branch like its siblings, but visibly not
+        /// another node of the tree.
         /// </summary>
         private static void DrawOwnStem(
             DrawingContext drawingContext,
@@ -220,14 +220,24 @@ namespace PlayniteAchievements.Views.Controls
             var stemX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1);
             if (shape.IsSelfRow)
             {
-                // By construction the child categories that made the node mixed follow beneath, so
-                // the parent's lane continues; a defensive last-sibling self row draws nothing
-                // rather than a line stopping mid-air.
+                // The lane itself stays solid - it is shared with the sibling rows below, and a
+                // per-row texture change would show as the column flickering mid-run. By
+                // construction the child categories that made the node mixed follow beneath, so
+                // the lane continues; a defensive last-sibling self row skips it rather than
+                // drawing a line stopping mid-air.
                 if (!shape.IsLastSibling)
                 {
                     drawingContext.DrawLine(pen, new Point(stemX, 0d), new Point(stemX, height));
                 }
 
+                // The arm is this row's own ink, and it carries the distinction: dashed, and
+                // ending in no bead where every real node ends in one - an implied branch, the
+                // category itself, rather than another category.
+                var dashed = CreatePen(pen.Brush, 1d, DashStyles.Dash);
+                drawingContext.DrawLine(
+                    dashed,
+                    new Point(stemX, mid),
+                    new Point(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth), mid));
                 return;
             }
 
@@ -297,9 +307,15 @@ namespace PlayniteAchievements.Views.Controls
         /// exception out of OnRender takes the whole application down, so the CanFreeze check is
         /// load-bearing rather than defensive.
         /// </summary>
-        private static Pen CreatePen(Brush brush, double thickness)
+        private static Pen CreatePen(Brush brush, double thickness, DashStyle dashStyle = null)
         {
             var pen = new Pen(brush, thickness);
+            if (dashStyle != null)
+            {
+                pen.DashStyle = dashStyle;
+                pen.DashCap = PenLineCap.Flat;
+            }
+
             if (pen.CanFreeze)
             {
                 pen.Freeze();
