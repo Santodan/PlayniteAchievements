@@ -359,6 +359,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showCompletionGlow = true;
         private bool _colorRarityColumnsByRarity;
         private bool _showNameAboveProgress;
+        private bool _showRarityBadgesBelowProgress = true;
         private DateDisplayMode _lastPlayedDateMode = DateDisplayMode.DateAndTime;
         private GameSummariesSortMode _sortMode = GameSummariesSortMode.RecentUnlock;
         private bool _sortDescending = true;
@@ -408,6 +409,14 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showNameAboveProgress, value);
         }
 
+        // Shows the footer row below the progress bar (rarity/trophy count badges and the
+        // completion badge). Off renders just the bar.
+        public bool ShowRarityBadgesBelowProgress
+        {
+            get => _showRarityBadgesBelowProgress;
+            set => SetValue(ref _showRarityBadgesBelowProgress, value);
+        }
+
         public DateDisplayMode LastPlayedDateMode
         {
             get => _lastPlayedDateMode;
@@ -437,6 +446,7 @@ namespace PlayniteAchievements.Models.Settings
             clone.ShowCompletionGlow = ShowCompletionGlow;
             clone.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
             clone.ShowNameAboveProgress = ShowNameAboveProgress;
+            clone.ShowRarityBadgesBelowProgress = ShowRarityBadgesBelowProgress;
             clone.LastPlayedDateMode = LastPlayedDateMode;
             clone.SortMode = SortMode;
             clone.SortDescending = SortDescending;
@@ -488,6 +498,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showCompletionGlow = true;
         private bool _colorRarityColumnsByRarity;
         private bool _showNameAboveProgress;
+        private bool _showRarityBadgesBelowProgress = true;
 
         public GridColumnLayoutOptions Columns
         {
@@ -536,6 +547,14 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showNameAboveProgress, value);
         }
 
+        // Shows the footer row below the progress bar (rarity/trophy count badges and the
+        // completion badge). Off renders just the bar.
+        public bool ShowRarityBadgesBelowProgress
+        {
+            get => _showRarityBadgesBelowProgress;
+            set => SetValue(ref _showRarityBadgesBelowProgress, value);
+        }
+
         public CategorySummaryGridOptions Clone()
         {
             return new CategorySummaryGridOptions
@@ -546,7 +565,8 @@ namespace PlayniteAchievements.Models.Settings
                 UseCoverImages = UseCoverImages,
                 ShowCompletionGlow = ShowCompletionGlow,
                 ColorRarityColumnsByRarity = ColorRarityColumnsByRarity,
-                ShowNameAboveProgress = ShowNameAboveProgress
+                ShowNameAboveProgress = ShowNameAboveProgress,
+                ShowRarityBadgesBelowProgress = ShowRarityBadgesBelowProgress
             };
         }
     }
