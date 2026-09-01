@@ -2369,14 +2369,25 @@ namespace PlayniteAchievements.Views.Controls
                 UpdateUnlockDateMode();
             }
 
-            // Rebuilding re-stamps AllowCompletionBadge and reassigns CategorySummaries, so the
-            // category rows repaint without reopening the window. Grids not currently in category
-            // mode pick the new mode up from the rebuild that entering category mode already does.
-            if (_isCategoryMode &&
-                (string.IsNullOrEmpty(e.PropertyName) ||
-                 e.PropertyName == nameof(PersistedSettings.CategoryCompletionBadgeMode)))
+            // Category rows repaint without reopening the window. Grids not currently in category
+            // mode pick new modes up from the rebuild that entering category mode already does.
+            if (_isCategoryMode)
             {
-                RebuildCategorySummaries();
+                if (string.IsNullOrEmpty(e.PropertyName) ||
+                    e.PropertyName == nameof(PersistedSettings.CategoryProgressMode))
+                {
+                    // The progress mode changes which rows exist and what the current drill opens
+                    // onto, so the drill re-resolves against the new rows (RefreshDrillState
+                    // rebuilds the summaries itself) and the achievement grid re-filters to the
+                    // new scope.
+                    RefreshDrillState();
+                    ApplyCategoryViewState();
+                }
+                else if (e.PropertyName == nameof(PersistedSettings.CategoryCompletionBadgeMode))
+                {
+                    // Rebuilding re-stamps AllowCompletionBadge and reassigns CategorySummaries.
+                    RebuildCategorySummaries();
+                }
             }
         }
 
