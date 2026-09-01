@@ -90,10 +90,10 @@ namespace PlayniteAchievements.Views.Helpers
         public const double MinimumBeadRadius = 2d;
 
         /// <summary>Preferred radius of the circled expand/collapse toggle on a parent's descender.</summary>
-        public const double ToggleRadius = 5d;
+        public const double ToggleRadius = 7d;
 
         /// <summary>Floor for <see cref="GetToggleRadius"/>; below this the +/- glyph stops reading.</summary>
-        public const double MinimumToggleRadius = 3.5d;
+        public const double MinimumToggleRadius = 4d;
 
         /// <summary>
         /// Radius of a row's collapse toggle, tapered the same way as <see cref="GetBeadRadius"/>:
