@@ -494,6 +494,12 @@
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
                         <Setter Property="ToolTip" Value="{Binding ProgressionCountText}"/>
+                        <Style.Triggers>
+                            <!-- The bar is hidden for rows with no achievements; drop the 0/0 tooltip with it. -->
+                            <DataTrigger Binding="{Binding TotalAchievements}" Value="0">
+                                <Setter Property="ToolTip" Value="{x:Null}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
                 </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
@@ -549,7 +555,8 @@
                                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            TextWrapping="Wrap"
-                                           TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
+                                           TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
+                                           Visibility="{Binding TotalAchievements, Converter={StaticResource IntToVis}}">
                                     <TextBlock.Inlines><Run Text="{Binding UnlockedAchievements, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/><Run Text="/" Foreground="{DynamicResource PlayAch.Brush.Text}"/><Run Text="{Binding TotalAchievements, Mode=OneWay, StringFormat={}{0:N0}}" Foreground="{DynamicResource PlayAch.Brush.Text}"/></TextBlock.Inlines>
                                 </TextBlock>
                             </Grid>
