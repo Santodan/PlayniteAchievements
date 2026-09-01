@@ -295,17 +295,17 @@
                             <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                         HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
-                                <!-- The grid hugs the name, so the zero-size stub bottom-centered in
-                                     it sits exactly under the middle of the text - where a mixed
-                                     category's dashed drop toward its self row starts. -->
-                                <Grid HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
-                                    <TextBlock Text="{Binding GameName}"
-                                               Style="{StaticResource GameSummaryNameTextStyle}"/>
-                                    <controls:CategorySelfDropStub Shape="{Binding TreeShape}"
-                                                                   LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                                                                   HorizontalAlignment="Center"
-                                                                   VerticalAlignment="Bottom"/>
-                                </Grid>
+                                <TextBlock x:Name="GameNameText"
+                                           Text="{Binding GameName}"
+                                           HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                           Style="{StaticResource GameSummaryNameTextStyle}"/>
+                                <!-- Zero-size and layout-inert: draws a mixed category's dashed
+                                     drop from the bottom line of the name above toward its self
+                                     row, measured off the TextBlock itself so it tracks column
+                                     and alignment changes. -->
+                                <controls:CategorySelfDropStub Shape="{Binding TreeShape}"
+                                                               TargetText="{Binding ElementName=GameNameText}"
+                                                               LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
                                 <TextBlock HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                            Style="{StaticResource OverviewGameMetadataTextStyle}">
                                     <TextBlock.Text>
