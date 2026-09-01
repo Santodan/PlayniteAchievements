@@ -544,6 +544,137 @@ namespace PlayniteAchievements.Tests.ViewModels
             };
         }
 
+        private static AchievementUnlockedEventArgs ProgressArgs(int? previous = 3, int current = 4, int denominator = 10)
+        {
+            return new AchievementUnlockedEventArgs
+            {
+                DisplayName = "Headhunter",
+                Description = "Kill 10 enemies with headshots.",
+                GameName = "Some Game",
+                RarityTier = "Rare",
+                GlobalPercent = 9.3,
+                IsProgressUpdate = true,
+                PreviousProgressNum = previous,
+                ProgressNum = current,
+                ProgressDenom = denominator
+            };
+        }
+
+        private static ToastProgressLine FindProgressLine(System.Collections.Generic.IReadOnlyList<ToastLineDescriptor> lines)
+        {
+            foreach (var line in lines)
+            {
+                if (line is ToastProgressLine progress)
+                {
+                    return progress;
+                }
+            }
+
+            return null;
+        }
+
+        [TestMethod]
+        public void ProgressNotification_ExposesProgressValuesAndHidesRarityVisuals()
+        {
+            var style = new NotificationSurfaceStyle
+            {
+                ShowRarityBadge = true,
+                ShowRarityPercent = true,
+                ShowRarityGlow = true,
+                NotificationBorderGlow = true
+            };
+            var viewModel = BuildLineToast(style, ProgressArgs());
+
+            Assert.IsTrue(viewModel.IsProgressUpdate);
+            Assert.IsTrue(viewModel.HasProgress);
+            Assert.AreEqual(4, viewModel.ProgressNum);
+            Assert.AreEqual(10, viewModel.ProgressDenom);
+            Assert.AreEqual(3, viewModel.PreviousProgressNum);
+            Assert.AreEqual(0.4, viewModel.ProgressFraction, 1e-9);
+            Assert.AreEqual(0.3, viewModel.PreviousProgressFraction, 1e-9);
+            Assert.AreEqual("4/10", viewModel.ProgressText);
+
+            // Rarity is beside the point for a still-locked achievement.
+            Assert.IsFalse(viewModel.ShowBadge);
+            Assert.IsFalse(viewModel.ShowInlineBadge);
+            Assert.IsFalse(viewModel.ShowRightBadge);
+            Assert.IsFalse(viewModel.ShowPercent);
+            Assert.IsFalse(viewModel.ShowRightPercent);
+            Assert.IsFalse(viewModel.HasIconFooter);
+            Assert.IsNull(viewModel.RarityGlowEffect);
+            Assert.IsFalse(viewModel.HasBorderGlow);
+            Assert.IsFalse(viewModel.ShowRayBurst);
+            Assert.IsFalse(viewModel.ShowCardRayBurst);
+
+            // Silent kind: no sound tier at all.
+            Assert.IsNull(viewModel.SoundTierSegment);
+            Assert.AreEqual(0, viewModel.SoundTierRank);
+        }
+
+        [TestMethod]
+        public void ProgressNotification_ProgressLineIsVisibleOnTheToastAndAbsentFromTheFrame()
+        {
+            var viewModel = BuildLineToast(AllLinesVisible(), ProgressArgs());
+
+            var toastLine = FindProgressLine(viewModel.ToastLines);
+            Assert.IsNotNull(toastLine, "The toast line list carries the progress row.");
+            Assert.AreEqual(Visibility.Visible, toastLine.LineVisibility);
+            Assert.IsTrue(toastLine.ShowProgress);
+            Assert.AreEqual("4/10", toastLine.ProgressText);
+            Assert.AreEqual(0.4, toastLine.ProgressFraction, 1e-9);
+            Assert.IsNotNull(toastLine.BarBrush);
+            Assert.IsNotNull(toastLine.TrackBrush);
+            Assert.IsTrue(toastLine.BarHeight >= 4);
+            Assert.AreEqual(toastLine.BarHeight / 2, toastLine.BarCornerRadius.TopLeft);
+
+            Assert.IsNull(FindProgressLine(viewModel.FrameLines), "Frames never render progress notifications.");
+        }
+
+        [TestMethod]
+        public void UnlockNotification_ProgressLineCollapsesAndProgressValuesAreEmpty()
+        {
+            var viewModel = BuildLineToast(AllLinesVisible());
+
+            Assert.IsFalse(viewModel.IsProgressUpdate);
+            Assert.IsFalse(viewModel.HasProgress);
+            Assert.AreEqual(string.Empty, viewModel.ProgressText);
+            Assert.AreEqual(0, viewModel.ProgressFraction);
+
+            var line = FindProgressLine(viewModel.ToastLines);
+            Assert.IsNotNull(line, "The row is always in the list so the user's line order is stable.");
+            Assert.AreEqual(Visibility.Collapsed, line.LineVisibility);
+        }
+
+        [TestMethod]
+        public void ProgressNotification_FractionsClampAndUnknownPreviousReadsAsZero()
+        {
+            var overshoot = BuildLineToast(AllLinesVisible(), ProgressArgs(previous: null, current: 12, denominator: 10));
+
+            Assert.AreEqual(1.0, overshoot.ProgressFraction);
+            Assert.AreEqual(0.0, overshoot.PreviousProgressFraction);
+            Assert.IsNull(overshoot.PreviousProgressNum);
+        }
+
+        [TestMethod]
+        public void ProgressNotification_HeaderHonorsTheProgressHeaderEdit()
+        {
+            var style = AllLinesVisible();
+            style.HeaderTexts.ProgressHeader = "Getting there";
+            style.HeaderTexts.UnlockHeader = "Unlocked!";
+
+            var viewModel = BuildLineToast(style, ProgressArgs());
+
+            Assert.AreEqual("Getting there", viewModel.HeaderText);
+            Assert.AreEqual("Getting there", viewModel.ProgressHeaderText);
+            foreach (var line in viewModel.ToastLines)
+            {
+                if (line is ToastHeaderLine header)
+                {
+                    Assert.AreEqual("Getting there", header.HeaderText);
+                }
+            }
+        }
+
         [TestMethod]
         public void DescenderSlack_LandsOnlyOnTheBottomVisibleLine()
         {
