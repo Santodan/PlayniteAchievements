@@ -70,10 +70,9 @@ namespace PlayniteAchievements.ViewModels.Items
         /// Builds the hops for a drilled path: the level being viewed, preceded by an inert marker
         /// when there are levels above it, so a header reads "Game &gt; ... &gt; Frost".
         ///
-        /// Only the one hop, because every hop now does the same thing - return to the category
-        /// list at the position it was left. An ancestor hop would have been a second control with
-        /// identical behaviour. The list holds every node, so it is one click from there to
-        /// anywhere; the marker just says the path runs deeper than the name shown.
+        /// Every hop is inert: the game-name hop the hosts render to the left of these segments is
+        /// the one control that returns to the category list, so the segments only name where the
+        /// grid currently is. The marker says the path runs deeper than the name shown.
         ///
         /// Empty when nothing is drilled, so a host can bind an ItemsControl straight to it.
         /// </summary>
@@ -106,8 +105,8 @@ namespace PlayniteAchievements.ViewModels.Items
                 CategoryPathHelper.ToDisplayLeaf(pathSegments[last]),
                 last + 1,
                 isCurrent: true,
-                isNavigable: true,
-                navigate,
+                isNavigable: false,
+                navigate: null,
                 toolTip: null));
 
             return result;
