@@ -137,16 +137,33 @@ namespace PlayniteAchievements.Views.Controls
 
             try
             {
-                // The last character's rect is the bottom line: a wrapped title anchors under its
-                // final line, not under the block's widest one. Left-aligned text starts the line
-                // at zero, so the line's centre is half the rect's right edge.
-                var lastCharacter = text.ContentEnd.GetCharacterRect(LogicalDirection.Backward);
-                if (lastCharacter.IsEmpty || lastCharacter.Right <= 0d)
+                // The bottom line's own extent, not the block's: a wrapped title anchors under its
+                // final line, and the line's left edge is measured rather than assumed at zero -
+                // centre and right text alignments start the line wherever layout put it.
+                var end = text.ContentEnd;
+                var lastCharacter = end.GetCharacterRect(LogicalDirection.Backward);
+                if (lastCharacter.IsEmpty)
                 {
                     return false;
                 }
 
-                var lineAnchor = new Point(lastCharacter.Right / 2d, lastCharacter.Bottom);
+                var lineLeft = lastCharacter.Left;
+                var lineStart = end.GetLineStartPosition(0);
+                if (lineStart != null)
+                {
+                    var firstCharacter = lineStart.GetCharacterRect(LogicalDirection.Forward);
+                    if (!firstCharacter.IsEmpty)
+                    {
+                        lineLeft = Math.Min(firstCharacter.Left, lastCharacter.Left);
+                    }
+                }
+
+                if (lastCharacter.Right <= lineLeft)
+                {
+                    return false;
+                }
+
+                var lineAnchor = new Point((lineLeft + lastCharacter.Right) / 2d, lastCharacter.Bottom);
 
                 anchorInPanel = text.TransformToAncestor(panel).Transform(lineAnchor).X;
 
