@@ -16,13 +16,26 @@ namespace PlayniteAchievements.ViewModels.Items
     {
         private static readonly bool[] NoLanes = new bool[0];
 
-        public CategoryTreeShape(int depth, bool isLastSibling, bool hasChildren, bool[] ancestorContinues)
+        public CategoryTreeShape(
+            int depth,
+            bool isLastSibling,
+            bool hasChildren,
+            bool[] ancestorContinues,
+            bool isSelfRow = false)
         {
             Depth = depth;
             IsLastSibling = isLastSibling;
             HasChildren = hasChildren;
             AncestorContinues = ancestorContinues ?? NoLanes;
+            IsSelfRow = isSelfRow;
         }
+
+        /// <summary>
+        /// True for a mixed category's synthesized self row. The guide then draws only the lines
+        /// passing through toward the rows below - no arm and no bead - so the row reads as an
+        /// annotation on its category rather than a node of the tree.
+        /// </summary>
+        public bool IsSelfRow { get; }
 
         /// <summary>One-based: a root category is 1.</summary>
         public int Depth { get; }
