@@ -27,18 +27,6 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         private const double MaxCellWidthShare = 0.5d;
 
-        // Long dashes for the self-row twig: at 1px the stock Dash style reads as dots, and the
-        // twig has a whole label width to cover. Shared with CategorySelfDropStub, which draws the
-        // twig's upper half in the row above.
-        internal static readonly DashStyle TwigDashStyle = CreateTwigDashStyle();
-
-        private static DashStyle CreateTwigDashStyle()
-        {
-            var style = new DashStyle(new double[] { 4d, 3d }, 0d);
-            style.Freeze();
-            return style;
-        }
-
         static CategoryTreeGuide()
         {
             // Guide lines are decoration over an already-hit-testable row: clicks belong to the row.
@@ -109,25 +97,6 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (double)GetValue(LineOpacityProperty);
             set => SetValue(LineOpacityProperty, value);
-        }
-
-        /// <summary>
-        /// Where a self row's drop sits, in DataGridRow coordinates - published by the
-        /// <see cref="CategorySelfDropStub"/> under the category name in the row above, so the two
-        /// halves of the drop meet at the row boundary. NaN (the default) falls back to a computed
-        /// anchor until the row above has measured.
-        /// </summary>
-        public static readonly DependencyProperty DropAnchorXProperty =
-            DependencyProperty.Register(
-                nameof(DropAnchorX),
-                typeof(double),
-                typeof(CategoryTreeGuide),
-                new FrameworkPropertyMetadata(double.NaN, FrameworkPropertyMetadataOptions.AffectsRender));
-
-        public double DropAnchorX
-        {
-            get => (double)GetValue(DropAnchorXProperty);
-            set => SetValue(DropAnchorXProperty, value);
         }
 
         /// <summary>
@@ -218,11 +187,8 @@ namespace PlayniteAchievements.Views.Controls
             var width = CategoryTreeGuideMetrics.GetGuideWidth(shape.Depth);
             if (!double.IsInfinity(availableSize.Width) && availableSize.Width > 0d)
             {
-                // The width cap protects the name label from a deep guide; a self row has no name,
-                // so its guide claims the whole cell and the twig runs through the label void.
-                width = shape.IsSelfRow
-                    ? availableSize.Width
-                    : Math.Min(width, availableSize.Width * MaxCellWidthShare);
+                // The width cap protects the name label from a deep guide.
+                width = Math.Min(width, availableSize.Width * MaxCellWidthShare);
             }
 
             // Zero desired height: the row decides how tall it is, and the guide stretches into it.
@@ -246,7 +212,7 @@ namespace PlayniteAchievements.Views.Controls
 
             // A collapsed parent's children were filtered out before stamping, so its shape reads
             // HasChildren = false; the IsCollapsed flag carries the parenthood cue in that state.
-            var effectiveHasChildren = shape.HasChildren || (ShowCollapseToggle && !shape.IsSelfRow && IsCollapsed);
+            var effectiveHasChildren = shape.HasChildren || (ShowCollapseToggle && IsCollapsed);
             var beadRadius = CategoryTreeGuideMetrics.GetBeadRadius(shape.Depth, effectiveHasChildren);
 
             // A leaf's bead is an outline with the row showing through it, so the arm has to stop at
@@ -256,14 +222,12 @@ namespace PlayniteAchievements.Views.Controls
                 ? dotX
                 : Math.Max(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1), dotX - beadRadius);
 
-            var selfDropX = shape.IsSelfRow ? ResolveSelfDropX(shape) : double.NaN;
-
             var hasToggle = TryGetToggleGeometry(out var toggleCentre, out var toggleRadius);
 
             // Half-pixel offsets on a 1px pen, so the lines land on device pixels instead of
             // straddling two and rendering as a soft 2px smear.
             drawingContext.PushGuidelineSet(BuildGuidelines(
-                shape, dotX, mid, selfDropX, hasToggle ? toggleCentre.Y : double.NaN));
+                shape, dotX, mid, hasToggle ? toggleCentre.Y : double.NaN));
             drawingContext.PushClip(new RectangleGeometry(new Rect(RenderSize)));
 
             // Lines under the beads: the structure recedes, the rows read first.
@@ -298,17 +262,7 @@ namespace PlayniteAchievements.Views.Controls
 
             try
             {
-                // A self row is an annotation on its category, not a node of the tree: instead of
-                // a bead it gets the dashed twig, drawn at the beads' full strength - it is the
-                // row's one identifying mark against deliberately faint lanes.
-                if (shape.IsSelfRow)
-                {
-                    DrawSelfTwig(drawingContext, selfDropX, mid, RenderSize.Width);
-                }
-                else
-                {
-                    DrawJunction(drawingContext, pen, effectiveHasChildren, dotX, mid, beadRadius);
-                }
+                DrawJunction(drawingContext, pen, effectiveHasChildren, dotX, mid, beadRadius);
 
                 if (hasToggle)
                 {
@@ -337,7 +291,7 @@ namespace PlayniteAchievements.Views.Controls
 
             var shape = Shape;
             var height = RenderSize.Height;
-            if (!ShowCollapseToggle || shape == null || shape.IsSelfRow ||
+            if (!ShowCollapseToggle || shape == null ||
                 (!shape.HasChildren && !IsCollapsed) || height <= 0d)
             {
                 return false;
@@ -431,62 +385,6 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        /// <summary>
-        /// The self row's own connector: a dashed drop falling out of the parent's name directly
-        /// above, a rounded turn right, and a run through the label void to the cell's edge (the
-        /// guide claims the whole cell for a self row, see MeasureOverride), ending in no bead
-        /// where every real node ends in one. Hanging off the name rather than the lanes is what
-        /// says "the row above, itself" - the lanes say where in the tree, the name says which
-        /// category. Dashed, and at full strength against the deliberately faint lanes; it stays
-        /// in the line brush - the accent is reserved for the beads.
-        /// </summary>
-        private void DrawSelfTwig(
-            DrawingContext drawingContext,
-            double dropX,
-            double mid,
-            double width)
-        {
-            var armEnd = Math.Max(dropX + CategoryTreeGuideMetrics.CornerRadius, width - 2d);
-            var radius = Math.Min(CategoryTreeGuideMetrics.CornerRadius, Math.Max(0d, mid));
-
-            var geometry = new StreamGeometry();
-            using (var context = geometry.Open())
-            {
-                context.BeginFigure(new Point(dropX, 0d), false, false);
-                context.LineTo(new Point(dropX, mid - radius), true, false);
-                context.QuadraticBezierTo(
-                    new Point(dropX, mid),
-                    new Point(dropX + radius, mid),
-                    true,
-                    false);
-                context.LineTo(new Point(armEnd, mid), true, false);
-            }
-
-            geometry.Freeze();
-            drawingContext.DrawGeometry(null, CreateGuidePen(LineBrush, 1d, TwigDashStyle), geometry);
-        }
-
-        /// <summary>
-        /// Where the self row's drop sits. Preferably the anchor the row above measured under the
-        /// centre of its name text's bottom line (<see cref="DropAnchorX"/>). It arrives in
-        /// name-cell template space, which is this guide's own space - the guide is the cell
-        /// template's first docked child - so it is used verbatim, with no transform to go stale
-        /// under it. Until it lands, a computed fallback just inside where the name above starts,
-        /// so the twig never waits on another row's layout to draw at all.
-        /// </summary>
-        private double ResolveSelfDropX(CategoryTreeShape shape)
-        {
-            var anchor = DropAnchorX;
-            if (double.IsNaN(anchor) || double.IsInfinity(anchor) ||
-                anchor <= 0d || anchor >= RenderSize.Width)
-            {
-                return CategoryTreeGuideMetrics.GetGuideWidth(shape.Depth - 1) +
-                    CategoryTreeGuideMetrics.CornerRadius;
-            }
-
-            return anchor;
-        }
-
         /// <summary>Full-height lines for the ancestors that still have siblings below this row.</summary>
         private static void DrawAncestorLanes(
             DrawingContext drawingContext,
@@ -509,9 +407,7 @@ namespace PlayniteAchievements.Views.Controls
         /// <summary>
         /// The row's own connector. A last sibling closes with a rounded elbow and stops at the
         /// middle; anything else keeps the lane running to the bottom for the sibling underneath.
-        /// A root has neither - it has no parent to connect to. A self row draws no stem or arm
-        /// here at all: its own mark is the dashed drop-and-turn hanging off the parent's name
-        /// (see DrawSelfTwig), visibly not another node of the tree.
+        /// A root has neither - it has no parent to connect to.
         /// </summary>
         private static void DrawOwnStem(
             DrawingContext drawingContext,
@@ -527,22 +423,6 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             var stemX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1);
-            if (shape.IsSelfRow)
-            {
-                // Only the lane continuation, kept solid and faint like every shared lane - a
-                // per-row texture change would show as the column flickering mid-run. By
-                // construction the child categories that made the node mixed follow beneath, so
-                // the lane continues; a defensive last-sibling self row skips it rather than
-                // drawing a line stopping mid-air. The row's own arm is the dashed twig, drawn
-                // with the beads at full strength (see DrawSelfTwig).
-                if (!shape.IsLastSibling)
-                {
-                    drawingContext.DrawLine(pen, new Point(stemX, 0d), new Point(stemX, height));
-                }
-
-                return;
-            }
-
             if (!shape.IsLastSibling)
             {
                 drawingContext.DrawLine(pen, new Point(stemX, 0d), new Point(stemX, height));
@@ -609,15 +489,9 @@ namespace PlayniteAchievements.Views.Controls
         /// exception out of OnRender takes the whole application down, so the CanFreeze check is
         /// load-bearing rather than defensive.
         /// </summary>
-        internal static Pen CreateGuidePen(Brush brush, double thickness, DashStyle dashStyle = null)
+        internal static Pen CreateGuidePen(Brush brush, double thickness)
         {
             var pen = new Pen(brush, thickness);
-            if (dashStyle != null)
-            {
-                pen.DashStyle = dashStyle;
-                pen.DashCap = PenLineCap.Flat;
-            }
-
             if (pen.CanFreeze)
             {
                 pen.Freeze();
@@ -630,7 +504,6 @@ namespace PlayniteAchievements.Views.Controls
             CategoryTreeShape shape,
             double dotX,
             double mid,
-            double selfDropX,
             double toggleY = double.NaN)
         {
             var guidelines = new GuidelineSet();
@@ -651,10 +524,6 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             guidelines.GuidelinesX.Add(dotX + 0.5d);
-            if (!double.IsNaN(selfDropX))
-            {
-                guidelines.GuidelinesX.Add(selfDropX + 0.5d);
-            }
 
             guidelines.Freeze();
             return guidelines;
