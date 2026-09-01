@@ -189,6 +189,116 @@ namespace PlayniteAchievements.Tests.Services
                 "Baseline diffs carry no timestamps; the provider-ordered input order is the emission order.");
         }
 
+        [TestMethod]
+        public void DiffProgressAdvances_ReturnsRisenNumeratorsWithPrevious()
+        {
+            var differ = new AchievementUnlockDiffer();
+            var before = Data(
+                Progress("kills", 3, 10),
+                Progress("unknown-before", null, 10),
+                Progress("steady", 5, 10));
+            var after = Data(
+                Progress("kills", 4, 10),
+                Progress("unknown-before", 2, 10),
+                Progress("steady", 5, 10));
+
+            var result = differ.DiffProgressAdvances(before, after).ToList();
+
+            Assert.AreEqual(2, result.Count);
+            Assert.AreEqual("kills", result[0].ApiName);
+            Assert.AreEqual(3, result[0].Previous);
+            Assert.AreEqual(4, result[0].Current);
+            Assert.AreEqual(10, result[0].Denominator);
+            Assert.AreEqual("unknown-before", result[1].ApiName);
+            Assert.IsNull(result[1].Previous, "A null previous numerator still counts as an advance.");
+            Assert.AreEqual(2, result[1].Current);
+        }
+
+        [TestMethod]
+        public void DiffProgressAdvances_NullBaselineTreatsEveryPositiveNumeratorAsAnAdvance()
+        {
+            var differ = new AchievementUnlockDiffer();
+            var after = Data(Progress("kills", 4, 10), Progress("zero", 0, 10));
+
+            var result = differ.DiffProgressAdvances(null, after).ToList();
+
+            Assert.AreEqual(1, result.Count);
+            Assert.AreEqual("kills", result[0].ApiName);
+            Assert.IsNull(result[0].Previous);
+        }
+
+        [TestMethod]
+        public void DiffProgressAdvances_IgnoresEqualDecreasedAndSingleStepProgress()
+        {
+            var differ = new AchievementUnlockDiffer();
+            var before = Data(
+                Progress("equal", 4, 10),
+                Progress("decreased", 6, 10),
+                Progress("single-step", 0, 1));
+            var after = Data(
+                Progress("equal", 4, 10),
+                Progress("decreased", 5, 10),
+                Progress("single-step", 1, 1),
+                Progress("no-denominator", 3, null));
+
+            Assert.AreEqual(0, differ.DiffProgressAdvances(before, after).Count);
+        }
+
+        [TestMethod]
+        public void DiffProgressAdvances_FullProgressIsTheProviderUnlockToAnnounceNotAnIncrement()
+        {
+            var differ = new AchievementUnlockDiffer();
+            var before = Data(Progress("kills", 9, 10), Progress("reported", 9, 10));
+            var unlocked = Progress("reported", 10, 10);
+            unlocked.Unlocked = true;
+            var after = Data(Progress("kills", 10, 10), unlocked);
+
+            Assert.AreEqual(
+                0,
+                differ.DiffProgressAdvances(before, after).Count,
+                "Reaching the denominator, unlocked or not yet, must never produce an increment notification.");
+        }
+
+        [TestMethod]
+        public void DiffProgressAdvances_SkipsHiddenAchievements()
+        {
+            var differ = new AchievementUnlockDiffer();
+            var hidden = Progress("secret", 4, 10);
+            hidden.Hidden = true;
+
+            var result = differ.DiffProgressAdvances(Data(Progress("secret", 3, 10)), Data(hidden));
+
+            Assert.AreEqual(0, result.Count, "A locked hidden achievement stays a secret; its progress is never announced.");
+        }
+
+        [TestMethod]
+        public void DiffProgressAdvances_MatchesByApiNameAndKeepsProviderOrder()
+        {
+            var differ = new AchievementUnlockDiffer();
+            var before = Data(Progress("alpha", 1, 5), Progress("zeta", 1, 5));
+            var after = Data(Progress("zeta", 2, 5), Progress("alpha", 3, 5));
+
+            var result = differ.DiffProgressAdvances(before, after).ToList();
+
+            CollectionAssert.AreEqual(
+                new[] { "zeta", "alpha" },
+                result.Select(advance => advance.ApiName).ToArray(),
+                "Advances come back in the after-snapshot's provider order.");
+            Assert.AreEqual(1, result[1].Previous);
+        }
+
+        private static AchievementDetail Progress(string apiName, int? numerator, int? denominator)
+        {
+            return new AchievementDetail
+            {
+                ApiName = apiName,
+                DisplayName = apiName,
+                Unlocked = false,
+                ProgressNum = numerator,
+                ProgressDenom = denominator
+            };
+        }
+
         private static GameAchievementData Data(params AchievementDetail[] achievements)
         {
             return new GameAchievementData
