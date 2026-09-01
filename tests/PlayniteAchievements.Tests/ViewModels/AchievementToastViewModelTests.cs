@@ -724,8 +724,13 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             var lines = BuildLineToast(toast).ToastLines;
 
-            Assert.IsInstanceOfType(lines[lines.Count - 1], typeof(ToastDescriptionLine));
-            Assert.IsTrue(lines[lines.Count - 1].IsBottomLine);
+            // The progress line is appended to a stored four-line order and collapses on an unlock
+            // toast, so the bottom line is the last line that actually renders, not the last entry.
+            Assert.IsInstanceOfType(lines[lines.Count - 1], typeof(ToastProgressLine));
+            Assert.AreEqual(Visibility.Collapsed, lines[lines.Count - 1].LineVisibility);
+            Assert.IsFalse(lines[lines.Count - 1].IsBottomLine);
+            Assert.IsInstanceOfType(lines[lines.Count - 2], typeof(ToastDescriptionLine));
+            Assert.IsTrue(lines[lines.Count - 2].IsBottomLine);
             Assert.IsFalse(lines[0].IsBottomLine);
         }
 
