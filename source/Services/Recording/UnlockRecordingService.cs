@@ -1843,11 +1843,17 @@ namespace PlayniteAchievements.Services.Recording
 
             var all = Task.WhenAll(flushes);
             var bound = deadlineUtc - CaptureTimelineClock.UtcNow;
-            if (bound > TimeSpan.Zero)
+            if (bound <= TimeSpan.Zero)
             {
-                await Task.WhenAny(all, Task.Delay(bound)).ConfigureAwait(false);
+                // The old fixed wait would already have released this export (a backdated unlock
+                // whose window is long past): the covering files closed on their own schedule ages
+                // ago, so don't wait on the flush at all — just keep its late fault observed.
+                var pending = all.ContinueWith(
+                    t => { var _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+                return;
             }
 
+            await Task.WhenAny(all, Task.Delay(bound)).ConfigureAwait(false);
             if (all.IsCompleted)
             {
                 try
