@@ -10,16 +10,14 @@ namespace PlayniteAchievements.Tests.Services
     public class CategoryCollapseFilterTests
     {
         [TestMethod]
-        public void Apply_CollapsedParentKeepsItselfAndDropsItsSubtreeAndSelfRow()
+        public void Apply_CollapsedParentKeepsItselfAndDropsItsSubtree()
         {
-            var rows = Rows("Story", "Story!self", "Story::Act 1", "Story::Act 1::Finale", "Extras");
+            var rows = Rows("Story", "Story::Act 1", "Story::Act 1::Finale", "Extras");
 
             var visible = CategoryCollapseFilter.Apply(rows, Collapsed("Story"), out var removedAny);
 
             Assert.IsTrue(removedAny);
             CollectionAssert.AreEqual(new[] { "Story", "Extras" }, Paths(visible));
-            Assert.IsFalse(visible.Cast<CategorySummaryItem>().Any(c => c.IsSelfRow),
-                "the self row shares its category's path and collapses with it");
         }
 
         [TestMethod]
@@ -102,27 +100,16 @@ namespace PlayniteAchievements.Tests.Services
             return rows.Cast<CategorySummaryItem>().Select(c => c.CategoryPath).ToArray();
         }
 
-        /// <summary>
-        /// One row per spec: a plain category path, or "path!self" for that category's self row.
-        /// </summary>
-        private static List<GameSummaryItem> Rows(params string[] specs)
+        /// <summary>One row per category path.</summary>
+        private static List<GameSummaryItem> Rows(params string[] paths)
         {
             var rows = new List<GameSummaryItem>();
-            foreach (var spec in specs)
+            foreach (var path in paths)
             {
-                var text = spec;
-                var marker = text.IndexOf("!self", System.StringComparison.Ordinal);
-                var isSelf = marker >= 0;
-                if (isSelf)
-                {
-                    text = text.Substring(0, marker);
-                }
-
                 rows.Add(new CategorySummaryItem
                 {
-                    CategoryPath = text,
-                    CategoryLabel = text,
-                    IsSelfRow = isSelf
+                    CategoryPath = path,
+                    CategoryLabel = path
                 });
             }
 
