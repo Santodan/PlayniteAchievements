@@ -177,7 +177,7 @@ namespace PlayniteAchievements.Services.UI
         /// The replacement keeps the source's pixel format. That matters for the GDI fallback's
         /// Format32bppRgb — an Argb buffer there would carry alpha=0 and save transparent PNGs.
         /// </summary>
-        private Bitmap ApplyResolutionCap(Bitmap source, int capHeight)
+        internal Bitmap ApplyResolutionCap(Bitmap source, int capHeight)
         {
             if (source == null || capHeight <= 0 || source.Height <= capHeight)
             {
