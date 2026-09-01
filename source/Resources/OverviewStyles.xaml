@@ -195,44 +195,12 @@
                 Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"/>
     </Style>
 
+    <!-- Bar centering under asymmetric name/footer rows is handled by a measured
+         TranslateTransform on the stack in GameSummariesGridControl.xaml
+         (ProgressStackCenteringOffsetConverter), not by triggers here. -->
     <Style x:Key="OverviewProgressStackStyle" TargetType="StackPanel">
         <Setter Property="VerticalAlignment"
                 Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"/>
-        <Setter Property="RenderTransform">
-            <Setter.Value>
-                <TranslateTransform Y="0"/>
-            </Setter.Value>
-        </Setter>
-        <Style.Triggers>
-            <!-- Bar-centering nudges: the badge footer (below) and name row (above) each pull the
-                 bar off center when the other is absent. With both shown the stack is symmetric
-                 around the bar, and with both hidden only the bar remains, so plain centering is
-                 already correct in those cases. -->
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding VerticalAlignment, RelativeSource={RelativeSource Self}}" Value="Center"/>
-                    <Condition Binding="{Binding ShowNameAboveProgress, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="False"/>
-                    <Condition Binding="{Binding ShowRarityBadgesBelowProgress, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="RenderTransform">
-                    <Setter.Value>
-                        <TranslateTransform Y="11"/>
-                    </Setter.Value>
-                </Setter>
-            </MultiDataTrigger>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding VerticalAlignment, RelativeSource={RelativeSource Self}}" Value="Center"/>
-                    <Condition Binding="{Binding ShowNameAboveProgress, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
-                    <Condition Binding="{Binding ShowRarityBadgesBelowProgress, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="False"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="RenderTransform">
-                    <Setter.Value>
-                        <TranslateTransform Y="-11"/>
-                    </Setter.Value>
-                </Setter>
-            </MultiDataTrigger>
-        </Style.Triggers>
     </Style>
 
     <Style x:Key="OverviewProgressBarStyle" TargetType="ProgressBar" BasedOn="{StaticResource GameProgressBar}">
