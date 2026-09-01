@@ -1484,14 +1484,25 @@ namespace PlayniteAchievements.Services.Recording
             ClipRequest request,
             SegmentTimeline.ClipWindow window)
         {
-            // Wait until the segment covering the window end has closed (K + margin) so the
-            // concat never reads a half-written segment.
+            // Wait until the window has fully elapsed, then ask the recorders to close the segment
+            // and audio chunk covering its end instead of sleeping out their natural boundaries
+            // (previously a fixed K + margin here, ~7 s of mostly dead time per clip). The fixed
+            // wait's release instant remains as the bound, so a wedged or stopped pump can never
+            // make this slower than it used to be, and the concat still never reads a half-written
+            // segment: the flush completes only after the covering files are closed.
             var readyAtUtc = window.EndUtc.AddSeconds(SegmentSeconds + 2);
-            var wait = readyAtUtc - CaptureTimelineClock.UtcNow;
-            if (wait > TimeSpan.Zero)
+            var legacyWaitMs = Math.Max(0, (readyAtUtc - CaptureTimelineClock.UtcNow).TotalMilliseconds);
+            var readinessTimer = Stopwatch.StartNew();
+            var untilWindowEnd = window.EndUtc - CaptureTimelineClock.UtcNow;
+            if (untilWindowEnd > TimeSpan.Zero)
             {
-                await Task.Delay(wait).ConfigureAwait(false);
+                await Task.Delay(untilWindowEnd).ConfigureAwait(false);
             }
+
+            await WaitForCoveringFilesAsync(session, window.EndUtc, readyAtUtc).ConfigureAwait(false);
+            _logger?.Debug(
+                $"[RecordingTiming] Export readiness took {readinessTimer.ElapsedMilliseconds}ms " +
+                $"(the fixed wait would have been {legacyWaitMs:0}ms).");
 
             var segments = SegmentTimeline.ParseSegments(
                 ListBufferFiles(
@@ -1618,6 +1629,68 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
+        /// Asks the live recorders to close the segment and audio chunk covering
+        /// <paramref name="throughUtc"/> now and waits for them, bounded by
+        /// <paramref name="deadlineUtc"/> — the instant the old fixed wait would have released the
+        /// export anyway — so a wedged or stopped pump falls back to exactly the old behavior.
+        /// </summary>
+        private async Task WaitForCoveringFilesAsync(
+            CaptureSession session, DateTime throughUtc, DateTime deadlineUtc)
+        {
+            var flushes = new List<Task>(2);
+            var recorder = session.WgcRecorder;
+            if (recorder != null)
+            {
+                flushes.Add(recorder.FlushSegmentsThroughAsync(throughUtc));
+            }
+
+            var audio = session.AudioRecorder;
+            if (audio != null)
+            {
+                flushes.Add(audio.FlushChunksThroughAsync(throughUtc));
+            }
+
+            await WaitForFlushesAsync(flushes, deadlineUtc).ConfigureAwait(false);
+        }
+
+        private async Task WaitForFlushesAsync(List<Task> flushes, DateTime deadlineUtc)
+        {
+            if (flushes.Count == 0)
+            {
+                return;
+            }
+
+            var all = Task.WhenAll(flushes);
+            var bound = deadlineUtc - CaptureTimelineClock.UtcNow;
+            if (bound > TimeSpan.Zero)
+            {
+                await Task.WhenAny(all, Task.Delay(bound)).ConfigureAwait(false);
+            }
+
+            if (all.IsCompleted)
+            {
+                try
+                {
+                    await all.ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(
+                        ex, "[Recording] Closing the covering capture files failed; exporting what is on disk.");
+                }
+
+                return;
+            }
+
+            _logger?.Debug(
+                "[Recording] Covering capture files did not close before the fixed-wait deadline; " +
+                "exporting what is on disk.");
+            // Observe a late fault so it never surfaces as an unobserved task exception.
+            var ignored = all.ContinueWith(
+                t => { var _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+        }
+
+        /// <summary>
         /// How far the chime onset precedes the composited card, from the live stamps: the moment
         /// the wave sound fired, and the moment the card's first frame rendered. The card plays its
         /// recorded animation from that first frame, so reproducing this gap reproduces what the
@@ -1659,12 +1732,12 @@ namespace PlayniteAchievements.Services.Recording
         /// reference is aligned and cancelled first; this is what prevents the sidecar from adding
         /// a delayed second copy of emulator audio at the composited toast.
         ///
-        /// Waits for the chunk covering the end of the chime window to close first, the same way
-        /// the base clip waits for its last video segment. A chunk still being written carries
-        /// placeholder RIFF sizes, and Media Foundation rejects that outright
+        /// Flushes the chunks covering the chime window closed first, the same way the base clip
+        /// flushes its last video segment (bounded by the old fixed wait). A chunk still being
+        /// written carries placeholder RIFF sizes, and Media Foundation rejects that outright
         /// (MF_E_UNSUPPORTED_BYTESTREAM_TYPE) — the chime window ends only a few seconds after the
-        /// toast fires, so without the wait the newest chunk is essentially always mid-write and
-        /// every clip silently lost its chime.
+        /// toast fires, so without closed chunks the newest one is essentially always mid-write
+        /// and every clip silently lost its chime.
         /// </summary>
         private async Task<byte[]> TryReadChimePcmAsync(CaptureSession session, ClipRequest request)
         {
@@ -1712,12 +1785,34 @@ namespace PlayniteAchievements.Services.Recording
                 return null;
             }
 
+            // Ask the sidecar recorders to close the chunks covering the chime window instead of
+            // sleeping out their natural boundaries (previously a fixed K + margin here), bounded
+            // by the old fixed wait's release instant as the fallback. The game-reference chunks
+            // used for cancellation come from the main recorder's stamped track, so both recorders
+            // flush.
             var chimeWindowEndUtc = ownSound.Value.AddSeconds(chimeSeconds);
-            var wait = chimeWindowEndUtc.AddSeconds(SegmentSeconds + 2) - CaptureTimelineClock.UtcNow;
-            if (wait > TimeSpan.Zero)
+            var chimeReadyAtUtc = chimeWindowEndUtc.AddSeconds(SegmentSeconds + 2);
+            var untilChimeEnd = chimeWindowEndUtc - CaptureTimelineClock.UtcNow;
+            if (untilChimeEnd > TimeSpan.Zero)
             {
-                await Task.Delay(wait).ConfigureAwait(false);
+                await Task.Delay(untilChimeEnd).ConfigureAwait(false);
             }
+
+            var chimeTimer = Stopwatch.StartNew();
+            var sidecarFlushes = new List<Task>(2)
+            {
+                session.ChimeRecorder.FlushAuxiliaryChunksThroughAsync(chimeWindowEndUtc),
+            };
+            if (session.AudioRecorder != null)
+            {
+                sidecarFlushes.Add(
+                    session.AudioRecorder.FlushAuxiliaryChunksThroughAsync(chimeWindowEndUtc));
+            }
+
+            await WaitForFlushesAsync(sidecarFlushes, chimeReadyAtUtc).ConfigureAwait(false);
+            _logger?.Debug(
+                $"[RecordingTiming] Chime sidecar readiness took {chimeTimer.ElapsedMilliseconds}ms " +
+                $"past the chime window (the fixed wait was {(SegmentSeconds + 2) * 1000}ms).");
 
             var pcm = TryReadAudioWindow(
                 session.BufferDirectory,
