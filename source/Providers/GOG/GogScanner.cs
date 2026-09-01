@@ -136,7 +136,7 @@ namespace PlayniteAchievements.Providers.GOG
         /// <summary>
         /// Extracts the product ID from a GOG game.
         /// </summary>
-        private static bool TryGetProductId(Game game, out string productId)
+        internal static bool TryGetProductId(Game game, out string productId)
         {
             productId = null;
             if (game == null)

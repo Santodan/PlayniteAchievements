@@ -187,18 +187,16 @@ query playerProfileAchievementsByProductId($EpicAccountId: String!, $ProductId: 
                 return items;
             }
 
-            var progress = await QueryPlayerAchievementsAsync(accountId, productId, token, ct).ConfigureAwait(false);
-            var playerAchievements = progress?.Data?.PlayerProfile?.PlayerProfileInfo?.ProductAchievements?.Data?.PlayerAchievements;
-            if (playerAchievements == null || playerAchievements.Count == 0)
+            var playerAchievements = await FetchPlayerAchievementDetailsAsync(accountId, productId, token, ct).ConfigureAwait(false);
+            if (playerAchievements.Count == 0)
             {
                 return items;
             }
 
             var unlockedMap = playerAchievements
-                .Where(x => x?.PlayerAchievement != null && !string.IsNullOrWhiteSpace(x.PlayerAchievement.AchievementName))
                 .ToDictionary(
-                    x => x.PlayerAchievement.AchievementName,
-                    x => x.PlayerAchievement,
+                    x => x.AchievementName,
+                    x => x,
                     StringComparer.OrdinalIgnoreCase);
 
             foreach (var item in items)
@@ -217,6 +215,85 @@ query playerProfileAchievementsByProductId($EpicAccountId: String!, $ProductId: 
             }
 
             return items;
+        }
+
+        /// <summary>
+        /// Fetches only the player's unlock records for one game, resolving the product context
+        /// through the in-memory asset and schema caches so a steady-state call costs a single
+        /// GraphQL request. Returns null when the game cannot be resolved to an Epic product,
+        /// distinct from a resolved product with no records, which returns an empty list.
+        /// </summary>
+        public async Task<List<EpicPlayerAchievementRecord>> GetPlayerAchievementRecordsAsync(
+            string gameId,
+            string accountId,
+            CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(gameId))
+            {
+                return null;
+            }
+
+            var token = await _sessionManager.GetAccessTokenAsync(ct).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                throw new EpicAuthRequiredException("Epic access token is missing.");
+            }
+
+            if (string.IsNullOrWhiteSpace(accountId))
+            {
+                accountId = _sessionManager.GetAccountId();
+            }
+
+            if (string.IsNullOrWhiteSpace(accountId))
+            {
+                throw new EpicAuthRequiredException("Epic account context is required for API calls.");
+            }
+
+            var assets = await GetCachedAssetsAsync(token, ct).ConfigureAwait(false);
+            var asset = assets.FirstOrDefault(a =>
+                string.Equals(a.AppName, gameId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(a.Namespace, gameId, StringComparison.OrdinalIgnoreCase));
+            if (asset == null || string.IsNullOrWhiteSpace(asset.Namespace))
+            {
+                return null;
+            }
+
+            var locale = MapGlobalLanguageToEpicLocale(Persisted?.GlobalLanguage);
+            var schema = await GetCachedAchievementSchemaAsync(asset.Namespace, locale, token, ct).ConfigureAwait(false);
+            var productId = schema?.Data?.Achievement?.ProductAchievementsRecordBySandbox?.ProductId;
+            if (string.IsNullOrWhiteSpace(productId))
+            {
+                return null;
+            }
+
+            var details = await FetchPlayerAchievementDetailsAsync(accountId, productId, token, ct).ConfigureAwait(false);
+            return details
+                .Select(x => new EpicPlayerAchievementRecord
+                {
+                    AchievementName = x.AchievementName,
+                    Unlocked = x.Unlocked,
+                    UnlockTimeUtc = ParseUnlockDate(x.UnlockDate)
+                })
+                .ToList();
+        }
+
+        private async Task<List<PlayerAchievementDetail>> FetchPlayerAchievementDetailsAsync(
+            string accountId,
+            string productId,
+            string token,
+            CancellationToken ct)
+        {
+            var progress = await QueryPlayerAchievementsAsync(accountId, productId, token, ct).ConfigureAwait(false);
+            var playerAchievements = progress?.Data?.PlayerProfile?.PlayerProfileInfo?.ProductAchievements?.Data?.PlayerAchievements;
+            if (playerAchievements == null)
+            {
+                return new List<PlayerAchievementDetail>();
+            }
+
+            return playerAchievements
+                .Where(x => x?.PlayerAchievement != null && !string.IsNullOrWhiteSpace(x.PlayerAchievement.AchievementName))
+                .Select(x => x.PlayerAchievement)
+                .ToList();
         }
 
         private async Task<List<AssetResponse>> GetAssetsAsync(string token, CancellationToken ct)
@@ -764,6 +841,13 @@ query playerProfileAchievementsByProductId($EpicAccountId: String!, $ProductId: 
             [JsonProperty("unlockDate")]
             public string UnlockDate { get; set; }
         }
+    }
+
+    public sealed class EpicPlayerAchievementRecord
+    {
+        public string AchievementName { get; set; }
+        public bool Unlocked { get; set; }
+        public DateTime? UnlockTimeUtc { get; set; }
     }
 
     public sealed class EpicAchievementItem
