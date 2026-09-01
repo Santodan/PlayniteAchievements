@@ -110,5 +110,28 @@ namespace PlayniteAchievements.Views.Helpers
             var spacing = GetLaneCentre(depth) - GetLaneCentre(depth - 1);
             return Math.Max(MinimumToggleRadius, Math.Min(ToggleRadius, spacing / 2d));
         }
+
+        /// <summary>
+        /// Radius of the boundary toggle - the +/- glyph centred on the border between a
+        /// toggle-bearing row and the row beneath it. Shared by both rows so the row above (which
+        /// stops its descender at the glyph's top) and the row below (which draws the glyph and
+        /// gaps its own stem under it) agree on the same circle without seeing each other. On a
+        /// short row it shrinks so the glyph's upper half stays clear of the junction bead, and
+        /// below a 3px floor it is skipped entirely (returns 0) - children stay reachable through
+        /// Expand All.
+        /// </summary>
+        public static double GetBoundaryToggleRadius(int depth, double rowHeight)
+        {
+            if (rowHeight <= 0d)
+            {
+                return 0d;
+            }
+
+            var mid = Math.Round(rowHeight / 2d);
+            var beadRadius = GetBeadRadius(depth, hasChildren: true);
+            var maxRadius = rowHeight - mid - beadRadius - 1d;
+            var radius = Math.Min(GetToggleRadius(depth), maxRadius);
+            return radius < 3d ? 0d : radius;
+        }
     }
 }
