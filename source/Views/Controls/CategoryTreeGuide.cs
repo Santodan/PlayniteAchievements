@@ -109,7 +109,11 @@ namespace PlayniteAchievements.Views.Controls
             var width = CategoryTreeGuideMetrics.GetGuideWidth(shape.Depth);
             if (!double.IsInfinity(availableSize.Width) && availableSize.Width > 0d)
             {
-                width = Math.Min(width, availableSize.Width * MaxCellWidthShare);
+                // The width cap protects the name label from a deep guide; a self row has no name,
+                // so its guide claims the whole cell and the twig runs through the label void.
+                width = shape.IsSelfRow
+                    ? availableSize.Width
+                    : Math.Min(width, availableSize.Width * MaxCellWidthShare);
             }
 
             // Zero desired height: the row decides how tall it is, and the guide stretches into it.
@@ -163,10 +167,14 @@ namespace PlayniteAchievements.Views.Controls
 
             try
             {
-                // A self row is an annotation on its category, not a node of the tree: the lanes
-                // pass through it (drawn above) so the column stays continuous, but it gets no bead
-                // of its own.
-                if (!shape.IsSelfRow)
+                // A self row is an annotation on its category, not a node of the tree: instead of
+                // a bead it gets the dashed twig, drawn at the beads' full strength - it is the
+                // row's one identifying mark against deliberately faint lanes.
+                if (shape.IsSelfRow)
+                {
+                    DrawSelfTwig(drawingContext, shape, mid, RenderSize.Width);
+                }
+                else
                 {
                     DrawJunction(drawingContext, pen, shape, dotX, mid, beadRadius);
                 }
@@ -176,6 +184,26 @@ namespace PlayniteAchievements.Views.Controls
                 drawingContext.Pop();
                 drawingContext.Pop();
             }
+        }
+
+        /// <summary>
+        /// The self row's own connector: a dashed arm from its parent's lane, running through the
+        /// label void to the cell's edge (the guide claims the whole cell for a self row, see
+        /// MeasureOverride) and ending in no bead where every real node ends in one. Dashed and
+        /// terminal-less is what says "an implied branch - the category itself" rather than
+        /// another category; the bead brush and full strength are what keep it legible against
+        /// the faint lanes.
+        /// </summary>
+        private void DrawSelfTwig(
+            DrawingContext drawingContext,
+            CategoryTreeShape shape,
+            double mid,
+            double width)
+        {
+            var stemX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1);
+            var armEnd = Math.Max(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth), width - 2d);
+            var dashed = CreatePen(NodeBrush ?? LineBrush, 1d, DashStyles.Dash);
+            drawingContext.DrawLine(dashed, new Point(stemX, mid), new Point(armEnd, mid));
         }
 
         /// <summary>Full-height lines for the ancestors that still have siblings below this row.</summary>
@@ -220,24 +248,17 @@ namespace PlayniteAchievements.Views.Controls
             var stemX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1);
             if (shape.IsSelfRow)
             {
-                // The lane itself stays solid - it is shared with the sibling rows below, and a
+                // Only the lane continuation, kept solid and faint like every shared lane - a
                 // per-row texture change would show as the column flickering mid-run. By
                 // construction the child categories that made the node mixed follow beneath, so
                 // the lane continues; a defensive last-sibling self row skips it rather than
-                // drawing a line stopping mid-air.
+                // drawing a line stopping mid-air. The row's own arm is the dashed twig, drawn
+                // with the beads at full strength (see DrawSelfTwig).
                 if (!shape.IsLastSibling)
                 {
                     drawingContext.DrawLine(pen, new Point(stemX, 0d), new Point(stemX, height));
                 }
 
-                // The arm is this row's own ink, and it carries the distinction: dashed, and
-                // ending in no bead where every real node ends in one - an implied branch, the
-                // category itself, rather than another category.
-                var dashed = CreatePen(pen.Brush, 1d, DashStyles.Dash);
-                drawingContext.DrawLine(
-                    dashed,
-                    new Point(stemX, mid),
-                    new Point(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth), mid));
                 return;
             }
 
