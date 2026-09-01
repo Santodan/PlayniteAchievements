@@ -19,7 +19,8 @@ namespace PlayniteAchievements.Services.UI
             DateTime? soundPlayedUtc,
             DateTime? surfaceCaptureUtc,
             string soundFilePath = null,
-            double? soundFileGain = null)
+            double? soundFileGain = null,
+            int? soundAlignmentDelayMs = null)
         {
             Wave = wave;
             ShownUtc = shownUtc;
@@ -27,6 +28,7 @@ namespace PlayniteAchievements.Services.UI
             SurfaceCaptureUtc = surfaceCaptureUtc;
             SoundFilePath = soundFilePath;
             SoundFileGain = soundFileGain;
+            SoundAlignmentDelayMs = soundAlignmentDelayMs;
         }
 
         public IReadOnlyList<AchievementToastViewModel> Wave { get; }
@@ -48,6 +50,15 @@ namespace PlayniteAchievements.Services.UI
         /// captured copy of the chime.
         /// </summary>
         public string SoundFilePath { get; }
+
+        /// <summary>
+        /// The sound-alignment delay the toast service applied between launching the chime and
+        /// revealing the card, in milliseconds. The delay models the launch-to-audible latency of
+        /// the live playback path (in-process vs URI), so the audible onset lands on the reveal;
+        /// export subtracts it from the launch-to-card gap when placing the chime, because the
+        /// mixed file has no such latency. Null when no sound fired.
+        /// </summary>
+        public int? SoundAlignmentDelayMs { get; }
 
         /// <summary>
         /// The volume UniPlaySong played the sound at (0..1), snapshotted with the path so the
