@@ -64,6 +64,32 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
+        public void Resolve_ProgressToasts_FollowGlobalUnlessOverriddenAndDieWithTheMaster()
+        {
+            var settings = MakeSettings();
+            Assert.IsTrue(
+                ProviderNotificationPolicy.Resolve(settings, "Steam").ProgressToasts,
+                "Progress notifications default on.");
+
+            settings.EnableProgressToasts = false;
+            Assert.IsFalse(ProviderNotificationPolicy.Resolve(settings, "Steam").ProgressToasts);
+
+            settings.SetProviderNotificationOverride(
+                "Steam",
+                new ProviderNotificationOverride { ProgressToasts = true });
+            Assert.IsTrue(ProviderNotificationPolicy.Resolve(settings, "Steam").ProgressToasts);
+            Assert.IsFalse(
+                ProviderNotificationPolicy.Resolve(settings, "Epic").ProgressToasts,
+                "Another provider keeps inheriting the global.");
+
+            settings.EnableNotifications = false;
+            Assert.IsFalse(
+                ProviderNotificationPolicy.Resolve(settings, "Steam").ProgressToasts,
+                "The notifications master switch wins over a per-provider On.");
+            Assert.IsFalse(ProviderNotificationPolicy.Resolve(null, "Steam").ProgressToasts);
+        }
+
+        [TestMethod]
         public void Resolve_NullOrBlankProviderKey_FollowsGlobals()
         {
             var settings = MakeSettings(enableUnlockToasts: true);

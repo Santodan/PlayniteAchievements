@@ -18,7 +18,8 @@ namespace PlayniteAchievements.Services.UI
                 bool screenshotClean,
                 bool screenshotWithToast,
                 bool screenshotFramed,
-                bool recordings)
+                bool recordings,
+                bool progressToasts = false)
             {
                 UnlockToasts = unlockToasts;
                 FriendUnlockToasts = friendUnlockToasts;
@@ -26,11 +27,15 @@ namespace PlayniteAchievements.Services.UI
                 ScreenshotWithToast = screenshotWithToast;
                 ScreenshotFramed = screenshotFramed;
                 Recordings = recordings;
+                ProgressToasts = progressToasts;
             }
 
             public bool UnlockToasts { get; }
 
             public bool FriendUnlockToasts { get; }
+
+            /// <summary>Incremental-progress notifications (silent, capture-free).</summary>
+            public bool ProgressToasts { get; }
 
             public bool ScreenshotClean { get; }
 
@@ -68,7 +73,8 @@ namespace PlayniteAchievements.Services.UI
                 // Recordings resolve to only the per-provider filter (override ?? true): the
                 // recording service ANDs its own EnableUnlockRecordings master enable, which is
                 // introduced together with that service.
-                recordings: overrides?.Recordings ?? true);
+                recordings: overrides?.Recordings ?? true,
+                progressToasts: toastsOn && (overrides?.ProgressToasts ?? settings.EnableProgressToasts));
         }
     }
 }

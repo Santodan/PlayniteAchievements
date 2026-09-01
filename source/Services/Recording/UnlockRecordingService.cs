@@ -842,7 +842,7 @@ namespace PlayniteAchievements.Services.Recording
             AchievementUnlockedEventArgs e, out CaptureSession session)
         {
             session = null;
-            if (_disposed || e == null || e.IsPreview || e.IsFriendUnlock)
+            if (_disposed || e == null || e.IsPreview || e.IsFriendUnlock || e.IsProgressUpdate)
             {
                 return ClipEligibility.NotRecordable;
             }
@@ -914,7 +914,7 @@ namespace PlayniteAchievements.Services.Recording
         /// </summary>
         internal System.Drawing.Bitmap TryCaptureAnchorFrame(AchievementUnlockedEventArgs e, int capHeight)
         {
-            if (_disposed || e == null || e.IsPreview || e.IsTestFire || e.IsFriendUnlock)
+            if (_disposed || e == null || e.IsPreview || e.IsTestFire || e.IsFriendUnlock || e.IsProgressUpdate)
             {
                 return null;
             }

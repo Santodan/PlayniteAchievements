@@ -379,8 +379,10 @@
                 </StackPanel>
 
                 <!-- Right: the reorderable text lines (header, name, description,
-                     game/category), rendered via the shared line templates in the user's
-                     order. -->
+                     game/category, progress), rendered via the shared line templates in the
+                     user's order. The progress line renders only on incremental-progress
+                     notifications (IsProgressUpdate), which also report ShowBadge / ShowPercent /
+                     the glow gates as false, so this one template covers that kind too. -->
                 <ItemsControl Grid.Column="1"
                               VerticalAlignment="Center"
                               IsTabStop="False"
@@ -403,18 +405,20 @@
 
                 <!-- Countdown bar: depletes over the toast's display duration. A direct child of the
                      content grid (outside the padding border) so it ignores the user's left/right
-                     card padding and spans the full card width. A pure bottom overlay that reserves
-                     no layout space, so it never enlarges the card (it draws over the bottom of the
-                     content when the card is too short). The service runs
-                     PlayAch.Storyboard.ToastCountdown against this ScaleX; the transform is
-                     reassigned in code before animating (a frozen template transform can't be
-                     animated), so this inline transform is a no-op placeholder. -->
+                     card padding and spans the card width. A hairline flush with the bottom edge,
+                     so it reads as part of the card's edge rather than a row of its own; the small
+                     side insets keep its ends inside the 8-radius corners, which the content layer
+                     does not clip. A pure bottom overlay that reserves no layout space, so it never
+                     enlarges the card. The service runs PlayAch.Storyboard.ToastCountdown against
+                     this ScaleX; the transform is reassigned in code before animating (a frozen
+                     template transform can't be animated), so this inline transform is a no-op
+                     placeholder. -->
                 <Border x:Name="PART_ToastCountdown"
                         VerticalAlignment="Bottom"
                         HorizontalAlignment="Stretch"
-                        Height="3"
-                        Margin="8,0,8,6"
-                        CornerRadius="2"
+                        Height="2"
+                        Margin="6,0,6,0"
+                        CornerRadius="1"
                         Background="{Binding CountdownBarBrush}"
                         Visibility="{Binding ShowCountdownBar, Converter={StaticResource BooleanToVisibilityConverter}}"
                         RenderTransformOrigin="0,0">
@@ -426,7 +430,7 @@
 
                 <!-- Rarity accent: a full-height spine on the card's very left edge. It lives here
                      (outside the content padding) so it reaches the edge, and is declared after the
-                     countdown bar so it draws on top; the bar's left margin also clears its width,
+                     countdown bar so it draws on top; the bar's left inset also clears its width,
                      so the two never overlap. Capstone/completion color takes precedence. -->
                 <Border HorizontalAlignment="Left"
                         Width="4"

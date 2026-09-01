@@ -73,6 +73,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableNotifications = true;
         private bool _enableUnlockToasts = true;
         private bool _enableFriendUnlockToasts = true;
+        private bool _enableProgressToasts = true;
         private NotificationStyleSettings _notificationStyle;
         private bool _toastUseThemeStyling = true;
         private bool _frameUseThemeStyling = true;
@@ -1074,6 +1075,17 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _enableFriendUnlockToasts;
             set => SetValue(ref _enableFriendUnlockToasts, value);
+        }
+
+        /// <summary>
+        /// Show a silent, capture-free notification when a locked achievement's provider-reported
+        /// progress (e.g. 3/10) advances while its game is monitored. Per-provider overrides live
+        /// in <see cref="ProviderNotificationOverrides"/>.
+        /// </summary>
+        public bool EnableProgressToasts
+        {
+            get => _enableProgressToasts;
+            set => SetValue(ref _enableProgressToasts, value);
         }
 
         /// <summary>
@@ -2759,6 +2771,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableNotifications = this.EnableNotifications,
                 EnableUnlockToasts = this.EnableUnlockToasts,
                 EnableFriendUnlockToasts = this.EnableFriendUnlockToasts,
+                EnableProgressToasts = this.EnableProgressToasts,
                 NotificationStyle = this.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault(),
                 ToastUseThemeStyling = this.ToastUseThemeStyling,
                 FrameUseThemeStyling = this.FrameUseThemeStyling,

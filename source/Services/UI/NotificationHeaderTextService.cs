@@ -19,11 +19,13 @@ namespace PlayniteAchievements.Services.UI
         public const string FriendUnlockHeaderFormatId = nameof(NotificationHeaderTextSettings.FriendUnlockHeaderFormat);
         public const string CompletionHeaderId = nameof(NotificationHeaderTextSettings.CompletionHeader);
         public const string FriendCompletionHeaderFormatId = nameof(NotificationHeaderTextSettings.FriendCompletionHeaderFormat);
+        public const string ProgressHeaderId = nameof(NotificationHeaderTextSettings.ProgressHeader);
 
         private const string UnlockHeaderKey = "LOCPlayAch_Toast_AchievementUnlocked";
         private const string FriendUnlockedKey = "LOCPlayAch_Toast_FriendUnlocked";
         private const string CongratulationsKey = "LOCPlayAch_Toast_Congratulations";
         private const string CompletedTheGameKey = "LOCPlayAch_Toast_CompletedTheGame";
+        private const string ProgressHeaderKey = "LOCPlayAch_Toast_AchievementProgress";
 
         private readonly string _localizationDirectory;
         private readonly ILogger _logger;
@@ -61,6 +63,12 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public static string GetDefaultFriendCompletionHeaderFormat() =>
             "{0} " + ResourceProvider.GetString(CompletedTheGameKey);
+
+        /// <summary>
+        /// Current-language default for the incremental-progress header line.
+        /// </summary>
+        public static string GetDefaultProgressHeader() =>
+            ResourceProvider.GetString(ProgressHeaderKey);
 
         /// <summary>
         /// Returns the value to persist for an edited header: null when the edit is blank or
@@ -164,6 +172,12 @@ namespace PlayniteAchievements.Services.UI
                 changed = true;
             }
 
+            if (IsStoredDefault(ProgressHeaderId, texts.ProgressHeader))
+            {
+                texts.ProgressHeader = null;
+                changed = true;
+            }
+
             return changed;
         }
 
@@ -199,6 +213,12 @@ namespace PlayniteAchievements.Services.UI
                     Id = FriendCompletionHeaderFormatId,
                     ResourceKeys = new[] { CompletedTheGameKey },
                     Compose = values => "{0} " + values[0]
+                },
+                new LocalizedDefaultDefinition
+                {
+                    Id = ProgressHeaderId,
+                    ResourceKeys = new[] { ProgressHeaderKey },
+                    Compose = values => values[0]
                 }
             };
 

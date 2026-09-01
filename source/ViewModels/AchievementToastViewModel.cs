@@ -98,6 +98,16 @@ namespace PlayniteAchievements.ViewModels
 
         public bool IsFriendUnlock => _args.IsFriendUnlock;
 
+        /// <summary>
+        /// True for an incremental-progress notification: a still-locked achievement whose
+        /// provider-reported progress advanced (e.g. 3/10 to 4/10) without unlocking. The kind is
+        /// silent and capture-free; the rarity badge, percent, and glows report hidden for it, the
+        /// header resolves to the progress header, and <see cref="ToastLines"/> carries a visible
+        /// <see cref="ToastProgressLine"/>. Templates trigger on this the way they do on
+        /// <see cref="IsGameCompleted"/>.
+        /// </summary>
+        public bool IsProgressUpdate => _args.IsProgressUpdate;
+
         // Provider identity, bindable so a single toast/frame template can restyle per provider
         // with DataTriggers (e.g. trigger on ProviderKey, tint with ProviderColorHex).
         public string ProviderKey => _args.ProviderKey;
@@ -188,6 +198,37 @@ namespace PlayniteAchievements.ViewModels
         public int? Points => _args.Points;
         public int? ScaledPoints => _args.ScaledPoints;
 
+        // Per-achievement incremental progress, set only on progress notifications (null and
+        // empty elsewhere). Fractions are clamped to 0..1 for direct use as a bar's ScaleX.
+        public int? ProgressNum => _args.ProgressNum;
+        public int? ProgressDenom => _args.ProgressDenom;
+        public int? PreviousProgressNum => _args.PreviousProgressNum;
+        public bool HasProgress => _args.ProgressNum.HasValue && _args.ProgressDenom > 0;
+        public double ProgressFraction => ProgressFractionOf(_args.ProgressNum);
+        public double PreviousProgressFraction => ProgressFractionOf(_args.PreviousProgressNum);
+
+        /// <summary>"4/10": the current numerator over the target, culture-formatted like the grid's progress cell.</summary>
+        public string ProgressText => HasProgress
+            ? _args.ProgressNum.Value.ToString("N0", Common.FormattingCulture.Current) + "/" +
+              _args.ProgressDenom.Value.ToString("N0", Common.FormattingCulture.Current)
+            : string.Empty;
+
+        /// <summary>The current progress as a whole percent ("40%"), empty without progress.</summary>
+        public string ProgressPercentText => HasProgress
+            ? Common.PercentFormatter.FormatWhole(ProgressFraction * 100d)
+            : string.Empty;
+
+        private double ProgressFractionOf(int? numerator)
+        {
+            if (!HasProgress || !numerator.HasValue)
+            {
+                return 0;
+            }
+
+            var fraction = (double)numerator.Value / _args.ProgressDenom.Value;
+            return fraction < 0 ? 0 : (fraction > 1 ? 1 : fraction);
+        }
+
         // The header identifies who unlocked the achievement, so it is mandatory for friend
         // unlocks; for your own unlocks it honors the user's toggle. Completion notifications are
         // restyled entirely by the templates (triggers on IsGameCompleted force the header/title/
@@ -198,7 +239,7 @@ namespace PlayniteAchievements.ViewModels
         public bool ShowCategory => _style.Toast.ShowCategory && HasDistinctCategory;
         // Footer percent (under the achievement icon). Suppressed when the percent is set to
         // travel under the right-side badge instead.
-        public bool ShowPercent => _style.Toast.ShowRarityPercent && _args.GlobalPercent.HasValue && !ShowRightPercent;
+        public bool ShowPercent => _style.Toast.ShowRarityPercent && _args.GlobalPercent.HasValue && !ShowRightPercent && !IsProgressUpdate;
         public bool IsCapstone => _args.IsCapstone;
 
         /// <summary>
@@ -259,7 +300,9 @@ namespace PlayniteAchievements.ViewModels
             }
         }
         private bool HasRarityData => _args.GlobalPercent.HasValue || !string.IsNullOrWhiteSpace(_args.RarityTier);
-        private bool HasBadgeData => IsCapstone || HasTrophy || HasRarityData;
+        // A progress notification is about a still-locked achievement: rarity is beside the
+        // point, so every badge placement reports hidden for it.
+        private bool HasBadgeData => !IsProgressUpdate && (IsCapstone || HasTrophy || HasRarityData);
         public bool ShowBadge => _style.Toast.ShowRarityBadge && !_style.Toast.RightRarityBadge && HasBadgeData;
 
         // Whether the icon-column footer (badge and/or percent under the icon) shows anything.
@@ -280,7 +323,7 @@ namespace PlayniteAchievements.ViewModels
         // Percent rendered under the right-side badge: only when the badge is on the right and the
         // percent is set to travel with the badge. Otherwise the percent stays in the footer.
         public bool ShowRightPercent => _style.Toast.ShowRarityPercent && _style.Toast.RarityPercentUnderBadge
-            && _style.Toast.RightRarityBadge && _args.GlobalPercent.HasValue;
+            && _style.Toast.RightRarityBadge && _args.GlobalPercent.HasValue && !IsProgressUpdate;
         public bool FrameShowRightPercent => _style.Frame.ShowRarityPercent && _style.Frame.RarityPercentUnderBadge
             && _style.Frame.RightRarityBadge && _args.GlobalPercent.HasValue;
         public bool ShowGameName => _style.Toast.ShowGameName && !string.IsNullOrWhiteSpace(_args.GameName);
@@ -480,8 +523,25 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public string FriendCompletionHeaderText => ResolveFriendCompletionHeaderText(_style.Toast.HeaderTexts);
 
+        /// <summary>
+        /// Header text of an incremental-progress notification ("Achievement progress" by
+        /// default), honoring the toast surface's user edit. <see cref="HeaderText"/> already
+        /// resolves to this for progress notifications; this is for templates that compose it.
+        /// </summary>
+        public string ProgressHeaderText => ResolveProgressHeaderText(_style.Toast.HeaderTexts);
+
+        private static string ResolveProgressHeaderText(NotificationHeaderTextSettings texts) =>
+            !string.IsNullOrWhiteSpace(texts.ProgressHeader)
+                ? texts.ProgressHeader
+                : ResourceProvider.GetString("LOCPlayAch_Toast_AchievementProgress");
+
         private string ResolveHeaderText(NotificationHeaderTextSettings texts)
         {
+            if (IsProgressUpdate)
+            {
+                return ResolveProgressHeaderText(texts);
+            }
+
             if (IsFriendUnlock)
             {
                 var format = NotificationHeaderTextService.IsValidHeaderFormat(texts.FriendUnlockHeaderFormat)
@@ -655,7 +715,7 @@ namespace PlayniteAchievements.ViewModels
         /// Hardcore RetroAchievements unlocks get a crisp rarity-colored border in place of the
         /// soft glow, mirroring the datagrids. Both are gated on the rarity-glow toggle.
         /// </summary>
-        public bool ShowShineBorder => _style.Toast.ShowRarityGlow && HardcoreTakesBorder;
+        public bool ShowShineBorder => _style.Toast.ShowRarityGlow && HardcoreTakesBorder && !IsProgressUpdate;
 
         // Glossy metallic rarity border (matches RarityToShineBrush used by the datagrids).
         public Brush IconBorderBrush => RarityAppearanceHelper.GetShineBrush(_rarity, _settings);
@@ -663,7 +723,8 @@ namespace PlayniteAchievements.ViewModels
         // Soft rarity glow for non-hardcore unlocks whose tier is selected for it (matches the
         // datagrids' glow, BlurRadius 20). Completion-grade kinds take the completion glow,
         // gated on the selection's Completed entry like CompletedGlowEffect.
-        public Effect RarityGlowEffect => _style.Toast.ShowRarityGlow && !HardcoreTakesBorder
+        // A progress notification's icon is locked art, so it carries no rarity glow, rays, or edge.
+        public Effect RarityGlowEffect => _style.Toast.ShowRarityGlow && !HardcoreTakesBorder && !IsProgressUpdate
             ? SoftGlowForKind
             : null;
 
@@ -685,7 +746,8 @@ namespace PlayniteAchievements.ViewModels
         public bool ShowRayBurst =>
             HasRaySelection &&
             _style.Toast.ShowRarityGlow &&
-            !HardcoreTakesBorder;
+            !HardcoreTakesBorder &&
+            !IsProgressUpdate;
 
         /// <summary>
         /// Edge that comes with the rays: the same drop shadow as the soft halo, at a blur small enough
@@ -725,7 +787,7 @@ namespace PlayniteAchievements.ViewModels
 
         // Rarity-colored glow on the toast card border (replaces the default drop shadow when
         // the border-glow option is on). Toast surface only. Completion uses the completed glow.
-        public bool HasBorderGlow => _style.Toast.NotificationBorderGlow;
+        public bool HasBorderGlow => _style.Toast.NotificationBorderGlow && !IsProgressUpdate;
 
         /// <summary>
         /// True when the card itself carries the rotating sunburst behind its border glow: this
@@ -1164,8 +1226,9 @@ namespace PlayniteAchievements.ViewModels
             // Name-line offset: a positive value indents the title line to the right; a negative
             // value indents every other line instead, so the title line (with its inline badge)
             // never slides left under the icon column. The standalone completion notification has
-            // no inline badge (its title is "Game Complete!"), so the offset does not apply there.
-            var offset = IsGameCompleted ? 0 : surface.TitleLineOffset;
+            // no inline badge (its title is "Game Complete!"), and a progress notification hides
+            // every badge placement, so the offset does not apply to either.
+            var offset = IsGameCompleted || IsProgressUpdate ? 0 : surface.TitleLineOffset;
             var titleIndent = offset > 0 ? offset : 0;
             var otherIndent = offset < 0 ? -offset : 0;
 
@@ -1225,6 +1288,21 @@ namespace PlayniteAchievements.ViewModels
                             showGameName,
                             showCategory,
                             isFrame ? FrameShowGameCategorySeparator : ShowGameCategorySeparator));
+                        break;
+                    case NotificationSurfaceStyle.LineProgress:
+                        // Toast only: progress notifications never produce a screenshot, so the
+                        // frame has no progress row (the token still sits in its stored order).
+                        if (!isFrame)
+                        {
+                            lines.Add(new ToastProgressLine(
+                                this,
+                                surface.ProgressFontSize ?? DefaultToastCaptionFontSize,
+                                LineFamily(surface.ProgressFontFamily),
+                                contentShadow,
+                                AccentBrush,
+                                ProgressTrackBrush));
+                        }
+
                         break;
                 }
             }
@@ -1345,8 +1423,31 @@ namespace PlayniteAchievements.ViewModels
                     return surface.GameCategoryEmphasis;
                 case ToastRarityTextLine _:
                     return surface.RarityEmphasis;
+                case ToastProgressLine _:
+                    return surface.ProgressEmphasis;
                 default:
                     return NotificationLineEmphasis.None;
+            }
+        }
+
+        /// <summary>
+        /// The unfilled track behind the progress bar: the theme text brush at a fifth opacity, so
+        /// it reads on the popup surface and over a user background image alike. A frozen local
+        /// copy, never the theme's own brush instance.
+        /// </summary>
+        private static Brush ProgressTrackBrush
+        {
+            get
+            {
+                var track = (Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush)?.Clone()
+                    ?? new SolidColorBrush(Colors.White);
+                track.Opacity = 0.2;
+                if (track.CanFreeze)
+                {
+                    track.Freeze();
+                }
+
+                return track;
             }
         }
 
@@ -1479,6 +1580,13 @@ namespace PlayniteAchievements.ViewModels
         {
             get
             {
+                // Progress notifications are silent by design; the wave gate never asks, but a
+                // null segment keeps a direct caller silent too.
+                if (IsProgressUpdate)
+                {
+                    return null;
+                }
+
                 if (UseHiddenSound)
                 {
                     return HiddenSoundSegment;
@@ -1512,6 +1620,11 @@ namespace PlayniteAchievements.ViewModels
         {
             get
             {
+                if (IsProgressUpdate)
+                {
+                    return 0;
+                }
+
                 if (IsCapstone || IsGameCompleted)
                 {
                     return 6;

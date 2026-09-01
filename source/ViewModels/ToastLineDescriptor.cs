@@ -388,6 +388,62 @@ namespace PlayniteAchievements.ViewModels
     }
 
     /// <summary>
+    /// The incremental-progress row: a bar and the "current/target" count. Renders only on
+    /// progress notifications (toast surface) and collapses on every other kind, so an unlock
+    /// toast is unchanged by the row's presence in the line order.
+    /// </summary>
+    public sealed class ToastProgressLine : ToastLineDescriptor
+    {
+        public ToastProgressLine(
+            AchievementToastViewModel parent,
+            double fontSize,
+            FontFamily fontFamily,
+            Effect textShadow,
+            Brush barBrush,
+            Brush trackBrush)
+            : base(parent, fontSize, fontFamily, textShadow)
+        {
+            BarBrush = barBrush;
+            TrackBrush = trackBrush;
+        }
+
+        public bool ShowProgress => Parent.IsProgressUpdate && Parent.HasProgress;
+
+        /// <summary>The "current/target" count text.</summary>
+        public string ProgressText => Parent.ProgressText;
+
+        /// <summary>Filled share of the bar after the advance, 0..1.</summary>
+        public double ProgressFraction => Parent.ProgressFraction;
+
+        /// <summary>Filled share before the advance, 0..1 (0 when unknown).</summary>
+        public double PreviousProgressFraction => Parent.PreviousProgressFraction;
+
+        /// <summary>The bar fill (the achievement's rarity color).</summary>
+        public Brush BarBrush { get; }
+
+        /// <summary>The unfilled track behind the bar.</summary>
+        public Brush TrackBrush { get; }
+
+        /// <summary>
+        /// Bar thickness follows the count text: about half an em, never thinner than 4 DIPs.
+        /// </summary>
+        public double BarHeight => Math.Max(4, Math.Round(FontSize * 0.5));
+
+        public CornerRadius BarCornerRadius => new CornerRadius(BarHeight / 2);
+
+        /// <summary>
+        /// One text line's box height at this row's font (the same metric the other lines lay out
+        /// with). The row is held to at least this height with the bar centered in it, so it spaces
+        /// exactly like a text line: the same leading above and below, plus the surface's line
+        /// padding through <see cref="ToastLineDescriptor.LeftIndentMargin"/>, and nothing extra.
+        /// </summary>
+        public double LineBoxHeight => FontSize * (FontFamily?.LineSpacing ?? 1.2);
+
+        public override Visibility LineVisibility =>
+            ShowProgress ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
     /// The rarity percent text. Not a reorderable line: the surface templates draw the percent
     /// themselves (under the icon footer or under the right-side badge) and gate it on their own
     /// visibility flags, so this never joins the line list and takes no part in the line order or

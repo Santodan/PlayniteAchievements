@@ -292,6 +292,12 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void EnableProgressToasts_DefaultsOn()
+        {
+            Assert.IsTrue(new PersistedSettings().EnableProgressToasts);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveInGamePollingAndToastSettings()
         {
             var source = new PersistedSettings
@@ -303,6 +309,7 @@ namespace PlayniteAchievements.Models.Tests
                 InGameFriendBatchSize = 7,
                 EnableUnlockToasts = false,
                 EnableFriendUnlockToasts = false,
+                EnableProgressToasts = false,
                 NotificationStyle = new NotificationStyleSettings
                 {
                     Toast = new NotificationSurfaceStyle
@@ -1638,6 +1645,7 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(expected.InGameFriendBatchSize, actual.InGameFriendBatchSize);
             Assert.AreEqual(expected.EnableUnlockToasts, actual.EnableUnlockToasts);
             Assert.AreEqual(expected.EnableFriendUnlockToasts, actual.EnableFriendUnlockToasts);
+            Assert.AreEqual(expected.EnableProgressToasts, actual.EnableProgressToasts);
             Assert.AreEqual(expected.NotificationStyle.Toast.ShowRarityGlow, actual.NotificationStyle.Toast.ShowRarityGlow);
             Assert.AreEqual(expected.NotificationStyle.Toast.RarityColoredName, actual.NotificationStyle.Toast.RarityColoredName);
             Assert.AreEqual(expected.NotificationStyle.Toast.ShowRarityPercent, actual.NotificationStyle.Toast.ShowRarityPercent);
