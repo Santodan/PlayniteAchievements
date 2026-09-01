@@ -431,6 +431,14 @@ namespace PlayniteAchievements.ViewModels
 
         public CornerRadius BarCornerRadius => new CornerRadius(BarHeight / 2);
 
+        /// <summary>
+        /// Room above the row. Text lines carry their own leading inside the font's line box, so
+        /// they never touch; a bar has none, so without this it sits hard against the line above.
+        /// Scales with the count text. The surface's line padding still applies on top through
+        /// <see cref="ToastLineDescriptor.LeftIndentMargin"/>.
+        /// </summary>
+        public Thickness RowMargin => new Thickness(0, Math.Round(FontSize * 0.35), 0, 0);
+
         public override Visibility LineVisibility =>
             ShowProgress ? Visibility.Visible : Visibility.Collapsed;
     }
