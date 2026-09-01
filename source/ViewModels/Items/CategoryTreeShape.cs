@@ -50,5 +50,27 @@ namespace PlayniteAchievements.ViewModels.Items
         /// which have no lane above their own.
         /// </summary>
         public IReadOnlyList<bool> AncestorContinues { get; }
+
+        /// <summary>
+        /// Path of the category whose expand/collapse glyph is centred on the boundary directly
+        /// above this row - the previous emitted row, either an expanded parent (this row is then
+        /// its first child) or a collapsed category. Null when no glyph sits on that boundary.
+        /// Per-row rendering cannot hang below its own row (the next row's background paints over
+        /// it), so this row draws that glyph, gaps its own stem beneath it, and forwards clicks on
+        /// it back to this path. Stamped by the builder after the geometry pass.
+        /// </summary>
+        public string ToggleBoundaryAbovePath { get; internal set; }
+
+        /// <summary>Depth of that category - picks the lane its glyph is centred on.</summary>
+        public int ToggleBoundaryAboveDepth { get; internal set; }
+
+        /// <summary>Whether that category is collapsed, which flips the glyph from "-" to "+".</summary>
+        public bool ToggleBoundaryAboveIsCollapsed { get; internal set; }
+
+        /// <summary>
+        /// True when a following row exists to draw this row's boundary glyph. The last emitted
+        /// row has nothing beneath it to paint over its overflow, so it draws its own glyph.
+        /// </summary>
+        public bool ToggleHandledBelow { get; internal set; }
     }
 }
