@@ -1202,6 +1202,7 @@ namespace PlayniteAchievements.Services.Recording
                         }
                     }
 
+                    var moveTimer = Stopwatch.StartNew();
                     var savedPath = SaveClipToUniquePath(finalPath, outputPath, copy: false);
                     if (savedPath == null)
                     {
@@ -1210,6 +1211,10 @@ namespace PlayniteAchievements.Services.Recording
                         return;
                     }
 
+                    // A cross-volume move degrades to a full byte copy of the clip, so its cost is
+                    // worth seeing per clip.
+                    _logger?.Debug(
+                        $"[RecordingTiming] Placing the clip took {moveTimer.ElapsedMilliseconds}ms.");
                     _logger?.Info($"[Recording] Saved unlock clip: {savedPath}");
                     // Drop the cached capture scan for this game. This also raises CapturesChanged,
                     // so grids that are already open re-stamp their rows for the new clip.
@@ -1554,8 +1559,11 @@ namespace PlayniteAchievements.Services.Recording
             var cleanedAudioDirectory = (string)null;
             if (audioPlan != null)
             {
+                var cleanupTimer = Stopwatch.StartNew();
                 var selectedAudioPlan = TryRemoveNonGameAudio(
                     session, recordedAudioPlan, out cleanedAudioDirectory);
+                _logger?.Debug(
+                    $"[RecordingTiming] Clip-audio cleanup took {cleanupTimer.ElapsedMilliseconds}ms.");
                 // Deliberately redundant with the cleanup's own fallback: no cleanup regression
                 // may turn an existing speaker-endpoint plan into the no-audio sentinel.
                 audioPlan = selectedAudioPlan ?? recordedAudioPlan;
@@ -1580,6 +1588,7 @@ namespace PlayniteAchievements.Services.Recording
             double videoLeadSeconds = 0;
             bool ok;
             await _baseExportGate.WaitAsync().ConfigureAwait(false);
+            var exportTimer = Stopwatch.StartNew();
             try
             {
                 ok = await Task.Run(() => exporter.Export(plan, audioPlan, tempPath, out videoLeadSeconds))
@@ -1602,6 +1611,9 @@ namespace PlayniteAchievements.Services.Recording
             {
                 _baseExportGate.Release();
                 TryDeleteCleanedAudio(cleanedAudioDirectory);
+                _logger?.Debug(
+                    $"[RecordingTiming] Base clip export took {exportTimer.ElapsedMilliseconds}ms " +
+                    $"({plan.Segments.Count} segment(s)).");
             }
 
             if (!ok)
