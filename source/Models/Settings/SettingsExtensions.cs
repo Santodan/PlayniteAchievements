@@ -200,7 +200,6 @@ namespace PlayniteAchievements.Models.Settings
             target.UnlockDateDisplayMode = source.UnlockDateDisplayMode;
             target.PlaytimeDisplayMode = source.PlaytimeDisplayMode;
             target.CategoryCompletionBadgeMode = source.CategoryCompletionBadgeMode;
-            target.CategoryProgressMode = source.CategoryProgressMode;
             target.FriendNameDisplayMode = source.FriendNameDisplayMode;
             target.EnableAchievementCompactListControl = source.EnableAchievementCompactListControl;
             target.EnableAchievementDataGridControl = source.EnableAchievementDataGridControl;
