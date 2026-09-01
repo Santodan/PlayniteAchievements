@@ -2430,6 +2430,19 @@ namespace PlayniteAchievements.Services.Recording
                         (passOutcome == PcmCancellationOutcome.CleanNoGameDetected &&
                             chimePass.SubtractedBlocks == 0))
                     {
+                        // The blocked pass's numbers vanish when the fallback overwrites them, and
+                        // the field diagnosis of a doubled chime needs to see WHY blocked scoring
+                        // did nothing before the whole-window fallback predictably failed its gate.
+                        _logger?.Debug(
+                            $"[Recording] Live-chime blocked pass ({source}): outcome={passOutcome} " +
+                            $"lag={chimePass.StartLagMs:0.###}ms " +
+                            $"correlation={chimePass.Correlation:0.000} " +
+                            $"gain={chimePass.Gain:0.000} " +
+                            $"suppression={chimePass.SuppressionDb:0.0}dB " +
+                            $"blocks={chimePass.SubtractedBlocks}/{chimePass.TotalBlocks} " +
+                            $"restored={chimePass.RestoredBlocks} gated={chimePass.MutedBlocks}; " +
+                            "retrying unblocked at residual floors.");
+
                         // A residue between the clean ceiling and the ordinary entry gate is
                         // still worth an attempt at the residual pass's lower floors — every
                         // committed block still proves itself on held-out samples. The same goes
