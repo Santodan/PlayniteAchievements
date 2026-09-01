@@ -627,6 +627,8 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsTrue(toastLine.BarHeight >= 4);
             Assert.AreEqual(toastLine.BarHeight / 2, toastLine.BarCornerRadius.TopLeft);
             Assert.IsTrue(toastLine.RowMargin.Top > 0, "The bar row carries its own leading.");
+
+            Assert.IsNull(FindProgressLine(viewModel.FrameLines), "Frames never render progress notifications.");
         }
 
         [TestMethod]
@@ -647,8 +649,6 @@ namespace PlayniteAchievements.Tests.ViewModels
             {
                 Assert.AreEqual(0, line.LeftIndent);
             }
-
-            Assert.IsNull(FindProgressLine(viewModel.FrameLines), "Frames never render progress notifications.");
         }
 
         [TestMethod]
