@@ -24,15 +24,18 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(1, story.Depth);
             Assert.IsTrue(story.HasChildren, "the junction opens for the self row");
             Assert.IsFalse(story.IsSelfRow);
+            Assert.IsTrue(story.HasSelfRowBelow, "the name cell drops the connector toward the self row");
 
             Assert.AreEqual(2, self.Depth, "the self row indents one level under its category");
             Assert.IsFalse(self.IsLastSibling, "the child categories follow as its siblings");
             Assert.IsFalse(self.HasChildren);
             Assert.IsTrue(self.IsSelfRow, "the guide draws it as a pass-through, not a node");
+            Assert.IsFalse(self.HasSelfRowBelow);
 
             Assert.AreEqual(2, act1.Depth);
             Assert.IsFalse(act1.IsLastSibling);
             Assert.IsFalse(act1.IsSelfRow);
+            Assert.IsFalse(act1.HasSelfRowBelow);
             Assert.IsTrue(act2.IsLastSibling, "the last child category still closes the run");
         }
 
@@ -69,6 +72,18 @@ namespace PlayniteAchievements.Tests.Services
 
             Assert.IsNotNull(rows[0].TreeShape);
             Assert.AreEqual(2, rows[1].TreeShape.Depth);
+        }
+
+        [TestMethod]
+        public void Stamp_ParentKeepsNoDropFlagWhenAFilterHidesItsSelfRow()
+        {
+            // The flag is resolved against the emitted rows: with the self row filtered out of the
+            // list, nothing may dangle toward a row that is not there.
+            var rows = Rows("Story", "Story::Act 1");
+
+            CategoryTreeShapeBuilder.Stamp(rows, enabled: true);
+
+            Assert.IsFalse(rows[0].TreeShape.HasSelfRowBelow);
         }
 
         [TestMethod]
