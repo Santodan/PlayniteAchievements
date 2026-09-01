@@ -66,6 +66,26 @@ namespace PlayniteAchievements.Models
         public int TotalCount { get; set; }
 
         /// <summary>
+        /// True for an incremental-progress notification: a still-locked achievement whose
+        /// provider-reported progress (e.g. 3/10 kills) advanced without unlocking. Silent and
+        /// capture-free. The three progress values below are set only for this kind; unlock
+        /// notifications leave them null.
+        /// </summary>
+        public bool IsProgressUpdate { get; set; }
+
+        /// <summary>Progress numerator after the advance (progress notifications only).</summary>
+        public int? ProgressNum { get; set; }
+
+        /// <summary>Progress denominator, the achievement's target (progress notifications only).</summary>
+        public int? ProgressDenom { get; set; }
+
+        /// <summary>
+        /// Progress numerator before the advance, null when the previous snapshot carried none
+        /// (progress notifications only).
+        /// </summary>
+        public int? PreviousProgressNum { get; set; }
+
+        /// <summary>
         /// True when the game reaches 100% (all achievements unlocked) with this unlock — the
         /// "completion achievement" state on a real unlock, distinct from the standalone
         /// IsGameCompleted notification. A capstone unlock below 100% does not carry this flag;
