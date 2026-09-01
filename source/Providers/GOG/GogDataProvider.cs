@@ -214,10 +214,13 @@ namespace PlayniteAchievements.Providers.GOG
                 // reach the main file only on checkpoint, so both are watch targets.
                 WatchTargets = new[] { databasePath, databasePath + "-wal" },
                 PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
-                // unlockTime is second-granularity text in Galaxy's own clock domain. The local
-                // file change is the correlation point on the Windows clock used by video
-                // segments, so it is the capture-grade anchor.
-                UnlockAnchorPolicy = InGameUnlockAnchorPolicy.SourceObservation,
+                // Galaxy persists a row roughly 20-30 seconds after the on-screen unlock, but
+                // stamps unlockTime with the actual gameplay moment (UTC, second granularity).
+                // The database write time therefore lags the moment worth capturing, which is the
+                // opposite of Steam's near-instant file write: the provider-reported time is the
+                // capture-grade anchor here, and ComputeClipWindow already accepts an anchor up to
+                // one poll interval plus the pre-roll before observation before re-anchoring.
+                UnlockAnchorPolicy = InGameUnlockAnchorPolicy.ProviderReported,
                 State = new GogInGameState
                 {
                     ReleaseKey = releaseKey,
