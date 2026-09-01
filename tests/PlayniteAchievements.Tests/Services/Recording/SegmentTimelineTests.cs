@@ -175,10 +175,10 @@ namespace PlayniteAchievements.Services.Tests.Recording
 
             Assert.AreEqual(unlock.AddSeconds(-15), window.StartUtc);
             Assert.AreEqual(unlock, window.ToastAnchorUtc);
-            // The observation guard wins by two seconds, ensuring the locally observed event is
-            // present even when the provider anchor's notification slot ended first.
-            Assert.AreEqual(detection.AddSeconds(1), window.EndUtc);
-            Assert.AreEqual(26, (window.EndUtc - window.StartUtc).TotalSeconds, 0.001);
+            // The clip ends with the composited notification: anchor + toast slot + tail,
+            // regardless of how much later the source observed the unlock.
+            Assert.AreEqual(unlock.AddSeconds(9), window.EndUtc);
+            Assert.AreEqual(24, (window.EndUtc - window.StartUtc).TotalSeconds, 0.001);
         }
 
         [TestMethod]
@@ -462,10 +462,11 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void ComputeClipWindow_EarlyAnchor_CannotCutOffObservedEvent()
+        public void ComputeClipWindow_EarlyAnchor_EndsWithTheCompositedNotification()
         {
-            // Bills Must Be Paid supplied a Steam epoch 8.1s before the Windows-clock file event.
-            // The old 7s toast+tail window ended before the purchase that triggered the unlock.
+            // A reported anchor a few seconds before the local observation (Bills Must Be Paid
+            // supplied a Steam epoch 8.1s before the Windows-clock file event). The clip ends
+            // with the composited notification on the anchor; observation does not extend it.
             var captureStart = T0;
             var reported = T0.AddSeconds(60);
             var observed = reported.AddSeconds(8.1);
@@ -476,9 +477,47 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 toastSlotSeconds: 5, tailSeconds: 2);
 
             Assert.AreEqual(reported, window.ToastAnchorUtc);
-            Assert.AreEqual(observed.AddSeconds(2), window.EndUtc);
-            Assert.IsTrue(window.StartUtc <= reported);
-            Assert.IsTrue(window.EndUtc > observed);
+            Assert.AreEqual(reported.AddSeconds(-15), window.StartUtc);
+            Assert.AreEqual(reported.AddSeconds(7), window.EndUtc);
+        }
+
+        [TestMethod]
+        public void ComputeClipWindow_LateObservation_TrustedAnchorKeepsFullPreRoll()
+        {
+            // The Moonscars/GOG case: the provider surfaced each unlock 21-30s after its reported
+            // time. The anchor survives the staleness bound (one poll interval + pre-roll), so it
+            // keeps the user's full pre-roll instead of having observation lag eat it down to a
+            // fraction of a second.
+            var captureStart = T0;
+            var unlock = T0.AddSeconds(600);
+            var detection = unlock.AddSeconds(29.9);
+
+            var window = SegmentTimeline.ComputeClipWindow(
+                unlock, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1);
+
+            Assert.AreEqual(unlock, window.ToastAnchorUtc);
+            Assert.AreEqual(unlock.AddSeconds(-15), window.StartUtc);
+            Assert.AreEqual(unlock.AddSeconds(9), window.EndUtc);
+        }
+
+        [TestMethod]
+        public void ComputeClipWindow_ObservationLagBeyondTheStalenessBound_ReAnchorsOnDetection()
+        {
+            // Just past one poll interval + pre-roll before observation the reported timestamp is
+            // no longer distinguishable from a stale one and is discarded.
+            var captureStart = T0;
+            var unlock = T0.AddSeconds(600);
+            var detection = unlock.AddSeconds(31);
+
+            var window = SegmentTimeline.ComputeClipWindow(
+                unlock, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1);
+
+            Assert.AreEqual(detection, window.ToastAnchorUtc);
+            Assert.AreEqual(detection.AddSeconds(-15), window.StartUtc);
         }
 
         // === Buffer budget ===
