@@ -26,6 +26,17 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         private const double MaxCellWidthShare = 0.5d;
 
+        // Long dashes for the self-row twig: at 1px the stock Dash style reads as dots, and the
+        // twig has a whole label width to cover.
+        private static readonly DashStyle TwigDashStyle = CreateTwigDashStyle();
+
+        private static DashStyle CreateTwigDashStyle()
+        {
+            var style = new DashStyle(new double[] { 4d, 3d }, 0d);
+            style.Freeze();
+            return style;
+        }
+
         static CategoryTreeGuide()
         {
             // Guide lines are decoration over an already-hit-testable row: clicks belong to the row.
@@ -191,8 +202,8 @@ namespace PlayniteAchievements.Views.Controls
         /// label void to the cell's edge (the guide claims the whole cell for a self row, see
         /// MeasureOverride) and ending in no bead where every real node ends in one. Dashed and
         /// terminal-less is what says "an implied branch - the category itself" rather than
-        /// another category; the bead brush and full strength are what keep it legible against
-        /// the faint lanes.
+        /// another category; full strength is what keeps it legible against the faint lanes. It
+        /// stays in the line brush - the accent is reserved for the beads.
         /// </summary>
         private void DrawSelfTwig(
             DrawingContext drawingContext,
@@ -202,7 +213,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             var stemX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1);
             var armEnd = Math.Max(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth), width - 2d);
-            var dashed = CreatePen(NodeBrush ?? LineBrush, 1d, DashStyles.Dash);
+            var dashed = CreatePen(LineBrush, 1d, TwigDashStyle);
             drawingContext.DrawLine(dashed, new Point(stemX, mid), new Point(armEnd, mid));
         }
 
