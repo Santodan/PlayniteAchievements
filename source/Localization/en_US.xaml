@@ -825,6 +825,11 @@
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadge">Category completion badge</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadgeMode_First">First</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadge_Help">Which category rows show the completed badge under their progress bar in category mode. First uses the first category in your configured category order, so it stays with that category when you sort the grid by a column.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CategoryProgress">Category progress</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CategoryProgressMode_OwnOnly">Own achievements only</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CategoryProgressMode_CombinedOnly">Combined with subcategories</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CategoryProgressMode_CombinedWithOwnRows">Combined, with own-progress rows</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CategoryProgress_Help">What each category row counts in category mode. Own achievements only counts what sits directly in the category. Combined includes everything in its subcategories, and opening a category then shows all of those achievements. The own-progress option additionally adds a connected row under any category that holds both its own achievements and subcategories, showing just its own.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PixelsAutomaticUnit">pixels (empty = automatic)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RowsUnlimitedUnit">rows (empty = unlimited)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OverviewRecentAchievementsGrid">Recent Achievements Grid</sys:String>
