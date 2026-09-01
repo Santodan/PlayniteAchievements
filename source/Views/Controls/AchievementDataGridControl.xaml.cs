@@ -731,6 +731,13 @@ namespace PlayniteAchievements.Views.Controls
         private GridActionButton _expandAllButton;
         private GridActionButton _collapseAllButton;
 
+        // The published category rows, kept as one live collection so a collapse/expand applies as
+        // row removals and insertions instead of an ItemsSource swap - the swap threw away every
+        // realized row container, which showed as the whole grid flickering on each toggle.
+        private BulkObservableCollection<GameSummaryItem> _visibleCategoryRows;
+        private List<GameSummaryItem> _visibleRowsMaster;
+        private bool _visibleRowsInMasterOrder;
+
         public static readonly DependencyProperty EnableCategoryModeProperty =
             DependencyProperty.Register(nameof(EnableCategoryMode), typeof(bool),
                 typeof(AchievementDataGridControl), new PropertyMetadata(false, OnEnableCategoryModeChanged));
@@ -1485,6 +1492,8 @@ namespace PlayniteAchievements.Views.Controls
             var all = _allCategorySummaries;
             if (all == null)
             {
+                _visibleCategoryRows = null;
+                _visibleRowsMaster = null;
                 CategorySummaries = null;
                 return;
             }
@@ -1549,7 +1558,7 @@ namespace PlayniteAchievements.Views.Controls
                 enabled: !_categorySortDirection.HasValue,
                 assumeNesting: removedAny);
 
-            CategorySummaries = visible;
+            PublishCategorySummaries(visible, orderedByMaster: !sortActive);
             CategoryListGrid?.SetSortIndicator(_categorySortPath, _categorySortDirection);
 
             if (CategoryListGrid != null)
@@ -1579,23 +1588,97 @@ namespace PlayniteAchievements.Views.Controls
                 _collapsedCategoryPaths.Add(item.CategoryPath);
             }
 
-            RefreshCategoryListPreservingScroll();
+            // Re-runs the visible-row pass without rebuilding the tree. The publish is
+            // incremental (same master, master order), so untouched rows keep their containers
+            // and the list neither flickers nor loses its scroll position.
+            ApplyCategoryNameFilter();
         }
 
         /// <summary>
-        /// Re-runs the visible-row pass without rebuilding the tree, holding the list's scroll
-        /// position across the ItemsSource swap that publishing CategorySummaries causes.
+        /// Hands the visible rows to the list. Toggling a collapse must not swap the ItemsSource -
+        /// the swap discards every realized row container, which reads as the whole grid
+        /// flickering - so when the rows still come from the same build in the builder's order,
+        /// the published collection is edited in place and only the rows that actually appeared or
+        /// disappeared raise changes. A rebuild (new row instances) or a column sort (new order)
+        /// falls back to wholesale replacement, which is what those paths always did.
         /// </summary>
-        private void RefreshCategoryListPreservingScroll()
+        private void PublishCategorySummaries(List<GameSummaryItem> visible, bool orderedByMaster)
         {
-            var offset = CategoryListGrid?.VerticalScrollOffset ?? 0d;
-            ApplyCategoryNameFilter();
-            if (CategoryListGrid != null && offset > 0d)
+            var master = _allCategorySummaries;
+            var incremental = _visibleCategoryRows != null &&
+                ReferenceEquals(_visibleRowsMaster, master) &&
+                _visibleRowsInMasterOrder &&
+                orderedByMaster;
+
+            if (incremental)
             {
-                // After the swap the list has not laid out its rows yet.
-                CategoryListGrid.Dispatcher.BeginInvoke(
-                    new Action(() => CategoryListGrid?.ScrollToVerticalOffset(offset)),
-                    System.Windows.Threading.DispatcherPriority.Loaded);
+                SyncVisibleRows(_visibleCategoryRows, visible, master);
+            }
+            else
+            {
+                if (_visibleCategoryRows == null)
+                {
+                    _visibleCategoryRows = new BulkObservableCollection<GameSummaryItem>();
+                }
+
+                _visibleCategoryRows.ReplaceAll(visible);
+            }
+
+            _visibleRowsMaster = master;
+            _visibleRowsInMasterOrder = orderedByMaster;
+
+            if (!ReferenceEquals(CategorySummaries, _visibleCategoryRows))
+            {
+                CategorySummaries = _visibleCategoryRows;
+            }
+        }
+
+        /// <summary>
+        /// Edits <paramref name="rows"/> in place until it equals <paramref name="target"/>. Both
+        /// are subsequences of the same master run, so a two-pointer merge over the master's order
+        /// suffices: an existing row that sorts before the next wanted row was collapsed away, a
+        /// wanted row not at the cursor was just expanded back in.
+        /// </summary>
+        private static void SyncVisibleRows(
+            BulkObservableCollection<GameSummaryItem> rows,
+            List<GameSummaryItem> target,
+            List<GameSummaryItem> master)
+        {
+            var order = new Dictionary<GameSummaryItem, int>(master.Count);
+            for (var i = 0; i < master.Count; i++)
+            {
+                order[master[i]] = i;
+            }
+
+            var index = 0;
+            foreach (var item in target)
+            {
+                if (!order.TryGetValue(item, out var targetOrder))
+                {
+                    // Defensive: a row from outside the master cannot be ordered, so just insert.
+                    rows.Insert(index++, item);
+                    continue;
+                }
+
+                while (index < rows.Count &&
+                       (!order.TryGetValue(rows[index], out var existingOrder) || existingOrder < targetOrder))
+                {
+                    rows.RemoveAt(index);
+                }
+
+                if (index < rows.Count && ReferenceEquals(rows[index], item))
+                {
+                    index++;
+                }
+                else
+                {
+                    rows.Insert(index++, item);
+                }
+            }
+
+            while (rows.Count > index)
+            {
+                rows.RemoveAt(index);
             }
         }
 
@@ -1615,13 +1698,13 @@ namespace PlayniteAchievements.Views.Controls
                 }
             }
 
-            RefreshCategoryListPreservingScroll();
+            ApplyCategoryNameFilter();
         }
 
         private void ExpandAllCategories()
         {
             _collapsedCategoryPaths.Clear();
-            RefreshCategoryListPreservingScroll();
+            ApplyCategoryNameFilter();
         }
 
         /// <summary>
