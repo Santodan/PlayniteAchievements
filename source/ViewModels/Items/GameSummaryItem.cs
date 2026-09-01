@@ -73,6 +73,17 @@ namespace PlayniteAchievements.ViewModels.Items
         [IgnoreDataMember]
         public bool IsSelfRow { get => _isSelfRow; set => SetValue(ref _isSelfRow, value); }
 
+        // Session-only view state on a self row: where the dashed drop out of the category's name
+        // above sits, in DataGridRow coordinates. Measured by the name cell of the row above (only
+        // layout knows where its text ends up) and consumed by this row's tree guide, which starts
+        // its own drop at the same x so the two halves join at the row boundary. NaN until measured;
+        // the guide falls back to a computed anchor then.
+        private double _selfDropAnchorX = double.NaN;
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public double SelfDropAnchorX { get => _selfDropAnchorX; set => SetValue(ref _selfDropAnchorX, value); }
+
         public bool Owned => PlayniteGameId.HasValue;
 
         private string _gameLogo;
