@@ -31,9 +31,11 @@ namespace PlayniteAchievements.Services.Achievements
         /// guide disappears rather than drawing lanes between unrelated rows.
         ///
         /// A list with no nesting left in it clears too, so a flat game pays nothing for a feature
-        /// it has no use for.
+        /// it has no use for. <paramref name="assumeNesting"/> skips that bail-out: a collapse
+        /// filter can leave only depth-1 rows visible, and those rows must keep their shapes or the
+        /// "+" toggles that re-expand them vanish with the guide.
         /// </summary>
-        public static void Stamp(IReadOnlyList<GameSummaryItem> rows, bool enabled)
+        public static void Stamp(IReadOnlyList<GameSummaryItem> rows, bool enabled, bool assumeNesting = false)
         {
             if (rows == null || rows.Count == 0)
             {
@@ -64,7 +66,7 @@ namespace PlayniteAchievements.Services.Achievements
                     : categories[i].CategoryPath;
             }
 
-            if (!enabled || !HasNesting(paths) || categories.Count != rows.Count)
+            if (!enabled || (!assumeNesting && !HasNesting(paths)) || categories.Count != rows.Count)
             {
                 foreach (var row in rows)
                 {
