@@ -3988,9 +3988,14 @@ namespace PlayniteAchievements.ViewModels
 
                 var revealedCopy = GetRevealedKeysSnapshotIfNeeded();
 
-                var loadResult = await _selectedGamePipeline
-                    .LoadAsync(gameId, revealedCopy, cancellationToken)
-                    .ConfigureAwait(true);
+                (List<AchievementDisplayItem> Items, bool HasCustomOrder) loadResult;
+                using (PerfScope.Start(_logger, "Overview.SelectedGameLoad", thresholdMs: 25,
+                    context: $"game={gameId}"))
+                {
+                    loadResult = await _selectedGamePipeline
+                        .LoadAsync(gameId, revealedCopy, cancellationToken)
+                        .ConfigureAwait(true);
+                }
 
                 if (!IsSelectedGameLoadCurrent(targetGameId, cancellationToken))
                 {
@@ -4001,19 +4006,24 @@ namespace PlayniteAchievements.ViewModels
                 var hasCustomOrder = loadResult.HasCustomOrder;
                 SelectedGameHasCustomAchievementOrder = hasCustomOrder;
 
-                _allSelectedGameAchievements = items;
-                Services.Captures.CapturePresenceMarker.MarkAchievements(items, _captureLibrary);
-                // Snapshot the natural order before goals are pinned, so removing a goal can put
-                // the achievement back where it belongs instead of leaving it stranded on top.
-                _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>(items);
-                AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
-                FriendCompare?.SetTargetItems(items);
-                UpdateSelectedGameAchievementFilterOptions(_allSelectedGameAchievements);
-                ApplyRightFilters();
+                using (PerfScope.Start(_logger, "Overview.SelectedGameApply", thresholdMs: 25,
+                    context: $"items={items.Count}"))
+                {
+                    _allSelectedGameAchievements = items;
+                    Services.Captures.CapturePresenceMarker.MarkAchievements(items, _captureLibrary);
+                    // Snapshot the natural order before goals are pinned, so removing a goal can put
+                    // the achievement back where it belongs instead of leaving it stranded on top.
+                    _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>(items);
+                    AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
+                    FriendCompare?.SetTargetItems(items);
+                    UpdateSelectedGameAchievementFilterOptions(_allSelectedGameAchievements);
+                    ApplyRightFilters();
 
-                var selectedTimelineCounts = GetSelectedGameTimelineCounts(gameId);
-                GlobalTimeline.SetCounts(selectedTimelineCounts);
-                SelectedGameTimeline.SetCounts(selectedTimelineCounts);
+                    var selectedTimelineCounts = GetSelectedGameTimelineCounts(gameId);
+                    GlobalTimeline.SetCounts(selectedTimelineCounts);
+                    SelectedGameTimeline.SetCounts(selectedTimelineCounts);
+                }
+
                 return true;
             }
             catch (OperationCanceledException)
