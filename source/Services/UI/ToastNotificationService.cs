@@ -820,8 +820,16 @@ namespace PlayniteAchievements.Services.UI
             /// <summary>The exact effect instances the shadow layer baked, in tree order.</summary>
             public List<Effect> ShadowEffectSignature;
 
+            /// <summary>The exact halo bitmaps the shadow layer baked, in tree order.</summary>
+            public List<ImageSource> ShadowHaloSignature;
+
             /// <summary>The effect whose animated opacity drives the per-sample glow scale.</summary>
             public DropShadowEffect GlowEffect;
+
+            /// <summary>The border halo whose pulsed element opacity drives the glow scale
+            /// instead, when the card carries one; takes precedence over GlowEffect.</summary>
+            public Views.Controls.RarityBorderHalo GlowHalo;
+
             public double GlowRefOpacity = 1.0;
 
             /// <summary>Track time of the last shadow capture, for the recapture rate limit.</summary>
@@ -873,14 +881,16 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Every effect-carrying element under <paramref name="root"/> in visual-tree order, and
-        /// (when a list is supplied) every visible ray-burst control. Both are what the sample
-        /// render excludes: effects for their software blur, ray bursts for their fixed
-        /// per-rasterization geometry-flattening cost — each measured at multiples of the whole
-        /// rest of the card.
+        /// (when lists are supplied) every visible ray-burst and border-halo control. All are
+        /// what the sample render excludes: effects for their software blur, ray bursts for
+        /// their fixed per-rasterization geometry-flattening cost, and the border halo because
+        /// its pulsing opacity belongs to the shadow layer's glow scale rather than the card's
+        /// pixel frames (baking it would defeat frame dedup and double it under the layer).
         /// </summary>
         private static void CollectEffects(
             DependencyObject root, List<KeyValuePair<FrameworkElement, Effect>> results,
-            List<Views.Controls.RarityRayBurst> rayBursts = null)
+            List<Views.Controls.RarityRayBurst> rayBursts = null,
+            List<Views.Controls.RarityBorderHalo> halos = null)
         {
             if (root is FrameworkElement fe && fe.Effect != null)
             {
@@ -894,10 +904,17 @@ namespace PlayniteAchievements.Services.UI
                 rayBursts.Add(burst);
             }
 
+            if (halos != null &&
+                root is Views.Controls.RarityBorderHalo halo &&
+                halo.Visibility == Visibility.Visible)
+            {
+                halos.Add(halo);
+            }
+
             var count = VisualTreeHelper.GetChildrenCount(root);
             for (var i = 0; i < count; i++)
             {
-                CollectEffects(VisualTreeHelper.GetChild(root, i), results, rayBursts);
+                CollectEffects(VisualTreeHelper.GetChild(root, i), results, rayBursts, halos);
             }
         }
 
@@ -920,6 +937,24 @@ namespace PlayniteAchievements.Services.UI
             foreach (var burst in rayBursts)
             {
                 burst.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Visible);
+            }
+        }
+
+        /// <summary>Border-halo counterpart to <see cref="HideRayBursts"/>, same SetCurrentValue
+        /// reasoning: the Visibility binding that gates the halo keeps ownership.</summary>
+        private static void HideHalos(List<Views.Controls.RarityBorderHalo> halos)
+        {
+            foreach (var halo in halos)
+            {
+                halo.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Collapsed);
+            }
+        }
+
+        private static void RestoreHalos(List<Views.Controls.RarityBorderHalo> halos)
+        {
+            foreach (var halo in halos)
+            {
+                halo.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Visible);
             }
         }
 
@@ -1353,15 +1388,18 @@ namespace PlayniteAchievements.Services.UI
 
                 var captureScale = CurrentCaptureScale(clientPhys);
 
-                // Effects and ray bursts are detached for the render: the blur's software raster
-                // and the rays' geometry flattening are each multiples of the whole rest of the
-                // card per rasterization. The blur halo returns at export as the shadow layer x
+                // Effects, ray bursts, and the border halo are detached for the render: the
+                // blur's software raster and the rays' geometry flattening are each multiples of
+                // the whole rest of the card per rasterization, and the halo's pulsing opacity
+                // would defeat frame dedup. Glow and halo return at export as the shadow layer x
                 // glowScale; the rays return as timed layers captured below.
                 var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
                 var rayBursts = new List<Views.Controls.RarityRayBurst>();
-                CollectEffects(container, effects, rayBursts);
+                var halos = new List<Views.Controls.RarityBorderHalo>();
+                CollectEffects(container, effects, rayBursts, halos);
                 StripEffects(effects);
                 HideRayBursts(rayBursts);
+                HideHalos(halos);
                 byte[] pixels;
                 int pw, ph, cardWPhys, cardHPhys;
                 bool rendered;
@@ -1374,6 +1412,7 @@ namespace PlayniteAchievements.Services.UI
                 }
                 finally
                 {
+                    RestoreHalos(halos);
                     RestoreRayBursts(rayBursts);
                     RestoreEffects(effects);
                 }
@@ -1387,16 +1426,18 @@ namespace PlayniteAchievements.Services.UI
                 scratch.LastCardHPhys = cardHPhys;
                 scratch.HasPixelFrame = true;
 
-                // (Re)capture the halo when its inputs changed: the card's pixel size, or the set
-                // of effect instances (a trigger swapping the neutral shadow for the rarity glow).
-                // Rate-limited — the capture is the expensive path this design exists to avoid.
-                if (effects.Count > 0 &&
+                // (Re)capture the shadow layer when its inputs changed: the card's pixel size,
+                // the set of effect instances (a trigger swapping the neutral shadow away), or
+                // the border halo's bitmap (regenerated on resize or recolor). Rate-limited —
+                // the capture is the expensive path this design exists to avoid.
+                if ((effects.Count > 0 || halos.Count > 0) &&
                     elapsedMs - scratch.LastShadowCaptureMs >= ShadowRecaptureMinIntervalMs &&
                     (pw != scratch.ShadowW || ph != scratch.ShadowH ||
-                     !SameEffectSignature(scratch.ShadowEffectSignature, effects)))
+                     !SameEffectSignature(scratch.ShadowEffectSignature, effects) ||
+                     !SameHaloSignature(scratch.ShadowHaloSignature, halos)))
                 {
                     scratch.LastShadowCaptureMs = elapsedMs;
-                    CaptureShadowLayer(recorder, window, container, vm, scratch, effects, captureScale);
+                    CaptureShadowLayer(recorder, window, container, vm, scratch, effects, halos, captureScale);
                 }
 
                 // Ray layers refresh on a time budget: rays drift slowly and the export
@@ -1447,8 +1488,10 @@ namespace PlayniteAchievements.Services.UI
             rayW = 0;
             rayH = 0;
             var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
-            CollectEffects(container, effects);
+            var halos = new List<Views.Controls.RarityBorderHalo>();
+            CollectEffects(container, effects, rayBursts: null, halos);
             StripEffects(effects);
+            HideHalos(halos);
             byte[] withRays;
             int rw, rh;
             bool rendered;
@@ -1461,6 +1504,7 @@ namespace PlayniteAchievements.Services.UI
             }
             finally
             {
+                RestoreHalos(halos);
                 RestoreEffects(effects);
             }
 
@@ -1519,12 +1563,18 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// The shadow-layer multiplier for this tick: the glow effect's current animated opacity
+        /// The shadow-layer multiplier for this tick: the glow's current animated opacity —
+        /// the border halo's element opacity when the card carries one, else the glow effect's —
         /// relative to the opacity the layer was captured at, times the slide host's opacity (the
         /// halo must fade with a fade theme even though the card pixels carry that fade already).
         /// </summary>
         private static double ComputeGlowScale(CardRenderScratch scratch, double hostOpacity)
         {
+            if (scratch.GlowHalo != null && scratch.GlowRefOpacity > 0.001)
+            {
+                return hostOpacity * Math.Max(0d, scratch.GlowHalo.Opacity) / scratch.GlowRefOpacity;
+            }
+
             if (scratch.GlowEffect != null && scratch.GlowRefOpacity > 0.001)
             {
                 return hostOpacity * Math.Max(0d, scratch.GlowEffect.Opacity) / scratch.GlowRefOpacity;
@@ -1552,10 +1602,37 @@ namespace PlayniteAchievements.Services.UI
             return true;
         }
 
+        /// <summary>Border-halo counterpart to <see cref="SameEffectSignature"/>: the bitmap
+        /// instance changes when the halo regenerates (resize, recolor), staling the layer.</summary>
+        private static bool SameHaloSignature(
+            List<ImageSource> signature, List<Views.Controls.RarityBorderHalo> halos)
+        {
+            if (signature == null)
+            {
+                return halos.Count == 0;
+            }
+
+            if (signature.Count != halos.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < halos.Count; i++)
+            {
+                if (!ReferenceEquals(signature[i], halos[i].CurrentHalo))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         /// <summary>
         /// Captures every card's shadow layer before the wave's slide starts, so the one software
         /// blur rasterization each card pays lands outside the slide's clock. Cards without
-        /// effects record nothing (their glow scale degenerates to the host opacity).
+        /// effects or a border halo record nothing (their glow scale degenerates to the host
+        /// opacity).
         /// </summary>
         private void CaptureWaveShadowLayers(
             ToastOverlayTrackRecorder recorder, Window window,
@@ -1577,13 +1654,14 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
-                CollectEffects(container, effects);
-                if (effects.Count > 0)
+                var halos = new List<Views.Controls.RarityBorderHalo>();
+                CollectEffects(container, effects, rayBursts: null, halos);
+                if (effects.Count > 0 || halos.Count > 0)
                 {
                     var scratch = GetCardScratch(toastItems[i]);
                     scratch.LastShadowCaptureMs = 0;
                     CaptureShadowLayer(
-                        recorder, window, container, toastItems[i], scratch, effects, captureScale);
+                        recorder, window, container, toastItems[i], scratch, effects, halos, captureScale);
                 }
             }
         }
@@ -1620,9 +1698,11 @@ namespace PlayniteAchievements.Services.UI
                 var scratch = GetCardScratch(vm);
                 var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
                 var rayBursts = new List<Views.Controls.RarityRayBurst>();
-                CollectEffects(container, effects, rayBursts);
+                var halos = new List<Views.Controls.RarityBorderHalo>();
+                CollectEffects(container, effects, rayBursts, halos);
                 StripEffects(effects);
                 HideRayBursts(rayBursts);
+                HideHalos(halos);
                 byte[] pixels;
                 int pw, ph, cardWPhys, cardHPhys;
                 bool rendered;
@@ -1635,6 +1715,7 @@ namespace PlayniteAchievements.Services.UI
                 }
                 finally
                 {
+                    RestoreHalos(halos);
                     RestoreRayBursts(rayBursts);
                     RestoreEffects(effects);
                 }
@@ -1654,16 +1735,17 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Captures one card's shadow/glow halo as a difference layer: the card rendered with its
-        /// effects minus the card rendered without them, both in this same dispatcher callback so
-        /// the content (GIF frame, countdown) is identical in the pair. Host opacity is excluded
-        /// from both renders — the per-sample glow scale carries it instead, so a fade theme's
-        /// mid-fade capture doesn't bake a dimmed halo. This pays the software blur exactly once
-        /// per capture; every subsequent tick renders effect-free.
+        /// effects and border halo minus the card rendered without them, both in this same
+        /// dispatcher callback so the content (GIF frame, countdown) is identical in the pair.
+        /// Host opacity is excluded from both renders — the per-sample glow scale carries it
+        /// instead, so a fade theme's mid-fade capture doesn't bake a dimmed halo. This pays the
+        /// software blur exactly once per capture; every subsequent tick renders effect-free.
         /// </summary>
         private void CaptureShadowLayer(
             ToastOverlayTrackRecorder recorder, Window window, FrameworkElement container,
             AchievementToastViewModel vm, CardRenderScratch scratch,
-            List<KeyValuePair<FrameworkElement, Effect>> effects, double captureScale)
+            List<KeyValuePair<FrameworkElement, Effect>> effects,
+            List<Views.Controls.RarityBorderHalo> halos, double captureScale)
         {
             _waveShadowCaptureCount++;
             if (!TryRenderToastItemBytes(
@@ -1675,6 +1757,7 @@ namespace PlayniteAchievements.Services.UI
             }
 
             StripEffects(effects);
+            HideHalos(halos);
             byte[] withoutEffects;
             int pw0, ph0;
             bool rendered;
@@ -1687,6 +1770,7 @@ namespace PlayniteAchievements.Services.UI
             }
             finally
             {
+                RestoreHalos(halos);
                 RestoreEffects(effects);
             }
 
@@ -1718,28 +1802,46 @@ namespace PlayniteAchievements.Services.UI
 
             scratch.ShadowEffectSignature = signature;
 
-            // The scale driver is the effect the pulse actually animates — the one on an element
-            // opted into RarityGlowPulse with Target=Effect — falling back to the first
-            // DropShadowEffect (a static neutral shadow then keeps scale at the host opacity).
-            // Its opacity right now is what the layer baked, so it is the reference.
-            scratch.GlowEffect = null;
-            scratch.GlowRefOpacity = 1.0;
-            foreach (var pair in effects)
+            var haloSignature = new List<ImageSource>(halos.Count);
+            foreach (var halo in halos)
             {
-                if (!(pair.Value is DropShadowEffect dropShadow))
-                {
-                    continue;
-                }
+                haloSignature.Add(halo.CurrentHalo);
+            }
 
-                var pulsed = RarityGlowPulse.GetIsActive(pair.Key) &&
-                    RarityGlowPulse.GetTarget(pair.Key) == RarityGlowPulseTarget.Effect;
-                if (scratch.GlowEffect == null || pulsed)
+            scratch.ShadowHaloSignature = haloSignature;
+
+            // The scale driver is what the pulse actually animates: the border halo's element
+            // opacity when the card carries one, else the effect on an element opted into
+            // RarityGlowPulse with Target=Effect, falling back to the first DropShadowEffect
+            // (a static neutral shadow then keeps scale at the host opacity). Its opacity right
+            // now is what the layer baked, so it is the reference.
+            scratch.GlowEffect = null;
+            scratch.GlowHalo = null;
+            scratch.GlowRefOpacity = 1.0;
+            if (halos.Count > 0)
+            {
+                scratch.GlowHalo = halos[0];
+                scratch.GlowRefOpacity = Math.Max(0.05, halos[0].Opacity);
+            }
+            else
+            {
+                foreach (var pair in effects)
                 {
-                    scratch.GlowEffect = dropShadow;
-                    scratch.GlowRefOpacity = Math.Max(0.05, dropShadow.Opacity);
-                    if (pulsed)
+                    if (!(pair.Value is DropShadowEffect dropShadow))
                     {
-                        break;
+                        continue;
+                    }
+
+                    var pulsed = RarityGlowPulse.GetIsActive(pair.Key) &&
+                        RarityGlowPulse.GetTarget(pair.Key) == RarityGlowPulseTarget.Effect;
+                    if (scratch.GlowEffect == null || pulsed)
+                    {
+                        scratch.GlowEffect = dropShadow;
+                        scratch.GlowRefOpacity = Math.Max(0.05, dropShadow.Opacity);
+                        if (pulsed)
+                        {
+                            break;
+                        }
                     }
                 }
             }

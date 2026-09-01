@@ -769,9 +769,12 @@ namespace PlayniteAchievements.ViewModels
         private const double ToastCardBurstScale = 1.14;
 
 
-        // Cloned to an unfrozen copy so the card's border-glow pulse can animate its Opacity
-        // (the shared GetGlow/GetCompletedGlow instances are frozen and immutable), and so its
-        // BlurRadius can be widened to the border-glow radius. Null for Common rarity (no glow).
+        // Kept for exported/custom toast templates that still bind it: the bundled template
+        // draws the border glow with RarityBorderHalo instead (a generated dithered bitmap —
+        // the wide effect banded under 8-bit composition). Cloned to an unfrozen copy so a
+        // template's Effect-target pulse can animate its Opacity (the shared
+        // GetGlow/GetCompletedGlow instances are frozen and immutable), and so its BlurRadius
+        // can be widened to the border-glow radius. Null for Common rarity (no glow).
         public Effect BorderGlowEffect
         {
             get

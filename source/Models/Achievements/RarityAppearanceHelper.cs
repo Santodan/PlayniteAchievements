@@ -356,9 +356,10 @@ namespace PlayniteAchievements.Models.Achievements
 
             _activeSettings = settings;
 
-            // Cleared before AppearanceChanged fires, so the bursts re-resolving on that event pick up
-            // recolored tiers rather than the palette built from the previous colors.
+            // Cleared before AppearanceChanged fires, so the bursts and halos re-resolving on that
+            // event pick up recolored tiers rather than pixels built from the previous colors.
             ClearRayGlowPalettes();
+            ClearBorderHaloCache();
             ApplyBadgeResources(resources, settings);
 
             AppearanceChanged?.Invoke(null, EventArgs.Empty);

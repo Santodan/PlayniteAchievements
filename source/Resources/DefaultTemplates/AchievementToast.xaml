@@ -48,11 +48,32 @@
                                      BurstScale="1.14"
                                      CornerRadiusRatio="0.09"
                                      Visibility="{Binding ShowCardRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-            <!-- Background and shadow / glow layer. The background is rendered once: its border
+            <!-- Rarity border halo: a generated dithered bitmap rather than a DropShadowEffect,
+                 because an effect this wide bands under 8-bit composition (see RarityBorderHalo).
+                 It fills the card's slot and draws past it into the ToastGlowMargin room. The
+                 glow pulse fades this element's opacity — compositor-only, so it no longer needs
+                 pausing for the slide — and Common rarity draws nothing, as before. -->
+            <controls:RarityBorderHalo Rarity="{Binding Rarity}"
+                                       UseCompletedColors="{Binding UsesCompletionColors}"
+                                       helpers:RarityGlowPulse.PhaseLock="{Binding IsPreview}"
+                                       Visibility="{Binding HasBorderGlow, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <controls:RarityBorderHalo.Style>
+                    <Style TargetType="controls:RarityBorderHalo">
+                        <Style.Triggers>
+                            <!-- Fade the border halo in and out when AnimateRarityGlows is on. -->
+                            <DataTrigger Binding="{Binding AnimateRarityGlows}" Value="True">
+                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </controls:RarityBorderHalo.Style>
+            </controls:RarityBorderHalo>
+            <!-- Background and shadow layer. The background is rendered once: its border
                  carries the effect as well as the visible image. Text and icons remain in the
-                 separate effect-free content layer below, so they stay crisp at every DPI. -->
-            <Grid helpers:RarityGlowPulse.Target="Effect"
-                  helpers:RarityGlowPulse.PhaseLock="{Binding IsPreview}">
+                 separate effect-free content layer below, so they stay crisp at every DPI.
+                 With the border halo on, the neutral shadow is dropped entirely — the halo
+                 layer above takes its place. -->
+            <Grid>
                 <Grid.Style>
                     <Style TargetType="Grid">
                         <Setter Property="Effect">
@@ -66,16 +87,8 @@
                         </Setter>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding HasBorderGlow}" Value="True">
-                                <Setter Property="Effect" Value="{Binding BorderGlowEffect}"/>
+                                <Setter Property="Effect" Value="{x:Null}"/>
                             </DataTrigger>
-                            <!-- Fade the outer border glow in and out when AnimateRarityGlows is on. -->
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding HasBorderGlow}" Value="True"/>
-                                    <Condition Binding="{Binding AnimateRarityGlows}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
-                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Grid.Style>
