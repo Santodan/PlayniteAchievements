@@ -1791,6 +1791,14 @@ namespace PlayniteAchievements.Views.Controls
                 if (match != null)
                 {
                     _drillSelfOnly = match.IsSelfRow;
+
+                    // In the list the self row sits under a row already carrying the name and goes
+                    // unlabeled; here it is the only row, so it takes the name back. Safe to
+                    // mutate - the row was built fresh above and is not shared with the list.
+                    if (match.IsSelfRow)
+                    {
+                        match.GameName = match.CategoryLeafName;
+                    }
                 }
             }
 
