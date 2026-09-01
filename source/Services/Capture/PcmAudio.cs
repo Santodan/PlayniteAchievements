@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Services.Capture
 {
@@ -117,8 +118,9 @@ namespace PlayniteAchievements.Services.Capture
         // handful of packets apart. Search a bounded neighbourhood before cancellation so that a
         // sub-packet offset cannot leave the game behind as a comb-filtered echo.
         private const int MaxCancellationLagFrames = 2400; // 50 ms at 48 kHz
-        private const int CorrelationStrideFrames = 8;
-        private const int CorrelationWindowFrames = 24000; // score 0.5 s at the loudest passage
+        // Internal so the scoring-equivalence tests mirror the exact window the scorer walks.
+        internal const int CorrelationStrideFrames = 8;
+        internal const int CorrelationWindowFrames = 24000; // score 0.5 s at the loudest passage
         private const double SilentReferenceRms = 16.0; // about -66 dBFS
 
         // ATTEMPT gate, not the accept gate. It only screens out an obviously unrelated reference;
@@ -147,6 +149,11 @@ namespace PlayniteAchievements.Services.Capture
         // Correlation difference below which two candidate lags count as scoring alike, so the one
         // nearest zero is taken. Only applied to searches wider than the default.
         private const double PeriodicAmbiguityMargin = 0.02;
+
+        // Candidate count above which a lag scan scores its grid on all cores. Each candidate's
+        // score is independent and the buffers are only read; selection stays a sequential fold in
+        // lag order, so the winner is exactly the sequential loop's.
+        private const int ParallelLagScanThreshold = 256;
         private const int CrossfadeFrames = 240; // 5 ms across block parameter steps
         private const double BlockGainFloor = 0.05; // below this the block has no game to remove
         private const int BlockFitStrideFrames = 2; // even frames fit; odd frames independently prove
@@ -352,8 +359,15 @@ namespace PlayniteAchievements.Services.Capture
                 Math.Max(MaxCancellationLagFrames, maxLagFrames),
                 Math.Max(0, Math.Min(mixtureFrames, referenceFrames) / 4));
             var loudestStart = FindLoudestWindowStart(gameReference, referenceFrames);
+
+            // One short-per-sample view of each buffer, decoded once: the lag search below scores
+            // thousands of candidate lags, and reassembling every 16-bit sample from bytes on each
+            // of them dominated the whole cleanup's cost. Scoring on a view is bit-identical to
+            // scoring on the bytes (PcmAudioLagScanEquivalenceTests holds the two side by side).
+            var mixtureView = SampleView.From(mixture);
+            var referenceView = SampleView.From(gameReference);
             var referenceScore = ScoreCorrelation(
-                gameReference, gameReference, 0, loudestStart);
+                referenceView, referenceView, 0, loudestStart);
             diagnostics.ReferenceRms = referenceScore.Count <= 0 || referenceScore.ReferenceEnergy <= 0
                 ? 0
                 : Math.Sqrt(referenceScore.ReferenceEnergy / referenceScore.Count);
@@ -371,14 +385,14 @@ namespace PlayniteAchievements.Services.Capture
             // coincide with a render stream starting — i.e. the chime itself), and a single window
             // that straddles the tear reads a fractured correlation for a perfectly separable
             // slice. A tear cannot fracture every window.
-            var loudestScore = ScanWindow(mixture, gameReference, loudestStart, maxLag);
+            var loudestScore = ScanWindow(mixtureView, referenceView, loudestStart, maxLag);
             var best = loudestScore;
             // Reference presence anywhere in the slice, independent of which window calibrates
             // the lag. The early-calibration caller must not classify a slice as "clean" from its
             // one chime-diluted window while a later window shows the reference plainly present —
             // that shipped a game-carrying sidecar as CleanNoGameDetected in a live probe run.
             var presence = loudestScore.Count > 0 ? Math.Abs(loudestScore.Value) : 0;
-            var earlyReference = ScoreCorrelation(gameReference, gameReference, 0, 0);
+            var earlyReference = ScoreCorrelation(referenceView, referenceView, 0, 0);
             var earlyReferenceRms = earlyReference.Count <= 0 || earlyReference.ReferenceEnergy <= 0
                 ? 0
                 : Math.Sqrt(earlyReference.ReferenceEnergy / earlyReference.Count);
@@ -389,7 +403,7 @@ namespace PlayniteAchievements.Services.Capture
                     continue;
                 }
 
-                var score = ScanWindow(mixture, gameReference, candidateStart, maxLag);
+                var score = ScanWindow(mixtureView, referenceView, candidateStart, maxLag);
                 if (score.Count <= 0)
                 {
                     continue;
@@ -407,7 +421,7 @@ namespace PlayniteAchievements.Services.Capture
                 // A chime can change the process-tree capture graph's latency when its render
                 // stream starts. Calibrate inside the sound we must preserve, not from a later
                 // game-only window whose perfect correlation describes a different graph state.
-                var early = ScanWindow(mixture, gameReference, 0, maxLag);
+                var early = ScanWindow(mixtureView, referenceView, 0, maxLag);
                 if (early.Count > 0)
                 {
                     best = early;
@@ -422,8 +436,8 @@ namespace PlayniteAchievements.Services.Capture
             if (fractionalLagSteps > 0)
             {
                 best = RefineFractionalLag(
-                    mixture,
-                    gameReference,
+                    mixtureView,
+                    referenceView,
                     best,
                     Math.Max(2, fractionalLagSteps));
             }
@@ -685,8 +699,10 @@ namespace PlayniteAchievements.Services.Capture
             // above is measured per block on the blocks that were subtracted; this is the whole
             // slice, so a low number here with a residual a listener can still hear means the sound
             // is not this reference's signal and no cancellation will remove it.
+            // `working` was just mutated by the subtraction, so it gets a fresh view here rather
+            // than reusing one built before the pass.
             var residual = ScoreCorrelationAtLag(
-                working, gameReference, fixedLagFrames, loudestStart);
+                SampleView.From(working), referenceView, fixedLagFrames, loudestStart);
             diagnostics.ResidualCorrelation = residual.Count > 0 ? Math.Abs(residual.Value) : 0;
             if (diagnostics.RestoredBlocks == 0 &&
                 diagnostics.ResidualCorrelation > Math.Max(0, maximumResidualCorrelation))
@@ -1061,8 +1077,8 @@ namespace PlayniteAchievements.Services.Capture
         /// broadband enough at these strides for the correlation peak to survive the coarse pass.
         /// </summary>
         private static CorrelationScore ScanWindow(
-            byte[] mixture,
-            byte[] reference,
+            SampleView mixture,
+            SampleView reference,
             int analysisStart,
             int maxLag)
         {
@@ -1095,8 +1111,8 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         private static CorrelationScore ScanLagRange(
-            byte[] mixture,
-            byte[] reference,
+            SampleView mixture,
+            SampleView reference,
             int analysisStart,
             int fromLag,
             int toLag,
@@ -1118,35 +1134,74 @@ namespace PlayniteAchievements.Services.Capture
         /// </para>
         /// </summary>
         private static CorrelationScore ScanLagRange(
-            byte[] mixture,
-            byte[] reference,
+            SampleView mixture,
+            SampleView reference,
             int analysisStart,
             int fromLag,
             int toLag,
             int step,
             bool preferSmallLag)
         {
+            return ScanLagRange(
+                mixture, reference, analysisStart, fromLag, toLag, step, preferSmallLag,
+                forceSequential: false);
+        }
+
+        // Internal (with forceSequential) so the equivalence tests can hold the parallel grid and
+        // the plain loop side by side on the same inputs.
+        internal static CorrelationScore ScanLagRange(
+            SampleView mixture,
+            SampleView reference,
+            int analysisStart,
+            int fromLag,
+            int toLag,
+            int step,
+            bool preferSmallLag,
+            bool forceSequential)
+        {
             var best = default(CorrelationScore);
             best.Value = double.NegativeInfinity;
+            var candidates = toLag < fromLag ? 0 : (toLag - fromLag) / step + 1;
+            if (!forceSequential && candidates >= ParallelLagScanThreshold)
+            {
+                // Score the whole grid on all cores (each score touches only read-only buffers),
+                // then pick the winner with the same fold, in the same lag order, as the
+                // sequential loop below — the incumbent logic resolves ties identically, so the
+                // result is bit-for-bit the sequential one.
+                var scores = new CorrelationScore[candidates];
+                Parallel.For(0, candidates, index => scores[index] = ScoreCorrelation(
+                    mixture, reference, fromLag + index * step, analysisStart));
+                for (var index = 0; index < candidates; index++)
+                {
+                    best = BetterLagScore(best, scores[index], preferSmallLag);
+                }
+
+                return best;
+            }
+
             for (var lag = fromLag; lag <= toLag; lag += step)
             {
-                var score = ScoreCorrelation(mixture, reference, lag, analysisStart);
-                if (!preferSmallLag)
-                {
-                    if (score.Value > best.Value)
-                    {
-                        best = score;
-                    }
+                best = BetterLagScore(
+                    best, ScoreCorrelation(mixture, reference, lag, analysisStart), preferSmallLag);
+            }
 
-                    continue;
-                }
+            return best;
+        }
 
-                if (score.Value > best.Value + PeriodicAmbiguityMargin ||
-                    (score.Value > best.Value - PeriodicAmbiguityMargin &&
-                     Math.Abs(score.LagFrames) < Math.Abs(best.LagFrames)))
-                {
-                    best = score;
-                }
+        /// <summary>The sequential incumbent rule, factored so both scan paths share it exactly.</summary>
+        private static CorrelationScore BetterLagScore(
+            CorrelationScore best, CorrelationScore score, bool preferSmallLag)
+        {
+            if (!preferSmallLag)
+            {
+                return score.Value > best.Value ? score : best;
+            }
+
+            if (score.Value > best.Value + PeriodicAmbiguityMargin ||
+                (score.Value > best.Value - PeriodicAmbiguityMargin &&
+                 Math.Abs(score.LagFrames) < Math.Abs(best.LagFrames)))
+            {
+                return score;
             }
 
             return best;
@@ -1187,8 +1242,8 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         private static CorrelationScore ScoreCorrelation(
-            byte[] mixture,
-            byte[] reference,
+            SampleView mixture,
+            SampleView reference,
             int lagFrames,
             int analysisStart)
         {
@@ -1202,8 +1257,8 @@ namespace PlayniteAchievements.Services.Capture
         /// fractional lag removes the quiet phasey copy that nearest-frame subtraction leaves.
         /// </summary>
         private static CorrelationScore RefineFractionalLag(
-            byte[] mixture,
-            byte[] reference,
+            SampleView mixture,
+            SampleView reference,
             CorrelationScore integerBest,
             int stepsPerFrame)
         {
@@ -1226,14 +1281,16 @@ namespace PlayniteAchievements.Services.Capture
             return best;
         }
 
-        private static CorrelationScore ScoreCorrelationAtLag(
-            byte[] mixture,
-            byte[] reference,
+        // Internal so the equivalence tests can score the same inputs this scorer and a
+        // byte-walking mirror of it see, and assert bit-identical results.
+        internal static CorrelationScore ScoreCorrelationAtLag(
+            SampleView mixture,
+            SampleView reference,
             double lagFrames,
             int analysisStart)
         {
-            var mixtureFrames = mixture.Length / BlockAlign;
-            var referenceFrames = reference.Length / BlockAlign;
+            var mixtureFrames = mixture.Frames;
+            var referenceFrames = reference.Frames;
             var referenceEnd = Math.Min(referenceFrames, analysisStart + CorrelationWindowFrames);
             var mixtureStart = Math.Max(0, (int)Math.Ceiling(analysisStart - lagFrames));
             var mixtureEnd = Math.Min(
@@ -1244,20 +1301,52 @@ namespace PlayniteAchievements.Services.Capture
             double referenceEnergy = 0;
             long count = 0;
 
-            for (var mixtureFrame = mixtureStart;
-                 mixtureFrame < mixtureEnd;
-                 mixtureFrame += CorrelationStrideFrames)
+            var mixtureSamples = mixture.Samples;
+            var referenceSamples = reference.Samples;
+            var wholeLag = Math.Floor(lagFrames);
+            if (lagFrames == wholeLag && wholeLag >= int.MinValue && wholeLag <= int.MaxValue)
             {
-                var mixtureByte = mixtureFrame * BlockAlign;
-                var referenceFrame = mixtureFrame + lagFrames;
-                for (var channel = 0; channel < 2; channel++)
+                // Integer lag — the case every candidate of the wide sweep hits. Reads land on
+                // sample centres, so the interpolated read reduces to the sample itself
+                // (fraction 0 returns the lower sample exactly) and the direct index below is
+                // value-identical to it, including the zero it returns out of range.
+                var lag = (int)wholeLag;
+                for (var mixtureFrame = mixtureStart;
+                     mixtureFrame < mixtureEnd;
+                     mixtureFrame += CorrelationStrideFrames)
                 {
-                    var mixed = ReadInt16(mixture, mixtureByte + channel * 2);
-                    var source = ReadInterpolatedSample(reference, referenceFrame, channel);
-                    dot += mixed * source;
-                    mixtureEnergy += mixed * (double)mixed;
-                    referenceEnergy += source * source;
-                    count++;
+                    var referenceFrame = mixtureFrame + lag;
+                    var inRange = referenceFrame >= 0 && referenceFrame <= referenceFrames - 1;
+                    var mixtureIndex = mixtureFrame * Channels;
+                    var referenceIndex = referenceFrame * Channels;
+                    for (var channel = 0; channel < 2; channel++)
+                    {
+                        var mixed = mixtureSamples[mixtureIndex + channel];
+                        double source = inRange ? referenceSamples[referenceIndex + channel] : 0;
+                        dot += mixed * source;
+                        mixtureEnergy += mixed * (double)mixed;
+                        referenceEnergy += source * source;
+                        count++;
+                    }
+                }
+            }
+            else
+            {
+                for (var mixtureFrame = mixtureStart;
+                     mixtureFrame < mixtureEnd;
+                     mixtureFrame += CorrelationStrideFrames)
+                {
+                    var mixtureIndex = mixtureFrame * Channels;
+                    var referenceFrame = mixtureFrame + lagFrames;
+                    for (var channel = 0; channel < 2; channel++)
+                    {
+                        var mixed = mixtureSamples[mixtureIndex + channel];
+                        var source = ReadInterpolatedSample(reference, referenceFrame, channel);
+                        dot += mixed * source;
+                        mixtureEnergy += mixed * (double)mixed;
+                        referenceEnergy += source * source;
+                        count++;
+                    }
                 }
             }
 
@@ -1373,7 +1462,52 @@ namespace PlayniteAchievements.Services.Capture
             bytes[offset + 1] = (byte)((value >> 8) & 0xff);
         }
 
-        private struct CorrelationScore
+        /// <summary>
+        /// Mirrors the byte-buffer <see cref="ReadInterpolatedSample(byte[], double, int)"/>
+        /// exactly — same bounds behaviour, same arithmetic — over a decoded view.
+        /// </summary>
+        private static double ReadInterpolatedSample(
+            SampleView view, double framePosition, int channel)
+        {
+            var frames = view.Frames;
+            if (framePosition < 0 || framePosition > frames - 1 || channel < 0 || channel >= Channels)
+            {
+                return 0;
+            }
+
+            var lower = (int)Math.Floor(framePosition);
+            var fraction = framePosition - lower;
+            var first = (double)view.Samples[lower * Channels + channel];
+            if (fraction <= 0 || lower + 1 >= frames)
+            {
+                return first;
+            }
+
+            var second = (double)view.Samples[(lower + 1) * Channels + channel];
+            return first + (second - first) * fraction;
+        }
+
+        /// <summary>
+        /// A PCM buffer decoded to one short per sample, built once per cancellation pass so the
+        /// lag search does not reassemble every 16-bit sample from bytes on each of its thousands
+        /// of candidate lags. Values are exactly what <see cref="ReadInt16"/> produces, so scoring
+        /// a view is bit-identical to scoring the bytes. Internal for the equivalence tests.
+        /// </summary>
+        internal struct SampleView
+        {
+            public short[] Samples;
+            public int Frames;
+
+            public static SampleView From(byte[] pcm)
+            {
+                var frames = pcm.Length / BlockAlign;
+                var samples = new short[frames * Channels];
+                Buffer.BlockCopy(pcm, 0, samples, 0, frames * BlockAlign);
+                return new SampleView { Samples = samples, Frames = frames };
+            }
+        }
+
+        internal struct CorrelationScore
         {
             public int LagFrames;
             public double ExactLagFrames;
