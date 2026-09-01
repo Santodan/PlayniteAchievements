@@ -161,6 +161,13 @@ namespace PlayniteAchievements.ViewModels
         internal Guid CaptureCorrelationId => _args.CaptureCorrelationId;
 
         /// <summary>
+        /// The raw unlock event, for capture-side callers that need fields the VM does not
+        /// re-expose (the recording service's buffered-frame lookup reads the video anchor and
+        /// observation stamps from it). Never mutated by the VM.
+        /// </summary>
+        internal AchievementUnlockedEventArgs CaptureArgs => _args;
+
+        /// <summary>
         /// The unlock's name for screenshot/clip filenames and clip-to-wave matching: the
         /// achievement's display name, or the localized "Game Complete!" for the completion
         /// notification (which carries no display name). Shared with the recording service so
