@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels;
@@ -257,7 +256,8 @@ namespace PlayniteAchievements.Services.Summaries
         /// The synthesized child row reporting a mixed node's direct achievements. Sits at one
         /// depth below its category under the same path, distinguished by
         /// <see cref="GameSummaryItem.IsSelfRow"/>; carries no art, so the surfaces render it as a
-        /// compact annotation row rather than a peer category.
+        /// compact annotation row rather than a peer category. It reuses the category's own display
+        /// name, which keeps the name filter and a name sort treating it exactly like its category.
         /// </summary>
         private static CategorySummaryItem BuildSelfRow(
             string node,
@@ -267,7 +267,6 @@ namespace PlayniteAchievements.Services.Summaries
             CategoryCompletionBadgeMode badgeMode,
             int emittedCount)
         {
-            var display = ResourceProvider.GetString("LOCPlayAch_CategorySummaries_SelfRowLabel");
             var item = new CategorySummaryItem
             {
                 CategoryLabel = node,
@@ -278,10 +277,8 @@ namespace PlayniteAchievements.Services.Summaries
                 ChildCategoryCount = 0,
                 DirectAchievementCount = directMembers.Count,
                 PlayniteGameId = ResolveSharedGameId(directMembers),
-                GameName = display,
-                // Keeps the row beside its category when a name sort flattens the tree, instead of
-                // pooling every self row together under the shared label.
-                SortingName = parentDisplay + " " + display,
+                GameName = parentDisplay,
+                SortingName = parentDisplay,
                 NameToolTip = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(node)
             };
 
