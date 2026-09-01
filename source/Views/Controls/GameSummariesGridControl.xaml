@@ -110,7 +110,16 @@
         </DataGrid.CellStyle>
         <DataGrid.RowStyle>
             <Style TargetType="DataGridRow"
-                   BasedOn="{StaticResource GameSummariesGridRowStyle}"/>
+                   BasedOn="{StaticResource GameSummariesGridRowStyle}">
+                <Style.Triggers>
+                    <!-- A mixed category's self row reads as an annotation on the row above it:
+                         same art, no name, and dimmed as a whole so its numbers register as the
+                         category's own share rather than another category. -->
+                    <DataTrigger Binding="{Binding IsSelfRow}" Value="True">
+                        <Setter Property="Opacity" Value="0.72"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
         </DataGrid.RowStyle>
         <DataGrid.Columns>
             <DataGridTemplateColumn Width="96" MinWidth="56" MaxWidth="600" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Cover}"
@@ -137,19 +146,6 @@
                               SnapsToDevicePixels="True"
                               HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                               VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
-                            <Grid.Style>
-                                <Style TargetType="Grid">
-                                    <Style.Triggers>
-                                        <!-- A mixed category's self row carries no art of its own;
-                                             collapsing the whole cell content also lets the row
-                                             shrink to its text, reading as an annotation line under
-                                             its category rather than a peer row. -->
-                                        <DataTrigger Binding="{Binding IsSelfRow}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Grid.Style>
                             <!-- Rays glow style: arrows riding the art's own silhouette in the
                                  completed gradient's colors, under the two-tone bloom below rather
                                  than in place of it. The same reach as the icon sites, because reach
