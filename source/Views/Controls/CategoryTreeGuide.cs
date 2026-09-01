@@ -8,6 +8,23 @@ using PlayniteAchievements.Views.Helpers;
 namespace PlayniteAchievements.Views.Controls
 {
     /// <summary>
+    /// Args for <see cref="CategoryTreeGuide.CollapseToggleClickedEvent"/>. A boundary glyph
+    /// straddles two rows, so a click on its lower half arrives from the row *below* the category
+    /// being toggled; <see cref="CategoryPathOverride"/> then names that category, since the
+    /// clicked element's DataContext is the wrong row. Null means the clicked row's own path.
+    /// </summary>
+    public sealed class CollapseToggleClickedEventArgs : RoutedEventArgs
+    {
+        public CollapseToggleClickedEventArgs(RoutedEvent routedEvent, object source, string categoryPathOverride)
+            : base(routedEvent, source)
+        {
+            CategoryPathOverride = categoryPathOverride;
+        }
+
+        public string CategoryPathOverride { get; }
+    }
+
+    /// <summary>
     /// Draws one category row's share of the tree: the lanes still open above it, its own stem and
     /// arm, a junction dot, and a descender into its children.
     ///
@@ -223,32 +240,46 @@ namespace PlayniteAchievements.Views.Controls
                 : Math.Max(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1), dotX - beadRadius);
 
             var hasToggle = TryGetToggleGeometry(out var toggleCentre, out var toggleRadius);
+            var hasToggleAbove = TryGetBoundaryToggleAboveGeometry(out var aboveCentre, out var aboveRadius);
+
+            // The glyph sits centred on the row boundary, so whichever half this row draws (its
+            // own glyph as the last row, or the glyph belonging to the boundary above) reaches past
+            // the row's bounds; the clip grows just enough to let it.
+            var drawsOwnToggle = hasToggle && !shape.ToggleHandledBelow;
+            var clipTop = hasToggleAbove ? -(aboveRadius + 2d) : 0d;
+            var clipBottom = height + (drawsOwnToggle ? toggleRadius + 2d : 0d);
 
             // Half-pixel offsets on a 1px pen, so the lines land on device pixels instead of
             // straddling two and rendering as a soft 2px smear.
             drawingContext.PushGuidelineSet(BuildGuidelines(
-                shape, dotX, mid, hasToggle ? toggleCentre.Y : double.NaN));
-            drawingContext.PushClip(new RectangleGeometry(new Rect(RenderSize)));
+                shape, dotX, mid,
+                hasToggle ? toggleCentre.Y : double.NaN,
+                hasToggleAbove ? aboveCentre.X : double.NaN));
+            drawingContext.PushClip(new RectangleGeometry(
+                new Rect(0d, clipTop, RenderSize.Width, clipBottom - clipTop)));
+
+            // The boundary glyph above occupies this row's top edge on its own stem lane; the stem
+            // starts below it so no line runs through the circle's interior.
+            var stemTopY = 0d;
+            if (hasToggleAbove && shape.ToggleBoundaryAboveDepth == shape.Depth - 1)
+            {
+                stemTopY = Math.Min(aboveRadius, Math.Max(0d, mid - CategoryTreeGuideMetrics.CornerRadius));
+            }
 
             // Lines under the beads: the structure recedes, the rows read first.
             drawingContext.PushOpacity(Math.Max(0d, Math.Min(1d, LineOpacity)));
             try
             {
                 DrawAncestorLanes(drawingContext, pen, shape, height);
-                DrawOwnStem(drawingContext, pen, shape, armEndX, mid, height);
+                DrawOwnStem(drawingContext, pen, shape, armEndX, mid, height, stemTopY);
 
                 if (hasToggle)
                 {
-                    // The glyph circle's interior is transparent, so the descender is split around
-                    // it. Collapsed, nothing follows below: only the stub down to the glyph stays,
-                    // keeping the circled "+" attached to the tree instead of floating.
+                    // The glyph circle's interior is transparent, so the descender stops at its
+                    // top; below the boundary the next row's stem (gapped under the glyph) or
+                    // nothing at all continues the line.
                     drawingContext.DrawLine(
                         pen, new Point(dotX, mid), new Point(dotX, toggleCentre.Y - toggleRadius));
-                    if (!IsCollapsed)
-                    {
-                        drawingContext.DrawLine(
-                            pen, new Point(dotX, toggleCentre.Y + toggleRadius), new Point(dotX, height));
-                    }
                 }
                 else if (shape.HasChildren)
                 {
@@ -264,9 +295,17 @@ namespace PlayniteAchievements.Views.Controls
             {
                 DrawJunction(drawingContext, pen, effectiveHasChildren, dotX, mid, beadRadius);
 
-                if (hasToggle)
+                if (drawsOwnToggle)
                 {
-                    DrawToggle(drawingContext, pen, toggleCentre, toggleRadius);
+                    DrawToggle(drawingContext, pen, toggleCentre, toggleRadius, IsCollapsed);
+                }
+
+                if (hasToggleAbove)
+                {
+                    // The row boundary belongs to whoever paints last: this row renders after the
+                    // one above, so the glyph drawn here survives both rows' backgrounds.
+                    DrawToggle(drawingContext, pen, aboveCentre, aboveRadius,
+                        shape.ToggleBoundaryAboveIsCollapsed);
                 }
             }
             finally
@@ -277,12 +316,13 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// Whether this row shows the expand/collapse toggle, and where. The glyph sits on the
-        /// descender at the child lane, just inside the row's bottom edge - reading as "on the line
-        /// between this row and its children" while staying inside this row's render bounds
-        /// (per-row rendering cannot straddle the row boundary). On a short row it shrinks to stay
-        /// clear of the junction bead, and past a floor of 3px it is skipped entirely - children
-        /// stay reachable through Expand All.
+        /// Whether this row carries the expand/collapse toggle, and where: centred on the row's
+        /// bottom boundary at the child lane, reading as "on the line between this row and its
+        /// children". This row's own descender stops at the glyph's top; the glyph itself is drawn
+        /// by the row beneath (which paints later, so the circle survives that row's background)
+        /// unless this is the last row (<see cref="CategoryTreeShape.ToggleHandledBelow"/> false).
+        /// Sized by <see cref="CategoryTreeGuideMetrics.GetBoundaryToggleRadius"/>, which shrinks
+        /// on short rows and returns 0 past a floor - children stay reachable through Expand All.
         /// </summary>
         private bool TryGetToggleGeometry(out Point centre, out double radius)
         {
@@ -297,74 +337,131 @@ namespace PlayniteAchievements.Views.Controls
                 return false;
             }
 
-            var mid = Math.Round(height / 2d);
-            var dotX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth);
-            var beadRadius = CategoryTreeGuideMetrics.GetBeadRadius(shape.Depth, hasChildren: true);
-
-            var toggleRadius = CategoryTreeGuideMetrics.GetToggleRadius(shape.Depth);
-            var clearance = mid + beadRadius + 1d;
-            var maxRadius = (height - 1.5d - clearance) / 2d;
-            toggleRadius = Math.Min(toggleRadius, maxRadius);
-            if (toggleRadius < 3d)
+            radius = CategoryTreeGuideMetrics.GetBoundaryToggleRadius(shape.Depth, height);
+            if (radius <= 0d)
             {
                 return false;
             }
 
-            centre = new Point(dotX, height - toggleRadius - 1.5d);
-            radius = toggleRadius;
+            centre = new Point(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth), height);
             return true;
+        }
+
+        /// <summary>
+        /// The boundary glyph belonging to the row above (see
+        /// <see cref="CategoryTreeShape.ToggleBoundaryAbovePath"/>): centred on this row's top
+        /// edge at that category's lane. Sized against this row's own height - rows in a grid share
+        /// a height, so both rows resolve the same circle without seeing each other.
+        /// </summary>
+        private bool TryGetBoundaryToggleAboveGeometry(out Point centre, out double radius)
+        {
+            centre = default(Point);
+            radius = 0d;
+
+            var shape = Shape;
+            var height = RenderSize.Height;
+            if (!ShowCollapseToggle || shape?.ToggleBoundaryAbovePath == null || height <= 0d)
+            {
+                return false;
+            }
+
+            radius = CategoryTreeGuideMetrics.GetBoundaryToggleRadius(shape.ToggleBoundaryAboveDepth, height);
+            if (radius <= 0d)
+            {
+                return false;
+            }
+
+            centre = new Point(CategoryTreeGuideMetrics.GetLaneCentre(shape.ToggleBoundaryAboveDepth), 0d);
+            return true;
+        }
+
+        private static double GetToggleHitRadius(double radius)
+        {
+            return Math.Max(9d, radius + 4d);
         }
 
         /// <summary>
         /// The circled "-" (expanded) or "+" (collapsed), drawn at the beads' full strength in the
         /// bead brush. Hover fills the circle with the row-hover background - the same feedback the
-        /// control bar's chevron toggles give - and IsMouseOver only reads true over the toggle's
-        /// own hit circle, because that circle is all this element ever claims for hit testing.
+        /// control bar's chevron toggles give. The fill is resolved per circle rather than from
+        /// IsMouseOver alone, because one guide can carry two toggles: its own on the bottom
+        /// boundary and the row above's on the top.
         /// </summary>
-        private void DrawToggle(DrawingContext drawingContext, Pen linePen, Point centre, double radius)
+        private void DrawToggle(DrawingContext drawingContext, Pen linePen, Point centre, double radius, bool collapsed)
         {
             var glyphBrush = NodeBrush ?? linePen.Brush;
-            var fill = IsMouseOver ? ToggleHoverBackgroundBrush : null;
+            var fill = IsMouseWithinToggle(centre, radius) ? ToggleHoverBackgroundBrush : null;
             drawingContext.DrawEllipse(fill, CreateGuidePen(glyphBrush, 1.2d), centre, radius, radius);
 
             var arm = radius - 2d;
             var strokePen = CreateGuidePen(glyphBrush, 1.4d);
             drawingContext.DrawLine(
                 strokePen, new Point(centre.X - arm, centre.Y), new Point(centre.X + arm, centre.Y));
-            if (IsCollapsed)
+            if (collapsed)
             {
                 drawingContext.DrawLine(
                     strokePen, new Point(centre.X, centre.Y - arm), new Point(centre.X, centre.Y + arm));
             }
         }
 
+        private bool IsMouseWithinToggle(Point centre, double radius)
+        {
+            if (!IsMouseOver)
+            {
+                return false;
+            }
+
+            return (Mouse.GetPosition(this) - centre).Length <= GetToggleHitRadius(radius);
+        }
+
         /// <summary>
-        /// Only the toggle's (enlarged) circle is a hit target; everywhere else the guide stays
+        /// Only the toggles' (enlarged) circles are hit targets; everywhere else the guide stays
         /// transparent to the mouse and clicks belong to the row, exactly as when hit testing is
-        /// off. The circle is grown past the drawn glyph because a 3-5px glyph is an unfair target.
+        /// off. Each boundary glyph is split between the two rows it straddles - hit testing never
+        /// reaches past a row's own bounds - so this row claims the lower half of its own glyph
+        /// and the upper half of the one above. The circles are grown past the drawn glyph because
+        /// a 3-5px glyph is an unfair target.
         /// </summary>
         protected override HitTestResult HitTestCore(PointHitTestParameters hitTestParameters)
         {
-            if (!TryGetToggleGeometry(out var centre, out var radius))
+            if (TryGetToggleGeometry(out var centre, out var radius) &&
+                (hitTestParameters.HitPoint - centre).Length <= GetToggleHitRadius(radius))
             {
-                return null;
+                return new PointHitTestResult(this, hitTestParameters.HitPoint);
             }
 
-            var hitRadius = Math.Max(9d, radius + 4d);
-            return (hitTestParameters.HitPoint - centre).Length <= hitRadius
-                ? new PointHitTestResult(this, hitTestParameters.HitPoint)
-                : null;
+            if (TryGetBoundaryToggleAboveGeometry(out var aboveCentre, out var aboveRadius) &&
+                (hitTestParameters.HitPoint - aboveCentre).Length <= GetToggleHitRadius(aboveRadius))
+            {
+                return new PointHitTestResult(this, hitTestParameters.HitPoint);
+            }
+
+            return null;
         }
 
         protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
         {
             base.OnPreviewMouseLeftButtonDown(e);
 
-            // Reached only via HitTestCore's circle. Handling the tunneling event marks the shared
+            // Reached only via HitTestCore's circles. Handling the tunneling event marks the shared
             // args handled, so the paired bubbling MouseLeftButtonDown never reaches DataGridCell -
             // no selection change, and so no drill-in.
             e.Handled = true;
-            RaiseEvent(new RoutedEventArgs(CollapseToggleClickedEvent, this));
+
+            // A click on the row above's glyph (its lower half lives in this row) toggles that
+            // category, not this row's - the args carry its path past this row's DataContext.
+            var position = e.GetPosition(this);
+            string overridePath = null;
+            var ownHit = TryGetToggleGeometry(out var centre, out var radius) &&
+                (position - centre).Length <= GetToggleHitRadius(radius);
+            if (!ownHit &&
+                TryGetBoundaryToggleAboveGeometry(out var aboveCentre, out var aboveRadius) &&
+                (position - aboveCentre).Length <= GetToggleHitRadius(aboveRadius))
+            {
+                overridePath = Shape?.ToggleBoundaryAbovePath;
+            }
+
+            RaiseEvent(new CollapseToggleClickedEventArgs(CollapseToggleClickedEvent, this, overridePath));
         }
 
         protected override void OnMouseEnter(MouseEventArgs e)
@@ -407,7 +504,8 @@ namespace PlayniteAchievements.Views.Controls
         /// <summary>
         /// The row's own connector. A last sibling closes with a rounded elbow and stops at the
         /// middle; anything else keeps the lane running to the bottom for the sibling underneath.
-        /// A root has neither - it has no parent to connect to.
+        /// A root has neither - it has no parent to connect to. <paramref name="stemTopY"/> starts
+        /// the stem below the row's top edge when the parent's boundary glyph occupies it.
         /// </summary>
         private static void DrawOwnStem(
             DrawingContext drawingContext,
@@ -415,7 +513,8 @@ namespace PlayniteAchievements.Views.Controls
             CategoryTreeShape shape,
             double armEndX,
             double mid,
-            double height)
+            double height,
+            double stemTopY)
         {
             if (shape.Depth <= 1)
             {
@@ -425,7 +524,7 @@ namespace PlayniteAchievements.Views.Controls
             var stemX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1);
             if (!shape.IsLastSibling)
             {
-                drawingContext.DrawLine(pen, new Point(stemX, 0d), new Point(stemX, height));
+                drawingContext.DrawLine(pen, new Point(stemX, stemTopY), new Point(stemX, height));
                 drawingContext.DrawLine(pen, new Point(stemX, mid), new Point(armEndX, mid));
                 return;
             }
@@ -434,7 +533,7 @@ namespace PlayniteAchievements.Views.Controls
             var geometry = new StreamGeometry();
             using (var context = geometry.Open())
             {
-                context.BeginFigure(new Point(stemX, 0d), false, false);
+                context.BeginFigure(new Point(stemX, stemTopY), false, false);
                 context.LineTo(new Point(stemX, mid - radius), true, false);
                 context.QuadraticBezierTo(
                     new Point(stemX, mid),
@@ -504,13 +603,19 @@ namespace PlayniteAchievements.Views.Controls
             CategoryTreeShape shape,
             double dotX,
             double mid,
-            double toggleY = double.NaN)
+            double toggleY = double.NaN,
+            double toggleAboveX = double.NaN)
         {
             var guidelines = new GuidelineSet();
             guidelines.GuidelinesY.Add(mid + 0.5d);
             if (!double.IsNaN(toggleY))
             {
                 guidelines.GuidelinesY.Add(toggleY + 0.5d);
+            }
+
+            if (!double.IsNaN(toggleAboveX))
+            {
+                guidelines.GuidelinesX.Add(toggleAboveX + 0.5d);
             }
 
             for (var lane = 0; lane < shape.AncestorContinues.Count; lane++)
