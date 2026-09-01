@@ -1226,8 +1226,9 @@ namespace PlayniteAchievements.ViewModels
             // Name-line offset: a positive value indents the title line to the right; a negative
             // value indents every other line instead, so the title line (with its inline badge)
             // never slides left under the icon column. The standalone completion notification has
-            // no inline badge (its title is "Game Complete!"), so the offset does not apply there.
-            var offset = IsGameCompleted ? 0 : surface.TitleLineOffset;
+            // no inline badge (its title is "Game Complete!"), and a progress notification hides
+            // every badge placement, so the offset does not apply to either.
+            var offset = IsGameCompleted || IsProgressUpdate ? 0 : surface.TitleLineOffset;
             var titleIndent = offset > 0 ? offset : 0;
             var otherIndent = offset < 0 ? -offset : 0;
 
