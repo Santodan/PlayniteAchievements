@@ -97,18 +97,23 @@ namespace PlayniteAchievements.Services.Recording
         private const double ChimeMaxSliceSeconds = 4.0;
         private const double ChimeFadeOutSeconds = 0.15;
 
-        // How far the chime onset precedes the card in the clip. Measured per clip from the two
-        // stamps that bracket it live -- when the sound fired, and when the card's first frame
-        // rendered -- because the composited card plays its own recorded animation from its first
-        // frame, so that frame is what the chime must lead.
+        // The chime placement's stamp gap: how far the sound LAUNCH preceded the card's first
+        // rendered frame live, measured per clip from those two stamps. What the listener heard
+        // lead by is source-dependent — a captured-sidecar excerpt starts at the launch stamp and
+        // carries the live launch-to-audible latency as leading audio, so it is placed at the full
+        // gap; a file mix has no latency, so the toast service's sound-alignment delay (its model
+        // of that latency, applied live so the audible onset lands on the reveal) is subtracted at
+        // the placement site.
         //
-        // The constant this replaces was 0.75s, derived as the sound-align delay plus the slide-in
-        // duration, i.e. the distance to the SETTLED card. Subtracting it from the animation start
-        // double-counted the slide and put the chime a slide-length early; on the fast path, whose
-        // sound-align delay is 150ms rather than 450ms, it was early by twice that again. Both are
-        // themeable or version-dependent, so they are read rather than modelled.
+        // The fallback stands in when either stamp is missing; the max guards against a stamp
+        // from a different wave. The constant an earlier fix replaced was 0.75s, derived as the
+        // sound-align delay plus the slide-in duration, i.e. the distance to the SETTLED card —
+        // both themeable or version-dependent, so they are read rather than modelled.
         private const double ChimeLeadFallbackSeconds = 0.45;
         private const double ChimeLeadMaxSeconds = 2.0;
+        // Stands in for the toast service's applied sound-alignment delay when a file-mixed chime
+        // arrives without one; matches that service's URI-path constant, the larger of its two.
+        private const int ChimeAlignmentFallbackMs = 450;
 
         /// <summary>
         /// Stands in for the volume UniPlaySong played the chime at when that volume cannot be
@@ -292,6 +297,14 @@ namespace PlayniteAchievements.Services.Recording
 
             /// <summary>The volume the file played at (0..1), or null to use the fixed gain.</summary>
             public double? OwnSoundFileGain;
+
+            /// <summary>
+            /// The sound-alignment delay the toast service applied for this wave's chime, in
+            /// milliseconds — its model of the launch-to-audible latency on the live playback
+            /// path. Subtracted from the launch-to-card gap when placing the mixed chime, which
+            /// has no such latency. Null when no sound fired.
+            /// </summary>
+            public int? OwnSoundAlignmentMs;
 
             /// <summary>
             /// Notification delay snapshotted at unlock. Non-zero means the wave itself is held
@@ -1166,6 +1179,7 @@ namespace PlayniteAchievements.Services.Recording
                             soundMatch.OwnSoundUtc = e.SoundPlayedUtc;
                             soundMatch.OwnSoundFilePath = e.SoundFilePath;
                             soundMatch.OwnSoundFileGain = e.SoundFileGain;
+                            soundMatch.OwnSoundAlignmentMs = e.SoundAlignmentDelayMs;
                         }
                     }
 
@@ -1536,6 +1550,28 @@ namespace PlayniteAchievements.Services.Recording
             var endSeconds = toastStartSeconds + overlaySeconds;
             var chimeLeadSeconds = ResolveChimeLeadSeconds(request, track);
 
+            // The wave's own chime, mixed in ahead of the composited card. The stamp gap is
+            // launch-to-card; how much of it the listener actually heard as a lead depends on the
+            // chime source. The captured-sidecar excerpt starts at the launch stamp and carries
+            // the live playback path's launch-to-audible latency as leading audio, so it keeps the
+            // full gap. A file mix has no such latency — placed at the full gap, its onset lands
+            // early by exactly the latency the toast service's sound-alignment delay models — so
+            // that model is subtracted, putting the onset on the reveal, as heard live.
+            var chimeRead = await TryReadChimePcmAsync(session, request).ConfigureAwait(false);
+            var chimePcm = chimeRead.Pcm;
+            if (chimePcm != null && chimeRead.FromFile)
+            {
+                int? alignmentMs;
+                lock (_gate)
+                {
+                    alignmentMs = request.OwnSoundAlignmentMs;
+                }
+
+                chimeLeadSeconds = Math.Max(
+                    0,
+                    chimeLeadSeconds - (alignmentMs ?? ChimeAlignmentFallbackMs) / 1000.0);
+            }
+
             // Where the card landed, and how far the real notification was from it. Unlock-anchored,
             // that gap is the provider's detection lag, and seeing it beside the placement makes an
             // odd-looking clip readable without reasoning backwards from the window. Display-anchored,
@@ -1548,10 +1584,8 @@ namespace PlayniteAchievements.Services.Recording
                 $"{(track.StartUtc - window.ToastAnchorUtc).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}s later " +
                 $"({Stamp(track.StartUtc)}). lead={videoLeadSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
                 $"end={endSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
-                $"chimeLead={chimeLeadSeconds.ToString("F3", CultureInfo.InvariantCulture)}s");
-            // The wave's own chime, read from the Playnite-only sidecar at its real time, mixed
-            // in ahead of the composited card by the lead the two actually had live.
-            var chimePcm = await TryReadChimePcmAsync(session, request).ConfigureAwait(false);
+                $"chimeLead={chimeLeadSeconds.ToString("F3", CultureInfo.InvariantCulture)}s " +
+                $"chimeSource={(chimePcm == null ? "none" : chimeRead.FromFile ? "file" : "sidecar")}");
             var chimeStartSeconds = toastStartSeconds - chimeLeadSeconds;
             var tempPath = Path.Combine(session.BufferDirectory, $"clipovl_{Guid.NewGuid():N}.mp4");
             await _reencodeGate.WaitAsync().ConfigureAwait(false);
@@ -1890,10 +1924,11 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// How far the chime onset precedes the composited card, from the live stamps: the moment
-        /// the wave sound fired, and the moment the card's first frame rendered. The card plays its
-        /// recorded animation from that first frame, so reproducing this gap reproduces what the
-        /// user heard and saw.
+        /// The stamp gap between the wave sound's launch and the card's first rendered frame. The
+        /// card plays its recorded animation from that first frame, so this gap positions the
+        /// chime excerpt against the composited card; the placement site subtracts the live
+        /// playback path's modelled launch-to-audible latency when the excerpt is a latency-free
+        /// file mix.
         /// <para>
         /// Falls back to the sound-align delay's default when either stamp is missing, or when
         /// their gap is not plausible — negative means the card beat its own sound, and a very
@@ -1938,7 +1973,8 @@ namespace PlayniteAchievements.Services.Recording
         /// toast fires, so without closed chunks the newest one is essentially always mid-write
         /// and every clip silently lost its chime.
         /// </summary>
-        private async Task<byte[]> TryReadChimePcmAsync(CaptureSession session, ClipRequest request)
+        private async Task<(byte[] Pcm, bool FromFile)> TryReadChimePcmAsync(
+            CaptureSession session, ClipRequest request)
         {
             DateTime? ownSound;
             string soundFilePath;
@@ -1955,7 +1991,7 @@ namespace PlayniteAchievements.Services.Recording
             // none.
             if (!ownSound.HasValue)
             {
-                return null;
+                return (null, false);
             }
 
             var chimeSeconds =
@@ -1971,7 +2007,7 @@ namespace PlayniteAchievements.Services.Recording
                 if (filePcm != null)
                 {
                     PcmAudio.FadeOutTail(filePcm, ChimeFadeOutSeconds);
-                    return filePcm;
+                    return (filePcm, true);
                 }
 
                 _logger?.Warn(
@@ -1981,7 +2017,7 @@ namespace PlayniteAchievements.Services.Recording
 
             if (session.ChimeRecorder == null)
             {
-                return null;
+                return (null, false);
             }
 
             // Ask the sidecar recorders to close the chunks covering the chime window instead of
@@ -2032,7 +2068,7 @@ namespace PlayniteAchievements.Services.Recording
                     _logger?.Warn(
                         "[Recording] Chime sidecar could not be separated from the game reference; " +
                         "the clip keeps its game audio without a re-timed chime.");
-                    return null;
+                    return (null, false);
                 }
 
                 var outcome = CancelGameFromPlayniteSlice(pcm, referencePcm, out var cancellation);
@@ -2043,7 +2079,7 @@ namespace PlayniteAchievements.Services.Recording
                         $"reference (correlation={cancellation.Correlation:0.000} " +
                         $"gain={cancellation.Gain:0.00} suppression={cancellation.SuppressionDb:0.0}dB); " +
                         "the clip is mixed without a re-timed chime.");
-                    return null;
+                    return (null, false);
                 }
 
                 _logger?.Debug(
@@ -2059,7 +2095,7 @@ namespace PlayniteAchievements.Services.Recording
                 PcmAudio.FadeOutTail(pcm, ChimeFadeOutSeconds);
             }
 
-            return pcm;
+            return (pcm, false);
         }
 
         /// <summary>
