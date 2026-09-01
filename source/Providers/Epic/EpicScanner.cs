@@ -2,7 +2,6 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
-using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
 using Playnite.SDK.Models;
@@ -67,15 +66,7 @@ namespace PlayniteAchievements.Providers.Epic
                 onGameStarting,
                 async (game, token) =>
                 {
-                    var gameId = game?.GameId?.Trim();
-                    if (game != null &&
-                        GameCustomDataLookup.TryGetProviderOverrideValue(game.Id, "Epic", out var overrideId) &&
-                        !string.IsNullOrWhiteSpace(overrideId))
-                    {
-                        gameId = overrideId.Trim();
-                    }
-
-                    if (string.IsNullOrWhiteSpace(gameId))
+                    if (!EpicDataProvider.TryGetEpicGameId(game, out var gameId))
                     {
                         return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                     }
