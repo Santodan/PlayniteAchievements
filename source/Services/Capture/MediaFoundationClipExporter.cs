@@ -67,22 +67,36 @@ namespace PlayniteAchievements.Services.Capture
                     try
                     {
                         _logger?.Debug($"[Recording] MF export: creating sink for {System.IO.Path.GetFileName(outputPath)} ({videoPlan.Segments.Count} video segs, audio={audioPlan?.Segments?.Count ?? 0}).");
-                        sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, null);
-
-                        var videoStream = AddVideoStream(sink, videoPlan.Segments[0].Path);
-                        _logger?.Debug("[Recording] MF export: video stream added.");
-                        var audioStream = -1;
-                        if (audioPlan?.Segments != null && audioPlan.Segments.Count > 0)
+                        using (var sinkAttributes = new MediaAttributes(1))
                         {
-                            audioStream = AddAudioStream(sink, out pcmType);
-                            _logger?.Debug($"[Recording] MF export: audio stream added ({audioStream}).");
+                            // A pure remux gains nothing from the sink's interleave throttling —
+                            // the write loop below already interleaves by timestamp — and the
+                            // queued samples are compressed, so WriteSample never needs to block.
+                            sinkAttributes.Set(SinkWriterAttributeKeys.DisableThrottling, 1);
+                            sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
                         }
-
-                        sink.BeginWriting();
 
                         var clipStart = PlanStartTicks(videoPlan);
                         var clipEnd = PlanEndTicks(videoPlan);
-                        var keyframeStart = FindKeyframeStart(videoPlan.Segments[0].Path, clipStart);
+                        int videoStream;
+                        var audioStream = -1;
+                        long keyframeStart;
+                        // One reader serves both the native-type fetch and the keyframe scan; the
+                        // type fetch reads no samples, so the scan still starts at the file head.
+                        using (var firstSegment = CreateVideoReader(videoPlan.Segments[0].Path))
+                        {
+                            videoStream = AddVideoStream(sink, firstSegment);
+                            _logger?.Debug("[Recording] MF export: video stream added.");
+                            if (audioPlan?.Segments != null && audioPlan.Segments.Count > 0)
+                            {
+                                audioStream = AddAudioStream(sink, out pcmType);
+                                _logger?.Debug($"[Recording] MF export: audio stream added ({audioStream}).");
+                            }
+
+                            sink.BeginWriting();
+                            keyframeStart = FindKeyframeStart(firstSegment, clipStart);
+                        }
+
                         var videoLead = clipStart - keyframeStart; // ≥ 0
                         videoLeadSeconds = videoLead / (double)OneSecond100ns;
                         _logger?.Debug($"[Recording] MF export: keyframeStart={keyframeStart / 10000}ms lead={videoLead / 10000}ms; writing video.");
@@ -108,19 +122,23 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        private static int AddVideoStream(SinkWriter sink, string firstSegmentPath)
+        /// <summary>A reader on one segment with only its first video stream selected.</summary>
+        private static SourceReader CreateVideoReader(string segmentPath)
         {
-            using (var reader = new SourceReader(firstSegmentPath))
+            var reader = new SourceReader(segmentPath);
+            reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
+            reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
+            return reader;
+        }
+
+        private static int AddVideoStream(SinkWriter sink, SourceReader firstSegmentReader)
+        {
+            using (var nativeType = firstSegmentReader.GetNativeMediaType((int)SourceReaderIndex.FirstVideoStream, 0))
             {
-                reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
-                reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
-                using (var nativeType = reader.GetNativeMediaType((int)SourceReaderIndex.FirstVideoStream, 0))
-                {
-                    sink.AddStream(nativeType, out var streamIndex);
-                    // Stream copy: input type == output type, so no encoder MFT is inserted.
-                    sink.SetInputMediaType(streamIndex, nativeType, null);
-                    return streamIndex;
-                }
+                sink.AddStream(nativeType, out var streamIndex);
+                // Stream copy: input type == output type, so no encoder MFT is inserted.
+                sink.SetInputMediaType(streamIndex, nativeType, null);
+                return streamIndex;
             }
         }
 
@@ -246,48 +264,44 @@ namespace PlayniteAchievements.Services.Capture
         /// <paramref name="clipStart"/> — where a stream-copy trim must begin so the first written
         /// sample is decodable. Falls back to 0 (the segment's own opening IDR).
         /// </summary>
-        private static long FindKeyframeStart(string firstSegmentPath, long clipStart)
+        // Takes a fresh reader positioned at the file head (shared with the native-type fetch,
+        // which reads no samples) and consumes it up to the clip start.
+        private static long FindKeyframeStart(SourceReader reader, long clipStart)
         {
-            using (var reader = new SourceReader(firstSegmentPath))
+            long firstTime = -1;
+            long keyframe = 0;
+            while (true)
             {
-                reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
-                reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
-
-                long firstTime = -1;
-                long keyframe = 0;
-                while (true)
+                var sample = reader.ReadSample(
+                    (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
+                    out _, out var flags, out _);
+                if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
                 {
-                    var sample = reader.ReadSample(
-                        (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
-                        out _, out var flags, out _);
-                    if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
-                    {
-                        sample?.Dispose();
-                        break;
-                    }
-
-                    if (firstTime < 0)
-                    {
-                        firstTime = sample.SampleTime;
-                    }
-
-                    var concat = sample.SampleTime - firstTime;
-                    var isKeyframe = IsKeyframe(sample);
-                    sample.Dispose();
-
-                    if (concat > clipStart)
-                    {
-                        break;
-                    }
-
-                    if (isKeyframe)
-                    {
-                        keyframe = concat;
-                    }
+                    sample?.Dispose();
+                    break;
                 }
 
-                return keyframe;
+                if (firstTime < 0)
+                {
+                    firstTime = sample.SampleTime;
+                }
+
+                var concat = sample.SampleTime - firstTime;
+                var isKeyframe = IsKeyframe(sample);
+                sample.Dispose();
+
+                if (concat > clipStart)
+                {
+                    break;
+                }
+
+                if (isKeyframe)
+                {
+                    keyframe = concat;
+                }
             }
+
+            return keyframe;
         }
 
         private struct TimedSample
@@ -386,11 +400,8 @@ namespace PlayniteAchievements.Services.Capture
                     long firstTime = -1;
                     var reachedEnd = false;
 
-                    using (var reader = new SourceReader(segment.Path))
+                    using (var reader = CreateVideoReader(segment.Path))
                     {
-                        reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
-                        reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
-
                         while (true)
                         {
                             var sample = reader.ReadSample(
