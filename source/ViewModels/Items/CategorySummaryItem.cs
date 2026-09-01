@@ -1,3 +1,5 @@
+using PlayniteAchievements.Services.Summaries;
+
 namespace PlayniteAchievements.ViewModels.Items
 {
     /// <summary>
@@ -39,11 +41,50 @@ namespace PlayniteAchievements.ViewModels.Items
         public int DirectAchievementCount { get; set; }
 
         /// <summary>
-        /// On a mixed category's row: the synthesized self row emitted directly beneath it. The
-        /// name cell measures where its text lands and hands the drop anchor to this row through
-        /// it (<see cref="GameSummaryItem.SelfDropAnchorX"/>). Null everywhere else.
+        /// Stats over the achievements labelled exactly this node - what an expanded row reports,
+        /// so the visible rows partition the set. Stashed by the tree builder; null on rows built
+        /// by the flat and level surfaces, which never swap.
         /// </summary>
-        public CategorySummaryItem SelfRow { get; set; }
+        internal AchievementGameStats OwnStats { get; set; }
+
+        /// <summary>
+        /// Stats over the node's whole subtree - what a collapsed row reports, absorbing the
+        /// descendants its collapse hid. Stashed by the tree builder; null elsewhere.
+        /// </summary>
+        internal AchievementGameStats SubtreeStats { get; set; }
+
+        internal bool OwnIsCompleted { get; set; }
+
+        internal bool SubtreeIsCompleted { get; set; }
+
+        /// <summary>
+        /// Which snapshot the row's live stat properties currently hold. Defaults to Own because
+        /// the builder applies the own-members reading as it emits the row.
+        /// </summary>
+        internal CategoryStatsScope AppliedStatsScope { get; private set; } = CategoryStatsScope.Own;
+
+        /// <summary>
+        /// Swaps the row's live stat properties to the given snapshot in place. Every setter the
+        /// grid binds raises change notification, so the published row repaints without any list
+        /// churn. No-op when the scope already matches or the snapshots were never stashed.
+        /// </summary>
+        internal void ApplyStats(CategoryStatsScope scope)
+        {
+            if (scope == AppliedStatsScope)
+            {
+                return;
+            }
+
+            var stats = scope == CategoryStatsScope.Subtree ? SubtreeStats : OwnStats;
+            if (stats == null)
+            {
+                return;
+            }
+
+            stats.ApplyTo(this);
+            IsCompleted = scope == CategoryStatsScope.Subtree ? SubtreeIsCompleted : OwnIsCompleted;
+            AppliedStatsScope = scope;
+        }
 
         /// <summary>
         /// The category's group-based type token (one of Base/DLC/Update/Subset, or Default when the
