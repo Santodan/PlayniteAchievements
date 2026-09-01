@@ -887,6 +887,150 @@ namespace PlayniteAchievements.Services.Recording
         internal bool WouldRequestClip(AchievementUnlockedEventArgs e) =>
             EvaluateClipEligibility(e, out _) == ClipEligibility.Eligible;
 
+        /// <summary>
+        /// Decodes the frame at an unlock's video anchor out of the rolling buffer, so the unlock
+        /// screenshot can depict the true unlock moment instead of the (possibly much later)
+        /// instant the toast fired — a provider can surface an unlock tens of seconds after its
+        /// reported time. The anchor is validated through the same
+        /// <see cref="SegmentTimeline.ComputeClipWindow"/> rules the clip uses, so the screenshot
+        /// and the clip always agree on the instant. Returns null whenever the buffer cannot
+        /// answer — no active capture for this game, the covering segment is still being written
+        /// or already pruned, or the decode fails — and the caller falls back to the live screen
+        /// grab. The clip's rarity/provider gates deliberately do not apply: they decide whether
+        /// a clip is produced, not whether buffered footage of this game exists. Pool thread.
+        /// </summary>
+        internal System.Drawing.Bitmap TryCaptureAnchorFrame(AchievementUnlockedEventArgs e, int capHeight)
+        {
+            if (_disposed || e == null || e.IsPreview || e.IsTestFire || e.IsFriendUnlock)
+            {
+                return null;
+            }
+
+            CaptureSession session;
+            lock (_gate)
+            {
+                session = _session;
+            }
+
+            if (session == null || session.Stopping || session.WgcRecorder == null)
+            {
+                return null;
+            }
+
+            if (e.PlayniteGameId != Guid.Empty &&
+                session.OwnerGameId != Guid.Empty &&
+                e.PlayniteGameId != session.OwnerGameId)
+            {
+                return null;
+            }
+
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                var observedUtc = e.ObservedUtc == default(DateTime)
+                    ? CaptureTimelineClock.UtcNow
+                    : AsUtc(e.ObservedUtc);
+                var videoAnchorUtc = e.VideoAnchorUtc ?? e.UnlockTimeUtc;
+                if (videoAnchorUtc.HasValue)
+                {
+                    videoAnchorUtc = AsUtc(videoAnchorUtc.Value);
+                }
+
+                // Zero slot and tail: only the validated ToastAnchorUtc is wanted; the pre-roll
+                // and poll interval mirror the clip's call so the staleness bound is identical.
+                var anchorUtc = SegmentTimeline.ComputeClipWindow(
+                    videoAnchorUtc,
+                    observedUtc,
+                    session.CaptureStartUtc,
+                    oldestSegmentStartUtc: null,
+                    pollIntervalSeconds: Math.Max(10, persisted.InGamePollIntervalSeconds),
+                    preRollSeconds: persisted.RecordingClipSeconds,
+                    toastSlotSeconds: 0,
+                    tailSeconds: 0).ToastAnchorUtc;
+
+                // Suspend pruning back to the covering segment's earliest possible start while it
+                // is read; the same list/guard the base-clip extraction uses.
+                var guardUtc = anchorUtc.AddSeconds(-SegmentSeconds);
+                lock (_outstandingGate)
+                {
+                    _outstandingWindowStarts.Add(guardUtc);
+                }
+
+                try
+                {
+                    var segments = SegmentTimeline.ParseSegments(
+                        ListBufferFiles(
+                            session.BufferDirectory,
+                            RecordingPaths.SegmentFilePrefix,
+                            session.SegmentExtension),
+                        TimeZoneInfo.Local,
+                        RecordingPaths.SegmentFilePrefix,
+                        session.SegmentExtension);
+                    if (segments.Count == 0)
+                    {
+                        return null;
+                    }
+
+                    SegmentTimeline.SegmentInfo covering = null;
+                    foreach (var segment in segments)
+                    {
+                        if (segment.StartUtc <= anchorUtc)
+                        {
+                            covering = segment;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+
+                    // The newest segment is still being written (no moov atom yet) and cannot be
+                    // read; an anchor far past the covering segment's span means the footage is
+                    // simply not there (a capture gap), where the live grab is the honest answer.
+                    if (covering == null ||
+                        ReferenceEquals(covering, segments[segments.Count - 1]))
+                    {
+                        return null;
+                    }
+
+                    var offsetSeconds = (anchorUtc - covering.StartUtc).TotalSeconds;
+                    if (offsetSeconds > SegmentSeconds + 2)
+                    {
+                        return null;
+                    }
+
+                    var frame = MediaFoundationFrameExtractor.ExtractFrame(
+                        covering.Path, offsetSeconds, _logger);
+                    if (frame == null)
+                    {
+                        return null;
+                    }
+
+                    _logger?.Info(
+                        $"[Recording] Unlock screenshot for '{e.DisplayName}' uses the buffered frame at " +
+                        $"{anchorUtc:HH:mm:ss.f} ({offsetSeconds.ToString("F2", CultureInfo.InvariantCulture)}s into its segment).");
+                    return _screenshotService.ApplyResolutionCap(frame, capHeight);
+                }
+                finally
+                {
+                    lock (_outstandingGate)
+                    {
+                        _outstandingWindowStarts.Remove(guardUtc);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[Recording] Buffered screenshot frame failed for '{e.DisplayName}'.");
+                return null;
+            }
+        }
+
         private void OnAchievementUnlocked(object sender, AchievementUnlockedEventArgs e)
         {
             switch (EvaluateClipEligibility(e, out var session))
