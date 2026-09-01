@@ -337,6 +337,7 @@
     <Compile Include="..\..\source\Models\Friends\FriendModels.cs" Link="Source\Models\Friends\FriendModels.cs" />
     <Compile Include="..\..\source\Models\Settings\AchievementHotkeyGesture.cs" Link="Source\Models\Settings\AchievementHotkeyGesture.cs" />
     <Compile Include="..\..\source\Models\Settings\FriendSettingsEntry.cs" Link="Source\Models\Settings\FriendSettingsEntry.cs" />
+    <Compile Include="..\..\source\Models\Settings\CategoryProgressMode.cs" Link="Source\Models\Settings\CategoryProgressMode.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.cs" Link="Source\Models\Settings\PersistedSettings.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" />
