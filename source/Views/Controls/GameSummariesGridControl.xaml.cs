@@ -74,11 +74,15 @@ namespace PlayniteAchievements.Views.Controls
         };
 
         // Columns with no per-category meaning; dropped entirely from category-summaries grids.
+        // Captures is among them: nothing marks HasCaptures on category rows and the viewer
+        // resolves by the row's game identity, which a category row does not carry - the column
+        // could only ever render empty there.
         private static readonly string[] CategoryExcludedColumnKeys =
         {
             "GameSummaryPlatform",
             "GameSummaryPlaytime",
-            "GameSummaryLastPlayed"
+            "GameSummaryLastPlayed",
+            "Captures"
         };
 
         private static readonly string[] MirroredAppearanceResourceKeys =
