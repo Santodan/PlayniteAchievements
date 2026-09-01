@@ -519,7 +519,7 @@ namespace PlayniteAchievements.Tests.Services.Summaries
         }
 
         [TestMethod]
-        public void BuildTree_CountsEachNodeOnItsOwnMembers()
+        public void BuildTree_RollsEveryNodeUpToItsSubtree()
         {
             var items = new List<AchievementDisplayItem>
             {
@@ -530,26 +530,99 @@ namespace PlayniteAchievements.Tests.Services.Summaries
             };
 
             var tree = CategorySummaryBuilder.BuildTree(items).Cast<CategorySummaryItem>().ToList();
-            var byPath = tree.ToDictionary(r => r.CategoryPath, r => r, StringComparer.OrdinalIgnoreCase);
 
-            // Rows partition the set: a parent reports only what is labelled exactly itself, so a
-            // node that is purely a folder reads 0/0 rather than restating its children's counts.
-            Assert.AreEqual(0, byPath["DLC"].TotalAchievements, "a folder-only parent holds none of its own");
-            Assert.AreEqual(0, byPath["DLC"].UnlockedAchievements);
-            Assert.AreEqual(1, byPath["DLC::Winter"].TotalAchievements);
-            Assert.AreEqual(1, byPath["DLC::Winter"].UnlockedAchievements);
-            Assert.AreEqual(1, byPath["DLC::Winter::Frost"].TotalAchievements);
-            Assert.AreEqual(0, byPath["DLC::Winter::Frost"].UnlockedAchievements);
-            Assert.AreEqual(1, byPath["Multiplayer"].TotalAchievements);
-            Assert.AreEqual(items.Count, tree.Sum(r => r.TotalAchievements), "the rows partition the set");
+            // A row's numbers describe everything drilling into it reveals, so a folder-only
+            // parent reads as the sum of its descendants rather than 0/0.
+            var dlc = tree.Single(r => r.CategoryPath == "DLC");
+            Assert.AreEqual(3, dlc.TotalAchievements, "a folder-only parent sums its subtree");
+            Assert.AreEqual(2, dlc.UnlockedAchievements);
+
+            var winter = tree.Single(r => r.CategoryPath == "DLC::Winter" && !r.IsSelfRow);
+            Assert.AreEqual(2, winter.TotalAchievements, "a mixed node's own row is the subtree rollup");
+            Assert.AreEqual(1, winter.UnlockedAchievements);
+
+            var frost = tree.Single(r => r.CategoryPath == "DLC::Winter::Frost");
+            Assert.AreEqual(1, frost.TotalAchievements);
+            Assert.AreEqual(0, frost.UnlockedAchievements);
+            Assert.AreEqual(1, tree.Single(r => r.CategoryPath == "Multiplayer").TotalAchievements);
+
+            // Leaf rows - real leaves plus the mixed node's self row - still partition the set.
+            var leaves = tree.Where(r => r.IsSelfRow || r.ChildCategoryCount == 0).ToList();
+            Assert.AreEqual(items.Count, leaves.Sum(r => r.TotalAchievements), "the leaf rows partition the set");
         }
 
         [TestMethod]
-        public void BuildTree_StillEmitsNodesSeveralLevelsDownThatHoldNothing()
+        public void BuildTree_EmitsASelfRowDirectlyUnderAMixedNode()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter", unlocked: true),
+                NestedItem("DLC::Winter", unlocked: false),
+                NestedItem("DLC::Winter::Frost", unlocked: true)
+            };
+
+            var tree = CategorySummaryBuilder
+                .BuildTree(items, CategoryCompletionBadgeMode.All, useLeafNames: true)
+                .Cast<CategorySummaryItem>()
+                .ToList();
+
+            CollectionAssert.AreEqual(
+                new[] { false, false, true, false },
+                tree.Select(r => r.IsSelfRow).ToArray(),
+                "the self row sits directly under its own category, before the child categories");
+
+            var winter = tree[1];
+            var self = tree[2];
+
+            Assert.AreEqual("DLC::Winter", self.CategoryPath, "the self row keeps its category's path");
+            Assert.AreEqual(winter.CategoryDepth + 1, self.CategoryDepth, "the self row sits one level below");
+            Assert.AreEqual(winter.GameName, self.GameName, "the self row reuses its category's name");
+            Assert.AreEqual(2, self.TotalAchievements, "the self row counts only the direct achievements");
+            Assert.AreEqual(1, self.UnlockedAchievements);
+            Assert.AreEqual(2, self.DirectAchievementCount);
+            Assert.AreEqual(0, self.ChildCategoryCount);
+            Assert.IsNull(self.GameLogo, "a self row carries no art");
+            Assert.IsNull(self.GameCoverPath);
+
+            Assert.AreEqual(3, winter.TotalAchievements, "the category row above stays the subtree rollup");
+            Assert.AreEqual(2, winter.UnlockedAchievements);
+        }
+
+        [TestMethod]
+        public void BuildTree_SkipsTheSelfRowWhenTheSubtreeAddsNothing()
+        {
+            // A leaf holds only direct achievements, so its row already is the direct reading.
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter", unlocked: true),
+                NestedItem("Multiplayer")
+            };
+
+            var tree = CategorySummaryBuilder.BuildTree(items).Cast<CategorySummaryItem>().ToList();
+
+            Assert.IsFalse(tree.Any(r => r.IsSelfRow));
+        }
+
+        [TestMethod]
+        public void BuildTree_CompletesAFolderOnlyParentWhenItsWholeSubtreeIs()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter", unlocked: true),
+                NestedItem("DLC::Summer", unlocked: true)
+            };
+
+            var tree = CategorySummaryBuilder.BuildTree(items).Cast<CategorySummaryItem>().ToList();
+
+            Assert.IsTrue(tree.Single(r => r.CategoryPath == "DLC").IsCompleted);
+        }
+
+        [TestMethod]
+        public void BuildTree_StillEmitsNodesSeveralLevelsDownAsSubtreeSums()
         {
             // Achievements only ever sit on the deepest labels, so every node above them has an
             // empty bucket. Those nodes still get a row - the subtree is what decides a node
-            // exists - they just report 0/0, which is what they hold.
+            // exists - and each reports its subtree's sum.
             var items = new List<AchievementDisplayItem>
             {
                 NestedItem("A::B::C::D", unlocked: true),
@@ -558,14 +631,14 @@ namespace PlayniteAchievements.Tests.Services.Summaries
                 NestedItem("A::B::F")
             };
 
-            var byPath = CategorySummaryBuilder.BuildTree(items)
-                .Cast<CategorySummaryItem>()
-                .ToDictionary(r => r.CategoryPath, r => r, StringComparer.OrdinalIgnoreCase);
+            var tree = CategorySummaryBuilder.BuildTree(items).Cast<CategorySummaryItem>().ToList();
+            Assert.IsFalse(tree.Any(r => r.IsSelfRow), "folder-only chains emit no self rows");
 
-            Assert.AreEqual(0, byPath["A"].TotalAchievements);
-            Assert.AreEqual(0, byPath["A"].UnlockedAchievements);
-            Assert.AreEqual(0, byPath["A::B"].TotalAchievements);
-            Assert.AreEqual(0, byPath["A::B::C"].TotalAchievements);
+            var byPath = tree.ToDictionary(r => r.CategoryPath, r => r, StringComparer.OrdinalIgnoreCase);
+            Assert.AreEqual(4, byPath["A"].TotalAchievements);
+            Assert.AreEqual(2, byPath["A"].UnlockedAchievements);
+            Assert.AreEqual(4, byPath["A::B"].TotalAchievements);
+            Assert.AreEqual(3, byPath["A::B::C"].TotalAchievements);
             Assert.AreEqual(2, byPath["A::B::C::D"].TotalAchievements);
             Assert.AreEqual(1, byPath["A::B::C::D"].UnlockedAchievements);
             Assert.AreEqual(1, byPath["A::B::C::E"].TotalAchievements);
