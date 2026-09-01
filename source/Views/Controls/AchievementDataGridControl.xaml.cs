@@ -2036,13 +2036,18 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            var items = (CategorySummarySource ?? ItemsSource)?.ToList();
+            // Fresh rows rather than the list's own instances: those carry stamped tree
+            // connectors, and the header row must not draw an indent. Leaf names, because the
+            // header path above the grid already carries the ancestry. Built from just the
+            // drilled subtree's achievements rather than the whole source - the header row's
+            // counts, art, and type all resolve from its own subtree, so the scoped build
+            // produces the same row without a second whole-tree pass.
+            var items = (CategorySummarySource ?? ItemsSource)?
+                .Where(i => i != null && CategoryPathHelper.IsSelfOrDescendantOf(i.CategoryLabel, drilled))
+                .ToList();
             CategorySummaryItem match = null;
             if (items != null && items.Count > 0)
             {
-                // Fresh rows rather than the list's own instances: those carry stamped tree
-                // connectors, and the header row must not draw an indent. Leaf names, because the
-                // header path above the grid already carries the ancestry.
                 var candidates = CategorySummaryBuilder
                     .BuildTree(items, ResolveCategoryCompletionBadgeMode(), useLeafNames: true, ResolveCategoryProgressMode())
                     .OfType<CategorySummaryItem>()
@@ -2058,6 +2063,19 @@ namespace PlayniteAchievements.Views.Controls
                 if (match != null)
                 {
                     _drillSelfOnly = match.IsSelfRow;
+
+                    // Badge permission is positional in the configured order of the whole list
+                    // (First allows only the first category overall), which the scoped build
+                    // cannot know - its drilled node always comes out first. The list's own row
+                    // carries the stamped answer.
+                    var listRow = _allCategorySummaries?
+                        .OfType<CategorySummaryItem>()
+                        .FirstOrDefault(c => c.IsSelfRow == match.IsSelfRow &&
+                            CategoryPathHelper.IsSame(c.CategoryPath, drilled));
+                    if (listRow != null)
+                    {
+                        match.AllowCompletionBadge = listRow.AllowCompletionBadge;
+                    }
 
                     // In the list the self row leans on the labeled category row directly above
                     // it: unlabeled and dimmed. In this header it stands alone, so it takes the
