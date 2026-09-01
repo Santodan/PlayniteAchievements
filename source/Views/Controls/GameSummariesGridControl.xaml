@@ -137,6 +137,20 @@
                               SnapsToDevicePixels="True"
                               HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                               VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Style.Triggers>
+                                        <!-- In the tree list a self row sits directly under the row
+                                             already carrying this art, so repeating it reads as a
+                                             duplicate. The drilled header shows the same row alone
+                                             and keeps the art: it clears IsSelfRow on its fresh
+                                             instance (see RefreshDrillState). -->
+                                        <DataTrigger Binding="{Binding IsSelfRow}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
                             <!-- Rays glow style: arrows riding the art's own silhouette in the
                                  completed gradient's colors, under the two-tone bloom below rather
                                  than in place of it. The same reach as the icon sites, because reach
@@ -274,15 +288,24 @@
                                  would shrink the art by a different amount on every row. -->
                             <controls:CategoryTreeGuide DockPanel.Dock="Left"
                                                         Shape="{Binding TreeShape}"
+                                                        DropAnchorX="{Binding SelfDropAnchorX}"
                                                         LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
                                                         NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
                           <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
                             <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                         HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
-                                <TextBlock Text="{Binding GameName}"
+                                <TextBlock x:Name="GameNameText"
+                                           Text="{Binding GameName}"
                                            HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                            Style="{StaticResource GameSummaryNameTextStyle}"/>
+                                <!-- Zero-size and layout-inert: draws a mixed category's dashed
+                                     drop from the bottom line of the name above toward its self
+                                     row, measured off the TextBlock itself so it tracks column
+                                     and alignment changes. -->
+                                <controls:CategorySelfDropStub Shape="{Binding TreeShape}"
+                                                               TargetText="{Binding ElementName=GameNameText}"
+                                                               LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
                                 <TextBlock HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                            Style="{StaticResource OverviewGameMetadataTextStyle}">
                                     <TextBlock.Text>

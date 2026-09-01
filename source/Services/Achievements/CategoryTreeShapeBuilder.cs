@@ -17,6 +17,11 @@ namespace PlayniteAchievements.Services.Achievements
     {
         private static readonly bool[] NoLanes = new bool[0];
 
+        // Synthetic leaf segment that places a self row one level under its own category for the
+        // geometry pass. Internal to this builder: it exists only inside the paths array built in
+        // Stamp and is never stored on a row or shown.
+        private const string SelfRowMarkerSegment = "\u0001";
+
         /// <summary>
         /// Stamps the rows with the geometry that draws them as a tree, or clears it.
         ///
@@ -47,7 +52,16 @@ namespace PlayniteAchievements.Services.Achievements
             var paths = new string[categories.Count];
             for (var i = 0; i < categories.Count; i++)
             {
-                paths[i] = categories[i].CategoryPath;
+                // A self row shares its category's path but sits one level below it as its first
+                // child. A synthetic leaf segment gives it exactly that position, and every
+                // positional rule here then applies verbatim: the parent's junction opens for it,
+                // its own elbow reads as a tee because the child categories that made the node
+                // mixed follow as its siblings, and ancestor lanes resolve through the real rows.
+                // The marker never renders and cannot collide with a user segment - segments are
+                // trimmed of whitespace and this is a control character.
+                paths[i] = categories[i].IsSelfRow
+                    ? categories[i].CategoryPath + CategoryPathHelper.Separator + SelfRowMarkerSegment
+                    : categories[i].CategoryPath;
             }
 
             if (!enabled || !HasNesting(paths) || categories.Count != rows.Count)
@@ -63,8 +77,41 @@ namespace PlayniteAchievements.Services.Achievements
             var shapes = Build(paths);
             for (var i = 0; i < categories.Count; i++)
             {
-                categories[i].TreeShape = shapes[i];
+                // Resolved against the emitted rows like everything else here: a self row dropped
+                // by a filter leaves its category without the flag, so nothing dangles toward a
+                // row that is not there.
+                var hasSelfRowBelow =
+                    !categories[i].IsSelfRow &&
+                    i + 1 < categories.Count &&
+                    categories[i + 1].IsSelfRow &&
+                    CategoryPathHelper.IsSame(categories[i + 1].CategoryPath, categories[i].CategoryPath);
+
+                categories[i].TreeShape = categories[i].IsSelfRow || hasSelfRowBelow
+                    ? WithSelfFlags(shapes[i], categories[i].IsSelfRow, hasSelfRowBelow)
+                    : shapes[i];
             }
+        }
+
+        /// <summary>
+        /// Same geometry, marked with the self-row roles so the guide and the name cell draw them
+        /// accordingly. Applied after <see cref="Build"/>, which only sees paths and stays reusable
+        /// for runs that have no self rows in them.
+        /// </summary>
+        private static CategoryTreeShape WithSelfFlags(CategoryTreeShape shape, bool isSelfRow, bool hasSelfRowBelow)
+        {
+            var lanes = new bool[shape.AncestorContinues.Count];
+            for (var i = 0; i < lanes.Length; i++)
+            {
+                lanes[i] = shape.AncestorContinues[i];
+            }
+
+            return new CategoryTreeShape(
+                shape.Depth,
+                shape.IsLastSibling,
+                shape.HasChildren,
+                lanes,
+                isSelfRow,
+                hasSelfRowBelow);
         }
 
         /// <summary>

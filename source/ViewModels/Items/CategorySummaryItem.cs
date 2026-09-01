@@ -39,6 +39,13 @@ namespace PlayniteAchievements.ViewModels.Items
         public int DirectAchievementCount { get; set; }
 
         /// <summary>
+        /// On a mixed category's row: the synthesized self row emitted directly beneath it. The
+        /// name cell measures where its text lands and hands the drop anchor to this row through
+        /// it (<see cref="GameSummaryItem.SelfDropAnchorX"/>). Null everywhere else.
+        /// </summary>
+        public CategorySummaryItem SelfRow { get; set; }
+
+        /// <summary>
         /// The category's group-based type token (one of Base/DLC/Update/Subset, or Default when the
         /// bucket has no group membership). Carries the locale-independent classification so the
         /// theme-facing summary can expose type flags (IsBaseCategory, etc.).

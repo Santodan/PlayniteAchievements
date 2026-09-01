@@ -91,9 +91,16 @@ namespace PlayniteAchievements.Services.Summaries
         /// Builds a row for every node, pre-order: each node immediately followed by its own
         /// subtree.
         ///
-        /// Each row counts only the achievements labelled exactly that node, so the rows partition
-        /// the set and a parent holding none of its own reads 0/0. Art still resolves down the
-        /// subtree, so a parent without its own art inherits a descendant's.
+        /// What a row counts follows <paramref name="progressMode"/>. Under the default
+        /// <see cref="CategoryProgressMode.OwnOnly"/> each row counts only the achievements
+        /// labelled exactly that node, so the rows partition the set and a parent holding none of
+        /// its own reads 0/0. The combined modes count each row's whole subtree instead, so a
+        /// node's numbers describe everything drilling into it reveals; under
+        /// <see cref="CategoryProgressMode.CombinedWithOwnRows"/> a node holding achievements of
+        /// its own beside child categories additionally emits a synthesized self row directly
+        /// under it (<see cref="GameSummaryItem.IsSelfRow"/>) counting only the direct
+        /// achievements, so the leaf rows - real and self - still partition the set. Art always
+        /// resolves down the subtree, so a parent without its own art inherits a descendant's.
         /// </summary>
         /// <param name="useLeafNames">
         /// True to title rows with the last path segment, for a surface that conveys ancestry
@@ -102,7 +109,8 @@ namespace PlayniteAchievements.Services.Summaries
         public static List<GameSummaryItem> BuildTree(
             IEnumerable<AchievementDisplayItem> achievements,
             CategoryCompletionBadgeMode badgeMode = CategoryCompletionBadgeMode.All,
-            bool useLeafNames = false)
+            bool useLeafNames = false,
+            CategoryProgressMode progressMode = CategoryProgressMode.OwnOnly)
         {
             var source = Materialize(achievements);
             if (source == null)
@@ -115,7 +123,7 @@ namespace PlayniteAchievements.Services.Summaries
                 groups.Keys,
                 ResolvePreferredOrder(source));
 
-            return BuildRows(groups, order, aggregateSubtree: true, useLeafNames, badgeMode);
+            return BuildRows(groups, order, aggregateSubtree: true, useLeafNames, badgeMode, progressMode);
         }
 
         private static IReadOnlyList<AchievementDisplayItem> Materialize(
@@ -163,12 +171,19 @@ namespace PlayniteAchievements.Services.Summaries
         /// parent inherit a descendant's art and what keeps a synthesized intermediate node from
         /// being dropped for holding nothing of its own.
         /// </param>
+        /// <param name="progressMode">
+        /// What each row counts: its own members only, its whole subtree, or the subtree plus a
+        /// self row under a node that mixes direct achievements with child categories. Only the
+        /// tree surface varies this; the flat theme surface and the level surface always count a
+        /// node on its own members.
+        /// </param>
         private static List<GameSummaryItem> BuildRows(
             Dictionary<string, List<AchievementDisplayItem>> groups,
             IReadOnlyList<string> orderedNodes,
             bool aggregateSubtree,
             bool useLeafNames,
-            CategoryCompletionBadgeMode badgeMode)
+            CategoryCompletionBadgeMode badgeMode,
+            CategoryProgressMode progressMode = CategoryProgressMode.OwnOnly)
         {
             var result = new List<GameSummaryItem>();
 
@@ -181,11 +196,13 @@ namespace PlayniteAchievements.Services.Summaries
                     continue;
                 }
 
-                // What the row reports: its own members, never a descendant's. Every surface counts
-                // a node this way, so a parent that is purely a folder reads 0/0 rather than
-                // restating its children. The row still renders - `members` above is what decides
-                // the node exists - and art still resolves down the subtree.
-                var counted = (IReadOnlyList<AchievementDisplayItem>)directMembers ?? Array.Empty<AchievementDisplayItem>();
+                // What the row reports. Combined modes count the whole subtree, so a row's numbers
+                // describe exactly what drilling into it reveals; own-only counts the node's own
+                // members, never a descendant's, so the rows partition the set and a theme summing
+                // them counts each achievement once.
+                var counted = progressMode != CategoryProgressMode.OwnOnly
+                    ? (IReadOnlyList<AchievementDisplayItem>)members
+                    : (IReadOnlyList<AchievementDisplayItem>)directMembers ?? Array.Empty<AchievementDisplayItem>();
 
                 var depth = CategoryPathHelper.GetDepth(node);
                 var display = useLeafNames && depth > 1
@@ -224,9 +241,66 @@ namespace PlayniteAchievements.Services.Summaries
                 item.AllowCompletionBadge = AllowsCompletionBadge(badgeMode, result.Count);
 
                 result.Add(item);
+
+                // A node mixing direct achievements with a populated subtree is two things at once:
+                // a group and a category of its own. The row above stays the pure group summary; the
+                // direct achievements get their own child row, so neither reading hides behind the
+                // other. Skipped when the subtree adds nothing beyond the direct members - the
+                // parent row already is the direct reading then.
+                if (progressMode == CategoryProgressMode.CombinedWithOwnRows &&
+                    directMembers != null && directMembers.Count > 0 &&
+                    members.Count > directMembers.Count)
+                {
+                    var selfRow = BuildSelfRow(item, directMembers, badgeMode, result.Count);
+                    item.SelfRow = selfRow;
+                    result.Add(selfRow);
+                }
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// The synthesized child row reporting a mixed node's direct achievements. Sits at one
+        /// depth below its category under the same path, distinguished by
+        /// <see cref="GameSummaryItem.IsSelfRow"/>. It carries its category's art but no name of
+        /// its own: directly under a row already carrying both, repeating the name read as a
+        /// duplicate, so the surfaces render it as an unlabeled annotation row (a drilled header
+        /// shows it alone and restores the name there). SortingName keeps the category's, so a
+        /// name sort holds the pair together.
+        /// </summary>
+        private static CategorySummaryItem BuildSelfRow(
+            CategorySummaryItem parent,
+            List<AchievementDisplayItem> directMembers,
+            CategoryCompletionBadgeMode badgeMode,
+            int emittedCount)
+        {
+            var item = new CategorySummaryItem
+            {
+                CategoryLabel = parent.CategoryPath,
+                CategoryPath = parent.CategoryPath,
+                CategoryLeafName = parent.CategoryLeafName,
+                CategoryDepth = parent.CategoryDepth + 1,
+                IsSelfRow = true,
+                ChildCategoryCount = 0,
+                DirectAchievementCount = directMembers.Count,
+                PlayniteGameId = ResolveSharedGameId(directMembers),
+                GameName = string.Empty,
+                SortingName = parent.SortingName,
+                NameToolTip = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(parent.CategoryPath),
+                GameLogo = parent.GameLogo,
+                GameCoverPath = parent.GameCoverPath
+            };
+
+            AchievementStatsAccumulator
+                .FromDisplayItems(directMembers)
+                .ApplyTo(item);
+
+            item.IsCompleted = ComputeIsCompleted(directMembers);
+            item.CategoryType = ResolveCategoryType(directMembers, directMembers);
+            item.AllowCompletionBadge = AllowsCompletionBadge(badgeMode, emittedCount);
+
+            return item;
         }
 
         private static List<AchievementDisplayItem> CollectSubtree(
