@@ -23,13 +23,16 @@ namespace PlayniteAchievements.Tests.Services
 
             Assert.AreEqual(1, story.Depth);
             Assert.IsTrue(story.HasChildren, "the junction opens for the self row");
+            Assert.IsFalse(story.IsSelfRow);
 
             Assert.AreEqual(2, self.Depth, "the self row indents one level under its category");
             Assert.IsFalse(self.IsLastSibling, "the child categories follow as its siblings");
             Assert.IsFalse(self.HasChildren);
+            Assert.IsTrue(self.IsSelfRow, "the guide draws it as a pass-through, not a node");
 
             Assert.AreEqual(2, act1.Depth);
             Assert.IsFalse(act1.IsLastSibling);
+            Assert.IsFalse(act1.IsSelfRow);
             Assert.IsTrue(act2.IsLastSibling, "the last child category still closes the run");
         }
 
