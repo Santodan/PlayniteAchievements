@@ -19,7 +19,8 @@ namespace PlayniteAchievements.Services.Capture
             bool residualPass,
             int? blockFrames = null,
             int maxLagFrames = 12000,
-            bool detectClean = false)
+            bool detectClean = false,
+            double? calibratedLagFrames = null)
         {
             var floor = residualPass ? 0.001 : 0.005;
             return PcmAudio.CancelCorrelated(
@@ -46,7 +47,8 @@ namespace PlayniteAchievements.Services.Capture
                 verificationLagRadiusFrames: 128,
                 independentChannelGains: true,
                 gainCrossfadeFrames: 0,
-                fractionalLagSteps: 32);
+                fractionalLagSteps: 32,
+                calibratedLagFrames: calibratedLagFrames);
         }
     }
 }

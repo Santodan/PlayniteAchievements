@@ -92,6 +92,40 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
+        public void GameOnly_RemovesChimeBeforePurgingAndSubtractingNonGameReference()
+        {
+            var source = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            var start = source.IndexOf(
+                "private SegmentTimeline.ClipPlan TryRemoveNonGameAudio",
+                StringComparison.Ordinal);
+            var end = source.IndexOf(
+                "private void TryDeleteCleanedAudio",
+                start,
+                StringComparison.Ordinal);
+            Assert.IsTrue(start >= 0 && end > start);
+            var removal = source.Substring(start, end - start);
+
+            var chime = removal.IndexOf("chimeOutcome = ChimePass(", StringComparison.Ordinal);
+            var gameOnly = removal.IndexOf("if (gameOnly)", StringComparison.Ordinal);
+            var nonGame = removal.IndexOf("TryReadNonGameReference", StringComparison.Ordinal);
+            var purge = removal.IndexOf("CancelGameFromPlayniteSlice(", StringComparison.Ordinal);
+            var isolation = removal.IndexOf(
+                "[Recording] Game-only isolation:",
+                StringComparison.Ordinal);
+
+            Assert.IsTrue(chime >= 0 && gameOnly > chime,
+                "Both modes must remove the live chime before the Game Only branch.");
+            Assert.IsTrue(nonGame > gameOnly && purge > nonGame && isolation > purge,
+                "Game Only must read nng after chime removal, purge chm from it, then isolate.");
+            StringAssert.Contains(removal, "chimeCancellation.SubtractedBlocks > 0");
+            StringAssert.Contains(removal, "maxLagFrames: 12000");
+            StringAssert.Contains(removal, "Skipping game-only isolation because the");
+            StringAssert.Contains(removal, "could inject an");
+            StringAssert.Contains(removal, "inverted chime");
+        }
+
+        [TestMethod]
         public void ControllerDefaultOutput_KeepsProgramChannelsAndDropsActuatorChannels()
         {
             var recorder = File.ReadAllText(FindRepoFile(
@@ -142,7 +176,9 @@ namespace PlayniteAchievements.Services.Tests.Recording
             // spin-up. ChimeRoundTripProbe measured that against the real parameters — aligned it
             // removes 37.7 dB, 120 ms out 5.7 dB, 500 ms out nothing — while damaging the game bed
             // ~16 dB at every offset. That is worse than not running, so it is not a fallback.
-            StringAssert.Contains(service, "ChimePass(capturedChimeReference, \"capture\"");
+            StringAssert.Contains(service, "chimeOutcome = ChimePass(");
+            StringAssert.Contains(service, "capturedChimeReference,");
+            StringAssert.Contains(service, "\"capture\",");
             Assert.IsFalse(
                 service.Contains("fileChimeReference"),
                 "The file reference cannot align with the captured mix and damages the game bed; " +

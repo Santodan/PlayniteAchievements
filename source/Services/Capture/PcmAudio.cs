@@ -324,6 +324,12 @@ namespace PlayniteAchievements.Services.Capture
         /// could not verify inside an accepted pass. Clip-audio callers disable muting, so
         /// uncertainty always preserves the original audio, buzz included.
         /// </para>
+        /// <para>
+        /// A caller may supply <paramref name="calibratedLagFrames"/> when that alignment was
+        /// independently measured from a stronger common signal. This bypasses only the lag sweep
+        /// and its correlation entry gate; fitted gains and held-out block verification are
+        /// unchanged, so a bad calibration still restores the original samples.
+        /// </para>
         /// </summary>
         public static PcmCancellationOutcome CancelCorrelated(
             byte[] mixture,
@@ -344,7 +350,8 @@ namespace PlayniteAchievements.Services.Capture
             int verificationLagRadiusFrames = 0,
             bool independentChannelGains = false,
             int gainCrossfadeFrames = CrossfadeFrames,
-            int fractionalLagSteps = 0)
+            int fractionalLagSteps = 0,
+            double? calibratedLagFrames = null)
         {
             diagnostics = default(PcmCancellationDiagnostics);
             if (mixture == null || gameReference == null ||
@@ -385,7 +392,13 @@ namespace PlayniteAchievements.Services.Capture
             // coincide with a render stream starting — i.e. the chime itself), and a single window
             // that straddles the tear reads a fractured correlation for a perfectly separable
             // slice. A tear cannot fracture every window.
-            var loudestScore = ScanWindow(mixtureView, referenceView, loudestStart, maxLag);
+            var loudestScore = calibratedLagFrames.HasValue
+                ? ScoreCorrelationAtLag(
+                    mixtureView,
+                    referenceView,
+                    calibratedLagFrames.Value,
+                    loudestStart)
+                : ScanWindow(mixtureView, referenceView, loudestStart, maxLag);
             var best = loudestScore;
             // Reference presence anywhere in the slice, independent of which window calibrates
             // the lag. The early-calibration caller must not classify a slice as "clean" from its
@@ -396,14 +409,21 @@ namespace PlayniteAchievements.Services.Capture
             var earlyReferenceRms = earlyReference.Count <= 0 || earlyReference.ReferenceEnergy <= 0
                 ? 0
                 : Math.Sqrt(earlyReference.ReferenceEnergy / earlyReference.Count);
-            foreach (var candidateStart in new[] { 0, (int)((long)referenceFrames / 3), (int)(2L * referenceFrames / 3) })
+            foreach (var candidateStart in new[]
+                { 0, (int)((long)referenceFrames / 3), (int)(2L * referenceFrames / 3) })
             {
                 if (Math.Abs(candidateStart - loudestStart) < CorrelationWindowFrames / 2)
                 {
                     continue;
                 }
 
-                var score = ScanWindow(mixtureView, referenceView, candidateStart, maxLag);
+                var score = calibratedLagFrames.HasValue
+                    ? ScoreCorrelationAtLag(
+                        mixtureView,
+                        referenceView,
+                        calibratedLagFrames.Value,
+                        candidateStart)
+                    : ScanWindow(mixtureView, referenceView, candidateStart, maxLag);
                 if (score.Count <= 0)
                 {
                     continue;
@@ -416,7 +436,9 @@ namespace PlayniteAchievements.Services.Capture
                 }
             }
 
-            if (preferEarlyAlignmentWindow && earlyReferenceRms > SilentReferenceRms)
+            if (!calibratedLagFrames.HasValue &&
+                preferEarlyAlignmentWindow &&
+                earlyReferenceRms > SilentReferenceRms)
             {
                 // A chime can change the process-tree capture graph's latency when its render
                 // stream starts. Calibrate inside the sound we must preserve, not from a later
@@ -433,7 +455,7 @@ namespace PlayniteAchievements.Services.Capture
                 return PcmCancellationOutcome.Unseparable;
             }
 
-            if (fractionalLagSteps > 0)
+            if (fractionalLagSteps > 0 && !calibratedLagFrames.HasValue)
             {
                 best = RefineFractionalLag(
                     mixtureView,
@@ -457,7 +479,8 @@ namespace PlayniteAchievements.Services.Capture
                 return PcmCancellationOutcome.CleanNoGameDetected;
             }
 
-            if (best.Value < Math.Max(0, minimumCorrelation) ||
+            if ((!calibratedLagFrames.HasValue &&
+                    best.Value < Math.Max(0, minimumCorrelation)) ||
                 globalGain < minimumGain || globalGain > maximumGain)
             {
                 return PcmCancellationOutcome.Unseparable;

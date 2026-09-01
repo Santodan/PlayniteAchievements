@@ -867,6 +867,91 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
+        public void CancelCorrelated_CalibratedLagStillRequiresHeldOutVerification()
+        {
+            const int frames = 96000;
+            const int lag = 1584; // 33 ms
+            var referenceSource = BandLimitedNoise(frames, 31, 8000);
+            var referenceSamples = new short[frames * 2];
+            for (var sample = 0; sample < referenceSamples.Length; sample++)
+            {
+                referenceSamples[sample] = (short)Math.Round(0.08 * referenceSource[sample]);
+            }
+            var gameSamples = BandLimitedNoise(frames, 77, 8000);
+            var mixtureSamples = new short[frames * 2];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var value = (double)gameSamples[frame * 2 + channel];
+                    if (frame + lag < frames)
+                    {
+                        value += referenceSamples[(frame + lag) * 2 + channel];
+                    }
+
+                    mixtureSamples[frame * 2 + channel] =
+                        (short)Math.Max(short.MinValue, Math.Min(short.MaxValue, Math.Round(value)));
+                }
+            }
+
+            var reference = Samples(referenceSamples);
+            var calibrated = Samples(mixtureSamples);
+            var outcome = PcmAudio.CancelCorrelated(
+                calibrated,
+                reference,
+                out var diagnostics,
+                muteUnverifiedBlocks: false,
+                maxLagFrames: 12000,
+                minimumGain: 0.001,
+                maximumGain: 20,
+                blockGainFloor: 0.001,
+                keepBlockSuppressionDb: 10,
+                cancellationBlockFrames: frames,
+                commitVerifiedBlocksOnWeakPass: true,
+                minimumCorrelation: 0.15,
+                verificationLagRadiusFrames: 128,
+                independentChannelGains: true,
+                gainCrossfadeFrames: 0,
+                fractionalLagSteps: 32,
+                calibratedLagFrames: lag);
+
+            Assert.AreEqual(PcmCancellationOutcome.CancelledVerified, outcome);
+            Assert.AreEqual(lag * 1000.0 / PcmAudio.SampleRate, diagnostics.StartLagMs, 0.001);
+            Assert.IsTrue(diagnostics.SubtractedBlocks > 0);
+            var residual = ToShorts(calibrated);
+            var residualError = DifferenceEnergy(residual, gameSamples, 0, frames - lag);
+            var referenceEnergy = Energy(referenceSamples, lag, frames);
+            Assert.IsTrue(
+                residualError < referenceEnergy * 0.01,
+                $"calibrated residual/reference ratio was {residualError / referenceEnergy:0.0000}");
+
+            var wrong = Samples(mixtureSamples);
+            var before = (byte[])wrong.Clone();
+            var wrongOutcome = PcmAudio.CancelCorrelated(
+                wrong,
+                reference,
+                out _,
+                muteUnverifiedBlocks: false,
+                maxLagFrames: 12000,
+                minimumGain: 0.001,
+                maximumGain: 20,
+                blockGainFloor: 0.001,
+                keepBlockSuppressionDb: 10,
+                cancellationBlockFrames: frames,
+                commitVerifiedBlocksOnWeakPass: true,
+                minimumCorrelation: 0.15,
+                verificationLagRadiusFrames: 128,
+                independentChannelGains: true,
+                gainCrossfadeFrames: 0,
+                fractionalLagSteps: 32,
+                calibratedLagFrames: 0);
+
+            Assert.AreNotEqual(PcmCancellationOutcome.CancelledVerified, wrongOutcome);
+            CollectionAssert.AreEqual(before, wrong,
+                "a bad external calibration must restore the captured game audio exactly");
+        }
+
+        [TestMethod]
         public void CancelCorrelated_BlockGainFloorDecidesWhetherAFaintCopyIsRemoved()
         {
             // The clip's copy of a reference is loud in some stretches and faint in others. The

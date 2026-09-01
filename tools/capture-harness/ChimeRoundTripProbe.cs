@@ -181,38 +181,49 @@ internal static class ChimeRoundTripProbe
     }
 
     /// <summary>
-    /// The full game-only pipeline in the service's exact order: whole-window nng isolation (with
-    /// its 500 ms gain fallback and up to three residual passes), then the chime pass (blocked at
-    /// ordinary floors, unblocked at residual floors on rejection) against the chm slice. This is
-    /// the sequence a field doubled-chime report runs through; the per-stage columns show which
-    /// stage left the chime behind. The nng and chm sidecars are independent capture clients, so
-    /// each carries its own small lag against the endpoint mixture.
+    /// The reordered game-only pipeline: remove the chime from the pristine mixture first, purge
+    /// that same captured chime out of the nng reference, then isolate with the purged reference.
+    /// The per-stage columns show whether a later subtraction reintroduced what the first pass
+    /// removed. The nng and chm sidecars are process-loopback taps of the rendered stream, so player
+    /// drift appears identically in every copy; only client lag and a possible capture tear differ.
     /// </summary>
     private static int RunIsolationSection()
     {
         var failures = 0;
         Console.WriteLine();
-        Console.WriteLine("=== GAME-ONLY PIPELINE (nng isolation, then chm chime pass) ===");
-        Console.WriteLine("scenario                         isolation            chime pass           afterIso  chimeErr  gameDmg  verdict");
-        Console.WriteLine("-------------------------------- -------------------- -------------------- --------  --------  -------  -------");
+        Console.WriteLine("=== GAME-ONLY PIPELINE (chm chime pass, nng purge, then isolation) ===");
+        Console.WriteLine("scenario                         chime pass           purge                isolation            afterChm  chimeErr  gameDmg  verdict");
+        Console.WriteLine("-------------------------------- -------------------- -------------------- -------------------- --------  --------  -------  -------");
         CapturedPath = true;
-        failures += RunIsolationFirst("field shape 12/33 ms", 12, 33, 1.0, 0);
-        failures += RunIsolationFirst("aligned 0/0 ms", 0, 0, 1.0, 0);
-        failures += RunIsolationFirst("skews 5/15 ms", 5, 15, 1.0, 0);
-        failures += RunIsolationFirst("skews 30/60 ms", 30, 60, 1.0, 0);
-        failures += RunIsolationFirst("quiet chime 12/33 ms", 12, 33, 0.15, 0);
-        failures += RunIsolationFirst("render drift 200 ppm", 12, 33, 1.0, 200);
-        failures += RunIsolationFirst("render drift 1000 ppm", 12, 33, 1.0, 1000);
+        failures += RunChimeFirst("field shape 12/33 ms", 12, 33, 1.0, 0);
+        failures += RunChimeFirst("aligned 0/0 ms", 0, 0, 1.0, 0);
+        failures += RunChimeFirst("skews 5/15 ms", 5, 15, 1.0, 0);
+        failures += RunChimeFirst("skews 30/60 ms", 30, 60, 1.0, 0);
+        failures += RunChimeFirst("quiet chime 12/33 ms", 12, 33, 0.15, 0);
+        failures += RunChimeFirst("render drift 200 ppm", 12, 33, 1.0, 200);
+        failures += RunChimeFirst("render drift 1000 ppm", 12, 33, 1.0, 1000);
+        failures += RunChimeFirst("nng tear +4 frames", 12, 33, 1.0, 0, 4);
         Chiptune = true;
-        failures += RunIsolationFirst("chiptune, field shape", 12, 33, 1.0, 0);
-        failures += RunIsolationFirst("chiptune, drift 200 ppm", 12, 33, 1.0, 200);
+        failures += RunChimeFirst("chiptune, field shape", 12, 33, 1.0, 0);
+        failures += RunChimeFirst("chiptune, drift 200 ppm", 12, 33, 1.0, 200);
+        failures += RunChimeFirst("chiptune, nng tear +4", 12, 33, 1.0, 0, 4);
+        Console.WriteLine();
+        Console.WriteLine("=== REORDERED PIPELINE INJECTION GUARD ===");
+        Console.WriteLine("scenario                         outcome              chimeErr  gameDmg  verdict");
+        Console.WriteLine("-------------------------------- -------------------- --------  -------  -------");
+        failures += RunNoChime("chiptune, NO chime present");
         Chiptune = false;
         CapturedPath = false;
         return failures;
     }
 
-    private static int RunIsolationFirst(
-        string label, int nngSkewMs, int chmSkewMs, double chimeGain, int renderDriftPpm)
+    private static int RunChimeFirst(
+        string label,
+        int nngSkewMs,
+        int chmSkewMs,
+        double chimeGain,
+        int renderDriftPpm,
+        int nngTearFrames = 0)
     {
         const int frames = SampleRate * 22;
         var chimeFile = Chime(SampleRate * 2);
@@ -220,67 +231,93 @@ internal static class ChimeRoundTripProbe
         var rendered = SampleRate * 15;                 // where the card lands in a 22 s window
 
         var gameBed = Chiptune ? ChiptuneBed(frames) : GameBed(frames);
+        const int gameSkewMs = 7;
+        var gameReference = new short[frames * Channels];
+        CopyShifted(
+            gameReference,
+            gameBed,
+            -(gameSkewMs * SampleRate / 1000));
 
-        // The endpoint capture: game bed plus the chime exactly as it rendered (optionally with
-        // player rate drift the process-tree taps do not share).
+        // The endpoint capture: game bed plus the chime exactly as it rendered.
         var mixture = new short[frames * Channels];
         Array.Copy(gameBed, mixture, gameBed.Length);
         Place(mixture, chimeFile, rendered, chimeGain, renderDriftPpm);
         var truth = new short[frames * Channels];
         Place(truth, chimeFile, rendered, chimeGain, renderDriftPpm);
 
-        // The nng (everything-but-the-game) and chm (Playnite-tree) captures of the same chime,
-        // each tapped through its own client at its own small lag, without the render drift.
+        // The nng (everything-but-the-game) and chm (Playnite-tree) captures are taps of the same
+        // rendered stream, including its rate drift. A pump timing step can tear one sidecar inside
+        // the chime; model that by shifting the second half of nng by a few frames.
         var nng = new short[frames * Channels];
-        Place(nng, chimeFile, rendered - (nngSkewMs * SampleRate / 1000), chimeGain, 0);
+        Place(
+            nng,
+            chimeFile,
+            rendered - (nngSkewMs * SampleRate / 1000),
+            chimeGain,
+            renderDriftPpm,
+            chimeFrames * 3 / 5,
+            nngTearFrames);
         var chm = new short[frames * Channels];
-        Place(chm, chimeFile, rendered - (chmSkewMs * SampleRate / 1000), chimeGain, 0);
+        Place(
+            chm,
+            chimeFile,
+            rendered - (chmSkewMs * SampleRate / 1000),
+            chimeGain,
+            renderDriftPpm);
+        var rawChm = new short[frames * Channels];
+        CopyShifted(
+            rawChm,
+            gameBed,
+            -(chmSkewMs * SampleRate / 1000));
+        Place(
+            rawChm,
+            chimeFile,
+            rendered - (chmSkewMs * SampleRate / 1000),
+            chimeGain,
+            renderDriftPpm);
 
         var mixBytes = ToBytes(mixture);
         var nngBytes = ToBytes(nng);
         var chmBytes = ToBytes(chm);
+        var calibratedLagFrames = CalibrateChimeLag(
+            mixBytes,
+            ToBytes(rawChm),
+            ToBytes(gameReference),
+            out var endpointGame,
+            out var chmGame);
 
-        // === Stage 1: game-only isolation, the service's exact sequence ===
-        var recorded = (byte[])mixBytes.Clone();
-        var isolation = ReferenceCancellationPolicy.Subtract(
-            mixBytes, nngBytes, out var iso, residualPass: false, maxLagFrames: 12000);
-        var fit = "whole";
-        if (isolation != PcmCancellationOutcome.CancelledVerified)
+        // === Stage 1: remove the live chime while mixture and chm still match pristinely ===
+        var chimeOutcome = ChimePass(
+            mixBytes,
+            chmBytes,
+            calibratedLagFrames,
+            out var cp,
+            out var blockedOutcome,
+            out var blocked);
+        var chimeRemoved =
+            chimeOutcome == PcmCancellationOutcome.CancelledVerified &&
+            cp.SubtractedBlocks > 0;
+        var afterChimeDb = StageChimeError(mixBytes, gameBed, truth, rendered, chimeFrames);
+
+        // === Stage 2: keep isolation from subtracting a chime-bearing nng reference ===
+        var purgeOutcome = PcmCancellationOutcome.CleanNoGameDetected;
+        var purge = default(PcmCancellationDiagnostics);
+        var purgeVerified = true;
+        if (chimeRemoved)
         {
-            Buffer.BlockCopy(recorded, 0, mixBytes, 0, mixBytes.Length);
-            isolation = ReferenceCancellationPolicy.Subtract(
-                mixBytes, nngBytes, out iso, residualPass: false,
-                blockFrames: 24000, maxLagFrames: 12000);
-            fit = "500ms";
+            purgeOutcome = CancelChimeFromNonGameReference(nngBytes, chmBytes, out purge);
+            purgeVerified =
+                purgeOutcome != PcmCancellationOutcome.Unseparable &&
+                purge.MutedBlocks == 0;
         }
 
-        if (isolation == PcmCancellationOutcome.CancelledVerified)
+        // === Stage 3: isolate only when the nng reference is safe to subtract ===
+        var isolation = PcmCancellationOutcome.CleanNoGameDetected;
+        var iso = default(PcmCancellationDiagnostics);
+        var fit = "skipped";
+        if (!chimeRemoved || purgeVerified)
         {
-            for (var pass = 1; pass <= 3; pass++)
-            {
-                var residual = ReferenceCancellationPolicy.Subtract(
-                    mixBytes, nngBytes, out _, residualPass: true, maxLagFrames: 12000);
-                if (residual != PcmCancellationOutcome.CancelledVerified)
-                {
-                    break;
-                }
-            }
-        }
-
-        var afterIsoDb = StageChimeError(mixBytes, gameBed, truth, rendered, chimeFrames);
-
-        // === Stage 2: the chime pass, the service's exact two attempts ===
-        var chimeOutcome = ReferenceCancellationPolicy.Subtract(
-            mixBytes, chmBytes, out var cp, residualPass: false, blockFrames: 24000,
-            maxLagFrames: PassMaxLag, detectClean: true);
-        var blockedOutcome = chimeOutcome;
-        var blocked = cp;
-        if (chimeOutcome == PcmCancellationOutcome.Unseparable ||
-            (chimeOutcome == PcmCancellationOutcome.CleanNoGameDetected && cp.SubtractedBlocks == 0))
-        {
-            chimeOutcome = ReferenceCancellationPolicy.Subtract(
-                mixBytes, chmBytes, out cp, residualPass: true,
-                maxLagFrames: PassMaxLag, detectClean: true);
+            isolation = IsolateNonGame(mixBytes, nngBytes, out iso, out fit);
         }
 
         var cancelled = ToShorts(mixBytes);
@@ -292,18 +329,187 @@ internal static class ChimeRoundTripProbe
 
         var errDb = RelativeDb(error, truth, rendered, chimeFrames);
         var dmgDb = RelativeDbOutside(error, gameBed, rendered, chimeFrames);
-        var ok = errDb <= ResidueTargetDb && dmgDb <= -30.0;
+        // The standing product policy keeps a verified partial removal and still composites the
+        // fresh chime. The reordered pipeline succeeds when isolation does not reintroduce any of
+        // that attenuated residue; the ordinary held-out proof remains the removal quality gate.
+        var ok =
+            chimeRemoved &&
+            errDb <= afterChimeDb + 0.1 &&
+            dmgDb <= -30.0;
+        var purgeLabel = chimeRemoved ? purgeOutcome.ToString() : "not-needed";
+        var isolationLabel = chimeRemoved && !purgeVerified ? "skipped" : isolation.ToString();
         Console.WriteLine(
-            $"{label,-32} {isolation,-20} {chimeOutcome,-20} {afterIsoDb,7:0.0}dB {errDb,7:0.0}dB " +
+            $"{label,-32} {chimeOutcome,-20} {purgeLabel,-20} {isolationLabel,-20} " +
+            $"{afterChimeDb,7:0.0}dB {errDb,7:0.0}dB " +
             $"{dmgDb,7:0.0}dB  {(ok ? "ok" : "FAIL")}");
         Console.WriteLine(
-            $"    isolation: fit={fit} lag={iso.StartLagMs:0.###}ms corr={iso.Correlation:0.000} " +
-            $"supp={iso.SuppressionDb:0.0}dB; blocked chime pass: outcome={blockedOutcome} " +
+            $"    blocked chime pass: outcome={blockedOutcome} " +
             $"lag={blocked.StartLagMs:0.###}ms corr={blocked.Correlation:0.000} " +
             $"gain={blocked.Gain:0.000} blocks={blocked.SubtractedBlocks}/{blocked.TotalBlocks} " +
             $"restored={blocked.RestoredBlocks}; final: blocks={cp.SubtractedBlocks}/{cp.TotalBlocks} " +
-            $"supp={cp.SuppressionDb:0.0}dB");
+            $"supp={cp.SuppressionDb:0.0}dB; calibration: " +
+            $"endpoint/game={endpointGame.StartLagMs:0.###}ms " +
+            $"chm/game={chmGame.StartLagMs:0.###}ms " +
+            $"chm/endpoint={calibratedLagFrames * 1000.0 / SampleRate:0.###}ms; " +
+            $"purge: lag={purge.StartLagMs:0.###}ms " +
+            $"corr={purge.Correlation:0.000} muted={purge.MutedBlocks}; isolation: fit={fit} " +
+            $"lag={iso.StartLagMs:0.###}ms corr={iso.Correlation:0.000} supp={iso.SuppressionDb:0.0}dB");
         return ok ? 0 : 1;
+    }
+
+    private static PcmCancellationOutcome ChimePass(
+        byte[] mixture,
+        byte[] chimeReference,
+        double? calibratedLagFrames,
+        out PcmCancellationDiagnostics diagnostics,
+        out PcmCancellationOutcome blockedOutcome,
+        out PcmCancellationDiagnostics blockedDiagnostics)
+    {
+        var outcome = ReferenceCancellationPolicy.Subtract(
+            mixture,
+            chimeReference,
+            out diagnostics,
+            residualPass: false,
+            blockFrames: 24000,
+            maxLagFrames: PassMaxLag,
+            detectClean: true,
+            calibratedLagFrames: calibratedLagFrames);
+        blockedOutcome = outcome;
+        blockedDiagnostics = diagnostics;
+        if (outcome == PcmCancellationOutcome.Unseparable ||
+            (outcome == PcmCancellationOutcome.CleanNoGameDetected &&
+                diagnostics.SubtractedBlocks == 0))
+        {
+            outcome = ReferenceCancellationPolicy.Subtract(
+                mixture,
+                chimeReference,
+                out diagnostics,
+                residualPass: true,
+                maxLagFrames: PassMaxLag,
+                detectClean: true,
+                calibratedLagFrames: calibratedLagFrames);
+        }
+
+        return outcome;
+    }
+
+    private static double? CalibrateChimeLag(
+        byte[] endpointMixture,
+        byte[] rawChimeTree,
+        byte[] gameReference,
+        out PcmCancellationDiagnostics endpointGame,
+        out PcmCancellationDiagnostics chimeGame)
+    {
+        var endpoint = (byte[])endpointMixture.Clone();
+        var endpointOutcome = PcmAudio.CancelCorrelated(
+            endpoint,
+            gameReference,
+            out endpointGame,
+            muteUnverifiedBlocks: false,
+            maxLagFrames: 12000,
+            commitVerifiedBlocksOnWeakPass: true,
+            preferEarlyAlignmentWindow: true,
+            verificationLagRadiusFrames: 480);
+        var chimeTree = (byte[])rawChimeTree.Clone();
+        var chimeOutcome = PcmAudio.CancelCorrelated(
+            chimeTree,
+            gameReference,
+            out chimeGame,
+            muteUnverifiedBlocks: false,
+            maxLagFrames: 12000,
+            commitVerifiedBlocksOnWeakPass: true,
+            preferEarlyAlignmentWindow: true,
+            verificationLagRadiusFrames: 480);
+        if (endpointOutcome != PcmCancellationOutcome.CancelledVerified ||
+            chimeOutcome != PcmCancellationOutcome.CancelledVerified)
+        {
+            return null;
+        }
+
+        return (endpointGame.StartLagMs - chimeGame.StartLagMs) * SampleRate / 1000.0;
+    }
+
+    /// <summary>
+    /// Purges chm from nng using the service's verified peel/strict-check pattern. The wide search
+    /// covers the delta between the two independent sidecar clients, not endpoint-to-sidecar lag.
+    /// A caller rejects a final muted block because it cannot safely subtract that reference.
+    /// </summary>
+    private static PcmCancellationOutcome CancelChimeFromNonGameReference(
+        byte[] nonGameReference,
+        byte[] chimeReference,
+        out PcmCancellationDiagnostics diagnostics)
+    {
+        for (var peel = 0; peel < 2; peel++)
+        {
+            var peelOutcome = PcmAudio.CancelCorrelated(
+                nonGameReference,
+                chimeReference,
+                out _,
+                muteUnverifiedBlocks: false,
+                maxLagFrames: 12000,
+                commitVerifiedBlocksOnWeakPass: true,
+                preferEarlyAlignmentWindow: true,
+                verificationLagRadiusFrames: 480);
+            if (peelOutcome != PcmCancellationOutcome.CancelledVerified)
+            {
+                break;
+            }
+        }
+
+        return PcmAudio.CancelCorrelated(
+            nonGameReference,
+            chimeReference,
+            out diagnostics,
+            maxLagFrames: 12000,
+            preferEarlyAlignmentWindow: true,
+            verificationLagRadiusFrames: 480);
+    }
+
+    private static PcmCancellationOutcome IsolateNonGame(
+        byte[] mixture,
+        byte[] nonGameReference,
+        out PcmCancellationDiagnostics diagnostics,
+        out string fit)
+    {
+        var recorded = (byte[])mixture.Clone();
+        var outcome = ReferenceCancellationPolicy.Subtract(
+            mixture,
+            nonGameReference,
+            out diagnostics,
+            residualPass: false,
+            maxLagFrames: 12000);
+        fit = "whole";
+        if (outcome != PcmCancellationOutcome.CancelledVerified)
+        {
+            Buffer.BlockCopy(recorded, 0, mixture, 0, mixture.Length);
+            outcome = ReferenceCancellationPolicy.Subtract(
+                mixture,
+                nonGameReference,
+                out diagnostics,
+                residualPass: false,
+                blockFrames: 24000,
+                maxLagFrames: 12000);
+            fit = "500ms";
+        }
+
+        if (outcome == PcmCancellationOutcome.CancelledVerified)
+        {
+            for (var pass = 1; pass <= 3; pass++)
+            {
+                var residual = ReferenceCancellationPolicy.Subtract(
+                    mixture,
+                    nonGameReference,
+                    out _,
+                    residualPass: true,
+                    maxLagFrames: 12000);
+                if (residual != PcmCancellationOutcome.CancelledVerified)
+                {
+                    break;
+                }
+            }
+        }
+
+        return outcome;
     }
 
     /// <summary>Chime residue after a stage, without disturbing the working buffer.</summary>
@@ -746,13 +952,44 @@ internal static class ChimeRoundTripProbe
         return data;
     }
 
-    private static void Place(short[] target, short[] source, int atFrame, double gain, int driftPpm)
+    private static void CopyShifted(short[] target, short[] source, int shiftFrames)
+    {
+        var sourceFrames = source.Length / Channels;
+        var targetFrames = target.Length / Channels;
+        for (var frame = 0; frame < sourceFrames; frame++)
+        {
+            var destination = frame + shiftFrames;
+            if (destination < 0 || destination >= targetFrames)
+            {
+                continue;
+            }
+
+            for (var channel = 0; channel < Channels; channel++)
+            {
+                target[(destination * Channels) + channel] =
+                    source[(frame * Channels) + channel];
+            }
+        }
+    }
+
+    private static void Place(
+        short[] target,
+        short[] source,
+        int atFrame,
+        double gain,
+        int driftPpm,
+        int tearAfterSourceFrame = -1,
+        int tearFrames = 0)
     {
         var sourceFrames = source.Length / Channels;
         var targetFrames = target.Length / Channels;
         for (var f = 0; f < sourceFrames; f++)
         {
             var dest = atFrame + f;
+            if (tearAfterSourceFrame >= 0 && f >= tearAfterSourceFrame)
+            {
+                dest += tearFrames;
+            }
             if (dest < 0 || dest >= targetFrames) { continue; }
 
             // Drift stretches the chime against the capture clock, as an off-rate player would.
