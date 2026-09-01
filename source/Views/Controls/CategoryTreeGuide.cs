@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Helpers;
@@ -27,8 +28,9 @@ namespace PlayniteAchievements.Views.Controls
         private const double MaxCellWidthShare = 0.5d;
 
         // Long dashes for the self-row twig: at 1px the stock Dash style reads as dots, and the
-        // twig has a whole label width to cover.
-        private static readonly DashStyle TwigDashStyle = CreateTwigDashStyle();
+        // twig has a whole label width to cover. Shared with CategorySelfDropStub, which draws the
+        // twig's upper half in the row above.
+        internal static readonly DashStyle TwigDashStyle = CreateTwigDashStyle();
 
         private static DashStyle CreateTwigDashStyle()
         {
@@ -109,6 +111,25 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(LineOpacityProperty, value);
         }
 
+        /// <summary>
+        /// Where a self row's drop sits, in DataGridRow coordinates - published by the
+        /// <see cref="CategorySelfDropStub"/> under the category name in the row above, so the two
+        /// halves of the drop meet at the row boundary. NaN (the default) falls back to a computed
+        /// anchor until the row above has measured.
+        /// </summary>
+        public static readonly DependencyProperty DropAnchorXProperty =
+            DependencyProperty.Register(
+                nameof(DropAnchorX),
+                typeof(double),
+                typeof(CategoryTreeGuide),
+                new FrameworkPropertyMetadata(double.NaN, FrameworkPropertyMetadataOptions.AffectsRender));
+
+        public double DropAnchorX
+        {
+            get => (double)GetValue(DropAnchorXProperty);
+            set => SetValue(DropAnchorXProperty, value);
+        }
+
         protected override Size MeasureOverride(Size availableSize)
         {
             var shape = Shape;
@@ -141,7 +162,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            var pen = CreatePen(lineBrush, 1d);
+            var pen = CreateGuidePen(lineBrush, 1d);
 
             var mid = Math.Round(height / 2d);
             var dotX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth);
@@ -154,9 +175,11 @@ namespace PlayniteAchievements.Views.Controls
                 ? dotX
                 : Math.Max(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1), dotX - beadRadius);
 
+            var selfDropX = shape.IsSelfRow ? ResolveSelfDropX(shape) : double.NaN;
+
             // Half-pixel offsets on a 1px pen, so the lines land on device pixels instead of
             // straddling two and rendering as a soft 2px smear.
-            drawingContext.PushGuidelineSet(BuildGuidelines(shape, dotX, mid));
+            drawingContext.PushGuidelineSet(BuildGuidelines(shape, dotX, mid, selfDropX));
             drawingContext.PushClip(new RectangleGeometry(new Rect(RenderSize)));
 
             // Lines under the beads: the structure recedes, the rows read first.
@@ -183,7 +206,7 @@ namespace PlayniteAchievements.Views.Controls
                 // row's one identifying mark against deliberately faint lanes.
                 if (shape.IsSelfRow)
                 {
-                    DrawSelfTwig(drawingContext, shape, mid, RenderSize.Width);
+                    DrawSelfTwig(drawingContext, selfDropX, mid, RenderSize.Width);
                 }
                 else
                 {
@@ -208,11 +231,10 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         private void DrawSelfTwig(
             DrawingContext drawingContext,
-            CategoryTreeShape shape,
+            double dropX,
             double mid,
             double width)
         {
-            var dropX = GetSelfDropX(shape);
             var armEnd = Math.Max(dropX + CategoryTreeGuideMetrics.CornerRadius, width - 2d);
             var radius = Math.Min(CategoryTreeGuideMetrics.CornerRadius, Math.Max(0d, mid));
 
@@ -230,17 +252,40 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             geometry.Freeze();
-            drawingContext.DrawGeometry(null, CreatePen(LineBrush, 1d, TwigDashStyle), geometry);
+            drawingContext.DrawGeometry(null, CreateGuidePen(LineBrush, 1d, TwigDashStyle), geometry);
         }
 
         /// <summary>
-        /// Where the self row's drop sits: just inside the point the parent's name starts, one
-        /// level up, so the line reads as falling out of that name rather than out of the lanes.
+        /// Where the self row's drop sits. Preferably the anchor the row above measured under the
+        /// centre of its name text (<see cref="DropAnchorX"/>, in row coordinates, converted to
+        /// this element's space); until that lands, a computed fallback just inside where the name
+        /// above starts, so the twig never waits on another row's layout to draw at all.
         /// </summary>
-        private static double GetSelfDropX(CategoryTreeShape shape)
+        private double ResolveSelfDropX(CategoryTreeShape shape)
         {
-            return CategoryTreeGuideMetrics.GetGuideWidth(shape.Depth - 1) +
+            var fallback = CategoryTreeGuideMetrics.GetGuideWidth(shape.Depth - 1) +
                 CategoryTreeGuideMetrics.CornerRadius;
+
+            var anchor = DropAnchorX;
+            if (double.IsNaN(anchor) || double.IsInfinity(anchor))
+            {
+                return fallback;
+            }
+
+            var row = VisualTreeHelpers.FindVisualParent<DataGridRow>(this);
+            if (row == null || !row.IsAncestorOf(this))
+            {
+                return fallback;
+            }
+
+            var originInRow = TransformToAncestor(row).Transform(new Point(0d, 0d));
+            var dropX = anchor - originInRow.X;
+
+            // A stale anchor (the row above resized or scrolled away mid-update) must not push the
+            // drop out of the drawable cell.
+            return dropX > 0d && dropX < RenderSize.Width
+                ? dropX
+                : fallback;
         }
 
         /// <summary>Full-height lines for the ancestors that still have siblings below this row.</summary>
@@ -352,7 +397,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            var outline = CreatePen(beadBrush, 1.5d);
+            var outline = CreateGuidePen(beadBrush, 1.5d);
             drawingContext.DrawEllipse(null, outline, centre, beadRadius, beadRadius);
         }
 
@@ -365,7 +410,7 @@ namespace PlayniteAchievements.Views.Controls
         /// exception out of OnRender takes the whole application down, so the CanFreeze check is
         /// load-bearing rather than defensive.
         /// </summary>
-        private static Pen CreatePen(Brush brush, double thickness, DashStyle dashStyle = null)
+        internal static Pen CreateGuidePen(Brush brush, double thickness, DashStyle dashStyle = null)
         {
             var pen = new Pen(brush, thickness);
             if (dashStyle != null)
@@ -382,7 +427,7 @@ namespace PlayniteAchievements.Views.Controls
             return pen;
         }
 
-        private static GuidelineSet BuildGuidelines(CategoryTreeShape shape, double dotX, double mid)
+        private static GuidelineSet BuildGuidelines(CategoryTreeShape shape, double dotX, double mid, double selfDropX)
         {
             var guidelines = new GuidelineSet();
             guidelines.GuidelinesY.Add(mid + 0.5d);
@@ -398,9 +443,9 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             guidelines.GuidelinesX.Add(dotX + 0.5d);
-            if (shape.IsSelfRow)
+            if (!double.IsNaN(selfDropX))
             {
-                guidelines.GuidelinesX.Add(GetSelfDropX(shape) + 0.5d);
+                guidelines.GuidelinesX.Add(selfDropX + 0.5d);
             }
 
             guidelines.Freeze();
