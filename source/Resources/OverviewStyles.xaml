@@ -118,9 +118,16 @@
                         <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
                             <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                         </DataTrigger>
-                        <Trigger Property="IsMouseOver" Value="True">
+                        <!-- Hover highlight holds off while the mouse sits on a collapse toggle:
+                             the glyph's own hover fill is the feedback there, and lighting the
+                             whole row would suggest the click selects and drills it. -->
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource TemplatedParent}}" Value="True"/>
+                                <Condition Binding="{Binding (controls:CategoryTreeGuide.IsToggleHovered), RelativeSource={RelativeSource TemplatedParent}}" Value="False"/>
+                            </MultiDataTrigger.Conditions>
                             <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
-                        </Trigger>
+                        </MultiDataTrigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                         </Trigger>
