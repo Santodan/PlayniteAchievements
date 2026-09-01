@@ -1009,6 +1009,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ColorNamesByRarity">Color Names by Rarity</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ColorRarityTextByRarity">Color Rarity Text by Rarity</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowNameAboveProgress">Show Name Above Progress Bar</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowRarityBadgesBelowProgress">Show Rarity Badges Below Progress Bar</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ViewAchievementsWindow">View Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode">Small Slice Handling</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact">Exact</sys:String>
