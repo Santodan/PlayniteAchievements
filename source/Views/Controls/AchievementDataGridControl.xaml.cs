@@ -677,20 +677,28 @@ namespace PlayniteAchievements.Views.Controls
 
         private bool IsDrilled => _drillPath.Count > 0;
 
+        // Whether the drill was entered through a mixed category's self row, which scopes the
+        // achievement grid to the node's direct achievements instead of its whole subtree. Lives
+        // beside the path rather than in it: both rows share the same path and differ only in scope.
+        private bool _drillSelfOnly;
+
         private string DrilledPath => _drillPath.Count == 0 ? null : CategoryPathHelper.Join(_drillPath);
 
-        private void SetDrillPath(string path)
+        private void SetDrillPath(string path, bool selfOnly = false)
         {
             _drillPath.Clear();
+            _drillSelfOnly = false;
             if (!string.IsNullOrWhiteSpace(path))
             {
                 _drillPath.AddRange(CategoryPathHelper.Split(path));
+                _drillSelfOnly = selfOnly;
             }
         }
 
         private void ClearDrillSelection()
         {
             _drillPath.Clear();
+            _drillSelfOnly = false;
             SelectedCategorySummaryItems = null;
             if (CategoryListGrid != null)
             {
@@ -1354,6 +1362,7 @@ namespace PlayniteAchievements.Views.Controls
 
             _isCategoryMode = enabled;
             _drillPath.Clear();
+            _drillSelfOnly = false;
             SelectedCategorySummaryItems = null;
             if (CategoryListGrid != null)
             {
@@ -1477,8 +1486,9 @@ namespace PlayniteAchievements.Views.Controls
             _categoryListScrollOffset = CategoryListGrid?.VerticalScrollOffset ?? 0d;
 
             // Summary rows carry a fully qualified path, so set the drill rather than appending:
-            // the click is then idempotent however the row was reached.
-            SetDrillPath(item.CategoryLabel);
+            // the click is then idempotent however the row was reached. A self row narrows the
+            // drill to the node's direct achievements; its category row opens the whole subtree.
+            SetDrillPath(item.CategoryLabel, item.IsSelfRow);
             RefreshDrillState();
             ApplyCategoryViewState();
             ApplyControlBarModeState();
@@ -1607,12 +1617,15 @@ namespace PlayniteAchievements.Views.Controls
         {
             if (IsCategoryGroupingEffective() && IsDrilled)
             {
-                // This node only, never its descendants. Every count in the plugin reports a node
-                // on its own members, so a grid that pulled in the subtree would disagree with both
-                // the row that was clicked to reach it and the header above it.
+                // The scope of the row that was clicked, so the grid always agrees with the numbers
+                // that led here: a category row counts its whole subtree and opens it, a mixed
+                // category's self row counts only the direct achievements and opens those.
                 var drilled = DrilledPath;
+                var selfOnly = _drillSelfOnly;
                 var filtered = (ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
-                    .Where(i => i != null && CategoryPathHelper.IsSame(i.CategoryLabel, drilled))
+                    .Where(i => i != null && (selfOnly
+                        ? CategoryPathHelper.IsSame(i.CategoryLabel, drilled)
+                        : CategoryPathHelper.IsSelfOrDescendantOf(i.CategoryLabel, drilled)))
                     .ToList();
 
                 // Mutate a stable collection in place rather than reassigning a new list, so the grid
@@ -1732,15 +1745,18 @@ namespace PlayniteAchievements.Views.Controls
                 }
 
                 _drillPath.RemoveAt(_drillPath.Count - 1);
+                // The self scope belonged to the level that just fell away, not to the ancestor
+                // being stepped up to.
+                _drillSelfOnly = false;
             }
 
             ClearDrillSelection();
         }
 
         /// <summary>
-        /// Rebuilds the child rows for the current level and the header row describing the node the
-        /// drill sits on. The header comes from the parent level, since the current level holds the
-        /// node's children rather than the node itself.
+        /// Rebuilds the category rows and the header row describing the row the drill was entered
+        /// through, so the header always restates the numbers that were clicked - the subtree
+        /// rollup for a category row, the direct achievements for a mixed category's self row.
         /// </summary>
         private void RefreshDrillState()
         {
@@ -1754,18 +1770,29 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             var items = (CategorySummarySource ?? ItemsSource)?.ToList();
-            var match = items == null || items.Count == 0
-                ? null
-                // Leaf name only: the header path above the grid already carries the ancestry, so
-                // spelling the full path here again just crowds the row.
-                : CategorySummaryBuilder
-                    .BuildLevel(
-                        items,
-                        CategoryPathHelper.GetParentPath(drilled),
-                        ResolveCategoryCompletionBadgeMode(),
-                        useLeafNames: true)
+            CategorySummaryItem match = null;
+            if (items != null && items.Count > 0)
+            {
+                // Fresh rows rather than the list's own instances: those carry stamped tree
+                // connectors, and the header row must not draw an indent. Leaf names, because the
+                // header path above the grid already carries the ancestry.
+                var candidates = CategorySummaryBuilder
+                    .BuildTree(items, ResolveCategoryCompletionBadgeMode(), useLeafNames: true)
                     .OfType<CategorySummaryItem>()
-                    .FirstOrDefault(c => CategoryPathHelper.IsSame(c.CategoryPath, drilled));
+                    .Where(c => CategoryPathHelper.IsSame(c.CategoryPath, drilled))
+                    .ToList();
+
+                match = candidates.FirstOrDefault(c => c.IsSelfRow == _drillSelfOnly)
+                    ?? candidates.FirstOrDefault();
+
+                // A delta can dissolve the scope that was drilled into - the last direct
+                // achievement recategorized away, or the last child category emptied. Following
+                // the surviving row keeps the header and the grid agreeing on what is shown.
+                if (match != null)
+                {
+                    _drillSelfOnly = match.IsSelfRow;
+                }
+            }
 
             SelectedCategorySummaryItems = match == null ? null : new[] { (GameSummaryItem)match };
         }
