@@ -288,15 +288,24 @@
                                  would shrink the art by a different amount on every row. -->
                             <controls:CategoryTreeGuide DockPanel.Dock="Left"
                                                         Shape="{Binding TreeShape}"
+                                                        DropAnchorX="{Binding SelfDropAnchorX}"
                                                         LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
                                                         NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
                           <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
                             <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                         HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
-                                <TextBlock Text="{Binding GameName}"
-                                           HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
-                                           Style="{StaticResource GameSummaryNameTextStyle}"/>
+                                <!-- The grid hugs the name, so the zero-size stub bottom-centered in
+                                     it sits exactly under the middle of the text - where a mixed
+                                     category's dashed drop toward its self row starts. -->
+                                <Grid HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
+                                    <TextBlock Text="{Binding GameName}"
+                                               Style="{StaticResource GameSummaryNameTextStyle}"/>
+                                    <controls:CategorySelfDropStub Shape="{Binding TreeShape}"
+                                                                   LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Bottom"/>
+                                </Grid>
                                 <TextBlock HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                            Style="{StaticResource OverviewGameMetadataTextStyle}">
                                     <TextBlock.Text>
