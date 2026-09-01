@@ -1792,12 +1792,14 @@ namespace PlayniteAchievements.Views.Controls
                 {
                     _drillSelfOnly = match.IsSelfRow;
 
-                    // In the list the self row sits under a row already carrying the name and goes
-                    // unlabeled; here it is the only row, so it takes the name back. Safe to
-                    // mutate - the row was built fresh above and is not shared with the list.
+                    // In the list the self row leans on the labeled category row directly above
+                    // it: unlabeled and dimmed. In this header it stands alone, so it takes the
+                    // name back and drops the self styling. Safe to mutate - the row was built
+                    // fresh above and is not shared with the list.
                     if (match.IsSelfRow)
                     {
                         match.GameName = match.CategoryLeafName;
+                        match.IsSelfRow = false;
                     }
                 }
             }
