@@ -223,7 +223,9 @@ namespace PlayniteAchievements.Services.UI
             double? soundFileGain = null,
             int? soundAlignmentDelayMs = null)
         {
-            if (wave == null || wave.Count == 0 || wave[0].IsPreview)
+            // Progress waves never own a capture or a clip, so the recording side has nothing to
+            // learn from them.
+            if (wave == null || wave.Count == 0 || wave[0].IsPreview || wave[0].IsProgressUpdate)
             {
                 return;
             }
@@ -345,12 +347,14 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            if (ShouldToast(args.IsPreview, args.IsFriendUnlock, args.ProviderKey))
+            if (ShouldToast(args.IsPreview, args.IsFriendUnlock, args.IsProgressUpdate, args.ProviderKey))
             {
                 return true;
             }
 
-            if (args.IsFriendUnlock)
+            // Progress notifications and friend unlocks are toast-only: neither ever owns an
+            // overlay track or a screenshot.
+            if (args.IsFriendUnlock || args.IsProgressUpdate)
             {
                 return false;
             }
@@ -380,7 +384,7 @@ namespace PlayniteAchievements.Services.UI
         /// service is wired in.
         /// </summary>
         private bool NeedsOverlayTrack(AchievementUnlockedEventArgs args) =>
-            args != null && !args.IsPreview && !args.IsFriendUnlock &&
+            args != null && !args.IsPreview && !args.IsFriendUnlock && !args.IsProgressUpdate &&
             (_needsOverlayTrack?.Invoke(args) ?? false);
 
         private static RarityTier ResolveRarity(AchievementUnlockedEventArgs args) =>
@@ -390,11 +394,11 @@ namespace PlayniteAchievements.Services.UI
             args.IsGameCompleted || args.IsCompletionAchievement || args.IsCapstone;
 
         /// <summary>
-        /// Whether this unlock shows an on-screen toast. Previews always toast; otherwise the
-        /// policy ANDs the EnableNotifications master switch into both toast flags and resolves
-        /// all-false for null settings.
+        /// Whether this notification shows an on-screen toast. Previews always toast; otherwise the
+        /// policy ANDs the EnableNotifications master switch into every toast flag and resolves
+        /// all-false for null settings. Progress notifications have their own flag.
         /// </summary>
-        private bool ShouldToast(bool isPreview, bool isFriendUnlock, string providerKey)
+        private bool ShouldToast(bool isPreview, bool isFriendUnlock, bool isProgressUpdate, string providerKey)
         {
             if (isPreview)
             {
@@ -402,6 +406,11 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var effective = ProviderNotificationPolicy.Resolve(_settings?.Persisted, providerKey);
+            if (isProgressUpdate)
+            {
+                return effective.ProgressToasts;
+            }
+
             return isFriendUnlock
                 ? effective.FriendUnlockToasts
                 : effective.UnlockToasts;
@@ -2084,7 +2093,9 @@ namespace PlayniteAchievements.Services.UI
             var end = anchorIndex;
             // Completion-grade notifications never share a wave with regular achievement unlocks:
             // the standalone 100% notification and a capstone unlock each get their own wave
-            // (multiple completions of the same kind may stack together).
+            // (multiple completions of the same kind may stack together). Progress notifications
+            // likewise batch only with each other: the chime and vibration are per wave, and a
+            // progress wave plays neither.
             while (end < items.Count &&
                    result.Count < max &&
                    items[end].NotifyReadyAtUtc <= now &&
@@ -2092,8 +2103,9 @@ namespace PlayniteAchievements.Services.UI
                    items[end].PlayniteGameId == anchor.PlayniteGameId &&
                    items[end].IsGameCompleted == anchor.IsGameCompleted &&
                    items[end].IsCapstone == anchor.IsCapstone &&
-                   ShouldToast(items[end].IsPreview, items[end].IsFriendUnlock, items[end].ProviderKey) ==
-                       ShouldToast(anchor.IsPreview, anchor.IsFriendUnlock, anchor.ProviderKey))
+                   items[end].IsProgressUpdate == anchor.IsProgressUpdate &&
+                   ShouldToast(items[end].IsPreview, items[end].IsFriendUnlock, items[end].IsProgressUpdate, items[end].ProviderKey) ==
+                       ShouldToast(anchor.IsPreview, anchor.IsFriendUnlock, anchor.IsProgressUpdate, anchor.ProviderKey))
             {
                 result.Add(items[end]);
                 end++;
@@ -2197,7 +2209,7 @@ namespace PlayniteAchievements.Services.UI
             // toast, items that only produce capture output, or a mix (waves batch by friend/own
             // only).
             var toastItems = wave
-                .Where(vm => ShouldToast(vm.IsPreview, vm.IsFriendUnlock, vm.ProviderKey))
+                .Where(vm => ShouldToast(vm.IsPreview, vm.IsFriendUnlock, vm.IsProgressUpdate, vm.ProviderKey))
                 .ToList();
             if (toastItems.Count > 0)
             {
@@ -2385,12 +2397,14 @@ namespace PlayniteAchievements.Services.UI
 
             // Chime and vibration belong to the on-screen notification, so an unrevealed wave skips
             // both — and skips the alignment delay that exists only to line them up with the
-            // reveal. Its clips carry no chime because none was played.
+            // reveal. Its clips carry no chime because none was played. A progress wave is visible
+            // yet deliberately silent: no chime, no vibration, and therefore no alignment delay
+            // either (waves batch by kind, so the anchor item speaks for the whole wave).
             DateTime? soundPlayedUtc = null;
             string soundFilePath = null;
             double? soundFileGain = null;
             int? soundAlignmentMs = null;
-            if (visible)
+            if (visible && !wave[0].IsProgressUpdate)
             {
                 // Play the sound first, then show the toast after a short delay so the audio onset
                 // and the slide-in visually align. The in-process fast path starts the player far
@@ -3088,7 +3102,7 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var first = wave[0];
-            if (first.IsPreview || first.IsFriendUnlock)
+            if (first.IsPreview || first.IsFriendUnlock || first.IsProgressUpdate)
             {
                 return null;
             }
