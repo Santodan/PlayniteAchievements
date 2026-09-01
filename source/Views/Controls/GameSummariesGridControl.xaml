@@ -521,8 +521,10 @@
                                                 <TranslateTransform.Y>
                                                     <MultiBinding Converter="{StaticResource ProgressStackCenteringOffset}">
                                                         <Binding ElementName="ProgressStack" Path="VerticalAlignment"/>
+                                                        <Binding ElementName="ProgressNameText" Path="IsVisible"/>
                                                         <Binding ElementName="ProgressNameText" Path="ActualHeight"/>
                                                         <Binding ElementName="ProgressNameText" Path="Margin"/>
+                                                        <Binding ElementName="ProgressFooter" Path="IsVisible"/>
                                                         <Binding ElementName="ProgressFooter" Path="ActualHeight"/>
                                                         <Binding ElementName="ProgressFooter" Path="Margin"/>
                                                     </MultiBinding>
