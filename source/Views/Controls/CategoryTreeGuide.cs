@@ -1,6 +1,5 @@
 using System;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
 using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Helpers;
@@ -257,35 +256,23 @@ namespace PlayniteAchievements.Views.Controls
 
         /// <summary>
         /// Where the self row's drop sits. Preferably the anchor the row above measured under the
-        /// centre of its name text (<see cref="DropAnchorX"/>, in row coordinates, converted to
-        /// this element's space); until that lands, a computed fallback just inside where the name
-        /// above starts, so the twig never waits on another row's layout to draw at all.
+        /// centre of its name text's bottom line (<see cref="DropAnchorX"/>). It arrives in
+        /// name-cell template space, which is this guide's own space - the guide is the cell
+        /// template's first docked child - so it is used verbatim, with no transform to go stale
+        /// under it. Until it lands, a computed fallback just inside where the name above starts,
+        /// so the twig never waits on another row's layout to draw at all.
         /// </summary>
         private double ResolveSelfDropX(CategoryTreeShape shape)
         {
-            var fallback = CategoryTreeGuideMetrics.GetGuideWidth(shape.Depth - 1) +
-                CategoryTreeGuideMetrics.CornerRadius;
-
             var anchor = DropAnchorX;
-            if (double.IsNaN(anchor) || double.IsInfinity(anchor))
+            if (double.IsNaN(anchor) || double.IsInfinity(anchor) ||
+                anchor <= 0d || anchor >= RenderSize.Width)
             {
-                return fallback;
+                return CategoryTreeGuideMetrics.GetGuideWidth(shape.Depth - 1) +
+                    CategoryTreeGuideMetrics.CornerRadius;
             }
 
-            var row = VisualTreeHelpers.FindVisualParent<DataGridRow>(this);
-            if (row == null || !row.IsAncestorOf(this))
-            {
-                return fallback;
-            }
-
-            var originInRow = TransformToAncestor(row).Transform(new Point(0d, 0d));
-            var dropX = anchor - originInRow.X;
-
-            // A stale anchor (the row above resized or scrolled away mid-update) must not push the
-            // drop out of the drawable cell.
-            return dropX > 0d && dropX < RenderSize.Width
-                ? dropX
-                : fallback;
+            return anchor;
         }
 
         /// <summary>Full-height lines for the ancestors that still have siblings below this row.</summary>
