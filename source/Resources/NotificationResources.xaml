@@ -303,11 +303,11 @@
              full-width Border scaled by ProgressFraction, the same mechanism the countdown bar
              uses, so no converter is involved; the track clips the fill to its own bounds. The
              count text carries the two text-shadow layers like every other line. The row itself
-             renders only on progress notifications (the descriptor's LineVisibility). RowMargin
-             adds the leading a text line gets for free from its font; the surface's line padding
-             applies on top via the item container. -->
+             renders only on progress notifications (the descriptor's LineVisibility). The row is
+             held to one text line's box height with the bar centered, so it spaces exactly like
+             the text lines; the surface's line padding applies via the item container. -->
         <Grid Effect="{Binding TextShadow}"
-              Margin="{Binding RowMargin}">
+              MinHeight="{Binding LineBoxHeight}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
