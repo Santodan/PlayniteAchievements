@@ -77,8 +77,26 @@ namespace PlayniteAchievements.Services.Achievements
             var shapes = Build(paths);
             for (var i = 0; i < categories.Count; i++)
             {
-                categories[i].TreeShape = shapes[i];
+                categories[i].TreeShape = categories[i].IsSelfRow
+                    ? WithSelfFlag(shapes[i])
+                    : shapes[i];
             }
+        }
+
+        /// <summary>
+        /// Same geometry, marked as a self row so the guide draws it as a pass-through rather than
+        /// a node. Applied after <see cref="Build"/>, which only sees paths and stays reusable for
+        /// runs that have no self rows in them.
+        /// </summary>
+        private static CategoryTreeShape WithSelfFlag(CategoryTreeShape shape)
+        {
+            var lanes = new bool[shape.AncestorContinues.Count];
+            for (var i = 0; i < lanes.Length; i++)
+            {
+                lanes[i] = shape.AncestorContinues[i];
+            }
+
+            return new CategoryTreeShape(shape.Depth, shape.IsLastSibling, shape.HasChildren, lanes, isSelfRow: true);
         }
 
         /// <summary>
