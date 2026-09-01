@@ -28,7 +28,7 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Returns preview args for the given sample kind: common / uncommon / rare /
-        /// ultrarare / capstone / complete / friend / mockup.
+        /// ultrarare / capstone / complete / friend / progress / mockup.
         /// </summary>
         public static AchievementUnlockedEventArgs BuildPreviewArgs(
             string kind,
@@ -72,6 +72,16 @@ namespace PlayniteAchievements.Services.UI
                     friend.FriendAvatarUrl =
                         "pack://application:,,,/PlayniteAchievements;component/Resources/UnlockedAchIcon.png";
                     return friend;
+                case "progress":
+                    // An incremental-progress notification: still locked, 3/10 -> 4/10. Fired
+                    // previews run the real wave path, so this also exercises the silent gate.
+                    var progress = SampleUnlock("Rare", 9.3, false);
+                    progress.IsProgressUpdate = true;
+                    progress.UnlockTimeUtc = null;
+                    progress.PreviousProgressNum = 3;
+                    progress.ProgressNum = 4;
+                    progress.ProgressDenom = 10;
+                    return progress;
                 case "mockup":
                 default:
                     return SampleUnlock("Rare", 9.3, false);
