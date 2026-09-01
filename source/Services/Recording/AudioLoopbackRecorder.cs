@@ -99,6 +99,14 @@ namespace PlayniteAchievements.Services.Recording
         // its natural boundary; see FlushChunksThroughAsync. 0 = no request. Read/written with
         // Interlocked: the process is 32-bit, where a bare long read can tear.
         private long _flushThroughUtcTicks;
+        // The same, for the stamped auxiliary (sidecar) chunks; see
+        // FlushAuxiliaryChunksThroughAsync.
+        private long _flushAuxThroughUtcTicks;
+
+        // How far the wall clock must be past an auxiliary flush request before the covering
+        // sidecar chunks close. Sidecar writes happen on packet arrival, so this absorbs capture
+        // delivery latency; it replaces a fixed segment-length-plus-margin sleep at the reader.
+        private const int AuxiliaryFlushMarginMs = 750;
         private bool _writeGameReference;
         private bool _removeNonGameFromSpeakerMix;
         private bool _extractControllerProgramAudio;
@@ -961,6 +969,7 @@ namespace PlayniteAchievements.Services.Recording
                         }
 
                         SettleFlushRequestLocked();
+                        SettleAuxiliaryFlushRequestLocked(CaptureTimelineClock.UtcNow);
                     }
 
                     Thread.Sleep(PumpIntervalMs);
@@ -1202,6 +1211,76 @@ namespace PlayniteAchievements.Services.Recording
                 OpenChunkLocked();
                 Interlocked.CompareExchange(ref _flushThroughUtcTicks, 0, requested);
             }
+        }
+
+        /// <summary>
+        /// Asks the pump to close the stamped sidecar chunks covering <paramref name="utc"/> once
+        /// the wall clock is safely past it, instead of waiting out their natural chunk length.
+        /// Also flushes the main chunk when this recorder writes its sidecar through the main
+        /// writer (the unstamped chime mode). Completes once the covering chunks are closed;
+        /// callers bound the wait.
+        /// </summary>
+        public async Task FlushAuxiliaryChunksThroughAsync(DateTime utc)
+        {
+            long requested = utc.Ticks, seen;
+            while ((seen = Interlocked.Read(ref _flushAuxThroughUtcTicks)) < requested &&
+                Interlocked.CompareExchange(ref _flushAuxThroughUtcTicks, requested, seen) != seen)
+            {
+            }
+
+            var mainFlush = _capturePlayniteChimes ? FlushChunksThroughAsync(utc) : null;
+            while (_running && Interlocked.Read(ref _flushAuxThroughUtcTicks) != 0)
+            {
+                await Task.Delay(50).ConfigureAwait(false);
+            }
+
+            if (mainFlush != null)
+            {
+                await mainFlush.ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Closes the sidecar chunks covering an auxiliary flush request once the wall clock is
+        /// past the request by <see cref="AuxiliaryFlushMarginMs"/> (sidecar writes trail the
+        /// audio by capture delivery latency). Sparse tracks reopen on their next packet, exactly
+        /// as after a natural expiry. Runs under the gate on the pump thread.
+        /// </summary>
+        private void SettleAuxiliaryFlushRequestLocked(DateTime nowUtc)
+        {
+            var requested = Interlocked.Read(ref _flushAuxThroughUtcTicks);
+            if (requested == 0)
+            {
+                return;
+            }
+
+            if (nowUtc.Ticks - requested < TimeSpan.FromMilliseconds(AuxiliaryFlushMarginMs).Ticks)
+            {
+                return;
+            }
+
+            var requestUtc = new DateTime(requested, DateTimeKind.Utc);
+            foreach (var track in new[]
+            {
+                _stampedChimeTrack,
+                _stampedGameReferenceTrack,
+                _stampedNonGameTrack,
+            })
+            {
+                if (track?.Writer == null || !track.OriginUtc.HasValue)
+                {
+                    continue;
+                }
+
+                var requestFrame = RecordingPaths.AudioFrameAt(
+                    track.OriginUtc.Value, requestUtc, track.Format.SampleRate);
+                if (track.ChunkStartFrame <= requestFrame)
+                {
+                    CloseAuxiliaryChunkLocked(track);
+                }
+            }
+
+            Interlocked.CompareExchange(ref _flushAuxThroughUtcTicks, 0, requested);
         }
 
         private void FailLocked(Exception ex, string message)
