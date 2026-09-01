@@ -245,7 +245,7 @@ namespace PlayniteAchievements.Services.Summaries
                 if (rollupSubtrees && directMembers != null && directMembers.Count > 0 &&
                     members.Count > directMembers.Count)
                 {
-                    result.Add(BuildSelfRow(node, depth, display, directMembers, badgeMode, result.Count));
+                    result.Add(BuildSelfRow(item, directMembers, badgeMode, result.Count));
                 }
             }
 
@@ -255,31 +255,33 @@ namespace PlayniteAchievements.Services.Summaries
         /// <summary>
         /// The synthesized child row reporting a mixed node's direct achievements. Sits at one
         /// depth below its category under the same path, distinguished by
-        /// <see cref="GameSummaryItem.IsSelfRow"/>; carries no art, so the surfaces render it as a
-        /// compact annotation row rather than a peer category. It reuses the category's own display
-        /// name, which keeps the name filter and a name sort treating it exactly like its category.
+        /// <see cref="GameSummaryItem.IsSelfRow"/>. It carries its category's art but no name of
+        /// its own: directly under a row already carrying both, repeating the name read as a
+        /// duplicate, so the surfaces render it as an unlabeled annotation row (a drilled header
+        /// shows it alone and restores the name there). SortingName keeps the category's, so a
+        /// name sort holds the pair together.
         /// </summary>
         private static CategorySummaryItem BuildSelfRow(
-            string node,
-            int depth,
-            string parentDisplay,
+            CategorySummaryItem parent,
             List<AchievementDisplayItem> directMembers,
             CategoryCompletionBadgeMode badgeMode,
             int emittedCount)
         {
             var item = new CategorySummaryItem
             {
-                CategoryLabel = node,
-                CategoryPath = node,
-                CategoryLeafName = CategoryPathHelper.GetLeafName(node),
-                CategoryDepth = depth + 1,
+                CategoryLabel = parent.CategoryPath,
+                CategoryPath = parent.CategoryPath,
+                CategoryLeafName = parent.CategoryLeafName,
+                CategoryDepth = parent.CategoryDepth + 1,
                 IsSelfRow = true,
                 ChildCategoryCount = 0,
                 DirectAchievementCount = directMembers.Count,
                 PlayniteGameId = ResolveSharedGameId(directMembers),
-                GameName = parentDisplay,
-                SortingName = parentDisplay,
-                NameToolTip = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(node)
+                GameName = string.Empty,
+                SortingName = parent.SortingName,
+                NameToolTip = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(parent.CategoryPath),
+                GameLogo = parent.GameLogo,
+                GameCoverPath = parent.GameCoverPath
             };
 
             AchievementStatsAccumulator
