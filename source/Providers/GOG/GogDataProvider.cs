@@ -46,6 +46,14 @@ namespace PlayniteAchievements.Providers.GOG
         internal static readonly Guid GogPluginId = Guid.Parse("AEBE8B7C-6DC3-4A66-AF31-E7375C6B5E9E");
         internal static readonly Guid GogOSSPluginId = Guid.Parse("03689811-3F33-4DFB-A121-2EE168FB9A5C");
 
+        /// <summary>
+        /// Galaxy's unlockTime is truncated to whole seconds and stamped at the game's unlock
+        /// call, which precedes the visible payoff; clips anchored on the raw stamp placed the
+        /// card 1-3 seconds before the on-screen moment (field-measured). The bias aims slightly
+        /// late rather than early — a card just after the moment reads like the real overlay.
+        /// </summary>
+        private static readonly TimeSpan GalaxyReportedAnchorBias = TimeSpan.FromSeconds(2.5);
+
         private readonly ILogger _logger;
         private readonly GogSessionManager _sessionManager;
         private readonly GogScanner _scanner;
@@ -221,6 +229,7 @@ namespace PlayniteAchievements.Providers.GOG
                 // capture-grade anchor here, and ComputeClipWindow already accepts an anchor up to
                 // one poll interval plus the pre-roll before observation before re-anchoring.
                 UnlockAnchorPolicy = InGameUnlockAnchorPolicy.ProviderReported,
+                UnlockAnchorBias = GalaxyReportedAnchorBias,
                 State = new GogInGameState
                 {
                     ReleaseKey = releaseKey,
