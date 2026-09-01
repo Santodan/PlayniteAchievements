@@ -1457,12 +1457,16 @@ namespace PlayniteAchievements.Views.Controls
             // column draws (stamped in ApplyCategoryNameFilter). The name column sorts on what it
             // shows, and retitling to full paths made sorting swap the whole column's text for long
             // shared prefixes; a nested row's path stays on hover.
-            _allCategorySummaries = items == null || items.Count == 0
-                ? null
-                : CategorySummaryBuilder.BuildTree(
-                    items,
-                    ResolveCategoryCompletionBadgeMode(),
-                    useLeafNames: true);
+            using (PerfScope.Start(Logger, "CategoryGrid.BuildTree", thresholdMs: 10,
+                context: $"items={items?.Count ?? 0}"))
+            {
+                _allCategorySummaries = items == null || items.Count == 0
+                    ? null
+                    : CategorySummaryBuilder.BuildTree(
+                        items,
+                        ResolveCategoryCompletionBadgeMode(),
+                        useLeafNames: true);
+            }
 
             // From the full tree, not the visible rows: collapsing everything must not read as the
             // tree having gone flat, or the buttons that undo it would hide themselves.
@@ -1496,6 +1500,16 @@ namespace PlayniteAchievements.Views.Controls
                 CategorySummaries = null;
                 return;
             }
+
+            using (PerfScope.Start(Logger, "CategoryGrid.VisiblePass", thresholdMs: 10,
+                context: $"rows={all.Count}"))
+            {
+                ApplyCategoryNameFilterCore(all);
+            }
+        }
+
+        private void ApplyCategoryNameFilterCore(List<GameSummaryItem> all)
+        {
 
             var searchActive = !string.IsNullOrWhiteSpace(_categorySearchText);
             var sortActive = _categorySortDirection.HasValue && !string.IsNullOrWhiteSpace(_categorySortPath);
@@ -1987,33 +2001,37 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnItemsSourceContentChanged()
         {
-            RecomputeHasAnyFavorites();
-
-            // Re-evaluate toggle availability first: a game switch or a newly loaded multi-game feed
-            // may add or remove the category toggle (and drop us out of category mode) before the
-            // rest of this method reads _isCategoryMode.
-            SyncModeToggle();
-
-            if (!_isCategoryMode)
+            using (PerfScope.Start(Logger, "CategoryGrid.SourceContentChanged", thresholdMs: 25,
+                context: $"categoryMode={_isCategoryMode} items={ItemsSource?.Count() ?? 0}"))
             {
-                RecomputeEffectiveAchievements();
-                return;
-            }
+                RecomputeHasAnyFavorites();
 
-            // Reconcile the drill before rebuilding: the summaries are the children of wherever the
-            // drill now points, so a stale path would build the wrong level.
-            if (!HasMultipleCategories())
-            {
-                ClearDrillSelection();
-            }
-            else if (IsDrilled)
-            {
-                ReconcileDrillPath();
-            }
+                // Re-evaluate toggle availability first: a game switch or a newly loaded multi-game feed
+                // may add or remove the category toggle (and drop us out of category mode) before the
+                // rest of this method reads _isCategoryMode.
+                SyncModeToggle();
 
-            RefreshDrillState();
-            ApplyCategoryViewState();
-            ApplyControlBarModeState();
+                if (!_isCategoryMode)
+                {
+                    RecomputeEffectiveAchievements();
+                    return;
+                }
+
+                // Reconcile the drill before rebuilding: the summaries are the children of wherever the
+                // drill now points, so a stale path would build the wrong level.
+                if (!HasMultipleCategories())
+                {
+                    ClearDrillSelection();
+                }
+                else if (IsDrilled)
+                {
+                    ReconcileDrillPath();
+                }
+
+                RefreshDrillState();
+                ApplyCategoryViewState();
+                ApplyControlBarModeState();
+            }
         }
 
         /// <summary>
