@@ -381,6 +381,10 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Category">Categories</sys:String>
     <sys:String x:Key="LOCPlayAch_CategorySummaries_FilterPlaceholder">Filter Categories...</sys:String>
     <sys:String x:Key="LOCPlayAch_CategorySummaries_ToggleToolTip">Group achievements by category</sys:String>
+    <sys:String x:Key="LOCPlayAch_CategorySummaries_ExpandAll">Expand All</sys:String>
+    <sys:String x:Key="LOCPlayAch_CategorySummaries_CollapseAll">Collapse All</sys:String>
+    <sys:String x:Key="LOCPlayAch_CategorySummaries_ExpandAllToolTip">Expand all categories</sys:String>
+    <sys:String x:Key="LOCPlayAch_CategorySummaries_CollapseAllToolTip">Collapse all categories</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_StartInCategoryMode">Start in Category Mode</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_HideCategorySummaryRow">Hide Category Grid After Selection</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryGrid">Category Grid</sys:String>
