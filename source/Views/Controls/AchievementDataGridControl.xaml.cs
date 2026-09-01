@@ -1745,7 +1745,7 @@ namespace PlayniteAchievements.Views.Controls
             // the click is then idempotent however the row was reached. A self row narrows the
             // drill to the node's direct achievements; its category row opens the whole subtree.
             SetDrillPath(item.CategoryLabel, item.IsSelfRow);
-            RefreshDrillState();
+            RefreshDrillState(rebuildSummaries: false);
             ApplyCategoryViewState();
             ApplyControlBarModeState();
         }
@@ -1803,7 +1803,7 @@ namespace PlayniteAchievements.Views.Controls
                 CategoryListGrid.SelectedItem = null;
             }
 
-            RefreshDrillState();
+            RefreshDrillState(rebuildSummaries: false);
             ResetAchievementFilters();
             ApplyCategoryViewState();
             ApplyControlBarModeState();
@@ -2012,13 +2012,22 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// Rebuilds the category rows and the header row describing the row the drill was entered
-        /// through, so the header always restates the numbers that were clicked - the subtree
-        /// rollup for a category row, the direct achievements for a mixed category's self row.
+        /// Rebuilds the category rows (when the source content changed) and the header row
+        /// describing the row the drill was entered through, so the header always restates the
+        /// numbers that were clicked - the subtree rollup for a category row, the direct
+        /// achievements for a mixed category's self row.
+        ///
+        /// Drill navigation passes <paramref name="rebuildSummaries"/> false: the click changes
+        /// nothing about the achievements, so <see cref="_allCategorySummaries"/> is still
+        /// current, and a rebuild would republish all-new row instances - throwing away the
+        /// list's realized containers and the incremental-publish master for no data change.
         /// </summary>
-        private void RefreshDrillState()
+        private void RefreshDrillState(bool rebuildSummaries = true)
         {
-            RebuildCategorySummaries();
+            if (rebuildSummaries || _allCategorySummaries == null)
+            {
+                RebuildCategorySummaries();
+            }
 
             var drilled = DrilledPath;
             if (drilled == null)
