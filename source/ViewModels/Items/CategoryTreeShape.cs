@@ -20,32 +20,13 @@ namespace PlayniteAchievements.ViewModels.Items
             int depth,
             bool isLastSibling,
             bool hasChildren,
-            bool[] ancestorContinues,
-            bool isSelfRow = false,
-            bool hasSelfRowBelow = false)
+            bool[] ancestorContinues)
         {
             Depth = depth;
             IsLastSibling = isLastSibling;
             HasChildren = hasChildren;
             AncestorContinues = ancestorContinues ?? NoLanes;
-            IsSelfRow = isSelfRow;
-            HasSelfRowBelow = hasSelfRowBelow;
         }
-
-        /// <summary>
-        /// True for a mixed category's synthesized self row. The guide then draws only the lines
-        /// passing through toward the rows below - no arm and no bead - so the row reads as an
-        /// annotation on its category rather than a node of the tree.
-        /// </summary>
-        public bool IsSelfRow { get; }
-
-        /// <summary>
-        /// True when the row directly beneath this one, as emitted, is this row's own self row.
-        /// The name cell then drops the dashed connector out of its text toward it. Carried on the
-        /// shape rather than the item so it shares the guides' lifecycle: gone under a column sort,
-        /// gone when a filter drops the self row, absent on a fresh drill-header row.
-        /// </summary>
-        public bool HasSelfRowBelow { get; }
 
         /// <summary>One-based: a root category is 1.</summary>
         public int Depth { get; }
