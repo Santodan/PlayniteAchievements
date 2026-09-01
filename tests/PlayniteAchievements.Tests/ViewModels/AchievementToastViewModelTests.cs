@@ -626,6 +626,27 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsNotNull(toastLine.TrackBrush);
             Assert.IsTrue(toastLine.BarHeight >= 4);
             Assert.AreEqual(toastLine.BarHeight / 2, toastLine.BarCornerRadius.TopLeft);
+            Assert.IsTrue(toastLine.RowMargin.Top > 0, "The bar row carries its own leading.");
+        }
+
+        [TestMethod]
+        public void ProgressNotification_IgnoresTheNameLineOffsetLikeCompletion()
+        {
+            var style = AllLinesVisible();
+            style.TitleLineOffset = 24;
+
+            var unlock = BuildLineToast(style);
+            var progress = BuildLineToast(style, ProgressArgs());
+
+            ToastLineDescriptor UnlockTitle() { foreach (var l in unlock.ToastLines) if (l is ToastTitleLine) return l; return null; }
+            ToastLineDescriptor ProgressTitle() { foreach (var l in progress.ToastLines) if (l is ToastTitleLine) return l; return null; }
+
+            Assert.AreEqual(24, UnlockTitle().LeftIndent, "The unlock toast keeps the user's name-line offset.");
+            Assert.AreEqual(0, ProgressTitle().LeftIndent, "No inline badge on a progress toast, so nothing to make room for.");
+            foreach (var line in progress.ToastLines)
+            {
+                Assert.AreEqual(0, line.LeftIndent);
+            }
 
             Assert.IsNull(FindProgressLine(viewModel.FrameLines), "Frames never render progress notifications.");
         }
