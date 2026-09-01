@@ -568,6 +568,7 @@ namespace PlayniteAchievements.Services
             DateTime sessionStartUtc;
             DateTime observedUtc;
             InGameUnlockAnchorPolicy anchorPolicy;
+            TimeSpan anchorBias;
             lock (_stateLock)
             {
                 if (!_games.TryGetValue(state.Game.Id, out var tracked) ||
@@ -588,6 +589,7 @@ namespace PlayniteAchievements.Services
 
                 anchorPolicy = state.Registration?.UnlockAnchorPolicy ??
                     InGameUnlockAnchorPolicy.ProviderReported;
+                anchorBias = state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero;
                 state.Schedule.Succeeded(
                     CaptureTimelineClock.UtcNow,
                     state.Registration?.PollInterval ?? TimeSpan.FromSeconds(60));
@@ -624,7 +626,8 @@ namespace PlayniteAchievements.Services
                     emittableKeys,
                     elapsedMilliseconds,
                     observedUtc,
-                    anchorPolicy);
+                    anchorPolicy,
+                    anchorBias);
             }
 
             if (completion != null)
@@ -752,7 +755,8 @@ namespace PlayniteAchievements.Services
                 ReferenceEquals(state.ProgressSource, progressSource) &&
                 previousTargets.SequenceEqual(nextTargets, StringComparer.OrdinalIgnoreCase) &&
                 state.Registration?.IsRemote == registration?.IsRemote &&
-                state.Registration?.UnlockAnchorPolicy == registration?.UnlockAnchorPolicy;
+                state.Registration?.UnlockAnchorPolicy == registration?.UnlockAnchorPolicy &&
+                state.Registration?.UnlockAnchorBias == registration?.UnlockAnchorBias;
 
             List<IDisposable> oldSubscriptions = null;
             int generation;
@@ -956,7 +960,10 @@ namespace PlayniteAchievements.Services
                                 keys,
                                 timer.ElapsedMilliseconds,
                                 observedUtc,
-                                InGameUnlockAnchorPolicy.ProviderReported);
+                                InGameUnlockAnchorPolicy.ProviderReported,
+                                // Refresh-prong unlocks carry the same provider stamps the fast
+                                // source reports, so a registered bias applies here too.
+                                state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero);
                         if (completion != null)
                         {
                             _notifyUnlocked?.Invoke(completion);
@@ -1048,7 +1055,8 @@ namespace PlayniteAchievements.Services
             IReadOnlyList<string> allowedKeys,
             long elapsedMs,
             DateTime observedUtc,
-            InGameUnlockAnchorPolicy anchorPolicy)
+            InGameUnlockAnchorPolicy anchorPolicy,
+            TimeSpan anchorBias)
         {
             var game = state.Game;
             // Both snapshots take the custom-data overlay. A manual capstone lives in the custom
@@ -1113,7 +1121,8 @@ namespace PlayniteAchievements.Services
                     ResolveAchievementNumber(numberByApiName, achievement),
                     isCompletionAchievement,
                     observedUtc,
-                    anchorPolicy));
+                    anchorPolicy,
+                    anchorBias));
             }
 
             // The completion time is the triggering achievement's unlock time — the latest in the
@@ -1121,7 +1130,7 @@ namespace PlayniteAchievements.Services
             // toast shows no datetime exactly when its unlocks don't.
             var completionTimeUtc = unlocks.Select(a => a?.UnlockTimeUtc).Max();
             return reaches100Percent
-                ? CreateUserCompletionEventArgs(game, after, completionTimeUtc, observedUtc, anchorPolicy)
+                ? CreateUserCompletionEventArgs(game, after, completionTimeUtc, observedUtc, anchorPolicy, anchorBias)
                 : null;
         }
 
@@ -1526,7 +1535,8 @@ namespace PlayniteAchievements.Services
                     ResolveAchievementNumber(numberByApiName, achievement),
                     isCompletionAchievement: false,
                     observedUtc,
-                    InGameUnlockAnchorPolicy.SourceObservation);
+                    InGameUnlockAnchorPolicy.SourceObservation,
+                    TimeSpan.Zero);
                 args.IsTestFire = true;
 
                 _logger?.Debug(
@@ -1635,10 +1645,11 @@ namespace PlayniteAchievements.Services
             int achievementNumber,
             bool isCompletionAchievement,
             DateTime observedUtc,
-            InGameUnlockAnchorPolicy anchorPolicy)
+            InGameUnlockAnchorPolicy anchorPolicy,
+            TimeSpan anchorBias)
         {
             var reportedUtc = achievement?.UnlockTimeUtc;
-            var videoAnchor = InGameUnlockAnchorSelector.Select(anchorPolicy, reportedUtc, observedUtc);
+            var videoAnchor = InGameUnlockAnchorSelector.Select(anchorPolicy, reportedUtc, observedUtc, anchorBias);
             return new AchievementUnlockedEventArgs
             {
                 PlayniteGameId = game?.Id ?? data?.PlayniteGameId ?? Guid.Empty,
@@ -1675,12 +1686,14 @@ namespace PlayniteAchievements.Services
             GameAchievementData data,
             DateTime? completionTimeUtc,
             DateTime observedUtc,
-            InGameUnlockAnchorPolicy anchorPolicy)
+            InGameUnlockAnchorPolicy anchorPolicy,
+            TimeSpan anchorBias)
         {
             var videoAnchor = InGameUnlockAnchorSelector.Select(
                 anchorPolicy,
                 completionTimeUtc,
-                observedUtc);
+                observedUtc,
+                anchorBias);
             return new AchievementUnlockedEventArgs
             {
                 PlayniteGameId = game?.Id ?? data?.PlayniteGameId ?? Guid.Empty,
