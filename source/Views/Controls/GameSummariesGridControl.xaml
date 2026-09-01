@@ -14,6 +14,8 @@
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/OverviewStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
+            <converters:ProgressStackCenteringOffsetConverter x:Key="ProgressStackCenteringOffset"/>
+
 
             <!-- Game icon/cover image, switching source and decode size with the
                  grid's UseCoverImages and PreserveImageResolution settings. -->
@@ -508,8 +510,27 @@
                                         Padding="4,6,2,6">
                             <Grid>
                                 <Grid Style="{StaticResource OverviewProgressContainerStyle}">
-                                    <StackPanel Style="{StaticResource OverviewProgressStackStyle}">
-                                        <TextBlock Text="{Binding GameName}"
+                                    <StackPanel x:Name="ProgressStack"
+                                                Style="{StaticResource OverviewProgressStackStyle}">
+                                        <!-- Measured bar-centering nudge: the name row (above) and badge
+                                             footer (below) pull the bar off the stack's midpoint, and their
+                                             heights follow the theme's fonts, so the offset is computed from
+                                             the rows' actual heights instead of a constant. -->
+                                        <StackPanel.RenderTransform>
+                                            <TranslateTransform>
+                                                <TranslateTransform.Y>
+                                                    <MultiBinding Converter="{StaticResource ProgressStackCenteringOffset}">
+                                                        <Binding ElementName="ProgressStack" Path="VerticalAlignment"/>
+                                                        <Binding ElementName="ProgressNameText" Path="ActualHeight"/>
+                                                        <Binding ElementName="ProgressNameText" Path="Margin"/>
+                                                        <Binding ElementName="ProgressFooter" Path="ActualHeight"/>
+                                                        <Binding ElementName="ProgressFooter" Path="Margin"/>
+                                                    </MultiBinding>
+                                                </TranslateTransform.Y>
+                                            </TranslateTransform>
+                                        </StackPanel.RenderTransform>
+                                        <TextBlock x:Name="ProgressNameText"
+                                                   Text="{Binding GameName}"
                                                    Style="{StaticResource OverviewProgressNameTextStyle}"/>
                                         <Grid>
                                             <ProgressBar Value="{Binding Progression, Mode=OneWay}"
@@ -517,8 +538,9 @@
                                             <TextBlock Text="{Binding ProgressionText}"
                                                        Style="{StaticResource OverviewProgressPercentTextStyle}"/>
                                         </Grid>
-    
-                                        <Grid Style="{StaticResource OverviewProgressFooterStyle}">
+
+                                        <Grid x:Name="ProgressFooter"
+                                              Style="{StaticResource OverviewProgressFooterStyle}">
                                             <ContentControl Content="{Binding}"
                                                             HorizontalContentAlignment="Stretch"
                                                             VerticalContentAlignment="Center">
