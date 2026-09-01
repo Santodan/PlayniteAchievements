@@ -60,9 +60,11 @@ namespace PlayniteAchievements.Models.Tests
             var options = settings.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.Overview);
             options.SortDescending = !options.SortDescending;
             options.ShowNameAboveProgress = !options.ShowNameAboveProgress;
+            options.ShowRarityBadgesBelowProgress = !options.ShowRarityBadgesBelowProgress;
 
             CollectionAssert.Contains(raised, nameof(PersistedSettings.OverviewGameSummariesGridSortDescending));
             CollectionAssert.Contains(raised, nameof(PersistedSettings.OverviewGameSummariesShowNameAboveProgress));
+            CollectionAssert.Contains(raised, nameof(PersistedSettings.OverviewGameSummariesShowRarityBadgesBelowProgress));
         }
 
         [TestMethod]
@@ -105,9 +107,11 @@ namespace PlayniteAchievements.Models.Tests
             var options = settings.GridOptions.CategorySummaries[GridOptionKeys.CategorySummaries.FriendsOverview];
             options.UseCoverImages = !options.UseCoverImages;
             options.ShowNameAboveProgress = !options.ShowNameAboveProgress;
+            options.ShowRarityBadgesBelowProgress = !options.ShowRarityBadgesBelowProgress;
 
             CollectionAssert.Contains(raised, nameof(PersistedSettings.FriendsOverviewCategorySummariesUseCoverImages));
             CollectionAssert.Contains(raised, nameof(PersistedSettings.FriendsOverviewCategorySummariesShowNameAboveProgress));
+            CollectionAssert.Contains(raised, nameof(PersistedSettings.FriendsOverviewCategorySummariesShowRarityBadgesBelowProgress));
         }
 
         [TestMethod]
