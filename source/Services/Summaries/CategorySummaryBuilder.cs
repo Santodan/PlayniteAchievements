@@ -245,7 +245,9 @@ namespace PlayniteAchievements.Services.Summaries
                 if (rollupSubtrees && directMembers != null && directMembers.Count > 0 &&
                     members.Count > directMembers.Count)
                 {
-                    result.Add(BuildSelfRow(item, directMembers, badgeMode, result.Count));
+                    var selfRow = BuildSelfRow(item, directMembers, badgeMode, result.Count);
+                    item.SelfRow = selfRow;
+                    result.Add(selfRow);
                 }
             }
 
