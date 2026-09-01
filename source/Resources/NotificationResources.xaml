@@ -297,4 +297,46 @@
                    Visibility="{Binding HasGameCategoryContent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
         </Grid>
     </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:ToastProgressLine}">
+        <!-- Incremental-progress row: a bar and the "current/target" count. The fill is a
+             full-width Border scaled by ProgressFraction, the same mechanism the countdown bar
+             uses, so no converter is involved; the track clips the fill to its own bounds. The
+             count text carries the two text-shadow layers like every other line. The row itself
+             renders only on progress notifications (the descriptor's LineVisibility). -->
+        <Grid Effect="{Binding TextShadow}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0"
+                    Height="{Binding BarHeight}"
+                    CornerRadius="{Binding BarCornerRadius}"
+                    Background="{Binding TrackBrush}"
+                    ClipToBounds="True"
+                    VerticalAlignment="Center"
+                    Margin="0,0,10,0">
+                <Border Background="{Binding BarBrush}"
+                        CornerRadius="{Binding BarCornerRadius}"
+                        HorizontalAlignment="Stretch"
+                        RenderTransformOrigin="0,0">
+                    <Border.RenderTransform>
+                        <ScaleTransform ScaleX="{Binding ProgressFraction}"
+                                        ScaleY="1"/>
+                    </Border.RenderTransform>
+                </Border>
+            </Border>
+            <TextBlock Grid.Column="1"
+                       Text="{Binding ProgressText}"
+                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       FontSize="{Binding FontSize}"
+                       FontFamily="{Binding FontFamily}"
+                       FontWeight="{Binding FontWeight}"
+                       FontStyle="{Binding FontStyle}"
+                       TextDecorations="{Binding TextDecorations}"
+                       VerticalAlignment="Center"
+                       Effect="{Binding TextShadowInner}"/>
+        </Grid>
+    </DataTemplate>
 </ResourceDictionary>
