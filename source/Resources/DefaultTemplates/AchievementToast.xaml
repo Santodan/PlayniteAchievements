@@ -379,8 +379,10 @@
                 </StackPanel>
 
                 <!-- Right: the reorderable text lines (header, name, description,
-                     game/category), rendered via the shared line templates in the user's
-                     order. -->
+                     game/category, progress), rendered via the shared line templates in the
+                     user's order. The progress line renders only on incremental-progress
+                     notifications (IsProgressUpdate), which also report ShowBadge / ShowPercent /
+                     the glow gates as false, so this one template covers that kind too. -->
                 <ItemsControl Grid.Column="1"
                               VerticalAlignment="Center"
                               IsTabStop="False"
