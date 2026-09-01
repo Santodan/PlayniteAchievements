@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using PlayniteAchievements.ViewModels.Items;
@@ -145,6 +146,48 @@ namespace PlayniteAchievements.Views.Controls
             var enabled = (bool)e.NewValue;
             guide.IsHitTestVisible = enabled;
             guide.Cursor = enabled ? Cursors.Hand : null;
+            if (!enabled)
+            {
+                guide.UpdateRowToggleHover(false);
+            }
+        }
+
+        /// <summary>
+        /// Attached to the hosting DataGridRow while the mouse sits on one of this guide's toggle
+        /// circles (the only region the guide ever claims for hit testing, so IsMouseOver means
+        /// exactly that). The row template's hover trigger reads it to keep the row highlight off
+        /// under the toggle: the glyph's own hover fill is the feedback there, and lighting the
+        /// whole row suggested the click would select and drill it.
+        /// </summary>
+        public static readonly DependencyProperty IsToggleHoveredProperty =
+            DependencyProperty.RegisterAttached(
+                "IsToggleHovered",
+                typeof(bool),
+                typeof(CategoryTreeGuide),
+                new FrameworkPropertyMetadata(false));
+
+        public static bool GetIsToggleHovered(DependencyObject element)
+        {
+            return (bool)element.GetValue(IsToggleHoveredProperty);
+        }
+
+        public static void SetIsToggleHovered(DependencyObject element, bool value)
+        {
+            element.SetValue(IsToggleHoveredProperty, value);
+        }
+
+        private void UpdateRowToggleHover(bool hovered)
+        {
+            DependencyObject current = this;
+            while (current != null && !(current is DataGridRow))
+            {
+                current = VisualTreeHelper.GetParent(current);
+            }
+
+            if (current != null)
+            {
+                SetIsToggleHovered(current, hovered);
+            }
         }
 
         /// <summary>
@@ -469,6 +512,7 @@ namespace PlayniteAchievements.Views.Controls
             base.OnMouseEnter(e);
             if (ShowCollapseToggle)
             {
+                UpdateRowToggleHover(true);
                 InvalidateVisual();
             }
         }
@@ -478,6 +522,7 @@ namespace PlayniteAchievements.Views.Controls
             base.OnMouseLeave(e);
             if (ShowCollapseToggle)
             {
+                UpdateRowToggleHover(false);
                 InvalidateVisual();
             }
         }
