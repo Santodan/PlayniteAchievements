@@ -101,6 +101,7 @@
                                     <ComboBoxItem Tag="capstone" Content="{DynamicResource LOCPlayAch_Settings_ToastPreviewCapstone}"/>
                                     <ComboBoxItem Tag="complete" Content="{DynamicResource LOCPlayAch_Settings_ToastPreviewComplete}"/>
                                     <ComboBoxItem Tag="friend" Content="{DynamicResource LOCPlayAch_Settings_ToastPreviewFriend}"/>
+                                    <ComboBoxItem Tag="progress" Content="{DynamicResource LOCPlayAch_Settings_ToastPreviewProgress}"/>
                                 </ComboBox>
                             </StackPanel>
                             <WrapPanel Margin="0,0,0,10">
