@@ -556,9 +556,9 @@ namespace PlayniteAchievements.Tests.Services.Summaries
         {
             var items = new List<AchievementDisplayItem>
             {
-                NestedItem("DLC::Winter", unlocked: true),
-                NestedItem("DLC::Winter", unlocked: false),
-                NestedItem("DLC::Winter::Frost", unlocked: true)
+                NestedItem("DLC::Winter", unlocked: true, null, "winter.png"),
+                NestedItem("DLC::Winter", unlocked: false, null, "winter.png"),
+                NestedItem("DLC::Winter::Frost", unlocked: true, null, "winter.png", "frost.png")
             };
 
             var tree = CategorySummaryBuilder
@@ -576,13 +576,14 @@ namespace PlayniteAchievements.Tests.Services.Summaries
 
             Assert.AreEqual("DLC::Winter", self.CategoryPath, "the self row keeps its category's path");
             Assert.AreEqual(winter.CategoryDepth + 1, self.CategoryDepth, "the self row sits one level below");
-            Assert.AreEqual(winter.GameName, self.GameName, "the self row reuses its category's name");
+            Assert.AreEqual(string.Empty, self.GameName, "unlabeled: it sits under a row already carrying the name");
+            Assert.AreEqual(winter.SortingName, self.SortingName, "a name sort holds the pair together");
             Assert.AreEqual(2, self.TotalAchievements, "the self row counts only the direct achievements");
             Assert.AreEqual(1, self.UnlockedAchievements);
             Assert.AreEqual(2, self.DirectAchievementCount);
             Assert.AreEqual(0, self.ChildCategoryCount);
-            Assert.IsNull(self.GameLogo, "a self row carries no art");
-            Assert.IsNull(self.GameCoverPath);
+            Assert.AreEqual(winter.GameLogo, self.GameLogo, "the self row carries its category's art");
+            Assert.AreEqual(winter.GameCoverPath, self.GameCoverPath);
 
             Assert.AreEqual(3, winter.TotalAchievements, "the category row above stays the subtree rollup");
             Assert.AreEqual(2, winter.UnlockedAchievements);
