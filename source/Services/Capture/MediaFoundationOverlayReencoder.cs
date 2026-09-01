@@ -7,6 +7,7 @@ using System.Threading;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
 using SharpDX.MediaFoundation;
+using D3D11 = SharpDX.Direct3D11;
 
 namespace PlayniteAchievements.Services.Capture
 {
@@ -82,8 +83,40 @@ namespace PlayniteAchievements.Services.Capture
 
             using (MediaFoundationRuntime.Acquire())
             {
+                // A D3D device manager on the sink lets Media Foundation pick the vendor's hardware
+                // H.264 encoder for this pass; the encode ASIC is also immune to CPU contention from
+                // the running game. Input samples stay in system memory — this is unrelated to the
+                // reverted GPU compositing path — and any setup failure falls back to the old
+                // manager-less sink below. Disposed after the sink: releasing a manager a writer
+                // still holds is the refcount-crash shape the heap-corruption notes describe.
+                D3D11.Device encodeDevice = null;
+                DXGIDeviceManager deviceManager = null;
                 try
                 {
+                    try
+                    {
+                        encodeDevice = new D3D11.Device(
+                            SharpDX.Direct3D.DriverType.Hardware,
+                            D3D11.DeviceCreationFlags.BgraSupport | D3D11.DeviceCreationFlags.VideoSupport);
+                        // MF worker threads share the device through the manager.
+                        using (var multithread = encodeDevice.QueryInterface<D3D11.Multithread>())
+                        {
+                            multithread.SetMultithreadProtected(true);
+                        }
+
+                        deviceManager = new DXGIDeviceManager();
+                        deviceManager.ResetDevice(encodeDevice);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(
+                            ex, "[Recording] No D3D device for the re-encode sink; using system-memory transforms.");
+                        deviceManager?.Dispose();
+                        deviceManager = null;
+                        encodeDevice?.Dispose();
+                        encodeDevice = null;
+                    }
+
                     using (var readerAttributes = new MediaAttributes(1))
                     {
                         // Advanced video processing lets the reader chain the H.264 decoder plus a
@@ -127,19 +160,61 @@ namespace PlayniteAchievements.Services.Capture
                                 SinkWriter sink = null;
                                 try
                                 {
-                                    using (var sinkAttributes = new MediaAttributes(1))
+                                    var videoStream = -1;
+                                    var audioStream = -1;
+                                    SourceReader audioReader = null;
+                                    var usedManager = false;
+                                    // First attempt binds the D3D manager so a hardware encoder MFT
+                                    // can be selected; any setup failure through BeginWriting retries
+                                    // the whole sink without it (the old configuration).
+                                    foreach (var manager in deviceManager != null
+                                        ? new[] { deviceManager, null }
+                                        : new DXGIDeviceManager[] { null })
                                     {
-                                        sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, 1);
-                                        sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
+                                        try
+                                        {
+                                            using (var sinkAttributes = new MediaAttributes(manager != null ? 2 : 1))
+                                            {
+                                                sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, 1);
+                                                if (manager != null)
+                                                {
+                                                    sinkAttributes.Set(SinkWriterAttributeKeys.D3DManager, manager);
+                                                }
+
+                                                sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
+                                            }
+
+                                            videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps, quality);
+                                            audioStream = TryAddAudio(
+                                                sink, baseClipPath, decodeToPcm: chimePcm != null, out audioReader);
+                                            sink.BeginWriting();
+                                            usedManager = manager != null;
+                                            break;
+                                        }
+                                        catch (Exception ex) when (manager != null)
+                                        {
+                                            _logger?.Debug(
+                                                ex,
+                                                "[Recording] Re-encode sink setup with the D3D manager failed; " +
+                                                "retrying with system-memory transforms.");
+                                            audioReader?.Dispose();
+                                            audioReader = null;
+                                            sink?.Dispose();
+                                            sink = null;
+                                        }
                                     }
 
-                                    var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps, quality);
-                                    var audioStream = TryAddAudio(
-                                        sink, baseClipPath, decodeToPcm: chimePcm != null, out var audioReader);
+                                    // Says whether this pass actually got a hardware encoder — the
+                                    // pass dominates clip latency, so a silent software fallback is
+                                    // worth being able to see.
+                                    _logger?.Debug(
+                                        "[Recording] Toast re-encode transforms: " +
+                                        MediaFoundationH264Encoder.DescribeTransforms(sink, videoStream) +
+                                        (usedManager ? " (D3D manager bound)." : " (no D3D manager)."));
+
                                     var compositor = new OverlayCompositor(frameW, frameH, stride);
                                     using (audioReader)
                                     {
-                                        sink.BeginWriting();
                                         var timer = Stopwatch.StartNew();
                                         var counts = WriteComposited(
                                             sink, videoStream, videoReader, audioStream, audioReader,
@@ -165,6 +240,11 @@ namespace PlayniteAchievements.Services.Capture
                 {
                     _logger?.Warn(ex, "[Recording] Toast overlay re-encode failed; the toastless clip is kept.");
                     return false;
+                }
+                finally
+                {
+                    deviceManager?.Dispose();
+                    encodeDevice?.Dispose();
                 }
             }
         }
