@@ -97,6 +97,44 @@ namespace PlayniteAchievements.Tests.Services
             Assert.IsTrue(rows.All(r => r.TreeShape == null));
         }
 
+        [TestMethod]
+        public void Stamp_FlatListStillClearsShapesByDefault()
+        {
+            var rows = Rows("Story", "Extras");
+            CategoryTreeShapeBuilder.Stamp(rows, enabled: true);
+
+            Assert.IsTrue(rows.All(r => r.TreeShape == null), "a flat game pays nothing for the guide");
+        }
+
+        [TestMethod]
+        public void Stamp_AssumeNestingKeepsShapesOnAFlatList()
+        {
+            // Collapse-all can leave only depth-1 rows visible; their shapes must survive or the
+            // "+" toggles that re-expand them vanish with the guide.
+            var rows = Rows("Story", "Extras");
+
+            CategoryTreeShapeBuilder.Stamp(rows, enabled: true, assumeNesting: true);
+
+            Assert.IsTrue(rows.All(r => r.TreeShape != null));
+            Assert.IsTrue(rows.All(r => !r.TreeShape.HasChildren),
+                "with the children filtered out, nothing in the run opens a subtree");
+        }
+
+        [TestMethod]
+        public void Stamp_CollapsedParentReadsAsChildlessAgainstTheVisibleRows()
+        {
+            // The IsCollapsed flag on the row, not the shape, carries the parenthood cue in this
+            // state - the shape only ever describes the rows actually present.
+            var rows = Rows("Story", "Extras", "Extras::Bonus");
+
+            CategoryTreeShapeBuilder.Stamp(rows, enabled: true, assumeNesting: true);
+            var collapsed = Rows("Story", "Extras");
+            CategoryTreeShapeBuilder.Stamp(collapsed, enabled: true, assumeNesting: true);
+
+            Assert.IsTrue(rows[1].TreeShape.HasChildren);
+            Assert.IsFalse(collapsed[1].TreeShape.HasChildren);
+        }
+
         /// <summary>
         /// One row per spec: a plain category path, or "path!self" for that category's self row.
         /// </summary>

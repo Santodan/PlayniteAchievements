@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Helpers;
@@ -129,6 +130,83 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(DropAnchorXProperty, value);
         }
 
+        /// <summary>
+        /// Opts this instance into the expand/collapse toggle drawn on a parent's descender. Off by
+        /// default so the other guide surfaces (category picker, filter dropdown, Manage tab) keep
+        /// rendering pure decoration. Turning it on re-enables hit testing per instance - but only
+        /// the toggle's circle claims hits (see <see cref="HitTestCore"/>), so row clicks elsewhere
+        /// keep belonging to the row.
+        /// </summary>
+        public static readonly DependencyProperty ShowCollapseToggleProperty =
+            DependencyProperty.Register(
+                nameof(ShowCollapseToggle),
+                typeof(bool),
+                typeof(CategoryTreeGuide),
+                new FrameworkPropertyMetadata(
+                    false,
+                    FrameworkPropertyMetadataOptions.AffectsRender,
+                    OnShowCollapseToggleChanged));
+
+        public bool ShowCollapseToggle
+        {
+            get => (bool)GetValue(ShowCollapseToggleProperty);
+            set => SetValue(ShowCollapseToggleProperty, value);
+        }
+
+        private static void OnShowCollapseToggleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var guide = (CategoryTreeGuide)d;
+            var enabled = (bool)e.NewValue;
+            guide.IsHitTestVisible = enabled;
+            guide.Cursor = enabled ? Cursors.Hand : null;
+        }
+
+        /// <summary>
+        /// Whether this row's subtree is currently hidden. Flips the toggle glyph from "-" to "+"
+        /// and stands in for the children the shape can no longer see - a collapsed row's stamped
+        /// shape reads HasChildren = false because its children were filtered out before stamping.
+        /// </summary>
+        public static readonly DependencyProperty IsCollapsedProperty =
+            DependencyProperty.Register(
+                nameof(IsCollapsed),
+                typeof(bool),
+                typeof(CategoryTreeGuide),
+                new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+
+        public bool IsCollapsed
+        {
+            get => (bool)GetValue(IsCollapsedProperty);
+            set => SetValue(IsCollapsedProperty, value);
+        }
+
+        /// <summary>Fill behind the toggle glyph while the mouse is over it; null for no fill.</summary>
+        public static readonly DependencyProperty ToggleHoverBackgroundBrushProperty =
+            DependencyProperty.Register(
+                nameof(ToggleHoverBackgroundBrush),
+                typeof(Brush),
+                typeof(CategoryTreeGuide),
+                new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+        public Brush ToggleHoverBackgroundBrush
+        {
+            get => (Brush)GetValue(ToggleHoverBackgroundBrushProperty);
+            set => SetValue(ToggleHoverBackgroundBrushProperty, value);
+        }
+
+        /// <summary>Raised when the collapse toggle is clicked; bubbles to the hosting grid.</summary>
+        public static readonly RoutedEvent CollapseToggleClickedEvent =
+            EventManager.RegisterRoutedEvent(
+                "CollapseToggleClicked",
+                RoutingStrategy.Bubble,
+                typeof(RoutedEventHandler),
+                typeof(CategoryTreeGuide));
+
+        public event RoutedEventHandler CollapseToggleClicked
+        {
+            add => AddHandler(CollapseToggleClickedEvent, value);
+            remove => RemoveHandler(CollapseToggleClickedEvent, value);
+        }
+
         protected override Size MeasureOverride(Size availableSize)
         {
             var shape = Shape;
@@ -165,20 +243,27 @@ namespace PlayniteAchievements.Views.Controls
 
             var mid = Math.Round(height / 2d);
             var dotX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth);
-            var beadRadius = CategoryTreeGuideMetrics.GetBeadRadius(shape.Depth, shape.HasChildren);
+
+            // A collapsed parent's children were filtered out before stamping, so its shape reads
+            // HasChildren = false; the IsCollapsed flag carries the parenthood cue in that state.
+            var effectiveHasChildren = shape.HasChildren || (ShowCollapseToggle && !shape.IsSelfRow && IsCollapsed);
+            var beadRadius = CategoryTreeGuideMetrics.GetBeadRadius(shape.Depth, effectiveHasChildren);
 
             // A leaf's bead is an outline with the row showing through it, so the arm has to stop at
             // its edge - anything drawn under it shows through the middle. A parent's bead is solid
             // and hides what it covers, so its arm runs the whole way in.
-            var armEndX = shape.HasChildren
+            var armEndX = effectiveHasChildren
                 ? dotX
                 : Math.Max(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1), dotX - beadRadius);
 
             var selfDropX = shape.IsSelfRow ? ResolveSelfDropX(shape) : double.NaN;
 
+            var hasToggle = TryGetToggleGeometry(out var toggleCentre, out var toggleRadius);
+
             // Half-pixel offsets on a 1px pen, so the lines land on device pixels instead of
             // straddling two and rendering as a soft 2px smear.
-            drawingContext.PushGuidelineSet(BuildGuidelines(shape, dotX, mid, selfDropX));
+            drawingContext.PushGuidelineSet(BuildGuidelines(
+                shape, dotX, mid, selfDropX, hasToggle ? toggleCentre.Y : double.NaN));
             drawingContext.PushClip(new RectangleGeometry(new Rect(RenderSize)));
 
             // Lines under the beads: the structure recedes, the rows read first.
@@ -188,7 +273,20 @@ namespace PlayniteAchievements.Views.Controls
                 DrawAncestorLanes(drawingContext, pen, shape, height);
                 DrawOwnStem(drawingContext, pen, shape, armEndX, mid, height);
 
-                if (shape.HasChildren)
+                if (hasToggle)
+                {
+                    // The glyph circle's interior is transparent, so the descender is split around
+                    // it. Collapsed, nothing follows below: only the stub down to the glyph stays,
+                    // keeping the circled "+" attached to the tree instead of floating.
+                    drawingContext.DrawLine(
+                        pen, new Point(dotX, mid), new Point(dotX, toggleCentre.Y - toggleRadius));
+                    if (!IsCollapsed)
+                    {
+                        drawingContext.DrawLine(
+                            pen, new Point(dotX, toggleCentre.Y + toggleRadius), new Point(dotX, height));
+                    }
+                }
+                else if (shape.HasChildren)
                 {
                     drawingContext.DrawLine(pen, new Point(dotX, mid), new Point(dotX, height));
                 }
@@ -209,13 +307,127 @@ namespace PlayniteAchievements.Views.Controls
                 }
                 else
                 {
-                    DrawJunction(drawingContext, pen, shape, dotX, mid, beadRadius);
+                    DrawJunction(drawingContext, pen, effectiveHasChildren, dotX, mid, beadRadius);
+                }
+
+                if (hasToggle)
+                {
+                    DrawToggle(drawingContext, pen, toggleCentre, toggleRadius);
                 }
             }
             finally
             {
                 drawingContext.Pop();
                 drawingContext.Pop();
+            }
+        }
+
+        /// <summary>
+        /// Whether this row shows the expand/collapse toggle, and where. The glyph sits on the
+        /// descender at the child lane, just inside the row's bottom edge - reading as "on the line
+        /// between this row and its children" while staying inside this row's render bounds
+        /// (per-row rendering cannot straddle the row boundary). On a short row it shrinks to stay
+        /// clear of the junction bead, and past a floor of 3px it is skipped entirely - children
+        /// stay reachable through Expand All.
+        /// </summary>
+        private bool TryGetToggleGeometry(out Point centre, out double radius)
+        {
+            centre = default(Point);
+            radius = 0d;
+
+            var shape = Shape;
+            var height = RenderSize.Height;
+            if (!ShowCollapseToggle || shape == null || shape.IsSelfRow ||
+                (!shape.HasChildren && !IsCollapsed) || height <= 0d)
+            {
+                return false;
+            }
+
+            var mid = Math.Round(height / 2d);
+            var dotX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth);
+            var beadRadius = CategoryTreeGuideMetrics.GetBeadRadius(shape.Depth, hasChildren: true);
+
+            var toggleRadius = CategoryTreeGuideMetrics.GetToggleRadius(shape.Depth);
+            var clearance = mid + beadRadius + 1d;
+            var maxRadius = (height - 1.5d - clearance) / 2d;
+            toggleRadius = Math.Min(toggleRadius, maxRadius);
+            if (toggleRadius < 3d)
+            {
+                return false;
+            }
+
+            centre = new Point(dotX, height - toggleRadius - 1.5d);
+            radius = toggleRadius;
+            return true;
+        }
+
+        /// <summary>
+        /// The circled "-" (expanded) or "+" (collapsed), drawn at the beads' full strength in the
+        /// bead brush. Hover fills the circle with the row-hover background - the same feedback the
+        /// control bar's chevron toggles give - and IsMouseOver only reads true over the toggle's
+        /// own hit circle, because that circle is all this element ever claims for hit testing.
+        /// </summary>
+        private void DrawToggle(DrawingContext drawingContext, Pen linePen, Point centre, double radius)
+        {
+            var glyphBrush = NodeBrush ?? linePen.Brush;
+            var fill = IsMouseOver ? ToggleHoverBackgroundBrush : null;
+            drawingContext.DrawEllipse(fill, CreateGuidePen(glyphBrush, 1.2d), centre, radius, radius);
+
+            var arm = radius - 2d;
+            var strokePen = CreateGuidePen(glyphBrush, 1.4d);
+            drawingContext.DrawLine(
+                strokePen, new Point(centre.X - arm, centre.Y), new Point(centre.X + arm, centre.Y));
+            if (IsCollapsed)
+            {
+                drawingContext.DrawLine(
+                    strokePen, new Point(centre.X, centre.Y - arm), new Point(centre.X, centre.Y + arm));
+            }
+        }
+
+        /// <summary>
+        /// Only the toggle's (enlarged) circle is a hit target; everywhere else the guide stays
+        /// transparent to the mouse and clicks belong to the row, exactly as when hit testing is
+        /// off. The circle is grown past the drawn glyph because a 3-5px glyph is an unfair target.
+        /// </summary>
+        protected override HitTestResult HitTestCore(PointHitTestParameters hitTestParameters)
+        {
+            if (!TryGetToggleGeometry(out var centre, out var radius))
+            {
+                return null;
+            }
+
+            var hitRadius = Math.Max(9d, radius + 4d);
+            return (hitTestParameters.HitPoint - centre).Length <= hitRadius
+                ? new PointHitTestResult(this, hitTestParameters.HitPoint)
+                : null;
+        }
+
+        protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
+        {
+            base.OnPreviewMouseLeftButtonDown(e);
+
+            // Reached only via HitTestCore's circle. Handling the tunneling event marks the shared
+            // args handled, so the paired bubbling MouseLeftButtonDown never reaches DataGridCell -
+            // no selection change, and so no drill-in.
+            e.Handled = true;
+            RaiseEvent(new RoutedEventArgs(CollapseToggleClickedEvent, this));
+        }
+
+        protected override void OnMouseEnter(MouseEventArgs e)
+        {
+            base.OnMouseEnter(e);
+            if (ShowCollapseToggle)
+            {
+                InvalidateVisual();
+            }
+        }
+
+        protected override void OnMouseLeave(MouseEventArgs e)
+        {
+            base.OnMouseLeave(e);
+            if (ShowCollapseToggle)
+            {
+                InvalidateVisual();
             }
         }
 
@@ -371,14 +583,14 @@ namespace PlayniteAchievements.Views.Controls
         private void DrawJunction(
             DrawingContext drawingContext,
             Pen pen,
-            CategoryTreeShape shape,
+            bool hasChildren,
             double dotX,
             double mid,
             double beadRadius)
         {
             var centre = new Point(dotX, mid);
             var beadBrush = NodeBrush ?? pen.Brush;
-            if (shape.HasChildren)
+            if (hasChildren)
             {
                 drawingContext.DrawEllipse(beadBrush, null, centre, beadRadius, beadRadius);
                 return;
@@ -414,10 +626,19 @@ namespace PlayniteAchievements.Views.Controls
             return pen;
         }
 
-        private static GuidelineSet BuildGuidelines(CategoryTreeShape shape, double dotX, double mid, double selfDropX)
+        private static GuidelineSet BuildGuidelines(
+            CategoryTreeShape shape,
+            double dotX,
+            double mid,
+            double selfDropX,
+            double toggleY = double.NaN)
         {
             var guidelines = new GuidelineSet();
             guidelines.GuidelinesY.Add(mid + 0.5d);
+            if (!double.IsNaN(toggleY))
+            {
+                guidelines.GuidelinesY.Add(toggleY + 0.5d);
+            }
 
             for (var lane = 0; lane < shape.AncestorContinues.Count; lane++)
             {

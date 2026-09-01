@@ -144,6 +144,7 @@
     <Compile Include="..\..\source\Services\Achievements\AchievementOrderHelper.cs" Link="Source\Services\Achievements\AchievementOrderHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementCategoryTypeHelper.cs" Link="Source\Services\Achievements\AchievementCategoryTypeHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryPathHelper.cs" Link="Source\Services\Achievements\CategoryPathHelper.cs" />
+    <Compile Include="..\..\source\Services\Achievements\CategoryCollapseFilter.cs" Link="Source\Services\Achievements\CategoryCollapseFilter.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryTreeShapeBuilder.cs" Link="Source\Services\Achievements\CategoryTreeShapeBuilder.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryPickerResolver.cs" Link="Source\Services\Achievements\CategoryPickerResolver.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryMetadataRenamer.cs" Link="Source\Services\Achievements\CategoryMetadataRenamer.cs" />
@@ -361,6 +362,7 @@
     <Compile Include="..\..\source\Models\Settings\FriendNameDisplayMode.cs" Link="Source\Models\Settings\FriendNameDisplayMode.cs" />
     <Compile Include="..\..\source\Models\Settings\PlaytimeDisplayMode.cs" Link="Source\Models\Settings\PlaytimeDisplayMode.cs" />
     <Compile Include="..\..\source\Models\Settings\CategoryCompletionBadgeMode.cs" Link="Source\Models\Settings\CategoryCompletionBadgeMode.cs" />
+    <Compile Include="..\..\source\Models\Settings\CategoryProgressMode.cs" Link="Source\Models\Settings\CategoryProgressMode.cs" />
     <Compile Include="..\..\source\Models\Settings\ToastScreenCorner.cs" Link="Source\Models\Settings\ToastScreenCorner.cs" />
     <Compile Include="..\..\source\Models\Settings\GridVerticalAlignment.cs" Link="Source\Models\Settings\GridVerticalAlignment.cs" />
     <Compile Include="..\..\source\Models\Settings\CompactListSortMode.cs" Link="Source\Models\Settings\CompactListSortMode.cs" />

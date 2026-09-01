@@ -266,6 +266,25 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(FixedRowHeightProperty, value);
         }
 
+        /// <summary>
+        /// Opts the name column's tree guides into the category expand/collapse toggles. Only the
+        /// category-mode list turns this on; the drill header and every game-summary surface leave
+        /// it off, and the host also drops it while a name search or column sort suspends
+        /// collapsing so the glyphs revert to plain beads there.
+        /// </summary>
+        public static readonly DependencyProperty ShowCategoryCollapseTogglesProperty =
+            DependencyProperty.Register(
+                nameof(ShowCategoryCollapseToggles),
+                typeof(bool),
+                typeof(GameSummariesGridControl),
+                new PropertyMetadata(false));
+
+        public bool ShowCategoryCollapseToggles
+        {
+            get => (bool)GetValue(ShowCategoryCollapseTogglesProperty);
+            set => SetValue(ShowCategoryCollapseTogglesProperty, value);
+        }
+
         public static readonly DependencyProperty ShowMetadataPlatformProperty =
             DependencyProperty.Register(
                 nameof(ShowMetadataPlatform),
