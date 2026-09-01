@@ -77,18 +77,27 @@ namespace PlayniteAchievements.Services.Achievements
             var shapes = Build(paths);
             for (var i = 0; i < categories.Count; i++)
             {
-                categories[i].TreeShape = categories[i].IsSelfRow
-                    ? WithSelfFlag(shapes[i])
+                // Resolved against the emitted rows like everything else here: a self row dropped
+                // by a filter leaves its category without the flag, so nothing dangles toward a
+                // row that is not there.
+                var hasSelfRowBelow =
+                    !categories[i].IsSelfRow &&
+                    i + 1 < categories.Count &&
+                    categories[i + 1].IsSelfRow &&
+                    CategoryPathHelper.IsSame(categories[i + 1].CategoryPath, categories[i].CategoryPath);
+
+                categories[i].TreeShape = categories[i].IsSelfRow || hasSelfRowBelow
+                    ? WithSelfFlags(shapes[i], categories[i].IsSelfRow, hasSelfRowBelow)
                     : shapes[i];
             }
         }
 
         /// <summary>
-        /// Same geometry, marked as a self row so the guide draws it as a pass-through rather than
-        /// a node. Applied after <see cref="Build"/>, which only sees paths and stays reusable for
-        /// runs that have no self rows in them.
+        /// Same geometry, marked with the self-row roles so the guide and the name cell draw them
+        /// accordingly. Applied after <see cref="Build"/>, which only sees paths and stays reusable
+        /// for runs that have no self rows in them.
         /// </summary>
-        private static CategoryTreeShape WithSelfFlag(CategoryTreeShape shape)
+        private static CategoryTreeShape WithSelfFlags(CategoryTreeShape shape, bool isSelfRow, bool hasSelfRowBelow)
         {
             var lanes = new bool[shape.AncestorContinues.Count];
             for (var i = 0; i < lanes.Length; i++)
@@ -96,7 +105,13 @@ namespace PlayniteAchievements.Services.Achievements
                 lanes[i] = shape.AncestorContinues[i];
             }
 
-            return new CategoryTreeShape(shape.Depth, shape.IsLastSibling, shape.HasChildren, lanes, isSelfRow: true);
+            return new CategoryTreeShape(
+                shape.Depth,
+                shape.IsLastSibling,
+                shape.HasChildren,
+                lanes,
+                isSelfRow,
+                hasSelfRowBelow);
         }
 
         /// <summary>
