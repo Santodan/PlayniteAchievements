@@ -198,12 +198,13 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// The self row's own connector: a dashed arm from its parent's lane, running through the
-        /// label void to the cell's edge (the guide claims the whole cell for a self row, see
-        /// MeasureOverride) and ending in no bead where every real node ends in one. Dashed and
-        /// terminal-less is what says "an implied branch - the category itself" rather than
-        /// another category; full strength is what keeps it legible against the faint lanes. It
-        /// stays in the line brush - the accent is reserved for the beads.
+        /// The self row's own connector: a dashed drop falling out of the parent's name directly
+        /// above, a rounded turn right, and a run through the label void to the cell's edge (the
+        /// guide claims the whole cell for a self row, see MeasureOverride), ending in no bead
+        /// where every real node ends in one. Hanging off the name rather than the lanes is what
+        /// says "the row above, itself" - the lanes say where in the tree, the name says which
+        /// category. Dashed, and at full strength against the deliberately faint lanes; it stays
+        /// in the line brush - the accent is reserved for the beads.
         /// </summary>
         private void DrawSelfTwig(
             DrawingContext drawingContext,
@@ -211,10 +212,35 @@ namespace PlayniteAchievements.Views.Controls
             double mid,
             double width)
         {
-            var stemX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1);
-            var armEnd = Math.Max(CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth), width - 2d);
-            var dashed = CreatePen(LineBrush, 1d, TwigDashStyle);
-            drawingContext.DrawLine(dashed, new Point(stemX, mid), new Point(armEnd, mid));
+            var dropX = GetSelfDropX(shape);
+            var armEnd = Math.Max(dropX + CategoryTreeGuideMetrics.CornerRadius, width - 2d);
+            var radius = Math.Min(CategoryTreeGuideMetrics.CornerRadius, Math.Max(0d, mid));
+
+            var geometry = new StreamGeometry();
+            using (var context = geometry.Open())
+            {
+                context.BeginFigure(new Point(dropX, 0d), false, false);
+                context.LineTo(new Point(dropX, mid - radius), true, false);
+                context.QuadraticBezierTo(
+                    new Point(dropX, mid),
+                    new Point(dropX + radius, mid),
+                    true,
+                    false);
+                context.LineTo(new Point(armEnd, mid), true, false);
+            }
+
+            geometry.Freeze();
+            drawingContext.DrawGeometry(null, CreatePen(LineBrush, 1d, TwigDashStyle), geometry);
+        }
+
+        /// <summary>
+        /// Where the self row's drop sits: just inside the point the parent's name starts, one
+        /// level up, so the line reads as falling out of that name rather than out of the lanes.
+        /// </summary>
+        private static double GetSelfDropX(CategoryTreeShape shape)
+        {
+            return CategoryTreeGuideMetrics.GetGuideWidth(shape.Depth - 1) +
+                CategoryTreeGuideMetrics.CornerRadius;
         }
 
         /// <summary>Full-height lines for the ancestors that still have siblings below this row.</summary>
@@ -239,9 +265,9 @@ namespace PlayniteAchievements.Views.Controls
         /// <summary>
         /// The row's own connector. A last sibling closes with a rounded elbow and stops at the
         /// middle; anything else keeps the lane running to the bottom for the sibling underneath.
-        /// A root has neither - it has no parent to connect to. A self row's arm is dashed and
-        /// runs to an empty terminal: attached to the branch like its siblings, but visibly not
-        /// another node of the tree.
+        /// A root has neither - it has no parent to connect to. A self row draws no stem or arm
+        /// here at all: its own mark is the dashed drop-and-turn hanging off the parent's name
+        /// (see DrawSelfTwig), visibly not another node of the tree.
         /// </summary>
         private static void DrawOwnStem(
             DrawingContext drawingContext,
@@ -372,6 +398,11 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             guidelines.GuidelinesX.Add(dotX + 0.5d);
+            if (shape.IsSelfRow)
+            {
+                guidelines.GuidelinesX.Add(GetSelfDropX(shape) + 0.5d);
+            }
+
             guidelines.Freeze();
             return guidelines;
         }
