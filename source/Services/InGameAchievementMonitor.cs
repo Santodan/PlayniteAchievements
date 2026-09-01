@@ -77,6 +77,13 @@ namespace PlayniteAchievements.Services
             public readonly List<IDisposable> WatchSubscriptions = new List<IDisposable>();
             public readonly HashSet<string> ToastedUserKeys =
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            /// <summary>
+            /// Progress twin of <see cref="ToastedUserKeys"/>: the highest progress numerator
+            /// announced per achievement this session, so the two prongs never announce the same
+            /// advance twice and progress never announces backwards.
+            /// </summary>
+            public readonly Dictionary<string, int> NotifiedProgressByKey =
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             public readonly Dictionary<string, HashSet<string>> ToastedFriendKeys =
                 new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
             public readonly Dictionary<string, List<FriendAchievementRow>> FriendBaselines =
@@ -635,11 +642,13 @@ namespace PlayniteAchievements.Services
                 _notifyUnlocked?.Invoke(completion);
             }
 
+            var progressed = EmitProgressAdvances(state, before, after, primed, observedUtc);
+
             var totalLatencyMs = Math.Max(0, (long)(CaptureTimelineClock.UtcNow - observedUtc).TotalMilliseconds);
             _logger?.Debug(
                 $"[InGameMonitor] Progress applied: game={state.Game.Name}, provider={state.Provider?.ProviderKey}, " +
                 $"observed={query.Achievements.Count}, new={write.NewlyUnlockedKeys.Count}, " +
-                $"emitted={emittableKeys.Count}, unmatched={write.UnmatchedKeys.Count}, " +
+                $"emitted={emittableKeys.Count}, progressed={progressed}, unmatched={write.UnmatchedKeys.Count}, " +
                 $"latencyMs={totalLatencyMs}.");
         }
 
@@ -968,6 +977,8 @@ namespace PlayniteAchievements.Services
                         {
                             _notifyUnlocked?.Invoke(completion);
                         }
+
+                        EmitProgressAdvances(state, before, after, primed, observedUtc);
 
                         if (state.ProgressSource == null && after?.Achievements?.Count > 0)
                         {
@@ -1678,6 +1689,120 @@ namespace PlayniteAchievements.Services
                 TotalCount = data?.AchievementCount ?? 0,
                 AchievementNumber = achievementNumber,
                 IsCompletionAchievement = isCompletionAchievement
+            };
+        }
+
+        /// <summary>
+        /// Announces still-locked achievements whose progress advanced between the snapshots as
+        /// silent progress notifications, and returns how many were announced. Only a primed read
+        /// may announce: the session's baseline read carries progress earned while the game was
+        /// not monitored, and progress has no timestamp to tell that apart, so the baseline flag is
+        /// the whole gate. Shared by both prongs, which is why the claim below is load-bearing.
+        /// </summary>
+        private int EmitProgressAdvances(
+            GamePollState state,
+            GameAchievementData before,
+            GameAchievementData after,
+            bool primed,
+            DateTime observedUtc)
+        {
+            if (!primed || _settings?.Persisted?.EnableProgressToasts != true)
+            {
+                return 0;
+            }
+
+            var advances = _differ.DiffProgressAdvances(before, after);
+            if (advances.Count == 0)
+            {
+                return 0;
+            }
+
+            // Same custom-data overlay as the unlock path, for IsFiltered and DefaultOrderIndex.
+            HydrateForToast(after);
+
+            // Both prongs can observe one advance independently, so a key is claimed under the
+            // state lock and only for a higher numerator than the one already announced. An
+            // achievement whose unlock this session already claimed is never announced as progress.
+            var claimed = new List<AchievementProgressAdvance>();
+            lock (_stateLock)
+            {
+                foreach (var advance in advances)
+                {
+                    var key = advance.ApiName;
+                    if (string.IsNullOrWhiteSpace(key) ||
+                        advance.Achievement?.IsFiltered == true ||
+                        state.ToastedUserKeys.Contains(key))
+                    {
+                        continue;
+                    }
+
+                    if (state.NotifiedProgressByKey.TryGetValue(key, out var announced) &&
+                        announced >= advance.Current)
+                    {
+                        continue;
+                    }
+
+                    state.NotifiedProgressByKey[key] = advance.Current;
+                    claimed.Add(advance);
+                }
+            }
+
+            if (claimed.Count == 0)
+            {
+                return 0;
+            }
+
+            var numberByApiName = BuildAchievementNumberMap(after);
+            foreach (var advance in claimed)
+            {
+                _notifyUnlocked?.Invoke(CreateUserProgressEventArgs(
+                    state.Game,
+                    after,
+                    advance,
+                    ResolveAchievementNumber(numberByApiName, advance.Achievement),
+                    observedUtc));
+            }
+
+            return claimed.Count;
+        }
+
+        private AchievementUnlockedEventArgs CreateUserProgressEventArgs(
+            Game game,
+            GameAchievementData data,
+            AchievementProgressAdvance advance,
+            int achievementNumber,
+            DateTime observedUtc)
+        {
+            var achievement = advance.Achievement;
+            return new AchievementUnlockedEventArgs
+            {
+                PlayniteGameId = game?.Id ?? data?.PlayniteGameId ?? Guid.Empty,
+                GameName = data?.GameName ?? game?.Name,
+                GameIconPath = ResolveGameArtPath(game?.Icon),
+                GameCoverPath = ResolveGameArtPath(game?.CoverImage),
+                ProviderKey = achievement?.ProviderKey ?? data?.ProviderKey,
+                ApiName = achievement?.ApiName,
+                DisplayName = achievement?.DisplayName,
+                Description = achievement?.Description,
+                Category = achievement?.Category,
+                // Still locked, so the locked art is the honest picture (falls back to the
+                // unlocked art when the provider ships none).
+                IconPath = achievement?.LockedIconDisplay,
+                GlobalPercent = achievement?.GlobalPercentUnlocked,
+                RarityTier = achievement?.Rarity.ToString(),
+                TrophyType = achievement?.TrophyType,
+                IsHidden = achievement?.Hidden == true,
+                IsHardcore = IsHardcoreCategory(achievement?.CategoryType),
+                Points = achievement?.Points,
+                ScaledPoints = achievement?.ScaledPoints,
+                ObservedUtc = observedUtc,
+                UnlockedCount = data?.UnlockedCount ?? 0,
+                TotalCount = data?.AchievementCount ?? 0,
+                AchievementNumber = achievementNumber,
+                IsProgressUpdate = true,
+                ProgressNum = advance.Current,
+                ProgressDenom = advance.Denominator,
+                PreviousProgressNum = advance.Previous
             };
         }
 
