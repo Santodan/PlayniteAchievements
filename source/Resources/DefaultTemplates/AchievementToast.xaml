@@ -378,26 +378,275 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Right: the reorderable text lines (header, name, description,
-                     game/category, progress), rendered via the shared line templates in the
-                     user's order. The progress line renders only on incremental-progress
-                     notifications (IsProgressUpdate), which also report ShowBadge / ShowPercent /
-                     the glow gates as false, so this one template covers that kind too. -->
-                <ItemsControl Grid.Column="1"
-                              VerticalAlignment="Center"
-                              IsTabStop="False"
-                              ClipToBounds="True"
-                              ItemsSource="{Binding ToastLines}">
-                    <ItemsControl.ItemContainerStyle>
-                        <!-- Per-line left indent for the name-line offset (see LeftIndent). The
-                             container itself collapses when the line has no content, so its margin
-                             / line padding never leaves an empty gap. -->
-                        <Style TargetType="ContentPresenter">
-                            <Setter Property="Margin" Value="{Binding LeftIndentMargin}"/>
-                            <Setter Property="Visibility" Value="{Binding LineVisibility}"/>
-                        </Style>
-                    </ItemsControl.ItemContainerStyle>
-                </ItemsControl>
+                <!-- Right: the text lines. Each line is an explicit block whose Grid.Row binds to
+                     that line's RowIndex (its position in the Appearance page's line order), so
+                     reordering is pure data while every line's markup and bindings stay visible
+                     here. The per-line font values come from the named line descriptors
+                     (HeaderLine, TitleLine, DescriptionLine, GameCategoryLine, ProgressLine);
+                     the text itself binds straight to the view model. Each block's Margin is the
+                     line's LeftIndentMargin (name-line offset, line padding, and the bottom line's
+                     descender slack) and its Visibility is the line's LineVisibility, so a line
+                     with nothing to show collapses its row entirely. Line text binds through
+                     InlineMarkdownFormatter.MarkupText, which renders inline markdown emphasis
+                     (**bold**, *italic*, __underline__, ~~strikethrough~~) as styled runs. The
+                     completion notification restyles the header and title with triggers on
+                     IsGameCompleted; the progress notification shows the progress row and hides
+                     the badge, percent, and glows through the view model's gates. -->
+                <Grid Grid.Column="1"
+                      VerticalAlignment="Center"
+                      ClipToBounds="True">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header line: friend avatar, the header text (unlock / progress, or the
+                         completion headers), and the optional unlock datetime. The outer grid
+                         carries the text shadow, the inner panel its tighter second layer. -->
+                    <Grid Grid.Row="{Binding HeaderLine.RowIndex}"
+                          Margin="{Binding HeaderLine.LeftIndentMargin}"
+                          Visibility="{Binding HeaderLine.LineVisibility}"
+                          Effect="{Binding HeaderLine.TextShadow}">
+                        <StackPanel Orientation="Horizontal"
+                                    VerticalAlignment="Center"
+                                    Effect="{Binding HeaderLine.TextShadowInner}">
+                            <Border Width="16"
+                                    Height="16"
+                                    CornerRadius="8"
+                                    Margin="0,0,5,0"
+                                    ClipToBounds="True"
+                                    Visibility="{Binding HeaderLine.ShowFriendAvatar, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Image Stretch="Uniform"
+                                       helpers:AsyncImage.Uri="{Binding FriendAvatar}"
+                                       helpers:AsyncImage.DecodePixel="64"/>
+                            </Border>
+                            <TextBlock helpers:InlineMarkdownFormatter.MarkupText="{Binding HeaderLine.HeaderText}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="{Binding HeaderLine.FontSize}"
+                                       FontFamily="{Binding HeaderLine.FontFamily}"
+                                       FontWeight="{Binding HeaderLine.FontWeight}"
+                                       FontStyle="{Binding HeaderLine.FontStyle}"
+                                       TextDecorations="{Binding HeaderLine.TextDecorations}"
+                                       TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                                        <Setter Property="Visibility" Value="{Binding HeaderLine.ShowHeader, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <!-- Completion headers replace the unlock header: "Congratulations!" for
+                                 your own completion, "<friend> completed the game!" for a friend's. -->
+                            <TextBlock helpers:InlineMarkdownFormatter.MarkupText="{Binding HeaderLine.CompletionHeaderText}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="{Binding HeaderLine.FontSize}"
+                                       FontFamily="{Binding HeaderLine.FontFamily}"
+                                       FontWeight="{Binding HeaderLine.FontWeight}"
+                                       FontStyle="{Binding HeaderLine.FontStyle}"
+                                       TextDecorations="{Binding HeaderLine.TextDecorations}"
+                                       TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsGameCompleted}" Value="True"/>
+                                                    <Condition Binding="{Binding IsFriendUnlock}" Value="False"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock helpers:InlineMarkdownFormatter.MarkupText="{Binding HeaderLine.FriendCompletionHeaderText}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="{Binding HeaderLine.FontSize}"
+                                       FontFamily="{Binding HeaderLine.FontFamily}"
+                                       FontWeight="{Binding HeaderLine.FontWeight}"
+                                       FontStyle="{Binding HeaderLine.FontStyle}"
+                                       TextDecorations="{Binding HeaderLine.TextDecorations}"
+                                       TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsGameCompleted}" Value="True"/>
+                                                    <Condition Binding="{Binding IsFriendUnlock}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <!-- Optional unlock datetime. -->
+                            <TextBlock Text="  &#8226;  "
+                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="{Binding HeaderLine.FontSize}"
+                                       FontFamily="{Binding HeaderLine.FontFamily}"
+                                       FontWeight="{Binding HeaderLine.FontWeight}"
+                                       FontStyle="{Binding HeaderLine.FontStyle}"
+                                       TextDecorations="{Binding HeaderLine.TextDecorations}"
+                                       Visibility="{Binding HeaderLine.ShowDateSeparator, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <TextBlock Text="{Binding UnlockDateTimeText}"
+                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="{Binding HeaderLine.FontSize}"
+                                       FontFamily="{Binding HeaderLine.FontFamily}"
+                                       FontWeight="{Binding HeaderLine.FontWeight}"
+                                       FontStyle="{Binding HeaderLine.FontStyle}"
+                                       TextDecorations="{Binding HeaderLine.TextDecorations}"
+                                       Visibility="{Binding HeaderLine.ShowUnlockTime, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Title line: the optional inline rarity badge, then the achievement name in
+                         the (rarity-colored) title brush. The completion notification swaps in
+                         "Game Complete!" in the completed title brush. -->
+                    <DockPanel Grid.Row="{Binding TitleLine.RowIndex}"
+                               Margin="{Binding TitleLine.LeftIndentMargin}"
+                               Visibility="{Binding TitleLine.LineVisibility}"
+                               LastChildFill="True">
+                        <Image DockPanel.Dock="Left"
+                               helpers:AsyncImage.Uri="{Binding TitleLine.InlineBadgeSource}"
+                               helpers:AsyncImage.DecodePixel="64"
+                               Width="{Binding TitleLine.InlineBadgeSize}"
+                               Height="{Binding TitleLine.InlineBadgeSize}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,5,0"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Effect="{Binding TitleLine.ImageShadow}"
+                               Visibility="{Binding TitleLine.ShowInlineBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <Grid Effect="{Binding TitleLine.TextShadow}">
+                            <TextBlock FontSize="{Binding TitleLine.FontSize}"
+                                       FontFamily="{Binding TitleLine.FontFamily}"
+                                       FontWeight="{Binding TitleLine.FontWeight}"
+                                       FontStyle="{Binding TitleLine.FontStyle}"
+                                       TextDecorations="{Binding TitleLine.TextDecorations}"
+                                       TextWrapping="NoWrap"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"
+                                       Effect="{Binding TitleLine.TextShadowInner}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                                        <Setter Property="helpers:InlineMarkdownFormatter.MarkupText" Value="{Binding TitleText}"/>
+                                        <Setter Property="Foreground" Value="{Binding TitleLine.TitleBrush}"/>
+                                        <Setter Property="Visibility" Value="{Binding TitleLine.ShowName, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                                <Setter Property="helpers:InlineMarkdownFormatter.MarkupText" Value="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
+                                                <Setter Property="Foreground" Value="{Binding TitleLine.CompletedTitleBrush}"/>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </DockPanel>
+
+                    <!-- Description line: wraps to the line budget in DescriptionLine.MaxTextHeight
+                         (two lines, or one when a game/category line follows) with a trailing
+                         ellipsis. Layout rounding is off so the floating toast window cannot shave
+                         the height below the exact lines and clip the last one. -->
+                    <Grid Grid.Row="{Binding DescriptionLine.RowIndex}"
+                          Margin="{Binding DescriptionLine.LeftIndentMargin}"
+                          Visibility="{Binding DescriptionLine.LineVisibility}"
+                          Effect="{Binding DescriptionLine.TextShadow}">
+                        <TextBlock helpers:InlineMarkdownFormatter.MarkupText="{Binding Description}"
+                                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   FontSize="{Binding DescriptionLine.FontSize}"
+                                   FontFamily="{Binding DescriptionLine.FontFamily}"
+                                   FontWeight="{Binding DescriptionLine.FontWeight}"
+                                   FontStyle="{Binding DescriptionLine.FontStyle}"
+                                   TextDecorations="{Binding DescriptionLine.TextDecorations}"
+                                   TextWrapping="Wrap"
+                                   TextTrimming="CharacterEllipsis"
+                                   UseLayoutRounding="False"
+                                   MaxHeight="{Binding DescriptionLine.MaxTextHeight}"
+                                   Effect="{Binding DescriptionLine.TextShadowInner}"
+                                   Visibility="{Binding DescriptionLine.ShowDescription, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    </Grid>
+
+                    <!-- Game/category line: "game name • category" composed as one string so the
+                         pair trims together instead of overflowing into the provider-icon column. -->
+                    <Grid Grid.Row="{Binding GameCategoryLine.RowIndex}"
+                          Margin="{Binding GameCategoryLine.LeftIndentMargin}"
+                          Visibility="{Binding GameCategoryLine.LineVisibility}"
+                          Effect="{Binding GameCategoryLine.TextShadow}">
+                        <TextBlock helpers:InlineMarkdownFormatter.MarkupText="{Binding GameCategoryLine.GameCategoryText}"
+                                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   FontSize="{Binding GameCategoryLine.FontSize}"
+                                   FontFamily="{Binding GameCategoryLine.FontFamily}"
+                                   FontWeight="{Binding GameCategoryLine.FontWeight}"
+                                   FontStyle="{Binding GameCategoryLine.FontStyle}"
+                                   TextDecorations="{Binding GameCategoryLine.TextDecorations}"
+                                   TextWrapping="NoWrap"
+                                   TextTrimming="CharacterEllipsis"
+                                   Effect="{Binding GameCategoryLine.TextShadowInner}"
+                                   Visibility="{Binding GameCategoryLine.HasGameCategoryContent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    </Grid>
+
+                    <!-- Progress line (progress notifications only): a bar and the "4/10" count.
+                         The fill is a full-width Border scaled by ProgressFraction (0..1) inside a
+                         clipped track, the same mechanism as the countdown bar, so no converter is
+                         needed; ProgressNum, ProgressDenom, PreviousProgressNum, and
+                         PreviousProgressFraction are available for other compositions. The row
+                         is held to one text line's height with the bar centered, so it spaces
+                         like the text lines. -->
+                    <Grid Grid.Row="{Binding ProgressLine.RowIndex}"
+                          Margin="{Binding ProgressLine.LeftIndentMargin}"
+                          Visibility="{Binding ProgressLine.LineVisibility}"
+                          MinHeight="{Binding ProgressLine.LineBoxHeight}"
+                          Effect="{Binding ProgressLine.TextShadow}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0"
+                                Height="{Binding ProgressLine.BarHeight}"
+                                CornerRadius="{Binding ProgressLine.BarCornerRadius}"
+                                Background="{Binding ProgressLine.TrackBrush}"
+                                ClipToBounds="True"
+                                VerticalAlignment="Center"
+                                Margin="0,0,10,0">
+                            <Border Background="{Binding AccentBrush}"
+                                    CornerRadius="{Binding ProgressLine.BarCornerRadius}"
+                                    HorizontalAlignment="Stretch"
+                                    RenderTransformOrigin="0,0">
+                                <Border.RenderTransform>
+                                    <ScaleTransform ScaleX="{Binding ProgressFraction}"
+                                                    ScaleY="1"/>
+                                </Border.RenderTransform>
+                            </Border>
+                        </Border>
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding ProgressText}"
+                                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   FontSize="{Binding ProgressLine.FontSize}"
+                                   FontFamily="{Binding ProgressLine.FontFamily}"
+                                   FontWeight="{Binding ProgressLine.FontWeight}"
+                                   FontStyle="{Binding ProgressLine.FontStyle}"
+                                   TextDecorations="{Binding ProgressLine.TextDecorations}"
+                                   VerticalAlignment="Center"
+                                   Effect="{Binding ProgressLine.TextShadowInner}"/>
+                    </Grid>
+                </Grid>
                 </Grid>
 
                 </Grid>

@@ -96,6 +96,15 @@ namespace PlayniteAchievements.ViewModels
         public bool IsBottomLine { get; set; }
 
         /// <summary>
+        /// This line's position in the user's line order (0 = top), set by the owning view model.
+        /// The bundled templates lay every line out as an explicit block whose Grid.Row binds to
+        /// this, so the Appearance page's drag-reorder is pure data while each line's markup and
+        /// bindings stay visible in the template. A hidden line keeps its index; its collapsed
+        /// block leaves a zero-height row.
+        /// </summary>
+        public int RowIndex { get; set; }
+
+        /// <summary>
         /// Glyph ink can fall below a TextBlock's measured height, so a descender (p, q, g, y) on
         /// the bottom line renders outside the bounds that the line host's ClipToBounds, the
         /// description's <see cref="ToastDescriptionLine.MaxTextHeight"/> clamp, and the overlay

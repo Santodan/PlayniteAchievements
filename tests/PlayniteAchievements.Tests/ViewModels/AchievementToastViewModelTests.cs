@@ -632,6 +632,60 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void NamedLines_AreTheListEntriesWithRowIndexFollowingTheStoredOrder()
+        {
+            var toast = AllLinesVisible();
+            toast.LineOrder = new System.Collections.Generic.List<string>
+            {
+                NotificationSurfaceStyle.LineGameCategory,
+                NotificationSurfaceStyle.LineHeader,
+                NotificationSurfaceStyle.LineTitle,
+                NotificationSurfaceStyle.LineDescription
+            };
+            var viewModel = BuildLineToast(toast);
+
+            Assert.AreEqual(0, viewModel.GameCategoryLine.RowIndex);
+            Assert.AreEqual(1, viewModel.HeaderLine.RowIndex);
+            Assert.AreEqual(2, viewModel.TitleLine.RowIndex);
+            Assert.AreEqual(3, viewModel.DescriptionLine.RowIndex);
+            Assert.AreEqual(4, viewModel.ProgressLine.RowIndex, "The progress line is appended to a stored four-line order.");
+
+            // The named properties are the very descriptors in the list, so a template mixing the
+            // two patterns sees one set of resolved values.
+            for (var i = 0; i < viewModel.ToastLines.Count; i++)
+            {
+                Assert.AreEqual(i, viewModel.ToastLines[i].RowIndex);
+            }
+
+            Assert.AreSame(viewModel.ToastLines[1], viewModel.HeaderLine);
+            Assert.AreSame(viewModel.ToastLines[2], viewModel.TitleLine);
+        }
+
+        [TestMethod]
+        public void FrameNamedLines_HaveCompactRowIndicesAndNoProgressLine()
+        {
+            var settings = new PersistedSettings();
+            settings.NotificationStyle.Frame.LineOrder = new System.Collections.Generic.List<string>
+            {
+                NotificationSurfaceStyle.LineTitle,
+                NotificationSurfaceStyle.LineProgress,
+                NotificationSurfaceStyle.LineHeader,
+                NotificationSurfaceStyle.LineDescription,
+                NotificationSurfaceStyle.LineGameCategory
+            };
+            var viewModel = new AchievementToastViewModel(
+                new AchievementUnlockedEventArgs { DisplayName = "Deep Diver", Description = "Dive.", GameName = "Some Game" },
+                settings);
+
+            Assert.AreEqual(4, viewModel.FrameLines.Count, "The frame skips the progress token.");
+            Assert.AreEqual(0, viewModel.FrameTitleLine.RowIndex);
+            Assert.AreEqual(1, viewModel.FrameHeaderLine.RowIndex, "Row indices stay compact across the skipped token.");
+            Assert.AreEqual(2, viewModel.FrameDescriptionLine.RowIndex);
+            Assert.AreEqual(3, viewModel.FrameGameCategoryLine.RowIndex);
+            Assert.AreSame(viewModel.FrameLines[0], viewModel.FrameTitleLine);
+        }
+
+        [TestMethod]
         public void ProgressNotification_IgnoresTheNameLineOffsetLikeCompletion()
         {
             var style = AllLinesVisible();

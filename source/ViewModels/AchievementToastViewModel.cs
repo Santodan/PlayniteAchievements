@@ -1193,6 +1193,39 @@ namespace PlayniteAchievements.ViewModels
         public IReadOnlyList<ToastLineDescriptor> FrameLines =>
             _frameLines ?? (_frameLines = BuildLines(isFrame: true));
 
+        // The same descriptors as ToastLines / FrameLines, one named property per line, so a
+        // template can lay each line out as an explicit block (Grid.Row bound to RowIndex) with
+        // every binding visible instead of an ItemsControl picking implicit templates. The
+        // bundled defaults do this; ToastLines / FrameLines remain for templates that iterate.
+        public ToastHeaderLine HeaderLine => FindLine<ToastHeaderLine>(ToastLines);
+        public ToastTitleLine TitleLine => FindLine<ToastTitleLine>(ToastLines);
+        public ToastDescriptionLine DescriptionLine => FindLine<ToastDescriptionLine>(ToastLines);
+        public ToastGameCategoryLine GameCategoryLine => FindLine<ToastGameCategoryLine>(ToastLines);
+
+        /// <summary>
+        /// The toast's progress row; visible only on progress notifications. The frame has no
+        /// counterpart because progress notifications are never screenshotted.
+        /// </summary>
+        public ToastProgressLine ProgressLine => FindLine<ToastProgressLine>(ToastLines);
+
+        public ToastHeaderLine FrameHeaderLine => FindLine<ToastHeaderLine>(FrameLines);
+        public ToastTitleLine FrameTitleLine => FindLine<ToastTitleLine>(FrameLines);
+        public ToastDescriptionLine FrameDescriptionLine => FindLine<ToastDescriptionLine>(FrameLines);
+        public ToastGameCategoryLine FrameGameCategoryLine => FindLine<ToastGameCategoryLine>(FrameLines);
+
+        private static T FindLine<T>(IReadOnlyList<ToastLineDescriptor> lines) where T : ToastLineDescriptor
+        {
+            foreach (var line in lines)
+            {
+                if (line is T match)
+                {
+                    return match;
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// The toast's rarity percent font values (family, size, weight, style, decorations).
         /// </summary>
@@ -1311,8 +1344,10 @@ namespace PlayniteAchievements.ViewModels
             var imageShadow = isFrame ? FrameImageShadow : ToastImageShadow;
             var textBrush = Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush
                 ?? Brushes.White;
-            foreach (var line in lines)
+            for (var i = 0; i < lines.Count; i++)
             {
+                var line = lines[i];
+                line.RowIndex = i;
                 line.LeftIndent = line is ToastTitleLine ? titleIndent : otherIndent;
                 line.VerticalPadding = linePadding;
                 line.ImageShadow = imageShadow;

@@ -78,9 +78,12 @@
                       Color="#FF000000"/>
 
     <!--
-        Shared text-line templates for the toast and frame surfaces. Both templates render an
-        ItemsControl over the view model's ToastLines/FrameLines, so the user's line order is
-        pure data; WPF picks these implicitly by descriptor type. Surface-specific values
+        Shared text-line templates for the toast and frame surfaces, for templates that render an
+        ItemsControl over the view model's ToastLines/FrameLines: WPF picks these implicitly by
+        descriptor type. The bundled default templates no longer use them; they lay every line
+        out as an explicit block (Grid.Row bound to the named line descriptor's RowIndex) so the
+        exported default shows each line's markup. These stay for custom and theme templates
+        built on the ItemsControl pattern, and mirror the bundled blocks. Surface-specific values
         (font size/family, visibility, title brush, friend avatar) are pre-resolved onto the
         descriptors; everything else binds through Parent. Completion restyling stays in the
         templates via triggers on Parent.IsGameCompleted / Parent.IsFriendUnlock. Frame
