@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers;assembly=PlayniteAchievements"
                     xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls;assembly=PlayniteAchievements"
                     xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels;assembly=PlayniteAchievements">
     <!--
