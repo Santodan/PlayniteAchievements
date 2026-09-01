@@ -7,9 +7,9 @@ namespace PlayniteAchievements.Services.Achievements
     /// Drops the rows hidden by collapsed categories from a pre-order category run.
     ///
     /// The collapsed row itself stays - it carries the "+" toggle that re-expands the subtree - and
-    /// everything under it goes: its self row (same path) and every descendant, including nested
-    /// collapsed nodes, whose own keys become inert while an ancestor hides them. Keys naming paths
-    /// not present in the run are inert too, so a stale set never needs pruning.
+    /// every descendant under it goes, including nested collapsed nodes, whose own keys become
+    /// inert while an ancestor hides them. Keys naming paths not present in the run are inert too,
+    /// so a stale set never needs pruning.
     /// </summary>
     internal static class CategoryCollapseFilter
     {
@@ -37,16 +37,15 @@ namespace PlayniteAchievements.Services.Achievements
                 if (skipAnchor != null &&
                     CategoryPathHelper.IsSelfOrDescendantOf(category.CategoryPath, skipAnchor))
                 {
-                    // A self row shares its category's path, so IsSelfOrDescendantOf drops it here
-                    // along with the real descendants. The collapsed row itself was kept before its
-                    // anchor was set, so IsSame never removes it.
+                    // The collapsed row itself was kept before its anchor was set, so IsSame never
+                    // removes it.
                     removedAny = true;
                     continue;
                 }
 
                 skipAnchor = null;
                 result.Add(category);
-                if (!category.IsSelfRow && collapsedPaths.Contains(category.CategoryPath ?? string.Empty))
+                if (collapsedPaths.Contains(category.CategoryPath ?? string.Empty))
                 {
                     skipAnchor = category.CategoryPath;
                 }
