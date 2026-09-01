@@ -135,6 +135,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly Action<ProviderNotificationRowItem> _onChanged;
         private OverrideState _unlockToasts;
         private OverrideState _friendUnlockToasts;
+        private OverrideState _progressToasts;
         private OverrideState _screenshotClean;
         private OverrideState _screenshotWithToast;
         private OverrideState _screenshotFramed;
@@ -152,6 +153,7 @@ namespace PlayniteAchievements.ViewModels
 
             _unlockToasts = OverrideStates.FromNullable(stored?.UnlockToasts);
             _friendUnlockToasts = OverrideStates.FromNullable(stored?.FriendUnlockToasts);
+            _progressToasts = OverrideStates.FromNullable(stored?.ProgressToasts);
             _screenshotClean = OverrideStates.FromNullable(stored?.ScreenshotClean);
             _screenshotWithToast = OverrideStates.FromNullable(stored?.ScreenshotWithToast);
             _screenshotFramed = OverrideStates.FromNullable(stored?.ScreenshotFramed);
@@ -186,6 +188,12 @@ namespace PlayniteAchievements.ViewModels
         {
             get => _friendUnlockToasts;
             set => SetStateValue(ref _friendUnlockToasts, value);
+        }
+
+        public OverrideState ProgressToasts
+        {
+            get => _progressToasts;
+            set => SetStateValue(ref _progressToasts, value);
         }
 
         public OverrideState ScreenshotClean
@@ -233,6 +241,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 UnlockToasts = OverrideStates.ToNullable(_unlockToasts),
                 FriendUnlockToasts = OverrideStates.ToNullable(_friendUnlockToasts),
+                ProgressToasts = OverrideStates.ToNullable(_progressToasts),
                 ScreenshotClean = OverrideStates.ToNullable(_screenshotClean),
                 ScreenshotWithToast = OverrideStates.ToNullable(_screenshotWithToast),
                 ScreenshotFramed = OverrideStates.ToNullable(_screenshotFramed),
