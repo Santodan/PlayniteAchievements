@@ -227,6 +227,10 @@
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Progress.CompletedFill}"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Progress.CompletedFill}"/>
             </DataTrigger>
+            <!-- Rows with no achievements (e.g. empty categories) show no bar at all. -->
+            <DataTrigger Binding="{Binding TotalAchievements}" Value="0">
+                <Setter Property="Visibility" Value="Collapsed"/>
+            </DataTrigger>
         </Style.Triggers>
     </Style>
 
@@ -246,6 +250,12 @@
                                   Opacity="0.55"/>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <!-- Follows the bar: no achievements, no percent overlay. -->
+            <DataTrigger Binding="{Binding TotalAchievements}" Value="0">
+                <Setter Property="Visibility" Value="Collapsed"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="OverviewProgressMetaRowStyle" TargetType="StackPanel">
