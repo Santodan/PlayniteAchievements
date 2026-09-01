@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Helpers;
@@ -12,15 +13,18 @@ namespace PlayniteAchievements.Views.Controls
     /// the category's name text to the bottom edge of its row, where the self row's
     /// <see cref="CategoryTreeGuide"/> picks it up and turns right.
     ///
-    /// Lives inside the grid that hugs the name text, bottom-centered with zero desired size, so
-    /// layout - the only thing that knows where the text landed - is what centers the drop under
-    /// the text's last line. It publishes that x (in row coordinates) onto the self row's item so
-    /// the two halves meet at the row boundary. Draws below its own bounds deliberately; nothing
-    /// in the row clips it.
+    /// Zero-size and layout-inert; everything is measured from the name TextBlock it is pointed
+    /// at. The drop centres on the text's bottom LINE (via the text pointer of the last character),
+    /// not the block, so a wrapped title anchors under its final line. The x is published onto the
+    /// self row's item in name-cell template space - the one space both rows share exactly - and
+    /// re-measured on LayoutUpdated, so column resizes and alignment changes move both halves
+    /// together. Draws outside its own bounds deliberately; nothing in the row clips it.
     /// </summary>
     public sealed class CategorySelfDropStub : FrameworkElement
     {
-        private DataGridRow _observedRow;
+        private double _lastAnchor = double.NaN;
+        private Point _lastTop;
+        private double _lastBottom = double.NaN;
 
         static CategorySelfDropStub()
         {
@@ -62,50 +66,41 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(LineBrushProperty, value);
         }
 
+        /// <summary>The name TextBlock whose bottom line the drop hangs from.</summary>
+        public static readonly DependencyProperty TargetTextProperty =
+            DependencyProperty.Register(
+                nameof(TargetText),
+                typeof(TextBlock),
+                typeof(CategorySelfDropStub),
+                new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+        public TextBlock TargetText
+        {
+            get => (TextBlock)GetValue(TargetTextProperty);
+            set => SetValue(TargetTextProperty, value);
+        }
+
         protected override Size MeasureOverride(Size availableSize)
         {
-            // Zero size: the name text alone decides the layout; the drop is drawn past the bounds.
             return new Size(0d, 0d);
         }
 
         protected override void OnRender(DrawingContext drawingContext)
         {
-            var shape = Shape;
             var lineBrush = LineBrush;
-            if (shape == null || !shape.HasSelfRowBelow || lineBrush == null)
+            if (lineBrush == null || !TryMeasureDrop(out _, out var top, out var bottom))
             {
                 return;
-            }
-
-            var row = VisualTreeHelpers.FindVisualParent<DataGridRow>(this);
-            if (row == null || !row.IsAncestorOf(this))
-            {
-                return;
-            }
-
-            var originInRow = TransformToAncestor(row).Transform(new Point(0d, 0d));
-            var length = row.ActualHeight - originInRow.Y;
-            if (length <= 0d)
-            {
-                return;
-            }
-
-            // Hand the self row beneath the anchor so its half of the drop starts at the same x.
-            // Row coordinates work as the shared space because both rows lay their columns out
-            // identically.
-            if (DataContext is CategorySummaryItem category && category.SelfRow != null)
-            {
-                category.SelfRow.SelfDropAnchorX = originInRow.X;
             }
 
             var guidelines = new GuidelineSet();
-            guidelines.GuidelinesX.Add(0.5d);
+            guidelines.GuidelinesX.Add(top.X + 0.5d);
             guidelines.Freeze();
             drawingContext.PushGuidelineSet(guidelines);
             try
             {
                 var pen = CategoryTreeGuide.CreateGuidePen(lineBrush, 1d, CategoryTreeGuide.TwigDashStyle);
-                drawingContext.DrawLine(pen, new Point(0d, 0d), new Point(0d, length));
+                drawingContext.DrawLine(pen, top, new Point(top.X, bottom));
             }
             finally
             {
@@ -113,29 +108,117 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        // The drop's length follows the row's height, which this element's own zero-size layout
-        // never sees change - so it watches the row directly, and lets go on Unloaded rather than
-        // holding the recycled row alive.
+        /// <summary>
+        /// Everything the drop needs, measured fresh: the anchor x in name-cell template space
+        /// (published to the self row), and the drop's top point and bottom y in this element's own
+        /// space (drawn here). False when the row is not a stamped drop source or layout is not
+        /// ready. Never throws - an exception escaping OnRender takes the application down.
+        /// </summary>
+        private bool TryMeasureDrop(out double anchorInPanel, out Point topInSelf, out double bottomYInSelf)
+        {
+            anchorInPanel = double.NaN;
+            topInSelf = default;
+            bottomYInSelf = double.NaN;
+
+            var shape = Shape;
+            var text = TargetText;
+            if (shape == null || !shape.HasSelfRowBelow || text == null || !text.IsVisible)
+            {
+                return false;
+            }
+
+            var panel = VisualTreeHelpers.FindVisualParent<DockPanel>(this);
+            var row = VisualTreeHelpers.FindVisualParent<DataGridRow>(this);
+            if (panel == null || row == null ||
+                !panel.IsAncestorOf(text) || !row.IsAncestorOf(this))
+            {
+                return false;
+            }
+
+            try
+            {
+                // The last character's rect is the bottom line: a wrapped title anchors under its
+                // final line, not under the block's widest one. Left-aligned text starts the line
+                // at zero, so the line's centre is half the rect's right edge.
+                var lastCharacter = text.ContentEnd.GetCharacterRect(LogicalDirection.Backward);
+                if (lastCharacter.IsEmpty || lastCharacter.Right <= 0d)
+                {
+                    return false;
+                }
+
+                var lineAnchor = new Point(lastCharacter.Right / 2d, lastCharacter.Bottom);
+
+                anchorInPanel = text.TransformToAncestor(panel).Transform(lineAnchor).X;
+
+                var anchorInRow = text.TransformToAncestor(row).Transform(lineAnchor);
+                var selfOriginInRow = TransformToAncestor(row).Transform(new Point(0d, 0d));
+                topInSelf = new Point(
+                    anchorInRow.X - selfOriginInRow.X,
+                    anchorInRow.Y - selfOriginInRow.Y + 2d);
+                bottomYInSelf = row.ActualHeight - selfOriginInRow.Y;
+            }
+            catch (InvalidOperationException)
+            {
+                // A transform target detached mid-layout (row recycling); skip this pass.
+                return false;
+            }
+
+            return bottomYInSelf > topInSelf.Y;
+        }
+
+        // LayoutUpdated is the one signal that fires for everything that can move the text under
+        // us - column resizes, alignment changes, row height changes - none of which re-arrange
+        // this zero-size element itself. The handler is a few matrix transforms and bails when
+        // nothing moved.
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            _observedRow = VisualTreeHelpers.FindVisualParent<DataGridRow>(this);
-            if (_observedRow != null)
-            {
-                _observedRow.SizeChanged += OnRowSizeChanged;
-            }
+            LayoutUpdated += OnLayoutUpdated;
+            OnLayoutUpdated(this, EventArgs.Empty);
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
-            if (_observedRow != null)
-            {
-                _observedRow.SizeChanged -= OnRowSizeChanged;
-                _observedRow = null;
-            }
+            LayoutUpdated -= OnLayoutUpdated;
         }
 
-        private void OnRowSizeChanged(object sender, SizeChangedEventArgs e)
+        private void OnLayoutUpdated(object sender, EventArgs e)
         {
+            if (!TryMeasureDrop(out var anchor, out var top, out var bottom))
+            {
+                if (!double.IsNaN(_lastBottom))
+                {
+                    _lastAnchor = double.NaN;
+                    _lastTop = default;
+                    _lastBottom = double.NaN;
+                    InvalidateVisual();
+                }
+
+                return;
+            }
+
+            var moved =
+                double.IsNaN(_lastBottom) ||
+                Math.Abs(anchor - _lastAnchor) > 0.5d ||
+                Math.Abs(top.X - _lastTop.X) > 0.5d ||
+                Math.Abs(top.Y - _lastTop.Y) > 0.5d ||
+                Math.Abs(bottom - _lastBottom) > 0.5d;
+            if (!moved)
+            {
+                return;
+            }
+
+            _lastAnchor = anchor;
+            _lastTop = top;
+            _lastBottom = bottom;
+
+            // Hand the self row beneath the anchor so its half of the drop starts at the same x.
+            // Name-cell template space works as the shared space because both rows instantiate the
+            // same cell template in the same column.
+            if (DataContext is CategorySummaryItem category && category.SelfRow != null)
+            {
+                category.SelfRow.SelfDropAnchorX = anchor;
+            }
+
             InvalidateVisual();
         }
     }
