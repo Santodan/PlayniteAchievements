@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using Playnite.SDK;
@@ -94,6 +95,10 @@ namespace PlayniteAchievements.Services.Recording
         private bool _stopped;
         // Audio the ring buffer never accepted, in bytes of the capture format; see Append.
         private long _discardedBytes;
+        // A clip export may ask for the chunk covering its window end to close now instead of at
+        // its natural boundary; see FlushChunksThroughAsync. 0 = no request. Read/written with
+        // Interlocked: the process is 32-bit, where a bare long read can tear.
+        private long _flushThroughUtcTicks;
         private bool _writeGameReference;
         private bool _removeNonGameFromSpeakerMix;
         private bool _extractControllerProgramAudio;
@@ -954,6 +959,8 @@ namespace PlayniteAchievements.Services.Recording
                                 OpenChunkLocked();
                             }
                         }
+
+                        SettleFlushRequestLocked();
                     }
 
                     Thread.Sleep(PumpIntervalMs);
@@ -1140,6 +1147,61 @@ namespace PlayniteAchievements.Services.Recording
         {
             try { _writer?.Dispose(); } catch { }
             _writer = null;
+        }
+
+        /// <summary>
+        /// Asks the pump to close the chunk covering <paramref name="utc"/> as soon as the audio
+        /// written reaches that instant, instead of waiting for the chunk to fill to the segment
+        /// length. Completes once the covering chunk's WAV is closed; callers bound the wait. A
+        /// request that outlives its caller is harmless — the pump just rotates once, early.
+        /// </summary>
+        public async Task FlushChunksThroughAsync(DateTime utc)
+        {
+            // Keep the furthest-out request: a rotation past the maximum satisfies every earlier
+            // one, while letting a later request overwrite an earlier one would leave the earlier
+            // caller waiting on a rotation that never comes.
+            long requested = utc.Ticks, seen;
+            while ((seen = Interlocked.Read(ref _flushThroughUtcTicks)) < requested &&
+                Interlocked.CompareExchange(ref _flushThroughUtcTicks, requested, seen) != seen)
+            {
+            }
+
+            while (_running && Interlocked.Read(ref _flushThroughUtcTicks) != 0)
+            {
+                await Task.Delay(50).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Closes the current chunk early once a flush request's instant is covered by the audio
+        /// written so far, so an export can read it without waiting out the chunk length. The pump
+        /// paces writes to the wall clock and the mix pads unfilled reads, so coverage arrives
+        /// within a pump tick of the requested instant. Runs under the gate on the pump thread.
+        /// </summary>
+        private void SettleFlushRequestLocked()
+        {
+            var requested = Interlocked.Read(ref _flushThroughUtcTicks);
+            if (requested == 0)
+            {
+                return;
+            }
+
+            var requestFrames = (long)Math.Ceiling(
+                (new DateTime(requested, DateTimeKind.Utc) - _pumpStartUtc).TotalSeconds *
+                _outputFormat.SampleRate);
+            if (_writer == null || _chunkStartWallClockSamples >= requestFrames)
+            {
+                // Nothing open, or the covering chunk already rotated out and closed.
+                Interlocked.CompareExchange(ref _flushThroughUtcTicks, 0, requested);
+                return;
+            }
+
+            if (TotalFramesWritten() >= requestFrames)
+            {
+                CloseChunkLocked();
+                OpenChunkLocked();
+                Interlocked.CompareExchange(ref _flushThroughUtcTicks, 0, requested);
+            }
         }
 
         private void FailLocked(Exception ex, string message)
