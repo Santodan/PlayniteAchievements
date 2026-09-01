@@ -1413,7 +1413,8 @@ namespace PlayniteAchievements.Views.Controls
                 : CategorySummaryBuilder.BuildTree(
                     items,
                     ResolveCategoryCompletionBadgeMode(),
-                    useLeafNames: true);
+                    useLeafNames: true,
+                    ResolveCategoryProgressMode());
 
             ApplyCategoryNameFilter();
         }
@@ -1427,6 +1428,15 @@ namespace PlayniteAchievements.Views.Controls
         {
             return PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.CategoryCompletionBadgeMode
                 ?? CategoryCompletionBadgeMode.All;
+        }
+
+        /// <summary>
+        /// Reads the global category progress mode, sourced the same way as the badge mode above.
+        /// </summary>
+        private static CategoryProgressMode ResolveCategoryProgressMode()
+        {
+            return PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.CategoryProgressMode
+                ?? CategoryProgressMode.OwnOnly;
         }
 
         private void ApplyCategoryNameFilter()
@@ -1618,10 +1628,12 @@ namespace PlayniteAchievements.Views.Controls
             if (IsCategoryGroupingEffective() && IsDrilled)
             {
                 // The scope of the row that was clicked, so the grid always agrees with the numbers
-                // that led here: a category row counts its whole subtree and opens it, a mixed
-                // category's self row counts only the direct achievements and opens those.
+                // that led here. Under own-only counting every row reports just its own members, so
+                // the drill opens those; under the combined modes a category row counts its whole
+                // subtree and opens it, and a mixed category's self row narrows back to the direct
+                // achievements.
                 var drilled = DrilledPath;
-                var selfOnly = _drillSelfOnly;
+                var selfOnly = ResolveCategoryProgressMode() == CategoryProgressMode.OwnOnly || _drillSelfOnly;
                 var filtered = (ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
                     .Where(i => i != null && (selfOnly
                         ? CategoryPathHelper.IsSame(i.CategoryLabel, drilled)
@@ -1777,7 +1789,7 @@ namespace PlayniteAchievements.Views.Controls
                 // connectors, and the header row must not draw an indent. Leaf names, because the
                 // header path above the grid already carries the ancestry.
                 var candidates = CategorySummaryBuilder
-                    .BuildTree(items, ResolveCategoryCompletionBadgeMode(), useLeafNames: true)
+                    .BuildTree(items, ResolveCategoryCompletionBadgeMode(), useLeafNames: true, ResolveCategoryProgressMode())
                     .OfType<CategorySummaryItem>()
                     .Where(c => CategoryPathHelper.IsSame(c.CategoryPath, drilled))
                     .ToList();
