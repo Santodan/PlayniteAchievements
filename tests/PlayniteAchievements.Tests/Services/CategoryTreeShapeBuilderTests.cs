@@ -84,6 +84,53 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void Stamp_FirstChildCarriesItsParentsBoundaryToggle()
+        {
+            var rows = Rows("Story", "Story::Act 1", "Story::Act 2");
+
+            CategoryTreeShapeBuilder.Stamp(rows, enabled: true);
+
+            var story = rows[0].TreeShape;
+            var act1 = rows[1].TreeShape;
+            var act2 = rows[2].TreeShape;
+
+            Assert.IsTrue(story.ToggleHandledBelow, "the first child draws the glyph, not the parent");
+            Assert.AreEqual("Story", act1.ToggleBoundaryAbovePath);
+            Assert.AreEqual(1, act1.ToggleBoundaryAboveDepth);
+            Assert.IsFalse(act1.ToggleBoundaryAboveIsCollapsed, "an expanded parent's glyph reads \"-\"");
+
+            Assert.IsNull(act2.ToggleBoundaryAbovePath, "only the row directly beneath the boundary carries it");
+            Assert.IsFalse(act1.ToggleHandledBelow, "a leaf bears no toggle for anyone to handle");
+        }
+
+        [TestMethod]
+        public void Stamp_RowAfterACollapsedCategoryCarriesItsBoundaryToggle()
+        {
+            var rows = Rows("Story", "Extras");
+            rows[0].IsCollapsed = true;
+
+            CategoryTreeShapeBuilder.Stamp(rows, enabled: true, assumeNesting: true);
+
+            Assert.IsTrue(rows[0].TreeShape.ToggleHandledBelow);
+            Assert.AreEqual("Story", rows[1].TreeShape.ToggleBoundaryAbovePath);
+            Assert.AreEqual(1, rows[1].TreeShape.ToggleBoundaryAboveDepth);
+            Assert.IsTrue(rows[1].TreeShape.ToggleBoundaryAboveIsCollapsed, "a collapsed row's glyph reads \"+\"");
+        }
+
+        [TestMethod]
+        public void Stamp_LastRowKeepsItsOwnBoundaryToggle()
+        {
+            // Nothing follows to paint the glyph, so the collapsed last row draws it itself.
+            var rows = Rows("Extras", "Story");
+            rows[1].IsCollapsed = true;
+
+            CategoryTreeShapeBuilder.Stamp(rows, enabled: true, assumeNesting: true);
+
+            Assert.IsFalse(rows[1].TreeShape.ToggleHandledBelow);
+            Assert.IsNull(rows[0].TreeShape.ToggleBoundaryAbovePath);
+        }
+
+        [TestMethod]
         public void Stamp_CollapsedParentReadsAsChildlessAgainstTheVisibleRows()
         {
             // The IsCollapsed flag on the row, not the shape, carries the parenthood cue in this
