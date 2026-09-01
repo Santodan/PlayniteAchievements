@@ -720,6 +720,17 @@ namespace PlayniteAchievements.Views.Controls
         private bool _startInCategoryModeApplied;
         private DataGridRow _pendingCategoryRightClickRow;
 
+        // Collapsed subtrees, keyed by CategoryPath. View-local for the control's lifetime and
+        // never cleared on drill, mode, or data changes: a key whose path is gone is inert, and
+        // keeping the rest means a drill round-trip or data delta preserves the user's collapses.
+        private readonly HashSet<string> _collapsedCategoryPaths =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Whether the full (unfiltered) tree has any nesting; gates the Expand/Collapse All buttons.
+        private bool _categoryTreeHasNesting;
+        private GridActionButton _expandAllButton;
+        private GridActionButton _collapseAllButton;
+
         public static readonly DependencyProperty EnableCategoryModeProperty =
             DependencyProperty.Register(nameof(EnableCategoryMode), typeof(bool),
                 typeof(AchievementDataGridControl), new PropertyMetadata(false, OnEnableCategoryModeChanged));
@@ -1133,6 +1144,18 @@ namespace PlayniteAchievements.Views.Controls
                     HasMultipleCategories);
             }
 
+            if (_expandAllButton == null)
+            {
+                _expandAllButton = new GridActionButton(
+                    CategoryModeText("LOCPlayAch_CategorySummaries_ExpandAll", "Expand All"),
+                    ExpandAllCategories,
+                    CategoryModeText("LOCPlayAch_CategorySummaries_ExpandAllToolTip", "Expand all categories"));
+                _collapseAllButton = new GridActionButton(
+                    CategoryModeText("LOCPlayAch_CategorySummaries_CollapseAll", "Collapse All"),
+                    CollapseAllCategories,
+                    CategoryModeText("LOCPlayAch_CategorySummaries_CollapseAllToolTip", "Collapse all categories"));
+            }
+
             if (!ReferenceEquals(_controlBarWithToggle, ControlBar))
             {
                 // The category-label dropdown is the last category-scoped filter (Type is added
@@ -1142,6 +1165,14 @@ namespace PlayniteAchievements.Views.Controls
                     .OfType<GridMultiSelectFilter>()
                     .LastOrDefault(filter => filter.IsCategoryFilter);
                 _controlBarWithToggle = ControlBar;
+            }
+
+            // The leading zone is empty in the category list, so the pair reads beside the search
+            // box there; visibility is managed by UpdateCollapseControlBarButtons.
+            if (!_controlBarWithToggle.LeadingItems.Contains(_expandAllButton))
+            {
+                _controlBarWithToggle.LeadingItems.Add(_expandAllButton);
+                _controlBarWithToggle.LeadingItems.Add(_collapseAllButton);
             }
 
             // Recompute the toggle's auto-hide; ApplyControlBarModeState positions Back/toggle.
@@ -1275,6 +1306,8 @@ namespace PlayniteAchievements.Views.Controls
 
             bar.Items.Remove(_modeToggle);
             bar.LeadingItems.Remove(_modeToggle);
+            bar.LeadingItems.Remove(_expandAllButton);
+            bar.LeadingItems.Remove(_collapseAllButton);
             foreach (var item in bar.Items)
             {
                 if (item is GridMultiSelectFilter filter)
@@ -1337,6 +1370,7 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             SyncSegmentedUnit();
+            UpdateCollapseControlBarButtons();
 
             if (list)
             {
@@ -1416,6 +1450,13 @@ namespace PlayniteAchievements.Views.Controls
                     useLeafNames: true,
                     ResolveCategoryProgressMode());
 
+            // From the full tree, not the visible rows: collapsing everything must not read as the
+            // tree having gone flat, or the buttons that undo it would hide themselves.
+            _categoryTreeHasNesting = _allCategorySummaries != null &&
+                _allCategorySummaries
+                    .OfType<CategorySummaryItem>()
+                    .Any(c => !c.IsSelfRow && c.HasChildCategories);
+
             ApplyCategoryNameFilter();
         }
 
@@ -1448,8 +1489,11 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            var searchActive = !string.IsNullOrWhiteSpace(_categorySearchText);
+            var sortActive = _categorySortDirection.HasValue && !string.IsNullOrWhiteSpace(_categorySortPath);
+
             var visible = all;
-            if (!string.IsNullOrWhiteSpace(_categorySearchText))
+            if (searchActive)
             {
                 var needle = _categorySearchText.Trim();
                 visible = all
@@ -1457,9 +1501,29 @@ namespace PlayniteAchievements.Views.Controls
                     .ToList();
             }
 
+            // Collapsing is suspended while a name search is active - a matching row must never be
+            // hidden by a collapsed ancestor - and while a column sort has destroyed the tree. The
+            // set itself is untouched either way, so clearing the search or sort restores the view.
+            var collapseActive = !searchActive && !sortActive && _collapsedCategoryPaths.Count > 0;
+            var removedAny = false;
+            if (collapseActive)
+            {
+                visible = CategoryCollapseFilter.Apply(visible, _collapsedCategoryPaths, out removedAny);
+            }
+
+            // Stamped fresh on every pass: rebuilds replace the row objects, and the flag must also
+            // clear whenever search or sort suspends collapsing so the glyphs revert to plain beads.
+            foreach (var row in visible)
+            {
+                row.IsCollapsed = collapseActive &&
+                    row is CategorySummaryItem category &&
+                    !category.IsSelfRow &&
+                    _collapsedCategoryPaths.Contains(category.CategoryPath ?? string.Empty);
+            }
+
             // A manual column sort overlays the builder's default order (custom category order,
             // then provider order); sorting a copy keeps _allCategorySummaries as the reset target.
-            if (_categorySortDirection.HasValue && !string.IsNullOrWhiteSpace(_categorySortPath))
+            if (sortActive)
             {
                 var sortPath = string.Empty;
                 var sortDirection = ListSortDirection.Ascending;
@@ -1477,11 +1541,110 @@ namespace PlayniteAchievements.Views.Controls
 
             // Tree connectors describe the pre-order run the builder emitted, so they survive the
             // name filter above (the surviving rows keep their order) but not a manual column sort,
-            // which reorders rows into something the lanes would misdescribe.
-            CategoryTreeShapeBuilder.Stamp(visible, enabled: !_categorySortDirection.HasValue);
+            // which reorders rows into something the lanes would misdescribe. A collapse that
+            // removed rows can leave only roots visible, so the stamp is told nesting exists - the
+            // "+" toggles that re-expand them live on the shapes it produces.
+            CategoryTreeShapeBuilder.Stamp(
+                visible,
+                enabled: !_categorySortDirection.HasValue,
+                assumeNesting: removedAny);
 
             CategorySummaries = visible;
             CategoryListGrid?.SetSortIndicator(_categorySortPath, _categorySortDirection);
+
+            if (CategoryListGrid != null)
+            {
+                CategoryListGrid.ShowCategoryCollapseToggles = !searchActive && !sortActive;
+            }
+
+            UpdateCollapseControlBarButtons();
+        }
+
+        /// <summary>
+        /// Collapses or re-expands the clicked row's subtree. The toggle's routed event bubbles up
+        /// from the tree guide in the name cell; the guide already swallowed the mouse event, so no
+        /// row selection - and therefore no drill - accompanies it.
+        /// </summary>
+        private void OnCategoryCollapseToggleClicked(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (!((e.OriginalSource as FrameworkElement)?.DataContext is CategorySummaryItem item) ||
+                item.IsSelfRow || string.IsNullOrEmpty(item.CategoryPath))
+            {
+                return;
+            }
+
+            if (!_collapsedCategoryPaths.Remove(item.CategoryPath))
+            {
+                _collapsedCategoryPaths.Add(item.CategoryPath);
+            }
+
+            RefreshCategoryListPreservingScroll();
+        }
+
+        /// <summary>
+        /// Re-runs the visible-row pass without rebuilding the tree, holding the list's scroll
+        /// position across the ItemsSource swap that publishing CategorySummaries causes.
+        /// </summary>
+        private void RefreshCategoryListPreservingScroll()
+        {
+            var offset = CategoryListGrid?.VerticalScrollOffset ?? 0d;
+            ApplyCategoryNameFilter();
+            if (CategoryListGrid != null && offset > 0d)
+            {
+                // After the swap the list has not laid out its rows yet.
+                CategoryListGrid.Dispatcher.BeginInvoke(
+                    new Action(() => CategoryListGrid?.ScrollToVerticalOffset(offset)),
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+            }
+        }
+
+        /// <summary>Collapses every category that has child categories, from the full tree.</summary>
+        private void CollapseAllCategories()
+        {
+            _collapsedCategoryPaths.Clear();
+            foreach (var category in
+                (_allCategorySummaries ?? Enumerable.Empty<GameSummaryItem>()).OfType<CategorySummaryItem>())
+            {
+                // Every parent, not just the roots: expanding a root later shows its children
+                // still collapsed, so each node's state reads consistently on its own.
+                if (!category.IsSelfRow && category.HasChildCategories &&
+                    !string.IsNullOrEmpty(category.CategoryPath))
+                {
+                    _collapsedCategoryPaths.Add(category.CategoryPath);
+                }
+            }
+
+            RefreshCategoryListPreservingScroll();
+        }
+
+        private void ExpandAllCategories()
+        {
+            _collapsedCategoryPaths.Clear();
+            RefreshCategoryListPreservingScroll();
+        }
+
+        /// <summary>
+        /// Expand/Collapse All accompany the category list only: not the flat grid, not a drilled
+        /// category, not a searched or column-sorted list (both suspend collapsing), and not a tree
+        /// with nothing to collapse.
+        /// </summary>
+        private void UpdateCollapseControlBarButtons()
+        {
+            var show = IsCategoryGroupingEffective() && !IsDrilled &&
+                string.IsNullOrWhiteSpace(_categorySearchText) &&
+                !_categorySortDirection.HasValue &&
+                _categoryTreeHasNesting;
+
+            if (_expandAllButton != null)
+            {
+                _expandAllButton.IsVisible = show;
+            }
+
+            if (_collapseAllButton != null)
+            {
+                _collapseAllButton.IsVisible = show;
+            }
         }
 
         private void DrillIntoCategory(CategorySummaryItem item)
@@ -2135,6 +2298,9 @@ namespace PlayniteAchievements.Views.Controls
             RarityAppearanceHelper.BindShowHardcoreBorder(this, ShowHardcoreBorderProperty);
             DataContextChanged += OnDataContextChanged;
             Unloaded += OnUnloaded;
+            AddHandler(
+                CategoryTreeGuide.CollapseToggleClickedEvent,
+                new RoutedEventHandler(OnCategoryCollapseToggleClicked));
             UpdateColumnHeadersVisibility();
         }
 
