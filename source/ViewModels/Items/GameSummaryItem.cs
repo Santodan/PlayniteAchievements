@@ -63,6 +63,16 @@ namespace PlayniteAchievements.ViewModels.Items
         [IgnoreDataMember]
         public CategoryTreeShape TreeShape { get => _treeShape; set => SetValue(ref _treeShape, value); }
 
+        // False on a game row: whether this is the synthesized child row a mixed category emits to
+        // report the achievements sitting directly on it, beside its subtree rollup. On the base
+        // rather than on CategorySummaryItem for the same reason as TreeShape: the shared templates
+        // bind it, and a per-row binding failure on the game surfaces would be paid on every row.
+        private bool _isSelfRow;
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool IsSelfRow { get => _isSelfRow; set => SetValue(ref _isSelfRow, value); }
+
         public bool Owned => PlayniteGameId.HasValue;
 
         private string _gameLogo;
