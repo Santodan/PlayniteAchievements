@@ -1597,15 +1597,20 @@ namespace PlayniteAchievements.Views.Controls
         private void OnCategoryCollapseToggleClicked(object sender, RoutedEventArgs e)
         {
             e.Handled = true;
-            if (!((e.OriginalSource as FrameworkElement)?.DataContext is CategorySummaryItem item) ||
-                string.IsNullOrEmpty(item.CategoryPath))
+
+            // A boundary glyph straddles two rows, so a click on its lower half arrives from the
+            // row beneath the toggled category; the args then carry the right path past the
+            // clicked row's DataContext.
+            var item = (e.OriginalSource as FrameworkElement)?.DataContext as CategorySummaryItem;
+            var path = (e as CollapseToggleClickedEventArgs)?.CategoryPathOverride ?? item?.CategoryPath;
+            if (string.IsNullOrEmpty(path))
             {
                 return;
             }
 
-            if (!_collapsedCategoryPaths.Remove(item.CategoryPath))
+            if (!_collapsedCategoryPaths.Remove(path))
             {
-                _collapsedCategoryPaths.Add(item.CategoryPath);
+                _collapsedCategoryPaths.Add(path);
             }
 
             // Re-runs the visible-row pass without rebuilding the tree. The publish is
