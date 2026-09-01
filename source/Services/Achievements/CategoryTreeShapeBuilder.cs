@@ -17,6 +17,11 @@ namespace PlayniteAchievements.Services.Achievements
     {
         private static readonly bool[] NoLanes = new bool[0];
 
+        // Synthetic leaf segment that places a self row one level under its own category for the
+        // geometry pass. Internal to this builder: it exists only inside the paths array built in
+        // Stamp and is never stored on a row or shown.
+        private const string SelfRowMarkerSegment = "\u0001";
+
         /// <summary>
         /// Stamps the rows with the geometry that draws them as a tree, or clears it.
         ///
@@ -47,7 +52,16 @@ namespace PlayniteAchievements.Services.Achievements
             var paths = new string[categories.Count];
             for (var i = 0; i < categories.Count; i++)
             {
-                paths[i] = categories[i].CategoryPath;
+                // A self row shares its category's path but sits one level below it as its first
+                // child. A synthetic leaf segment gives it exactly that position, and every
+                // positional rule here then applies verbatim: the parent's junction opens for it,
+                // its own elbow reads as a tee because the child categories that made the node
+                // mixed follow as its siblings, and ancestor lanes resolve through the real rows.
+                // The marker never renders and cannot collide with a user segment - segments are
+                // trimmed of whitespace and this is a control character.
+                paths[i] = categories[i].IsSelfRow
+                    ? categories[i].CategoryPath + CategoryPathHelper.Separator + SelfRowMarkerSegment
+                    : categories[i].CategoryPath;
             }
 
             if (!enabled || !HasNesting(paths) || categories.Count != rows.Count)
