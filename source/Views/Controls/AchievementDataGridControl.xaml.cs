@@ -677,28 +677,36 @@ namespace PlayniteAchievements.Views.Controls
 
         private bool IsDrilled => _drillPath.Count > 0;
 
-        // Whether the drill was entered through a mixed category's self row, which scopes the
-        // achievement grid to the node's direct achievements instead of its whole subtree. Lives
-        // beside the path rather than in it: both rows share the same path and differ only in scope.
-        private bool _drillSelfOnly;
+        // What the drilled achievement grid covers: the node's whole subtree, or only its direct
+        // achievements. Recorded at drill time from the clicked row's collapse state - a collapsed
+        // row's numbers absorbed its subtree, an expanded row's numbers were its own, and the drill
+        // opens exactly what the numbers described. Lives beside the path rather than in it: the
+        // path alone cannot carry scope.
+        private enum DrillScope
+        {
+            Subtree = 0,
+            Own = 1
+        }
+
+        private DrillScope _drillScope = DrillScope.Subtree;
 
         private string DrilledPath => _drillPath.Count == 0 ? null : CategoryPathHelper.Join(_drillPath);
 
-        private void SetDrillPath(string path, bool selfOnly = false)
+        private void SetDrillPath(string path, DrillScope scope = DrillScope.Subtree)
         {
             _drillPath.Clear();
-            _drillSelfOnly = false;
+            _drillScope = DrillScope.Subtree;
             if (!string.IsNullOrWhiteSpace(path))
             {
                 _drillPath.AddRange(CategoryPathHelper.Split(path));
-                _drillSelfOnly = selfOnly;
+                _drillScope = scope;
             }
         }
 
         private void ClearDrillSelection()
         {
             _drillPath.Clear();
-            _drillSelfOnly = false;
+            _drillScope = DrillScope.Subtree;
             SelectedCategorySummaryItems = null;
             if (CategoryListGrid != null)
             {
@@ -1403,7 +1411,7 @@ namespace PlayniteAchievements.Views.Controls
 
             _isCategoryMode = enabled;
             _drillPath.Clear();
-            _drillSelfOnly = false;
+            _drillScope = DrillScope.Subtree;
             SelectedCategorySummaryItems = null;
             if (CategoryListGrid != null)
             {
@@ -1454,15 +1462,14 @@ namespace PlayniteAchievements.Views.Controls
                 : CategorySummaryBuilder.BuildTree(
                     items,
                     ResolveCategoryCompletionBadgeMode(),
-                    useLeafNames: true,
-                    ResolveCategoryProgressMode());
+                    useLeafNames: true);
 
             // From the full tree, not the visible rows: collapsing everything must not read as the
             // tree having gone flat, or the buttons that undo it would hide themselves.
             _categoryTreeHasNesting = _allCategorySummaries != null &&
                 _allCategorySummaries
                     .OfType<CategorySummaryItem>()
-                    .Any(c => !c.IsSelfRow && c.HasChildCategories);
+                    .Any(c => c.HasChildCategories);
 
             ApplyCategoryNameFilter();
         }
@@ -1478,14 +1485,6 @@ namespace PlayniteAchievements.Views.Controls
                 ?? CategoryCompletionBadgeMode.All;
         }
 
-        /// <summary>
-        /// Reads the global category progress mode, sourced the same way as the badge mode above.
-        /// </summary>
-        private static CategoryProgressMode ResolveCategoryProgressMode()
-        {
-            return PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.CategoryProgressMode
-                ?? CategoryProgressMode.OwnOnly;
-        }
 
         private void ApplyCategoryNameFilter()
         {
@@ -1522,12 +1521,19 @@ namespace PlayniteAchievements.Views.Controls
 
             // Stamped fresh on every pass: rebuilds replace the row objects, and the flag must also
             // clear whenever search or sort suspends collapsing so the glyphs revert to plain beads.
+            // The stat swap rides the same pass: a collapsed row absorbs its hidden subtree's
+            // numbers, an expanded one returns to its own. ApplyStats is a no-op when the row
+            // already holds the right snapshot, so a single toggle costs one real swap; rows hidden
+            // under a collapsed ancestor keep a stale scope harmlessly and are re-stamped here the
+            // moment they reappear.
             foreach (var row in visible)
             {
-                row.IsCollapsed = collapseActive &&
-                    row is CategorySummaryItem category &&
-                    !category.IsSelfRow &&
+                var category = row as CategorySummaryItem;
+                var collapsed = collapseActive &&
+                    category != null &&
                     _collapsedCategoryPaths.Contains(category.CategoryPath ?? string.Empty);
+                row.IsCollapsed = collapsed;
+                category?.ApplyStats(collapsed ? CategoryStatsScope.Subtree : CategoryStatsScope.Own);
             }
 
             // A manual column sort overlays the builder's default order (custom category order,
@@ -1578,7 +1584,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             e.Handled = true;
             if (!((e.OriginalSource as FrameworkElement)?.DataContext is CategorySummaryItem item) ||
-                item.IsSelfRow || string.IsNullOrEmpty(item.CategoryPath))
+                string.IsNullOrEmpty(item.CategoryPath))
             {
                 return;
             }
@@ -1691,7 +1697,7 @@ namespace PlayniteAchievements.Views.Controls
             {
                 // Every parent, not just the roots: expanding a root later shows its children
                 // still collapsed, so each node's state reads consistently on its own.
-                if (!category.IsSelfRow && category.HasChildCategories &&
+                if (category.HasChildCategories &&
                     !string.IsNullOrEmpty(category.CategoryPath))
                 {
                     _collapsedCategoryPaths.Add(category.CategoryPath);
@@ -1742,9 +1748,14 @@ namespace PlayniteAchievements.Views.Controls
             _categoryListScrollOffset = CategoryListGrid?.VerticalScrollOffset ?? 0d;
 
             // Summary rows carry a fully qualified path, so set the drill rather than appending:
-            // the click is then idempotent however the row was reached. A self row narrows the
-            // drill to the node's direct achievements; its category row opens the whole subtree.
-            SetDrillPath(item.CategoryLabel, item.IsSelfRow);
+            // the click is then idempotent however the row was reached. The scope matches the
+            // numbers displayed at click time: a collapsed row absorbed its subtree, an expanded
+            // one showed only its own - except an expanded pure container, whose own view would be
+            // empty and useless, so it opens the subtree.
+            var scope = item.IsCollapsed || item.DirectAchievementCount == 0
+                ? DrillScope.Subtree
+                : DrillScope.Own;
+            SetDrillPath(item.CategoryLabel, scope);
             RefreshDrillState(rebuildSummaries: false);
             ApplyCategoryViewState();
             ApplyControlBarModeState();
@@ -1797,7 +1808,7 @@ namespace PlayniteAchievements.Views.Controls
         /// <summary>Navigates to an ancestor of the current path, or to the root when null.</summary>
         public void DrillToPath(string path)
         {
-            SetDrillPath(path);
+            SetDrillPath(path, ResolveDrillScope(path));
             if (CategoryListGrid != null)
             {
                 CategoryListGrid.SelectedItem = null;
@@ -1874,12 +1885,10 @@ namespace PlayniteAchievements.Views.Controls
             if (IsCategoryGroupingEffective() && IsDrilled)
             {
                 // The scope of the row that was clicked, so the grid always agrees with the numbers
-                // that led here. Under own-only counting every row reports just its own members, so
-                // the drill opens those; under the combined modes a category row counts its whole
-                // subtree and opens it, and a mixed category's self row narrows back to the direct
-                // achievements.
+                // that led here: a collapsed row's numbers absorbed its whole subtree and the drill
+                // opens it; an expanded row's numbers were its own and the drill opens those.
                 var drilled = DrilledPath;
-                var selfOnly = ResolveCategoryProgressMode() == CategoryProgressMode.OwnOnly || _drillSelfOnly;
+                var selfOnly = _drillScope == DrillScope.Own;
                 var filtered = (ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
                     .Where(i => i != null && (selfOnly
                         ? CategoryPathHelper.IsSame(i.CategoryLabel, drilled)
@@ -2027,19 +2036,53 @@ namespace PlayniteAchievements.Views.Controls
                 }
 
                 _drillPath.RemoveAt(_drillPath.Count - 1);
-                // The self scope belonged to the level that just fell away, not to the ancestor
-                // being stepped up to.
-                _drillSelfOnly = false;
+                // The scope belonged to the level that just fell away, not to the ancestor being
+                // stepped up to; the ancestor's own scope resolves below once the path settles.
+                _drillScope = DrillScope.Subtree;
+            }
+
+            if (IsDrilled)
+            {
+                _drillScope = ResolveDrillScope(DrilledPath);
+                return;
             }
 
             ClearDrillSelection();
         }
 
         /// <summary>
+        /// The scope a drill on <paramref name="path"/> would open, resolved the same way a click
+        /// resolves it: the subtree when the row is collapsed (never while search or sort suspends
+        /// collapsing and the rows display their own numbers), and the node's own achievements
+        /// otherwise - except a pure container, whose own view would be empty, so it opens the
+        /// subtree. Used where a drill is entered without a clicked row: breadcrumb hops and
+        /// post-delta reconciliation.
+        /// </summary>
+        private DrillScope ResolveDrillScope(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return DrillScope.Subtree;
+            }
+
+            var searchActive = !string.IsNullOrWhiteSpace(_categorySearchText);
+            var collapsed = !searchActive && !_categorySortDirection.HasValue &&
+                _collapsedCategoryPaths.Contains(path);
+
+            var row = _allCategorySummaries?
+                .OfType<CategorySummaryItem>()
+                .FirstOrDefault(c => CategoryPathHelper.IsSame(c.CategoryPath, path));
+
+            return collapsed || row == null || row.DirectAchievementCount == 0
+                ? DrillScope.Subtree
+                : DrillScope.Own;
+        }
+
+        /// <summary>
         /// Rebuilds the category rows (when the source content changed) and the header row
         /// describing the row the drill was entered through, so the header always restates the
-        /// numbers that were clicked - the subtree rollup for a category row, the direct
-        /// achievements for a mixed category's self row.
+        /// numbers that were clicked - the subtree rollup when the row was collapsed, the direct
+        /// achievements when it was expanded.
         ///
         /// Drill navigation passes <paramref name="rebuildSummaries"/> false: the click changes
         /// nothing about the achievements, so <see cref="_allCategorySummaries"/> is still
@@ -2072,21 +2115,27 @@ namespace PlayniteAchievements.Views.Controls
             CategorySummaryItem match = null;
             if (items != null && items.Count > 0)
             {
-                var candidates = CategorySummaryBuilder
-                    .BuildTree(items, ResolveCategoryCompletionBadgeMode(), useLeafNames: true, ResolveCategoryProgressMode())
+                match = CategorySummaryBuilder
+                    .BuildTree(items, ResolveCategoryCompletionBadgeMode(), useLeafNames: true)
                     .OfType<CategorySummaryItem>()
-                    .Where(c => CategoryPathHelper.IsSame(c.CategoryPath, drilled))
-                    .ToList();
+                    .FirstOrDefault(c => CategoryPathHelper.IsSame(c.CategoryPath, drilled));
 
-                match = candidates.FirstOrDefault(c => c.IsSelfRow == _drillSelfOnly)
-                    ?? candidates.FirstOrDefault();
-
-                // A delta can dissolve the scope that was drilled into - the last direct
-                // achievement recategorized away, or the last child category emptied. Following
-                // the surviving row keeps the header and the grid agreeing on what is shown.
                 if (match != null)
                 {
-                    _drillSelfOnly = match.IsSelfRow;
+                    // A delta can dissolve an own-scoped drill - the last direct achievement
+                    // recategorized away - which would leave the grid empty under a live header.
+                    // The subtree scope always has something to show here (items was non-empty).
+                    if (_drillScope == DrillScope.Own && match.DirectAchievementCount == 0)
+                    {
+                        _drillScope = DrillScope.Subtree;
+                    }
+
+                    // The header restates the numbers that were clicked: the subtree rollup for a
+                    // subtree drill, the row's own achievements for an own drill. The fresh row
+                    // left the builder holding its own reading.
+                    match.ApplyStats(_drillScope == DrillScope.Subtree
+                        ? CategoryStatsScope.Subtree
+                        : CategoryStatsScope.Own);
 
                     // Badge permission is positional in the configured order of the whole list
                     // (First allows only the first category overall), which the scoped build
@@ -2094,21 +2143,10 @@ namespace PlayniteAchievements.Views.Controls
                     // carries the stamped answer.
                     var listRow = _allCategorySummaries?
                         .OfType<CategorySummaryItem>()
-                        .FirstOrDefault(c => c.IsSelfRow == match.IsSelfRow &&
-                            CategoryPathHelper.IsSame(c.CategoryPath, drilled));
+                        .FirstOrDefault(c => CategoryPathHelper.IsSame(c.CategoryPath, drilled));
                     if (listRow != null)
                     {
                         match.AllowCompletionBadge = listRow.AllowCompletionBadge;
-                    }
-
-                    // In the list the self row leans on the labeled category row directly above
-                    // it: unlabeled and dimmed. In this header it stands alone, so it takes the
-                    // name back and drops the self styling. Safe to mutate - the row was built
-                    // fresh above and is not shared with the list.
-                    if (match.IsSelfRow)
-                    {
-                        match.GameName = match.CategoryLeafName;
-                        match.IsSelfRow = false;
                     }
                 }
             }
@@ -2673,13 +2711,10 @@ namespace PlayniteAchievements.Views.Controls
             // mode pick new modes up from the rebuild that entering category mode already does.
             if (_isCategoryMode)
             {
-                if (string.IsNullOrEmpty(e.PropertyName) ||
-                    e.PropertyName == nameof(PersistedSettings.CategoryProgressMode))
+                if (string.IsNullOrEmpty(e.PropertyName))
                 {
-                    // The progress mode changes which rows exist and what the current drill opens
-                    // onto, so the drill re-resolves against the new rows (RefreshDrillState
-                    // rebuilds the summaries itself) and the achievement grid re-filters to the
-                    // new scope.
+                    // A blank name means the whole Persisted instance changed (CancelEdit swaps
+                    // it), so the drill re-resolves against freshly built rows.
                     RefreshDrillState();
                     ApplyCategoryViewState();
                 }
