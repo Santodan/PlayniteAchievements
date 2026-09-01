@@ -135,22 +135,6 @@
                                        Margin="0,0,0,10"
                                        TextWrapping="Wrap"/>
                             <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CategoryProgress}"
-                                           VerticalAlignment="Center"/>
-                                <ComboBox SelectedValue="{Binding Persisted.CategoryProgressMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag"
-                                          MinWidth="140"
-                                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_CategoryProgressMode_OwnOnly}" Tag="{x:Static settings:CategoryProgressMode.OwnOnly}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_CategoryProgressMode_CombinedOnly}" Tag="{x:Static settings:CategoryProgressMode.CombinedOnly}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_CategoryProgressMode_CombinedWithOwnRows}" Tag="{x:Static settings:CategoryProgressMode.CombinedWithOwnRows}"/>
-                                </ComboBox>
-                            </StackPanel>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CategoryProgress_Help}"
-                                       Style="{StaticResource MutedTextStyle}"
-                                       Margin="0,0,0,10"
-                                       TextWrapping="Wrap"/>
-                            <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SoftGlowTiers}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            VerticalAlignment="Center"
