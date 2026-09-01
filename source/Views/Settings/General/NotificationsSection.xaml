@@ -52,9 +52,13 @@
                                   IsEnabled="{Binding Persisted.EnableNotifications}"/>
                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableFriendUnlockToasts}"
                                   IsChecked="{Binding Persisted.EnableFriendUnlockToasts}"
-                                  Margin="18,0,0,0"
+                                  Margin="18,0,0,10"
                                   IsEnabled="{Binding Persisted.EnableNotifications}"
                                   Visibility="{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}"/>
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableProgressToasts}"
+                                  IsChecked="{Binding Persisted.EnableProgressToasts}"
+                                  Margin="18,0,0,0"
+                                  IsEnabled="{Binding Persisted.EnableNotifications}"/>
                     </StackPanel>
                 </Border>
 
@@ -670,6 +674,24 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ComboBox SelectedValue="{Binding FriendUnlockToasts, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      SelectedValuePath="Tag"
+                                                      MinWidth="86"
+                                                      VerticalAlignment="Center"
+                                                      Margin="4,2">
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
+                                            </ComboBox>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_ProgressToasts}"
+                                                        Width="Auto"
+                                                        MinWidth="100">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ComboBox SelectedValue="{Binding ProgressToasts, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       SelectedValuePath="Tag"
                                                       MinWidth="86"
                                                       VerticalAlignment="Center"
