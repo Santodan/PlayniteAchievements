@@ -1922,7 +1922,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnItemsSourceCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
-            OnItemsSourceContentChanged();
+            RequestItemsSourceContentRefresh();
         }
 
         // Hosts feed CategorySummarySource from a stable collection mutated in place (ReplaceAll),
@@ -1948,8 +1948,32 @@ namespace PlayniteAchievements.Views.Controls
         {
             if (_isCategoryMode)
             {
-                OnItemsSourceContentChanged();
+                RequestItemsSourceContentRefresh();
             }
+        }
+
+        // A game or friend switch replaces ItemsSource and CategorySummarySource back to back
+        // (both mutated in place, so each raises its own Reset), and running the full category
+        // pipeline per Reset meant two tree builds and two wholesale republishes per click. One
+        // deferred pass at DataBind priority runs after every Reset in the frame has landed and
+        // still ahead of the render pass, so nothing stale ever paints.
+        private bool _itemsSourceContentRefreshQueued;
+
+        private void RequestItemsSourceContentRefresh()
+        {
+            if (_itemsSourceContentRefreshQueued)
+            {
+                return;
+            }
+
+            _itemsSourceContentRefreshQueued = true;
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    _itemsSourceContentRefreshQueued = false;
+                    OnItemsSourceContentChanged();
+                }),
+                System.Windows.Threading.DispatcherPriority.DataBind);
         }
 
         private void OnItemsSourceContentChanged()
