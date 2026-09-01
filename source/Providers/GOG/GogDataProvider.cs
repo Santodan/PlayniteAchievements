@@ -47,12 +47,13 @@ namespace PlayniteAchievements.Providers.GOG
         internal static readonly Guid GogOSSPluginId = Guid.Parse("03689811-3F33-4DFB-A121-2EE168FB9A5C");
 
         /// <summary>
-        /// Galaxy's unlockTime is truncated to whole seconds and stamped at the game's unlock
-        /// call, which precedes the visible payoff; clips anchored on the raw stamp placed the
-        /// card 1-3 seconds before the on-screen moment (field-measured). The bias aims slightly
-        /// late rather than early — a card just after the moment reads like the real overlay.
+        /// Galaxy stores unlockTime truncated to whole seconds (verified against the live
+        /// database), so a raw stamp anchors up to one second before the actual moment. One
+        /// second is the smallest bias the truncation can never make early — at worst it lands
+        /// one second late. No larger systematic offset has a verified source; recalibrate this
+        /// from measured clip offsets, not estimates.
         /// </summary>
-        private static readonly TimeSpan GalaxyReportedAnchorBias = TimeSpan.FromSeconds(2.5);
+        private static readonly TimeSpan GalaxyReportedAnchorBias = TimeSpan.FromSeconds(1);
 
         private readonly ILogger _logger;
         private readonly GogSessionManager _sessionManager;
