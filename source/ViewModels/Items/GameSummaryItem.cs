@@ -73,6 +73,16 @@ namespace PlayniteAchievements.ViewModels.Items
         [IgnoreDataMember]
         public bool IsSelfRow { get => _isSelfRow; set => SetValue(ref _isSelfRow, value); }
 
+        // Session-only view state, false on a game row: whether this category row's subtree is
+        // currently collapsed out of the visible list. Stamped by the category list on every filter
+        // pass. On the base for the same reason as TreeShape: the shared name-column template binds
+        // it, and a per-row binding failure on the game surfaces would be paid on every row.
+        private bool _isCollapsed;
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool IsCollapsed { get => _isCollapsed; set => SetValue(ref _isCollapsed, value); }
+
         // Session-only view state on a self row: where the dashed drop out of the category's name
         // above sits, in DataGridRow coordinates. Measured by the name cell of the row above (only
         // layout knows where its text ends up) and consumed by this row's tree guide, which starts
