@@ -163,7 +163,13 @@ namespace PlayniteAchievements.Views.Controls
 
             try
             {
-                DrawJunction(drawingContext, pen, shape, dotX, mid, beadRadius);
+                // A self row is an annotation on its category, not a node of the tree: the lanes
+                // pass through it (drawn above) so the column stays continuous, but it gets no bead
+                // of its own.
+                if (!shape.IsSelfRow)
+                {
+                    DrawJunction(drawingContext, pen, shape, dotX, mid, beadRadius);
+                }
             }
             finally
             {
@@ -194,7 +200,9 @@ namespace PlayniteAchievements.Views.Controls
         /// <summary>
         /// The row's own connector. A last sibling closes with a rounded elbow and stops at the
         /// middle; anything else keeps the lane running to the bottom for the sibling underneath.
-        /// A root has neither - it has no parent to connect to.
+        /// A root has neither - it has no parent to connect to. A self row keeps only the
+        /// running lane, never an arm: the arm is what claims a row as a node of the tree, and a
+        /// self row is an annotation on the node above it.
         /// </summary>
         private static void DrawOwnStem(
             DrawingContext drawingContext,
@@ -210,6 +218,19 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             var stemX = CategoryTreeGuideMetrics.GetLaneCentre(shape.Depth - 1);
+            if (shape.IsSelfRow)
+            {
+                // By construction the child categories that made the node mixed follow beneath, so
+                // the parent's lane continues; a defensive last-sibling self row draws nothing
+                // rather than a line stopping mid-air.
+                if (!shape.IsLastSibling)
+                {
+                    drawingContext.DrawLine(pen, new Point(stemX, 0d), new Point(stemX, height));
+                }
+
+                return;
+            }
+
             if (!shape.IsLastSibling)
             {
                 drawingContext.DrawLine(pen, new Point(stemX, 0d), new Point(stemX, height));
