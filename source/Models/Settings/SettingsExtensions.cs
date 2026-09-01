@@ -94,6 +94,7 @@ namespace PlayniteAchievements.Models.Settings
             target.EnableNotifications = source.EnableNotifications;
             target.EnableUnlockToasts = source.EnableUnlockToasts;
             target.EnableFriendUnlockToasts = source.EnableFriendUnlockToasts;
+            target.EnableProgressToasts = source.EnableProgressToasts;
             target.NotificationStyle = source.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault();
             target.ToastUseThemeStyling = source.ToastUseThemeStyling;
             target.FrameUseThemeStyling = source.FrameUseThemeStyling;
