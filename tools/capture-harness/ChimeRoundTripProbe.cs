@@ -53,6 +53,11 @@ internal static class ChimeRoundTripProbe
 
         var failures = 0;
 
+        if (Array.IndexOf(args, "--pipeline-only") >= 0)
+        {
+            return RunIsolationSection();
+        }
+
         // A CHIPTUNE bed, which is what a Genesis clip carries. Strongly periodic, so it can
         // correlate with the chime reference where no chime is present. What matters here is the
         // damage column: subtracting music is far worse than leaving a chime.
@@ -168,9 +173,151 @@ internal static class ChimeRoundTripProbe
 
         CapturedPath = false;
 
+        failures += RunIsolationSection();
+
         Console.WriteLine();
         Console.WriteLine("chimeErr 0 dB = chime untouched; -20 dB or lower = gone.");
         return failures;
+    }
+
+    /// <summary>
+    /// The full game-only pipeline in the service's exact order: whole-window nng isolation (with
+    /// its 500 ms gain fallback and up to three residual passes), then the chime pass (blocked at
+    /// ordinary floors, unblocked at residual floors on rejection) against the chm slice. This is
+    /// the sequence a field doubled-chime report runs through; the per-stage columns show which
+    /// stage left the chime behind. The nng and chm sidecars are independent capture clients, so
+    /// each carries its own small lag against the endpoint mixture.
+    /// </summary>
+    private static int RunIsolationSection()
+    {
+        var failures = 0;
+        Console.WriteLine();
+        Console.WriteLine("=== GAME-ONLY PIPELINE (nng isolation, then chm chime pass) ===");
+        Console.WriteLine("scenario                         isolation            chime pass           afterIso  chimeErr  gameDmg  verdict");
+        Console.WriteLine("-------------------------------- -------------------- -------------------- --------  --------  -------  -------");
+        CapturedPath = true;
+        failures += RunIsolationFirst("field shape 12/33 ms", 12, 33, 1.0, 0);
+        failures += RunIsolationFirst("aligned 0/0 ms", 0, 0, 1.0, 0);
+        failures += RunIsolationFirst("skews 5/15 ms", 5, 15, 1.0, 0);
+        failures += RunIsolationFirst("skews 30/60 ms", 30, 60, 1.0, 0);
+        failures += RunIsolationFirst("quiet chime 12/33 ms", 12, 33, 0.15, 0);
+        failures += RunIsolationFirst("render drift 200 ppm", 12, 33, 1.0, 200);
+        failures += RunIsolationFirst("render drift 1000 ppm", 12, 33, 1.0, 1000);
+        Chiptune = true;
+        failures += RunIsolationFirst("chiptune, field shape", 12, 33, 1.0, 0);
+        failures += RunIsolationFirst("chiptune, drift 200 ppm", 12, 33, 1.0, 200);
+        Chiptune = false;
+        CapturedPath = false;
+        return failures;
+    }
+
+    private static int RunIsolationFirst(
+        string label, int nngSkewMs, int chmSkewMs, double chimeGain, int renderDriftPpm)
+    {
+        const int frames = SampleRate * 22;
+        var chimeFile = Chime(SampleRate * 2);
+        var chimeFrames = chimeFile.Length / Channels;
+        var rendered = SampleRate * 15;                 // where the card lands in a 22 s window
+
+        var gameBed = Chiptune ? ChiptuneBed(frames) : GameBed(frames);
+
+        // The endpoint capture: game bed plus the chime exactly as it rendered (optionally with
+        // player rate drift the process-tree taps do not share).
+        var mixture = new short[frames * Channels];
+        Array.Copy(gameBed, mixture, gameBed.Length);
+        Place(mixture, chimeFile, rendered, chimeGain, renderDriftPpm);
+        var truth = new short[frames * Channels];
+        Place(truth, chimeFile, rendered, chimeGain, renderDriftPpm);
+
+        // The nng (everything-but-the-game) and chm (Playnite-tree) captures of the same chime,
+        // each tapped through its own client at its own small lag, without the render drift.
+        var nng = new short[frames * Channels];
+        Place(nng, chimeFile, rendered - (nngSkewMs * SampleRate / 1000), chimeGain, 0);
+        var chm = new short[frames * Channels];
+        Place(chm, chimeFile, rendered - (chmSkewMs * SampleRate / 1000), chimeGain, 0);
+
+        var mixBytes = ToBytes(mixture);
+        var nngBytes = ToBytes(nng);
+        var chmBytes = ToBytes(chm);
+
+        // === Stage 1: game-only isolation, the service's exact sequence ===
+        var recorded = (byte[])mixBytes.Clone();
+        var isolation = ReferenceCancellationPolicy.Subtract(
+            mixBytes, nngBytes, out var iso, residualPass: false, maxLagFrames: 12000);
+        var fit = "whole";
+        if (isolation != PcmCancellationOutcome.CancelledVerified)
+        {
+            Buffer.BlockCopy(recorded, 0, mixBytes, 0, mixBytes.Length);
+            isolation = ReferenceCancellationPolicy.Subtract(
+                mixBytes, nngBytes, out iso, residualPass: false,
+                blockFrames: 24000, maxLagFrames: 12000);
+            fit = "500ms";
+        }
+
+        if (isolation == PcmCancellationOutcome.CancelledVerified)
+        {
+            for (var pass = 1; pass <= 3; pass++)
+            {
+                var residual = ReferenceCancellationPolicy.Subtract(
+                    mixBytes, nngBytes, out _, residualPass: true, maxLagFrames: 12000);
+                if (residual != PcmCancellationOutcome.CancelledVerified)
+                {
+                    break;
+                }
+            }
+        }
+
+        var afterIsoDb = StageChimeError(mixBytes, gameBed, truth, rendered, chimeFrames);
+
+        // === Stage 2: the chime pass, the service's exact two attempts ===
+        var chimeOutcome = ReferenceCancellationPolicy.Subtract(
+            mixBytes, chmBytes, out var cp, residualPass: false, blockFrames: 24000,
+            maxLagFrames: PassMaxLag, detectClean: true);
+        var blockedOutcome = chimeOutcome;
+        var blocked = cp;
+        if (chimeOutcome == PcmCancellationOutcome.Unseparable ||
+            (chimeOutcome == PcmCancellationOutcome.CleanNoGameDetected && cp.SubtractedBlocks == 0))
+        {
+            chimeOutcome = ReferenceCancellationPolicy.Subtract(
+                mixBytes, chmBytes, out cp, residualPass: true,
+                maxLagFrames: PassMaxLag, detectClean: true);
+        }
+
+        var cancelled = ToShorts(mixBytes);
+        var error = new short[frames * Channels];
+        for (var i = 0; i < error.Length; i++)
+        {
+            error[i] = Clamp(cancelled[i] - gameBed[i]);
+        }
+
+        var errDb = RelativeDb(error, truth, rendered, chimeFrames);
+        var dmgDb = RelativeDbOutside(error, gameBed, rendered, chimeFrames);
+        var ok = errDb <= ResidueTargetDb && dmgDb <= -30.0;
+        Console.WriteLine(
+            $"{label,-32} {isolation,-20} {chimeOutcome,-20} {afterIsoDb,7:0.0}dB {errDb,7:0.0}dB " +
+            $"{dmgDb,7:0.0}dB  {(ok ? "ok" : "FAIL")}");
+        Console.WriteLine(
+            $"    isolation: fit={fit} lag={iso.StartLagMs:0.###}ms corr={iso.Correlation:0.000} " +
+            $"supp={iso.SuppressionDb:0.0}dB; blocked chime pass: outcome={blockedOutcome} " +
+            $"lag={blocked.StartLagMs:0.###}ms corr={blocked.Correlation:0.000} " +
+            $"gain={blocked.Gain:0.000} blocks={blocked.SubtractedBlocks}/{blocked.TotalBlocks} " +
+            $"restored={blocked.RestoredBlocks}; final: blocks={cp.SubtractedBlocks}/{cp.TotalBlocks} " +
+            $"supp={cp.SuppressionDb:0.0}dB");
+        return ok ? 0 : 1;
+    }
+
+    /// <summary>Chime residue after a stage, without disturbing the working buffer.</summary>
+    private static double StageChimeError(
+        byte[] working, short[] gameBed, short[] truth, int rendered, int chimeFrames)
+    {
+        var current = ToShorts(working);
+        var error = new short[current.Length];
+        for (var i = 0; i < error.Length; i++)
+        {
+            error[i] = Clamp(current[i] - gameBed[i]);
+        }
+
+        return RelativeDb(error, truth, rendered, chimeFrames);
     }
 
     private static int RunAll(string wavOut)
