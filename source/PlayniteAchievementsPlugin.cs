@@ -594,9 +594,10 @@ namespace PlayniteAchievements
                         _windowTracker,
                         _gameCustomDataStore,
                         // Late-bound: the recording service is constructed just below, but the
-                        // toast service only ever invokes this from an unlock handler, long after
+                        // toast service only ever invokes these from an unlock handler, long after
                         // the field is assigned.
-                        e => _unlockRecordings?.WouldRequestClip(e) ?? false);
+                        e => _unlockRecordings?.WouldRequestClip(e) ?? false,
+                        (e, capHeight) => _unlockRecordings?.TryCaptureAnchorFrame(e, capHeight));
                     _unlockRecordings = new Services.Recording.UnlockRecordingService(
                         PlayniteApi,
                         settings,
