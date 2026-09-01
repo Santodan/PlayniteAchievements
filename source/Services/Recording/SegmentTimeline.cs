@@ -345,19 +345,19 @@ namespace PlayniteAchievements.Services.Recording
         /// observation, which the guard's lead check would reject outright.
         ///
         /// Otherwise the anchor is the source-selected timestamp when it is reachable, else
-        /// observation. Two
-        /// floors raise the start: it may not open earlier than one poll interval + pre-roll before
-        /// observation, nor earlier than recorded data. When a floor raises the start past the
-        /// timestamp itself, that timestamp is discarded and the window is recomputed around
-        /// observation.
+        /// observation. A source timestamp is discarded — and the window recomputed around
+        /// observation — when it is unreachable: older than recorded data, or more than one poll
+        /// interval plus the pre-roll before observation (a promptly observed unlock cannot be
+        /// that old; stale and foreign-clock timestamps land there, and would otherwise collapse
+        /// onto the oldest buffered frame and show unrelated footage).
         ///
-        /// That last rule prevents a stale or unreachable source timestamp from collapsing onto the
-        /// oldest buffered frame and showing unrelated footage. Local observation is the only
-        /// reachable fallback and still yields the full configured pre-roll.
+        /// An accepted anchor keeps the full configured pre-roll, floored only by recorded data.
+        /// Provider propagation lag between the unlock and its observation must not eat into the
+        /// pre-roll: GOG has surfaced unlocks ~30s after their reported time, which under an
+        /// observation-relative start clamp left fractions of a second of pre-unlock footage.
         ///
-        /// End: the later of (a) the toast anchor plus the toast slot and tail and (b) the local
-        /// observation plus the tail. The second bound guarantees the event that caused detection
-        /// remains in the footage even when the two timestamps do not share a clock domain.
+        /// End: the toast anchor plus the toast slot and tail — the clip ends with the composited
+        /// notification, regardless of how much later the source observed the unlock.
         /// </summary>
         public static ClipWindow ComputeClipWindow(
             DateTime? preferredAnchorUtc,
@@ -409,16 +409,20 @@ namespace PlayniteAchievements.Services.Recording
             var anchor = IsPreciseUnlockTime(preferredAnchorUtc, captureStartUtc, observedUtc)
                 ? preferredAnchorUtc.Value
                 : observedUtc;
-            var start = ClampWindowStart(
-                anchor.AddSeconds(-preRoll), observedUtc, pollIntervalSeconds, preRoll, floor);
 
-            if (start > anchor)
+            // The timestamp is unreachable — older than the buffer, or than a promptly-observed
+            // unlock could be. Re-anchor on the local source observation.
+            var stalestAnchor = observedUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
+            if (anchor < stalestAnchor || anchor < floor)
             {
-                // The timestamp is unreachable — older than the buffer, or than a promptly-observed
-                // unlock could be. Re-anchor on the local source observation.
                 anchor = observedUtc;
-                start = ClampWindowStart(
-                    anchor.AddSeconds(-preRoll), observedUtc, pollIntervalSeconds, preRoll, floor);
+            }
+
+            // The accepted anchor keeps the full pre-roll; only recorded data floors it.
+            var start = anchor.AddSeconds(-preRoll);
+            if (start < floor)
+            {
+                start = floor;
             }
 
             // The toast begins at the clip start when the pre-roll got clamped away entirely (a
@@ -428,37 +432,9 @@ namespace PlayniteAchievements.Services.Recording
                 anchor = start;
             }
 
-            var tail = Math.Max(0, tailSeconds);
-            var end = anchor.AddSeconds(Math.Max(0, toastSlotSeconds) + tail);
-
-            // A provider/source anchor and the local observation can be in different clock domains,
-            // or a provider can persist before its state becomes observable. Never let that make the
-            // clip end before the source event that caused us to produce it. This is a guardrail even
-            // for providers that normally supply an authoritative historical anchor.
-            var observedEnd = observedUtc.AddSeconds(tail);
-            if (observedEnd > end)
-            {
-                end = observedEnd;
-            }
+            var end = anchor.AddSeconds(Math.Max(0, toastSlotSeconds) + Math.Max(0, tailSeconds));
 
             return new ClipWindow { StartUtc = start, EndUtc = end, ToastAnchorUtc = anchor };
-        }
-
-        /// <summary>
-        /// Raises a window start to the earliest moment it may open: no earlier than a promptly
-        /// observed unlock could have occurred (one poll interval plus the pre-roll before
-        /// observation), and no earlier than recorded data.
-        /// </summary>
-        private static DateTime ClampWindowStart(
-            DateTime start, DateTime observedUtc, int pollIntervalSeconds, int preRoll, DateTime floor)
-        {
-            var earliest = observedUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
-            if (start < earliest)
-            {
-                start = earliest;
-            }
-
-            return start < floor ? floor : start;
         }
 
         /// <summary>
