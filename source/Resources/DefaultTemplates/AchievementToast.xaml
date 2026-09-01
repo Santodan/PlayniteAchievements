@@ -112,6 +112,18 @@
                 </Border>
             </Grid>
 
+            <!-- Dither overlay for the border glow: static one-level speckle across the card and
+                 its glow room. The glow's smooth falloff quantizes to 8-bit rings on screen; the
+                 speckle dissolves their edges into grain invisible at normal brightness (see
+                 DitherNoise). NearestNeighbor keeps the one-DIP speckle at full amplitude under
+                 the card's fractional DPI/fit scaling. Static content, so captures dedup frames
+                 and build the shadow difference layer exactly as before. -->
+            <Rectangle Margin="{Binding ToastDitherMargin}"
+                       Fill="{x:Static helpers:DitherNoise.Brush}"
+                       IsHitTestVisible="False"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor"
+                       Visibility="{Binding HasBorderGlow, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
             <!-- Content layer: no effect, so every text line and icon renders as a crisp vector.
                  Clipped to the card's rounded shape. -->
             <Border CornerRadius="8"

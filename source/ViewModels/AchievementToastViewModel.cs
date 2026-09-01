@@ -768,6 +768,20 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>Kept in step with the BurstScale the bundled toast template passes.</summary>
         private const double ToastCardBurstScale = 1.14;
 
+        /// <summary>
+        /// Negated <see cref="ToastGlowMargin"/>, so the bundled template's dither overlay (a
+        /// card-sized element like every other root child) can expand back over the glow room
+        /// and cover the border glow's full falloff.
+        /// </summary>
+        public Thickness ToastDitherMargin
+        {
+            get
+            {
+                var margin = ToastGlowMargin;
+                return new Thickness(-margin.Left, -margin.Top, -margin.Right, -margin.Bottom);
+            }
+        }
+
 
         // Cloned to an unfrozen copy so the card's border-glow pulse can animate its Opacity
         // (the shared GetGlow/GetCompletedGlow instances are frozen and immutable), and so its
