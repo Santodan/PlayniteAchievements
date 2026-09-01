@@ -519,7 +519,7 @@ namespace PlayniteAchievements.Tests.Services.Summaries
         }
 
         [TestMethod]
-        public void BuildTree_RollsEveryNodeUpToItsSubtree()
+        public void BuildTree_CountsEachNodeOnItsOwnMembersByDefault()
         {
             var items = new List<AchievementDisplayItem>
             {
@@ -530,6 +530,34 @@ namespace PlayniteAchievements.Tests.Services.Summaries
             };
 
             var tree = CategorySummaryBuilder.BuildTree(items).Cast<CategorySummaryItem>().ToList();
+            var byPath = tree.ToDictionary(r => r.CategoryPath, r => r, StringComparer.OrdinalIgnoreCase);
+
+            // The default mode partitions the set: a parent reports only what is labelled exactly
+            // itself, so a node that is purely a folder reads 0/0 rather than restating its
+            // children's counts - and no self rows are emitted.
+            Assert.IsFalse(tree.Any(r => r.IsSelfRow));
+            Assert.AreEqual(0, byPath["DLC"].TotalAchievements, "a folder-only parent holds none of its own");
+            Assert.AreEqual(1, byPath["DLC::Winter"].TotalAchievements);
+            Assert.AreEqual(1, byPath["DLC::Winter"].UnlockedAchievements);
+            Assert.AreEqual(1, byPath["DLC::Winter::Frost"].TotalAchievements);
+            Assert.AreEqual(items.Count, tree.Sum(r => r.TotalAchievements), "the rows partition the set");
+        }
+
+        [TestMethod]
+        public void BuildTree_RollsEveryNodeUpToItsSubtreeInCombinedModes()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter", unlocked: true),
+                NestedItem("DLC::Winter::Frost"),
+                NestedItem("DLC::Summer", unlocked: true),
+                NestedItem("Multiplayer")
+            };
+
+            var tree = CategorySummaryBuilder
+                .BuildTree(items, progressMode: CategoryProgressMode.CombinedWithOwnRows)
+                .Cast<CategorySummaryItem>()
+                .ToList();
 
             // A row's numbers describe everything drilling into it reveals, so a folder-only
             // parent reads as the sum of its descendants rather than 0/0.
@@ -562,7 +590,7 @@ namespace PlayniteAchievements.Tests.Services.Summaries
             };
 
             var tree = CategorySummaryBuilder
-                .BuildTree(items, CategoryCompletionBadgeMode.All, useLeafNames: true)
+                .BuildTree(items, CategoryCompletionBadgeMode.All, useLeafNames: true, CategoryProgressMode.CombinedWithOwnRows)
                 .Cast<CategorySummaryItem>()
                 .ToList();
 
@@ -599,9 +627,30 @@ namespace PlayniteAchievements.Tests.Services.Summaries
                 NestedItem("Multiplayer")
             };
 
-            var tree = CategorySummaryBuilder.BuildTree(items).Cast<CategorySummaryItem>().ToList();
+            var tree = CategorySummaryBuilder
+                .BuildTree(items, progressMode: CategoryProgressMode.CombinedWithOwnRows)
+                .Cast<CategorySummaryItem>()
+                .ToList();
 
             Assert.IsFalse(tree.Any(r => r.IsSelfRow));
+        }
+
+        [TestMethod]
+        public void BuildTree_CombinedOnlyRollsUpWithoutSelfRows()
+        {
+            var items = new List<AchievementDisplayItem>
+            {
+                NestedItem("DLC::Winter", unlocked: true),
+                NestedItem("DLC::Winter::Frost")
+            };
+
+            var tree = CategorySummaryBuilder
+                .BuildTree(items, progressMode: CategoryProgressMode.CombinedOnly)
+                .Cast<CategorySummaryItem>()
+                .ToList();
+
+            Assert.IsFalse(tree.Any(r => r.IsSelfRow), "combined-only shows the totals without breakdown rows");
+            Assert.AreEqual(2, tree.Single(r => r.CategoryPath == "DLC::Winter").TotalAchievements);
         }
 
         [TestMethod]
@@ -613,7 +662,10 @@ namespace PlayniteAchievements.Tests.Services.Summaries
                 NestedItem("DLC::Summer", unlocked: true)
             };
 
-            var tree = CategorySummaryBuilder.BuildTree(items).Cast<CategorySummaryItem>().ToList();
+            var tree = CategorySummaryBuilder
+                .BuildTree(items, progressMode: CategoryProgressMode.CombinedWithOwnRows)
+                .Cast<CategorySummaryItem>()
+                .ToList();
 
             Assert.IsTrue(tree.Single(r => r.CategoryPath == "DLC").IsCompleted);
         }
@@ -623,7 +675,7 @@ namespace PlayniteAchievements.Tests.Services.Summaries
         {
             // Achievements only ever sit on the deepest labels, so every node above them has an
             // empty bucket. Those nodes still get a row - the subtree is what decides a node
-            // exists - and each reports its subtree's sum.
+            // exists - and each reports its subtree's sum in the combined modes.
             var items = new List<AchievementDisplayItem>
             {
                 NestedItem("A::B::C::D", unlocked: true),
@@ -632,7 +684,10 @@ namespace PlayniteAchievements.Tests.Services.Summaries
                 NestedItem("A::B::F")
             };
 
-            var tree = CategorySummaryBuilder.BuildTree(items).Cast<CategorySummaryItem>().ToList();
+            var tree = CategorySummaryBuilder
+                .BuildTree(items, progressMode: CategoryProgressMode.CombinedWithOwnRows)
+                .Cast<CategorySummaryItem>()
+                .ToList();
             Assert.IsFalse(tree.Any(r => r.IsSelfRow), "folder-only chains emit no self rows");
 
             var byPath = tree.ToDictionary(r => r.CategoryPath, r => r, StringComparer.OrdinalIgnoreCase);
