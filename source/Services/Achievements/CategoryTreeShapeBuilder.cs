@@ -67,6 +67,27 @@ namespace PlayniteAchievements.Services.Achievements
             {
                 categories[i].TreeShape = shapes[i];
             }
+
+            // Boundary-toggle bookkeeping. The +/- glyph is centred on the border between a
+            // toggle-bearing row - an expanded parent (HasChildren means its first child follows)
+            // or a collapsed category - and the row beneath it. A row cannot render past its own
+            // bottom edge (the next row's background paints over it), so the row below carries the
+            // glyph; the toggle row keeps it only when it is the last row and nothing follows.
+            // IsCollapsed was stamped on the items by the visible pass before this call.
+            for (var i = 1; i < categories.Count; i++)
+            {
+                var prev = categories[i - 1];
+                var prevShape = shapes[i - 1];
+                if (!prevShape.HasChildren && !prev.IsCollapsed)
+                {
+                    continue;
+                }
+
+                prevShape.ToggleHandledBelow = true;
+                shapes[i].ToggleBoundaryAbovePath = prev.CategoryPath;
+                shapes[i].ToggleBoundaryAboveDepth = prevShape.Depth;
+                shapes[i].ToggleBoundaryAboveIsCollapsed = prev.IsCollapsed;
+            }
         }
 
         /// <summary>
