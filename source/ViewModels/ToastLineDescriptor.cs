@@ -432,12 +432,12 @@ namespace PlayniteAchievements.ViewModels
         public CornerRadius BarCornerRadius => new CornerRadius(BarHeight / 2);
 
         /// <summary>
-        /// Room above the row. Text lines carry their own leading inside the font's line box, so
-        /// they never touch; a bar has none, so without this it sits hard against the line above.
-        /// Scales with the count text. The surface's line padding still applies on top through
-        /// <see cref="ToastLineDescriptor.LeftIndentMargin"/>.
+        /// One text line's box height at this row's font (the same metric the other lines lay out
+        /// with). The row is held to at least this height with the bar centered in it, so it spaces
+        /// exactly like a text line: the same leading above and below, plus the surface's line
+        /// padding through <see cref="ToastLineDescriptor.LeftIndentMargin"/>, and nothing extra.
         /// </summary>
-        public Thickness RowMargin => new Thickness(0, Math.Round(FontSize * 0.35), 0, 0);
+        public double LineBoxHeight => FontSize * (FontFamily?.LineSpacing ?? 1.2);
 
         public override Visibility LineVisibility =>
             ShowProgress ? Visibility.Visible : Visibility.Collapsed;
