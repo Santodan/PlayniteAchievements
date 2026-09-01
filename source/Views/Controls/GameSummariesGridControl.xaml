@@ -137,6 +137,19 @@
                               SnapsToDevicePixels="True"
                               HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                               VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Style.Triggers>
+                                        <!-- A mixed category's self row carries no art of its own;
+                                             collapsing the whole cell content also lets the row
+                                             shrink to its text, reading as an annotation line under
+                                             its category rather than a peer row. -->
+                                        <DataTrigger Binding="{Binding IsSelfRow}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
                             <!-- Rays glow style: arrows riding the art's own silhouette in the
                                  completed gradient's colors, under the two-tone bloom below rather
                                  than in place of it. The same reach as the icon sites, because reach
