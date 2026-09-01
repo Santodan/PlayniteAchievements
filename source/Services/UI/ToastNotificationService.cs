@@ -220,7 +220,8 @@ namespace PlayniteAchievements.Services.UI
             DateTime? soundPlayedUtc,
             DateTime? surfaceCaptureUtc,
             string soundFilePath = null,
-            double? soundFileGain = null)
+            double? soundFileGain = null,
+            int? soundAlignmentDelayMs = null)
         {
             if (wave == null || wave.Count == 0 || wave[0].IsPreview)
             {
@@ -237,7 +238,8 @@ namespace PlayniteAchievements.Services.UI
                         soundPlayedUtc,
                         surfaceCaptureUtc,
                         soundFilePath,
-                        soundFileGain));
+                        soundFileGain,
+                        soundAlignmentDelayMs));
             }
             catch (Exception ex)
             {
@@ -2387,6 +2389,7 @@ namespace PlayniteAchievements.Services.UI
             DateTime? soundPlayedUtc = null;
             string soundFilePath = null;
             double? soundFileGain = null;
+            int? soundAlignmentMs = null;
             if (visible)
             {
                 // Play the sound first, then show the toast after a short delay so the audio onset
@@ -2394,6 +2397,11 @@ namespace PlayniteAchievements.Services.UI
                 // sooner than the URI, so it waits proportionally less.
                 bool fastPath;
                 (soundPlayedUtc, soundFilePath, soundFileGain, fastPath) = PlayWaveSound(cardItems);
+                if (soundPlayedUtc.HasValue)
+                {
+                    soundAlignmentMs = fastPath ? SoundAlignmentFastPathDelayMs : SoundAlignmentDelayMs;
+                }
+
                 await Task.Delay(fastPath ? SoundAlignmentFastPathDelayMs : SoundAlignmentDelayMs)
                     .ConfigureAwait(true);
                 if (_disposed)
@@ -2733,7 +2741,8 @@ namespace PlayniteAchievements.Services.UI
                 // rather than an observation, so the recorder never waits on the capture to plan a
                 // window.
                 RaiseWaveDisplayed(
-                    cardItems, soundPlayedUtc, surfaceCaptureUtc, soundFilePath, soundFileGain);
+                    cardItems, soundPlayedUtc, surfaceCaptureUtc, soundFilePath, soundFileGain,
+                    soundAlignmentMs);
 
                 // Layout and placement are final: verify a lone card actually settled on its corner.
                 ReportSettledCornerDrift(window, cardItems);
