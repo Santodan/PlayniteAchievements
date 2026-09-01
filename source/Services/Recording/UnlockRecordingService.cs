@@ -1703,6 +1703,31 @@ namespace PlayniteAchievements.Services.Recording
             var cleanedAudioDirectory = (string)null;
             if (audioPlan != null)
             {
+                // The cleanup reads the chm_/gam_/nng_ sidecars over this same window, and a chunk
+                // still being written carries placeholder RIFF sizes, which Media Foundation
+                // rejects outright (MF_E_UNSUPPORTED_BYTESTREAM_TYPE). A promptly shown toast puts
+                // the window's end inside the chunk being written right now, so such a clip
+                // silently lost both its game-only isolation and its live-chime removal — heard as
+                // the live chime AND the composited chime, seconds apart. Flush the sidecars
+                // closed through the window end first, exactly as TryReadChimePcmAsync does for
+                // the re-timed chime, bounded by the same fixed-wait release instant.
+                var sidecarTimer = Stopwatch.StartNew();
+                var sidecarFlushes = new List<Task>(2)
+                {
+                    session.AudioRecorder.FlushAuxiliaryChunksThroughAsync(audioPlan.EndUtc),
+                };
+                if (session.ChimeRecorder != null)
+                {
+                    sidecarFlushes.Add(
+                        session.ChimeRecorder.FlushAuxiliaryChunksThroughAsync(audioPlan.EndUtc));
+                }
+
+                await WaitForFlushesAsync(
+                        sidecarFlushes, audioPlan.EndUtc.AddSeconds(SegmentSeconds + 2))
+                    .ConfigureAwait(false);
+                _logger?.Debug(
+                    $"[RecordingTiming] Cleanup sidecar readiness took {sidecarTimer.ElapsedMilliseconds}ms.");
+
                 var cleanupTimer = Stopwatch.StartNew();
                 var selectedAudioPlan = TryRemoveNonGameAudio(
                     session, recordedAudioPlan, out cleanedAudioDirectory);
