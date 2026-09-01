@@ -1818,7 +1818,7 @@ namespace PlayniteAchievements.Services.Recording
         private async Task WaitForCoveringFilesAsync(
             CaptureSession session, DateTime throughUtc, DateTime deadlineUtc)
         {
-            var flushes = new List<Task>(2);
+            var flushes = new List<Task>(4);
             var recorder = session.WgcRecorder;
             if (recorder != null)
             {
@@ -1829,6 +1829,18 @@ namespace PlayniteAchievements.Services.Recording
             if (audio != null)
             {
                 flushes.Add(audio.FlushChunksThroughAsync(throughUtc));
+                // The clip-audio cleanup reads the gam_/nng_ (and via the chime recorder, chm_)
+                // sidecars over this same window, and a sidecar chunk still being written carries
+                // placeholder RIFF sizes, which Media Foundation rejects outright
+                // (MF_E_UNSUPPORTED_BYTESTREAM_TYPE). The old fixed wait covered those reads
+                // implicitly; the flush has to cover them explicitly.
+                flushes.Add(audio.FlushAuxiliaryChunksThroughAsync(throughUtc));
+            }
+
+            var chime = session.ChimeRecorder;
+            if (chime != null)
+            {
+                flushes.Add(chime.FlushAuxiliaryChunksThroughAsync(throughUtc));
             }
 
             await WaitForFlushesAsync(flushes, deadlineUtc).ConfigureAwait(false);
