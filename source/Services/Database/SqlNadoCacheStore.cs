@@ -5589,11 +5589,21 @@ namespace PlayniteAchievements.Services.Database
 
                         existingRows.Remove(definitionId);
 
+                        // Progress is monotonic and null-preserving, matching the in-game fast
+                        // writer (InGameProgressSqlWriter). Steam progress stats are increment-only,
+                        // and a refresh can legitimately carry no progress (a community page that has
+                        // not synced yet returns null or a stale-lower value). Overwriting raw let
+                        // the ~15s fallback refresh clobber the fast prong's fresh local value, so
+                        // the grid flickered and progress notifications misfired. The numerator is
+                        // never lowered; the denominator (a definition-level target) takes a fresh
+                        // value but is kept when the refresh supplies none.
+                        var resolvedProgressNum = MaxNullable(existing.ProgressNum, progressNum);
+                        var resolvedProgressDenom = progressDenom ?? existing.ProgressDenom;
                         var existingUnlockIso = NormalizeStoredIso(existing.UnlockTimeUtc);
                         var changed = existing.Unlocked != unlocked ||
                                       !NullableEquals(existingUnlockIso, unlockIso) ||
-                                      existing.ProgressNum != progressNum ||
-                                      existing.ProgressDenom != progressDenom;
+                                      existing.ProgressNum != resolvedProgressNum ||
+                                      existing.ProgressDenom != resolvedProgressDenom;
 
                         if (!changed)
                         {
@@ -5610,8 +5620,8 @@ namespace PlayniteAchievements.Services.Database
                               WHERE Id = ?;",
                             unlocked,
                             DbValue(unlockIso),
-                            DbParam(progressNum),
-                            DbParam(progressDenom),
+                            DbParam(resolvedProgressNum),
+                            DbParam(resolvedProgressDenom),
                             updatedIso,
                             existing.Id);
                     }
@@ -7172,6 +7182,19 @@ namespace PlayniteAchievements.Services.Database
         private static bool NullableEquals(string left, string right)
         {
             return string.Equals(left, right, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Returns the higher of two nullable progress values, keeping <paramref name="current"/>
+        /// when <paramref name="incoming"/> is null. Mirrors the in-game writer so both progress
+        /// write paths are monotonic and a refresh can never null out or lower stored progress.
+        /// </summary>
+        private static int? MaxNullable(int? current, int? incoming)
+        {
+            return incoming.HasValue &&
+                   (!current.HasValue || incoming.Value > current.Value)
+                ? incoming
+                : current;
         }
 
         private static long ClampPlaytime(ulong seconds)

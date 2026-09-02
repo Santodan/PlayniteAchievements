@@ -591,6 +591,21 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
+        public void CacheStore_FullRefreshProgressWriteIsMonotonicAndNullPreserving()
+        {
+            // The full-refresh user write must never lower or null out stored progress: the ~15s
+            // in-game fallback refresh can carry no progress (an unsynced community page), and
+            // overwriting it raw clobbered the fast prong's fresh local value, flickering the grid.
+            var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
+
+            StringAssert.Contains(store, "var resolvedProgressNum = MaxNullable(existing.ProgressNum, progressNum);");
+            StringAssert.Contains(store, "var resolvedProgressDenom = progressDenom ?? existing.ProgressDenom;");
+            StringAssert.Contains(store, "existing.ProgressNum != resolvedProgressNum ||");
+            StringAssert.Contains(store, "DbParam(resolvedProgressNum),");
+            StringAssert.Contains(store, "private static int? MaxNullable(int? current, int? incoming)");
+        }
+
+        [TestMethod]
         public void CacheStore_ExophaseStringKeysDoNotFallbackToStaleSharedMappings()
         {
             var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
