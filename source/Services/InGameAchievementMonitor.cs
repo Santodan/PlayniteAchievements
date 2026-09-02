@@ -175,16 +175,47 @@ namespace PlayniteAchievements.Services
 
             }
 
-            if (!ConfigureState(state, preservePrimeWhenEquivalent: false))
+            if (TryActivate(state))
+            {
+                return;
+            }
+
+            if (_refreshRuntime == null)
             {
                 Stop(game);
-                _logger?.Debug($"[InGameMonitor] Skipped: no effective provider for {game.Name}.");
+                _logger?.Info($"[InGameMonitor] Skipped: no authenticated provider for '{game.Name}'.");
                 return;
+            }
+
+            // Synchronous resolution consults each provider's IsAuthenticated snapshot, which can
+            // lag the truth: an expired token that persisted credentials would renew reads as
+            // signed out. Keep the game tracked but idle (nothing is due while the deadlines sit at
+            // MaxValue), probe the capable providers without a dialog, then try once more.
+            lock (_stateLock)
+            {
+                state.NextFallbackDueUtc = DateTime.MaxValue;
+                state.NextFriendDueUtc = DateTime.MaxValue;
+            }
+
+            _logger?.Info($"[InGameMonitor] No authenticated provider for '{game.Name}' at start; probing.");
+            _ = ActivateAfterProbeAsync(state);
+        }
+
+        /// <summary>
+        /// Resolves the provider and fast source for a tracked state and, on success, makes sure
+        /// the scheduler is running. Returns false when no provider currently resolves; the caller
+        /// decides whether to probe or stop.
+        /// </summary>
+        private bool TryActivate(GamePollState state)
+        {
+            if (!ConfigureState(state, preservePrimeWhenEquivalent: false))
+            {
+                return false;
             }
 
             lock (_stateLock)
             {
-                if (_games.TryGetValue(game.Id, out var tracked) &&
+                if (_games.TryGetValue(state.Game.Id, out var tracked) &&
                     ReferenceEquals(state, tracked) &&
                     _cts == null)
                 {
@@ -195,8 +226,53 @@ namespace PlayniteAchievements.Services
             }
 
             _logger?.Info(
-                $"[InGameMonitor] Started for {game.Name}; provider={state.Provider?.ProviderKey ?? "none"}, " +
+                $"[InGameMonitor] Started for {state.Game.Name}; provider={state.Provider?.ProviderKey ?? "none"}, " +
                 $"prongs={DescribeProngs(state)}.");
+            return true;
+        }
+
+        private async Task ActivateAfterProbeAsync(GamePollState state)
+        {
+            var game = state.Game;
+            try
+            {
+                await _refreshRuntime
+                    .ResolveInGameProviderWithProbeAsync(game, state.SessionToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (state.SessionToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[InGameMonitor] Auth probe at game start failed for {game.Name}.");
+            }
+
+            lock (_stateLock)
+            {
+                if (!_games.TryGetValue(game.Id, out var tracked) ||
+                    !ReferenceEquals(state, tracked))
+                {
+                    // Stopped (or replaced) while the probe was in flight.
+                    return;
+                }
+            }
+
+            if (TryActivate(state))
+            {
+                lock (_stateLock)
+                {
+                    var now = CaptureTimelineClock.UtcNow;
+                    state.NextFallbackDueUtc = now.AddSeconds(StartupDelaySeconds);
+                    state.NextFriendDueUtc = now.AddSeconds(StartupDelaySeconds).Add(GetFriendInterval());
+                }
+
+                return;
+            }
+
+            Stop(game);
+            _logger?.Info($"[InGameMonitor] Skipped: no authenticated provider for '{game.Name}'.");
         }
 
         public void Stop(Game game)
@@ -381,7 +457,9 @@ namespace PlayniteAchievements.Services
                 // fast source. It is the guaranteed floor: a stalled watcher, an unparseable file
                 // and a provider with no fast source all converge on the same cadence.
                 fallbackStates = _games.Values
-                    .Where(state => state.NextFallbackDueUtc <= now)
+                    .Where(state =>
+                        state.Provider != null &&
+                        state.NextFallbackDueUtc <= now)
                     .ToList();
                 foreach (var state in fallbackStates)
                 {
@@ -390,6 +468,7 @@ namespace PlayniteAchievements.Services
 
                 friendStates = _games.Values
                     .Where(state =>
+                        state.Provider != null &&
                         !state.FriendInFlight &&
                         state.NextFriendDueUtc <= now &&
                         ShouldRunFriendRefresh())
