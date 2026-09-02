@@ -320,6 +320,22 @@ namespace PlayniteAchievements.Providers.Steam
                         UnlockTimeUtc = pair.Value
                     })
                     .ToList();
+
+                // Locked achievements with a progress bar: report the current numerator/target so
+                // the monitor can surface an in-game progress notification without waiting for the
+                // provider-refresh prong to scrape the (often lagging) community page. The local
+                // reader excludes unlocked achievements, so these never conflict with an unlock.
+                foreach (var pair in read.ProgressByApiName)
+                {
+                    observations.Add(new AchievementProgressObservation
+                    {
+                        ApiName = pair.Key,
+                        Unlocked = false,
+                        ProgressNum = pair.Value.Num,
+                        ProgressDenom = pair.Value.Denom
+                    });
+                }
+
                 results.Add(InGameProgressQueryResult.Succeeded(gameId, observations));
             }
 

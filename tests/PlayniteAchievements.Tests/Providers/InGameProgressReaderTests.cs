@@ -101,6 +101,61 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public void SteamLocalStatsReader_ReadsProgressForLockedAchievementsFromBackingStats()
+        {
+            var directory = CreateTempDirectory();
+            try
+            {
+                var schemaPath = Path.Combine(directory, "schema.bin");
+                var statsPath = Path.Combine(directory, "stats.bin");
+                WriteSteamProgressSchema(schemaPath);
+                // Stat id 1 (STAT_X) = 4; achievement group 2 has no bits set, so both
+                // achievements are locked.
+                WriteSteamProgressStats(statsPath, statXValue: 4, achievementBits: 0);
+
+                var result = new SteamLocalStatsReader().TryRead(statsPath, schemaPath);
+
+                Assert.IsTrue(result.Success);
+                Assert.AreEqual(0, result.UnlockByApiName.Count);
+                Assert.IsTrue(result.ProgressByApiName.ContainsKey("ACH_PROGRESS"));
+                Assert.AreEqual(4, result.ProgressByApiName["ACH_PROGRESS"].Num);
+                Assert.AreEqual(10, result.ProgressByApiName["ACH_PROGRESS"].Denom);
+                // The single-step achievement (max 1) is dropped, matching the community bar.
+                Assert.IsFalse(result.ProgressByApiName.ContainsKey("ACH_SINGLE"));
+            }
+            finally
+            {
+                Directory.Delete(directory, true);
+            }
+        }
+
+        [TestMethod]
+        public void SteamLocalStatsReader_OmitsProgressOnceTheAchievementUnlocks()
+        {
+            var directory = CreateTempDirectory();
+            try
+            {
+                var schemaPath = Path.Combine(directory, "schema.bin");
+                var statsPath = Path.Combine(directory, "stats.bin");
+                WriteSteamProgressSchema(schemaPath);
+                // Bit 0 of achievement group 2 is ACH_PROGRESS; setting it marks it unlocked.
+                WriteSteamProgressStats(statsPath, statXValue: 10, achievementBits: 1);
+
+                var result = new SteamLocalStatsReader().TryRead(statsPath, schemaPath);
+
+                Assert.IsTrue(result.Success);
+                Assert.IsTrue(result.UnlockByApiName.ContainsKey("ACH_PROGRESS"));
+                Assert.IsFalse(
+                    result.ProgressByApiName.ContainsKey("ACH_PROGRESS"),
+                    "An unlocked achievement is done; it must not also report progress.");
+            }
+            finally
+            {
+                Directory.Delete(directory, true);
+            }
+        }
+
+        [TestMethod]
         public void ShadPs4ProgressReader_StreamsNewAndLegacyTimestamps()
         {
             var directory = CreateTempDirectory();
@@ -279,6 +334,72 @@ namespace PlayniteAchievements.Providers.Tests
                             WriteObject(writer, "AchievementTimes", () =>
                                 WriteInt32(writer, "0", timestamp));
                         })));
+                writer.Write((byte)8);
+            }
+        }
+
+        private static void WriteSteamProgressSchema(string path)
+        {
+            using (var writer = new BinaryWriter(File.Create(path), Encoding.UTF8))
+            {
+                WriteObject(writer, "schema", () =>
+                    WriteObject(writer, "stats", () =>
+                    {
+                        // Integer stat id 1, the progress bar's backing stat.
+                        WriteObject(writer, "1", () =>
+                        {
+                            WriteString(writer, "type", "1");
+                            WriteString(writer, "name", "STAT_X");
+                        });
+                        // Achievement stat id 2 with two achievements.
+                        WriteObject(writer, "2", () =>
+                        {
+                            WriteString(writer, "type", "4");
+                            WriteObject(writer, "bits", () =>
+                            {
+                                WriteObject(writer, "0", () =>
+                                {
+                                    WriteString(writer, "name", "ACH_PROGRESS");
+                                    WriteProgress(writer, "0", "10", "STAT_X");
+                                });
+                                WriteObject(writer, "1", () =>
+                                {
+                                    WriteString(writer, "name", "ACH_SINGLE");
+                                    WriteProgress(writer, "0", "1", "STAT_X");
+                                });
+                            });
+                        });
+                    }));
+                writer.Write((byte)8);
+            }
+        }
+
+        private static void WriteProgress(BinaryWriter writer, string min, string max, string stat)
+        {
+            WriteObject(writer, "progress", () =>
+            {
+                WriteString(writer, "min_val", min);
+                WriteString(writer, "max_val", max);
+                WriteObject(writer, "value", () =>
+                {
+                    WriteString(writer, "operation", "statvalue");
+                    WriteString(writer, "operand1", stat);
+                });
+            });
+        }
+
+        private static void WriteSteamProgressStats(string path, int statXValue, int achievementBits)
+        {
+            using (var writer = new BinaryWriter(File.Create(path), Encoding.UTF8))
+            {
+                WriteObject(writer, "stats", () =>
+                    WriteObject(writer, "cache", () =>
+                    {
+                        // Int stat id 1 = current value.
+                        WriteObject(writer, "1", () => WriteInt32(writer, "data", statXValue));
+                        // Achievement stat id 2 = unlock bitmask.
+                        WriteObject(writer, "2", () => WriteInt32(writer, "data", achievementBits));
+                    }));
                 writer.Write((byte)8);
             }
         }
