@@ -730,7 +730,7 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            ProgressPercent = report.PercentComplete;
+            ProgressPercent = Math.Max(0, Math.Min(100, report.PercentComplete));
             if (!string.IsNullOrWhiteSpace(report.Message))
             {
                 ProgressMessage = report.Message;
