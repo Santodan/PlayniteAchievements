@@ -218,6 +218,14 @@ namespace PlayniteAchievements.Providers.Epic
                 ProviderKey = ProviderKey,
                 IsRemote = true,
                 PollInterval = RemotePollInterval,
+                // Epic's unlockDate is a backend timestamp in a foreign clock domain with no
+                // verified relationship to the local capture clock — field logs show it landing
+                // 11-12s before the achievement actually popped on screen, which sent clips and
+                // screenshots time-travelling backwards past the moment they were meant to
+                // capture. The local observation is the capture-grade anchor: bounded to at most
+                // one poll interval after the real moment, on the same clock the video uses. Same
+                // rationale as Steam's local stats file.
+                UnlockAnchorPolicy = InGameUnlockAnchorPolicy.SourceObservation,
                 State = new EpicInGameState
                 {
                     GameId = gameId,
