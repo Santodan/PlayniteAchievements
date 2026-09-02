@@ -1,3 +1,4 @@
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Services.Recording;
 
@@ -232,6 +233,47 @@ namespace PlayniteAchievements.Services.Tests.Recording
             }
 
             Assert.AreEqual(192000, tracker.MeasuredDevicePositionRate, delta: 400);
+        }
+
+        [TestMethod]
+        public void TimelineAnchorConsensus_RejectsOnePlausibleStartupOutlier()
+        {
+            var consensus = new AudioTimelineAnchorConsensus(Rate);
+            var expected = new DateTime(638923104000000000L, DateTimeKind.Utc);
+            for (var packet = 0; packet < AudioTimelineAnchorConsensus.RequiredSamples; packet++)
+            {
+                var framesBefore = (long)packet * PacketFrames;
+                var packetUtc = expected.AddTicks(framesBefore * TicksPerSecond / Rate);
+                if (packet == 0)
+                {
+                    packetUtc = packetUtc.AddMilliseconds(215);
+                }
+
+                consensus.Observe(packetUtc, framesBefore);
+            }
+
+            Assert.IsTrue(consensus.TryGet(false, out var actual, out var samples, out var spread));
+            Assert.AreEqual(AudioTimelineAnchorConsensus.RequiredSamples, samples);
+            Assert.AreEqual(expected, actual);
+            Assert.AreEqual(0, spread, 0.001);
+        }
+
+        [TestMethod]
+        public void TimelineAnchorConsensus_AccountsForPacketsBufferedBeforeFirstUsableStamp()
+        {
+            var consensus = new AudioTimelineAnchorConsensus(Rate);
+            var expected = new DateTime(638923104000000000L, DateTimeKind.Utc);
+
+            // The first three packets were delivered but their stamps were unusable. The first
+            // vote must still subtract those frames; anchoring to this packet itself would move
+            // every sample 30 ms late for the rest of the session.
+            consensus.Observe(expected.AddMilliseconds(30), 3L * PacketFrames);
+
+            Assert.IsFalse(consensus.TryGet(false, out _, out _, out _));
+            Assert.IsTrue(consensus.TryGet(true, out var actual, out var samples, out var spread));
+            Assert.AreEqual(1, samples);
+            Assert.AreEqual(expected, actual);
+            Assert.AreEqual(0, spread, 0.001);
         }
     }
 }

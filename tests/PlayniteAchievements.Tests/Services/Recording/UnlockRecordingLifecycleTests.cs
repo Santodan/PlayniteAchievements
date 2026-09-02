@@ -92,6 +92,49 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
+        public void GameOnlyResidualCleanup_ReusesVerifiedLagWithTimeLocalGainFits()
+        {
+            var source = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            var start = source.IndexOf(
+                "for (var pass = 1; pass <= 3; pass++)",
+                StringComparison.Ordinal);
+            var end = source.IndexOf(
+                "if (residualOutcome !=",
+                start,
+                StringComparison.Ordinal);
+            Assert.IsTrue(start >= 0 && end > start);
+            var residual = source.Substring(start, end - start);
+
+            StringAssert.Contains(residual, "residualPass: true");
+            StringAssert.Contains(residual, "blockFrames: 24000");
+            StringAssert.Contains(
+                residual,
+                "cancellation.StartLagMs * PcmAudio.SampleRate / 1000.0");
+            Assert.IsFalse(
+                residual.Contains("muteUnverifiedBlocks: true"),
+                "A more local desktop fit must retain the exact recorded game block whenever " +
+                "held-out verification rejects it.");
+
+            var isolationStart = source.LastIndexOf(
+                "var recordedMixture = (byte[])mixture.Clone();",
+                start,
+                StringComparison.Ordinal);
+            Assert.IsTrue(isolationStart >= 0);
+            var isolation = source.Substring(isolationStart, start - isolationStart);
+            var localFit = isolation.IndexOf(
+                "fit = \"500ms-time-local-gain\"",
+                StringComparison.Ordinal);
+            var fullFallback = isolation.IndexOf(
+                "fit = \"one-full-clip-fallback\"",
+                StringComparison.Ordinal);
+            Assert.IsTrue(
+                localFit >= 0 && fullFallback > localFit,
+                "Game Only must fit changing desktop volume locally before trying the one-gain " +
+                "fallback that can leave or invert time-varying residue.");
+        }
+
+        [TestMethod]
         public void GameOnly_RemovesChimeBeforePurgingAndSubtractingNonGameReference()
         {
             var source = File.ReadAllText(FindRepoFile(
@@ -123,6 +166,34 @@ namespace PlayniteAchievements.Services.Tests.Recording
             StringAssert.Contains(removal, "Skipping game-only isolation because the");
             StringAssert.Contains(removal, "could inject an");
             StringAssert.Contains(removal, "inverted chime");
+        }
+
+        [TestMethod]
+        public void UnverifiedLiveChime_IsNeverFollowedByASecondCompositedCopy()
+        {
+            var source = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            StringAssert.Contains(source, "_liveChimeRemovalByUtc");
+            StringAssert.Contains(
+                source,
+                "SetLiveChimeRemovalStatus(firedChimeTimes, removed: false)");
+            StringAssert.Contains(source, "IsCompleteChimeRemoval(");
+            StringAssert.Contains(
+                source,
+                "GetLiveChimeRemovalStatus(request.OwnSoundUtc)");
+
+            var reencode = source.IndexOf(
+                "private async Task<string> ReencodeWithTrackAsync",
+                StringComparison.Ordinal);
+            var export = source.IndexOf(
+                "var ok = await Task.Run(() => reencoder.Export(",
+                reencode,
+                StringComparison.Ordinal);
+            Assert.IsTrue(reencode >= 0 && export > reencode);
+            var body = source.Substring(reencode, export - reencode);
+            StringAssert.Contains(body, "liveChimeRemoved == false");
+            StringAssert.Contains(body, "chimePcm = null;");
+            StringAssert.Contains(body, "compositing a second chime");
         }
 
         [TestMethod]
@@ -365,7 +436,8 @@ namespace PlayniteAchievements.Services.Tests.Recording
 
             var chimePass = service.IndexOf("ChimePass(", StringComparison.Ordinal);
             Assert.IsTrue(chimePass >= 0);
-            var end = service.IndexOf("GetFiredChimeTimesIn(", chimePass, StringComparison.Ordinal);
+            var end = service.IndexOf(
+                "byte[] capturedChimeReference", chimePass, StringComparison.Ordinal);
             Assert.IsTrue(end > chimePass);
             var body = service.Substring(chimePass, end - chimePass);
 
@@ -426,6 +498,13 @@ namespace PlayniteAchievements.Services.Tests.Recording
             Assert.IsTrue(firstQpc >= 0 && secondQpc > firstQpc,
                 "Initial anchors and packet placement must use the same one-sample QPC projection.");
             Assert.IsFalse(capture.Contains("CaptureTimelineClock.UtcNow.AddTicks(-"));
+            StringAssert.Contains(capture, "AudioTimelineAnchorConsensus");
+            StringAssert.Contains(capture, "_timelineFramesDelivered + gapFrames");
+            StringAssert.Contains(recorder, "TryGetTimelineOrigin(");
+            StringAssert.Contains(recorder, "allowPartial: timedOut");
+            Assert.IsFalse(
+                recorder.Contains("stamped?.FirstPacketCaptureUtc"),
+                "The pump must not anchor already-buffered audio to one later packet stamp.");
 
             var paths = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "RecordingPaths.cs"));

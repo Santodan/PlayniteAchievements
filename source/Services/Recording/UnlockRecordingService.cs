@@ -168,6 +168,11 @@ namespace PlayniteAchievements.Services.Recording
         // overlap a clip window and how loud each rendered.
         private readonly List<(DateTime Utc, string Path, double? Gain)> _firedChimes =
             new List<(DateTime, string, double?)>();
+        // Per launch, whether cleanup proved the audible live copy completely absent. A false
+        // value does not authorize more aggressive cancellation; it prevents the re-encoder from
+        // adding a second copy when removing the first would have risked game audio.
+        private readonly Dictionary<long, bool> _liveChimeRemovalByUtc =
+            new Dictionary<long, bool>();
         private readonly HashSet<Task> _inFlightTasks = new HashSet<Task>();
         // One overlay re-encode at a time so a burst wave doesn't saturate the encoder while the
         // game is running.
@@ -1584,6 +1589,15 @@ namespace PlayniteAchievements.Services.Recording
             // that model is subtracted, putting the onset on the reveal, as heard live.
             var chimeRead = await TryReadChimePcmAsync(session, request).ConfigureAwait(false);
             var chimePcm = chimeRead.Pcm;
+            var liveChimeRemoved = GetLiveChimeRemovalStatus(request.OwnSoundUtc);
+            if (chimePcm != null && liveChimeRemoved == false)
+            {
+                _logger?.Warn(
+                    "[Recording] The live chime could not be completely removed without " +
+                    "risking game audio; keeping that single live playback instead of " +
+                    "compositing a second chime.");
+                chimePcm = null;
+            }
             if (chimePcm != null && chimeRead.FromFile)
             {
                 int? alignmentMs;
@@ -2414,6 +2428,15 @@ namespace PlayniteAchievements.Services.Recording
                         "speaker mix.");
                     return null;
                 }
+
+                _logger?.Debug(
+                    "[Recording] Captured chime game-reference purge: " +
+                    $"outcome={outcome} " +
+                    $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
+                    $"correlation={cancellation.Correlation:0.000} " +
+                    $"suppression={cancellation.SuppressionDb:0.0}dB " +
+                    $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
+                    $"restored={cancellation.RestoredBlocks} gated={cancellation.MutedBlocks}.");
             }
 
             return reference;
@@ -2446,6 +2469,8 @@ namespace PlayniteAchievements.Services.Recording
             {
                 var startUtc = audioPlan.StartUtc;
                 var endUtc = audioPlan.EndUtc;
+                var firedChimeTimes = GetFiredChimeTimesIn(startUtc, endUtc);
+                SetLiveChimeRemovalStatus(firedChimeTimes, removed: false);
                 var mixture = TryReadAudioWindow(
                     session.BufferDirectory,
                     RecordingPaths.AudioChunkFilePrefix,
@@ -2568,7 +2593,6 @@ namespace PlayniteAchievements.Services.Recording
                 var chimeOutcome = PcmCancellationOutcome.CleanNoGameDetected;
                 var chimeCancellation = default(PcmCancellationDiagnostics);
                 double? calibratedChimeLagFrames = null;
-                var firedChimeTimes = GetFiredChimeTimesIn(startUtc, endUtc);
                 if (firedChimeTimes.Count > 0)
                 {
                     capturedChimeReference = TryReadCapturedChimeReference(
@@ -2586,6 +2610,10 @@ namespace PlayniteAchievements.Services.Recording
                             12000,
                             calibratedChimeLagFrames,
                             out chimeCancellation);
+                        if (IsCompleteChimeRemoval(chimeOutcome, chimeCancellation))
+                        {
+                            SetLiveChimeRemovalStatus(firedChimeTimes, removed: true);
+                        }
 
                         // A fully verified whole-window pass is done. A rejected or explicitly
                         // partial pass gets one captured slice per fired wave — including the
@@ -2634,6 +2662,12 @@ namespace PlayniteAchievements.Services.Recording
                                     Buffer.BlockCopy(
                                         mixtureSlice, 0, mixture, firstByte, mixtureSlice.Length);
                                     chimeOutcome = PcmCancellationOutcome.CancelledVerified;
+                                    if (IsCompleteChimeRemoval(
+                                        sliceOutcome, sliceCancellation))
+                                    {
+                                        SetLiveChimeRemovalStatus(
+                                            new[] { firedChimeTimes[index] }, removed: true);
+                                    }
                                 }
                             }
                         }
@@ -2693,8 +2727,9 @@ namespace PlayniteAchievements.Services.Recording
                                 mixture,
                                 reference,
                                 out var cancellation,
-                                residualPass: false);
-                            var fit = "one-full-clip-stereo-subtraction";
+                                residualPass: false,
+                                blockFrames: 24000);
+                            var fit = "500ms-time-local-gain";
                             if (outcome != PcmCancellationOutcome.CancelledVerified)
                             {
                                 mixture = recordedMixture;
@@ -2702,9 +2737,8 @@ namespace PlayniteAchievements.Services.Recording
                                     mixture,
                                     reference,
                                     out cancellation,
-                                    residualPass: false,
-                                    blockFrames: 24000);
-                                fit = "500ms-gain-fallback";
+                                    residualPass: false);
+                                fit = "one-full-clip-fallback";
                             }
                             _logger?.Info(
                                 $"[Recording] Game-only isolation: outcome={outcome} " +
@@ -2717,16 +2751,33 @@ namespace PlayniteAchievements.Services.Recording
                             if (outcome == PcmCancellationOutcome.CancelledVerified)
                             {
                                 subtractedAnything = true;
+                                if (IsCompleteChimeRemoval(outcome, cancellation))
+                                {
+                                    // The non-game reference contains Playnite's live sound. A
+                                    // complete verified Game Only subtraction therefore proves
+                                    // it absent even if the narrower chime fit could not.
+                                    SetLiveChimeRemovalStatus(
+                                        firedChimeTimes, removed: true);
+                                }
                                 // A second full-clip fit can remove a low-level phase/latency
                                 // residual left by the first endpoint/process transfer. Optional
                                 // and transactional: rejection leaves the verified result intact.
                                 for (var pass = 1; pass <= 3; pass++)
                                 {
+                                    // Keep the alignment that the successful isolation already
+                                    // proved, but re-fit its scale independently every 500 ms. A
+                                    // whole-clip scalar can remove the average copy while leaving
+                                    // a desktop source whose volume changes during the clip. The
+                                    // per-block held-out proof still restores every uncertain
+                                    // block, so this extra reach cannot consume game audio.
                                     var residualOutcome = SubtractNonGame(
                                         mixture,
                                         reference,
                                         out var residual,
-                                        residualPass: true);
+                                        residualPass: true,
+                                        blockFrames: 24000,
+                                        calibratedLagFrames:
+                                            cancellation.StartLagMs * PcmAudio.SampleRate / 1000.0);
                                     _logger?.Debug(
                                         $"[Recording] Game-only isolation residual pass {pass}: " +
                                         $"outcome={residualOutcome} " +
@@ -2896,6 +2947,60 @@ namespace PlayniteAchievements.Services.Recording
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "[Recording] A cleaned-audio temp directory could not be removed.");
+            }
+        }
+
+        private static bool IsCompleteChimeRemoval(
+            PcmCancellationOutcome outcome,
+            PcmCancellationDiagnostics diagnostics)
+        {
+            return outcome == PcmCancellationOutcome.CancelledVerified &&
+                diagnostics.SubtractedBlocks > 0 &&
+                !diagnostics.PartialCommit &&
+                diagnostics.RestoredBlocks == 0 &&
+                diagnostics.MutedBlocks == 0;
+        }
+
+        private void SetLiveChimeRemovalStatus(IEnumerable<DateTime> times, bool removed)
+        {
+            if (times == null)
+            {
+                return;
+            }
+
+            lock (_gate)
+            {
+                foreach (var time in times)
+                {
+                    var key = time.ToUniversalTime().Ticks;
+                    if (removed || !_liveChimeRemovalByUtc.ContainsKey(key))
+                    {
+                        // A complete proof may upgrade a conservative failure recorded for an
+                        // overlapping window. A later failed attempt must never downgrade it.
+                        _liveChimeRemovalByUtc[key] = removed;
+                    }
+                }
+
+                while (_liveChimeRemovalByUtc.Count > 128)
+                {
+                    _liveChimeRemovalByUtc.Remove(_liveChimeRemovalByUtc.Keys.Min());
+                }
+            }
+        }
+
+        private bool? GetLiveChimeRemovalStatus(DateTime? utc)
+        {
+            if (!utc.HasValue)
+            {
+                return null;
+            }
+
+            lock (_gate)
+            {
+                return _liveChimeRemovalByUtc.TryGetValue(
+                    utc.Value.ToUniversalTime().Ticks, out var removed)
+                    ? (bool?)removed
+                    : null;
             }
         }
 

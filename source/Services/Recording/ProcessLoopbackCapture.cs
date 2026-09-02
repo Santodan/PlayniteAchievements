@@ -115,6 +115,36 @@ namespace PlayniteAchievements.Services.Recording
 
         private DateTime? _firstPacketCaptureUtc;
 
+        // Unlike FirstPacketCaptureUtc, this is frame-zero inferred from several packets. The
+        // endpoint pump consumes DataAvailable in sequence, including explicit gap padding, so a
+        // later packet's vote has to subtract every frame that precedes it in that exact stream.
+        private AudioTimelineAnchorConsensus _timelineAnchor;
+        private long _timelineFramesDelivered;
+
+        /// <summary>
+        /// Gets a consensus origin for the sequential DataAvailable stream. See
+        /// <see cref="AudioTimelineAnchorConsensus"/>. A timeout caller may allow fewer than the
+        /// ordinary nine samples so a sparse startup still uses every stamp it did receive.
+        /// </summary>
+        public bool TryGetTimelineOrigin(
+            bool allowPartial,
+            out DateTime originUtc,
+            out int samples,
+            out double spreadMilliseconds)
+        {
+            var anchor = _timelineAnchor;
+            if (anchor == null)
+            {
+                originUtc = default(DateTime);
+                samples = 0;
+                spreadMilliseconds = 0;
+                return false;
+            }
+
+            return anchor.TryGet(
+                allowPartial, out originUtc, out samples, out spreadMilliseconds);
+        }
+
         /// <summary>
         /// Frames of silence delivered in place of audio the engine dropped, over this capture's life.
         /// Non-zero means the track carries real glitches — worth reporting before a listener blames
@@ -555,6 +585,8 @@ namespace PlayniteAchievements.Services.Recording
             // track with silence that never happened.
             _gapTracker = new AudioGapTracker(
                 WaveFormat.SampleRate, MaxGapSeconds, stampsDisabled: ForceDevicePositionGaps);
+            _timelineAnchor = new AudioTimelineAnchorConsensus(WaveFormat.SampleRate);
+            _timelineFramesDelivered = 0;
             _captureStartedUtc = CaptureTimelineClock.UtcNow;
             _audioClient.Start();
             _capturing = true;
@@ -619,6 +651,7 @@ namespace PlayniteAchievements.Services.Recording
                             (flags & BufferFlagsTimestampError) == 0;
                         var gapFrames = TakeGapBefore(
                             devicePosition, framesAvailable, qpcPosition, stampUsable);
+                        var timelineFramesBeforePacket = _timelineFramesDelivered + gapFrames;
 
                         var buffer = new byte[bytes];
                         if ((flags & BufferFlagsSilent) == 0 && dataPtr != IntPtr.Zero && bytes > 0)
@@ -647,6 +680,24 @@ namespace PlayniteAchievements.Services.Recording
                             StampedDataAvailable?.Invoke(
                                 this, new StampedPacketEventArgs(buffer, bytes, packetUtc));
                             DataAvailable?.Invoke(this, new WaveInEventArgs(buffer, bytes));
+                        }
+
+                        _timelineFramesDelivered += gapFrames + framesAvailable;
+
+                        // Publish the vote only after DataAvailable synchronously appended this
+                        // packet. Otherwise AwaitAnchor could wake on the ninth vote, ask the pump
+                        // for nine packets, and have ReadFully manufacture silence for the ninth
+                        // while it was still waiting below this event callback.
+                        //
+                        // The packet stamp names its first frame. Gap padding belongs immediately
+                        // before it, while all earlier delivered packets precede both. Subtracting
+                        // that full frame count turns every packet into an independent vote for
+                        // frame zero; the median rejects a bad-but-plausible startup stamp.
+                        if (stampUsable)
+                        {
+                            _timelineAnchor?.Observe(
+                                packetUtc.Value,
+                                timelineFramesBeforePacket);
                         }
 
                         if (_captureClient.GetNextPacketSize(out frames) != 0)

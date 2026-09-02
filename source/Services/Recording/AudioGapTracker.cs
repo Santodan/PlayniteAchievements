@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace PlayniteAchievements.Services.Recording
 {
@@ -277,6 +278,138 @@ namespace PlayniteAchievements.Services.Recording
         private long TicksToFrames(long ticks)
         {
             return ticks * _sampleRate / TicksPerSecond;
+        }
+    }
+
+    /// <summary>
+    /// Derives the UTC represented by frame zero from several stamped packets. Each packet votes
+    /// for <c>packetUtc - framesAlreadyDelivered / rate</c>; the median makes one plausible but
+    /// wrong startup stamp harmless. This is deliberately independent of packet arrival time.
+    /// A capture pump may already have buffered several packets before a stamp enters the strict
+    /// plausibility window, and anchoring those samples to that later packet shifts the whole
+    /// session by exactly the buffered duration.
+    /// </summary>
+    internal sealed class AudioTimelineAnchorConsensus
+    {
+        internal const int RequiredSamples = 9;
+        private const int MaximumSamples = 15;
+        private const long MinimumOutlierRadiusTicks = 2 * TimeSpan.TicksPerMillisecond;
+
+        private readonly int _sampleRate;
+        private readonly object _gate = new object();
+        private readonly List<long> _originTicks = new List<long>(MaximumSamples);
+
+        public AudioTimelineAnchorConsensus(int sampleRate)
+        {
+            if (sampleRate <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(sampleRate));
+            }
+
+            _sampleRate = sampleRate;
+        }
+
+        /// <summary>Adds one usable packet stamp and its exact position in the delivered stream.</summary>
+        public void Observe(DateTime packetUtc, long framesBeforePacket)
+        {
+            if (framesBeforePacket < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(framesBeforePacket));
+            }
+
+            var offsetTicks = FramesToTicks(framesBeforePacket, _sampleRate);
+            var originTicks = packetUtc.Ticks - offsetTicks;
+            if (originTicks < DateTime.MinValue.Ticks || originTicks > DateTime.MaxValue.Ticks)
+            {
+                return;
+            }
+
+            lock (_gate)
+            {
+                if (_originTicks.Count < MaximumSamples)
+                {
+                    _originTicks.Add(originTicks);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns the outlier-rejected median. Ordinary callers wait for nine votes; a bounded
+        /// startup timeout may accept the best partial consensus instead of discarding every
+        /// packet that was already buffered.
+        /// </summary>
+        public bool TryGet(
+            bool allowPartial,
+            out DateTime originUtc,
+            out int samples,
+            out double spreadMilliseconds)
+        {
+            long[] values;
+            lock (_gate)
+            {
+                samples = _originTicks.Count;
+                if (samples == 0 || (!allowPartial && samples < RequiredSamples))
+                {
+                    originUtc = default(DateTime);
+                    spreadMilliseconds = 0;
+                    return false;
+                }
+
+                values = _originTicks.ToArray();
+            }
+
+            Array.Sort(values);
+            var median = Median(values);
+            var deviations = new long[values.Length];
+            for (var i = 0; i < values.Length; i++)
+            {
+                deviations[i] = Math.Abs(values[i] - median);
+            }
+
+            Array.Sort(deviations);
+            var medianDeviation = Median(deviations);
+            var outlierRadius = Math.Max(
+                MinimumOutlierRadiusTicks,
+                medianDeviation > long.MaxValue / 6 ? long.MaxValue : medianDeviation * 6);
+            var inliers = new List<long>(values.Length);
+            foreach (var value in values)
+            {
+                if (Math.Abs(value - median) <= outlierRadius)
+                {
+                    inliers.Add(value);
+                }
+            }
+
+            // The median itself always survives. Re-taking it over the inliers removes the pull
+            // from startup stamps that were plausible enough for WASAPI but not part of the chain.
+            var inlierValues = inliers.ToArray();
+            Array.Sort(inlierValues);
+            var chosen = Median(inlierValues);
+            var spreadTicks = inlierValues[inlierValues.Length - 1] - inlierValues[0];
+            originUtc = new DateTime(chosen, DateTimeKind.Utc);
+            spreadMilliseconds = spreadTicks / (double)TimeSpan.TicksPerMillisecond;
+            return true;
+        }
+
+        private static long FramesToTicks(long frames, int sampleRate)
+        {
+            var seconds = frames / sampleRate;
+            var remainder = frames % sampleRate;
+            return checked(
+                seconds * TimeSpan.TicksPerSecond +
+                remainder * TimeSpan.TicksPerSecond / sampleRate);
+        }
+
+        private static long Median(long[] sorted)
+        {
+            var middle = sorted.Length / 2;
+            if ((sorted.Length & 1) != 0)
+            {
+                return sorted[middle];
+            }
+
+            // Avoid overflow when two DateTime ticks near MaxValue are averaged.
+            return sorted[middle - 1] + (sorted[middle] - sorted[middle - 1]) / 2;
         }
     }
 }

@@ -1008,8 +1008,17 @@ namespace PlayniteAchievements.Services.Recording
 
             while (_running)
             {
-                var packetUtc = stamped?.FirstPacketCaptureUtc;
-                if (stamped == null || packetUtc.HasValue || CaptureTimelineClock.UtcNow >= deadline)
+                var now = CaptureTimelineClock.UtcNow;
+                var timedOut = now >= deadline;
+                var originUtc = default(DateTime);
+                var anchorSamples = 0;
+                var anchorSpreadMs = 0d;
+                var hasAnchor = stamped != null && stamped.TryGetTimelineOrigin(
+                    allowPartial: timedOut,
+                    out originUtc,
+                    out anchorSamples,
+                    out anchorSpreadMs);
+                if (stamped == null || hasAnchor || timedOut)
                 {
                     lock (_gate)
                     {
@@ -1018,8 +1027,26 @@ namespace PlayniteAchievements.Services.Recording
                             return false;
                         }
 
-                        _pumpStartUtc = packetUtc ?? CaptureTimelineClock.UtcNow;
+                        _pumpStartUtc = hasAnchor ? originUtc : now;
                         OpenChunkLocked();
+                    }
+
+                    if (stamped != null)
+                    {
+                        if (hasAnchor)
+                        {
+                            _logger?.Info(
+                                "[Recording] Audio timeline anchored from packet consensus " +
+                                $"(origin={originUtc:O}, samples={anchorSamples}, " +
+                                $"spread={anchorSpreadMs:0.###}ms, " +
+                                $"partial={anchorSamples < AudioTimelineAnchorConsensus.RequiredSamples}).");
+                        }
+                        else
+                        {
+                            _logger?.Warn(
+                                "[Recording] Audio timeline received no usable packet stamps " +
+                                "before the startup deadline; using the wall clock.");
+                        }
                     }
 
                     return true;
