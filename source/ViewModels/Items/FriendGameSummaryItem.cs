@@ -1,4 +1,5 @@
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Friends;
 using Playnite.SDK.Data;
@@ -95,9 +96,8 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        public int FriendCompletionPercent => TotalAchievements > 0
-            ? (int)Math.Round(Math.Max(0, UniqueFriendUnlockedAchievementsCount) * 100d / TotalAchievements)
-            : 0;
+        public int FriendCompletionPercent =>
+            AchievementCompletionPercentCalculator.ComputeRoundedPercent(UniqueFriendUnlockedAchievementsCount, TotalAchievements);
 
         public string FriendCompletionText => TotalAchievements > 0
             ? PercentFormatter.FormatWhole(FriendCompletionPercent)
