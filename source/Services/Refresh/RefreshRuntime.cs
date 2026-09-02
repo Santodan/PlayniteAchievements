@@ -143,17 +143,55 @@ namespace PlayniteAchievements.Services.Refresh
                 return null;
             }
 
-            var candidates = _providers
-                .Where(provider =>
-                    provider != null &&
-                    _providerRegistry.IsProviderEnabled(provider.ProviderKey) &&
-                    provider.IsAuthenticated)
+            var candidates = GetEnabledProviders()
+                .Where(provider => provider.IsAuthenticated)
                 .ToList();
 
             return _targetSelectionResolver.ResolveProviderForGame(
                 game,
                 candidates,
                 new TargetSelectionCache());
+        }
+
+        /// <summary>
+        /// <see cref="ResolveInGameProvider"/> preceded by a non-interactive auth probe of every
+        /// enabled provider that could service the game but whose <c>IsAuthenticated</c> snapshot
+        /// is false. A probe may renew an expired token from persisted credentials, which is what
+        /// makes a provider resolvable again; it never opens a dialog. Only capable providers are
+        /// probed so a launch never spins up Steam or Exophase web views for an unrelated game.
+        /// </summary>
+        internal async Task<IDataProvider> ResolveInGameProviderWithProbeAsync(
+            Game game,
+            CancellationToken ct = default)
+        {
+            if (game == null)
+            {
+                return null;
+            }
+
+            var capable = _targetSelectionResolver.GetProvidersWithCapableGames(
+                new[] { game },
+                GetEnabledProviders(),
+                new TargetSelectionCache());
+            var unauthenticated = capable
+                .Where(provider => !provider.IsAuthenticated)
+                .ToList();
+            if (unauthenticated.Count == 0)
+            {
+                return ResolveInGameProvider(game);
+            }
+
+            var outcomes = new List<string>(unauthenticated.Count);
+            foreach (var provider in unauthenticated)
+            {
+                ct.ThrowIfCancellationRequested();
+                var result = await ProbeProviderAuthStateAsync(provider, ct).ConfigureAwait(false);
+                outcomes.Add($"{provider.ProviderKey}={result?.Outcome.ToString() ?? "null"}");
+            }
+
+            _logger?.Info(
+                $"[InGameMonitor] Auth probe at game start for '{game.Name}': {string.Join(", ", outcomes)}.");
+            return ResolveInGameProvider(game);
         }
 
         /// <summary>
