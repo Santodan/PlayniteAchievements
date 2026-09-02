@@ -89,27 +89,10 @@ namespace PlayniteAchievements.Views.Helpers
         /// <summary>Floor for <see cref="GetBeadRadius"/>; below this a bead stops reading as one.</summary>
         public const double MinimumBeadRadius = 2d;
 
-        /// <summary>Preferred radius of the circled expand/collapse toggle on a parent's descender.</summary>
+        /// <summary>Radius of the circled expand/collapse toggle. One size at every depth - the
+        /// glyph is a click target first, and unlike the beads it sits on the row boundary where
+        /// overlapping a neighbouring lane reads fine.</summary>
         public const double ToggleRadius = 7d;
-
-        /// <summary>Floor for <see cref="GetToggleRadius"/>; below this the +/- glyph stops reading.</summary>
-        public const double MinimumToggleRadius = 4d;
-
-        /// <summary>
-        /// Radius of a row's collapse toggle, tapered the same way as <see cref="GetBeadRadius"/>:
-        /// the toggle sits on the descender at the child lane, and deep lanes are only 3-5 pixels
-        /// apart, so a fixed circle would swallow the neighbouring lane.
-        /// </summary>
-        public static double GetToggleRadius(int depth)
-        {
-            if (depth <= 1)
-            {
-                return ToggleRadius;
-            }
-
-            var spacing = GetLaneCentre(depth) - GetLaneCentre(depth - 1);
-            return Math.Max(MinimumToggleRadius, Math.Min(ToggleRadius, spacing / 2d));
-        }
 
         /// <summary>
         /// Radius of the boundary toggle - the +/- glyph centred on the border between a
@@ -130,7 +113,7 @@ namespace PlayniteAchievements.Views.Helpers
             var mid = Math.Round(rowHeight / 2d);
             var beadRadius = GetBeadRadius(depth, hasChildren: true);
             var maxRadius = rowHeight - mid - beadRadius - 1d;
-            var radius = Math.Min(GetToggleRadius(depth), maxRadius);
+            var radius = Math.Min(ToggleRadius, maxRadius);
             return radius < 3d ? 0d : radius;
         }
     }
