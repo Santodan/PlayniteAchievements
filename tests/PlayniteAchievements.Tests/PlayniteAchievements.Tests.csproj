@@ -323,6 +323,7 @@
     <Compile Include="..\..\source\ViewModels\AchievementToastViewModel.cs" Link="Source\ViewModels\AchievementToastViewModel.cs" />
     <Compile Include="..\..\source\ViewModels\ToastLineDescriptor.cs" Link="Source\ViewModels\ToastLineDescriptor.cs" />
     <Compile Include="..\..\source\Views\Converters\PercentToRarityGlowConverter.cs" Link="Source\Views\Converters\PercentToRarityGlowConverter.cs" />
+    <Compile Include="..\..\source\Views\Converters\WholePercentToTextConverter.cs" Link="Source\Views\Converters\WholePercentToTextConverter.cs" />
     <Compile Include="..\..\source\Views\Converters\ImageFitDimensionConverter.cs" Link="Source\Views\Converters\ImageFitDimensionConverter.cs" />
     <Compile Include="..\..\source\Views\Converters\ProviderIconConverter.cs" Link="Source\Views\Converters\ProviderIconConverter.cs" />
     <Compile Include="..\..\source\Models\AuthOutcome.cs" Link="Source\Models\AuthOutcome.cs" />
