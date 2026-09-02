@@ -58,6 +58,12 @@ internal static class ChimeRoundTripProbe
             return RunIsolationSection();
         }
 
+        if (Array.IndexOf(args, "--two-only") >= 0)
+        {
+            CapturedPath = true;
+            return RunTwoSection();
+        }
+
         // A CHIPTUNE bed, which is what a Genesis clip carries. Strongly periodic, so it can
         // correlate with the chime reference where no chime is present. What matters here is the
         // damage column: subtracting music is far worse than leaving a chime.
@@ -123,17 +129,7 @@ internal static class ChimeRoundTripProbe
             failures += Run($"sidecar skew {ms,3} ms", ms, 0, 1.0, wavOut);
         }
 
-        // Two chimes in one window, which one whole-window fit has to cover with a single gain
-        // and a single lag. Both must come out: the clip re-adds only its own wave's chime.
-        Console.WriteLine();
-        Console.WriteLine("=== TWO CHIMES IN ONE WINDOW (captured sidecar) ===");
-        Console.WriteLine("scenario                         outcome              chime1    chime2   verdict");
-        Console.WriteLine("-------------------------------- -------------------- --------  -------  -------");
-        failures += RunTwo("both aligned, equal volume", 0, 0, 1.0, 1.0);
-        failures += RunTwo("both skewed 10 ms", 10, 10, 1.0, 1.0);
-        failures += RunTwo("skewed apart 5/25 ms", 5, 25, 1.0, 1.0);
-        failures += RunTwo("second quieter (1.0/0.3)", 10, 10, 1.0, 0.3);
-        failures += RunTwo("second much quieter (1.0/0.05)", 10, 10, 1.0, 0.05);
+        failures += RunTwoSection();
         CapturedPath = false;
 
         // The real shape: a ~2 s chime inside a ~22 s clip window, sidecar skewed 15 ms, which is
@@ -203,6 +199,8 @@ internal static class ChimeRoundTripProbe
         failures += RunChimeFirst("render drift 200 ppm", 12, 33, 1.0, 200);
         failures += RunChimeFirst("render drift 1000 ppm", 12, 33, 1.0, 1000);
         failures += RunChimeFirst("nng tear +4 frames", 12, 33, 1.0, 0, 4);
+        failures += RunChimeFirst(
+            "chm tear +4 frames", 12, 33, 1.0, 0, chmTearFrames: 4);
         Chiptune = true;
         failures += RunChimeFirst("chiptune, field shape", 12, 33, 1.0, 0);
         failures += RunChimeFirst("chiptune, drift 200 ppm", 12, 33, 1.0, 200);
@@ -217,13 +215,37 @@ internal static class ChimeRoundTripProbe
         return failures;
     }
 
+    private static int RunTwoSection()
+    {
+        // Preserve the whole-reference pass and use per-wave slices only after it rejects or
+        // proves partial. A capture client can acquire a new latency when a later render stream
+        // starts, so one fixed lag is not sufficient for every multi-wave clip.
+        var failures = 0;
+        Console.WriteLine();
+        Console.WriteLine("=== TWO CHIMES IN ONE WINDOW (captured sidecar) ===");
+        Console.WriteLine("scenario                         outcome              chime1    chime2   verdict");
+        Console.WriteLine("-------------------------------- -------------------- --------  -------  -------");
+        failures += RunTwo("both aligned, equal volume", 0, 0, 1.0, 1.0);
+        failures += RunTwo("both skewed 10 ms", 10, 10, 1.0, 1.0);
+        failures += RunTwo("skewed apart 5/25 ms", 5, 25, 1.0, 1.0);
+        failures += RunTwo("second quieter (1.0/0.3)", 10, 10, 1.0, 0.3);
+        failures += RunTwo("second much quieter (1.0/0.05)", 10, 10, 1.0, 0.05);
+        Console.WriteLine();
+        Console.WriteLine("=== MANY CHIMES IN ONE WINDOW (per-wave fallback) ===");
+        Console.WriteLine("scenario                         outcome              worstErr  gameDmg  verdict");
+        Console.WriteLine("-------------------------------- -------------------- --------  -------  -------");
+        failures += RunMany("five waves, independent skews");
+        return failures;
+    }
+
     private static int RunChimeFirst(
         string label,
         int nngSkewMs,
         int chmSkewMs,
         double chimeGain,
         int renderDriftPpm,
-        int nngTearFrames = 0)
+        int nngTearFrames = 0,
+        int chmTearFrames = 0)
     {
         const int frames = SampleRate * 22;
         var chimeFile = Chime(SampleRate * 2);
@@ -263,7 +285,9 @@ internal static class ChimeRoundTripProbe
             chimeFile,
             rendered - (chmSkewMs * SampleRate / 1000),
             chimeGain,
-            renderDriftPpm);
+            renderDriftPpm,
+            chimeFrames * 3 / 5,
+            chmTearFrames);
         var rawChm = new short[frames * Channels];
         CopyShifted(
             rawChm,
@@ -274,7 +298,9 @@ internal static class ChimeRoundTripProbe
             chimeFile,
             rendered - (chmSkewMs * SampleRate / 1000),
             chimeGain,
-            renderDriftPpm);
+            renderDriftPpm,
+            chimeFrames * 3 / 5,
+            chmTearFrames);
 
         var mixBytes = ToBytes(mixture);
         var nngBytes = ToBytes(nng);
@@ -587,17 +613,56 @@ internal static class ChimeRoundTripProbe
         var truth2 = new short[frames * Channels];
         Place(truth2, chimeFile, rendered2, gain2, 0);
 
+        var capturedReference = ToBytes(reference);
+        var firstReference = MaskFrames(capturedReference, at1, at1 + chimeFrames);
+        var secondReference = MaskFrames(capturedReference, at2, at2 + chimeFrames);
         var mixBytes = ToBytes(mixture);
+
+        // Preserve the original whole-reference behavior first. Per-wave slices are an additive
+        // fallback only when different wave latencies make that transactional pass reject.
         var maxLag = CapturedPath ? 12000 : ChimeMaxLagFrames;
         var outcome = ReferenceCancellationPolicy.Subtract(
-            mixBytes, ToBytes(reference), out var d,
-            residualPass: false, maxLagFrames: maxLag, detectClean: true);
+            mixBytes,
+            capturedReference,
+            out var wholeCancellation,
+            residualPass: false,
+            maxLagFrames: maxLag,
+            detectClean: true);
         if (outcome == PcmCancellationOutcome.Unseparable ||
-            (outcome == PcmCancellationOutcome.CleanNoGameDetected && d.SubtractedBlocks == 0))
+            (outcome == PcmCancellationOutcome.CleanNoGameDetected &&
+                wholeCancellation.SubtractedBlocks == 0))
         {
             outcome = ReferenceCancellationPolicy.Subtract(
-                mixBytes, ToBytes(reference), out d,
-                residualPass: true, maxLagFrames: maxLag, detectClean: true);
+                mixBytes,
+                capturedReference,
+                out wholeCancellation,
+                residualPass: true,
+                maxLagFrames: maxLag,
+                detectClean: true);
+        }
+
+        if (outcome != PcmCancellationOutcome.CancelledVerified ||
+            wholeCancellation.PartialCommit)
+        {
+            var firstOutcome = ChimePass(
+                mixBytes,
+                firstReference,
+                null,
+                out _,
+                out _,
+                out _);
+            var secondOutcome = ChimePass(
+                mixBytes,
+                secondReference,
+                null,
+                out _,
+                out _,
+                out _);
+            if (firstOutcome == PcmCancellationOutcome.CancelledVerified ||
+                secondOutcome == PcmCancellationOutcome.CancelledVerified)
+            {
+                outcome = PcmCancellationOutcome.CancelledVerified;
+            }
         }
 
         var cancelled = ToShorts(mixBytes);
@@ -609,9 +674,110 @@ internal static class ChimeRoundTripProbe
 
         var e1 = RelativeDb(error, truth1, rendered1, chimeFrames);
         var e2 = RelativeDb(error, truth2, rendered2, chimeFrames);
-        var ok = e1 <= ResidueTargetDb && e2 <= ResidueTargetDb;
+        var dmgDb = RelativeDbOutsideTwo(
+            error,
+            gameBed,
+            rendered1,
+            chimeFrames,
+            rendered2,
+            chimeFrames);
+        var ok = e1 <= ResidueTargetDb && e2 <= ResidueTargetDb && dmgDb <= -30.0;
         Console.WriteLine(
-            $"{label,-32} {outcome,-20} {e1,7:0.0}dB {e2,7:0.0}dB  {(ok ? "ok" : "FAIL")}");
+            $"{label,-32} {outcome,-20} {e1,7:0.0}dB {e2,7:0.0}dB  " +
+            $"{(ok ? "ok" : "FAIL")}");
+        return ok ? 0 : 1;
+    }
+
+    private static int RunMany(string label)
+    {
+        const int frames = SampleRate * 22;
+        var chimeFile = Chime(SampleRate * 2);
+        var chimeFrames = chimeFile.Length / Channels;
+        var skewsMs = new[] { 5, 25, -10, 40, 15 };
+        var gains = new[] { 1.0, 1.0, 1.0, 1.0, 1.0 };
+        var starts = new int[skewsMs.Length];
+        var rendered = new int[skewsMs.Length];
+
+        var gameBed = GameBed(frames);
+        var reference = new short[frames * Channels];
+        var mixture = new short[frames * Channels];
+        var truth = new short[frames * Channels];
+        Array.Copy(gameBed, mixture, gameBed.Length);
+        for (var index = 0; index < skewsMs.Length; index++)
+        {
+            starts[index] = SampleRate * (2 + index * 4);
+            rendered[index] = starts[index] + skewsMs[index] * SampleRate / 1000;
+            Place(reference, chimeFile, starts[index], gains[index], 0);
+            Place(mixture, chimeFile, rendered[index], gains[index], 0);
+            Place(truth, chimeFile, rendered[index], gains[index], 0);
+        }
+
+        var capturedReference = ToBytes(reference);
+        var mixBytes = ToBytes(mixture);
+        var outcome = ReferenceCancellationPolicy.Subtract(
+            mixBytes,
+            capturedReference,
+            out var whole,
+            residualPass: false,
+            maxLagFrames: 12000,
+            detectClean: true);
+        if (outcome == PcmCancellationOutcome.Unseparable ||
+            (outcome == PcmCancellationOutcome.CleanNoGameDetected &&
+                whole.SubtractedBlocks == 0))
+        {
+            outcome = ReferenceCancellationPolicy.Subtract(
+                mixBytes,
+                capturedReference,
+                out whole,
+                residualPass: true,
+                maxLagFrames: 12000,
+                detectClean: true);
+        }
+
+        if (outcome != PcmCancellationOutcome.CancelledVerified || whole.PartialCommit)
+        {
+            for (var index = 0; index < starts.Length; index++)
+            {
+                var end = index + 1 < starts.Length
+                    ? starts[index + 1]
+                    : starts[index] + chimeFrames;
+                var sliceOutcome = ChimePass(
+                    mixBytes,
+                    MaskFrames(capturedReference, starts[index], end),
+                    null,
+                    out _,
+                    out _,
+                    out _);
+                if (sliceOutcome == PcmCancellationOutcome.CancelledVerified)
+                {
+                    outcome = PcmCancellationOutcome.CancelledVerified;
+                }
+            }
+        }
+
+        var cancelled = ToShorts(mixBytes);
+        var error = new short[frames * Channels];
+        for (var sample = 0; sample < error.Length; sample++)
+        {
+            error[sample] = Clamp(cancelled[sample] - gameBed[sample]);
+        }
+
+        var errDb = double.NegativeInfinity;
+        var perWave = new double[rendered.Length];
+        for (var index = 0; index < rendered.Length; index++)
+        {
+            perWave[index] = RelativeDb(error, truth, rendered[index], chimeFrames);
+            errDb = Math.Max(errDb, perWave[index]);
+        }
+        var dmgDb = RelativeDbOutsideMany(error, gameBed, rendered, chimeFrames);
+        var ok = errDb <= ResidueTargetDb && dmgDb <= -30.0;
+        Console.WriteLine(
+            $"{label,-32} {outcome,-20} {errDb,7:0.0}dB {dmgDb,7:0.0}dB  " +
+            $"{(ok ? "ok" : "FAIL")}");
+        if (!ok)
+        {
+            Console.WriteLine("    per-wave: " + string.Join("dB, ", perWave) + "dB");
+        }
         return ok ? 0 : 1;
     }
 
@@ -1053,6 +1219,74 @@ internal static class ChimeRoundTripProbe
         return 10.0 * Math.Log10(se / te);
     }
 
+    private static double RelativeDbOutsideTwo(
+        short[] signal,
+        short[] truth,
+        int firstFrame,
+        int firstLength,
+        int secondFrame,
+        int secondLength)
+    {
+        double se = 0, te = 0;
+        var frames = signal.Length / Channels;
+        for (var f = 0; f < frames; f++)
+        {
+            if ((f >= firstFrame && f < firstFrame + firstLength) ||
+                (f >= secondFrame && f < secondFrame + secondLength))
+            {
+                continue;
+            }
+
+            for (var ch = 0; ch < Channels; ch++)
+            {
+                se += (double)signal[f * Channels + ch] * signal[f * Channels + ch];
+                te += (double)truth[f * Channels + ch] * truth[f * Channels + ch];
+            }
+        }
+
+        if (te <= 0) { return double.NegativeInfinity; }
+        if (se <= 0) { return -120.0; }
+        return 10.0 * Math.Log10(se / te);
+    }
+
+    private static double RelativeDbOutsideMany(
+        short[] signal,
+        short[] truth,
+        int[] fromFrames,
+        int lengthFrames)
+    {
+        double se = 0, te = 0;
+        var frames = signal.Length / Channels;
+        for (var frame = 0; frame < frames; frame++)
+        {
+            var inside = false;
+            foreach (var fromFrame in fromFrames)
+            {
+                if (frame >= fromFrame && frame < fromFrame + lengthFrames)
+                {
+                    inside = true;
+                    break;
+                }
+            }
+            if (inside)
+            {
+                continue;
+            }
+
+            for (var channel = 0; channel < Channels; channel++)
+            {
+                se += (double)signal[frame * Channels + channel] *
+                    signal[frame * Channels + channel];
+                te += (double)truth[frame * Channels + channel] *
+                    truth[frame * Channels + channel];
+            }
+        }
+
+        if (te <= 0) { return double.NegativeInfinity; }
+        if (se <= 0) { return -120.0; }
+        return 10.0 * Math.Log10(se / te);
+    }
+
     private static short Clamp(double v)
     {
         return (short)Math.Max(short.MinValue, Math.Min(short.MaxValue, Math.Round(v)));
@@ -1063,6 +1297,16 @@ internal static class ChimeRoundTripProbe
         var bytes = new byte[samples.Length * 2];
         Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
         return bytes;
+    }
+
+    private static byte[] MaskFrames(byte[] pcm, int firstFrame, int endFrame)
+    {
+        var masked = new byte[pcm.Length];
+        var frames = pcm.Length / 4;
+        var first = Math.Max(0, Math.Min(frames, firstFrame));
+        var end = Math.Max(first, Math.Min(frames, endFrame));
+        Buffer.BlockCopy(pcm, first * 4, masked, first * 4, (end - first) * 4);
+        return masked;
     }
 
     private static short[] ToShorts(byte[] bytes)

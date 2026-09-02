@@ -2186,26 +2186,88 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Whether any wave chime fired inside this window. Only a cheap check of the fire stamps:
-        /// the chime is removed using the captured sidecar, so no file has to be decoded to find
-        /// out whether there is anything to remove.
+        /// Every distinct wave-chime launch whose bounded playback span overlaps this clip. The
+        /// timestamps let a multi-wave clip isolate later chimes into separate captured-reference
+        /// slices if one fixed-lag pass proves only partial: a newly opened render stream can give
+        /// the same sidecar client a different latency for the later wave.
         /// </summary>
-        private bool AnyChimeFiredIn(DateTime startUtc, DateTime endUtc)
+        private List<DateTime> GetFiredChimeTimesIn(DateTime startUtc, DateTime endUtc)
         {
             var span = ChimeMaxSliceSeconds + ChimeTailBeyondToastSeconds;
+            var fired = new List<DateTime>();
             lock (_gate)
             {
                 foreach (var chime in _firedChimes)
                 {
-                    if (chime.Utc < endUtc && chime.Utc.AddSeconds(span) > startUtc)
+                    if (chime.Utc < endUtc &&
+                        chime.Utc.AddSeconds(span) > startUtc &&
+                        !fired.Contains(chime.Utc))
                     {
-                        return true;
+                        fired.Add(chime.Utc);
                     }
                 }
             }
 
-            return false;
+            fired.Sort();
+            return fired;
         }
+
+        /// <summary>
+        /// Keeps only one wave's time region from an exact-window PCM reference. The next launch
+        /// is the boundary when waves overlap; its slice then owns every captured sample from that
+        /// point, including a previous chime's tail under the new render-graph latency. The full
+        /// reference is still tried first, so this is only a transactional mop-up for a verified
+        /// partial or rejected multi-wave pass.
+        /// </summary>
+        private static byte[] BuildChimeReferenceSlice(
+            byte[] reference,
+            DateTime windowStartUtc,
+            DateTime windowEndUtc,
+            DateTime firedUtc,
+            DateTime? nextFiredUtc)
+        {
+            if (reference == null || windowEndUtc <= windowStartUtc)
+            {
+                return null;
+            }
+
+            var sliceStartUtc = firedUtc > windowStartUtc ? firedUtc : windowStartUtc;
+            var sliceEndUtc = firedUtc.AddSeconds(
+                ChimeMaxSliceSeconds + ChimeTailBeyondToastSeconds);
+            if (nextFiredUtc.HasValue && nextFiredUtc.Value < sliceEndUtc)
+            {
+                sliceEndUtc = nextFiredUtc.Value;
+            }
+            if (sliceEndUtc > windowEndUtc)
+            {
+                sliceEndUtc = windowEndUtc;
+            }
+            if (sliceEndUtc <= sliceStartUtc)
+            {
+                return null;
+            }
+
+            var firstByte = Math.Min(
+                (long)reference.Length,
+                PcmAudio.TicksToAlignedBytes((sliceStartUtc - windowStartUtc).Ticks));
+            var endByte = Math.Min(
+                (long)reference.Length,
+                PcmAudio.TicksToAlignedBytes((sliceEndUtc - windowStartUtc).Ticks));
+            if (endByte <= firstByte)
+            {
+                return null;
+            }
+
+            var slice = new byte[reference.Length];
+            Buffer.BlockCopy(
+                reference,
+                (int)firstByte,
+                slice,
+                (int)firstByte,
+                (int)(endByte - firstByte));
+            return slice;
+        }
+
         /// <summary>
         /// Builds the CAPTURED live-chime removal reference for a clip window: the Playnite-tree
         /// slice with the game reference cancelled out of it (a Playnite-launched game lives
@@ -2349,6 +2411,7 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 var subtractedAnything = false;
+                var chimeVerifiablySubtracted = false;
 
                 // Live chimes are ALWAYS removed first, in both modes, using the captured
                 // Playnite-tree slice; the wave's own file is composited at the toast instead.
@@ -2433,6 +2496,9 @@ namespace PlayniteAchievements.Services.Recording
                     subtractedAnything |=
                         passOutcome == PcmCancellationOutcome.CancelledVerified &&
                         chimePass.SubtractedBlocks > 0;
+                    chimeVerifiablySubtracted |=
+                        passOutcome == PcmCancellationOutcome.CancelledVerified &&
+                        chimePass.SubtractedBlocks > 0;
                     return passOutcome;
                 }
 
@@ -2455,7 +2521,8 @@ namespace PlayniteAchievements.Services.Recording
                 var chimeOutcome = PcmCancellationOutcome.CleanNoGameDetected;
                 var chimeCancellation = default(PcmCancellationDiagnostics);
                 double? calibratedChimeLagFrames = null;
-                if (AnyChimeFiredIn(startUtc, endUtc))
+                var firedChimeTimes = GetFiredChimeTimesIn(startUtc, endUtc);
+                if (firedChimeTimes.Count > 0)
                 {
                     capturedChimeReference = TryReadCapturedChimeReference(
                         session,
@@ -2471,6 +2538,43 @@ namespace PlayniteAchievements.Services.Recording
                             12000,
                             calibratedChimeLagFrames,
                             out chimeCancellation);
+
+                        // Do not disturb the proven single-wave path. Multiple waves normally
+                        // share one lag and finish above; only a rejected or explicitly partial
+                        // result gets per-wave captured slices. Every slice uses the same
+                        // ordinary-blocked/residual-unblocked verifier and cannot mute game audio.
+                        if (firedChimeTimes.Count > 1 &&
+                            (chimeOutcome != PcmCancellationOutcome.CancelledVerified ||
+                                chimeCancellation.PartialCommit))
+                        {
+                            for (var index = 0; index < firedChimeTimes.Count; index++)
+                            {
+                                var slice = BuildChimeReferenceSlice(
+                                    capturedChimeReference,
+                                    startUtc,
+                                    endUtc,
+                                    firedChimeTimes[index],
+                                    index + 1 < firedChimeTimes.Count
+                                        ? (DateTime?)firedChimeTimes[index + 1]
+                                        : null);
+                                if (slice == null)
+                                {
+                                    continue;
+                                }
+
+                                var sliceOutcome = ChimePass(
+                                    slice,
+                                    $"capture wave {index + 1}/{firedChimeTimes.Count}",
+                                    12000,
+                                    null,
+                                    out var sliceCancellation);
+                                if (sliceOutcome == PcmCancellationOutcome.CancelledVerified &&
+                                    sliceCancellation.SubtractedBlocks > 0)
+                                {
+                                    chimeOutcome = PcmCancellationOutcome.CancelledVerified;
+                                }
+                            }
+                        }
                     }
                     else
                     {
@@ -2486,9 +2590,6 @@ namespace PlayniteAchievements.Services.Recording
                     if (reference != null)
                     {
                         var isolateNonGame = true;
-                        var chimeVerifiablySubtracted =
-                            chimeOutcome == PcmCancellationOutcome.CancelledVerified &&
-                            chimeCancellation.SubtractedBlocks > 0;
                         if (chimeVerifiablySubtracted)
                         {
                             // The pristine mixture no longer carries the chime, but nng still

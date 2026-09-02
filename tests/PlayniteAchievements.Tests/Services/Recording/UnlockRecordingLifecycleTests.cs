@@ -118,11 +118,44 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 "Both modes must remove the live chime before the Game Only branch.");
             Assert.IsTrue(nonGame > gameOnly && purge > nonGame && isolation > purge,
                 "Game Only must read nng after chime removal, purge chm from it, then isolate.");
-            StringAssert.Contains(removal, "chimeCancellation.SubtractedBlocks > 0");
+            StringAssert.Contains(removal, "chimeVerifiablySubtracted");
             StringAssert.Contains(removal, "maxLagFrames: 12000");
             StringAssert.Contains(removal, "Skipping game-only isolation because the");
             StringAssert.Contains(removal, "could inject an");
             StringAssert.Contains(removal, "inverted chime");
+        }
+
+        [TestMethod]
+        public void MultipleLiveChimes_KeepTheProvenWholePassAndMopUpOnlyPartialResults()
+        {
+            var source = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            var start = source.IndexOf(
+                "private SegmentTimeline.ClipPlan TryRemoveNonGameAudio",
+                StringComparison.Ordinal);
+            var end = source.IndexOf(
+                "private void TryDeleteCleanedAudio",
+                start,
+                StringComparison.Ordinal);
+            Assert.IsTrue(start >= 0 && end > start);
+            var removal = source.Substring(start, end - start);
+
+            var wholePass = removal.IndexOf(
+                "chimeOutcome = ChimePass(", StringComparison.Ordinal);
+            var multiGuard = removal.IndexOf(
+                "firedChimeTimes.Count > 1", wholePass, StringComparison.Ordinal);
+            var slice = removal.IndexOf(
+                "BuildChimeReferenceSlice(", multiGuard, StringComparison.Ordinal);
+            var slicePass = removal.IndexOf(
+                "var sliceOutcome = ChimePass(", slice, StringComparison.Ordinal);
+
+            Assert.IsTrue(wholePass >= 0 && multiGuard > wholePass,
+                "The known-good whole-reference pass must remain the first attempt.");
+            Assert.IsTrue(slice > multiGuard && slicePass > slice,
+                "Only a multi-wave fallback may split and retry captured references.");
+            StringAssert.Contains(removal, "chimeCancellation.PartialCommit");
+            StringAssert.Contains(removal, "calibratedLagFrames: calibratedLagFrames");
+            StringAssert.Contains(removal, "muteUnverifiedBlocks: false");
         }
 
         [TestMethod]
@@ -183,6 +216,22 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 service.Contains("fileChimeReference"),
                 "The file reference cannot align with the captured mix and damages the game bed; " +
                 "it is the source of the COMPOSITED chime only.");
+
+            var reencodeStart = service.IndexOf(
+                "private async Task<string> ReencodeWithTrackAsync", StringComparison.Ordinal);
+            var reencodeEnd = service.IndexOf(
+                "private static string SaveClipToUniquePath",
+                reencodeStart,
+                StringComparison.Ordinal);
+            Assert.IsTrue(reencodeStart >= 0 && reencodeEnd > reencodeStart);
+            var reencode = service.Substring(reencodeStart, reencodeEnd - reencodeStart);
+            Assert.AreEqual(1, reencode.Split(new[] { "TryReadChimePcmAsync(" },
+                StringSplitOptions.None).Length - 1,
+                "Each exported clip must select exactly one replacement sound.");
+            Assert.AreEqual(1, reencode.Split(new[] { "reencoder.Export(" },
+                StringSplitOptions.None).Length - 1,
+                "Each exported clip must make exactly one overlay/audio composite call.");
+            StringAssert.Contains(reencode, "chimePcm, chimeStartSeconds");
 
             // Full System captures the game-tree reference so the Playnite-tree slice can be
             // verified game-free before it is subtracted from the speaker mix; a Playnite-launched
@@ -254,7 +303,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
 
             var chimePass = service.IndexOf("ChimePass(", StringComparison.Ordinal);
             Assert.IsTrue(chimePass >= 0);
-            var end = service.IndexOf("AnyChimeFiredIn(", chimePass, StringComparison.Ordinal);
+            var end = service.IndexOf("GetFiredChimeTimesIn(", chimePass, StringComparison.Ordinal);
             Assert.IsTrue(end > chimePass);
             var body = service.Substring(chimePass, end - chimePass);
 
