@@ -126,7 +126,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void MultipleLiveChimes_KeepTheProvenWholePassAndMopUpOnlyPartialResults()
+        public void PartialLiveChimeRemoval_MopsUpEveryFiredWaveIncludingASingleWave()
         {
             var source = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
@@ -142,20 +142,82 @@ namespace PlayniteAchievements.Services.Tests.Recording
 
             var wholePass = removal.IndexOf(
                 "chimeOutcome = ChimePass(", StringComparison.Ordinal);
-            var multiGuard = removal.IndexOf(
-                "firedChimeTimes.Count > 1", wholePass, StringComparison.Ordinal);
+            var sliceGuard = removal.IndexOf(
+                "firedChimeTimes.Count > 0", wholePass, StringComparison.Ordinal);
             var slice = removal.IndexOf(
-                "BuildChimeReferenceSlice(", multiGuard, StringComparison.Ordinal);
+                "TryBuildChimeSlices(", sliceGuard, StringComparison.Ordinal);
             var slicePass = removal.IndexOf(
                 "var sliceOutcome = ChimePass(", slice, StringComparison.Ordinal);
 
-            Assert.IsTrue(wholePass >= 0 && multiGuard > wholePass,
+            Assert.IsTrue(wholePass >= 0 && sliceGuard > wholePass,
                 "The known-good whole-reference pass must remain the first attempt.");
-            Assert.IsTrue(slice > multiGuard && slicePass > slice,
-                "Only a multi-wave fallback may split and retry captured references.");
+            Assert.IsTrue(slice > sliceGuard && slicePass > slice,
+                "A partial whole pass must split and retry every fired reference, even one wave.");
             StringAssert.Contains(removal, "chimeCancellation.PartialCommit");
+            StringAssert.Contains(removal, "Buffer.BlockCopy(");
+            StringAssert.Contains(removal, "mixtureSlice");
             StringAssert.Contains(removal, "calibratedLagFrames: calibratedLagFrames");
             StringAssert.Contains(removal, "muteUnverifiedBlocks: false");
+        }
+
+        [TestMethod]
+        public void UnlockScreenshot_CurrentSegmentRetriesTheSameAnchorBeforeLiveFallback()
+        {
+            var source = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            var start = source.IndexOf(
+                "internal System.Drawing.Bitmap TryCaptureAnchorFrame", StringComparison.Ordinal);
+            var end = source.IndexOf(
+                "private void OnAchievementUnlocked", start, StringComparison.Ordinal);
+            Assert.IsTrue(start >= 0 && end > start);
+            var capture = source.Substring(start, end - start);
+
+            StringAssert.Contains(capture, "var retryCeilingUtc");
+            StringAssert.Contains(capture, "var nominalCloseUtc");
+            StringAssert.Contains(capture, "Thread.Sleep(100)");
+            StringAssert.Contains(capture, "covering.Path");
+            StringAssert.Contains(capture, "offsetSeconds");
+            Assert.IsFalse(capture.Contains("ReferenceEquals(covering"),
+                "A pre-created next segment makes newest-file identity an invalid open-file test.");
+        }
+
+        [TestMethod]
+        public void ChimeCleanup_ReusesCalibrationWithoutWeakeningExportVerification()
+        {
+            var source = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            var calibrationStart = source.IndexOf(
+                "private static double? TryCalibrateChimeLag", StringComparison.Ordinal);
+            var calibrationEnd = source.IndexOf(
+                "private byte[] TryReadAudioWindow", calibrationStart, StringComparison.Ordinal);
+            Assert.IsTrue(calibrationStart >= 0 && calibrationEnd > calibrationStart);
+            var calibration = source.Substring(calibrationStart, calibrationEnd - calibrationStart);
+
+            StringAssert.Contains(calibration, "cancellationBlockFrames:");
+            StringAssert.Contains(calibration, "verificationLagRadiusFrames: 0");
+            StringAssert.Contains(calibration, "gainCrossfadeFrames: 0");
+
+            var isolationStart = source.IndexOf(
+                "private byte[] TryReadCapturedChimeReference", StringComparison.Ordinal);
+            var isolationEnd = source.IndexOf(
+                "private SegmentTimeline.ClipPlan TryRemoveNonGameAudio",
+                isolationStart,
+                StringComparison.Ordinal);
+            Assert.IsTrue(isolationStart >= 0 && isolationEnd > isolationStart);
+            var isolation = source.Substring(isolationStart, isolationEnd - isolationStart);
+            StringAssert.Contains(isolation, "initialCalibratedLagFrames: calibratedGameLagFrames");
+            StringAssert.Contains(isolation, "CancelGameFromPlayniteSlice(");
+            StringAssert.Contains(isolation, "PcmCancellationOutcome.Unseparable");
+        }
+
+        [TestMethod]
+        public void EpicInGameCapture_UsesTheLocalObservationClock()
+        {
+            var epic = File.ReadAllText(FindRepoFile(
+                "source", "Providers", "Epic", "EpicDataProvider.cs"));
+            StringAssert.Contains(
+                epic,
+                "UnlockAnchorPolicy = InGameUnlockAnchorPolicy.SourceObservation");
         }
 
         [TestMethod]

@@ -95,6 +95,10 @@ namespace PlayniteAchievements.Services.Recording
         // the cancellation's drift tracker must cover.
         private const double ChimeTailBeyondToastSeconds = 0.5;
         private const double ChimeMaxSliceSeconds = 4.0;
+        // Captured process streams can stamp the same render up to the calibrated +/-250 ms lag
+        // search apart. Preserve that leading edge when a partial whole pass is split per wave;
+        // otherwise the mop-up can cut off the exact onset it is meant to remove.
+        private const double ChimeReferenceSliceLeadSeconds = 0.3;
         private const double ChimeFadeOutSeconds = 0.15;
 
         // The chime placement's stamp gap: how far the sound LAUNCH preceded the card's first
@@ -907,10 +911,13 @@ namespace PlayniteAchievements.Services.Recording
         /// reported time. The anchor is validated through the same
         /// <see cref="SegmentTimeline.ComputeClipWindow"/> rules the clip uses, so the screenshot
         /// and the clip always agree on the instant. Returns null whenever the buffer cannot
-        /// answer — no active capture for this game, the covering segment is still being written
-        /// or already pruned, or the decode fails — and the caller falls back to the live screen
-        /// grab. The clip's rarity/provider gates deliberately do not apply: they decide whether
-        /// a clip is produced, not whether buffered footage of this game exists. Pool thread.
+        /// answer — no active capture for this game, the covering segment is already pruned, or
+        /// the decode fails after its bounded close wait — and the caller falls back to the live
+        /// screen grab. A current segment is retried at the SAME anchor until its Media Foundation
+        /// header is finalized; substituting the later live screen merely because the right file
+        /// was still open made fast RetroAchievements unlocks look late. The clip's
+        /// rarity/provider gates deliberately do not apply: they decide whether a clip is produced,
+        /// not whether buffered footage of this game exists. Pool thread.
         /// </summary>
         internal System.Drawing.Bitmap TryCaptureAnchorFrame(AchievementUnlockedEventArgs e, int capHeight)
         {
@@ -976,58 +983,76 @@ namespace PlayniteAchievements.Services.Recording
 
                 try
                 {
-                    var segments = SegmentTimeline.ParseSegments(
-                        ListBufferFiles(
-                            session.BufferDirectory,
+                    // Segment files can be created ahead of the one currently being finalized, so
+                    // "newest file" is not a reliable closed/open test. Attempt the actual covering
+                    // file and, only while its nominal close is still pending, retry it quietly.
+                    // The screenshot work already runs on the pool and the live toast does not await
+                    // it, so this improves the saved frame without delaying notification display.
+                    var retryCeilingUtc = CaptureTimelineClock.UtcNow.AddSeconds(SegmentSeconds + 2);
+                    while (true)
+                    {
+                        var segments = SegmentTimeline.ParseSegments(
+                            ListBufferFiles(
+                                session.BufferDirectory,
+                                RecordingPaths.SegmentFilePrefix,
+                                session.SegmentExtension),
+                            TimeZoneInfo.Local,
                             RecordingPaths.SegmentFilePrefix,
-                            session.SegmentExtension),
-                        TimeZoneInfo.Local,
-                        RecordingPaths.SegmentFilePrefix,
-                        session.SegmentExtension);
-                    if (segments.Count == 0)
-                    {
-                        return null;
-                    }
-
-                    SegmentTimeline.SegmentInfo covering = null;
-                    foreach (var segment in segments)
-                    {
-                        if (segment.StartUtc <= anchorUtc)
+                            session.SegmentExtension);
+                        if (segments.Count == 0)
                         {
-                            covering = segment;
+                            return null;
                         }
-                        else
+
+                        SegmentTimeline.SegmentInfo covering = null;
+                        foreach (var segment in segments)
                         {
-                            break;
+                            if (segment.StartUtc <= anchorUtc)
+                            {
+                                covering = segment;
+                            }
+                            else
+                            {
+                                break;
+                            }
                         }
-                    }
 
-                    // The newest segment is still being written (no moov atom yet) and cannot be
-                    // read; an anchor far past the covering segment's span means the footage is
-                    // simply not there (a capture gap), where the live grab is the honest answer.
-                    if (covering == null ||
-                        ReferenceEquals(covering, segments[segments.Count - 1]))
-                    {
-                        return null;
-                    }
+                        if (covering == null)
+                        {
+                            return null;
+                        }
 
-                    var offsetSeconds = (anchorUtc - covering.StartUtc).TotalSeconds;
-                    if (offsetSeconds > SegmentSeconds + 2)
-                    {
-                        return null;
-                    }
+                        var offsetSeconds = (anchorUtc - covering.StartUtc).TotalSeconds;
+                        if (offsetSeconds < 0 || offsetSeconds > SegmentSeconds + 2)
+                        {
+                            // The anchor fell in a real capture gap. A later live grab is more
+                            // truthful than decoding an unrelated segment.
+                            return null;
+                        }
 
-                    var frame = MediaFoundationFrameExtractor.ExtractFrame(
-                        covering.Path, offsetSeconds, _logger);
-                    if (frame == null)
-                    {
-                        return null;
-                    }
+                        var nowUtc = CaptureTimelineClock.UtcNow;
+                        var nominalCloseUtc = covering.StartUtc.AddSeconds(SegmentSeconds + 1);
+                        var canStillFinalize = !_disposed &&
+                            nowUtc < retryCeilingUtc && nowUtc < nominalCloseUtc;
+                        var frame = MediaFoundationFrameExtractor.ExtractFrame(
+                            covering.Path,
+                            offsetSeconds,
+                            canStillFinalize ? null : _logger);
+                        if (frame != null)
+                        {
+                            _logger?.Info(
+                                $"[Recording] Unlock screenshot for '{e.DisplayName}' uses the buffered frame at " +
+                                $"{anchorUtc:HH:mm:ss.f} ({offsetSeconds.ToString("F2", CultureInfo.InvariantCulture)}s into its segment).");
+                            return _screenshotService.ApplyResolutionCap(frame, capHeight);
+                        }
 
-                    _logger?.Info(
-                        $"[Recording] Unlock screenshot for '{e.DisplayName}' uses the buffered frame at " +
-                        $"{anchorUtc:HH:mm:ss.f} ({offsetSeconds.ToString("F2", CultureInfo.InvariantCulture)}s into its segment).");
-                    return _screenshotService.ApplyResolutionCap(frame, capHeight);
+                        if (!canStillFinalize)
+                        {
+                            return null;
+                        }
+
+                        Thread.Sleep(100);
+                    }
                 }
                 finally
                 {
@@ -2187,9 +2212,9 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// Every distinct wave-chime launch whose bounded playback span overlaps this clip. The
-        /// timestamps let a multi-wave clip isolate later chimes into separate captured-reference
-        /// slices if one fixed-lag pass proves only partial: a newly opened render stream can give
-        /// the same sidecar client a different latency for the later wave.
+        /// timestamps let a partial whole-window pass retry each chime in its own short transaction;
+        /// in a multi-wave clip, a newly opened render stream can also give the same sidecar client
+        /// a different latency for the later wave.
         /// </summary>
         private List<DateTime> GetFiredChimeTimesIn(DateTime startUtc, DateTime endUtc)
         {
@@ -2213,25 +2238,36 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Keeps only one wave's time region from an exact-window PCM reference. The next launch
-        /// is the boundary when waves overlap; its slice then owns every captured sample from that
-        /// point, including a previous chime's tail under the new render-graph latency. The full
-        /// reference is still tried first, so this is only a transactional mop-up for a verified
-        /// partial or rejected multi-wave pass.
+        /// Crops the mixture and exact-window reference to one wave's time region, giving a partial
+        /// whole-window pass fresh verification-block boundaries. The next launch is the boundary
+        /// when waves overlap; its slice then owns every captured sample from that point, including
+        /// a previous chime's tail under the new render-graph latency. The full reference is still
+        /// tried first, so this is only a transactional mop-up for a partial or rejected pass.
         /// </summary>
-        private static byte[] BuildChimeReferenceSlice(
+        private static bool TryBuildChimeSlices(
+            byte[] mixture,
             byte[] reference,
             DateTime windowStartUtc,
             DateTime windowEndUtc,
             DateTime firedUtc,
-            DateTime? nextFiredUtc)
+            DateTime? nextFiredUtc,
+            out byte[] mixtureSlice,
+            out byte[] referenceSlice,
+            out int firstByte)
         {
-            if (reference == null || windowEndUtc <= windowStartUtc)
+            mixtureSlice = null;
+            referenceSlice = null;
+            firstByte = 0;
+            if (mixture == null || reference == null ||
+                mixture.Length != reference.Length || windowEndUtc <= windowStartUtc)
             {
-                return null;
+                return false;
             }
 
-            var sliceStartUtc = firedUtc > windowStartUtc ? firedUtc : windowStartUtc;
+            var paddedStartUtc = firedUtc.AddSeconds(-ChimeReferenceSliceLeadSeconds);
+            var sliceStartUtc = paddedStartUtc > windowStartUtc
+                ? paddedStartUtc
+                : windowStartUtc;
             var sliceEndUtc = firedUtc.AddSeconds(
                 ChimeMaxSliceSeconds + ChimeTailBeyondToastSeconds);
             if (nextFiredUtc.HasValue && nextFiredUtc.Value < sliceEndUtc)
@@ -2244,28 +2280,27 @@ namespace PlayniteAchievements.Services.Recording
             }
             if (sliceEndUtc <= sliceStartUtc)
             {
-                return null;
+                return false;
             }
 
-            var firstByte = Math.Min(
+            var first = Math.Min(
                 (long)reference.Length,
                 PcmAudio.TicksToAlignedBytes((sliceStartUtc - windowStartUtc).Ticks));
             var endByte = Math.Min(
                 (long)reference.Length,
                 PcmAudio.TicksToAlignedBytes((sliceEndUtc - windowStartUtc).Ticks));
-            if (endByte <= firstByte)
+            if (endByte <= first || first > int.MaxValue || endByte - first > int.MaxValue)
             {
-                return null;
+                return false;
             }
 
-            var slice = new byte[reference.Length];
-            Buffer.BlockCopy(
-                reference,
-                (int)firstByte,
-                slice,
-                (int)firstByte,
-                (int)(endByte - firstByte));
-            return slice;
+            firstByte = (int)first;
+            var length = (int)(endByte - first);
+            mixtureSlice = new byte[length];
+            referenceSlice = new byte[length];
+            Buffer.BlockCopy(mixture, firstByte, mixtureSlice, 0, length);
+            Buffer.BlockCopy(reference, firstByte, referenceSlice, 0, length);
+            return true;
         }
 
         /// <summary>
@@ -2355,7 +2390,18 @@ namespace PlayniteAchievements.Services.Recording
                 // Same contract as the sidecar read in TryReadChimePcmAsync. Unverified blocks are
                 // muted in the REFERENCE, which merely means "subtract nothing there"; only
                 // Unseparable leaves the reference possibly still carrying the game.
-                var outcome = CancelGameFromPlayniteSlice(reference, gamePcm, out var cancellation);
+                // Calibration already measured the raw chime-tree/game alignment on untouched
+                // clones. Reuse that exact lag for the first verified peel instead of repeating a
+                // 500 ms-wide search over the whole clip; held-out block proof is still mandatory,
+                // and any rejection falls through to the ordinary searched strict pass below.
+                var calibratedGameLagFrames = calibratedLagFrames.HasValue
+                    ? (double?)(chimeGame.StartLagMs * PcmAudio.SampleRate / 1000.0)
+                    : null;
+                var outcome = CancelGameFromPlayniteSlice(
+                    reference,
+                    gamePcm,
+                    out var cancellation,
+                    initialCalibratedLagFrames: calibratedGameLagFrames);
                 if (outcome == PcmCancellationOutcome.Unseparable || cancellation.MutedBlocks > 0)
                 {
                     // A muted span is a hole in the reference: the speaker mix still carries the
@@ -2419,6 +2465,7 @@ namespace PlayniteAchievements.Services.Recording
                 // placed chime beats a full-level live chime at the wrong moment. Each pass
                 // commits only held-out-verified work.
                 PcmCancellationOutcome ChimePass(
+                    byte[] targetMixture,
                     byte[] chimeReference,
                     string source,
                     int maxLag,
@@ -2444,7 +2491,7 @@ namespace PlayniteAchievements.Services.Recording
                     // block fit noise. That distinction is why the earlier blocked attempt made
                     // the doubling worse.
                     var passOutcome = SubtractNonGame(
-                        mixture,
+                        targetMixture,
                         chimeReference,
                         out chimePass,
                         residualPass: false,
@@ -2477,7 +2524,7 @@ namespace PlayniteAchievements.Services.Recording
                         // ordinary fit floor (field: a 5% music volume read as clean and the
                         // composite then doubled it).
                         passOutcome = SubtractNonGame(
-                            mixture,
+                            targetMixture,
                             chimeReference,
                             out chimePass,
                             residualPass: true,
@@ -2533,44 +2580,59 @@ namespace PlayniteAchievements.Services.Recording
                     if (capturedChimeReference != null)
                     {
                         chimeOutcome = ChimePass(
+                            mixture,
                             capturedChimeReference,
                             "capture",
                             12000,
                             calibratedChimeLagFrames,
                             out chimeCancellation);
 
-                        // Do not disturb the proven single-wave path. Multiple waves normally
-                        // share one lag and finish above; only a rejected or explicitly partial
-                        // result gets per-wave captured slices. Every slice uses the same
-                        // ordinary-blocked/residual-unblocked verifier and cannot mute game audio.
-                        if (firedChimeTimes.Count > 1 &&
+                        // A fully verified whole-window pass is done. A rejected or explicitly
+                        // partial pass gets one captured slice per fired wave — including the
+                        // ordinary single-wave case. The field failure was exactly one chime with
+                        // one block removed and three restored: limiting this mop-up to multiple
+                        // waves left that residue beside the pristine composited copy. Every slice
+                        // uses the same ordinary-blocked/residual-unblocked held-out verifier, so
+                        // the broader retry cannot mute game audio.
+                        if (firedChimeTimes.Count > 0 &&
                             (chimeOutcome != PcmCancellationOutcome.CancelledVerified ||
                                 chimeCancellation.PartialCommit))
                         {
                             for (var index = 0; index < firedChimeTimes.Count; index++)
                             {
-                                var slice = BuildChimeReferenceSlice(
+                                if (!TryBuildChimeSlices(
+                                    mixture,
                                     capturedChimeReference,
                                     startUtc,
                                     endUtc,
                                     firedChimeTimes[index],
                                     index + 1 < firedChimeTimes.Count
                                         ? (DateTime?)firedChimeTimes[index + 1]
-                                        : null);
-                                if (slice == null)
+                                        : null,
+                                    out var mixtureSlice,
+                                    out var referenceSlice,
+                                    out var firstByte))
                                 {
                                     continue;
                                 }
 
                                 var sliceOutcome = ChimePass(
-                                    slice,
+                                    mixtureSlice,
+                                    referenceSlice,
                                     $"capture wave {index + 1}/{firedChimeTimes.Count}",
                                     12000,
-                                    null,
+                                    firedChimeTimes.Count == 1
+                                        ? calibratedChimeLagFrames
+                                        : null,
                                     out var sliceCancellation);
                                 if (sliceOutcome == PcmCancellationOutcome.CancelledVerified &&
                                     sliceCancellation.SubtractedBlocks > 0)
                                 {
+                                    // The cropped pass is transactional and modified only blocks
+                                    // that passed held-out proof. Commit precisely that time span
+                                    // back into the full clip; everything outside stays byte-exact.
+                                    Buffer.BlockCopy(
+                                        mixtureSlice, 0, mixture, firstByte, mixtureSlice.Length);
                                     chimeOutcome = PcmCancellationOutcome.CancelledVerified;
                                 }
                             }
@@ -2740,19 +2802,44 @@ namespace PlayniteAchievements.Services.Recording
             byte[] slice,
             byte[] gameReference,
             out PcmCancellationDiagnostics diagnostics,
-            int maxLagFrames = 2400)
+            int maxLagFrames = 2400,
+            double? initialCalibratedLagFrames = null)
         {
             for (var peel = 0; peel < 2; peel++)
             {
                 var peelOutcome = PcmAudio.CancelCorrelated(
                     slice,
                     gameReference,
-                    out _,
+                    out var peelDiagnostics,
                     muteUnverifiedBlocks: false,
                     maxLagFrames: maxLagFrames,
                     commitVerifiedBlocksOnWeakPass: true,
                     preferEarlyAlignmentWindow: true,
-                    verificationLagRadiusFrames: 480);
+                    verificationLagRadiusFrames: 480,
+                    calibratedLagFrames: peel == 0 ? initialCalibratedLagFrames : null);
+                if (peelOutcome == PcmCancellationOutcome.CleanNoGameDetected)
+                {
+                    diagnostics = peelDiagnostics;
+                    return peelOutcome;
+                }
+
+                // Nothing remains for another lag search or the strict pass when every block in
+                // an active reference was removed, every held-out check passed, and the residual
+                // projection is already below the clean ceiling. This is stronger evidence than
+                // the later strict pass's entry gate and avoids two whole-window searches on the
+                // ordinary one-path process capture. A tear/second engine path produces restored
+                // or partial blocks (or a correlated residual) and still takes the full fallback.
+                if (peelOutcome == PcmCancellationOutcome.CancelledVerified &&
+                    !peelDiagnostics.PartialCommit &&
+                    peelDiagnostics.RestoredBlocks == 0 &&
+                    peelDiagnostics.MutedBlocks == 0 &&
+                    peelDiagnostics.SubtractedBlocks == peelDiagnostics.TotalBlocks &&
+                    peelDiagnostics.ResidualCorrelation < 0.20)
+                {
+                    diagnostics = peelDiagnostics;
+                    return peelOutcome;
+                }
+
                 if (peelOutcome != PcmCancellationOutcome.CancelledVerified)
                 {
                     break;
@@ -2833,6 +2920,12 @@ namespace PlayniteAchievements.Services.Recording
                 return null;
             }
 
+            // These copies exist only to MEASURE an independently verified alignment; no samples
+            // from them can reach an export. One full-slice block with a fixed verification lag
+            // proves the same global correlation/gain while avoiding 58 half-second blocks each
+            // rescanning a +/-10 ms neighbourhood. The real chime-reference purge and endpoint
+            // removal below still perform their ordinary per-block held-out verification, so a
+            // bad or torn calibration can only be rejected — never mute game audio.
             var endpoint = (byte[])endpointMixture.Clone();
             var endpointOutcome = PcmAudio.CancelCorrelated(
                 endpoint,
@@ -2842,7 +2935,9 @@ namespace PlayniteAchievements.Services.Recording
                 maxLagFrames: 12000,
                 commitVerifiedBlocksOnWeakPass: true,
                 preferEarlyAlignmentWindow: true,
-                verificationLagRadiusFrames: 480);
+                verificationLagRadiusFrames: 0,
+                cancellationBlockFrames: Math.Max(1, endpoint.Length / PcmAudio.BlockAlign),
+                gainCrossfadeFrames: 0);
             var chimeTree = (byte[])rawChimeTree.Clone();
             var chimeOutcome = PcmAudio.CancelCorrelated(
                 chimeTree,
@@ -2852,7 +2947,9 @@ namespace PlayniteAchievements.Services.Recording
                 maxLagFrames: 12000,
                 commitVerifiedBlocksOnWeakPass: true,
                 preferEarlyAlignmentWindow: true,
-                verificationLagRadiusFrames: 480);
+                verificationLagRadiusFrames: 0,
+                cancellationBlockFrames: Math.Max(1, chimeTree.Length / PcmAudio.BlockAlign),
+                gainCrossfadeFrames: 0);
             if (endpointOutcome != PcmCancellationOutcome.CancelledVerified ||
                 chimeOutcome != PcmCancellationOutcome.CancelledVerified)
             {

@@ -320,6 +320,31 @@ internal static class ChimeRoundTripProbe
             out var cp,
             out var blockedOutcome,
             out var blocked);
+        if (chimeOutcome != PcmCancellationOutcome.CancelledVerified || cp.PartialCommit)
+        {
+            var sliceStart = Math.Max(0, rendered - 12000);
+            var sliceEnd = Math.Min(frames, rendered + SampleRate * 9 / 2);
+            var mixtureSlice = Slice(mixBytes, sliceStart, sliceEnd - sliceStart);
+            var referenceSlice = Slice(chmBytes, sliceStart, sliceEnd - sliceStart);
+            var sliceOutcome = ChimePass(
+                mixtureSlice,
+                referenceSlice,
+                calibratedLagFrames,
+                out var sliceDiagnostics,
+                out _,
+                out _);
+            if (sliceOutcome == PcmCancellationOutcome.CancelledVerified)
+            {
+                Buffer.BlockCopy(
+                    mixtureSlice,
+                    0,
+                    mixBytes,
+                    sliceStart * Channels * sizeof(short),
+                    mixtureSlice.Length);
+                chimeOutcome = sliceOutcome;
+                cp = sliceDiagnostics;
+            }
+        }
         var chimeRemoved =
             chimeOutcome == PcmCancellationOutcome.CancelledVerified &&
             cp.SubtractedBlocks > 0;
@@ -435,7 +460,9 @@ internal static class ChimeRoundTripProbe
             maxLagFrames: 12000,
             commitVerifiedBlocksOnWeakPass: true,
             preferEarlyAlignmentWindow: true,
-            verificationLagRadiusFrames: 480);
+            verificationLagRadiusFrames: 0,
+            cancellationBlockFrames: Math.Max(1, endpoint.Length / PcmAudio.BlockAlign),
+            gainCrossfadeFrames: 0);
         var chimeTree = (byte[])rawChimeTree.Clone();
         var chimeOutcome = PcmAudio.CancelCorrelated(
             chimeTree,
@@ -445,7 +472,9 @@ internal static class ChimeRoundTripProbe
             maxLagFrames: 12000,
             commitVerifiedBlocksOnWeakPass: true,
             preferEarlyAlignmentWindow: true,
-            verificationLagRadiusFrames: 480);
+            verificationLagRadiusFrames: 0,
+            cancellationBlockFrames: Math.Max(1, chimeTree.Length / PcmAudio.BlockAlign),
+            gainCrossfadeFrames: 0);
         if (endpointOutcome != PcmCancellationOutcome.CancelledVerified ||
             chimeOutcome != PcmCancellationOutcome.CancelledVerified)
         {
@@ -470,12 +499,27 @@ internal static class ChimeRoundTripProbe
             var peelOutcome = PcmAudio.CancelCorrelated(
                 nonGameReference,
                 chimeReference,
-                out _,
+                out var peelDiagnostics,
                 muteUnverifiedBlocks: false,
                 maxLagFrames: 12000,
                 commitVerifiedBlocksOnWeakPass: true,
                 preferEarlyAlignmentWindow: true,
                 verificationLagRadiusFrames: 480);
+            if (peelOutcome == PcmCancellationOutcome.CleanNoGameDetected)
+            {
+                diagnostics = peelDiagnostics;
+                return peelOutcome;
+            }
+            if (peelOutcome == PcmCancellationOutcome.CancelledVerified &&
+                !peelDiagnostics.PartialCommit &&
+                peelDiagnostics.RestoredBlocks == 0 &&
+                peelDiagnostics.MutedBlocks == 0 &&
+                peelDiagnostics.SubtractedBlocks == peelDiagnostics.TotalBlocks &&
+                peelDiagnostics.ResidualCorrelation < 0.20)
+            {
+                diagnostics = peelDiagnostics;
+                return peelOutcome;
+            }
             if (peelOutcome != PcmCancellationOutcome.CancelledVerified)
             {
                 break;

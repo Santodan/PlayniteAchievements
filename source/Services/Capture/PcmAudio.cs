@@ -387,66 +387,74 @@ namespace PlayniteAchievements.Services.Capture
                 return PcmCancellationOutcome.CleanNoGameDetected;
             }
 
-            // Score several candidate windows spread across the slice, not just the loudest one:
-            // the recorder streams can carry an alignment tear (a pump timing step, observed to
-            // coincide with a render stream starting — i.e. the chime itself), and a single window
-            // that straddles the tear reads a fractured correlation for a perfectly separable
-            // slice. A tear cannot fracture every window.
-            var loudestScore = calibratedLagFrames.HasValue
-                ? ScoreCorrelationAtLag(
-                    mixtureView,
-                    referenceView,
-                    calibratedLagFrames.Value,
-                    loudestStart)
-                : ScanWindow(mixtureView, referenceView, loudestStart, maxLag);
-            var best = loudestScore;
-            // Reference presence anywhere in the slice, independent of which window calibrates
-            // the lag. The early-calibration caller must not classify a slice as "clean" from its
-            // one chime-diluted window while a later window shows the reference plainly present —
-            // that shipped a game-carrying sidecar as CleanNoGameDetected in a live probe run.
-            var presence = loudestScore.Count > 0 ? Math.Abs(loudestScore.Value) : 0;
             var earlyReference = ScoreCorrelation(referenceView, referenceView, 0, 0);
             var earlyReferenceRms = earlyReference.Count <= 0 || earlyReference.ReferenceEnergy <= 0
                 ? 0
                 : Math.Sqrt(earlyReference.ReferenceEnergy / earlyReference.Count);
-            foreach (var candidateStart in new[]
-                { 0, (int)((long)referenceFrames / 3), (int)(2L * referenceFrames / 3) })
-            {
-                if (Math.Abs(candidateStart - loudestStart) < CorrelationWindowFrames / 2)
-                {
-                    continue;
-                }
 
-                var score = calibratedLagFrames.HasValue
+            // A caller that explicitly prefers the early graph state ultimately selected the
+            // early scan below even after paying for four other wide lag sweeps. In the common
+            // case where that early scan already proves the reference present, those sweeps cannot
+            // affect any gate or the chosen lag: best is early and the clean gate is already
+            // impossible. Start there and skip the mathematically irrelevant work. A weak early
+            // score still scans every spread window to preserve the old "present but unseparable"
+            // safety verdict instead of misclassifying a shifted reference as clean.
+            var earlyPreferred = !calibratedLagFrames.HasValue &&
+                preferEarlyAlignmentWindow && earlyReferenceRms > SilentReferenceRms;
+            var best = default(CorrelationScore);
+            var presence = 0d;
+            if (earlyPreferred)
+            {
+                best = ScanWindow(mixtureView, referenceView, 0, maxLag);
+                presence = best.Count > 0 ? Math.Abs(best.Value) : 0;
+            }
+
+            if (!earlyPreferred || best.Count <= 0 || presence < CleanCorrelationCeiling)
+            {
+                // Score several candidate windows spread across the slice, not just the loudest
+                // one: recorder streams can carry an alignment tear (a pump timing step, observed
+                // when a render stream starts), and one window can straddle it. A tear cannot
+                // fracture every window.
+                var loudestScore = calibratedLagFrames.HasValue
                     ? ScoreCorrelationAtLag(
                         mixtureView,
                         referenceView,
                         calibratedLagFrames.Value,
-                        candidateStart)
-                    : ScanWindow(mixtureView, referenceView, candidateStart, maxLag);
-                if (score.Count <= 0)
+                        loudestStart)
+                    : ScanWindow(mixtureView, referenceView, loudestStart, maxLag);
+                if (!earlyPreferred || best.Count <= 0)
                 {
-                    continue;
+                    best = loudestScore;
                 }
 
-                presence = Math.Max(presence, Math.Abs(score.Value));
-                if (score.Value > best.Value)
+                presence = Math.Max(
+                    presence,
+                    loudestScore.Count > 0 ? Math.Abs(loudestScore.Value) : 0);
+                foreach (var candidateStart in new[]
+                    { 0, (int)((long)referenceFrames / 3), (int)(2L * referenceFrames / 3) })
                 {
-                    best = score;
-                }
-            }
+                    if (Math.Abs(candidateStart - loudestStart) < CorrelationWindowFrames / 2)
+                    {
+                        continue;
+                    }
 
-            if (!calibratedLagFrames.HasValue &&
-                preferEarlyAlignmentWindow &&
-                earlyReferenceRms > SilentReferenceRms)
-            {
-                // A chime can change the process-tree capture graph's latency when its render
-                // stream starts. Calibrate inside the sound we must preserve, not from a later
-                // game-only window whose perfect correlation describes a different graph state.
-                var early = ScanWindow(mixtureView, referenceView, 0, maxLag);
-                if (early.Count > 0)
-                {
-                    best = early;
+                    var score = calibratedLagFrames.HasValue
+                        ? ScoreCorrelationAtLag(
+                            mixtureView,
+                            referenceView,
+                            calibratedLagFrames.Value,
+                            candidateStart)
+                        : ScanWindow(mixtureView, referenceView, candidateStart, maxLag);
+                    if (score.Count <= 0)
+                    {
+                        continue;
+                    }
+
+                    presence = Math.Max(presence, Math.Abs(score.Value));
+                    if (!earlyPreferred && score.Value > best.Value)
+                    {
+                        best = score;
+                    }
                 }
             }
 
