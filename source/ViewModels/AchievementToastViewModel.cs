@@ -215,7 +215,8 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>The current progress as a whole percent ("40%"), empty without progress.</summary>
         public string ProgressPercentText => HasProgress
-            ? Common.PercentFormatter.FormatWhole(ProgressFraction * 100d)
+            ? Common.PercentFormatter.FormatWhole(
+                Models.Achievements.AchievementCompletionPercentCalculator.RoundPercentForDisplay(ProgressFraction * 100d))
             : string.Empty;
 
         private double ProgressFractionOf(int? numerator)
