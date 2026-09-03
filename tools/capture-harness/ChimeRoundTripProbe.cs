@@ -358,8 +358,7 @@ internal static class ChimeRoundTripProbe
         {
             purgeOutcome = CancelChimeFromNonGameReference(nngBytes, chmBytes, out purge);
             purgeVerified =
-                purgeOutcome != PcmCancellationOutcome.Unseparable &&
-                purge.MutedBlocks == 0;
+                purgeOutcome != PcmCancellationOutcome.Unseparable;
         }
 
         // === Stage 3: isolate only when the nng reference is safe to subtract ===
@@ -403,7 +402,7 @@ internal static class ChimeRoundTripProbe
             $"chm/game={chmGame.StartLagMs:0.###}ms " +
             $"chm/endpoint={calibratedLagFrames * 1000.0 / SampleRate:0.###}ms; " +
             $"purge: lag={purge.StartLagMs:0.###}ms " +
-            $"corr={purge.Correlation:0.000} muted={purge.MutedBlocks}; isolation: fit={fit} " +
+            $"corr={purge.Correlation:0.000} restored={purge.RestoredBlocks}; isolation: fit={fit} " +
             $"lag={iso.StartLagMs:0.###}ms corr={iso.Correlation:0.000} supp={iso.SuppressionDb:0.0}dB");
         return ok ? 0 : 1;
     }
@@ -456,7 +455,6 @@ internal static class ChimeRoundTripProbe
             endpoint,
             gameReference,
             out endpointGame,
-            muteUnverifiedBlocks: false,
             maxLagFrames: 12000,
             commitVerifiedBlocksOnWeakPass: true,
             preferEarlyAlignmentWindow: true,
@@ -468,7 +466,6 @@ internal static class ChimeRoundTripProbe
             chimeTree,
             gameReference,
             out chimeGame,
-            muteUnverifiedBlocks: false,
             maxLagFrames: 12000,
             commitVerifiedBlocksOnWeakPass: true,
             preferEarlyAlignmentWindow: true,
@@ -487,7 +484,8 @@ internal static class ChimeRoundTripProbe
     /// <summary>
     /// Purges chm from nng using the service's verified peel/strict-check pattern. The wide search
     /// covers the delta between the two independent sidecar clients, not endpoint-to-sidecar lag.
-    /// A caller rejects a final muted block because it cannot safely subtract that reference.
+    /// A caller rejects a pass that had to restore any active block because it did not prove the
+    /// complete reference absent.
     /// </summary>
     private static PcmCancellationOutcome CancelChimeFromNonGameReference(
         byte[] nonGameReference,
@@ -500,7 +498,6 @@ internal static class ChimeRoundTripProbe
                 nonGameReference,
                 chimeReference,
                 out var peelDiagnostics,
-                muteUnverifiedBlocks: false,
                 maxLagFrames: 12000,
                 commitVerifiedBlocksOnWeakPass: true,
                 preferEarlyAlignmentWindow: true,
@@ -513,7 +510,6 @@ internal static class ChimeRoundTripProbe
             if (peelOutcome == PcmCancellationOutcome.CancelledVerified &&
                 !peelDiagnostics.PartialCommit &&
                 peelDiagnostics.RestoredBlocks == 0 &&
-                peelDiagnostics.MutedBlocks == 0 &&
                 peelDiagnostics.SubtractedBlocks == peelDiagnostics.TotalBlocks &&
                 peelDiagnostics.ResidualCorrelation < 0.20)
             {

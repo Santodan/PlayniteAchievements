@@ -65,7 +65,7 @@ $refs = $framework + $sharp + $tuple
 $tools = @(
     'CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss',
     'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe', 'ChimeCancelProbe',
-    'ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe', 'ComposerProbe',
+    'ChimeSeparationProbe', 'ChimeBurstProbe', 'ChimeOccurrenceProbe', 'HapticProbe', 'ComposerProbe',
     'ChimeRoundTripProbe', 'CaptureStarvationProbe')
 # Tools that compile plugin source files in directly, so they always test the current algorithm
 # rather than a built DLL.
@@ -79,6 +79,11 @@ $extraSources = @{
     ChimeRoundTripProbe = @(
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Capture\ReferenceCancellationPolicy.cs'))
+    ChimeOccurrenceProbe = @(
+        (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
+        (Join-Path $repo 'source\Services\Capture\ReferenceCancellationPolicy.cs'),
+        (Join-Path $repo 'source\Services\Capture\ChimeRemovalEngine.cs'),
+        (Join-Path $repo 'source\Services\Recording\WaveSoundOccurrence.cs'))
     ChimeSeparationProbe = @(
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),

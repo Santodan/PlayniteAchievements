@@ -352,6 +352,21 @@ running (or ask a reporting user to zip theirs before closing Playnite).
 `--selftest` replays the field-shaped fixtures (drifting lag at gain 0.9, unrelated-reference clean
 pass) without needing any capture data.
 
+## The production chime-occurrence probe
+
+```powershell
+tools\capture-harness\bin\ChimeOccurrenceProbe.exe
+```
+
+Compiles the actual `WaveSoundOccurrenceRegistry`, `ChimeRemovalEngine`, cancellation policy, and PCM
+implementation directly from `source/`. It needs no audio device or routing setup. The probe covers a
+wave owning several unlocks, player truncation on the next UPS launch, overlapping cleanup clusters,
+file-only removal through a 667 ms timeline displacement, player-truncated playback, four different
+sounds, captured-reference fallback, simultaneous duplicates, a wrong/transformed-file fail-closed
+result, game preservation, and exactly one replacement
+mixed at the selected time. It also reports the one- and four-wave engine times; cleanup is prewarmed and
+cached in production, so this work normally finishes before export needs it.
+
 ## The chime separation probe
 
 ```powershell
@@ -393,13 +408,12 @@ cadence (~7.5 s apart with the default 6 s toast), each at a distinct frequency 
 the wrong wave's chime appearing in a slice is directly measurable. Chimes and the game tone all
 carry band-limited noise with distinct seeds: a pure sine's periodic autocorrelation lets a lag
 search lock any period multiple, a signal pathology real broadband audio does not have.
-Per wave it replicates the production sidecar slice (ownSound + min(toast, 4 s cap) + 0.5 s), runs
-the real cancellation against the timestamped `gam_` chunks, and asserts: the speaker-endpoint
+Per wave it reads the occurrence's toast-plus-tail window, runs the real cancellation against the
+timestamped `gam_` chunks, and asserts: the speaker-endpoint
 track carries the game, `gam_` exists even with an unknown tree probe, each slice holds only its
-own wave's chime, the game is suppressed, and the chime survives. It then proves both production
-export paths on the same captured data: GameOnly (aud minus the purged `oth_` reference) and
-FullSystem chime re-timing (aud minus the game-free `chm_` slice), each keeping the game tone and
-dropping the live chime.
+own wave's chime, the game is suppressed, and the chime survives. Its additional GameOnly and
+FullSystem calculations are hardware diagnostics; `ChimeOccurrenceProbe` is the authoritative test of
+the current transactional export policy.
 When exactly one controller endpoint is connected, the child also renders a 180 Hz actuator tone
 for the whole run and every user-facing output is asserted to exclude it — one run then covers
 full/game audio, with/without haptics, and the chime paths. `--no-haptics` skips that layer for an

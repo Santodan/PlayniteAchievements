@@ -11,12 +11,12 @@
 // fires ~7.5 s after wave 1's. Each wave's chime uses a distinct frequency (440 / 587 Hz) so the
 // wrong wave's chime showing up in a slice is directly measurable.
 //
-// Per wave, the probe replicates the production sidecar read (slice = ownSound ..
-// +min(toast, 4 s cap)+0.5 s tail), runs PcmAudio.CancelCorrelated against the timestamped gam_
+// Per wave, the probe reads the occurrence through its toast plus a 0.5 s tail and runs
+// PcmAudio.CancelCorrelated against the timestamped gam_
 // reference, and asserts by Goertzel power:
 //   - aud_ (the speaker-endpoint mix both modes record) carries the game marker tone
 //   - gam_ exists even though the tree probe returned unknown (the always-cancel fix)
-//   - each wave's chm_ slice contains its OWN chime and not the other wave's (the slice cap)
+//   - each wave's chm_ slice contains its OWN chime and not the other wave's
 //   - cancellation removes the game tone (>= 10 dB) while the wave's chime survives (within 3 dB)
 //   - GameOnly isolation: aud_ minus oth_ drops the live chime and keeps the game tone
 //   - FullSystem re-timing, primary path: the chime's SOURCE FILE (regenerated deterministically,
@@ -67,12 +67,10 @@ internal static class ChimeBurstProbe
     private const double Wave2ChimeHz = 587;
     private const double HapticToneHz = 180;
 
-    // Production timing being replicated. Wave cadence: with the default 6 s toast the next
-    // sequential wave's chime fires ~duration+1.5 s after this one (UnlockRecordingService's
-    // wave-cadence comment). Slice: min(toast, ChimeMaxSliceSeconds) + ChimeTailBeyondToastSeconds.
+    // Production timing being replicated. Each occurrence is read through its toast and tail;
+    // a real later UPS launch truncates the previous occurrence at the launch instant.
     private const double ToastDurationSeconds = 6.0;
     private const double WaveGapSeconds = 7.5;
-    private const double ChimeMaxSliceSeconds = 4.0;
     private const double ChimeTailBeyondToastSeconds = 0.5;
 
     private static int _failures;
@@ -264,7 +262,7 @@ internal static class ChimeBurstProbe
         CheckChunkTimeline("gam", gam);
         CheckChunkTimeline("oth", oth);
 
-        var sliceSeconds = Math.Min(ToastDurationSeconds, ChimeMaxSliceSeconds) + ChimeTailBeyondToastSeconds;
+        var sliceSeconds = ToastDurationSeconds + ChimeTailBeyondToastSeconds;
         var waves = new[]
         {
             new Wave { Name = "wave 1", SoundUtc = sound1Utc, OwnHz = Wave1ChimeHz, OtherHz = Wave2ChimeHz, Seed = 41 },
@@ -301,7 +299,7 @@ internal static class ChimeBurstProbe
                 "raw endpoint track carries the game marker tone",
                 $"marker {audGame:0.0} vs noise floor {audOwnAfter:0.0} dB");
             Check(chmOwnWhole > chmOtherWhole + 15,
-                $"chm_ slice holds its own chime only (the other wave's is {WaveGapSeconds:0.0}s away, cap is {sliceSeconds:0.0}s)",
+                $"chm_ slice holds its own chime only (the other wave's is {WaveGapSeconds:0.0}s away, window is {sliceSeconds:0.0}s)",
                 $"own {chmOwnWhole:0.0} vs other-wave floor {chmOtherWhole:0.0} dB");
 
             // The child renders the haptic tone continuously; the game-tree process capture (gam_)
@@ -341,7 +339,6 @@ internal static class ChimeBurstProbe
             {
                 var peelOutcome = PcmAudio.CancelCorrelated(
                     othSlice, gamSlice, out _,
-                    muteUnverifiedBlocks: false,
                     maxLagFrames: 12000,
                     commitVerifiedBlocksOnWeakPass: true,
                     preferEarlyAlignmentWindow: true,
@@ -359,8 +356,8 @@ internal static class ChimeBurstProbe
             Console.WriteLine(
                 $"oth purge: outcome={purgeOutcome} lag={purge.StartLagMs:0.000}ms " +
                 $"corr={purge.Correlation:0.000} supp={purge.SuppressionDb:0.0}dB " +
-                $"gated={purge.MutedBlocks}");
-            var purged = purgeOutcome != PcmCancellationOutcome.Unseparable && purge.MutedBlocks == 0;
+                $"restored={purge.RestoredBlocks}");
+            var purged = purgeOutcome != PcmCancellationOutcome.Unseparable;
             if (purged)
             {
                 Check(true, "oth_ reference verified free of a mirrored game copy", purgeOutcome.ToString());
@@ -371,7 +368,7 @@ internal static class ChimeBurstProbe
                 // keeps the speaker mix this run already validated (game tone, haptic exclusion).
                 Console.WriteLine(
                     "NOTE oth_ purge failed closed; cleanup skipped and the validated speaker " +
-                    $"mix ships as-is ({purgeOutcome} gated={purge.MutedBlocks})");
+                    $"mix ships as-is ({purgeOutcome} restored={purge.RestoredBlocks})");
             }
 
             // Production skips the cleanup entirely when the purge is refused; the clip then keeps
@@ -441,8 +438,9 @@ internal static class ChimeBurstProbe
                     $"GameOnly live-chime stage: outcome={chimeOutcome} " +
                     $"lag={chimePass.StartLagMs:0.000}ms corr={chimePass.Correlation:0.000} " +
                     $"supp={chimePass.SuppressionDb:0.0}dB restored={chimePass.RestoredBlocks} " +
-                    $"gated={chimePass.MutedBlocks}");
-                // The composite is unconditional by policy; these report removal quality only.
+                    $"partial={chimePass.PartialCommit}");
+                // This legacy hardware diagnostic reports removal quality only. The production
+                // engine's verified composite gate is covered by ChimeOccurrenceProbe.
                 var cDuring = GoertzelDb(isolatedGame, p0, p1, wave.OwnHz);
                 var cAfter = GoertzelDb(isolatedGame, a0, a1, wave.OwnHz);
                 Console.WriteLine(
@@ -472,7 +470,7 @@ internal static class ChimeBurstProbe
                     $"FullSystem file-based chime removal: outcome={fsFileOutcome} " +
                     $"lag={fsf.StartLagMs:0.000}ms corr={fsf.Correlation:0.000} " +
                     $"supp={fsf.SuppressionDb:0.0}dB restored={fsf.RestoredBlocks} " +
-                    $"gated={fsf.MutedBlocks}");
+                    $"partial={fsf.PartialCommit}");
 
                 // Production's hybrid mop-up: the captured Playnite-tree slice, verified
                 // game-free, matches the chime exactly as rendered — a cold player's time-warped
@@ -482,7 +480,6 @@ internal static class ChimeBurstProbe
                 {
                     var peelOutcome = PcmAudio.CancelCorrelated(
                         mopUp, gamSlice, out _,
-                        muteUnverifiedBlocks: false,
                         commitVerifiedBlocksOnWeakPass: true,
                         preferEarlyAlignmentWindow: true,
                         verificationLagRadiusFrames: 480);
@@ -495,7 +492,7 @@ internal static class ChimeBurstProbe
                     mopUp, gamSlice, out var mopUpDiag,
                     preferEarlyAlignmentWindow: true,
                     verificationLagRadiusFrames: 480);
-                if (mopUpPurge != PcmCancellationOutcome.Unseparable && mopUpDiag.MutedBlocks == 0)
+                if (mopUpPurge != PcmCancellationOutcome.Unseparable)
                 {
                     var mopUpOutcome = SubtractNonGame(
                         fsFile, mopUp, out var mop, residualPass: false, maxLagFrames: 12000,
@@ -515,7 +512,7 @@ internal static class ChimeBurstProbe
                 {
                     Console.WriteLine(
                         $"FullSystem captured mop-up unavailable ({mopUpPurge} " +
-                        $"gated={mopUpDiag.MutedBlocks})");
+                        $"restored={mopUpDiag.RestoredBlocks})");
                 }
 
                 var fsfDuring = GoertzelDb(fsFile, p0, p1, wave.OwnHz);
@@ -541,15 +538,13 @@ internal static class ChimeBurstProbe
             }
 
             var before = (byte[])chmSlice.Clone();
-            // Production's CancelGameFromPlayniteSlice: two best-effort peels remove the game's
-            // two engine paths (speaker stream, controller haptic stream) at their own lags before
-            // the strict verified-or-muted pass decides the outcome. Keep in sync with
-            // source\Services\Recording\UnlockRecordingService.cs.
+            // Exercise the same two-path game-reference peel used by the production cancellation
+            // policy: speaker and controller-haptic renders can arrive at independent lags. The
+            // production path is transactional, so any incomplete result restores this input.
             for (var peel = 0; peel < 2; peel++)
             {
                 var peelOutcome = PcmAudio.CancelCorrelated(
                     chmSlice, gamSlice, out _,
-                    muteUnverifiedBlocks: false,
                     commitVerifiedBlocksOnWeakPass: true,
                     preferEarlyAlignmentWindow: true,
                     verificationLagRadiusFrames: 480);
@@ -608,12 +603,12 @@ internal static class ChimeBurstProbe
                     $"FullSystem chime removal: outcome={fsOutcome} " +
                     $"lag={fs.StartLagMs:0.000}->{fs.EndLagMs:0.000}ms " +
                     $"corr={fs.Correlation:0.000} supp={fs.SuppressionDb:0.0}dB " +
-                    $"restored={fs.RestoredBlocks} gated={fs.MutedBlocks}");
+                    $"restored={fs.RestoredBlocks} partial={fs.PartialCommit}");
                 Check(
                     fsOutcome == PcmCancellationOutcome.CancelledVerified &&
-                        fs.RestoredBlocks == 0 && fs.MutedBlocks == 0,
+                        fs.RestoredBlocks == 0,
                     "FullSystem Playnite-audio removal verified with no partial blocks",
-                    $"{fsOutcome} restored={fs.RestoredBlocks} gated={fs.MutedBlocks}");
+                    $"{fsOutcome} restored={fs.RestoredBlocks} partial={fs.PartialCommit}");
                 if (fsOutcome == PcmCancellationOutcome.CancelledVerified)
                 {
                     var fsResidualOutcome = SubtractNonGame(
@@ -666,7 +661,6 @@ internal static class ChimeBurstProbe
             mixture,
             reference,
             out diagnostics,
-            muteUnverifiedBlocks: false,
             maxLagFrames: maxLagFrames,
             minimumGain: floor,
             maximumGain: 20,

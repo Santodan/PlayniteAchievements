@@ -109,7 +109,7 @@ internal static class ChimeCancelProbe
                     verificationLagRadiusFrames: 480);
                 outcomeText = outcome.ToString();
                 detail = $"{d.StartLagMs,7:0.000}->{d.EndLagMs,-7:0.000} {d.Gain,5:0.00}  {d.Correlation,5:0.000}  {d.SuppressionDb,7:0.0}  " +
-                    $"blocks={d.SubtractedBlocks}/{d.TotalBlocks} muted={d.MutedBlocks} quiet={d.QuietBlocks} weak={d.WeakestBlockSuppressionDb:0.0}";
+                    $"blocks={d.SubtractedBlocks}/{d.TotalBlocks} restored={d.RestoredBlocks} quiet={d.QuietBlocks} weak={d.WeakestBlockSuppressionDb:0.0}";
             }
 
             Console.WriteLine($"{stamp}     {chmRms,6:0.0}    {gamRms,6:0.0}    {outcomeText,-20} {detail}");
