@@ -294,9 +294,10 @@ namespace PlayniteAchievements.Services.Recording
                         gamePid.Value, includeProcessTree: false);
                     _removeNonGameFromSpeakerMix = true;
 
-                    // Keep the existing re-timed chime path. The Playnite-tree sidecar can also
-                    // contain a Playnite-launched game, so capture the game tree separately and
-                    // require verified cancellation before that sidecar is composited.
+                    // Capture a fallback copy of the actual UPS render. The file resolved at
+                    // launch is the primary removal/composite source; this Playnite-tree track
+                    // covers an unresolved or transformed sound. It can also contain a
+                    // Playnite-launched game, so capture that game tree for verified separation.
                     try
                     {
                         _gameReferenceCapture = new ProcessLoopbackCapture(
@@ -333,10 +334,9 @@ namespace PlayniteAchievements.Services.Recording
             }
             else if (gamePid.HasValue && gamePid.Value > 0 && ProcessLoopbackCapture.IsSupported)
             {
-                // Full System also re-times the chime onto the composited toast. The speaker mix
-                // carries the live chime, so export first removes the Playnite-tree slice from it;
-                // the game tree is captured alongside because a Playnite-launched game lives inside
-                // both trees and must be cancelled out of that slice before it is subtracted.
+                // Full System also captures a fallback copy of the actual UPS render. The game
+                // tree is recorded alongside because a Playnite-launched game lives inside both
+                // trees and must be cancelled before this reference can be trusted.
                 try
                 {
                     _gameReferenceCapture = new ProcessLoopbackCapture(
@@ -348,8 +348,8 @@ namespace PlayniteAchievements.Services.Recording
                 {
                     _logger?.Warn(
                         ex,
-                        "[Recording] The game reference for chime re-timing could not start; " +
-                        "the live chime stays in the speaker mix.");
+                        "[Recording] The captured chime fallback could not be game-purged; " +
+                        "resolved-file chime cleanup remains available.");
                     DisposeCapture(ref _gameReferenceCapture);
                     _writeGameReference = false;
                 }
@@ -357,8 +357,8 @@ namespace PlayniteAchievements.Services.Recording
             else
             {
                 _logger?.Info(
-                    "[Recording] Chime re-timing unavailable (no pid or OS < 19041); " +
-                    "the live chime stays in the speaker mix.");
+                    "[Recording] Captured chime fallback unavailable (no pid or OS < 19041); " +
+                    "resolved-file chime cleanup remains available.");
             }
 
             // Both user-facing modes record the actual default render endpoint. A DualSense
@@ -366,7 +366,7 @@ namespace PlayniteAchievements.Services.Recording
             if (!_writeGameReference)
             {
                 // Without a game reference the Playnite-tree sidecar cannot be verified game-free,
-                // so the live chime stays in the speaker mix where it played.
+                // so it cannot be used as a fallback. Resolved-file cleanup is independent of it.
                 ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
             }
             try
