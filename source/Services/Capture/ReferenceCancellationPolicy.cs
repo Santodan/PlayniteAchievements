@@ -12,6 +12,10 @@ namespace PlayniteAchievements.Services.Capture
     /// </summary>
     internal static class ReferenceCancellationPolicy
     {
+        public const int ChimeBlockFrames = 24000;
+        public const int LocalCaptureLagFrames = 12000;
+        public const int FilePlaybackLagFrames = 36000;
+
         public static PcmCancellationOutcome Subtract(
             byte[] mixture,
             byte[] reference,
@@ -20,14 +24,15 @@ namespace PlayniteAchievements.Services.Capture
             int? blockFrames = null,
             int maxLagFrames = 12000,
             bool detectClean = false,
-            double? calibratedLagFrames = null)
+            double? calibratedLagFrames = null,
+            bool preferSmallLagOnWideSearch = true,
+            bool attemptVerifiedBlocksWhenGloballyClean = false)
         {
             var floor = residualPass ? 0.001 : 0.005;
             return PcmAudio.CancelCorrelated(
                 mixture,
                 reference,
                 out diagnostics,
-                muteUnverifiedBlocks: false,
                 maxLagFrames: maxLagFrames,
                 minimumGain: floor,
                 maximumGain: 20,
@@ -43,12 +48,94 @@ namespace PlayniteAchievements.Services.Capture
                 minimumCorrelation: residualPass ? 0.03 : 0.15,
                 // A chime-file caller wants "the reference does not project" reported as
                 // CleanNoGameDetected — proof of absence — rather than attempted anyway.
-                attemptVerifiedBlocksWhenGloballyClean: !detectClean,
+                attemptVerifiedBlocksWhenGloballyClean:
+                    attemptVerifiedBlocksWhenGloballyClean || !detectClean,
                 verificationLagRadiusFrames: 128,
                 independentChannelGains: true,
                 gainCrossfadeFrames: 0,
                 fractionalLagSteps: 32,
-                calibratedLagFrames: calibratedLagFrames);
+                calibratedLagFrames: calibratedLagFrames,
+                preferSmallLagOnWideSearch: preferSmallLagOnWideSearch);
+        }
+
+        /// <summary>
+        /// Removes a game-tree capture from a process-tree reference without ever replacing an
+        /// uncertain span with silence. The caller receives a changed reference only after the
+        /// entire active game copy is absent or every committed block has passed held-out proof.
+        /// A failed final proof leaves <paramref name="reference"/> byte-for-byte unchanged.
+        /// </summary>
+        public static PcmCancellationOutcome RemoveGameFromReference(
+            byte[] reference,
+            byte[] gameReference,
+            out PcmCancellationDiagnostics diagnostics,
+            int maxLagFrames = LocalCaptureLagFrames,
+            double? calibratedLagFrames = null)
+        {
+            diagnostics = default(PcmCancellationDiagnostics);
+            if (reference == null || gameReference == null ||
+                reference.Length < PcmAudio.BlockAlign || gameReference.Length < PcmAudio.BlockAlign)
+            {
+                return PcmCancellationOutcome.Unseparable;
+            }
+
+            var working = (byte[])reference.Clone();
+            var changed = false;
+            for (var pass = 0; pass < 3; pass++)
+            {
+                var outcome = PcmAudio.CancelCorrelated(
+                    working,
+                    gameReference,
+                    out diagnostics,
+                    maxLagFrames: maxLagFrames,
+                    commitVerifiedBlocksOnWeakPass: true,
+                    preferEarlyAlignmentWindow: true,
+                    verificationLagRadiusFrames: 480,
+                    calibratedLagFrames: pass == 0 ? calibratedLagFrames : null);
+
+                if (outcome == PcmCancellationOutcome.CleanNoGameDetected)
+                {
+                    // A silent/missed game capture cannot prove the other process reference is
+                    // game-free. Treating zero-filled gam_ as success allowed a Playnite-tree or
+                    // non-game reference that actually contained game audio to remove that game
+                    // from the endpoint mix. Real silence safely falls back to recorded audio.
+                    if (!diagnostics.ReferenceHasSignal)
+                    {
+                        return PcmCancellationOutcome.Unseparable;
+                    }
+
+                    // Clean is authoritative only before any partial edit. After a pass changed
+                    // some blocks without proving the whole active reference absent, a weak
+                    // residual may simply fall under the global presence gate. Discard the entire
+                    // transaction rather than treating that ambiguity as game-free audio.
+                    return changed
+                        ? PcmCancellationOutcome.Unseparable
+                        : outcome;
+                }
+
+                if (outcome != PcmCancellationOutcome.CancelledVerified)
+                {
+                    return PcmCancellationOutcome.Unseparable;
+                }
+
+                changed = true;
+                if (IsComplete(diagnostics) && diagnostics.ResidualCorrelation < 0.20)
+                {
+                    System.Buffer.BlockCopy(working, 0, reference, 0, reference.Length);
+                    return PcmCancellationOutcome.CancelledVerified;
+                }
+            }
+
+            // Three independently verified partial passes without a clean residual are not proof
+            // that the reference is game-free. Discard them instead of feeding an uncertain
+            // reference into a later subtraction.
+            return PcmCancellationOutcome.Unseparable;
+        }
+
+        public static bool IsComplete(PcmCancellationDiagnostics diagnostics)
+        {
+            return diagnostics.SubtractedBlocks > 0 &&
+                !diagnostics.PartialCommit &&
+                diagnostics.RestoredBlocks == 0;
         }
     }
 }

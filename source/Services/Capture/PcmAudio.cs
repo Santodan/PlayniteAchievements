@@ -48,9 +48,6 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>Upper-quartile per-block energy suppression achieved by the subtraction.</summary>
         public double SuppressionDb;
 
-        /// <summary>Blocks whose game removal could not be verified and were silenced instead.</summary>
-        public int MutedBlocks;
-
         /// <summary>Blocks the subtraction actually ran on, out of the whole slice.</summary>
         public int SubtractedBlocks;
 
@@ -78,7 +75,7 @@ namespace PlayniteAchievements.Services.Capture
 
         /// <summary>
         /// Blocks whose subtraction could not be shown to improve them and were put back as
-        /// recorded. Only when the caller asked not to mute: the audio is the clip's own.
+        /// recorded. Uncertain audio is never muted.
         /// </summary>
         public int RestoredBlocks;
 
@@ -314,16 +311,10 @@ namespace PlayniteAchievements.Services.Capture
         /// search calibrates the capture-path latency. Every reference-active block is then
         /// subtracted at that fixed sample offset, fitting only its amplitude because sparse haptic
         /// bursts can have a different local level than the whole slice. A disjoint set of samples
-        /// verifies the result; a failed block is restored exactly or muted according to caller
-        /// policy.
+        /// verifies the result; a failed block is restored exactly.
         /// Haptic callers may fit and prove left/right gains independently because controller
         /// actuator channels can receive different endpoint scaling; ordinary/chime callers retain
         /// the shared stereo gain by default.
-        /// <para>
-        /// <paramref name="muteUnverifiedBlocks"/> decides what happens to a block the subtraction
-        /// could not verify inside an accepted pass. Clip-audio callers disable muting, so
-        /// uncertainty always preserves the original audio, buzz included.
-        /// </para>
         /// <para>
         /// A caller may supply <paramref name="calibratedLagFrames"/> when that alignment was
         /// independently measured from a stronger common signal. This bypasses only the lag sweep
@@ -335,7 +326,6 @@ namespace PlayniteAchievements.Services.Capture
             byte[] mixture,
             byte[] gameReference,
             out PcmCancellationDiagnostics diagnostics,
-            bool muteUnverifiedBlocks = true,
             int maxLagFrames = MaxCancellationLagFrames,
             double minimumGain = MinimumCancellationGain,
             double maximumGain = MaximumCancellationGain,
@@ -351,7 +341,8 @@ namespace PlayniteAchievements.Services.Capture
             bool independentChannelGains = false,
             int gainCrossfadeFrames = CrossfadeFrames,
             int fractionalLagSteps = 0,
-            double? calibratedLagFrames = null)
+            double? calibratedLagFrames = null,
+            bool preferSmallLagOnWideSearch = true)
         {
             diagnostics = default(PcmCancellationDiagnostics);
             if (mixture == null || gameReference == null ||
@@ -405,7 +396,8 @@ namespace PlayniteAchievements.Services.Capture
             var presence = 0d;
             if (earlyPreferred)
             {
-                best = ScanWindow(mixtureView, referenceView, 0, maxLag);
+                best = ScanWindow(
+                    mixtureView, referenceView, 0, maxLag, preferSmallLagOnWideSearch);
                 presence = best.Count > 0 ? Math.Abs(best.Value) : 0;
             }
 
@@ -421,7 +413,12 @@ namespace PlayniteAchievements.Services.Capture
                         referenceView,
                         calibratedLagFrames.Value,
                         loudestStart)
-                    : ScanWindow(mixtureView, referenceView, loudestStart, maxLag);
+                    : ScanWindow(
+                        mixtureView,
+                        referenceView,
+                        loudestStart,
+                        maxLag,
+                        preferSmallLagOnWideSearch);
                 if (!earlyPreferred || best.Count <= 0)
                 {
                     best = loudestScore;
@@ -444,7 +441,12 @@ namespace PlayniteAchievements.Services.Capture
                             referenceView,
                             calibratedLagFrames.Value,
                             candidateStart)
-                        : ScanWindow(mixtureView, referenceView, candidateStart, maxLag);
+                        : ScanWindow(
+                            mixtureView,
+                            referenceView,
+                            candidateStart,
+                            maxLag,
+                            preferSmallLagOnWideSearch);
                     if (score.Count <= 0)
                     {
                         continue;
@@ -541,8 +543,8 @@ namespace PlayniteAchievements.Services.Capture
                 if (!block.HasSignal || !hasFittedGain)
                 {
                     // A silent reference means nothing to remove. An active reference whose fitted
-                    // copy falls below the safe floor is a failed block: leave it for the caller's
-                    // exact restore/mute policy instead of amplifying a noise-sized estimate.
+                    // copy falls below the safe floor is a failed block: restore it exactly
+                    // instead of amplifying a noise-sized estimate.
                     failedActiveBlock = block.HasSignal;
                     if (block.HasSignal)
                     {
@@ -659,18 +661,11 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             // A block that did not show the requested suppression must never ship tentatively
-            // changed. Sidecar callers silence it; clip-audio callers restore it exactly.
+            // changed. Restore it exactly; cancellation never authorizes muting recorded audio.
             foreach (var measured in measuredBlocks)
             {
                 if (measured.SuppressionDb >= keepBlockSuppressionDb)
                 {
-                    continue;
-                }
-
-                if (muteUnverifiedBlocks)
-                {
-                    MuteBlock(working, measured.StartFrame, measured.EndFrame);
-                    diagnostics.MutedBlocks++;
                     continue;
                 }
 
@@ -719,7 +714,7 @@ namespace PlayniteAchievements.Services.Capture
                 }
             }
 
-            if (diagnostics.SubtractedBlocks == 0 && diagnostics.MutedBlocks == 0)
+            if (diagnostics.SubtractedBlocks == 0)
             {
                 // Every tentative change was restored. Report a rejected pass instead of claiming
                 // verified cancellation over a byte-identical active-reference track.
@@ -820,44 +815,6 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        /// <summary>
-        /// Silences one failed sidecar block in place, with short inside-edge ramps so it cannot
-        /// click or attenuate neighbouring chime samples.
-        /// </summary>
-        private static void MuteBlock(
-            byte[] working,
-            int blockStartFrame,
-            int blockEndFrame)
-        {
-            var blockFrames = blockEndFrame - blockStartFrame;
-            var insideRamp = Math.Min(CrossfadeFrames, blockFrames / 2);
-            for (var frame = blockStartFrame; frame < blockEndFrame; frame++)
-            {
-                var intoBlock = frame - blockStartFrame;
-                var untilEnd = blockEndFrame - 1 - frame;
-                double scale = 0;
-                if (intoBlock < insideRamp)
-                {
-                    scale = 1.0 - intoBlock / (double)insideRamp;
-                }
-                else if (untilEnd < insideRamp)
-                {
-                    scale = 1.0 - untilEnd / (double)insideRamp;
-                }
-
-                ScaleFrame(working, frame, scale);
-            }
-        }
-
-        private static void ScaleFrame(byte[] pcm, int frame, double scale)
-        {
-            for (var channel = 0; channel < Channels; channel++)
-            {
-                var offset = frame * BlockAlign + channel * 2;
-                WriteInt16(pcm, offset, (short)(ReadInt16(pcm, offset) * scale));
-            }
-        }
-
         private struct MeasuredBlock
         {
             public int StartFrame;
@@ -867,7 +824,7 @@ namespace PlayniteAchievements.Services.Capture
             /// <summary>
             /// Whether anything was actually subtracted here. A block scored zero because its
             /// reference could not be fitted was never modified, so there is nothing to put back —
-            /// but the chime's mute pass still wants it silenced.
+            /// and is left exactly as recorded.
             /// </summary>
             public bool Subtracted;
         }
@@ -1111,7 +1068,8 @@ namespace PlayniteAchievements.Services.Capture
             SampleView mixture,
             SampleView reference,
             int analysisStart,
-            int maxLag)
+            int maxLag,
+            bool preferSmallLag)
         {
             if (maxLag <= MaxCancellationLagFrames)
             {
@@ -1124,7 +1082,8 @@ namespace PlayniteAchievements.Services.Capture
             // the refinement then polished a wrong neighbourhood — observed live as 40-155 ms
             // locks against a stable, strong peak at -12.7 ms. Adjacent-frame correlation of real
             // audio stays far above that sidelobe floor, so a 2-frame stride cannot lose the peak.
-            var sweep = ScanLagRange(mixture, reference, analysisStart, -maxLag, maxLag, 2, true);
+            var sweep = ScanLagRange(
+                mixture, reference, analysisStart, -maxLag, maxLag, 2, preferSmallLag);
             if (sweep.Count <= 0)
             {
                 return sweep;
@@ -1137,7 +1096,7 @@ namespace PlayniteAchievements.Services.Capture
                 sweep.LagFrames - 2,
                 sweep.LagFrames + 2,
                 1,
-                true);
+                preferSmallLag);
             return fine.Count > 0 && fine.Value > sweep.Value ? fine : sweep;
         }
 
