@@ -20,7 +20,8 @@ namespace PlayniteAchievements.Services.UI
             DateTime? surfaceCaptureUtc,
             string soundFilePath = null,
             double? soundFileGain = null,
-            int? soundAlignmentDelayMs = null)
+            int? soundAlignmentDelayMs = null,
+            Guid? occurrenceId = null)
         {
             Wave = wave;
             ShownUtc = shownUtc;
@@ -29,6 +30,7 @@ namespace PlayniteAchievements.Services.UI
             SoundFilePath = soundFilePath;
             SoundFileGain = soundFileGain;
             SoundAlignmentDelayMs = soundAlignmentDelayMs;
+            OccurrenceId = occurrenceId ?? Guid.NewGuid();
         }
 
         public IReadOnlyList<AchievementToastViewModel> Wave { get; }
@@ -36,12 +38,19 @@ namespace PlayniteAchievements.Services.UI
         public DateTime ShownUtc { get; }
 
         /// <summary>
-        /// When this wave's unlock chime started playing. The recording service reads the chime
-        /// sidecar track at this moment and mixes it into the wave's clips at the composited
-        /// toast. Null when no sound fired — including an unrevealed wave, which deliberately plays
-        /// none, so its clips ship without a chime.
+        /// When this wave's unlock chime started playing. The recording service places the exact
+        /// resolved file on this timeline for removal, with the captured sidecar as fallback, then
+        /// mixes one clean replacement into the wave's clips. Null when no sound fired — including
+        /// an unrevealed wave, which deliberately plays none.
         /// </summary>
         public DateTime? SoundPlayedUtc { get; }
+
+        /// <summary>
+        /// Stable identity for this wave's one possible sound. It is intentionally not derived
+        /// from <see cref="SoundPlayedUtc"/> because separate waves may share a timestamp or sound
+        /// file, and every achievement in this wave must point to the same occurrence.
+        /// </summary>
+        public Guid OccurrenceId { get; }
 
         /// <summary>
         /// The exact sound file UniPlaySong resolved for this wave, snapshotted the moment it
