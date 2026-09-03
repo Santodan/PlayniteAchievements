@@ -452,7 +452,7 @@ namespace PlayniteAchievements.Services.Tests.Capture
         {
             // A small device-clock drift must not bring back per-block lag chasing. The calibrated
             // timestamp offset stays fixed; blocks that cannot verify at it use the existing
-            // restore/mute policy instead of moving every later sample on weak local evidence.
+            // restore policy instead of moving every later sample on weak local evidence.
             const int frames = 288000; // 6 s
             var referenceSamples = BandLimitedNoise(frames, 7, 8000);
             var mixtureSamples = new short[frames * 2];
@@ -543,11 +543,11 @@ namespace PlayniteAchievements.Services.Tests.Capture
             Assert.AreEqual(diagnostics.StartLagMs, diagnostics.EndLagMs, 0.0001);
             var earlyResidual = Energy(ToShorts(mixture), 20000, frames / 2 - 1000);
             Assert.IsTrue(
-                earlyResidual < earlyOriginal * 0.1,
+                earlyResidual < earlyOriginal * 0.15,
                 $"early residual ratio was {earlyResidual / earlyOriginal:0.0000}");
 
             // The unrelated early chime must survive; a wrong later calibration would classify
-            // these blocks as failed and mute the very sound the sidecar exists to preserve.
+            // these blocks as failed. They must be restored, never muted.
             var cleaned = ToShorts(mixture);
             var chimeEnergy = Energy(cleaned, 4800, 14400);
             Assert.IsTrue(chimeEnergy > 20_000_000_000d, $"chime energy was {chimeEnergy:0}");
@@ -652,7 +652,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
                 working,
                 Samples(firstReference),
                 out var firstDiagnostics,
-                muteUnverifiedBlocks: false,
                 maxLagFrames: 12000,
                 minimumGain: 0.005,
                 maximumGain: 20,
@@ -668,7 +667,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
                 working,
                 Samples(secondReference),
                 out var secondDiagnostics,
-                muteUnverifiedBlocks: false,
                 maxLagFrames: 12000,
                 minimumGain: 0.005,
                 maximumGain: 20,
@@ -722,54 +720,10 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
-        public void CancelCorrelated_MutesTheBlockWhereRemovalCannotBeVerified()
+        public void CancelCorrelated_AlwaysRestoresUnverifiedBlocks()
         {
-            // A pump tear can leave one block whose audio the reference no longer explains at any
-            // findable lag. The pass must still verify overall, but that block must ship as
-            // silence, never as wrong-time game audio inside the chime.
-            const int frames = 216000; // 4.5 s slice, nine 0.5 s blocks
-            const int lag = 480;
-            const int tornStart = 96000; // block 4
-            const int tornEnd = 120000;
-            var referenceSamples = BandLimitedNoise(frames, 31, 8000);
-            var tornSamples = BandLimitedNoise(frames, 77, 8000);
-            var mixtureSamples = new short[frames * 2];
-            for (var frame = 0; frame < frames; frame++)
-            {
-                var torn = frame >= tornStart && frame < tornEnd;
-                for (var channel = 0; channel < 2; channel++)
-                {
-                    mixtureSamples[frame * 2 + channel] = torn
-                        ? tornSamples[frame * 2 + channel]
-                        : frame + lag < frames
-                            ? (short)Math.Round(0.9 * referenceSamples[(frame + lag) * 2 + channel])
-                            : (short)0;
-                }
-            }
-
-            var mixture = Samples(mixtureSamples);
-            var tornOriginal = Energy(mixtureSamples, tornStart + 2400, tornEnd - 2400);
-
-            var outcome = PcmAudio.CancelCorrelated(mixture, Samples(referenceSamples), out var diagnostics);
-
-            Assert.AreEqual(
-                PcmCancellationOutcome.CancelledVerified,
-                outcome,
-                $"correlation={diagnostics.Correlation}, suppression={diagnostics.SuppressionDb}dB");
-            Assert.IsTrue(diagnostics.MutedBlocks >= 1, $"muted {diagnostics.MutedBlocks} blocks");
-            // Inside the torn block (edges excluded for the ramps) the output is silence.
-            var tornResidual = Energy(ToShorts(mixture), tornStart + 2400, tornEnd - 2400);
-            Assert.IsTrue(
-                tornResidual < tornOriginal * 0.01,
-                $"torn block residual ratio was {tornResidual / tornOriginal:0.0000}");
-        }
-
-        [TestMethod]
-        public void CancelCorrelated_KeepsUnverifiedBlocksWhenMutingIsOff()
-        {
-            // Same tear as above, but on the track that IS the clip's audio (the haptic pass). A
-            // hole punched in the game's own sound is worse than the residual it would remove, so
-            // an unverifiable block has to survive the pass intact.
+            // A pump tear can leave one block whose audio the reference no longer explains. A
+            // hole punched in game sound is worse than the residual, so the block must survive.
             const int frames = 216000;
             const int lag = 480;
             const int tornStart = 96000;
@@ -794,13 +748,13 @@ namespace PlayniteAchievements.Services.Tests.Capture
             var tornOriginal = Energy(mixtureSamples, tornStart + 2400, tornEnd - 2400);
 
             var outcome = PcmAudio.CancelCorrelated(
-                mixture, Samples(referenceSamples), out var diagnostics, muteUnverifiedBlocks: false);
+                mixture, Samples(referenceSamples), out var diagnostics);
 
             Assert.AreEqual(
                 PcmCancellationOutcome.CancelledVerified,
                 outcome,
                 $"correlation={diagnostics.Correlation}, suppression={diagnostics.SuppressionDb}dB");
-            Assert.AreEqual(0, diagnostics.MutedBlocks);
+            Assert.IsTrue(diagnostics.RestoredBlocks >= 1);
             var tornResidual = Energy(ToShorts(mixture), tornStart + 2400, tornEnd - 2400);
             Assert.IsTrue(
                 tornResidual > tornOriginal * 0.5,
@@ -845,7 +799,7 @@ namespace PlayniteAchievements.Services.Tests.Capture
 
             var wide = Samples(mixtureSamples);
             var outcome = PcmAudio.CancelCorrelated(
-                wide, reference, out var diagnostics, muteUnverifiedBlocks: false, maxLagFrames: 12000);
+                wide, reference, out var diagnostics, maxLagFrames: 12000);
 
             Assert.AreEqual(
                 PcmCancellationOutcome.CancelledVerified,
@@ -855,7 +809,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
             Assert.IsTrue(
                 diagnostics.ResidualCorrelation < 0.15,
                 $"residual correlation was {diagnostics.ResidualCorrelation:0.000}");
-            Assert.AreEqual(0, diagnostics.MutedBlocks);
             Assert.IsTrue(diagnostics.SubtractedBlocks > 0, "no block was subtracted");
 
             // The audio that was not the reference has to come through untouched.
@@ -900,7 +853,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
                 calibrated,
                 reference,
                 out var diagnostics,
-                muteUnverifiedBlocks: false,
                 maxLagFrames: 12000,
                 minimumGain: 0.001,
                 maximumGain: 20,
@@ -931,7 +883,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
                 wrong,
                 reference,
                 out _,
-                muteUnverifiedBlocks: false,
                 maxLagFrames: 12000,
                 minimumGain: 0.001,
                 maximumGain: 20,
@@ -979,12 +930,12 @@ namespace PlayniteAchievements.Services.Tests.Capture
 
             var atDefaultFloor = Samples(mixtureSamples);
             PcmAudio.CancelCorrelated(
-                atDefaultFloor, reference, out var defaultDiagnostics, muteUnverifiedBlocks: false,
+                atDefaultFloor, reference, out var defaultDiagnostics,
                 maxLagFrames: 12000, minimumGain: 0.05, maximumGain: 20.0);
 
             var atLowFloor = Samples(mixtureSamples);
             PcmAudio.CancelCorrelated(
-                atLowFloor, reference, out var lowDiagnostics, muteUnverifiedBlocks: false,
+                atLowFloor, reference, out var lowDiagnostics,
                 maxLagFrames: 12000, minimumGain: 0.05, maximumGain: 20.0, blockGainFloor: 0.005);
 
             Assert.IsTrue(
@@ -1040,7 +991,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
             var shortBlocks = Samples(mixture);
             var outcome = PcmAudio.CancelCorrelated(
                 shortBlocks, Samples(reference), out var diagnostics,
-                muteUnverifiedBlocks: true,
                 maxLagFrames: 12000,
                 minimumGain: 0.005,
                 maximumGain: 20,
@@ -1062,12 +1012,11 @@ namespace PlayniteAchievements.Services.Tests.Capture
             var newProjection = ProjectionEnergy(
                 ToShorts(shortBlocks), reference, start, frames - 2400);
             Assert.IsTrue(
-                newProjection < originalProjection * 0.01,
+                newProjection < originalProjection * 0.08,
                 $"short-block correlated residual ratio was {newProjection / originalProjection:0.0000}; " +
-                $"muted={diagnostics.MutedBlocks} subtracted={diagnostics.SubtractedBlocks}");
+                $"restored={diagnostics.RestoredBlocks} subtracted={diagnostics.SubtractedBlocks}");
 
-            // Sidecar fallback may gate a locally inseparable active burst, but it must leave the
-            // majority of the unrelated game track intact rather than muting the whole clip.
+            // A locally inseparable active burst must leave the unrelated game track intact.
             var keptEnergy = Energy(ToShorts(shortBlocks), start, frames - 2400);
             var gameEnergy = Energy(game, start, frames - 2400);
             Assert.IsTrue(
@@ -1097,7 +1046,7 @@ namespace PlayniteAchievements.Services.Tests.Capture
 
             var ordinary = Samples(mixture);
             var ordinaryOutcome = PcmAudio.CancelCorrelated(
-                ordinary, Samples(reference), out _, muteUnverifiedBlocks: true,
+                ordinary, Samples(reference), out _,
                 maxLagFrames: 12000, minimumGain: 0.005, maximumGain: 20,
                 blockGainFloor: 0.005, keepBlockSuppressionDb: 15,
                 cancellationBlockFrames: 2400);
@@ -1107,7 +1056,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
             var bestEffort = Samples(mixture);
             var bestEffortOutcome = PcmAudio.CancelCorrelated(
                 bestEffort, Samples(reference), out var bestEffortDiagnostics,
-                muteUnverifiedBlocks: false,
                 maxLagFrames: 12000, minimumGain: 0.005, maximumGain: 20,
                 blockGainFloor: 0.005, keepBlockSuppressionDb: 15,
                 cancellationBlockFrames: 2400,
@@ -1115,7 +1063,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
 
             Assert.AreEqual(PcmCancellationOutcome.CancelledVerified, bestEffortOutcome);
             Assert.IsTrue(bestEffortDiagnostics.PartialCommit);
-            Assert.AreEqual(0, bestEffortDiagnostics.MutedBlocks);
             Assert.IsTrue(bestEffortDiagnostics.SubtractedBlocks > 0);
 
             var bestEffortSamples = ToShorts(bestEffort);
@@ -1130,6 +1077,55 @@ namespace PlayniteAchievements.Services.Tests.Capture
             var tailBefore = Energy(mixture, 28800, frames - 2400);
             var tailAfter = Energy(bestEffortSamples, 28800, frames - 2400);
             Assert.AreEqual(tailBefore, tailAfter, tailBefore * 0.0001 + 1);
+        }
+
+        [TestMethod]
+        public void RemoveGameFromReference_PartialThenCleanRestoresEntireInput()
+        {
+            // A partial first pass followed by a weak "clean" residual is not proof that the
+            // Playnite-tree reference is game-free. The production policy must discard all of
+            // that tentative work so it can never feed partially muted game into clip cleanup.
+            const int frames = 96000;
+            var game = BandLimitedNoise(frames, 191, 9000);
+            var playniteTree = new short[frames * 2];
+            for (var frame = 0; frame < frames / 4; frame++)
+            {
+                playniteTree[frame * 2] = (short)Math.Round(0.9 * game[frame * 2]);
+                playniteTree[frame * 2 + 1] =
+                    (short)Math.Round(0.9 * game[frame * 2 + 1]);
+            }
+
+            var reference = Samples(playniteTree);
+            var before = (byte[])reference.Clone();
+            var outcome = ReferenceCancellationPolicy.RemoveGameFromReference(
+                reference,
+                Samples(game),
+                out var diagnostics);
+
+            Assert.AreEqual(PcmCancellationOutcome.Unseparable, outcome);
+            Assert.IsTrue(
+                diagnostics.ReferenceHasSignal,
+                "the last pass should have evaluated a real game reference");
+            CollectionAssert.AreEqual(
+                before,
+                reference,
+                "an unverified game purge must be byte-for-byte transactional");
+        }
+
+        [TestMethod]
+        public void RemoveGameFromReference_SilentGameCaptureCannotProveReferenceSafe()
+        {
+            var playniteTree = Samples(BandLimitedNoise(48000, 219, 7000));
+            var before = (byte[])playniteTree.Clone();
+
+            var outcome = ReferenceCancellationPolicy.RemoveGameFromReference(
+                playniteTree,
+                new byte[playniteTree.Length],
+                out var diagnostics);
+
+            Assert.AreEqual(PcmCancellationOutcome.Unseparable, outcome);
+            Assert.IsFalse(diagnostics.ReferenceHasSignal);
+            CollectionAssert.AreEqual(before, playniteTree);
         }
 
         [TestMethod]
@@ -1161,7 +1157,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
             var ordinary = Samples(mixture);
             var ordinaryOutcome = PcmAudio.CancelCorrelated(
                 ordinary, Samples(reference), out var ordinaryDiagnostics,
-                muteUnverifiedBlocks: false,
                 maxLagFrames: 12000, minimumGain: 0.005, maximumGain: 20,
                 blockGainFloor: 0.005, keepBlockSuppressionDb: 15,
                 cancellationBlockFrames: 2400,
@@ -1178,7 +1173,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
             var haptic = Samples(mixture);
             var outcome = PcmAudio.CancelCorrelated(
                 haptic, Samples(reference), out var diagnostics,
-                muteUnverifiedBlocks: false,
                 maxLagFrames: 12000, minimumGain: 0.005, maximumGain: 20,
                 blockGainFloor: 0.005, keepBlockSuppressionDb: 15,
                 cancellationBlockFrames: 2400,
@@ -1190,7 +1184,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
             Assert.IsTrue(diagnostics.PartialCommit);
             Assert.IsTrue(diagnostics.SubtractedBlocks > 0);
             Assert.IsTrue(diagnostics.SuppressionDb >= 15);
-            Assert.AreEqual(0, diagnostics.MutedBlocks);
 
             var cleaned = ToShorts(haptic);
             double beforeBurst = 0;
@@ -1250,7 +1243,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
             var polished = Samples(mixture);
             var outcome = PcmAudio.CancelCorrelated(
                 polished, Samples(reference), out var diagnostics,
-                muteUnverifiedBlocks: false,
                 maxLagFrames: 12000, minimumGain: 0.005, maximumGain: 20,
                 blockGainFloor: 0.005, keepBlockSuppressionDb: 10,
                 cancellationBlockFrames: 2400,
@@ -1265,7 +1257,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
             Assert.AreEqual(diagnostics.TotalBlocks, diagnostics.FixedFitBlocks);
             Assert.IsTrue(diagnostics.SubtractedBlocks > 0);
             Assert.IsTrue(diagnostics.SuppressionDb >= 10);
-            Assert.AreEqual(0, diagnostics.MutedBlocks);
             Assert.IsTrue(
                 Math.Abs(diagnostics.EndLagMs - diagnostics.StartLagMs) < 0.2,
                 $"fixed fit wandered {diagnostics.StartLagMs:0.000}->" +

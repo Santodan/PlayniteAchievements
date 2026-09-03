@@ -58,177 +58,96 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void RecordingModes_UseOneEndpointAndGameOnlyFailsOpenToAudibleAudio()
+        public void RecordingModes_UseOneEndpointAndCleanupFailsOpenToAudibleAudio()
         {
             var recorder = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
             StringAssert.Contains(recorder, "_source == RecordingAudioSource.GameOnly");
             StringAssert.Contains(recorder, "includeProcessTree: false");
             StringAssert.Contains(recorder, "ProcessLoopbackCapture.ForEndpoint(speaker.Id)");
-            StringAssert.Contains(recorder, "AudioEndpointRole.Console");
-
-            // Failing open still has to yield audible audio. It must not be NAudio's
-            // WasapiLoopbackCapture: that constructor builds the same device enumerator the
-            // primary path just failed on, so it could only rethrow and leave the session silent.
             StringAssert.Contains(recorder, "return ProcessLoopbackCapture.ForEndpoint(fallbackId);");
             StringAssert.Contains(recorder, "haptic-free full-system speaker audio");
 
-            var source = File.ReadAllText(FindRepoFile(
+            var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            var start = source.IndexOf("private SegmentTimeline.ClipPlan TryRemoveNonGameAudio", StringComparison.Ordinal);
-            var end = source.IndexOf("private void TryDeleteCleanedAudio", start, StringComparison.Ordinal);
-
+            var start = service.IndexOf("PrepareClipAudioAsync(", StringComparison.Ordinal);
+            var end = service.IndexOf("private void SetChimeCompositeAuthorization", start, StringComparison.Ordinal);
             Assert.IsTrue(start >= 0 && end > start);
-            var removal = source.Substring(start, end - start);
-            StringAssert.Contains(removal, "residualPass: false");
-            StringAssert.Contains(removal, "residualPass: true");
-            StringAssert.Contains(removal, "muteUnverifiedBlocks: false");
-            StringAssert.Contains(removal, "outcome != PcmCancellationOutcome.CancelledVerified");
-            StringAssert.Contains(removal, "return audioPlan;");
-            StringAssert.Contains(removal, "haptic-free full-system speaker mix");
+            var cleanup = service.Substring(start, end - start);
+            StringAssert.Contains(cleanup, "return (audioPlan, null);");
+            StringAssert.Contains(cleanup, "recordedMixture.Clone()");
+            StringAssert.Contains(cleanup, "keeping the haptic-free");
+        }
+
+        [TestMethod]
+        public void GameOnly_RemovesChimesFromBothTracksBeforeDesktopIsolation()
+        {
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            var start = service.IndexOf("PrepareClipAudioAsync(", StringComparison.Ordinal);
+            var end = service.IndexOf("private void SetChimeCompositeAuthorization", start, StringComparison.Ordinal);
+            var cleanup = service.Substring(start, end - start);
+
+            var endpointCleanup = cleanup.IndexOf("GetOrCreateChimeCleanupTask", StringComparison.Ordinal);
+            var gameOnly = cleanup.IndexOf("if (gameOnly)", StringComparison.Ordinal);
+            var purge = cleanup.IndexOf("Game-only chime-reference purge", StringComparison.Ordinal);
+            var isolation = cleanup.IndexOf("[Recording] Game-only isolation:", StringComparison.Ordinal);
+            Assert.IsTrue(endpointCleanup >= 0 && gameOnly > endpointCleanup);
+            Assert.IsTrue(purge > gameOnly && isolation > purge);
+            StringAssert.Contains(cleanup, "could not be verified free of the UPS");
+        }
+
+        [TestMethod]
+        public void GameOnly_MissingGameTreeNeverTreatsExcludeTreeAsSafe()
+        {
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            var start = service.IndexOf("if (gamePcm == null)", StringComparison.Ordinal);
+            var end = service.IndexOf("var purgeOutcome", start, StringComparison.Ordinal);
+            Assert.IsTrue(start >= 0 && end > start);
+            var missingGame = service.Substring(start, end - start);
+
+            StringAssert.Contains(missingGame, "cannot be proven free of game audio");
+            StringAssert.Contains(missingGame, "return null;");
             Assert.IsFalse(
-                removal.Contains("return null;"),
-                "A non-null recorded plan must never become the exporter's no-audio sentinel.");
+                missingGame.Contains("return reference;"),
+                "An empty game-tree capture is indistinguishable from a process-tree miss.");
         }
 
         [TestMethod]
-        public void GameOnlyResidualCleanup_ReusesVerifiedLagWithTimeLocalGainFits()
+        public void ChimeCleanup_IsTransactionalAndGatesTheOneReplacement()
         {
-            var source = File.ReadAllText(FindRepoFile(
+            var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            var start = source.IndexOf(
-                "for (var pass = 1; pass <= 3; pass++)",
-                StringComparison.Ordinal);
-            var end = source.IndexOf(
-                "if (residualOutcome !=",
-                start,
-                StringComparison.Ordinal);
-            Assert.IsTrue(start >= 0 && end > start);
-            var residual = source.Substring(start, end - start);
-
-            StringAssert.Contains(residual, "residualPass: true");
-            StringAssert.Contains(residual, "blockFrames: 24000");
-            StringAssert.Contains(
-                residual,
-                "cancellation.StartLagMs * PcmAudio.SampleRate / 1000.0");
+            StringAssert.Contains(service, "var chimeCandidate = (byte[])mixture.Clone();");
+            StringAssert.Contains(service, "mixture = (byte[])recordedMixture.Clone();");
+            StringAssert.Contains(service, "SetChimeCompositeAuthorization(request, allChimesVerified)");
+            StringAssert.Contains(service, "request.ChimeCompositeAuthorized");
+            StringAssert.Contains(service, "request.ChimeCompositeClaimed");
+            StringAssert.Contains(service, "request.ChimeCompositeClaimed = true");
             Assert.IsFalse(
-                residual.Contains("muteUnverifiedBlocks: true"),
-                "A more local desktop fit must retain the exact recorded game block whenever " +
-                "held-out verification rejects it.");
-
-            var isolationStart = source.LastIndexOf(
-                "var recordedMixture = (byte[])mixture.Clone();",
-                start,
-                StringComparison.Ordinal);
-            Assert.IsTrue(isolationStart >= 0);
-            var isolation = source.Substring(isolationStart, start - isolationStart);
-            var localFit = isolation.IndexOf(
-                "fit = \"500ms-time-local-gain\"",
-                StringComparison.Ordinal);
-            var fullFallback = isolation.IndexOf(
-                "fit = \"one-full-clip-fallback\"",
-                StringComparison.Ordinal);
-            Assert.IsTrue(
-                localFit >= 0 && fullFallback > localFit,
-                "Game Only must fit changing desktop volume locally before trying the one-gain " +
-                "fallback that can leave or invert time-varying residue.");
+                service.Contains("SetChimeCompositeAuthorization(request, true)"),
+                "Generic Game Only subtraction is weaker than the occurrence remover and must " +
+                "never authorize a replacement after dedicated chime proof failed.");
+            Assert.IsFalse(service.Contains("_liveChimeRemovalByUtc"));
         }
 
         [TestMethod]
-        public void GameOnly_RemovesChimeBeforePurgingAndSubtractingNonGameReference()
+        public void ChimeCleanup_UsesOccurrenceIdentityAndCachedBoundedClusters()
         {
-            var source = File.ReadAllText(FindRepoFile(
+            var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            var start = source.IndexOf(
-                "private SegmentTimeline.ClipPlan TryRemoveNonGameAudio",
-                StringComparison.Ordinal);
-            var end = source.IndexOf(
-                "private void TryDeleteCleanedAudio",
-                start,
-                StringComparison.Ordinal);
-            Assert.IsTrue(start >= 0 && end > start);
-            var removal = source.Substring(start, end - start);
-
-            var chime = removal.IndexOf("chimeOutcome = ChimePass(", StringComparison.Ordinal);
-            var gameOnly = removal.IndexOf("if (gameOnly)", StringComparison.Ordinal);
-            var nonGame = removal.IndexOf("TryReadNonGameReference", StringComparison.Ordinal);
-            var purge = removal.IndexOf("CancelGameFromPlayniteSlice(", StringComparison.Ordinal);
-            var isolation = removal.IndexOf(
-                "[Recording] Game-only isolation:",
-                StringComparison.Ordinal);
-
-            Assert.IsTrue(chime >= 0 && gameOnly > chime,
-                "Both modes must remove the live chime before the Game Only branch.");
-            Assert.IsTrue(nonGame > gameOnly && purge > nonGame && isolation > purge,
-                "Game Only must read nng after chime removal, purge chm from it, then isolate.");
-            StringAssert.Contains(removal, "chimeVerifiablySubtracted");
-            StringAssert.Contains(removal, "maxLagFrames: 12000");
-            StringAssert.Contains(removal, "Skipping game-only isolation because the");
-            StringAssert.Contains(removal, "could inject an");
-            StringAssert.Contains(removal, "inverted chime");
-        }
-
-        [TestMethod]
-        public void UnverifiedLiveChime_IsNeverFollowedByASecondCompositedCopy()
-        {
-            var source = File.ReadAllText(FindRepoFile(
-                "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            StringAssert.Contains(source, "_liveChimeRemovalByUtc");
-            StringAssert.Contains(
-                source,
-                "SetLiveChimeRemovalStatus(firedChimeTimes, removed: false)");
-            StringAssert.Contains(source, "IsCompleteChimeRemoval(");
-            StringAssert.Contains(
-                source,
-                "GetLiveChimeRemovalStatus(request.OwnSoundUtc)");
-
-            var reencode = source.IndexOf(
-                "private async Task<string> ReencodeWithTrackAsync",
-                StringComparison.Ordinal);
-            var export = source.IndexOf(
-                "var ok = await Task.Run(() => reencoder.Export(",
-                reencode,
-                StringComparison.Ordinal);
-            Assert.IsTrue(reencode >= 0 && export > reencode);
-            var body = source.Substring(reencode, export - reencode);
-            StringAssert.Contains(body, "liveChimeRemoved == false");
-            StringAssert.Contains(body, "chimePcm = null;");
-            StringAssert.Contains(body, "compositing a second chime");
-        }
-
-        [TestMethod]
-        public void PartialLiveChimeRemoval_MopsUpEveryFiredWaveIncludingASingleWave()
-        {
-            var source = File.ReadAllText(FindRepoFile(
-                "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            var start = source.IndexOf(
-                "private SegmentTimeline.ClipPlan TryRemoveNonGameAudio",
-                StringComparison.Ordinal);
-            var end = source.IndexOf(
-                "private void TryDeleteCleanedAudio",
-                start,
-                StringComparison.Ordinal);
-            Assert.IsTrue(start >= 0 && end > start);
-            var removal = source.Substring(start, end - start);
-
-            var wholePass = removal.IndexOf(
-                "chimeOutcome = ChimePass(", StringComparison.Ordinal);
-            var sliceGuard = removal.IndexOf(
-                "firedChimeTimes.Count > 0", wholePass, StringComparison.Ordinal);
-            var slice = removal.IndexOf(
-                "TryBuildChimeSlices(", sliceGuard, StringComparison.Ordinal);
-            var slicePass = removal.IndexOf(
-                "var sliceOutcome = ChimePass(", slice, StringComparison.Ordinal);
-
-            Assert.IsTrue(wholePass >= 0 && sliceGuard > wholePass,
-                "The known-good whole-reference pass must remain the first attempt.");
-            Assert.IsTrue(slice > sliceGuard && slicePass > slice,
-                "A partial whole pass must split and retry every fired reference, even one wave.");
-            StringAssert.Contains(removal, "chimeCancellation.PartialCommit");
-            StringAssert.Contains(removal, "Buffer.BlockCopy(");
-            StringAssert.Contains(removal, "mixtureSlice");
-            StringAssert.Contains(removal, "calibratedLagFrames: calibratedLagFrames");
-            StringAssert.Contains(removal, "muteUnverifiedBlocks: false");
+            StringAssert.Contains(service, "_soundOccurrences.Register(");
+            StringAssert.Contains(service, "e.OccurrenceId");
+            StringAssert.Contains(service, "GetOverlappingClusters(");
+            StringAssert.Contains(service, "session.ChimeCleanupTasks");
+            StringAssert.Contains(service, "BuildChimeCleanupPatchAsync");
+            StringAssert.Contains(service, "ChimeSoundFile.TryGetDurationSeconds(");
+            StringAssert.Contains(service, "SetNaturalPlaybackSeconds(");
+            StringAssert.Contains(service, "ChimeRemovalEngine.RemoveAll(");
+            StringAssert.Contains(service, "_soundOccurrences.Find(session.SessionId, occurrenceId.Value)");
+            StringAssert.Contains(service, "!sessions.Contains(_session)");
+            Assert.IsFalse(service.Contains("_firedChimes"));
         }
 
         [TestMethod]
@@ -253,32 +172,14 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void ChimeCleanup_ReusesCalibrationWithoutWeakeningExportVerification()
+        public void CancellationPrimitive_HasNoMutingPath()
         {
-            var source = File.ReadAllText(FindRepoFile(
-                "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            var calibrationStart = source.IndexOf(
-                "private static double? TryCalibrateChimeLag", StringComparison.Ordinal);
-            var calibrationEnd = source.IndexOf(
-                "private byte[] TryReadAudioWindow", calibrationStart, StringComparison.Ordinal);
-            Assert.IsTrue(calibrationStart >= 0 && calibrationEnd > calibrationStart);
-            var calibration = source.Substring(calibrationStart, calibrationEnd - calibrationStart);
-
-            StringAssert.Contains(calibration, "cancellationBlockFrames:");
-            StringAssert.Contains(calibration, "verificationLagRadiusFrames: 0");
-            StringAssert.Contains(calibration, "gainCrossfadeFrames: 0");
-
-            var isolationStart = source.IndexOf(
-                "private byte[] TryReadCapturedChimeReference", StringComparison.Ordinal);
-            var isolationEnd = source.IndexOf(
-                "private SegmentTimeline.ClipPlan TryRemoveNonGameAudio",
-                isolationStart,
-                StringComparison.Ordinal);
-            Assert.IsTrue(isolationStart >= 0 && isolationEnd > isolationStart);
-            var isolation = source.Substring(isolationStart, isolationEnd - isolationStart);
-            StringAssert.Contains(isolation, "initialCalibratedLagFrames: calibratedGameLagFrames");
-            StringAssert.Contains(isolation, "CancelGameFromPlayniteSlice(");
-            StringAssert.Contains(isolation, "PcmCancellationOutcome.Unseparable");
+            var pcm = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Capture", "PcmAudio.cs"));
+            StringAssert.Contains(pcm, "RestoreBlock(");
+            Assert.IsFalse(pcm.Contains("MuteBlock("));
+            Assert.IsFalse(pcm.Contains("MutedBlocks"));
+            Assert.IsFalse(pcm.Contains("muteUnverifiedBlocks"));
         }
 
         [TestMethod]
@@ -323,84 +224,44 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void ReTimedChime_LiveChimesAlwaysRemovedAndOwnChimeAlwaysComposited()
+        public void ReTimedChime_RemovalMustVerifyBeforeExactlyOneComposite()
         {
-            // The standing policy: every fired live chime is removed best-effort in BOTH modes
-            // (verified partial removals kept), and the wave's own chime is always composited at
-            // the toast — there is deliberately no gate between removal quality and the
-            // composite, so a chime always plays at the notification in the clip.
             var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            StringAssert.Contains(service, "Live-chime removal (");
-            StringAssert.Contains(service, "subtractedAnything");
-            Assert.IsFalse(
-                service.Contains("LiveChimeAbsent"),
-                "The removal-quality composite gate was removed by policy.");
-            // Removal uses the CAPTURED sidecar only. It shares the capture clock and engine with
-            // the mix it is subtracted from, so it lines up by construction. The file reference
-            // cannot: it sits at the sound launch stamp, which the real onset trails by a variable
-            // spin-up. ChimeRoundTripProbe measured that against the real parameters — aligned it
-            // removes 37.7 dB, 120 ms out 5.7 dB, 500 ms out nothing — while damaging the game bed
-            // ~16 dB at every offset. That is worse than not running, so it is not a fallback.
-            StringAssert.Contains(service, "chimeOutcome = ChimePass(");
-            StringAssert.Contains(service, "capturedChimeReference,");
-            StringAssert.Contains(service, "\"capture\",");
-            Assert.IsFalse(
-                service.Contains("fileChimeReference"),
-                "The file reference cannot align with the captured mix and damages the game bed; " +
-                "it is the source of the COMPOSITED chime only.");
-
             var reencodeStart = service.IndexOf(
                 "private async Task<string> ReencodeWithTrackAsync", StringComparison.Ordinal);
             var reencodeEnd = service.IndexOf(
-                "private static string SaveClipToUniquePath",
-                reencodeStart,
-                StringComparison.Ordinal);
+                "private static string SaveClipToUniquePath", reencodeStart, StringComparison.Ordinal);
             Assert.IsTrue(reencodeStart >= 0 && reencodeEnd > reencodeStart);
             var reencode = service.Substring(reencodeStart, reencodeEnd - reencodeStart);
             Assert.AreEqual(1, reencode.Split(new[] { "TryReadChimePcmAsync(" },
-                StringSplitOptions.None).Length - 1,
-                "Each exported clip must select exactly one replacement sound.");
+                StringSplitOptions.None).Length - 1);
             Assert.AreEqual(1, reencode.Split(new[] { "reencoder.Export(" },
-                StringSplitOptions.None).Length - 1,
-                "Each exported clip must make exactly one overlay/audio composite call.");
+                StringSplitOptions.None).Length - 1);
+            StringAssert.Contains(reencode, "ChimeCompositeAuthorized");
+            StringAssert.Contains(reencode, "ChimeCompositeClaimed");
+            StringAssert.Contains(reencode, "request.ChimeCompositeClaimed = true");
             StringAssert.Contains(reencode, "chimePcm, chimeStartSeconds");
 
-            // Full System captures the game-tree reference so the Playnite-tree slice can be
-            // verified game-free before it is subtracted from the speaker mix; a Playnite-launched
-            // game lives inside both trees and must never be removed from a Full System clip.
-            StringAssert.Contains(service, "TryReadCapturedChimeReference");
-            var isolate = service.IndexOf(
-                "private byte[] TryReadCapturedChimeReference", StringComparison.Ordinal);
-            var isolateEnd = service.IndexOf(
-                "private SegmentTimeline.ClipPlan TryRemoveNonGameAudio",
-                isolate,
-                StringComparison.Ordinal);
-            Assert.IsTrue(isolate >= 0 && isolateEnd > isolate);
-            var isolation = service.Substring(isolate, isolateEnd - isolate);
-            StringAssert.Contains(isolation, "RecordingPaths.GameReferenceChunkFilePrefix");
-            StringAssert.Contains(isolation, "PcmCancellationOutcome.Unseparable");
-            StringAssert.Contains(isolation, "ChimeReferenceFailed");
-            StringAssert.Contains(isolation, "GameReferenceFailed");
-
-            var recorder = File.ReadAllText(FindRepoFile(
-                "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
-            StringAssert.Contains(
-                recorder, "the live chime stays in the speaker mix");
+            var engine = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Capture", "ChimeRemovalEngine.cs"));
+            StringAssert.Contains(engine, "var working = (byte[])endpointPcm.Clone();");
+            StringAssert.Contains(engine, "captured-game-purge");
+            StringAssert.Contains(engine, "uncorroboratedFileAbsences");
+            StringAssert.Contains(engine, "ChimeRemovalResult.Failure(");
         }
 
         [TestMethod]
         public void ChimeComposite_PrefersTheResolvedFileAndRespectsUniPlaySongGates()
         {
             // The composited chime comes from the exact file UniPlaySong resolved at fire time —
-            // no captured copy, no separation. Capture remains the fallback for older UniPlaySong.
-            // The live-chime removal also builds its reference from the fired chimes' files when
-            // they are all known.
+            // Capture remains the fallback/residual proof for older UniPlaySong or a transformed
+            // render; the resolved file is also the primary removal reference.
             var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
             StringAssert.Contains(service, "OwnSoundFilePath");
             StringAssert.Contains(service, "ChimeSoundFile.TryReadPcm");
-            StringAssert.Contains(service, "_firedChimes");
+            StringAssert.Contains(service, "_soundOccurrences");
 
             var toast = File.ReadAllText(FindRepoFile(
                 "source", "Services", "UI", "ToastNotificationService.cs"));
@@ -421,36 +282,23 @@ namespace PlayniteAchievements.Services.Tests.Recording
             StringAssert.Contains(service, "soundFileGain ?? ChimeUnknownVolumeGain");
         }
 
-        /// <summary>
-        /// A blocked re-fit of the chime residue on the residual pass's floors (gain floor 0.001,
-        /// correlation 0.03, gain ceiling 20) was tried and reverted: across a whole clip window
-        /// most blocks hold no chime at all, and those thresholds let them "fit" one anyway and
-        /// subtract an inverted copy — audibly a second chime rather than a quieter one. Any
-        /// future attempt has to fit only the chime's own span, not the whole window.
-        /// </summary>
         [TestMethod]
-        public void LiveChimeRemoval_DoesNotBlockFitTheWholeWindowOnResidualFloors()
+        public void LiveChimeRemoval_IsBoundedAndUsesOrdinaryFloorsBeforeResidualPasses()
         {
+            var engine = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Capture", "ChimeRemovalEngine.cs"));
+            StringAssert.Contains(engine, "for (var pass = 0; pass < 3; pass++)");
+            StringAssert.Contains(engine, "var residualPass = pass == 2");
+            StringAssert.Contains(engine, "var timeLocalPass = pass == 1");
+            StringAssert.Contains(engine, "blockFrames: timeLocalPass");
+            StringAssert.Contains(engine, "!requireResidualAbsenceProof || residualPass");
+            StringAssert.Contains(engine, "ReferenceCancellationPolicy.ChimeBlockFrames");
+
             var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
-
-            var chimePass = service.IndexOf("ChimePass(", StringComparison.Ordinal);
-            Assert.IsTrue(chimePass >= 0);
-            var end = service.IndexOf(
-                "byte[] capturedChimeReference", chimePass, StringComparison.Ordinal);
-            Assert.IsTrue(end > chimePass);
-            var body = service.Substring(chimePass, end - chimePass);
-
-            StringAssert.Contains(body, "blockFrames: ChimeBlockFrames",
-                "A chime is a small part of a clip window, so scoring its removal across the whole " +
-                "window cannot clear the keep gate and the block is restored (field: suppression " +
-                "6.5 dB, blocks=0/1, restored=1, nothing removed). Half-second blocks are what " +
-                "PcmAudio defaulted to through 3.1.3.");
-            Assert.IsFalse(
-                body.Contains("residualPass: true,\r\n                        blockFrames:") ||
-                body.Contains("residualPass: true,\n                        blockFrames:"),
-                "Blocks must use the ordinary floors. On the residual pass's floors (0.001/0.03) a " +
-                "block the reference is silent through fits noise and subtracts an inverted copy.");
+            StringAssert.Contains(service, "var startUtc = cluster.StartUtc;");
+            StringAssert.Contains(service, "var endUtc = cluster.EndUtc;");
+            StringAssert.Contains(service, "TryReadAudioWindow(");
         }
 
         /// <summary>
@@ -543,6 +391,8 @@ namespace PlayniteAchievements.Services.Tests.Recording
             StringAssert.Contains(export, "plan, recordedAudioPlan, tempPath");
             StringAssert.Contains(export, "retrying with the");
             StringAssert.Contains(export, "original recorded audio");
+            StringAssert.Contains(export, "SetChimeCompositeAuthorization(request, false)");
+            StringAssert.Contains(export, "without a replacement chime");
         }
 
         [TestMethod]
