@@ -68,6 +68,27 @@ namespace PlayniteAchievements.Common
         }
 
         /// <summary>
+        /// True when the calling thread is currently Per-Monitor-V2 aware. False when it is not or
+        /// when the API is unavailable.
+        /// </summary>
+        public static bool IsThreadPerMonitorV2()
+        {
+            if (!IsSupported())
+            {
+                return false;
+            }
+
+            try
+            {
+                return AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), PerMonitorAwareV2Context);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// A human-readable label for the calling thread's current DPI awareness context, for
         /// diagnostics. Returns "unavailable" when the API is not present.
         /// </summary>
