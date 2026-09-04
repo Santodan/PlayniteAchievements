@@ -1,7 +1,9 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using PlayniteAchievements.Common;
 
 namespace PlayniteAchievements.Views.Helpers
@@ -20,8 +22,16 @@ namespace PlayniteAchievements.Views.Helpers
     /// <c>Click</c>. WPF's input pipeline runs synchronously inside the window procedure, so wrapping
     /// the procedure in a matching thread context makes those calls resolve in the window's own space.
     /// Popups and context menus opened from a handler are created inside the wrapped call and become
-    /// Per-Monitor-V2 as well. Tooltips open from a dispatcher timer outside any window message and
-    /// are not covered.
+    /// Per-Monitor-V2 as well.
+    ///
+    /// Tooltips open from a dispatcher timer, outside any window message, so the subclass does not
+    /// cover them: their popup HWND would be created system-aware (bitmap-scaled by Windows) and
+    /// placed through virtualized <c>ClientToScreen</c>/<c>SetWindowPos</c>, landing at the wrong
+    /// offset from the window. <c>ToolTipOpening</c> and <c>ContextMenuOpening</c> bubble to the
+    /// window synchronously just before the popup HWND is created, so a handler on the window enters
+    /// the Per-Monitor-V2 scope there and releases it when the current dispatcher operation
+    /// completes (one-shot <c>Dispatcher.Hooks.OperationCompleted</c>). When the event arrives from
+    /// inside a window message the thread is already Per-Monitor-V2 and the handler does nothing.
     ///
     /// Uses comctl32 <c>SetWindowSubclass</c>, which chains with WPF's own <c>HwndSubclass</c>, and
     /// detaches on <c>WM_NCDESTROY</c>. The subclass callback is a single static delegate so it can
@@ -54,6 +64,10 @@ namespace PlayniteAchievements.Views.Helpers
         // Rooted for the lifetime of the process; the native side holds a raw function pointer.
         private static readonly SubclassProc Callback = HandleMessage;
 
+        // A scope opened by a popup-opening event, released when the current dispatcher operation
+        // completes. UI-thread only; at most one is pending at a time.
+        private static IDisposable _pendingPopupScope;
+
         /// <summary>
         /// Installs the subclass on <paramref name="window"/>. The window must already have an HWND
         /// and the call must be made on the window's thread. Returns false when the window has no
@@ -74,11 +88,46 @@ namespace PlayniteAchievements.Views.Helpers
                     return false;
                 }
 
-                return SetWindowSubclass(hwnd, Callback, SubclassId, UIntPtr.Zero);
+                if (!SetWindowSubclass(hwnd, Callback, SubclassId, UIntPtr.Zero))
+                {
+                    return false;
+                }
+
+                window.AddHandler(ToolTipService.ToolTipOpeningEvent, new ToolTipEventHandler(OnPopupOpening), handledEventsToo: true);
+                window.AddHandler(ContextMenuService.ContextMenuOpeningEvent, new ContextMenuEventHandler(OnPopupOpening), handledEventsToo: true);
+                return true;
             }
             catch
             {
                 return false;
+            }
+        }
+
+        private static void OnPopupOpening(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_pendingPopupScope != null || DpiAwarenessScope.IsThreadPerMonitorV2())
+                {
+                    return;
+                }
+
+                var dispatcher = (sender as DispatcherObject)?.Dispatcher ?? Dispatcher.CurrentDispatcher;
+                var scope = DpiAwarenessScope.PerMonitorV2();
+                DispatcherHookEventHandler release = null;
+                release = (_, __) =>
+                {
+                    dispatcher.Hooks.OperationCompleted -= release;
+                    _pendingPopupScope = null;
+                    scope.Dispose();
+                };
+
+                _pendingPopupScope = scope;
+                dispatcher.Hooks.OperationCompleted += release;
+            }
+            catch
+            {
+                // Leave the popup to open in the thread's current context.
             }
         }
 
