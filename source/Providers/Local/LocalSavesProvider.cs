@@ -654,8 +654,30 @@ namespace PlayniteAchievements.Providers.Local
 
                 if (steamAppCacheEntries != null && steamAppCacheEntries.Count > 0)
                 {
-                    // Display only achievements that are actually tracked in the Steam appcache.
-                    // Use schema data for enrichment, but don't add achievements missing from the cache.
+                    // Steam's appcache can be incomplete. When an online/custom schema is available,
+                    // use it as the authoritative achievement list and apply appcache entries only as
+                    // local progress. Fall back to the cache's own list only when no schema is available.
+                    if (steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
+                    {
+                        var correlatedEntries = CorrelateLocalEntriesWithSchema(steamAppCacheEntries, steamSchema.Achievements);
+
+                        foreach (var schemaAch in steamSchema.Achievements)
+                        {
+                            if (string.IsNullOrWhiteSpace(schemaAch?.Name))
+                            {
+                                continue;
+                            }
+
+                            correlatedEntries.TryGetValue(schemaAch.Name, out var entry);
+                            data.Achievements.Add(CreateAchievementDetail(schemaAch.Name, entry, schemaAch, steamSchema, preferLocalizedSchemaText, includeSchemaIconFallback));
+                        }
+
+                        PreserveCachedLocalMetadata(data);
+                        Log($"SCHEMA CORRELATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={steamAppCacheEntries.Count} matched={correlatedEntries.Count}");
+                        Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} schema achievements with local progress from Steam appcache stats. schemaSource={steamSchemaSource ?? "none"}");
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
+                    }
+
                     var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                     foreach (var kv in steamAppCacheEntries)
@@ -680,6 +702,29 @@ namespace PlayniteAchievements.Providers.Local
 
                 if (steamLibraryCacheEntries != null && steamLibraryCacheEntries.Count > 0)
                 {
+                    // The library cache contains UI-oriented subsets such as highlights and can omit
+                    // many achievements. Prefer the complete schema and use this cache only for progress.
+                    if (steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
+                    {
+                        var correlatedEntries = CorrelateLocalEntriesWithSchema(steamLibraryCacheEntries, steamSchema.Achievements);
+
+                        foreach (var schemaAch in steamSchema.Achievements)
+                        {
+                            if (string.IsNullOrWhiteSpace(schemaAch?.Name))
+                            {
+                                continue;
+                            }
+
+                            correlatedEntries.TryGetValue(schemaAch.Name, out var entry);
+                            data.Achievements.Add(CreateAchievementDetail(schemaAch.Name, entry, schemaAch, steamSchema, preferLocalizedSchemaText, includeSchemaIconFallback));
+                        }
+
+                        PreserveCachedLocalMetadata(data);
+                        Log($"SCHEMA CORRELATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={steamLibraryCacheEntries.Count} matched={correlatedEntries.Count}");
+                        Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} schema achievements with local progress from Steam local library cache. schemaSource={steamSchemaSource ?? "none"}");
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
+                    }
+
                     var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                     foreach (var kv in steamLibraryCacheEntries)
