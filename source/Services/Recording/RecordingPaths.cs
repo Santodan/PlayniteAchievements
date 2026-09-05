@@ -129,20 +129,12 @@ namespace PlayniteAchievements.Services.Recording
         public const string AudioChunkFilePrefix = "aud_";
 
         /// <summary>
-        /// Game-witness chunk filenames: gam_yyyyMMdd-HHmmssfffffffZ.wav. Game Only capture records
-        /// the game tree itself alongside the reference: an empty witness means the game renders
-        /// outside the tracked tree (so the reference contains it and must not be subtracted), and a
-        /// mirrored game copy in the reference is purged against it before subtraction.
+        /// Fallback chunk filenames: alt_yyyyMMdd-HHmmssfffffffZ.wav. Game Only records the game's
+        /// process tree as its clip track and this exclude-sound-host track beside it; a clip whose
+        /// game-tree window is silent (the game renders outside its tracked tree) is exported from
+        /// this track instead, so it carries the game rather than nothing.
         /// </summary>
-        public const string GameReferenceChunkFilePrefix = "gam_";
-
-        /// <summary>
-        /// Reference chunks: ref_yyyyMMdd-HHmmssfffffffZ.wav. Both modes record the speaker endpoint
-        /// as the haptic-free main track and capture one process-loopback reference here that export
-        /// subtracts from it: every process except the game tree in Game Only, the sound host's tree
-        /// in Full System. Neither ever admits a controller endpoint into the clip audio.
-        /// </summary>
-        public const string ReferenceChunkFilePrefix = "ref_";
+        public const string FallbackChunkFilePrefix = "alt_";
 
         public const string AudioChunkFileExtension = ".wav";
     }
