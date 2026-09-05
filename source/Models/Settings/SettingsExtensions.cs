@@ -113,6 +113,10 @@ namespace PlayniteAchievements.Models.Settings
             target.ControllerVibrationStrengthPercent = source.ControllerVibrationStrengthPercent;
             target.ControllerVibrationDurationMs = source.ControllerVibrationDurationMs;
             target.UseHiddenUnlockSound = source.UseHiddenUnlockSound;
+            target.EnableUnlockSounds = source.EnableUnlockSounds;
+            target.UnlockSoundVolumePercent = source.UnlockSoundVolumePercent;
+            target.UnlockSounds = source.UnlockSounds?.Clone() ?? UnlockSoundSettings.CreateDefault();
+            target.UnlockSoundsSeededFromUniPlaySong = source.UnlockSoundsSeededFromUniPlaySong;
             target.EnableUnlockScreenshots = source.EnableUnlockScreenshots;
             target.UnlockScreenshotClean = source.UnlockScreenshotClean;
             target.UnlockScreenshotWithToast = source.UnlockScreenshotWithToast;
