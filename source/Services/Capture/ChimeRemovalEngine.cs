@@ -104,7 +104,6 @@ namespace PlayniteAchievements.Services.Capture
     internal static class ChimeRemovalEngine
     {
         private const double MinimumAcceptedSuppressionDb = 30.0;
-        private const double MaximumAcceptedResidualCorrelation = 0.15;
         private const int MaximumCopiesPerSource = 8;
 
         public static ChimeRemovalResult RemoveAll(
@@ -483,11 +482,18 @@ namespace PlayniteAchievements.Services.Capture
                 return diagnostics.ReferenceHasSignal;
             }
 
+            // Suppression is the projection of the reference onto the audio before and after the
+            // fit, so it measures how much reference-shaped signal remains relative to what the
+            // live sound contributed. ResidualCorrelation is a normalized score over one window:
+            // a remnant 40 dB down still correlates strongly with the reference when the game is
+            // quiet at that moment, so it cannot serve as a ceiling here. It stays in the
+            // diagnostics for the field log. Field run 2026-09-05: two of six waves with
+            // correlation 0.999-1.000 and 31-41 dB suppression were rejected on residual 0.199 and
+            // 0.524, leaving every live sound in fourteen clips.
             return outcome == PcmCancellationOutcome.CancelledVerified &&
                 ReferenceCancellationPolicy.IsComplete(diagnostics) &&
                 diagnostics.SuppressionDb >= MinimumAcceptedSuppressionDb &&
-                diagnostics.WeakestBlockSuppressionDb >= MinimumAcceptedSuppressionDb &&
-                diagnostics.ResidualCorrelation <= MaximumAcceptedResidualCorrelation;
+                diagnostics.WeakestBlockSuppressionDb >= MinimumAcceptedSuppressionDb;
         }
 
         private static bool IsVerifiedPresent(
