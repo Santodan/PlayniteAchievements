@@ -17,6 +17,15 @@ namespace PlayniteAchievements.Services.Capture
         public const int IsolationBlockFrames = 24000;
         public const int LocalCaptureLagFrames = 12000;
 
+        /// <summary>
+        /// How far a time-local block may re-lock its lag from the slice-wide calibration: 10 ms,
+        /// well above the sub-millisecond recorder tears seen in the field and well below the
+        /// tens of milliseconds at which a tonal sound's partials start to repeat. Used for the
+        /// sound-host reference, where a tear inside the chime is exactly the failure the field
+        /// showed (tails surviving at another lag); the Game Only reference keeps one lag.
+        /// </summary>
+        public const int BlockRelockRadiusFrames = 480;
+
         public static PcmCancellationOutcome Subtract(
             byte[] mixture,
             byte[] reference,
@@ -24,10 +33,7 @@ namespace PlayniteAchievements.Services.Capture
             bool residualPass,
             int? blockFrames = null,
             int maxLagFrames = 12000,
-            bool detectClean = false,
             double? calibratedLagFrames = null,
-            bool preferSmallLagOnWideSearch = true,
-            bool attemptVerifiedBlocksWhenGloballyClean = false,
             int blockLagRadiusFrames = 0)
         {
             var floor = residualPass ? 0.001 : 0.005;
@@ -41,23 +47,16 @@ namespace PlayniteAchievements.Services.Capture
                 blockGainFloor: floor,
                 keepBlockSuppressionDb: 10,
                 cancellationBlockFrames: blockFrames ?? mixture.Length / PcmAudio.BlockAlign,
-                // The residual ceiling exists to catch a reference that is not this signal. A
-                // chime-file caller's reference is definitionally this signal, and the ceiling was
-                // observed discarding a verified 20+ dB removal because the leftovers of an
-                // earlier pass still correlated with the file.
-                maximumResidualCorrelation: detectClean ? double.MaxValue : 0.35,
+                // The residual ceiling catches a reference that is not this signal.
+                maximumResidualCorrelation: 0.35,
                 commitVerifiedBlocksOnWeakPass: true,
                 minimumCorrelation: residualPass ? 0.03 : 0.15,
-                // A chime-file caller wants "the reference does not project" reported as
-                // CleanNoGameDetected — proof of absence — rather than attempted anyway.
-                attemptVerifiedBlocksWhenGloballyClean:
-                    attemptVerifiedBlocksWhenGloballyClean || !detectClean,
+                attemptVerifiedBlocksWhenGloballyClean: true,
                 verificationLagRadiusFrames: 128,
                 independentChannelGains: true,
                 gainCrossfadeFrames: 0,
                 fractionalLagSteps: 32,
                 calibratedLagFrames: calibratedLagFrames,
-                preferSmallLagOnWideSearch: preferSmallLagOnWideSearch,
                 blockLagRadiusFrames: blockLagRadiusFrames);
         }
 

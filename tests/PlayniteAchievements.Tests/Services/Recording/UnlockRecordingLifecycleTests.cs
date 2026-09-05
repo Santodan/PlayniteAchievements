@@ -160,11 +160,30 @@ namespace PlayniteAchievements.Services.Tests.Recording
             StringAssert.Contains(service, "if (chimePcm != null && !liveSoundRemoved)");
             StringAssert.Contains(service, "so no composited");
 
+            // A partial commit ships its cleaned blocks but a block restored as recorded still
+            // carries the live sound, so completeness (no restored blocks) gates the composite.
             var set = service.IndexOf("request.LiveSoundRemoved = true;", StringComparison.Ordinal);
-            var verified = service.LastIndexOf(
-                "if (outcome != PcmCancellationOutcome.CancelledVerified)", set, StringComparison.Ordinal);
-            Assert.IsTrue(verified >= 0 && verified < set,
-                "Only a verified subtraction may mark the live sound removed.");
+            var complete = service.LastIndexOf("if (complete)", set, StringComparison.Ordinal);
+            var defined = service.IndexOf(
+                "ReferenceCancellationPolicy.IsComplete(cancellation)", StringComparison.Ordinal);
+            Assert.IsTrue(defined >= 0 && complete > defined && complete < set,
+                "Only a complete, verified subtraction may mark the live sound removed.");
+        }
+
+        [TestMethod]
+        public void FullSystem_ReferenceSubtractionRelocksPerBlock()
+        {
+            // A recorder tear inside the chime leaves its tail at another lag; the sound-host
+            // reference re-locks per block, while the Game Only reference keeps one lag.
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            StringAssert.Contains(service, "kind == ReferenceTrackKind.IncludeSoundHostTree");
+            StringAssert.Contains(service, "ReferenceCancellationPolicy.BlockRelockRadiusFrames");
+            StringAssert.Contains(service, "blockLagRadiusFrames: relockFrames");
+
+            var policy = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Capture", "ReferenceCancellationPolicy.cs"));
+            StringAssert.Contains(policy, "public const int BlockRelockRadiusFrames = 480;");
         }
 
         [TestMethod]
@@ -285,8 +304,8 @@ namespace PlayniteAchievements.Services.Tests.Recording
             var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
             StringAssert.Contains(service, "OwnSoundFilePath");
-            StringAssert.Contains(service, "ChimeSoundFile.TryReadPcm");
-            StringAssert.Contains(service, "soundFileGain ?? ChimeUnknownVolumeGain");
+            StringAssert.Contains(service, "ChimeSoundFile.TryReadPcm(soundFilePath, MaxChimePlaybackSeconds, soundFileGain, _logger)");
+            StringAssert.Contains(service, "soundMatch.OwnSoundFileGain = e.SoundFileGain ?? 1.0;");
 
             var toastPath = FindRepoFile("source", "Services", "UI", "ToastNotificationService.cs");
             var toast = File.ReadAllText(toastPath);
@@ -312,7 +331,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
             var end = service.IndexOf("private double ResolveChimeLeadSeconds", StringComparison.Ordinal);
             Assert.IsTrue(start >= 0);
             var body = end > start ? service.Substring(start, end - start) : service.Substring(start);
-            StringAssert.Contains(body, "soundFilePath, MaxChimePlaybackSeconds, soundFileGain ?? ChimeUnknownVolumeGain");
+            StringAssert.Contains(body, "soundFilePath, MaxChimePlaybackSeconds, soundFileGain, _logger");
             StringAssert.Contains(body, "PcmAudio.FadeOutTail(pcm, ChimeFadeOutSeconds)");
             Assert.IsFalse(service.Contains("TryGetDurationSeconds"));
 

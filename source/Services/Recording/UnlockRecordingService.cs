@@ -110,13 +110,6 @@ namespace PlayniteAchievements.Services.Recording
         // arrives without one; the same constant that service applies live.
         private const int ChimeAlignmentFallbackMs = ToastNotificationService.SoundAlignmentDelayMs;
 
-        /// <summary>
-        /// Stands in for the gain the sound played at when the wave did not report one. A played
-        /// volume, not a mix level: the composited chime is meant to land at the level the live
-        /// one was heard at.
-        /// </summary>
-        private const double ChimeUnknownVolumeGain = 0.4;
-
         private const int PruneIntervalSeconds = 30;
         private const int DrainTimeoutSeconds = 45;
         // Fallbacks matching the PersistedSettings defaults, used when settings are unavailable.
@@ -280,8 +273,11 @@ namespace PlayniteAchievements.Services.Recording
             /// </summary>
             public string OwnSoundFilePath;
 
-            /// <summary>The volume the file played at (0..1), or null to use the fixed gain.</summary>
-            public double? OwnSoundFileGain;
+            /// <summary>
+            /// The gain the file played at (0..1, the user's volume): the composited chime lands at
+            /// the level the live one was heard at, never at a full-scale decode.
+            /// </summary>
+            public double OwnSoundFileGain = 1.0;
 
             /// <summary>
             /// The sound-alignment delay the toast service applied for this wave's chime, in
@@ -1162,7 +1158,7 @@ namespace PlayniteAchievements.Services.Recording
                             matchedRequests.Add(soundMatch);
                             soundMatch.OwnSoundUtc = e.SoundPlayedUtc;
                             soundMatch.OwnSoundFilePath = e.SoundFilePath;
-                            soundMatch.OwnSoundFileGain = e.SoundFileGain;
+                            soundMatch.OwnSoundFileGain = e.SoundFileGain ?? 1.0;
                             soundMatch.OwnSoundAlignmentMs = e.SoundAlignmentDelayMs;
                         }
                     }
@@ -1740,13 +1736,9 @@ namespace PlayniteAchievements.Services.Recording
                 // composited chime, seconds apart. Flush the sidecars closed through the window
                 // end first, bounded by the old fixed-wait release instant.
                 var sidecarTimer = Stopwatch.StartNew();
-                var sidecarFlushes = new List<Task>(1)
-                {
-                    session.AudioRecorder.FlushAuxiliaryChunksThroughAsync(audioPlan.EndUtc),
-                };
-
                 await WaitForFlushesAsync(
-                        sidecarFlushes, audioPlan.EndUtc.AddSeconds(SegmentSeconds + 2))
+                        new List<Task> { session.AudioRecorder.FlushAuxiliaryChunksThroughAsync(audioPlan.EndUtc) },
+                        audioPlan.EndUtc.AddSeconds(SegmentSeconds + 2))
                     .ConfigureAwait(false);
                 _logger?.Debug(
                     $"[RecordingTiming] Cleanup sidecar readiness took {sidecarTimer.ElapsedMilliseconds}ms.");
@@ -1958,7 +1950,7 @@ namespace PlayniteAchievements.Services.Recording
         {
             DateTime? ownSound;
             string soundFilePath;
-            double? soundFileGain;
+            double soundFileGain;
             lock (_gate)
             {
                 ownSound = request.OwnSoundUtc;
@@ -1979,8 +1971,7 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             // The exact file the wave played, at the gain it played at, bounded by the toast slot.
-            var pcm = ChimeSoundFile.TryReadPcm(
-                soundFilePath, MaxChimePlaybackSeconds, soundFileGain ?? ChimeUnknownVolumeGain, _logger);
+            var pcm = ChimeSoundFile.TryReadPcm(soundFilePath, MaxChimePlaybackSeconds, soundFileGain, _logger);
             if (pcm == null)
             {
                 _logger?.Warn("[Recording] The unlock sound file could not be decoded; the clip is composited without a chime.");
@@ -2137,13 +2128,20 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 var kind = recorder.ReferenceKind;
+                // The sound host's chime is a short tonal signal, and a recorder tear inside it
+                // leaves its tail at another lag; let each block re-lock. The Game Only reference
+                // is the whole desktop and keeps the one calibrated lag it always had.
+                var relockFrames = kind == ReferenceTrackKind.IncludeSoundHostTree
+                    ? ReferenceCancellationPolicy.BlockRelockRadiusFrames
+                    : 0;
                 var beforeIsolation = (byte[])mixture.Clone();
                 var outcome = SubtractReference(
                     mixture,
                     reference,
                     out var cancellation,
                     residualPass: false,
-                    blockFrames: ReferenceCancellationPolicy.IsolationBlockFrames);
+                    blockFrames: ReferenceCancellationPolicy.IsolationBlockFrames,
+                    blockLagRadiusFrames: relockFrames);
                 var fit = "500ms-time-local-gain";
                 if (outcome != PcmCancellationOutcome.CancelledVerified)
                 {
@@ -2156,13 +2154,20 @@ namespace PlayniteAchievements.Services.Recording
                     fit = "one-full-clip-fallback";
                 }
 
+                // Complete means every block the reference was audible in was verifiably
+                // subtracted and none was restored as recorded. A partial commit still ships (it
+                // only ever leaves audio alone or cleans it), but a block restored as recorded
+                // still carries the live sound, so no composited chime may be added on top of it.
+                var complete = outcome == PcmCancellationOutcome.CancelledVerified &&
+                    ReferenceCancellationPolicy.IsComplete(cancellation);
                 _logger?.Info(
                     $"[Recording] Reference subtraction ({kind}): outcome={outcome} " +
                     $"lag={cancellation.StartLagMs:0.###}ms " +
                     $"correlation={cancellation.Correlation:0.000} " +
                     $"suppression={cancellation.SuppressionDb:0.0}dB " +
                     $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
-                    $"restored={cancellation.RestoredBlocks} fit={fit}.");
+                    $"restored={cancellation.RestoredBlocks} relocked={cancellation.RelockedBlocks} " +
+                    $"complete={complete} fit={fit}.");
                 if (outcome != PcmCancellationOutcome.CancelledVerified)
                 {
                     return (audioPlan, null);
@@ -2177,7 +2182,8 @@ namespace PlayniteAchievements.Services.Recording
                         residualPass: true,
                         blockFrames: ReferenceCancellationPolicy.IsolationBlockFrames,
                         calibratedLagFrames:
-                            cancellation.StartLagMs * PcmAudio.SampleRate / 1000.0);
+                            cancellation.StartLagMs * PcmAudio.SampleRate / 1000.0,
+                        blockLagRadiusFrames: relockFrames);
                     _logger?.Debug(
                         $"[Recording] Reference subtraction residual pass {pass}: " +
                         $"outcome={residualOutcome} " +
@@ -2217,9 +2223,12 @@ namespace PlayniteAchievements.Services.Recording
                     return (audioPlan, null);
                 }
 
-                lock (_gate)
+                if (complete)
                 {
-                    request.LiveSoundRemoved = true;
+                    lock (_gate)
+                    {
+                        request.LiveSoundRemoved = true;
+                    }
                 }
 
                 return (cleanedPlan, candidateDirectory);
@@ -2251,8 +2260,8 @@ namespace PlayniteAchievements.Services.Recording
             out PcmCancellationDiagnostics diagnostics,
             bool residualPass,
             int? blockFrames = null,
-            int maxLagFrames = 12000,
-            double? calibratedLagFrames = null)
+            double? calibratedLagFrames = null,
+            int blockLagRadiusFrames = 0)
         {
             return ReferenceCancellationPolicy.Subtract(
                 mixture,
@@ -2260,9 +2269,8 @@ namespace PlayniteAchievements.Services.Recording
                 out diagnostics,
                 residualPass,
                 blockFrames,
-                maxLagFrames,
-                detectClean: false,
-                calibratedLagFrames);
+                calibratedLagFrames: calibratedLagFrames,
+                blockLagRadiusFrames: blockLagRadiusFrames);
         }
 
         /// <summary>Removes the temporary cleaned-audio chunk once the exporter has read it.</summary>

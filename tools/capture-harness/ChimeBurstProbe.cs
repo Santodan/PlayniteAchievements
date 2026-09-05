@@ -387,12 +387,17 @@ internal static class ChimeBurstProbe
                 }
             }
 
-            // Production's PrepareClipAudio: 500 ms time-local fit, one-full-clip fallback, then
-            // up to three residual passes at the calibrated lag.
+            // Production's PrepareClipAudio: 500 ms time-local fit (re-locking per block for the
+            // sound-host reference), one-full-clip fallback, then up to three residual passes at
+            // the calibrated lag. Completeness (no restored blocks) is what licenses the composite.
+            var relockFrames = kind == ReferenceTrackKind.IncludeSoundHostTree
+                ? ReferenceCancellationPolicy.BlockRelockRadiusFrames
+                : 0;
             var cleaned = (byte[])audSlice.Clone();
             var outcome = ReferenceCancellationPolicy.Subtract(
                 cleaned, refSlice, out var cancellation, residualPass: false,
-                blockFrames: ReferenceCancellationPolicy.IsolationBlockFrames);
+                blockFrames: ReferenceCancellationPolicy.IsolationBlockFrames,
+                blockLagRadiusFrames: relockFrames);
             var fit = "500ms-time-local-gain";
             if (outcome != PcmCancellationOutcome.CancelledVerified)
             {
@@ -402,14 +407,20 @@ internal static class ChimeBurstProbe
                 fit = "one-full-clip-fallback";
             }
 
+            var complete = outcome == PcmCancellationOutcome.CancelledVerified &&
+                ReferenceCancellationPolicy.IsComplete(cancellation);
             Console.WriteLine(
                 $"reference subtraction: outcome={outcome} lag={cancellation.StartLagMs:0.000}ms " +
                 $"corr={cancellation.Correlation:0.000} supp={cancellation.SuppressionDb:0.0}dB " +
                 $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
-                $"restored={cancellation.RestoredBlocks} fit={fit}");
+                $"restored={cancellation.RestoredBlocks} relocked={cancellation.RelockedBlocks} " +
+                $"complete={complete} fit={fit}");
             Check(outcome == PcmCancellationOutcome.CancelledVerified,
                 $"{mode} {wave.Name}: reference subtraction verified",
                 outcome.ToString());
+            Check(complete,
+                $"{mode} {wave.Name}: subtraction complete, so production adds the composited chime",
+                $"restored={cancellation.RestoredBlocks} partial={cancellation.PartialCommit}");
             if (outcome != PcmCancellationOutcome.CancelledVerified)
             {
                 continue;
@@ -420,7 +431,8 @@ internal static class ChimeBurstProbe
                 var residualOutcome = ReferenceCancellationPolicy.Subtract(
                     cleaned, refSlice, out var residual, residualPass: true,
                     blockFrames: ReferenceCancellationPolicy.IsolationBlockFrames,
-                    calibratedLagFrames: cancellation.StartLagMs * SampleRate / 1000.0);
+                    calibratedLagFrames: cancellation.StartLagMs * SampleRate / 1000.0,
+                    blockLagRadiusFrames: relockFrames);
                 Console.WriteLine(
                     $"residual pass {pass}: outcome={residualOutcome} supp={residual.SuppressionDb:0.0}dB");
                 if (residualOutcome != PcmCancellationOutcome.CancelledVerified)
