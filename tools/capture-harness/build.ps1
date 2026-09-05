@@ -66,7 +66,7 @@ $tools = @(
     'CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss',
     'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe', 'ChimeCancelProbe',
     'ChimeSeparationProbe', 'ChimeBurstProbe', 'ChimeOccurrenceProbe', 'HapticProbe', 'ComposerProbe',
-    'ChimeRoundTripProbe', 'CaptureStarvationProbe')
+    'ChimeRoundTripProbe', 'CaptureStarvationProbe', 'ClipRemnantProbe')
 # Tools that compile plugin source files in directly, so they always test the current algorithm
 # rather than a built DLL.
 $extraSources = @{

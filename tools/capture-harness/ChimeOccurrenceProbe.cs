@@ -24,6 +24,7 @@ namespace PlayniteAchievements.Services.Capture
             ProbeLargeTimelineOffset();
             ProbeMultipleCopiesOfOneSound();
             ProbeQuietGameDriftingRender();
+            ProbeMidSoundCaptureTear();
             ProbePartiallyIsolatedLeftover();
             ProbeTruncatedPlayback();
             ProbeSeveralSounds();
@@ -261,13 +262,51 @@ namespace PlayniteAchievements.Services.Capture
             var residual = result.Verified
                 ? ErrorDb(result.CleanedPcm, game, live, rendered)
                 : double.PositiveInfinity;
-            Check(result.Verified && first != null && first.Verified &&
+            // The whole-window fit is rejected for the honest reason: its weakest standard block
+            // holds the drift remnant. The time-local pass then fits each block and verifies.
+            Check(result.Verified && first != null &&
                     first.Diagnostics.SuppressionDb >= 30 &&
                     first.Diagnostics.ResidualCorrelation > 0.15 &&
+                    first.Diagnostics.WeakestBlockSuppressionDb < 30 &&
+                    result.Attempts.Any(a => a.ReferenceKind == "resolved-file-local" && a.Verified) &&
                     residual <= -25,
-                "a quiet game bed cannot veto a 30 dB-proven removal through normalized residual correlation",
+                "a quiet game bed cannot veto a proven removal through normalized residual correlation",
                 $"residual={residual:0.0}dB firstResidualCorr=" +
                 $"{(first == null ? double.NaN : first.Diagnostics.ResidualCorrelation):0.000} {Describe(result)}");
+        }
+
+        private static void ProbeMidSoundCaptureTear()
+        {
+            // Field 2026-09-05 clips: the sound's onset was removed 38-59 dB but everything from
+            // 1.2-2.7 s in survived at up to full level, at a lag 8-24 frames off the onset's, in
+            // either direction. A loopback alignment tear inside the sound moved its tail. One lag
+            // over the whole window cannot fit that; the time-local pass re-locks each block.
+            var frames = Rate * 4;
+            var game = Noise(frames, 1013, 25);
+            var sound = Jingle(Rate * 5 / 2, 494, 6000, 79);
+            var live = Tear(sound, Rate * 3 / 2, 18);
+            var launch = Rate;
+            var rendered = launch + 3900;
+            var endpoint = (short[])game.Clone();
+            Add(endpoint, live, rendered);
+            var result = ChimeRemovalEngine.RemoveAll(
+                Bytes(endpoint), null, null,
+                new[]
+                {
+                    new ChimeRemovalSource(
+                        Guid.NewGuid(), launch * 4L,
+                        (launch + sound.Length / 2) * 4L, Bytes(sound)),
+                });
+            var first = result.Attempts.FirstOrDefault(a => a.ReferenceKind == "resolved-file");
+            var local = result.Attempts.FirstOrDefault(a => a.ReferenceKind == "resolved-file-local");
+            var residual = result.Verified
+                ? ErrorDb(result.CleanedPcm, game, live, rendered)
+                : double.PositiveInfinity;
+            Check(result.Verified && first != null && !first.Verified &&
+                    local != null && local.Verified && local.Diagnostics.RelockedBlocks > 0 &&
+                    residual <= -30,
+                "a mid-sound capture tear is re-locked block by block instead of leaving the tail",
+                $"residual={residual:0.0}dB {Describe(result)}");
         }
 
         private static void ProbePartiallyIsolatedLeftover()
@@ -520,6 +559,28 @@ namespace PlayniteAchievements.Services.Capture
             return drifted;
         }
 
+        /// <summary>
+        /// The live copy after a capture alignment tear: identical up to <paramref name="tearFrame"/>,
+        /// then every later frame arrives <paramref name="shiftFrames"/> later (positive) or
+        /// earlier (negative), as the 2026-09-05 clips showed for the tails of live sounds.
+        /// </summary>
+        private static short[] Tear(short[] source, int tearFrame, int shiftFrames)
+        {
+            var frames = source.Length / 2;
+            var torn = new short[source.Length];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var from = frame < tearFrame ? frame : frame - shiftFrames;
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    torn[frame * 2 + channel] = from >= 0 && from < frames
+                        ? source[from * 2 + channel]
+                        : (short)0;
+                }
+            }
+            return torn;
+        }
+
         private static short[] Head(short[] source, int samples)
         {
             var head = new short[Math.Min(source.Length, samples)];
@@ -601,7 +662,9 @@ namespace PlayniteAchievements.Services.Capture
             return string.Join(" | ", result.Attempts.Select(a =>
                 $"{a.ReferenceKind}:{a.Outcome} lag={a.Diagnostics.StartLagMs:0.0} " +
                 $"corr={a.Diagnostics.Correlation:0.000} supp={a.Diagnostics.SuppressionDb:0.0} " +
-                $"restored={a.Diagnostics.RestoredBlocks}"));
+                $"weakest={a.Diagnostics.WeakestBlockSuppressionDb:0.0}@{a.Diagnostics.WeakestBlockStartMs:0}ms " +
+                $"restored={a.Diagnostics.RestoredBlocks} relocked={a.Diagnostics.RelockedBlocks}" +
+                (a.Diagnostics.RelockedBlocks > 0 ? $" shift={a.Diagnostics.MaxBlockLagShiftMs:0.##}ms" : "")));
         }
 
         private static void Check(bool passed, string name, string detail = null)

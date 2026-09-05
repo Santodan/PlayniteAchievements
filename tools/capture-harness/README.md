@@ -363,13 +363,31 @@ implementation directly from `source/`. It needs no audio device or routing setu
 wave owning several unlocks, player truncation on the next UPS launch, overlapping cleanup clusters,
 file-only removal through a 667 ms timeline displacement, two render copies of one sound, a quiet game
 bed under a level-drifting live copy (the 2026-09-05 field rejection on normalized residual
-correlation), a block-varying remnant of the kind Game Only isolation leaves, player-truncated
+correlation), a mid-sound capture alignment tear of 18 frames (the 2026-09-05 clips whose tails
+survived at another lag), a block-varying remnant of the kind Game Only isolation leaves, player-truncated
 playback, four different sounds, captured-reference fallback, a silent game-tree capture, simultaneous
 duplicates, a wrong/transformed-file fail-closed result, game preservation, and exactly one replacement
 mixed at the selected time. Scenarios that shape a remnant use the five-note `Jingle` generator: a
 single decaying tone is near-periodic and lets a headless remnant lock a lag search onto a repeat of
 its own partials, which is a property of the synthetic rather than of the search. It also reports the one- and four-wave engine times; cleanup is prewarmed and
 cached in production, so this work normally finishes before export needs it.
+
+## The clip remnant probe
+
+```powershell
+tools\capture-harness\bin\ClipRemnantProbe.exe <clip.mp4> <sound file> [--volume 0.5] [--floor 0.06] [--block 0.25]
+```
+
+Measures what an exported clip still carries of a notification sound, from the clip alone. It decodes
+the clip's audio and the sound file to the export format, finds every occurrence of the sound by
+normalized correlation against its first second, and prints each occurrence's level relative to the
+played volume plus a per-block row of signed gain and best lag offset. The composited replacement reads
+0 dB at lag 0 in every block. A live copy that survived removal reads below that; a flat row is a level
+mismatch, a sloped row a time-varying level, and a row whose lag steps partway through is a capture
+alignment tear, which is what the 2026-09-05 clips showed (onset removed 38-59 dB, tail from 1.2-2.7 s
+on at up to full level, 8-24 frames off). Rows inside the replacement's own span with correlation
+around 0.1-0.2 are the jingle correlating with its own later notes, not remnants. Needs no capture
+buffer, so it works on clips a user sends.
 
 ## The chime separation probe
 
