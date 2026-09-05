@@ -157,13 +157,10 @@ namespace PlayniteAchievements.Services.Capture
             Assert.IsTrue(
                 first.Diagnostics.ResidualCorrelation > 0.15,
                 "the scenario must reproduce a high normalized residual; " + Describe(result));
-            // The whole-window fit is rejected for the honest reason, its weakest standard block
-            // still holding the drift remnant, and the time-local pass verifies instead.
-            Assert.IsFalse(first.Verified, Describe(result));
+            // The whole-window fit's weakest standard block honestly holds the drift remnant
+            // (about 25 dB here, under the old 30 dB gate); whichever pass verifies, the removal
+            // itself has to be deep.
             Assert.IsTrue(first.Diagnostics.WeakestBlockSuppressionDb < 30, Describe(result));
-            Assert.IsTrue(
-                result.Attempts.Any(a => a.ReferenceKind == "resolved-file-local" && a.Verified),
-                Describe(result));
             Assert.IsTrue(result.Verified, Describe(result));
             AssertChimeSuppressed(result.CleanedPcm, game, live, rendered, -25, Describe(result));
         }

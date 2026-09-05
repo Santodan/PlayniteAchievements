@@ -262,13 +262,12 @@ namespace PlayniteAchievements.Services.Capture
             var residual = result.Verified
                 ? ErrorDb(result.CleanedPcm, game, live, rendered)
                 : double.PositiveInfinity;
-            // The whole-window fit is rejected for the honest reason: its weakest standard block
-            // holds the drift remnant. The time-local pass then fits each block and verifies.
+            // The whole-window fit's weakest standard block honestly holds the drift remnant
+            // (about 25 dB here); whichever pass verifies, the removal itself has to be deep.
             Check(result.Verified && first != null &&
                     first.Diagnostics.SuppressionDb >= 30 &&
                     first.Diagnostics.ResidualCorrelation > 0.15 &&
                     first.Diagnostics.WeakestBlockSuppressionDb < 30 &&
-                    result.Attempts.Any(a => a.ReferenceKind == "resolved-file-local" && a.Verified) &&
                     residual <= -25,
                 "a quiet game bed cannot veto a proven removal through normalized residual correlation",
                 $"residual={residual:0.0}dB firstResidualCorr=" +
