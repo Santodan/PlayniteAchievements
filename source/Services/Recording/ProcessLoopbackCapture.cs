@@ -278,9 +278,25 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         public ProcessLoopbackCapture(int processId, bool includeProcessTree = true)
+            : this(processId, includeProcessTree, null)
+        {
+        }
+
+        /// <summary>
+        /// Process loopback in the given capture format. More than two channels asks the engine
+        /// for a WAVEFORMATEXTENSIBLE with the standard speaker mask for that count (4 = quad, 6 =
+        /// 5.1, 8 = 7.1), so a contributing multichannel stream keeps its channel identity instead
+        /// of being folded into a stereo mix. Null keeps the 48 kHz stereo default.
+        /// </summary>
+        public ProcessLoopbackCapture(int processId, bool includeProcessTree, WaveFormat captureFormat)
         {
             _processId = processId;
             _mode = includeProcessTree ? IncludeTargetProcessTree : ExcludeTargetProcessTree;
+            if (captureFormat != null)
+            {
+                WaveFormat = captureFormat;
+            }
+
             try
             {
                 _audioClient = ActivateProcessLoopbackClient(processId, _mode);
@@ -528,8 +544,27 @@ namespace PlayniteAchievements.Services.Recording
                     cbSize = 0,
                 };
                 format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
-                formatPtr = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(WAVEFORMATEX)));
-                Marshal.StructureToPtr(format, formatPtr, false);
+                if (WaveFormat.Channels > 2)
+                {
+                    // Shared-mode formats beyond stereo must say which speaker each channel is;
+                    // the plain WAVEFORMATEX has no mask, so the engine would refuse or guess.
+                    format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+                    format.cbSize = 22;
+                    var extensible = new WAVEFORMATEXTENSIBLE
+                    {
+                        Format = format,
+                        wValidBitsPerSample = (ushort)WaveFormat.BitsPerSample,
+                        dwChannelMask = SpeakerMaskFor(WaveFormat.Channels),
+                        SubFormat = IeeeFloatSubFormat,
+                    };
+                    formatPtr = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(WAVEFORMATEXTENSIBLE)));
+                    Marshal.StructureToPtr(extensible, formatPtr, false);
+                }
+                else
+                {
+                    formatPtr = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(WAVEFORMATEX)));
+                    Marshal.StructureToPtr(format, formatPtr, false);
+                }
             }
 
             try
@@ -810,7 +845,9 @@ namespace PlayniteAchievements.Services.Recording
             public IntPtr blobData;
         }
 
-        [StructLayout(LayoutKind.Sequential)]
+        // Pack = 2: the native struct is 18 bytes with WORD alignment. Default packing pads it to
+        // 20, which is harmless alone but shifts every field of a WAVEFORMATEXTENSIBLE built on it.
+        [StructLayout(LayoutKind.Sequential, Pack = 2)]
         private struct WAVEFORMATEX
         {
             public ushort wFormatTag;
@@ -820,6 +857,28 @@ namespace PlayniteAchievements.Services.Recording
             public ushort nBlockAlign;
             public ushort wBitsPerSample;
             public ushort cbSize;
+        }
+
+        private const ushort WAVE_FORMAT_EXTENSIBLE = 0xFFFE;
+
+        [StructLayout(LayoutKind.Sequential, Pack = 2)]
+        private struct WAVEFORMATEXTENSIBLE
+        {
+            public WAVEFORMATEX Format;
+            public ushort wValidBitsPerSample;
+            public uint dwChannelMask;
+            public Guid SubFormat;
+        }
+
+        /// <summary>The standard speaker mask for a channel count: quad, 5.1, 7.1; quad otherwise.</summary>
+        internal static uint SpeakerMaskFor(int channels)
+        {
+            switch (channels)
+            {
+                case 6: return 0x3F;
+                case 8: return 0x63F;
+                default: return 0x33;
+            }
         }
 
         [ComImport, Guid("41D949AB-9862-444A-80F6-C261334DA5EB"),

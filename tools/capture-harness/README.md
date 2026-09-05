@@ -392,6 +392,24 @@ stream starting — i.e. the chime itself) that motivated multi-window global ca
 failed-block fallback in `PcmAudio.CancelCorrelated`. The production path never changes lag inside
 the slice.
 
+## The channel-map probe
+
+```powershell
+tools\capture-harness\bin\ChannelMapProbe.exe [--endpoint <index>] [--channels 4|6|8] [--tone-channel 2] [--hz 180]
+```
+
+Answers one question: does process loopback keep channel identity when the capture asks for a
+multichannel format? A child renders a tone on one channel of a 4-channel stream to the chosen
+endpoint (the controller when one is connected, else the default output); the parent captures
+include-tree on the child both stereo (the recorder's format today) and at the requested channel
+count, and reports the tone's power per capture channel. A DualSense on USB exposes a 4-channel
+endpoint whose channels 2/3 carry the haptics, so a preserved channel means an exclude-host capture
+at 4 channels can drop the actuators by channel and the haptics never need cancelling. Measured
+2026-09-05 against a stereo default endpoint: the engine accepts 4, 6 and 8-channel
+process-loopback formats, and the tone lands in the front channels because the stereo endpoint
+downmixed the stream before the tap, which is inconclusive; the controller endpoint is the real
+case and needs a pad connected.
+
 ## The haptic endpoint-isolation probe
 
 ```powershell
