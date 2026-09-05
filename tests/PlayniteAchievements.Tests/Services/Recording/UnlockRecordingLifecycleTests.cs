@@ -127,8 +127,13 @@ namespace PlayniteAchievements.Services.Tests.Recording
             StringAssert.Contains(service, "request.ChimeCompositeClaimed = true");
             Assert.IsFalse(
                 service.Contains("SetChimeCompositeAuthorization(request, true)"),
-                "Generic Game Only subtraction is weaker than the occurrence remover and must " +
-                "never authorize a replacement after dedicated chime proof failed.");
+                "Only the occurrence remover's own verification may authorize a replacement; " +
+                "generic Game Only subtraction never does so by itself.");
+            // After isolation, the dedicated engine runs again over the isolated window and its
+            // verification is the only thing that can turn authorization back on.
+            StringAssert.Contains(service, "Game-only post-isolation chime cleanup");
+            StringAssert.Contains(service, "SetChimeCompositeAuthorization(request, recovery.Verified)");
+            StringAssert.Contains(service, "mixture = recovery.CleanedPcm;");
             Assert.IsFalse(service.Contains("_liveChimeRemovalByUtc"));
         }
 
