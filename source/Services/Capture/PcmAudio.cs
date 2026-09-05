@@ -158,32 +158,5 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        /// <summary>
-        /// Whether a 16-bit PCM buffer carries no audible signal: its RMS sits below
-        /// <paramref name="thresholdDbfs"/> (default -60 dBFS, about 33 on the 16-bit scale). A
-        /// Game Only clip track that records only the game tree is silent when the game rendered
-        /// nothing or rendered outside the tracked tree; the export then falls back to the wider
-        /// track rather than shipping silence.
-        /// </summary>
-        public static bool IsSilent(byte[] pcm, double thresholdDbfs = -60.0)
-        {
-            if (pcm == null || pcm.Length < 2)
-            {
-                return true;
-            }
-
-            double energy = 0;
-            long samples = 0;
-            for (long i = 0; i + 1 < pcm.Length; i += 2)
-            {
-                double value = (short)(pcm[i] | (pcm[i + 1] << 8));
-                energy += value * value;
-                samples++;
-            }
-
-            var rms = Math.Sqrt(energy / Math.Max(1, samples));
-            var threshold = short.MaxValue * Math.Pow(10.0, thresholdDbfs / 20.0);
-            return rms < threshold;
-        }
     }
 }

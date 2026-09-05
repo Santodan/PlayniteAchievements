@@ -1996,10 +1996,11 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// Game Only: picks the clip's audio between the game-tree clip track and the
-        /// exclude-sound-host fallback track. The game tree is the clip audio whenever it carries
-        /// signal over the window. A silent window means the game renders outside its tracked
-        /// tree (a launcher or emulator child the tree does not reach), so the same window is
-        /// exported from the fallback track, which holds everything but the sound host. Neither
+        /// exclude-sound-host fallback track. The game tree is the clip audio whenever it delivered
+        /// any packet over the window, quiet or not. A tree that delivered nothing has no render
+        /// stream at all, which means the game plays from a process outside its tracked tree (a
+        /// launcher or emulator child the tree does not reach), so the same window is exported
+        /// from the fallback track, which holds everything but the sound host. Neither
         /// track ever held the live unlock sound; the fallback only adds the sound-host pid
         /// stability check to the composite decision. Any failure keeps the recorded plan.
         /// </summary>
@@ -2020,14 +2021,11 @@ namespace PlayniteAchievements.Services.Recording
             {
                 var startUtc = audioPlan.StartUtc;
                 var endUtc = audioPlan.EndUtc;
-                // Sparse process loopback delivers nothing during silence, so an uncovered window
-                // and a covered-but-silent one both mean the tree rendered nothing here.
-                var gameTree = TryReadAudioWindow(
-                    session.BufferDirectory,
-                    RecordingPaths.AudioChunkFilePrefix,
-                    startUtc,
-                    endUtc);
-                if (!PcmAudio.IsSilent(gameTree))
+                // The clip track's chunks are pump-paced and zero-fill, so they always cover the
+                // window; whether the game tree rendered here is read from the capture's own packet
+                // stamps instead. A tree with an open stream delivers packets even while quiet, so a
+                // quiet game stays a quiet clip rather than pulling in other applications.
+                if (recorder.ClipTrackDeliveredAudio(startUtc, endUtc))
                 {
                     return (audioPlan, null);
                 }
@@ -2035,8 +2033,8 @@ namespace PlayniteAchievements.Services.Recording
                 if (recorder.FallbackFailed)
                 {
                     _logger?.Warn(
-                        "[Recording] The game tree is silent over this clip and the fallback track " +
-                        "failed this session; the clip keeps the game-tree audio.");
+                        "[Recording] The game tree delivered no audio over this clip and the fallback " +
+                        "track failed this session; the clip keeps the game-tree audio.");
                     return (audioPlan, null);
                 }
 
@@ -2049,9 +2047,9 @@ namespace PlayniteAchievements.Services.Recording
                 if (fallback == null)
                 {
                     _logger?.Info(fallbackCovered
-                        ? "[Recording] The game tree is silent over this clip and the fallback track " +
-                          "could not be decoded; the clip keeps the game-tree audio."
-                        : "[Recording] The game tree is silent over this clip and nothing else " +
+                        ? "[Recording] The game tree delivered no audio over this clip and the fallback " +
+                          "track could not be decoded; the clip keeps the game-tree audio."
+                        : "[Recording] The game tree delivered no audio over this clip and nothing else " +
                           "played either; the clip keeps the game-tree audio.");
                     return (audioPlan, null);
                 }
@@ -2089,7 +2087,7 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 _logger?.Info(
-                    "[Recording] The game tree is silent over this clip; exporting the " +
+                    "[Recording] The game tree delivered no audio over this clip; exporting the " +
                     "exclude-sound-host fallback track for this window instead.");
                 return (fallbackPlan, candidateDirectory);
             }
