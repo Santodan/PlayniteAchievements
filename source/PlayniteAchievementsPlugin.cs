@@ -138,6 +138,9 @@ namespace PlayniteAchievements
 
         public PlayniteAchievementsSettings Settings => _settingsViewModel.Settings;
         public ProviderRegistry ProviderRegistry => _providerRegistry;
+
+        /// <summary>The unlock sound service, for the settings page's per-tier table and Test buttons.</summary>
+        internal Services.Sound.UnlockSoundService UnlockSounds => _unlockSounds;
         public GameCustomDataStore GameCustomDataStore => _gameCustomDataStore;
         public IReadOnlyList<IDataProvider> Providers => _refreshService?.Providers;
         public RefreshRuntime RefreshRuntime => _refreshService;

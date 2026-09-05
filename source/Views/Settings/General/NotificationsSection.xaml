@@ -206,17 +206,93 @@
                                     Margin="0,8,8,0"/>
                         </Grid>
 
-                        <!-- Unlock sounds are fired as a URI that UniPlaySong handles; this plugin
-                             plays no audio itself and cannot tell whether a sound was heard. -->
-                        <!-- Full strength rather than the usual muted hint styling: this is the
-                             only place that says sounds come from a separate extension. -->
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UnlockSoundHint}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,14,0,6"/>
-                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseHiddenUnlockSound}"
-                                  IsChecked="{Binding Persisted.UseHiddenUnlockSound}"
-                                  Margin="0,0,0,4"/>
+                        <!-- Unlock sounds: played by the plugin's own sound host. Per tier, the
+                             user's file wins, then the active theme's, then the bundled default. -->
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableUnlockSounds}"
+                                  IsChecked="{Binding Persisted.EnableUnlockSounds}"
+                                  Margin="0,14,0,10"/>
+                        <StackPanel Margin="18,0,0,0"
+                                    IsEnabled="{Binding Persisted.EnableUnlockSounds}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_UnlockSoundVolume}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,8"/>
+                                <Slider Grid.Column="1"
+                                        Style="{StaticResource SettingsSliderStyle}"
+                                        Minimum="0" Maximum="100"
+                                        SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                                        Value="{Binding Persisted.UnlockSoundVolumePercent, Mode=TwoWay}"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,8,8"/>
+                                <TextBox Grid.Column="2"
+                                         Text="{Binding Persisted.UnlockSoundVolumePercent, UpdateSourceTrigger=LostFocus}"
+                                         Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                         TextAlignment="Right"
+                                         Margin="0,0,0,8"/>
+                            </Grid>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseHiddenUnlockSound}"
+                                      IsChecked="{Binding Persisted.UseHiddenUnlockSound}"
+                                      Margin="0,0,0,8"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UnlockSoundFilesHint}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,6"/>
+                            <!-- DataContext island (see UnlockSoundSettingsViewModel); one row per tier.
+                                 Button handlers read the row from the sender's DataContext. -->
+                            <ItemsControl x:Name="UnlockSoundRows"
+                                          ItemsSource="{Binding Rows}"
+                                          Grid.IsSharedSizeScope="True">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:UnlockSoundRowItem}">
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="UnlockSoundTier"/>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="UnlockSoundSource"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding TierLabel}"
+                                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,10,0"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding SourceLabel}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"
+                                                       ToolTip="{Binding ResolvedPath}"
+                                                       Margin="0,0,10,0"/>
+                                            <TextBox Grid.Column="2"
+                                                     Text="{Binding CustomPath, UpdateSourceTrigger=LostFocus}"
+                                                     ToolTip="{Binding ResolvedPath}"
+                                                     VerticalAlignment="Center"/>
+                                            <Button Grid.Column="3"
+                                                    Click="UnlockSoundBrowse_Click"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                                    Margin="6,0,0,0"/>
+                                            <Button Grid.Column="4"
+                                                    Click="UnlockSoundClear_Click"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                                    IsEnabled="{Binding HasCustomPath}"
+                                                    Margin="6,0,0,0"/>
+                                            <Button Grid.Column="5"
+                                                    Click="UnlockSoundTest_Click"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Test}"
+                                                    Margin="6,0,0,0"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
