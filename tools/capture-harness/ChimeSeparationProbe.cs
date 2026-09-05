@@ -1,15 +1,16 @@
-// End-to-end proof that Playnite-chime vs emulator audio separation works on REAL audio sessions,
-// without Playnite. The probe recreates the exact process topology of a Playnite-launched emulator:
+// End-to-end proof that process-scoped loopback separates a chime from emulator audio on REAL
+// audio sessions, without Playnite. The probe recreates the process topology of a
+// Playnite-launched emulator:
 //
-//   this process  ("Playnite")  — plays a 440 Hz chime tone via WASAPI (UniPlaySong's role)
-//   child process ("emulator")  — plays an AM-warbled 1320 Hz game tone (RetroArch's role)
+//   this process  ("sound host") — plays a 440 Hz chime tone via WASAPI
+//   child process ("emulator")   — plays an AM-warbled 1320 Hz game tone (RetroArch's role)
 //
 // and captures three streams with the plugin's real ProcessLoopbackCapture (compiled in from
 // source, same for PcmAudio):
 //
-//   game    = include-tree on the CHILD pid    (GameOnly main track)     -> game tone only
-//   sidecar = include-tree on OUR OWN pid      (chm_ chime sidecar)      -> both tones (child is in our tree)
-//   outside = exclude-tree on our own pid      (FullSystem main track)   -> neither tone
+//   game    = include-tree on the CHILD pid    (the Game Only witness)                      -> game tone only
+//   sidecar = include-tree on OUR OWN pid      (Full System's include-sound-host reference)  -> both tones (child is in our tree)
+//   outside = exclude-tree on our own pid      (informational)                              -> neither tone
 //
 // It then runs PcmAudio.CancelCorrelated(sidecar, game) — two INDEPENDENT loopback clients, so the
 // real inter-client clock offset/drift is exercised — and asserts by Goertzel power that the game
@@ -145,7 +146,7 @@ internal static class ChimeSeparationProbe
 
         Console.WriteLine();
         Check(gameGame > -6, "game capture carries the game tone", $"{gameGame:0.0}dB");
-        Check(gameChime < -30, "game capture excludes the parent's chime (GameOnly never records UniPlaySong)", $"{gameChime:0.0}dB");
+        Check(gameChime < -30, "game capture excludes the parent's chime (the Game Only witness never records the sound host)", $"{gameChime:0.0}dB");
         Check(outsideChime < -30 && outsideGame < -30,
             "excluded capture carries neither tone (FullSystem main track; informational if other audio was playing)",
             $"chime {outsideChime:0.0}dB game {outsideGame:0.0}dB");
