@@ -2502,7 +2502,9 @@ namespace PlayniteAchievements.Services.Recording
                     $"lag={d.StartLagMs:0.###}ms correlation={d.Correlation:0.000} " +
                     $"gain={d.Gain:0.000} suppression={d.SuppressionDb:0.0}dB " +
                     $"residual={d.ResidualCorrelation:0.000} " +
-                    $"blocks={d.SubtractedBlocks}/{d.TotalBlocks} restored={d.RestoredBlocks}.");
+                    $"blocks={d.SubtractedBlocks}/{d.TotalBlocks} restored={d.RestoredBlocks} " +
+                    $"weakest={d.WeakestBlockSuppressionDb:0.0}dB relocked={d.RelockedBlocks} " +
+                    $"shift={d.MaxBlockLagShiftMs:0.##}ms.");
             }
         }
 
