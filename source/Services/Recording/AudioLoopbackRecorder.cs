@@ -51,6 +51,8 @@ namespace PlayniteAchievements.Services.Recording
     {
         // Wall-clock pump cadence and buffered-provider depth.
         private const int PumpIntervalMs = 50;
+        private const int ControllerScanIntervalMs = 5000;
+        private const int ActivityRetentionSeconds = 20 * 60;
 
         // The ring has to absorb a maximal gap pad without evicting the audio around it. An
         // endpoint loopback delivers nothing while the endpoint is silent but its device clock
@@ -119,7 +121,17 @@ namespace PlayniteAchievements.Services.Recording
         private const int AuxiliaryFlushMarginMs = 750;
         private bool _extractControllerProgramAudio;
         private bool _reduceSurround;
-        private bool _dropActuatorChannels;
+        // Read at start and re-read every ControllerScanIntervalMs by the pump, so a pad plugged in
+        // after the game started still has its back pair dropped. Written by the pump thread, read
+        // by capture callbacks; a bool write is atomic and volatile keeps it visible.
+        private volatile bool _dropActuatorChannels;
+        private DateTime _nextControllerScanUtc;
+        // Seconds (UTC) in which the process-scoped clip track delivered a packet. Sparse process
+        // loopback delivers nothing for a tree with no render stream, so this is the structural
+        // record of whether the game tree rendered over a clip window; the pump-paced chunks
+        // themselves zero-fill and cannot tell.
+        private readonly SortedSet<long> _clipTrackActiveSeconds = new SortedSet<long>();
+        private readonly object _activityGate = new object();
         private bool _hapticExclusionProven;
         private string _micName;
 
@@ -175,6 +187,10 @@ namespace PlayniteAchievements.Services.Recording
                         : _systemCapture.WaveFormat;
                     _systemBuffer = NewBuffer(systemFormat);
                     _systemCapture.DataAvailable += (s, e) => AppendSystem(e);
+                    if (_reduceSurround && _systemCapture is ProcessLoopbackCapture stampedClipTrack)
+                    {
+                        stampedClipTrack.StampedDataAvailable += (s, e) => NoteClipTrackActivity(e);
+                    }
 
                     ISampleProvider systemSamples = _systemBuffer.ToSampleProvider();
 
@@ -374,6 +390,7 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             _dropActuatorChannels = AnyControllerEndpointActive();
+            _nextControllerScanUtc = CaptureTimelineClock.UtcNow.AddMilliseconds(ControllerScanIntervalMs);
             var gamePid = _gameProcessId?.Invoke();
             try
             {
@@ -948,6 +965,7 @@ namespace PlayniteAchievements.Services.Recording
                         SettleAuxiliaryFlushRequestLocked(CaptureTimelineClock.UtcNow);
                     }
 
+                    RescanControllerIfDue();
                     Thread.Sleep(PumpIntervalMs);
                 }
             }
@@ -957,6 +975,71 @@ namespace PlayniteAchievements.Services.Recording
                 {
                     FailLocked(ex, "[Recording] Audio pump failed; audio capture stopped for this session.");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Re-reads whether a controller endpoint is active, off the gate, so a pad plugged in or
+        /// unplugged mid-session changes what the next packets do with the back pair.
+        /// </summary>
+        private void RescanControllerIfDue()
+        {
+            if (!_reduceSurround)
+            {
+                return;
+            }
+
+            var now = CaptureTimelineClock.UtcNow;
+            if (now < _nextControllerScanUtc)
+            {
+                return;
+            }
+
+            _nextControllerScanUtc = now.AddMilliseconds(ControllerScanIntervalMs);
+            var present = AnyControllerEndpointActive();
+            if (present == _dropActuatorChannels)
+            {
+                return;
+            }
+
+            _dropActuatorChannels = present;
+            _logger?.Info(present
+                ? "[Recording] A controller endpoint appeared; the clip track now drops its back pair (haptics)."
+                : "[Recording] No controller endpoint remains; the clip track folds its back pair again.");
+        }
+
+        private void NoteClipTrackActivity(StampedPacketEventArgs packet)
+        {
+            if (packet == null || packet.Bytes <= 0 || !packet.CaptureUtc.HasValue)
+            {
+                return;
+            }
+
+            var second = packet.CaptureUtc.Value.Ticks / TimeSpan.TicksPerSecond;
+            lock (_activityGate)
+            {
+                _clipTrackActiveSeconds.Add(second);
+                var horizon = second - ActivityRetentionSeconds;
+                while (_clipTrackActiveSeconds.Count > 0 && _clipTrackActiveSeconds.Min < horizon)
+                {
+                    _clipTrackActiveSeconds.Remove(_clipTrackActiveSeconds.Min);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Whether the process-scoped clip track delivered any packet whose capture instant falls
+        /// in [<paramref name="startUtc"/>, <paramref name="endUtc"/>], at one-second resolution.
+        /// False for the endpoint-mix clip track, which is never sparse.
+        /// </summary>
+        public bool ClipTrackDeliveredAudio(DateTime startUtc, DateTime endUtc)
+        {
+            var from = startUtc.Ticks / TimeSpan.TicksPerSecond;
+            var to = Math.Max(from, endUtc.Ticks / TimeSpan.TicksPerSecond);
+            lock (_activityGate)
+            {
+                return _clipTrackActiveSeconds.Count > 0 &&
+                    _clipTrackActiveSeconds.GetViewBetween(from, to).Count > 0;
             }
         }
 
