@@ -361,10 +361,14 @@ tools\capture-harness\bin\ChimeOccurrenceProbe.exe
 Compiles the actual `WaveSoundOccurrenceRegistry`, `ChimeRemovalEngine`, cancellation policy, and PCM
 implementation directly from `source/`. It needs no audio device or routing setup. The probe covers a
 wave owning several unlocks, player truncation on the next UPS launch, overlapping cleanup clusters,
-file-only removal through a 667 ms timeline displacement, player-truncated playback, four different
-sounds, captured-reference fallback, simultaneous duplicates, a wrong/transformed-file fail-closed
-result, game preservation, and exactly one replacement
-mixed at the selected time. It also reports the one- and four-wave engine times; cleanup is prewarmed and
+file-only removal through a 667 ms timeline displacement, two render copies of one sound, a quiet game
+bed under a level-drifting live copy (the 2026-09-05 field rejection on normalized residual
+correlation), a block-varying remnant of the kind Game Only isolation leaves, player-truncated
+playback, four different sounds, captured-reference fallback, a silent game-tree capture, simultaneous
+duplicates, a wrong/transformed-file fail-closed result, game preservation, and exactly one replacement
+mixed at the selected time. Scenarios that shape a remnant use the five-note `Jingle` generator: a
+single decaying tone is near-periodic and lets a headless remnant lock a lag search onto a repeat of
+its own partials, which is a property of the synthetic rather than of the search. It also reports the one- and four-wave engine times; cleanup is prewarmed and
 cached in production, so this work normally finishes before export needs it.
 
 ## The chime separation probe

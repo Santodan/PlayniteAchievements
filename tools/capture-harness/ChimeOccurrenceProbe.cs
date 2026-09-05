@@ -23,6 +23,8 @@ namespace PlayniteAchievements.Services.Capture
             ProbeResolvedFileAndOneComposite();
             ProbeLargeTimelineOffset();
             ProbeMultipleCopiesOfOneSound();
+            ProbeQuietGameDriftingRender();
+            ProbePartiallyIsolatedLeftover();
             ProbeTruncatedPlayback();
             ProbeSeveralSounds();
             ProbeCapturedFallback();
@@ -230,6 +232,77 @@ namespace PlayniteAchievements.Services.Capture
                 $"residuals={firstResidual:0.0}/{secondResidual:0.0}dB {Describe(result)}");
         }
 
+        private static void ProbeQuietGameDriftingRender()
+        {
+            // Field run 2026-09-05 (six-wave test burst): every resolved-file fit reported
+            // correlation 0.999-1.000 and 31-50 dB suppression, yet two waves were rejected on
+            // residual correlation alone (0.199 and 0.524). Normalized correlation of a tiny
+            // leftover is high whenever the game bed is quiet, so it cannot veto a removal that
+            // suppression already proved. The live copy here is a sustained sound whose level
+            // drifts 6% across playback; one global gain cannot follow that, so a reference-shaped
+            // remnant survives in the loudest window at a level far below the game-safe gate.
+            var frames = Rate * 4;
+            var game = Noise(frames, 1011, 12);
+            var sound = Chime(Rate * 2, 523, 4800, 71);
+            var live = Drift(sound, 1.0, 0.94);
+            var launch = Rate;
+            var rendered = launch + 4000;
+            var endpoint = (short[])game.Clone();
+            Add(endpoint, live, rendered);
+            var result = ChimeRemovalEngine.RemoveAll(
+                Bytes(endpoint), null, null,
+                new[]
+                {
+                    new ChimeRemovalSource(
+                        Guid.NewGuid(), launch * 4L,
+                        (launch + sound.Length / 2) * 4L, Bytes(sound)),
+                });
+            var first = result.Attempts.FirstOrDefault(a => a.ReferenceKind == "resolved-file");
+            var residual = result.Verified
+                ? ErrorDb(result.CleanedPcm, game, live, rendered)
+                : double.PositiveInfinity;
+            Check(result.Verified && first != null && first.Verified &&
+                    first.Diagnostics.SuppressionDb >= 30 &&
+                    first.Diagnostics.ResidualCorrelation > 0.15 &&
+                    residual <= -25,
+                "a quiet game bed cannot veto a 30 dB-proven removal through normalized residual correlation",
+                $"residual={residual:0.0}dB firstResidualCorr=" +
+                $"{(first == null ? double.NaN : first.Diagnostics.ResidualCorrelation):0.000} {Describe(result)}");
+        }
+
+        private static void ProbePartiallyIsolatedLeftover()
+        {
+            // Game Only isolation subtracts the Playnite-tree reference in 0.5 s blocks of the clip
+            // window and restores blocks it cannot prove. When the dedicated pass on the pristine
+            // mixture failed, the engine runs again on that same window, so its blocks share the
+            // grid: some hold the whole live sound, others only a remnant, and the fit has to be
+            // time-local. Here the block that holds the onset was subtracted to 3% and everything
+            // after the next block boundary was restored.
+            var frames = Rate * 4;
+            var game = Noise(frames, 1012, 40);
+            var sound = Jingle(Rate * 2, 587, 6000, 73);
+            var launch = Rate;
+            var rendered = launch + 3800;
+            var boundary = ReferenceCancellationPolicy.ChimeBlockFrames * 3;
+            var isolated = (short[])game.Clone();
+            Add(isolated, sound, rendered);
+            Add(isolated, Scale(Head(sound, (boundary - rendered) * 2), -0.97), rendered);
+            var result = ChimeRemovalEngine.RemoveAll(
+                Bytes(isolated), null, null,
+                new[]
+                {
+                    new ChimeRemovalSource(
+                        Guid.NewGuid(), launch * 4L,
+                        (launch + sound.Length / 2) * 4L, Bytes(sound)),
+                });
+            var residual = result.Verified
+                ? ErrorDb(result.CleanedPcm, game, sound, rendered)
+                : double.PositiveInfinity;
+            Check(result.Verified && residual <= -25,
+                "the dedicated engine clears a block-varying remnant left by Game Only isolation",
+                $"residual={residual:0.0}dB {Describe(result)}");
+        }
+
         private static void ProbeCapturedFallback()
         {
             var frames = Rate * 4;
@@ -381,6 +454,77 @@ namespace PlayniteAchievements.Services.Capture
                     Math.Min(short.MaxValue, Math.Round(source[i] * gain)));
             }
             return scaled;
+        }
+
+        /// <summary>
+        /// A struck five-note arpeggio: each note has inharmonic partials with per-partial decay,
+        /// a 4 ms attack transient, and a decaying broadband component. <see cref="Chime"/> is one
+        /// decaying two-partial tone, and any single decaying tone is near-periodic: a remnant that
+        /// lacks the sound's head can lock a lag search onto a repeat of its own partials. Distinct
+        /// pitches struck across the whole duration give every part of the sound unique events, so
+        /// a lag miss on this generator is the search's, not the signal's.
+        /// </summary>
+        private static short[] Jingle(int frames, double baseHz, int amplitude, int seed)
+        {
+            double[] notes = { 1.0, 1.25, 1.5, 1.875, 2.25 };
+            double[] ratios = { 1.0, 1279.0 / 880.0, 1834.0 / 880.0, 2503.0 / 880.0, 3391.0 / 880.0 };
+            double[] decays = { 3.0, 4.1, 5.7, 7.3, 9.1 };
+            var random = new Random(seed);
+            var samples = new short[frames * 2];
+            var spacing = frames / notes.Length;
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var sum = 0.0;
+                for (var n = 0; n < notes.Length; n++)
+                {
+                    var onset = n * spacing;
+                    if (frame < onset)
+                    {
+                        continue;
+                    }
+                    var t = (frame - onset) / (double)Rate;
+                    for (var p = 0; p < ratios.Length; p++)
+                    {
+                        sum += Math.Exp(-decays[p] * t) *
+                            Math.Sin(2 * Math.PI * baseHz * notes[n] * ratios[p] * t) / (p + 1);
+                    }
+                    if (t < 0.004)
+                    {
+                        sum += (random.NextDouble() - 0.5) * 2.0 * Math.Exp(-600.0 * t);
+                    }
+                    sum += 0.12 * Math.Exp(-2.5 * t) * (random.NextDouble() - 0.5) * 2.0;
+                }
+                var value = (short)Math.Max(short.MinValue,
+                    Math.Min(short.MaxValue, Math.Round(amplitude * sum / 3.0)));
+                samples[frame * 2] = value;
+                samples[frame * 2 + 1] = (short)(value * 0.94);
+            }
+            return samples;
+        }
+
+        private static short[] Drift(short[] source, double startGain, double endGain)
+        {
+            var frames = source.Length / 2;
+            var drifted = new short[source.Length];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var gain = startGain + (endGain - startGain) * frame / Math.Max(1, frames - 1);
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var index = frame * 2 + channel;
+                    drifted[index] = (short)Math.Max(
+                        short.MinValue,
+                        Math.Min(short.MaxValue, Math.Round(source[index] * gain)));
+                }
+            }
+            return drifted;
+        }
+
+        private static short[] Head(short[] source, int samples)
+        {
+            var head = new short[Math.Min(source.Length, samples)];
+            Array.Copy(source, head, head.Length);
+            return head;
         }
 
         private static byte[] Bytes(short[] samples)
