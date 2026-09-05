@@ -491,6 +491,7 @@
     <Compile Include="..\..\source\Services\UI\AchievementToastTemplateResolver.cs" Link="Source\Services\UI\AchievementToastTemplateResolver.cs" />
     <Compile Include="..\..\source\Services\UI\UnlockSoundResolver.cs" Link="Source\Services\UI\UnlockSoundResolver.cs" />
     <Compile Include="..\..\source\Services\Sound\SoundHostProtocol.cs" Link="Source\Services\Sound\SoundHostProtocol.cs" />
+    <Compile Include="..\..\source\Services\Sound\SoundHostRestartPolicy.cs" Link="Source\Services\Sound\SoundHostRestartPolicy.cs" />
     <Compile Include="..\..\source\Services\UI\PlayAchResourceService.cs" Link="Source\Services\UI\PlayAchResourceService.cs" />
     <Compile Include="..\..\source\Services\UI\ProviderNotificationPolicy.cs" Link="Source\Services\UI\ProviderNotificationPolicy.cs" />
     <Compile Include="..\..\source\Services\UI\ScreenshotFrameCompositor.cs" Link="Source\Services\UI\ScreenshotFrameCompositor.cs" />
