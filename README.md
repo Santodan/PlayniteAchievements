@@ -235,7 +235,7 @@ PlayniteAchievements supports additional features when used with the following e
 
 ## Unlock sounds
 
-Unlock sounds are built in: each notification plays a sound for its rarity tier (or for hidden and capstone unlocks), with a volume slider and a per-tier file picker under Settings > Notifications. Themes can ship their own sounds by dropping `common`/`uncommon`/`rare`/`ultrarare`/`hidden`/`capstone` files into `PlayniteAchievements/Sounds/` in the theme folder; the UniPlaySong-era `audio/Achievements/` layout is still read. UniPlaySong is no longer needed for achievement sounds, so turn its achievement sounds off to avoid hearing two.
+Unlock sounds are built in: each notification plays a sound for its rarity tier (or for hidden and capstone unlocks), with a volume slider and a per-tier file picker under Settings > Notifications. Themes can ship their own sounds by dropping `common`/`uncommon`/`rare`/`ultrarare`/`hidden`/`capstone` files into `PlayniteAchievements/Sounds/` in the theme folder; the UniPlaySong-era `audio/Achievements/` layout is still read. UniPlaySong is no longer involved: this plugin no longer sends it the unlock signal, so its achievement sounds stay silent even if it is still installed, and the first launch copies its volume and custom files into these settings.
 
 ## StartPage
 
