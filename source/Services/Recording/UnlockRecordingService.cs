@@ -2410,25 +2410,7 @@ namespace PlayniteAchievements.Services.Recording
                         endUtc);
                 }
 
-                var sources = new List<ChimeRemovalSource>(cluster.Occurrences.Count);
-                foreach (var occurrence in cluster.Occurrences)
-                {
-                    var playbackSeconds = Math.Max(
-                        0,
-                        (occurrence.EndUtc - occurrence.LaunchUtc).TotalSeconds);
-                    var sourcePcm = ChimeSoundFile.TryReadPcm(
-                        occurrence.SoundFilePath,
-                        playbackSeconds,
-                        occurrence.SoundFileGain ?? ChimeUnknownVolumeGain,
-                        _logger);
-                    sources.Add(new ChimeRemovalSource(
-                        occurrence.OccurrenceId,
-                        PcmAudio.TicksToAlignedBytes(
-                            (occurrence.LaunchUtc - startUtc).Ticks),
-                        PcmAudio.TicksToAlignedBytes(
-                            (occurrence.EndUtc - startUtc).Ticks),
-                        sourcePcm));
-                }
+                var sources = BuildChimeRemovalSources(cluster.Occurrences, startUtc, endUtc);
 
                 patch.Result = ChimeRemovalEngine.RemoveAll(
                     endpoint,
@@ -2449,9 +2431,58 @@ namespace PlayniteAchievements.Services.Recording
             }
         }
 
-        private void LogChimeCleanup(
-            WaveSoundCleanupCluster cluster,
-            ChimeRemovalResult result)
+        /// <summary>
+        /// Places each occurrence's resolved sound on the timeline of one PCM window. A sound
+        /// that launched before the window starts contributes only the part inside it, so the
+        /// engine still sees the true waveform at the true position. Occurrences that do not
+        /// overlap the window are skipped; an unresolved file keeps its occurrence with a null
+        /// source so the engine accounts for it.
+        /// </summary>
+        private List<ChimeRemovalSource> BuildChimeRemovalSources(
+            IReadOnlyList<WaveSoundOccurrence> occurrences,
+            DateTime windowStartUtc,
+            DateTime windowEndUtc)
+        {
+            var sources = new List<ChimeRemovalSource>(occurrences.Count);
+            foreach (var occurrence in occurrences)
+            {
+                var endUtc = occurrence.EndUtc;
+                if (endUtc <= windowStartUtc || occurrence.LaunchUtc >= windowEndUtc)
+                {
+                    continue;
+                }
+
+                var playbackSeconds = Math.Max(
+                    0,
+                    (endUtc - occurrence.LaunchUtc).TotalSeconds);
+                var sourcePcm = ChimeSoundFile.TryReadPcm(
+                    occurrence.SoundFilePath,
+                    playbackSeconds,
+                    occurrence.SoundFileGain ?? ChimeUnknownVolumeGain,
+                    _logger);
+                var headBytes = PcmAudio.TicksToAlignedBytes(
+                    (windowStartUtc - occurrence.LaunchUtc).Ticks);
+                if (headBytes > 0 && sourcePcm != null)
+                {
+                    var skip = (int)Math.Min(sourcePcm.LongLength, headBytes);
+                    var trimmed = new byte[sourcePcm.Length - skip];
+                    Buffer.BlockCopy(sourcePcm, skip, trimmed, 0, trimmed.Length);
+                    sourcePcm = trimmed.Length >= PcmAudio.BlockAlign ? trimmed : null;
+                }
+
+                sources.Add(new ChimeRemovalSource(
+                    occurrence.OccurrenceId,
+                    PcmAudio.TicksToAlignedBytes(
+                        (occurrence.LaunchUtc - windowStartUtc).Ticks),
+                    PcmAudio.TicksToAlignedBytes(
+                        (endUtc - windowStartUtc).Ticks),
+                    sourcePcm));
+            }
+
+            return sources;
+        }
+
+        private void LogChimeAttempts(string scope, ChimeRemovalResult result)
         {
             if (result == null)
             {
@@ -2465,7 +2496,7 @@ namespace PlayniteAchievements.Services.Recording
                     : "cluster";
                 var d = attempt.Diagnostics;
                 _logger?.Debug(
-                    $"[Recording] Chime cleanup attempt: cluster={cluster.CacheKey} " +
+                    $"[Recording] Chime cleanup attempt: {scope} " +
                     $"occurrence={id} source={attempt.ReferenceKind} " +
                     $"outcome={attempt.Outcome} verified={attempt.Verified} " +
                     $"lag={d.StartLagMs:0.###}ms correlation={d.Correlation:0.000} " +
@@ -2473,6 +2504,18 @@ namespace PlayniteAchievements.Services.Recording
                     $"residual={d.ResidualCorrelation:0.000} " +
                     $"blocks={d.SubtractedBlocks}/{d.TotalBlocks} restored={d.RestoredBlocks}.");
             }
+        }
+
+        private void LogChimeCleanup(
+            WaveSoundCleanupCluster cluster,
+            ChimeRemovalResult result)
+        {
+            if (result == null)
+            {
+                return;
+            }
+
+            LogChimeAttempts($"cluster={cluster.CacheKey}", result);
 
             _logger?.Info(
                 $"[Recording] Chime cleanup cluster: id={cluster.CacheKey} " +
@@ -2631,9 +2674,11 @@ namespace PlayniteAchievements.Services.Recording
         /// first transactionally remove every fired live chime; only complete proof authorizes
         /// the wave's one replacement. Game Only then removes the simultaneously captured
         /// "everything except the game tree" reference after purging any chime already removed
-        /// from the mixture. Rejection keeps the speaker mix: that may contain another application
-        /// or a live chime, but it can never contain a controller endpoint or become the exporter's
-        /// no-audio sentinel.
+        /// from the mixture. When that first dedicated pass did not verify but isolation did, the
+        /// dedicated engine runs once more over the isolated window, and its verification alone
+        /// authorizes the replacement. Rejection keeps the speaker mix: that may contain another
+        /// application or a live chime, but it can never contain a controller endpoint or become
+        /// the exporter's no-audio sentinel.
         /// </summary>
         private async Task<(SegmentTimeline.ClipPlan Plan, string CleanedDirectory)>
             PrepareClipAudioAsync(
@@ -2809,6 +2854,40 @@ namespace PlayniteAchievements.Services.Recording
                                     if (residualOutcome != PcmCancellationOutcome.CancelledVerified)
                                     {
                                         break;
+                                    }
+                                }
+
+                                if (!allChimesVerified && clusters.Count > 0)
+                                {
+                                    // Dedicated removal on the pristine mixture did not verify, so
+                                    // no replacement is authorized yet. Isolation subtracted the
+                                    // same live sounds along with the rest of the non-game
+                                    // reference, but it restores blocks it cannot prove, so
+                                    // remnants can remain. Run the dedicated engine over this same
+                                    // window: its blocks share the isolation grid, so a
+                                    // block-varying remnant fits time-locally. Only the engine's
+                                    // own verification authorizes the wave's one replacement.
+                                    // Field run 2026-09-05: seven clips had isolation remove every
+                                    // live sound and still shipped with no chime at all.
+                                    var recovery = ChimeRemovalEngine.RemoveAll(
+                                        mixture,
+                                        null,
+                                        null,
+                                        BuildChimeRemovalSources(
+                                            clusters.SelectMany(c => c.Occurrences).ToList(),
+                                            startUtc,
+                                            endUtc));
+                                    LogChimeAttempts("post-isolation", recovery);
+                                    _logger?.Info(
+                                        "[Recording] Game-only post-isolation chime cleanup: " +
+                                        $"verified={recovery.Verified} changed={recovery.Changed}" +
+                                        (recovery.Verified
+                                            ? "; authorizing the replacement."
+                                            : $" reason={recovery.FailureReason}."));
+                                    if (recovery.Verified)
+                                    {
+                                        mixture = recovery.CleanedPcm;
+                                        SetChimeCompositeAuthorization(request, recovery.Verified);
                                     }
                                 }
                             }
