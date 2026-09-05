@@ -53,26 +53,24 @@ namespace PlayniteAchievements.Services.UI
         public Guid OccurrenceId { get; }
 
         /// <summary>
-        /// The exact sound file UniPlaySong resolved for this wave, snapshotted the moment it
-        /// fired, or null when it cannot be known (UniPlaySong before 1.8.4, resolution failure).
-        /// With a path, export mixes this file at the composited toast instead of separating a
-        /// captured copy of the chime.
+        /// The exact sound file the sound host played for this wave, snapshotted the moment it was
+        /// asked for, or null when no sound played. Export mixes this file at the composited toast.
         /// </summary>
         public string SoundFilePath { get; }
 
         /// <summary>
-        /// The sound-alignment delay the toast service applied between launching the chime and
-        /// revealing the card, in milliseconds. The delay models the launch-to-audible latency of
-        /// the live playback path (in-process vs URI), so the audible onset lands on the reveal;
-        /// export subtracts it from the launch-to-card gap when placing the chime, because the
-        /// mixed file has no such latency. Null when no sound fired.
+        /// The sound-alignment delay the toast service applied between asking the host for the
+        /// sound and revealing the card, in milliseconds. The delay models the launch-to-audible
+        /// latency of the host, so the audible onset lands on the reveal; export subtracts it from
+        /// the launch-to-card gap when placing the chime, because the mixed file has no such
+        /// latency. Null when no sound fired.
         /// </summary>
         public int? SoundAlignmentDelayMs { get; }
 
         /// <summary>
-        /// The volume UniPlaySong played the sound at (0..1), snapshotted with the path so the
-        /// mixed chime is as loud as the live one the user heard. Null when unknown; export then
-        /// uses its fixed fallback gain.
+        /// The gain the sound was played at (0..1, the user's volume setting), snapshotted with the
+        /// path so the mixed chime is as loud as the live one the user heard. Null when unknown;
+        /// export then uses its fixed fallback gain.
         /// </summary>
         public double? SoundFileGain { get; }
 

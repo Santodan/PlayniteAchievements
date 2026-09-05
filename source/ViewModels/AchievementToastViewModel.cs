@@ -1641,25 +1641,6 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        /// <summary>
-        /// UniPlaySong URI segment for <see cref="SoundTier"/> ("hidden", otherwise the basename
-        /// plus "achievement"). Transitional: goes with the UniPlaySong bridge.
-        /// </summary>
-        public string SoundTierSegment
-        {
-            get
-            {
-                var tier = SoundTier;
-                if (tier == null)
-                {
-                    return null;
-                }
-
-                return tier == UnlockSoundTier.Hidden
-                    ? "hidden"
-                    : tier.Value.ToFileBaseName() + "achievement";
-            }
-        }
 
         /// <summary>
         /// Rarity ranking used to pick a single representative sound when several unlocks show at

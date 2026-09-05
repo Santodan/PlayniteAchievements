@@ -632,7 +632,8 @@ namespace PlayniteAchievements
                         // toast service only ever invokes these from an unlock handler, long after
                         // the field is assigned.
                         e => _unlockRecordings?.WouldRequestClip(e) ?? false,
-                        (e, capHeight) => _unlockRecordings?.TryCaptureAnchorFrame(e, capHeight));
+                        (e, capHeight) => _unlockRecordings?.TryCaptureAnchorFrame(e, capHeight),
+                        _unlockSounds);
                     _unlockRecordings = new Services.Recording.UnlockRecordingService(
                         PlayniteApi,
                         settings,

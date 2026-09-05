@@ -257,34 +257,26 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void ChimeComposite_PrefersTheResolvedFileAndRespectsUniPlaySongGates()
+        public void ChimeComposite_MixesTheFileAndGainTheHostPlayed()
         {
-            // The composited chime comes from the exact file UniPlaySong resolved at fire time —
-            // Capture remains the fallback/residual proof for older UniPlaySong or a transformed
-            // render; the resolved file is also the primary removal reference.
+            // The composited chime is the exact file the sound host played, at the gain it played
+            // it; the toast service asks the in-house host, never UniPlaySong.
             var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
             StringAssert.Contains(service, "OwnSoundFilePath");
             StringAssert.Contains(service, "ChimeSoundFile.TryReadPcm");
-            StringAssert.Contains(service, "_soundOccurrences");
-
-            var toast = File.ReadAllText(FindRepoFile(
-                "source", "Services", "UI", "ToastNotificationService.cs"));
-            StringAssert.Contains(toast, "TryResolveAchievementSound");
-            StringAssert.Contains(toast, "TryTriggerExternalEvent");
-            StringAssert.Contains(toast, "playnite://uniplaysong/");
-
-            var bridge = File.ReadAllText(FindRepoFile(
-                "source", "Services", "UI", "UniPlaySongBridge.cs"));
-            StringAssert.Contains(bridge, "soundDisabled = true");
-            StringAssert.Contains(bridge, "\"enabled\"");
-            StringAssert.Contains(bridge, "\"exists\"");
-            StringAssert.Contains(bridge, "apiVersion",
-                "The bridge should stay documented against UniPlaySong's version-stamped JSON.");
-            // UniPlaySong plays jingles at MusicVolume / 100 (its JingleService); the mixed chime
-            // must be as loud as the live one the user heard, not a full-scale decode.
-            StringAssert.Contains(bridge, "MusicVolume");
             StringAssert.Contains(service, "soundFileGain ?? ChimeUnknownVolumeGain");
+
+            var toastPath = FindRepoFile("source", "Services", "UI", "ToastNotificationService.cs");
+            var toast = File.ReadAllText(toastPath);
+            StringAssert.Contains(toast, "_unlockSounds.Play(");
+            StringAssert.Contains(toast, "SoundAlignmentDelayMs");
+            Assert.IsFalse(toast.IndexOf("uniplaysong", StringComparison.OrdinalIgnoreCase) >= 0,
+                "Unlock sounds are in-house; nothing may route through UniPlaySong.");
+            Assert.IsFalse(toast.Contains("TryTriggerExternalEvent"));
+            Assert.IsFalse(
+                File.Exists(Path.Combine(Path.GetDirectoryName(toastPath), "UniPlaySongBridge.cs")),
+                "The UniPlaySong bridge was removed with the in-house sound host.");
         }
 
         [TestMethod]

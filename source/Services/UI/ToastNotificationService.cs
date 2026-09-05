@@ -41,6 +41,7 @@ namespace PlayniteAchievements.Services.UI
         // when the buffer cannot answer). Supplied by the recording service; lets the screenshot
         // depict the true unlock moment instead of the instant the toast fired.
         private readonly Func<AchievementUnlockedEventArgs, int, System.Drawing.Bitmap> _captureAnchorFrame;
+        private readonly Services.Sound.UnlockSoundService _unlockSounds;
         private readonly UnlockScreenshotService _screenshotService;
         private readonly ScreenshotFrameCompositor _frameCompositor;
         private readonly AchievementToastTemplateResolver _templateResolver;
@@ -64,12 +65,15 @@ namespace PlayniteAchievements.Services.UI
         // CornerGapDip - glow so the body sits here whether or not the border glow is on (with the
         // glow on, the glow itself may reach the screen edge). Tunable.
         private const double CornerGapDip = 24d;
-        // Gap between launching the sound and the toast slide-in / controller pulse, so the audio
-        // onset and the reveal land together. The URI path pays the shell's scheme resolution on
-        // top of UniPlaySong's player start, hence the larger constant; the in-process event
-        // (UniPlaySong 1.8.4+) reaches the player directly and needs far less. Both tunable.
-        private const int SoundAlignmentDelayMs = 450;
-        private const int SoundAlignmentFastPathDelayMs = 150;
+        // Gap between asking the sound host for the sound and the toast slide-in / controller
+        // pulse, so the audible onset and the reveal land together. Derived from the host's path:
+        // the pipe read and clip swap take a few milliseconds (measured 3-5 ms from the send to the
+        // host's "started" event), the swapped clip is first rendered at the next WASAPI engine
+        // period (up to 10 ms), the 30 ms event-driven shared buffer drains ahead of it, and a
+        // wired endpoint adds 5-15 ms. Tune against the "[SoundHost] Sound id=N started ... ms
+        // after it was requested" log line; Bluetooth and HDMI sinks add 100+ ms and are out of
+        // scope. Export subtracts this from the launch-to-card gap when placing the mixed file.
+        internal const int SoundAlignmentDelayMs = 50;
         // Longest the wave waits for an undelayed base capture before creating the toast window,
         // so the capture's WGC session and readback do not overlap the window's first composition
         // and slide-in. Sized to the capture's own budget (session setup, 150 ms warmup, one
@@ -179,7 +183,8 @@ namespace PlayniteAchievements.Services.UI
             ActiveGameWindowTracker windowTracker = null,
             GameCustomDataStore gameCustomDataStore = null,
             Func<AchievementUnlockedEventArgs, bool> needsOverlayTrack = null,
-            Func<AchievementUnlockedEventArgs, int, System.Drawing.Bitmap> captureAnchorFrame = null)
+            Func<AchievementUnlockedEventArgs, int, System.Drawing.Bitmap> captureAnchorFrame = null,
+            Services.Sound.UnlockSoundService unlockSounds = null)
         {
             _api = api;
             _settings = settings;
@@ -190,6 +195,7 @@ namespace PlayniteAchievements.Services.UI
             _gameCustomDataStore = gameCustomDataStore;
             _needsOverlayTrack = needsOverlayTrack;
             _captureAnchorFrame = captureAnchorFrame;
+            _unlockSounds = unlockSounds;
             _screenshotService = new UnlockScreenshotService(logger);
             _frameCompositor = new ScreenshotFrameCompositor(logger);
             _templateResolver = new AchievementToastTemplateResolver(
@@ -2407,17 +2413,17 @@ namespace PlayniteAchievements.Services.UI
             if (visible && !wave[0].IsProgressUpdate)
             {
                 // Play the sound first, then show the toast after a short delay so the audio onset
-                // and the slide-in visually align. The in-process fast path starts the player far
-                // sooner than the URI, so it waits proportionally less.
-                bool fastPath;
-                (soundPlayedUtc, soundFilePath, soundFileGain, fastPath) = PlayWaveSound(cardItems);
-                if (soundPlayedUtc.HasValue)
+                // and the slide-in visually align.
+                var playback = PlayWaveSound(cardItems);
+                if (playback != null)
                 {
-                    soundAlignmentMs = fastPath ? SoundAlignmentFastPathDelayMs : SoundAlignmentDelayMs;
+                    soundPlayedUtc = playback.SentUtc;
+                    soundFilePath = playback.FilePath;
+                    soundFileGain = playback.Gain;
+                    soundAlignmentMs = SoundAlignmentDelayMs;
                 }
 
-                await Task.Delay(fastPath ? SoundAlignmentFastPathDelayMs : SoundAlignmentDelayMs)
-                    .ConfigureAwait(true);
+                await Task.Delay(SoundAlignmentDelayMs).ConfigureAwait(true);
                 if (_disposed)
                 {
                     DisposeCaptureTask(baseCaptureTask);
@@ -3002,65 +3008,32 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Fires a single UniPlaySong sound for the wave, using the highest-ranked tier present so
-        /// a burst of unlocks does not stack overlapping sounds. UniPlaySong owns enablement and
-        /// audio selection. The sound file is resolved first (UniPlaySong 1.8.4+) so the recording
-        /// service can mix that exact file at the composited toast; the sound then fires through
-        /// UniPlaySong's in-process event, or the playnite:// URI on older versions. Returns the
-        /// launch moment (null when no sound fired — including UniPlaySong's achievement-sound
-        /// master switch being off) and the resolved file path (null when unknown, which sends the
-        /// recording service down its capture-based fallback).
+        /// Plays a single sound for the wave through the sound host, using the highest-ranked tier
+        /// present so a burst of unlocks does not stack overlapping sounds. Returns what played
+        /// (the send moment, the exact file and the gain, which the recording service mixes at the
+        /// composited toast), or null when sounds are off, nothing resolved, or the host is down.
         /// </summary>
-        private (DateTime? PlayedUtc, string SoundFilePath, double? SoundFileGain, bool FastPath)
-            PlayWaveSound(IReadOnlyList<AchievementToastViewModel> wave)
+        private Services.Sound.UnlockSoundPlayback PlayWaveSound(IReadOnlyList<AchievementToastViewModel> wave)
         {
             var tier = wave?
                 .OrderByDescending(vm => vm.SoundTierRank)
-                .Select(vm => vm.SoundTierSegment)
-                .FirstOrDefault();
-            if (string.IsNullOrWhiteSpace(tier))
+                .Select(vm => vm.SoundTier)
+                .FirstOrDefault(t => t != null);
+            if (tier == null || _unlockSounds == null)
             {
-                return (null, null, null, false);
+                return null;
             }
 
-            var soundFilePath = UniPlaySongBridge.TryResolveAchievementSound(
-                _api, tier, _logger, out var soundDisabled);
-            if (soundDisabled)
-            {
-                // UniPlaySong positively reports achievement sounds off: nothing would play, so
-                // nothing may be mixed into clips either.
-                return (null, null, null, false);
-            }
+            var playback = _unlockSounds.Play(tier.Value);
 
-            // Snapshotted at fire time, like the path: the mixed chime should be as loud as the
-            // live one the user heard, and the volume can change between now and export.
-            var soundFileGain = soundFilePath == null
-                ? null
-                : UniPlaySongBridge.TryReadJingleVolume(_api, _logger);
-
-            // One line per wave, because a field log without it cannot distinguish "UniPlaySong
-            // too old" from "resolution failed" from "file path flowed but export dropped it".
+            // One line per wave, so a field log can tell "sounds off" from "resolution failed"
+            // from "file path flowed but export dropped it".
             _logger?.Info(
-                $"[Toast] Wave sound (tier={tier}): " +
-                (soundFilePath == null
-                    ? "no resolved file; clips use the capture-based chime fallback"
-                    : $"file='{soundFilePath}' volume={(soundFileGain?.ToString("0.00") ?? "unknown")}"));
-
-            if (UniPlaySongBridge.TryTriggerExternalEvent(_api, tier, _logger))
-            {
-                return (CaptureTimelineClock.UtcNow, soundFilePath, soundFileGain, true);
-            }
-
-            try
-            {
-                Process.Start($"playnite://uniplaysong/{UniPlaySongBridge.EventSource}/{tier}");
-                return (CaptureTimelineClock.UtcNow, soundFilePath, soundFileGain, false);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Toast unlock sound URI could not be launched.");
-                return (null, null, null, false);
-            }
+                $"[Toast] Wave sound (tier={tier.Value.ToFileBaseName()}): " +
+                (playback == null
+                    ? "nothing played"
+                    : $"source={playback.Sound.Source} file='{playback.FilePath}' volume={playback.Gain:0.00}"));
+            return playback;
         }
 
         private sealed class WaveScreenshotPlan

@@ -113,8 +113,8 @@ namespace PlayniteAchievements.Services.Recording
         private const double ChimeLeadFallbackSeconds = 0.45;
         private const double ChimeLeadMaxSeconds = 2.0;
         // Stands in for the toast service's applied sound-alignment delay when a file-mixed chime
-        // arrives without one; matches that service's URI-path constant, the larger of its two.
-        private const int ChimeAlignmentFallbackMs = 450;
+        // arrives without one; the same constant that service applies live.
+        private const int ChimeAlignmentFallbackMs = ToastNotificationService.SoundAlignmentDelayMs;
 
         /// <summary>
         /// Stands in for the volume UniPlaySong played the chime at when that volume cannot be
