@@ -10,9 +10,16 @@ namespace PlayniteAchievements.Services.Recording
         private static readonly Dictionary<string, bool> Cache =
             new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>The DualSense's shared-mode layout: 4 channels as front and back pairs.</summary>
+        private const int ControllerLayoutChannels = 4;
+        private const uint ControllerLayoutMask = 0x33;
+
         /// <summary>
-        /// Returns whether an endpoint belongs to a controller that carries audio haptics. Endpoint
-        /// identity is immutable, so the relatively expensive property-store sweep is cached by id.
+        /// Returns whether an endpoint belongs to a controller that carries audio haptics: either the
+        /// classifier recognises its hardware id or name, or the endpoint exposes the controller
+        /// layout itself (<see cref="HasControllerLayout"/>), so a pad the classifier has never heard
+        /// of is still caught. Endpoint identity is immutable, so the relatively expensive
+        /// property-store sweep is cached by id.
         /// </summary>
         internal static bool IsHapticEndpoint(EndpointIdentity endpoint)
         {
@@ -33,13 +40,25 @@ namespace PlayniteAchievements.Services.Recording
             var verdict = HapticEndpointClassifier.IsHapticEndpoint(
                 IdentityCandidates(endpoint),
                 endpoint.FriendlyName,
-                endpoint.DeviceFriendlyName);
+                endpoint.DeviceFriendlyName) || HasControllerLayout(endpoint);
             lock (CacheGate)
             {
                 Cache[id] = verdict;
             }
 
             return verdict;
+        }
+
+        /// <summary>
+        /// Whether the endpoint's mix format is the 4-channel front-and-back-pairs layout a
+        /// DualSense exposes. Quadraphonic speaker outputs share it and are treated the same way:
+        /// their back pair leaves clips while they are active, which is the cheaper mistake.
+        /// </summary>
+        internal static bool HasControllerLayout(EndpointIdentity endpoint)
+        {
+            return endpoint != null &&
+                endpoint.MixChannels == ControllerLayoutChannels &&
+                endpoint.MixChannelMask == ControllerLayoutMask;
         }
 
         /// <summary>

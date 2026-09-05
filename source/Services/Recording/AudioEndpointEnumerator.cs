@@ -29,14 +29,28 @@ namespace PlayniteAchievements.Services.Recording
             string friendlyName,
             string deviceFriendlyName,
             string instanceId,
-            IReadOnlyList<string> propertyStrings)
+            IReadOnlyList<string> propertyStrings,
+            int mixChannels = 0,
+            uint mixChannelMask = 0)
         {
             Id = id;
             FriendlyName = friendlyName;
             DeviceFriendlyName = deviceFriendlyName;
             InstanceId = instanceId;
             PropertyStrings = propertyStrings ?? new string[0];
+            MixChannels = mixChannels;
+            MixChannelMask = mixChannelMask;
         }
+
+        /// <summary>Channel count of the endpoint's shared-mode mix format; 0 when unreadable.</summary>
+        public int MixChannels { get; }
+
+        /// <summary>
+        /// Speaker mask of the mix format when it is WAVEFORMATEXTENSIBLE; 0 otherwise. A DualSense
+        /// exposes 4 channels with mask 0x33 (front and back pairs), a layout no ordinary speaker
+        /// output uses.
+        /// </summary>
+        public uint MixChannelMask { get; }
 
         public string Id { get; }
 
@@ -89,6 +103,8 @@ namespace PlayniteAchievements.Services.Recording
         private const ushort VT_LPSTR = 30;
         private const ushort VT_LPWSTR = 31;
         private const ushort VT_VECTOR = 0x1000;
+        private const ushort VT_BLOB = 0x41;
+        private const ushort WaveFormatExtensibleTag = 0xFFFE;
 
         private static readonly Guid MMDeviceEnumeratorClsid =
             new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E");
@@ -104,6 +120,10 @@ namespace PlayniteAchievements.Services.Recording
         // endpoint's own property store, so reading it there yields nothing on any machine.
         private static readonly PropertyKey InstancePathKey =
             new PropertyKey(new Guid("b3f8fa53-0004-438e-9003-51a46e139bfc"), 2);
+
+        // PKEY_AudioEngine_DeviceFormat: the shared-mode mix format as a WAVEFORMATEX blob.
+        private static readonly PropertyKey DeviceFormatKey =
+            new PropertyKey(new Guid("f19f064d-082c-4e27-bc73-6882a1bb8e4c"), 0);
 
         // PROPVARIANT: an 8-byte header (VARTYPE plus three pad WORDs) then a pointer-aligned union
         // whose largest member used here (CALPWSTR) is a count followed by a pointer.
@@ -287,6 +307,8 @@ namespace PlayniteAchievements.Services.Recording
             string deviceFriendlyName = null;
             string instanceId = null;
             var strings = new List<string>();
+            var mixChannels = 0;
+            var mixChannelMask = 0u;
 
             IPropertyStore store = null;
             try
@@ -297,6 +319,7 @@ namespace PlayniteAchievements.Services.Recording
                     deviceFriendlyName = ReadSingleString(store, InterfaceFriendlyNameKey);
                     instanceId = ReadSingleString(store, InstancePathKey);
                     CollectAllStrings(store, strings);
+                    ReadMixFormat(store, out mixChannels, out mixChannelMask);
                 }
             }
             catch
@@ -307,7 +330,72 @@ namespace PlayniteAchievements.Services.Recording
                 Release(store);
             }
 
-            return new EndpointIdentity(id, friendlyName, deviceFriendlyName, instanceId, strings);
+            return new EndpointIdentity(
+                id, friendlyName, deviceFriendlyName, instanceId, strings, mixChannels, mixChannelMask);
+        }
+
+        /// <summary>
+        /// Reads the mix format's channel count and, for WAVEFORMATEXTENSIBLE, its speaker mask.
+        /// Both stay 0 when the property is absent or not a blob.
+        /// </summary>
+        private static void ReadMixFormat(IPropertyStore store, out int channels, out uint channelMask)
+        {
+            channels = 0;
+            channelMask = 0;
+            var buffer = Marshal.AllocCoTaskMem(PropVariantSize);
+            try
+            {
+                for (var offset = 0; offset < PropVariantSize; offset += 4)
+                {
+                    Marshal.WriteInt32(buffer, offset, 0);
+                }
+
+                var key = DeviceFormatKey;
+                if (store.GetValue(ref key, buffer) != 0)
+                {
+                    return;
+                }
+
+                try
+                {
+                    var vt = unchecked((ushort)Marshal.ReadInt16(buffer));
+                    if (vt != VT_BLOB)
+                    {
+                        return;
+                    }
+
+                    // BLOB: a byte count, then -- pointer-aligned -- the data pointer.
+                    var payload = buffer + 8;
+                    var size = Marshal.ReadInt32(payload);
+                    var data = Marshal.ReadIntPtr(payload + IntPtr.Size);
+                    if (data == IntPtr.Zero || size < 18)
+                    {
+                        return;
+                    }
+
+                    // WAVEFORMATEX: wFormatTag @0, nChannels @2, ..., cbSize @16;
+                    // WAVEFORMATEXTENSIBLE continues with wValidBitsPerSample @18, dwChannelMask @20.
+                    var formatTag = unchecked((ushort)Marshal.ReadInt16(data));
+                    channels = Marshal.ReadInt16(data, 2);
+                    if (formatTag == WaveFormatExtensibleTag && size >= 24)
+                    {
+                        channelMask = unchecked((uint)Marshal.ReadInt32(data, 20));
+                    }
+                }
+                finally
+                {
+                    try { PropVariantClear(buffer); } catch { }
+                }
+            }
+            catch
+            {
+                channels = 0;
+                channelMask = 0;
+            }
+            finally
+            {
+                Marshal.FreeCoTaskMem(buffer);
+            }
         }
 
         private static string ReadSingleString(IPropertyStore store, PropertyKey key)
