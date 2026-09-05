@@ -1174,8 +1174,19 @@ namespace PlayniteAchievements.Services.Capture
             var bestValue = ScoreBlock(
                 mixture, reference, center, blockStartFrame, blockEndFrame).Value;
             var calibratedValue = bestValue;
-            for (var offset = -radiusFrames; offset <= radiusFrames; offset += 8)
+
+            // Frame-exact search within 1 ms of the calibration first: recorder tears measured in
+            // the field were 8-24 frames. A tonal sound's partials repeat a few milliseconds out,
+            // so a distant lag can score within a hair of the true one; the far search below may
+            // only win by a clear margin over the best near lag.
+            const int nearRadius = 48;
+            for (var offset = -nearRadius; offset <= nearRadius; offset++)
             {
+                if (offset == 0 || Math.Abs(offset) > radiusFrames)
+                {
+                    continue;
+                }
+
                 var value = ScoreBlock(
                     mixture, reference, center + offset, blockStartFrame, blockEndFrame).Value;
                 if (value > bestValue)
@@ -1185,21 +1196,48 @@ namespace PlayniteAchievements.Services.Capture
                 }
             }
 
-            var coarseBest = bestLag;
-            for (var offset = -7; offset <= 7; offset++)
+            var nearBestValue = bestValue;
+            var farBestLag = bestLag;
+            var farBestValue = bestValue;
+            for (var offset = -radiusFrames; offset <= radiusFrames; offset += 8)
             {
-                var lag = coarseBest + offset;
-                if (Math.Abs(lag - center) > radiusFrames)
+                if (Math.Abs(offset) <= nearRadius)
                 {
                     continue;
                 }
 
                 var value = ScoreBlock(
-                    mixture, reference, lag, blockStartFrame, blockEndFrame).Value;
-                if (value > bestValue)
+                    mixture, reference, center + offset, blockStartFrame, blockEndFrame).Value;
+                if (value > farBestValue)
                 {
-                    bestValue = value;
-                    bestLag = lag;
+                    farBestValue = value;
+                    farBestLag = center + offset;
+                }
+            }
+
+            if (farBestLag != bestLag)
+            {
+                for (var offset = -7; offset <= 7; offset++)
+                {
+                    var lag = farBestLag + offset;
+                    if (Math.Abs(lag - center) > radiusFrames || Math.Abs(lag - center) <= nearRadius)
+                    {
+                        continue;
+                    }
+
+                    var value = ScoreBlock(
+                        mixture, reference, lag, blockStartFrame, blockEndFrame).Value;
+                    if (value > farBestValue)
+                    {
+                        farBestValue = value;
+                        farBestLag = lag;
+                    }
+                }
+
+                if (farBestValue > nearBestValue + 0.05)
+                {
+                    bestValue = farBestValue;
+                    bestLag = farBestLag;
                 }
             }
 
