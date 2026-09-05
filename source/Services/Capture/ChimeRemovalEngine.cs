@@ -104,6 +104,16 @@ namespace PlayniteAchievements.Services.Capture
     internal static class ChimeRemovalEngine
     {
         private const double MinimumAcceptedSuppressionDb = 30.0;
+
+        /// <summary>
+        /// Gate on the held-out weakest audible block. PcmAudio scores it honestly now (standard
+        /// blocks even for a whole-window fit, masked and edge blocks excluded), and real
+        /// renders of a real jingle reach 24-27 dB in their weakest block while removing the rest
+        /// by 40-50 dB (field run 2026-09-05, third session, where a 30 dB gate here rejected two
+        /// of five waves and left every clip with all of its live sounds and no replacement). A
+        /// remnant 20 dB under its own block is far below a retained live sound.
+        /// </summary>
+        private const double MinimumAcceptedWeakestBlockDb = 20.0;
         private const int MaximumCopiesPerSource = 8;
 
         public static ChimeRemovalResult RemoveAll(
@@ -339,6 +349,7 @@ namespace PlayniteAchievements.Services.Capture
             bool requireResidualAbsenceProof)
         {
             var sawRejectedCancellation = false;
+            var sawDeferredAbsence = false;
             var isResolvedFile = kind.StartsWith(
                 "resolved-file",
                 StringComparison.Ordinal);
@@ -402,11 +413,27 @@ namespace PlayniteAchievements.Services.Capture
                             return new RemovalRun(true, false);
                         }
 
+                        sawDeferredAbsence = true;
                         continue;
                     }
 
                     Buffer.BlockCopy(candidate, 0, working, 0, working.Length);
                     return new RemovalRun(true, true);
+                }
+
+                if (residualPass && sawDeferredAbsence && !sawRejectedCancellation &&
+                    outcome == PcmCancellationOutcome.Unseparable &&
+                    diagnostics.TotalBlocks == 0 && diagnostics.RestoredBlocks == 0 &&
+                    Math.Abs(diagnostics.Correlation) < 0.15)
+                {
+                    // The ordinary passes found the sound absent and the low-floor pass, which is
+                    // made to try a fit anyway, found nothing that even reached its floors: no
+                    // block was attempted, none restored, correlation under the ordinary floor.
+                    // That is the detector agreeing, not a contradiction; after Game Only
+                    // isolation removed a sound, every clean window reports this shape (field
+                    // run 2026-09-05, third session). A pass that attempted a block and had to
+                    // restore it is the ambiguous case and still fails closed.
+                    return new RemovalRun(true, false);
                 }
 
                 if (outcome == PcmCancellationOutcome.CancelledVerified)
@@ -501,7 +528,7 @@ namespace PlayniteAchievements.Services.Capture
             return outcome == PcmCancellationOutcome.CancelledVerified &&
                 ReferenceCancellationPolicy.IsComplete(diagnostics) &&
                 diagnostics.SuppressionDb >= MinimumAcceptedSuppressionDb &&
-                diagnostics.WeakestBlockSuppressionDb >= MinimumAcceptedSuppressionDb;
+                diagnostics.WeakestBlockSuppressionDb >= MinimumAcceptedWeakestBlockDb;
         }
 
         private static bool IsVerifiedPresent(
