@@ -29,11 +29,18 @@ internal static class ClipRemnantProbe
         var volume = 0.5;
         var floor = 0.06;
         var blockSeconds = 0.25;
+        var fitTaps = 0;
+        var atSeconds = new List<double>();
         for (var i = 2; i < args.Length - 1; i++)
         {
             if (args[i] == "--volume") { volume = double.Parse(args[i + 1]); }
             if (args[i] == "--floor") { floor = double.Parse(args[i + 1]); }
             if (args[i] == "--block") { blockSeconds = double.Parse(args[i + 1]); }
+            if (args[i] == "--taps") { fitTaps = int.Parse(args[i + 1]); }
+            if (args[i] == "--at")
+            {
+                foreach (var part in args[i + 1].Split(',')) { atSeconds.Add(double.Parse(part)); }
+            }
         }
 
         var clip = Decode(args[0]);
@@ -150,9 +157,137 @@ internal static class ClipRemnantProbe
                 $"  {best / (double)Rate,6:0.000}  {bestCorr,6:0.000}  {Db(globalGain / volume),8:+0.0;-0.0}   {string.Join(" ", blocks)}");
         }
 
+        if (fitTaps > 0)
+        {
+            // On every strong occurrence, compare what a per-block gain leaves behind with what a
+            // short per-block least-squares filter leaves behind. The filter models a fractional
+            // delay and a mild spectral difference (two decoders, two resamplers) at once.
+            Console.WriteLine();
+            Console.WriteLine($"per-block residual re played copy (0.5 s blocks): as-is / after gain fit / after {fitTaps}-tap filter fit");
+            var positions = new List<int>();
+            if (atSeconds.Count > 0)
+            {
+                foreach (var s in atSeconds) { positions.Add((int)Math.Round(s * Rate)); }
+            }
+            else
+            {
+                foreach (var coarseStart in peaks)
+                {
+                    var start = coarseStart;
+                    var corr = Correlation(clip, sound, start, template, 1);
+                    for (var delta = coarseStart - 12; delta <= coarseStart + 12; delta++)
+                    {
+                        if (delta < 0 || delta + template > clipFrames) { continue; }
+                        var c = Correlation(clip, sound, delta, template, 1);
+                        if (c > corr) { corr = c; start = delta; }
+                    }
+                    if (corr >= 0.9) { positions.Add(start); }
+                }
+            }
+
+            foreach (var start in positions)
+            {
+                var row = new List<string>();
+                for (var offset = 0; offset < soundFrames && start + offset < clipFrames; offset += 24000)
+                {
+                    var count = Math.Min(24000, Math.Min(soundFrames - offset, clipFrames - start - offset));
+                    if (count < 4800 || Energy(sound, offset, count) < 1e3) { continue; }
+                    var played = volume * volume * Energy(sound, offset, count);
+                    var asIs = 10 * Math.Log10(Math.Max(1, Energy(clip, start + offset, count)) / Math.Max(1, played));
+                    var gainOnly = FitResidualEnergy(clip, sound, start, offset, count, 1);
+                    var filtered = FitResidualEnergy(clip, sound, start, offset, count, fitTaps);
+                    row.Add($"{asIs:0}/{10 * Math.Log10(Math.Max(1, gainOnly) / Math.Max(1, played)):0}/{10 * Math.Log10(Math.Max(1, filtered) / Math.Max(1, played)):0}");
+                }
+                Console.WriteLine($"  at {start / (double)Rate:0.000}s: {string.Join(" ", row)}");
+            }
+        }
+
         Console.WriteLine();
-        Console.WriteLine("A replacement composited at the played volume reads 0 dB. Anything else above the floor is live sound that survived removal; a flat per-block row means a level mismatch, a sloped one a time-varying level, and a row that decays block by block a timing drift.");
+        Console.WriteLine("A replacement composited at the played volume reads 0 dB. Anything else above the floor is live sound that survived removal; a flat per-block row means a level mismatch, a sloped one a time-varying level, and a row that decays block by block a timing drift. Rows whose gains rise exactly where a replacement starts are the replacement's own audio correlating with the sound's later, repeating motif, not a remnant.");
         return 0;
+    }
+
+    /// <summary>
+    /// Least-squares fit of the sound onto the clip block with a symmetric FIR of
+    /// <paramref name="taps"/> taps (1 = plain gain), returning the residual energy in dB
+    /// relative to the fitted copy's energy. Stereo channels share the taps.
+    /// </summary>
+    private static double FitResidualDb(short[] clip, short[] sound, int clipStart, int offset, int count, int taps)
+    {
+        var residual = FitResidualEnergy(clip, sound, clipStart, offset, count, taps);
+        var copy = Energy(sound, offset, count);
+        return 10 * Math.Log10(Math.Max(1, residual) / Math.Max(1, copy));
+    }
+
+    /// <summary>Residual energy after a least-squares fit of the sound onto the clip block with <paramref name="taps"/> taps.</summary>
+    private static double FitResidualEnergy(short[] clip, short[] sound, int clipStart, int offset, int count, int taps)
+    {
+        var half = taps / 2;
+        var n = taps;
+        var ata = new double[n, n];
+        var atb = new double[n];
+        for (var f = offset; f < offset + count; f++)
+        {
+            for (var ch = 0; ch < Channels; ch++)
+            {
+                double y = clip[(clipStart + f) * Channels + ch];
+                for (var i = 0; i < n; i++)
+                {
+                    var fi = f + (i - half);
+                    double xi = fi >= 0 && fi < sound.Length / Channels ? sound[fi * Channels + ch] : 0;
+                    atb[i] += xi * y;
+                    for (var j = i; j < n; j++)
+                    {
+                        var fj = f + (j - half);
+                        double xj = fj >= 0 && fj < sound.Length / Channels ? sound[fj * Channels + ch] : 0;
+                        ata[i, j] += xi * xj;
+                    }
+                }
+            }
+        }
+        for (var i = 0; i < n; i++) { for (var j = 0; j < i; j++) { ata[i, j] = ata[j, i]; } }
+        for (var i = 0; i < n; i++) { ata[i, i] *= 1.000001; }
+        var h = Solve(ata, atb, n);
+
+        double residual = 0, fitted = 0;
+        for (var f = offset; f < offset + count; f++)
+        {
+            for (var ch = 0; ch < Channels; ch++)
+            {
+                double y = clip[(clipStart + f) * Channels + ch];
+                double est = 0;
+                for (var i = 0; i < n; i++)
+                {
+                    var fi = f + (i - half);
+                    est += h[i] * (fi >= 0 && fi < sound.Length / Channels ? sound[fi * Channels + ch] : 0);
+                }
+                residual += (y - est) * (y - est);
+                fitted += est * est;
+            }
+        }
+        return residual;
+    }
+
+    private static double[] Solve(double[,] a, double[] b, int n)
+    {
+        var m = new double[n, n + 1];
+        for (var i = 0; i < n; i++) { for (var j = 0; j < n; j++) { m[i, j] = a[i, j]; } m[i, n] = b[i]; }
+        for (var col = 0; col < n; col++)
+        {
+            var pivot = col;
+            for (var r = col + 1; r < n; r++) { if (Math.Abs(m[r, col]) > Math.Abs(m[pivot, col])) { pivot = r; } }
+            for (var j = 0; j <= n; j++) { var t = m[col, j]; m[col, j] = m[pivot, j]; m[pivot, j] = t; }
+            if (Math.Abs(m[col, col]) < 1e-12) { continue; }
+            for (var r = 0; r < n; r++)
+            {
+                if (r == col) { continue; }
+                var factor = m[r, col] / m[col, col];
+                for (var j = col; j <= n; j++) { m[r, j] -= factor * m[col, j]; }
+            }
+        }
+        var x = new double[n];
+        for (var i = 0; i < n; i++) { x[i] = Math.Abs(m[i, i]) < 1e-12 ? 0 : m[i, n] / m[i, i]; }
+        return x;
     }
 
     private static double Correlation(short[] clip, short[] sound, int clipStart, int frames, int stride)
