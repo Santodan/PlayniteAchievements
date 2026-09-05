@@ -307,6 +307,7 @@
     <Compile Include="..\..\source\ViewModels\IOverviewRefreshHeaderViewModel.cs" Link="Source\ViewModels\IOverviewRefreshHeaderViewModel.cs" />
     <Compile Include="..\..\source\ViewModels\RefreshHeaderProgressTracker.cs" Link="Source\ViewModels\RefreshHeaderProgressTracker.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettingsSubscription.cs" Link="Source\Models\Settings\PersistedSettingsSubscription.cs" />
+    <Compile Include="..\..\source\Models\Settings\UnlockSoundTier.cs" Link="Source\Models\Settings\UnlockSoundTier.cs" />
     <Compile Include="..\..\source\ViewModels\FriendsOverviewViewModel.cs" Link="Source\ViewModels\FriendsOverviewViewModel.cs" />
     <Compile Include="..\..\source\ViewModels\Items\CategoryStatsScope.cs" Link="Source\ViewModels\Items\CategoryStatsScope.cs" />
     <Compile Include="..\..\source\ViewModels\Items\CategoryTreeShape.cs" Link="Source\ViewModels\Items\CategoryTreeShape.cs" />

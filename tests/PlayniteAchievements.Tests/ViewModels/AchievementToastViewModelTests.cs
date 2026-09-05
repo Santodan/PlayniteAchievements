@@ -157,7 +157,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsNull(viewModel.BadgeImage);
             Assert.IsFalse(viewModel.FrameShowBadge);
             // The capstone-tier sound covers the completion notification.
-            Assert.AreEqual("capstoneachievement", viewModel.SoundTierSegment);
+            Assert.AreEqual(UnlockSoundTier.Capstone, viewModel.SoundTier);
             Assert.AreEqual(6, viewModel.SoundTierRank);
         }
 
@@ -174,14 +174,14 @@ namespace PlayniteAchievements.Tests.ViewModels
                 args,
                 new PersistedSettings { UseHiddenUnlockSound = false });
 
-            Assert.AreEqual("rareachievement", optedOut.SoundTierSegment);
+            Assert.AreEqual(UnlockSoundTier.Rare, optedOut.SoundTier);
             Assert.AreEqual(3, optedOut.SoundTierRank);
 
             var optedIn = new AchievementToastViewModel(
                 args,
                 new PersistedSettings { UseHiddenUnlockSound = true });
 
-            Assert.AreEqual(AchievementToastViewModel.HiddenSoundSegment, optedIn.SoundTierSegment);
+            Assert.AreEqual(UnlockSoundTier.Hidden, optedIn.SoundTier);
             // Hidden outranks every rarity tier so it wins its wave, but stays under capstone.
             Assert.AreEqual(5, optedIn.SoundTierRank);
         }
@@ -197,7 +197,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 },
                 new PersistedSettings { UseHiddenUnlockSound = true });
 
-            Assert.AreEqual("ultrarareachievement", viewModel.SoundTierSegment);
+            Assert.AreEqual(UnlockSoundTier.UltraRare, viewModel.SoundTier);
             Assert.AreEqual(4, viewModel.SoundTierRank);
         }
 
@@ -213,9 +213,9 @@ namespace PlayniteAchievements.Tests.ViewModels
                 },
                 new PersistedSettings { UseHiddenUnlockSound = true });
 
-            // The segment order puts hidden first, the rank order keeps capstone on top: a hidden
+            // The tier order puts hidden first, the rank order keeps capstone on top: a hidden
             // capstone plays the hidden sound while still ranking as a capstone in its wave.
-            Assert.AreEqual(AchievementToastViewModel.HiddenSoundSegment, viewModel.SoundTierSegment);
+            Assert.AreEqual(UnlockSoundTier.Hidden, viewModel.SoundTier);
             Assert.AreEqual(6, viewModel.SoundTierRank);
         }
 
@@ -607,7 +607,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsFalse(viewModel.ShowCardRayBurst);
 
             // Silent kind: no sound tier at all.
-            Assert.IsNull(viewModel.SoundTierSegment);
+            Assert.IsNull(viewModel.SoundTier);
             Assert.AreEqual(0, viewModel.SoundTierRank);
         }
 
