@@ -233,9 +233,9 @@ See [Theme Migration](https://github.com/justin-delano/PlayniteAchievements/wiki
 
 PlayniteAchievements supports additional features when used with the following extensions:
 
-## UniPlaySong
+## Unlock sounds
 
-When [UniPlaySong](https://github.com/aHuddini/UniPlaySong) is installed, achievement notifications are accompanied by custom musical jingles. Themes can also take advantage of this to have their own custom consistent jingles.
+Unlock sounds are built in: each notification plays a sound for its rarity tier (or for hidden and capstone unlocks), with a volume slider and a per-tier file picker under Settings > Notifications. Themes can ship their own sounds by dropping `common`/`uncommon`/`rare`/`ultrarare`/`hidden`/`capstone` files into `PlayniteAchievements/Sounds/` in the theme folder; the UniPlaySong-era `audio/Achievements/` layout is still read. UniPlaySong is no longer needed for achievement sounds, so turn its achievement sounds off to avoid hearing two.
 
 ## StartPage
 
