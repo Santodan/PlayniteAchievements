@@ -392,55 +392,6 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Reduces a 4-channel float capture to stereo float. With <paramref name="dropBackChannels"/>
-        /// the back pair is discarded: under the quad mask that is where a DualSense's actuators
-        /// arrive, so the haptics never reach the clip. Without it the back pair is a surround
-        /// system's rear channels and is folded into L/R at -3 dB. Null for any other format.
-        /// </summary>
-        internal static byte[] ReduceQuadToStereo(byte[] source, int bytes, WaveFormat format, bool dropBackChannels)
-        {
-            if (source == null || format == null || format.Channels != 4 ||
-                format.BitsPerSample != 32 || format.Encoding != WaveFormatEncoding.IeeeFloat &&
-                !(format is WaveFormatExtensible extensible && extensible.SubFormat == IeeeFloatSubFormat))
-            {
-                return null;
-            }
-
-            const int inputBlock = 4 * sizeof(float);
-            const int outputBlock = 2 * sizeof(float);
-            var frames = Math.Min(Math.Max(0, bytes), source.Length) / inputBlock;
-            var output = new byte[checked(frames * outputBlock)];
-            if (dropBackChannels)
-            {
-                for (var frame = 0; frame < frames; frame++)
-                {
-                    Buffer.BlockCopy(source, frame * inputBlock, output, frame * outputBlock, outputBlock);
-                }
-
-                return output;
-            }
-
-            const float rearGain = 0.70710678f;
-            for (var frame = 0; frame < frames; frame++)
-            {
-                var offset = frame * inputBlock;
-                var left = BitConverter.ToSingle(source, offset) + rearGain * BitConverter.ToSingle(source, offset + 8);
-                var right = BitConverter.ToSingle(source, offset + 4) + rearGain * BitConverter.ToSingle(source, offset + 12);
-                WriteClamped(output, frame * outputBlock, left);
-                WriteClamped(output, frame * outputBlock + 4, right);
-            }
-
-            return output;
-        }
-
-        private static void WriteClamped(byte[] output, int offset, float value)
-        {
-            var clamped = value > 1f ? 1f : value < -1f ? -1f : value;
-            var bits = BitConverter.GetBytes(clamped);
-            Buffer.BlockCopy(bits, 0, output, offset, 4);
-        }
-
-        /// <summary>
         /// Extracts the native front-left/right program channels and discards the two actuator
         /// channels. This is used when the DualSense is itself the user's default output.
         /// </summary>

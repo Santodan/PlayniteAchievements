@@ -16,8 +16,12 @@ namespace PlayniteAchievements.Services.Recording
     /// so clip export can mux matching sound. The clip track is chosen structurally, never cleaned
     /// by cancellation: Full System records every process except the sound host's tree, Game Only
     /// records the game's tree (with an exclude-host fallback track for a game that renders outside
-    /// it), both as 4-channel process loopback so a controller's actuator channels can be dropped
-    /// by position. Without a sound host pid, or below Windows 10 19041, the clip track is the
+    /// it), both as 8-channel process loopback. The width matters twice over: the engine converts
+    /// each stream to its endpoint's mix format and then AVERAGES it down to a narrower capture
+    /// format (measured 2026-09-05 on a 7.1 endpoint: an 8-to-4 capture reads 6.7 dB low, 8-to-2
+    /// 13.5 dB low, 8-to-8 exact), so 8 channels is lossless for every endpoint up to 7.1; and a
+    /// controller's actuator channels land on the back pair by position, where they can be
+    /// dropped. Without a sound host pid, or below Windows 10 19041, the clip track is the
     /// default render endpoint itself and the live unlock sound stays in it. The optional microphone
     /// is mixed into either mode. Chunk names mirror the video convention
     /// (aud_yyyyMMdd-HHmmssfffffffZ.wav, UTC timeline) and rotate every
@@ -32,10 +36,11 @@ namespace PlayniteAchievements.Services.Recording
     /// Haptics: a DualSense on USB is a 4-channel endpoint (front L/R, then the two actuators as
     /// back L/R, mask 0x33) and games render their haptics to channels 2/3 of it. A process-loopback
     /// stream captured as stereo folds those into L/R, which is the buzz reported in clips; captured
-    /// at 4 channels the engine keeps each stream's channels by speaker position (measured
-    /// 2026-09-05 with tools/capture-harness/ChannelMapProbe), so the recorder keeps channels 0/1
-    /// and drops 2/3 whenever a controller endpoint is active. Without one, 2/3 carry a surround
-    /// system's rear channels and are folded into L/R instead. If the DualSense itself is the
+    /// at 8 channels the engine keeps each stream's channels by speaker position (measured
+    /// 2026-09-05 with tools/capture-harness/ChannelMapProbe), so the actuators arrive on the back
+    /// pair and <see cref="SurroundDownmix"/> drops that pair whenever a controller endpoint is
+    /// active. Without one, the back pair is a surround system's rear channels and is folded into
+    /// L/R with the rest. If the DualSense itself is the
     /// default output and no host is available, its proven native layout is split the same way.
     ///
     /// The fallback track is written directly from packet stamps. It is an independent
@@ -73,9 +78,10 @@ namespace PlayniteAchievements.Services.Recording
         private readonly Func<int?> _soundHostProcessId;
         private readonly object _gate = new object();
 
-        // Every process-loopback clip track is captured at 4 channels so a controller's actuator
-        // channels (back L/R under the quad mask) arrive on their own channels; see the class doc.
-        private static readonly WaveFormat QuadCaptureFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 4);
+        // Every process-loopback clip track is captured at 8 channels (7.1 mask): wide enough that
+        // the engine never averages a stream down on the way in, and a controller's actuator
+        // channels arrive on the back pair by position; see the class doc.
+        private static readonly WaveFormat SurroundCaptureFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 8);
         private static readonly WaveFormat StereoFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2);
 
         private IWaveIn _systemCapture;
@@ -112,7 +118,7 @@ namespace PlayniteAchievements.Services.Recording
         // delivery latency; it replaces a fixed segment-length-plus-margin sleep at the reader.
         private const int AuxiliaryFlushMarginMs = 750;
         private bool _extractControllerProgramAudio;
-        private bool _reduceQuad;
+        private bool _reduceSurround;
         private bool _dropActuatorChannels;
         private bool _hapticExclusionProven;
         private string _micName;
@@ -164,7 +170,7 @@ namespace PlayniteAchievements.Services.Recording
                 try
                 {
                     _systemCapture = CreateSystemCapture();
-                    var systemFormat = _extractControllerProgramAudio || _reduceQuad
+                    var systemFormat = _extractControllerProgramAudio || _reduceSurround
                         ? StereoFormat
                         : _systemCapture.WaveFormat;
                     _systemBuffer = NewBuffer(systemFormat);
@@ -238,8 +244,8 @@ namespace PlayniteAchievements.Services.Recording
                     };
                     _pumpThread.Start();
 
-                    var haptics = _reduceQuad
-                        ? (_dropActuatorChannels ? "controller-present-channels-2/3-dropped" : "no-controller-rear-channels-folded")
+                    var haptics = _reduceSurround
+                        ? (_dropActuatorChannels ? "controller-present-back-pair-dropped" : "no-controller-back-pair-folded")
                         : _hapticExclusionProven ? "excluded-by-endpoint" : "unproven-audio-retained";
                     _logger?.Info(
                         $"[Recording] Audio capture started (source={_source}, " +
@@ -260,7 +266,7 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Builds the clip track: a process-scoped 4-channel capture when a sound host pid is
+        /// Builds the clip track: a process-scoped 8-channel capture when a sound host pid is
         /// available, otherwise the default render endpoint.
         /// </summary>
         private IWaveIn CreateSystemCapture()
@@ -343,8 +349,8 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>
         /// The process-scoped clip track, or null when the endpoint mix must be recorded instead:
         /// Full System excludes the sound host's tree; Game Only includes the game's tree and keeps
-        /// an exclude-host fallback beside it. Both are 4-channel captures reduced to stereo per
-        /// packet (see <see cref="AppendSystem"/>). Any failure here falls back to the endpoint
+        /// an exclude-host fallback beside it. Both are 8-channel captures reduced to stereo per
+        /// packet by <see cref="SurroundDownmix"/> (see <see cref="AppendSystem"/>). Any failure here falls back to the endpoint
         /// mix, so failure means the live unlock sound in a clip, never silence.
         /// </summary>
         private IWaveIn TryCreateExcludingClipTrack()
@@ -373,10 +379,10 @@ namespace PlayniteAchievements.Services.Recording
             {
                 if (_source == RecordingAudioSource.GameOnly && gamePid.HasValue && gamePid.Value > 0)
                 {
-                    var game = new ProcessLoopbackCapture(gamePid.Value, includeProcessTree: true, QuadCaptureFormat);
+                    var game = new ProcessLoopbackCapture(gamePid.Value, includeProcessTree: true, SurroundCaptureFormat);
                     try
                     {
-                        _fallbackCapture = new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, QuadCaptureFormat);
+                        _fallbackCapture = new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, SurroundCaptureFormat);
                     }
                     catch (Exception ex)
                     {
@@ -389,9 +395,9 @@ namespace PlayniteAchievements.Services.Recording
 
                     ClipTrack = ClipTrackKind.IncludeGame;
                     ExcludedSoundHostProcessId = hostPid.Value;
-                    _reduceQuad = true;
+                    _reduceSurround = true;
                     _logger?.Info(
-                        $"[Recording] Clip track: the game tree (pid {gamePid.Value}) at 4 channels; " +
+                        $"[Recording] Clip track: the game tree (pid {gamePid.Value}) at 8 channels; " +
                         $"the sound host (pid {hostPid.Value}) is never inside it" +
                         (_fallbackCapture != null ? ", with an exclude-host fallback track." : "."));
                     return game;
@@ -402,12 +408,12 @@ namespace PlayniteAchievements.Services.Recording
                     _logger?.Info("[Recording] Game Only has no game pid; recording everything except the sound host instead.");
                 }
 
-                var excluded = new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, QuadCaptureFormat);
+                var excluded = new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, SurroundCaptureFormat);
                 ClipTrack = ClipTrackKind.ExcludeSoundHost;
                 ExcludedSoundHostProcessId = hostPid.Value;
-                _reduceQuad = true;
+                _reduceSurround = true;
                 _logger?.Info(
-                    $"[Recording] Clip track: everything except the sound host (pid {hostPid.Value}) at 4 channels; " +
+                    $"[Recording] Clip track: everything except the sound host (pid {hostPid.Value}) at 8 channels; " +
                     "the live unlock sound never enters clips.");
                 return excluded;
             }
@@ -420,15 +426,15 @@ namespace PlayniteAchievements.Services.Recording
                 DisposeCapture(ref _fallbackCapture);
                 ClipTrack = ClipTrackKind.EndpointMix;
                 ExcludedSoundHostProcessId = null;
-                _reduceQuad = false;
+                _reduceSurround = false;
                 return null;
             }
         }
 
         /// <summary>
-        /// Whether a controller render endpoint is active. When one is, a 4-channel process capture
-        /// drops channels 2/3 (the actuators); otherwise those channels are a surround system's
-        /// rear pair and are folded into L/R.
+        /// Whether a controller render endpoint is active. When one is, the 8-channel process capture
+        /// drops its back pair, where a pad's actuators land; otherwise that pair is a surround
+        /// system's rear channels and is folded into L/R.
         /// </summary>
         private bool AnyControllerEndpointActive()
         {
@@ -467,8 +473,8 @@ namespace PlayniteAchievements.Services.Recording
             _stampedFallbackTrack = new StampedAuxiliaryTrack(RecordingPaths.FallbackChunkFilePrefix, StereoFormat);
             fallback.StampedDataAvailable += (s, e) =>
             {
-                var stereo = ProcessLoopbackCapture.ReduceQuadToStereo(
-                    e?.Buffer, e?.Bytes ?? 0, fallback.WaveFormat, _dropActuatorChannels);
+                var stereo = SurroundDownmix.ToStereo(
+                    e?.Buffer, e?.Bytes ?? 0, fallback.WaveFormat.Channels, _dropActuatorChannels);
                 if (stereo != null)
                 {
                     WriteStampedAuxiliaryPacket(
@@ -773,17 +779,17 @@ namespace PlayniteAchievements.Services.Recording
 
         private void AppendSystem(WaveInEventArgs packet)
         {
-            if (!_extractControllerProgramAudio && !_reduceQuad)
+            if (!_extractControllerProgramAudio && !_reduceSurround)
             {
                 Append(_systemBuffer, packet);
                 return;
             }
 
-            var programAudio = _reduceQuad
-                ? ProcessLoopbackCapture.ReduceQuadToStereo(
+            var programAudio = _reduceSurround
+                ? SurroundDownmix.ToStereo(
                     packet?.Buffer,
                     packet?.BytesRecorded ?? 0,
-                    _systemCapture?.WaveFormat,
+                    _systemCapture?.WaveFormat?.Channels ?? 0,
                     _dropActuatorChannels)
                 : ProcessLoopbackCapture.ExtractDualSenseProgramAudio(
                     packet?.Buffer,
