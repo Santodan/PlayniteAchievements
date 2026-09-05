@@ -218,6 +218,10 @@
     <Content Include="Resources\Hoyoverse\**\*.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Bundled unlock sounds ship as loose files: the sound host process opens them by path. -->
+    <Content Include="Resources\Sounds\*.mp3;Resources\Sounds\notices.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Providers\RetroAchievements\PlatformMapping\console-mappings.json" />

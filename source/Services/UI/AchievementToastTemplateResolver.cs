@@ -355,6 +355,21 @@ namespace PlayniteAchievements.Services.UI
                 .ToList();
         }
 
+        /// <summary>
+        /// The active theme's candidate directories for the current mode, most specific first
+        /// (memoized like every template lookup). Shared with <see cref="UnlockSoundResolver"/> so
+        /// theme-supplied sounds and theme-supplied templates agree on which theme is active.
+        /// </summary>
+        public IReadOnlyList<string> ResolveActiveThemeDirectories(ResourceDictionary applicationResources)
+        {
+            var modeName = GetThemeModeName();
+            return ResolveThemeDirectoriesCached(
+                applicationResources,
+                GetThemesRootPaths(),
+                modeName,
+                GetActiveThemeId(modeName));
+        }
+
         public void LogActiveThemeOverrideDiagnostics(string context = null)
         {
             if (_logger == null)
