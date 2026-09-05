@@ -13,7 +13,7 @@
 //
 //   ChannelMapProbe.exe [--endpoint <index>] [--channels 4|6|8] [--tone-channel 2] [--hz 180] [--source-channels 4|8]
 //   ChannelMapProbe.exe --pid <processId>        capture a RUNNING process (a game) at 2, 4 and 8 channels for 5 s
-//   ChannelMapProbe.exe --tone <hz> <seconds> <channels> <activeChannel> <endpointId>   child mode
+//   ChannelMapProbe.exe --tone <hz> <seconds> <channels> <activeChannel> <endpointId> [amplitude]   child mode (amplitude 0 = an open, silent stream)
 //
 // --source-channels sets how many channels the child's stream has (a game on a 7.1 endpoint renders
 // 8). --pid skips the child and reports per-channel RMS of whatever the process is rendering, so a
@@ -47,7 +47,8 @@ internal static class ChannelMapProbe
                 double.Parse(args[1], CultureInfo.InvariantCulture),
                 double.Parse(args[2], CultureInfo.InvariantCulture),
                 int.Parse(args[3], CultureInfo.InvariantCulture),
-                int.Parse(args[4], CultureInfo.InvariantCulture));
+                int.Parse(args[4], CultureInfo.InvariantCulture),
+                args.Length > 6 ? double.Parse(args[6], CultureInfo.InvariantCulture) : 0.05);
             return 0;
         }
 
@@ -281,11 +282,11 @@ internal static class ChannelMapProbe
         return new MMDeviceEnumerator().GetDevice(endpointId);
     }
 
-    private static void PlayTone(MMDevice device, double hz, double seconds, int channels, int activeChannel)
+    private static void PlayTone(MMDevice device, double hz, double seconds, int channels, int activeChannel, double amplitude)
     {
         using (var output = new WasapiOut(device, AudioClientShareMode.Shared, false, 200))
         {
-            output.Init(new ToneProvider(hz, 0.05, seconds, activeChannel, channels));
+            output.Init(new ToneProvider(hz, amplitude, seconds, activeChannel, channels));
             output.Play();
             while (output.PlaybackState == PlaybackState.Playing)
             {
