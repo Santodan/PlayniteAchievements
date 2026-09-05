@@ -76,14 +76,13 @@ $extraSources = @{
         (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
     ChimeSeparationProbe = @(
-        (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioGapTracker.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
     ChimeBurstProbe = @(
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
-        (Join-Path $repo 'source\Services\Capture\ReferenceCancellationPolicy.cs'),
+        (Join-Path $repo 'source\Services\Recording\ChimeCompositeDecision.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioGapTracker.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),

@@ -1,9 +1,10 @@
-// Burst test for the reference-track pipeline: two toast waves of three achievements, on the REAL
-// recorder plumbing. Unlike ChimeSeparationProbe (raw loopback clients), this drives two actual
-// AudioLoopbackRecorder instances concurrently — one Game Only, one Full System — exactly as
-// UnlockRecordingService wires them (game pid + sound-host pid delegates), so the mixer graph,
-// direct packet timestamping, wall-clock main pump, gap padding, chunk rotation and the per-mode
-// reference selection are all exercised. The process topology is production's:
+// Burst test for the exclusion-based clip tracks: two toast waves of three achievements, on the
+// REAL recorder plumbing. Unlike ChimeSeparationProbe (raw loopback clients), this drives two
+// actual AudioLoopbackRecorder instances concurrently — one Game Only, one Full System — exactly
+// as UnlockRecordingService wires them (game pid + sound-host pid delegates), so the mixer graph,
+// direct packet timestamping, wall-clock main pump, gap padding, chunk rotation, the 4-channel
+// process captures and their stereo reduction are all exercised. The process topology is
+// production's:
 //
 //   this process   (orchestrator; stands in for Playnite, plays nothing during the waves)
 //   child "game"   plays a continuous AM-warbled game tone (an emulator's role)
@@ -11,22 +12,24 @@
 //
 // A wave of three achievements plays ONE chime (highest tier wins, ToastNotificationService), so
 // two waves of three means two chimes at wave cadence: with the default 6 s toast, wave 2's chime
-// fires ~7.5 s after wave 1's. Each wave's chime uses a distinct frequency (440 / 587 Hz) so the
-// wrong wave's chime showing up in a slice is directly measurable.
+// fires ~7.5 s after wave 1's. Each wave's chime uses a distinct frequency (440 / 587 Hz) so a
+// chime leaking into a slice is directly measurable.
 //
 // Per wave and per mode, the probe reads the toast-plus-tail slice and asserts by Goertzel power:
-//   - aud_ (the speaker-endpoint mix both modes record) carries the game marker tone
-//   - Game Only: ref_ (exclude game tree) holds this wave's chime and not the other's; gam_ (the
-//     game witness) exists; ReferenceCancellationPolicy.RemoveGameFromReference purges nothing
-//     harmful from ref_; aud_ minus ref_ (the production Subtract) drops the chime >= 15 dB and
-//     keeps the game tone within 3 dB
-//   - Full System: ref_ (include sound-host tree) holds only the chime; aud_ minus ref_ drops
-//     the chime and keeps the game tone the same way
+//   - the clip track (aud_) carries the game marker tone
+//   - the clip track shows no rise at the chime frequency during the chime: the sound host is
+//     excluded from the capture (Full System) or was never inside the game tree (Game Only), so
+//     nothing is subtracted and nothing can leak
+//   - Game Only: the exclude-host fallback track (alt_) exists and satisfies the same two checks;
+//     Full System writes no fallback
+//   - production's ChimeCompositeDecision adds the composited chime to both modes' clips
 //
 // When exactly one controller (haptic) endpoint is connected, the game child additionally renders
-// a 180 Hz actuator tone to it for the whole run — the real game-with-haptics topology — and every
-// user-facing output (aud_ and both modes' results) is asserted to exclude that tone by >= 30 dB
-// relative to the process capture that carries it.
+// a 180 Hz actuator tone to it for the whole run — the real game-with-haptics topology. The probe
+// also runs a plain STEREO process capture of the game tree, which folds the actuator channels
+// into L/R the way every recorder capture did before the 4-channel format; that capture's
+// haptic-to-game ratio is the contamination reference, and every clip track is asserted to sit
+// >= 30 dB below it. No cancellation is involved: the recorder drops channels 2/3.
 //
 //   ChimeBurstProbe.exe [--keep] [--no-haptics] [--cold]     ~35 s run, plays quiet tones
 //   ChimeBurstProbe.exe --tone f s [amp] [amHz] [--haptics]  game-child mode
@@ -106,9 +109,9 @@ internal static class ChimeBurstProbe
             ? $"haptic layer: ON — the game child also renders {HapticToneHz} Hz to '{controllerName}'"
             : "haptic layer: off (no single controller endpoint connected)");
 
-        // The game signal is band-limited noise with the marker tone embedded: a pure tone's
-        // near-periodic autocorrelation would give the cancellation's lag search ambiguous peaks
-        // every carrier period, which is a signal pathology rather than a pipeline defect.
+        // The game signal is band-limited noise with the marker tone embedded, so a chime bin's
+        // leakage is measured as its during-vs-after rise above that noise rather than as an
+        // absolute level.
         var game = Process.Start(new ProcessStartInfo
         {
             FileName = exe,
@@ -132,6 +135,7 @@ internal static class ChimeBurstProbe
 
         AudioLoopbackRecorder gameOnly = null;
         AudioLoopbackRecorder fullSystem = null;
+        StereoCollector gameTreeStereo = null;
         try
         {
             Thread.Sleep(1500); // game render stream up
@@ -154,12 +158,34 @@ internal static class ChimeBurstProbe
                 return 2;
             }
 
-            Check(gameOnly.ReferenceKind == ReferenceTrackKind.ExcludeGameTree,
-                "Game Only selects the exclude-game-tree reference",
-                gameOnly.ReferenceKind.ToString());
-            Check(fullSystem.ReferenceKind == ReferenceTrackKind.IncludeSoundHostTree,
-                "Full System selects the include-sound-host reference",
-                fullSystem.ReferenceKind.ToString());
+            Check(gameOnly.ClipTrack == ClipTrackKind.IncludeGame && gameOnly.HasFallbackTrack,
+                "Game Only records the game tree with an exclude-host fallback track",
+                $"{gameOnly.ClipTrack} fallback={gameOnly.HasFallbackTrack}");
+            Check(fullSystem.ClipTrack == ClipTrackKind.ExcludeSoundHost && !fullSystem.HasFallbackTrack,
+                "Full System records everything except the sound host, with no fallback",
+                $"{fullSystem.ClipTrack} fallback={fullSystem.HasFallbackTrack}");
+            Check(gameOnly.ExcludedSoundHostProcessId == host.Id && fullSystem.ExcludedSoundHostProcessId == host.Id,
+                "both recorders keyed the exclusion off the sound host's pid",
+                $"{gameOnly.ExcludedSoundHostProcessId}/{fullSystem.ExcludedSoundHostProcessId} vs {host.Id}");
+
+            // Production's composite decision for these sessions while the host is still up:
+            // the live sound never entered either clip track, so the composited copy is the only
+            // chime a clip receives.
+            var gameOnlyVerdict = ChimeCompositeDecision.Decide(
+                true, gameOnly.ClipTrack, false, gameOnly.ExcludedSoundHostProcessId, host.Id);
+            var fullSystemVerdict = ChimeCompositeDecision.Decide(
+                true, fullSystem.ClipTrack, false, fullSystem.ExcludedSoundHostProcessId, host.Id);
+            Check(ChimeCompositeDecision.AllowsComposite(gameOnlyVerdict) &&
+                  ChimeCompositeDecision.AllowsComposite(fullSystemVerdict),
+                "production adds the composited chime to both modes' clips",
+                $"{gameOnlyVerdict} / {fullSystemVerdict}");
+
+            if (hapticsLayer)
+            {
+                // The contamination reference: what a stereo capture of the game tree carries.
+                gameTreeStereo = new StereoCollector(new ProcessLoopbackCapture(game.Id, includeProcessTree: true));
+                gameTreeStereo.Start();
+            }
 
             // The host child reports each chime's launch stamp (CaptureTimelineClock, the same
             // clock the recorder places packets on) the way SoundPlayedUtc does in production.
@@ -191,14 +217,17 @@ internal static class ChimeBurstProbe
             fullSystem.Dispose();
             gameOnly = null;
             fullSystem = null;
+            var contamination = gameTreeStereo?.StopAndReadPcm16();
+            gameTreeStereo = null;
 
-            Analyze("Game Only", gameOnlyDir, ReferenceTrackKind.ExcludeGameTree, stamps[0], stamps[1], hapticsLayer);
-            Analyze("Full System", fullSystemDir, ReferenceTrackKind.IncludeSoundHostTree, stamps[0], stamps[1], hapticsLayer);
+            Analyze("Game Only", gameOnlyDir, ClipTrackKind.IncludeGame, stamps[0], stamps[1], contamination);
+            Analyze("Full System", fullSystemDir, ClipTrackKind.ExcludeSoundHost, stamps[0], stamps[1], contamination);
         }
         finally
         {
             try { gameOnly?.Dispose(); } catch { }
             try { fullSystem?.Dispose(); } catch { }
+            try { gameTreeStereo?.StopAndReadPcm16(); } catch { }
             try { if (!game.HasExited) { game.Kill(); } } catch { }
             try { if (!host.HasExited) { host.Kill(); } } catch { }
         }
@@ -275,33 +304,48 @@ internal static class ChimeBurstProbe
     private static void Analyze(
         string mode,
         string bufferDir,
-        ReferenceTrackKind kind,
+        ClipTrackKind clipTrack,
         DateTime sound1Utc,
         DateTime sound2Utc,
-        bool hapticsLayer)
+        byte[] gameTreeStereo)
     {
         Console.WriteLine();
-        Console.WriteLine($"===== {mode} ({kind}) =====");
+        Console.WriteLine($"===== {mode} ({clipTrack}) =====");
         var aud = LoadTrack(bufferDir, RecordingPaths.AudioChunkFilePrefix);
-        var reference = LoadTrack(bufferDir, RecordingPaths.ReferenceChunkFilePrefix);
-        var gam = LoadTrack(bufferDir, RecordingPaths.GameReferenceChunkFilePrefix);
-        Console.WriteLine($"chunks: aud={aud.Count} ref={reference.Count} gam={gam.Count}");
-        Check(aud.Count > 0, $"{mode}: main track wrote aud_ chunks", aud.Count.ToString());
-        Check(reference.Count > 0, $"{mode}: reference wrote ref_ chunks", reference.Count.ToString());
-        var expectsWitness = kind == ReferenceTrackKind.ExcludeGameTree;
-        Check(gam.Count > 0 == expectsWitness,
-            expectsWitness ? $"{mode}: game witness wrote gam_ chunks" : $"{mode}: no game witness (Full System has no use for it)",
-            gam.Count.ToString());
-        if (aud.Count == 0 || reference.Count == 0 || (expectsWitness && gam.Count == 0))
+        var alt = LoadTrack(bufferDir, RecordingPaths.FallbackChunkFilePrefix);
+        Console.WriteLine($"chunks: aud={aud.Count} alt={alt.Count}");
+        Check(aud.Count > 0, $"{mode}: clip track wrote aud_ chunks", aud.Count.ToString());
+        var expectsFallback = clipTrack == ClipTrackKind.IncludeGame;
+        Check(alt.Count > 0 == expectsFallback,
+            expectsFallback
+                ? $"{mode}: exclude-host fallback wrote alt_ chunks"
+                : $"{mode}: no fallback track (the clip track already excludes the host)",
+            alt.Count.ToString());
+        if (aud.Count == 0 || (expectsFallback && alt.Count == 0))
         {
             return;
         }
 
         CheckChunkTimeline("aud", aud);
-        CheckChunkTimeline("ref", reference);
-        if (expectsWitness)
+        if (expectsFallback)
         {
-            CheckChunkTimeline("gam", gam);
+            CheckChunkTimeline("alt", alt);
+        }
+
+        // A stereo capture of the game tree folds the actuator channels into L/R, which is what
+        // every recorder capture did before the 4-channel format; its haptic-to-game ratio is the
+        // contamination a clip track must sit well below. Ratios cancel the capture paths' volume
+        // scaling. Both tones run for the whole session, so no slice alignment is needed.
+        double contaminationRatioDb = 0;
+        if (gameTreeStereo != null)
+        {
+            var frames = gameTreeStereo.Length / 4;
+            var game = GoertzelDb(gameTreeStereo, 0, frames, GameToneHz);
+            var haptic = GoertzelDb(gameTreeStereo, 0, frames, HapticToneHz);
+            contaminationRatioDb = haptic - game;
+            Console.WriteLine(
+                $"stereo game-tree capture: haptic {haptic:0.0} dB, game {game:0.0} dB, " +
+                $"ratio {contaminationRatioDb:0.0} dB (what a stereo capture carries)");
         }
 
         var sliceSeconds = ToastDurationSeconds + SliceTailSeconds;
@@ -316,150 +360,101 @@ internal static class ChimeBurstProbe
             Console.WriteLine();
             Console.WriteLine($"--- {mode} {wave.Name}: slice {wave.SoundUtc:HH:mm:ss.fff} +{sliceSeconds:0.0}s ---");
             var sliceEnd = wave.SoundUtc.AddSeconds(sliceSeconds);
-            var audSlice = ReadWindow(aud, wave.SoundUtc, sliceEnd);
-            var refSlice = ReadWindow(reference, wave.SoundUtc, sliceEnd);
-            var gamSlice = expectsWitness ? ReadWindow(gam, wave.SoundUtc, sliceEnd) : null;
-            var frames = refSlice.Length / 4;
-
-            // Steady middle of this wave's chime, and an equal-length window after it ends, for
-            // presence checks. The game signal is broadband noise, so absolute power in a chime
-            // bin is dominated by the noise floor — chime leakage is the DIFFERENCE between the
-            // during-chime and after-chime windows, not the absolute level.
-            var p0 = (int)(0.4 * SampleRate);
-            var p1 = (int)(2.1 * SampleRate);
-            var a0 = (int)(2.7 * SampleRate);
-            var a1 = (int)(4.4 * SampleRate);
-
-            var audOwnDuring = GoertzelDb(audSlice, p0, p1, wave.OwnHz);
-            var audOwnAfter = GoertzelDb(audSlice, a0, a1, wave.OwnHz);
-            var audGame = GoertzelDb(audSlice, p0, p1, GameToneHz);
-            var refOtherWhole = GoertzelDb(refSlice, 0, frames, wave.OtherHz);
-            var refOwnWhole = GoertzelDb(refSlice, 0, frames, wave.OwnHz);
-            var refGame = GoertzelDb(refSlice, p0, p1, GameToneHz);
-
-            Check(audGame > audOwnAfter + 15,
-                $"{mode} {wave.Name}: raw endpoint track carries the game marker tone",
-                $"marker {audGame:0.0} vs noise floor {audOwnAfter:0.0} dB");
-            Check(audOwnDuring > audOwnAfter + 15,
-                $"{mode} {wave.Name}: raw endpoint track carries the live chime",
-                $"during {audOwnDuring:0.0} vs after {audOwnAfter:0.0} dB");
-            Check(refOwnWhole > refOtherWhole + 15,
-                $"{mode} {wave.Name}: ref_ slice holds its own chime only (the other wave's is {WaveGapSeconds:0.0}s away)",
-                $"own {refOwnWhole:0.0} vs other-wave floor {refOtherWhole:0.0} dB");
-            Check(refOwnWhole > refGame + 15,
-                $"{mode} {wave.Name}: ref_ does not carry the game tone",
-                $"chime {refOwnWhole:0.0} vs game {refGame:0.0} dB");
-
-            double gamGame = 0, gamHaptic = 0;
-            if (hapticsLayer && gamSlice != null)
+            AssertClipSlice(mode, wave, "aud_ (clip track)", ReadWindow(aud, wave.SoundUtc, sliceEnd),
+                gameTreeStereo != null, contaminationRatioDb);
+            if (expectsFallback)
             {
-                // The game child renders the haptic tone continuously; the game-tree process
-                // capture (gam_) hears it across endpoints, so its haptic-to-game ratio is the
-                // contamination reference. Ratios cancel the capture paths' volume scaling.
-                gamGame = GoertzelDb(gamSlice, p0, p1, GameToneHz);
-                gamHaptic = GoertzelDb(gamSlice, p0, p1, HapticToneHz);
-                var audHaptic = GoertzelDb(audSlice, p0, p1, HapticToneHz);
-                Check(
-                    (gamHaptic - gamGame) - (audHaptic - audGame) >= 30,
-                    $"{mode} {wave.Name}: speaker-endpoint track excludes the haptic tone by >= 30dB",
-                    $"process ratio {gamHaptic - gamGame:0.0}dB vs endpoint ratio {audHaptic - audGame:0.0}dB");
+                AssertClipSlice(mode, wave, "alt_ (exclude-host fallback)", ReadWindow(alt, wave.SoundUtc, sliceEnd),
+                    gameTreeStereo != null, contaminationRatioDb);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The three properties every clip track must have over a wave's slice: it carries the game,
+    /// it shows no chime, and (with the haptic layer) it carries none of the actuator tone.
+    /// </summary>
+    private static void AssertClipSlice(
+        string mode,
+        Wave wave,
+        string track,
+        byte[] slice,
+        bool hapticsLayer,
+        double contaminationRatioDb)
+    {
+        // Steady middle of this wave's chime, and an equal-length window after it ends. The game
+        // signal is broadband noise, so absolute power in a chime bin is dominated by the noise
+        // floor — chime leakage is the DIFFERENCE between the during-chime and after-chime
+        // windows, not the absolute level. A live chime in the endpoint mix measures as a rise of
+        // 15 dB or more; a single-bin estimate of noise alone scatters by up to about 12 dB.
+        var p0 = (int)(0.4 * SampleRate);
+        var p1 = (int)(2.1 * SampleRate);
+        var a0 = (int)(2.7 * SampleRate);
+        var a1 = (int)(4.4 * SampleRate);
+
+        var game = GoertzelDb(slice, p0, p1, GameToneHz);
+        var ownDuring = GoertzelDb(slice, p0, p1, wave.OwnHz);
+        var ownAfter = GoertzelDb(slice, a0, a1, wave.OwnHz);
+
+        Check(game > ownAfter + 15,
+            $"{mode} {wave.Name}: {track} carries the game marker tone",
+            $"marker {game:0.0} vs noise floor {ownAfter:0.0} dB");
+        Check(ownDuring - ownAfter <= 12,
+            $"{mode} {wave.Name}: {track} shows no chime during the live chime",
+            $"during {ownDuring:0.0} vs after {ownAfter:0.0} dB");
+        if (hapticsLayer)
+        {
+            var haptic = GoertzelDb(slice, p0, p1, HapticToneHz);
+            Check(contaminationRatioDb - (haptic - game) >= 30,
+                $"{mode} {wave.Name}: {track} excludes the haptic tone by >= 30dB",
+                $"stereo-capture ratio {contaminationRatioDb:0.0}dB vs track ratio {haptic - game:0.0}dB");
+        }
+    }
+
+    /// <summary>A plain stereo process capture accumulated for the whole run and read as 16-bit PCM.</summary>
+    private sealed class StereoCollector
+    {
+        private readonly ProcessLoopbackCapture _capture;
+        private readonly MemoryStream _bytes = new MemoryStream();
+
+        public StereoCollector(ProcessLoopbackCapture capture)
+        {
+            _capture = capture;
+            _capture.DataAvailable += (s, e) =>
+            {
+                lock (_bytes)
+                {
+                    _bytes.Write(e.Buffer, 0, e.BytesRecorded);
+                }
+            };
+        }
+
+        public void Start() => _capture.StartRecording();
+
+        public byte[] StopAndReadPcm16()
+        {
+            try { _capture.StopRecording(); } catch { }
+            _capture.Dispose();
+            byte[] raw;
+            lock (_bytes)
+            {
+                raw = _bytes.ToArray();
             }
 
-            // Production's TryReadReference, Game Only branch: the witness proves the reference
-            // is free of the game (an empty witness refuses isolation), and a mirrored game copy
-            // is purged from it before subtraction.
-            refSlice = (byte[])refSlice.Clone();
-            if (expectsWitness)
+            var frames = raw.Length / 8; // float32 stereo
+            var pcm = new byte[frames * 4];
+            for (var frame = 0; frame < frames; frame++)
             {
-                var purgeOutcome = ReferenceCancellationPolicy.RemoveGameFromReference(
-                    refSlice, gamSlice, out var purge, maxLagFrames: 12000);
-                Console.WriteLine(
-                    $"witness purge: outcome={purgeOutcome} lag={purge.StartLagMs:0.000}ms " +
-                    $"corr={purge.Correlation:0.000} supp={purge.SuppressionDb:0.0}dB " +
-                    $"restored={purge.RestoredBlocks} hasSignal={purge.ReferenceHasSignal}");
-                Check(purgeOutcome != PcmCancellationOutcome.Unseparable,
-                    $"{mode} {wave.Name}: reference verified free of a mirrored game copy",
-                    purgeOutcome.ToString());
-                if (purgeOutcome == PcmCancellationOutcome.Unseparable)
+                for (var channel = 0; channel < 2; channel++)
                 {
-                    Console.WriteLine("NOTE production keeps the speaker mix as-is for this clip; nothing further to prove");
-                    continue;
+                    var value = BitConverter.ToSingle(raw, frame * 8 + channel * 4);
+                    var scaled = (int)Math.Round(Math.Max(-1f, Math.Min(1f, value)) * 32767f);
+                    pcm[frame * 4 + channel * 2] = (byte)(scaled & 0xff);
+                    pcm[frame * 4 + channel * 2 + 1] = (byte)((scaled >> 8) & 0xff);
                 }
             }
 
-            // Production's PrepareClipAudio: 500 ms time-local fit (re-locking per block for the
-            // sound-host reference), one-full-clip fallback, then up to three residual passes at
-            // the calibrated lag. Completeness (no restored blocks) is what licenses the composite.
-            var relockFrames = kind == ReferenceTrackKind.IncludeSoundHostTree
-                ? ReferenceCancellationPolicy.BlockRelockRadiusFrames
-                : 0;
-            var cleaned = (byte[])audSlice.Clone();
-            var outcome = ReferenceCancellationPolicy.Subtract(
-                cleaned, refSlice, out var cancellation, residualPass: false,
-                blockFrames: ReferenceCancellationPolicy.IsolationBlockFrames,
-                blockLagRadiusFrames: relockFrames);
-            var fit = "500ms-time-local-gain";
-            if (outcome != PcmCancellationOutcome.CancelledVerified)
-            {
-                cleaned = (byte[])audSlice.Clone();
-                outcome = ReferenceCancellationPolicy.Subtract(
-                    cleaned, refSlice, out cancellation, residualPass: false);
-                fit = "one-full-clip-fallback";
-            }
-
-            var complete = outcome == PcmCancellationOutcome.CancelledVerified &&
-                ReferenceCancellationPolicy.IsComplete(cancellation);
-            Console.WriteLine(
-                $"reference subtraction: outcome={outcome} lag={cancellation.StartLagMs:0.000}ms " +
-                $"corr={cancellation.Correlation:0.000} supp={cancellation.SuppressionDb:0.0}dB " +
-                $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
-                $"restored={cancellation.RestoredBlocks} relocked={cancellation.RelockedBlocks} " +
-                $"complete={complete} fit={fit}");
-            Check(outcome == PcmCancellationOutcome.CancelledVerified,
-                $"{mode} {wave.Name}: reference subtraction verified",
-                outcome.ToString());
-            Check(complete,
-                $"{mode} {wave.Name}: subtraction complete, so production adds the composited chime",
-                $"restored={cancellation.RestoredBlocks} partial={cancellation.PartialCommit}");
-            if (outcome != PcmCancellationOutcome.CancelledVerified)
-            {
-                continue;
-            }
-
-            for (var pass = 1; pass <= 3; pass++)
-            {
-                var residualOutcome = ReferenceCancellationPolicy.Subtract(
-                    cleaned, refSlice, out var residual, residualPass: true,
-                    blockFrames: ReferenceCancellationPolicy.IsolationBlockFrames,
-                    calibratedLagFrames: cancellation.StartLagMs * SampleRate / 1000.0,
-                    blockLagRadiusFrames: relockFrames);
-                Console.WriteLine(
-                    $"residual pass {pass}: outcome={residualOutcome} supp={residual.SuppressionDb:0.0}dB");
-                if (residualOutcome != PcmCancellationOutcome.CancelledVerified)
-                {
-                    break;
-                }
-            }
-
-            var outDuring = GoertzelDb(cleaned, p0, p1, wave.OwnHz);
-            var outAfter = GoertzelDb(cleaned, a0, a1, wave.OwnHz);
-            var outGame = GoertzelDb(cleaned, p0, p1, GameToneHz);
-            Check(
-                outDuring - outAfter <= 12 || audOwnDuring - outDuring >= 15,
-                $"{mode} {wave.Name}: output drops the live chime",
-                $"during {outDuring:0.0} vs after {outAfter:0.0} dB (raw {audOwnDuring:0.0} dB)");
-            Check(
-                Math.Abs(audGame - outGame) <= 3,
-                $"{mode} {wave.Name}: output keeps the game tone within 3dB",
-                $"lost {audGame - outGame:0.0}dB");
-            if (hapticsLayer && gamSlice != null)
-            {
-                var outHaptic = GoertzelDb(cleaned, p0, p1, HapticToneHz);
-                Check(
-                    (gamHaptic - gamGame) - (outHaptic - outGame) >= 30,
-                    $"{mode} {wave.Name}: output excludes the haptic tone by >= 30dB",
-                    $"process ratio {gamHaptic - gamGame:0.0}dB vs output ratio {outHaptic - outGame:0.0}dB");
-            }
+            return pcm;
         }
     }
 

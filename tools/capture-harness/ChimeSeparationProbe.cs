@@ -6,15 +6,14 @@
 //   child process ("emulator")   — plays an AM-warbled 1320 Hz game tone (RetroArch's role)
 //
 // and captures three streams with the plugin's real ProcessLoopbackCapture (compiled in from
-// source, same for PcmAudio):
+// source):
 //
-//   game    = include-tree on the CHILD pid    (the Game Only witness)                      -> game tone only
-//   sidecar = include-tree on OUR OWN pid      (Full System's include-sound-host reference)  -> both tones (child is in our tree)
-//   outside = exclude-tree on our own pid      (informational)                              -> neither tone
+//   game    = include-tree on the CHILD pid    (the Game Only clip track)                   -> game tone only
+//   sidecar = include-tree on OUR OWN pid      (the sound host's own render; 0 dB reference) -> both tones (child is in our tree)
+//   outside = exclude-tree on our own pid      (the Full System clip track)                 -> neither tone
 //
-// It then runs PcmAudio.CancelCorrelated(sidecar, game) — two INDEPENDENT loopback clients, so the
-// real inter-client clock offset/drift is exercised — and asserts by Goertzel power that the game
-// tone is suppressed while the chime tone survives.
+// It asserts by Goertzel power that neither clip track carries the chime: the plugin keeps the
+// unlock sound out of clips by excluding the sound host's process, never by cancelling it.
 //
 //   ChimeSeparationProbe.exe                       run the probe (needs a default render device)
 //   ChimeSeparationProbe.exe --tone f s [amp] [am] child mode: play a tone and exit
@@ -28,7 +27,6 @@ using System.Globalization;
 using System.IO;
 using System.Threading;
 using NAudio.Wave;
-using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.Recording;
 
 internal static class ChimeSeparationProbe
@@ -146,28 +144,11 @@ internal static class ChimeSeparationProbe
 
         Console.WriteLine();
         Check(gameGame > -6, "game capture carries the game tone", $"{gameGame:0.0}dB");
-        Check(gameChime < -30, "game capture excludes the parent's chime (the Game Only witness never records the sound host)", $"{gameChime:0.0}dB");
+        Check(gameChime < -30, "game capture excludes the parent's chime (the Game Only clip track never records the sound host)", $"{gameChime:0.0}dB");
         Check(outsideChime < -30 && outsideGame < -30,
-            "excluded capture carries neither tone (FullSystem main track; informational if other audio was playing)",
+            "excluded capture carries neither tone (Full System clip track; informational if other audio was playing)",
             $"chime {outsideChime:0.0}dB game {outsideGame:0.0}dB");
 
-        // The production question: can the game tone be removed from the sidecar while the chime
-        // survives, across two independent loopback clients?
-        var before = (byte[])sidecarPcm.Clone();
-        var outcome = PcmAudio.CancelCorrelated(
-            sidecarPcm, gamePcm, out var d,
-            preferEarlyAlignmentWindow: true,
-            verificationLagRadiusFrames: 480);
-        Console.WriteLine();
-        Console.WriteLine($"cancellation: outcome={outcome} lag={d.StartLagMs:0.000}->{d.EndLagMs:0.000}ms gain={d.Gain:0.00} corr={d.Correlation:0.000} supp={d.SuppressionDb:0.0}dB");
-        Check(outcome == PcmCancellationOutcome.CancelledVerified, "cancellation verified", outcome.ToString());
-        if (outcome == PcmCancellationOutcome.CancelledVerified)
-        {
-            var gameSuppression = GoertzelDb(before, w0, w1, GameToneHz) - GoertzelDb(sidecarPcm, w0, w1, GameToneHz);
-            var chimeLoss = GoertzelDb(before, w0, w1, ChimeToneHz) - GoertzelDb(sidecarPcm, w0, w1, ChimeToneHz);
-            Check(gameSuppression >= 10, "game tone suppressed >= 10dB in the cancelled sidecar", $"{gameSuppression:0.0}dB");
-            Check(Math.Abs(chimeLoss) <= 3, "chime tone survives within 3dB", $"lost {chimeLoss:0.0}dB");
-        }
     }
 
     private static void Report(string name, double chimeDb, double gameDb)
