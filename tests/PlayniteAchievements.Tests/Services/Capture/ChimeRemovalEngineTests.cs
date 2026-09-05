@@ -128,6 +128,41 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         [TestMethod]
+        public void QuietGameBedDoesNotVetoAProvenRemovalThroughResidualCorrelation()
+        {
+            // Field run 2026-09-05: fits with correlation 0.999-1.000 and 31-41 dB suppression
+            // were rejected on residual correlation 0.199 and 0.524. That score is normalized over
+            // one window, so a remnant far below the 30 dB gate still correlates strongly with the
+            // reference whenever the game is quiet there. Suppression is the audibility gate.
+            var frames = Rate * 4;
+            var game = Noise(frames, 1011, 12);
+            var sound = Chime(Rate * 2, 523, 4800, 71);
+            var live = Drift(sound, 1.0, 0.94);
+            var launch = Rate;
+            var rendered = launch + 4000;
+            var endpoint = (short[])game.Clone();
+            Add(endpoint, live, rendered);
+
+            var result = ChimeRemovalEngine.RemoveAll(
+                Bytes(endpoint), null, null,
+                new[]
+                {
+                    new ChimeRemovalSource(
+                        Guid.NewGuid(), launch * 4L,
+                        (launch + sound.Length / 2) * 4L, Bytes(sound)),
+                });
+
+            var first = result.Attempts.First(a => a.ReferenceKind == "resolved-file");
+            Assert.IsTrue(first.Diagnostics.SuppressionDb >= 30, Describe(result));
+            Assert.IsTrue(
+                first.Diagnostics.ResidualCorrelation > 0.15,
+                "the scenario must reproduce a high normalized residual; " + Describe(result));
+            Assert.IsTrue(first.Verified, Describe(result));
+            Assert.IsTrue(result.Verified, Describe(result));
+            AssertChimeSuppressed(result.CleanedPcm, game, live, rendered, -25, Describe(result));
+        }
+
+        [TestMethod]
         public void OneOccurrenceRemovesDirectAndDelayedCopiesAtDifferentLags()
         {
             var frames = Rate * 5;
@@ -403,6 +438,25 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             return scaled;
+        }
+
+        private static short[] Drift(short[] source, double startGain, double endGain)
+        {
+            var frames = source.Length / 2;
+            var drifted = new short[source.Length];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var gain = startGain + (endGain - startGain) * frame / Math.Max(1, frames - 1);
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var index = frame * 2 + channel;
+                    drifted[index] = (short)Math.Max(
+                        short.MinValue,
+                        Math.Min(short.MaxValue, Math.Round(source[index] * gain)));
+                }
+            }
+
+            return drifted;
         }
 
         private static byte[] Bytes(short[] samples)
