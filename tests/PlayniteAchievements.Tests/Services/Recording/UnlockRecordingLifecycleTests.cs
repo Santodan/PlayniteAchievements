@@ -63,7 +63,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
             var recorder = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
             StringAssert.Contains(recorder, "_source == RecordingAudioSource.GameOnly");
-            StringAssert.Contains(recorder, "includeProcessTree: false, QuadCaptureFormat");
+            StringAssert.Contains(recorder, "includeProcessTree: false, SurroundCaptureFormat");
             StringAssert.Contains(recorder, "ProcessLoopbackCapture.ForEndpoint(speaker.Id)");
             StringAssert.Contains(recorder, "return ProcessLoopbackCapture.ForEndpoint(fallbackId);");
             StringAssert.Contains(recorder, "clips keep the live unlock sound");
@@ -95,8 +95,8 @@ namespace PlayniteAchievements.Services.Tests.Recording
             StringAssert.Contains(recorder, "ClipTrack = ClipTrackKind.ExcludeSoundHost;");
             StringAssert.Contains(recorder, "ClipTrack = ClipTrackKind.IncludeGame;");
             StringAssert.Contains(recorder, "_soundHostProcessId");
-            StringAssert.Contains(recorder, "new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, QuadCaptureFormat)");
-            StringAssert.Contains(recorder, "new ProcessLoopbackCapture(gamePid.Value, includeProcessTree: true, QuadCaptureFormat)");
+            StringAssert.Contains(recorder, "new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, SurroundCaptureFormat)");
+            StringAssert.Contains(recorder, "new ProcessLoopbackCapture(gamePid.Value, includeProcessTree: true, SurroundCaptureFormat)");
             StringAssert.Contains(recorder, "clips keep the live unlock sound");
 
             var service = File.ReadAllText(FindRepoFile(
@@ -187,21 +187,26 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void QuadCapture_KeepsActuatorChannelsSeparateSoTheyCanBeDropped()
+        public void SurroundCapture_KeepsActuatorChannelsOnTheBackPairSoTheyCanBeDropped()
         {
-            // Process loopback at 4 channels keeps each source channel at its speaker position,
-            // so a controller's actuator channels (2/3) are dropped rather than folded into L/R
-            // the way a stereo capture folds them. Without a controller endpoint, channels 2/3
-            // are a surround system's rear pair and are folded in at -3 dB.
+            // Process loopback keeps each source channel at its speaker position, so a controller's
+            // actuator channels arrive on the back pair and are dropped rather than folded into L/R
+            // the way a stereo capture folds them. The capture is 8 channels wide because the engine
+            // averages a stream down to any narrower capture format (a 4-channel capture on a 7.1
+            // endpoint reads 6.7 dB low), and 8 is lossless for every endpoint up to 7.1.
             var recorder = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
-            StringAssert.Contains(recorder, "QuadCaptureFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 4)");
+            StringAssert.Contains(recorder, "SurroundCaptureFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 8)");
             StringAssert.Contains(recorder, "_dropActuatorChannels = AnyControllerEndpointActive();");
-            StringAssert.Contains(recorder, "ProcessLoopbackCapture.ReduceQuadToStereo(");
+            StringAssert.Contains(recorder, "SurroundDownmix.ToStereo(");
+            Assert.IsFalse(recorder.Contains("ReduceQuadToStereo"));
+
+            var downmix = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "SurroundDownmix.cs"));
+            StringAssert.Contains(downmix, "public static byte[] ToStereo(byte[] source, int bytes, int channels, bool dropBackChannels)");
 
             var capture = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "ProcessLoopbackCapture.cs"));
-            StringAssert.Contains(capture, "internal static byte[] ReduceQuadToStereo(");
             StringAssert.Contains(capture, "dwChannelMask = SpeakerMaskFor(WaveFormat.Channels)");
             // WAVEFORMATEX is 18 bytes with WORD alignment; default packing shifts the extensible
             // fields and the activation fails with E_INVALIDARG.
@@ -291,7 +296,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
             var gameOnly = recorder.IndexOf(
                 "_source == RecordingAudioSource.GameOnly && gamePid.HasValue", StringComparison.Ordinal);
             var fallback = recorder.IndexOf(
-                "_fallbackCapture = new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, QuadCaptureFormat)",
+                "_fallbackCapture = new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, SurroundCaptureFormat)",
                 gameOnly, StringComparison.Ordinal);
             var fullSystem = recorder.IndexOf("ClipTrack = ClipTrackKind.ExcludeSoundHost;", fallback, StringComparison.Ordinal);
             Assert.IsTrue(gameOnly >= 0 && fallback > gameOnly && fullSystem > fallback);
