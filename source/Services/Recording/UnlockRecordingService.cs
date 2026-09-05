@@ -362,6 +362,14 @@ namespace PlayniteAchievements.Services.Recording
         {
             public WaveSoundCleanupCluster Cluster;
             public ChimeRemovalResult Result;
+
+            /// <summary>
+            /// The window the PCM in <see cref="Result"/> spans. Captured when the window was read:
+            /// the cluster's own bounds are live properties of its occurrences and can move after
+            /// the build, and a copy addressed by them would land the audio at the wrong place.
+            /// </summary>
+            public DateTime WindowStartUtc;
+            public DateTime WindowEndUtc;
         }
 
         // === Session lifecycle ===
@@ -2417,7 +2425,25 @@ namespace PlayniteAchievements.Services.Recording
                     chimeTree,
                     gameReference,
                     sources);
+                patch.WindowStartUtc = startUtc;
+                patch.WindowEndUtc = endUtc;
                 LogChimeCleanup(cluster, patch.Result);
+                foreach (var source in sources)
+                {
+                    _logger?.Debug(
+                        $"[Recording] Chime cleanup source: cluster={cluster.CacheKey} " +
+                        $"occurrence={source.OccurrenceId:N} start={source.StartByte / (double)PcmAudio.BytesPerSecond:0.###}s " +
+                        $"end={source.EndByte / (double)PcmAudio.BytesPerSecond:0.###}s " +
+                        $"file={(source.SourcePcm == null ? "none" : (source.SourcePcm.Length / (double)PcmAudio.BytesPerSecond).ToString("0.###") + "s")} " +
+                        $"window={(endUtc - startUtc).TotalSeconds:0.###}s endpoint={(endpoint == null ? 0 : endpoint.Length / (double)PcmAudio.BytesPerSecond):0.###}s.");
+                }
+
+                WriteChimeDebug(session, $"{cluster.CacheKey.Substring(0, 8)}-endpoint", endpoint);
+                if (patch.Result.Verified)
+                {
+                    WriteChimeDebug(session, $"{cluster.CacheKey.Substring(0, 8)}-cleaned", patch.Result.CleanedPcm);
+                }
+
                 return patch;
             }
             catch (Exception ex)
@@ -2480,6 +2506,42 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             return sources;
+        }
+
+        /// <summary>
+        /// Writes a PCM buffer as a WAV into the ExtensionsData "chime-debug" folder when that
+        /// folder exists. Nothing is written otherwise, so the feature costs nothing unless a
+        /// tester creates the folder; ClipRemnantProbe can then measure exactly what the engine
+        /// saw and produced.
+        /// </summary>
+        private void WriteChimeDebug(CaptureSession session, string name, byte[] pcm)
+        {
+            try
+            {
+                if (pcm == null || string.IsNullOrEmpty(session?.BufferDirectory))
+                {
+                    return;
+                }
+
+                var root = Path.GetDirectoryName(Path.GetDirectoryName(session.BufferDirectory));
+                if (string.IsNullOrEmpty(root))
+                {
+                    return;
+                }
+
+                var directory = Path.Combine(root, "chime-debug");
+                if (!Directory.Exists(directory))
+                {
+                    return;
+                }
+
+                var stamp = CaptureTimelineClock.UtcNow.ToString("HHmmss", CultureInfo.InvariantCulture);
+                PcmAudio.WriteWav(Path.Combine(directory, $"{stamp}-{name}.wav"), pcm);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[Recording] Chime debug dump failed.");
+            }
         }
 
         private void LogChimeAttempts(string scope, ChimeRemovalResult result)
@@ -2727,15 +2789,31 @@ namespace PlayniteAchievements.Services.Recording
                     {
                         var patch = await GetOrCreateChimeCleanupTask(session, cluster)
                             .ConfigureAwait(false);
-                        if (patch?.Result?.Verified != true ||
-                            !CopyPcmWindow(
+                        // Address the patch by the window its PCM was read for, not by the
+                        // cluster's live bounds, which follow the occurrences and can move.
+                        var patchStartUtc = patch?.WindowEndUtc > patch?.WindowStartUtc
+                            ? patch.WindowStartUtc
+                            : patch?.Cluster.StartUtc ?? startUtc;
+                        var patchEndUtc = patch?.WindowEndUtc > patch?.WindowStartUtc
+                            ? patch.WindowEndUtc
+                            : patch?.Cluster.EndUtc ?? startUtc;
+                        var copied = patch?.Result?.Verified == true &&
+                            CopyPcmWindow(
                                 patch.Result.CleanedPcm,
-                                patch.Cluster.StartUtc,
-                                patch.Cluster.EndUtc,
+                                patchStartUtc,
+                                patchEndUtc,
                                 chimeCandidate,
                                 startUtc,
                                 endUtc,
-                                mix: false))
+                                mix: false);
+                        _logger?.Debug(
+                            $"[Recording] Chime patch copy: cluster={cluster.CacheKey} " +
+                            $"verified={patch?.Result?.Verified == true} copied={copied} " +
+                            $"patch=[{Stamp(patchStartUtc)}..{Stamp(patchEndUtc)}] " +
+                            $"pcm={(patch?.Result?.CleanedPcm == null ? 0 : patch.Result.CleanedPcm.Length / (double)PcmAudio.BytesPerSecond):0.###}s " +
+                            $"clusterNow=[{Stamp(cluster.StartUtc)}..{Stamp(cluster.EndUtc)}] " +
+                            $"clip=[{Stamp(startUtc)}..{Stamp(endUtc)}].");
+                        if (!copied)
                         {
                             allChimesVerified = false;
                             break;
@@ -2745,8 +2823,8 @@ namespace PlayniteAchievements.Services.Recording
                         {
                             hasChimeReference |= CopyPcmWindow(
                                 patch.Result.ChimeReferencePcm,
-                                patch.Cluster.StartUtc,
-                                patch.Cluster.EndUtc,
+                                patchStartUtc,
+                                patchEndUtc,
                                 chimeReference,
                                 startUtc,
                                 endUtc,
@@ -2759,6 +2837,8 @@ namespace PlayniteAchievements.Services.Recording
                     if (allChimesVerified)
                     {
                         mixture = chimeCandidate;
+                        WriteChimeDebug(session, "clip-recorded", recordedMixture);
+                        WriteChimeDebug(session, "clip-cleaned", mixture);
                     }
                     else
                     {
