@@ -108,6 +108,7 @@ internal static class ClipRemnantProbe
 
             var globalGain = Gain(clip, sound, best, 0, Math.Min(soundFrames, clipFrames - best));
             var blocks = new List<string>();
+            var previousOffset = 0;
             for (var offset = 0; offset < soundFrames && best + offset < clipFrames; offset += blockFrames)
             {
                 var count = Math.Min(blockFrames, Math.Min(soundFrames - offset, clipFrames - best - offset));
@@ -118,11 +119,13 @@ internal static class ClipRemnantProbe
                     continue;
                 }
 
-                // Re-lock the lag inside this block: a tear or drift after the onset shows as a
-                // lag that steps or walks while the onset block stays at zero.
-                var bestOffset = 0;
+                // Re-lock the lag inside this block, tracking from the previous block: a tonal
+                // sound repeats every few milliseconds, so an unconstrained search reads aliases;
+                // within +-60 frames of the previous block's lag, a tear shows as one step and a
+                // rate drift as a steady walk, while the onset block stays at zero.
+                var bestOffset = previousOffset;
                 var bestBlockCorr = double.NegativeInfinity;
-                for (var delta = -24; delta <= 24; delta++)
+                for (var delta = previousOffset - 60; delta <= previousOffset + 60; delta++)
                 {
                     var start = best + delta;
                     if (start < 0 || start + offset + count > clipFrames)
@@ -136,6 +139,7 @@ internal static class ClipRemnantProbe
                         bestOffset = delta;
                     }
                 }
+                previousOffset = bestOffset;
 
                 var gain = Gain(clip, sound, best + bestOffset, offset, count);
                 var signed = gain < 0 ? "-" : "+";
