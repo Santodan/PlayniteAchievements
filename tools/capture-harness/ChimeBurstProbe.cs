@@ -2,7 +2,7 @@
 // REAL recorder plumbing. Unlike ChimeSeparationProbe (raw loopback clients), this drives two
 // actual AudioLoopbackRecorder instances concurrently — one Game Only, one Full System — exactly
 // as UnlockRecordingService wires them (game pid + sound-host pid delegates), so the mixer graph,
-// direct packet timestamping, wall-clock main pump, gap padding, chunk rotation, the 4-channel
+// direct packet timestamping, wall-clock main pump, gap padding, chunk rotation, the 8-channel
 // process captures and their stereo reduction are all exercised. The process topology is
 // production's:
 //
@@ -27,7 +27,7 @@
 // When exactly one controller (haptic) endpoint is connected, the game child additionally renders
 // a 180 Hz actuator tone to it for the whole run — the real game-with-haptics topology. The probe
 // also runs a plain STEREO process capture of the game tree, which folds the actuator channels
-// into L/R the way every recorder capture did before the 4-channel format; that capture's
+// into L/R the way every recorder capture did before the 8-channel format; that capture's
 // haptic-to-game ratio is the contamination reference, and every clip track is asserted to sit
 // >= 30 dB below it. No cancellation is involved: the recorder drops channels 2/3.
 //
@@ -333,7 +333,7 @@ internal static class ChimeBurstProbe
         }
 
         // A stereo capture of the game tree folds the actuator channels into L/R, which is what
-        // every recorder capture did before the 4-channel format; its haptic-to-game ratio is the
+        // every recorder capture did before the 8-channel format; its haptic-to-game ratio is the
         // contamination a clip track must sit well below. Ratios cancel the capture paths' volume
         // scaling. Both tones run for the whole session, so no slice alignment is needed.
         double contaminationRatioDb = 0;

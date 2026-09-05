@@ -366,7 +366,7 @@ The burst scenario — two toast waves of three achievements — on the REAL rec
 Unlike the separation probe's raw loopback clients, this drives two actual `AudioLoopbackRecorder`
 instances concurrently, one Game Only and one Full System, wired exactly as
 `UnlockRecordingService` wires them (game pid and sound-host pid delegates), so the mixer graph,
-direct packet timestamping, wall-clock main pump, gap padding, chunk rotation, the 4-channel process
+direct packet timestamping, wall-clock main pump, gap padding, chunk rotation, the 8-channel process
 captures and their stereo reduction are all exercised. The topology is production's: a spawned
 "game" child plays the game tone, a spawned "sound host" child plays the wave chimes on schedule and
 reports each launch stamp, and the probe itself plays nothing during the waves.
@@ -384,7 +384,7 @@ receive the composited chime.
 When exactly one controller endpoint is connected, the game child also renders a 180 Hz actuator
 tone for the whole run. The probe then runs a plain stereo process capture of the game tree beside
 the recorders: that capture folds the actuator channels into L/R, the way every recorder capture did
-before the 4-channel format, and its haptic-to-game ratio is the contamination reference every clip
+before the 8-channel format, and its haptic-to-game ratio is the contamination reference every clip
 track must sit at least 30 dB below. `--no-haptics` skips that layer for an A/B; `--cold` skips the
 sound host's warm-up so its first render stream starts cold.
 The run takes ~35 s and plays whisper-level tones; `--keep` retains the chunk directories (failures
@@ -407,8 +407,13 @@ at 4 channels can drop the actuators by channel and the haptics never need cance
 formats but the tone lands in the front channels, because the stereo endpoint downmixed the stream
 before the tap. Against a 7.1 endpoint a tone rendered on back-left arrived on capture channel 2 of
 a 4-channel capture (and channel 4 of an 8-channel one) with channels 0/1 at -140 dB: the engine
-keeps each channel at its speaker position when the capture has room for it. That is what the
-recorder now relies on; the controller endpoint itself still wants one run with a pad connected.
+keeps each channel at its speaker position when the capture has room for it. The same endpoint
+also showed why the capture must be as wide as the widest endpoint: the tap converts every stream
+to its endpoint's mix format and then averages it down to a narrower capture, so a 4-channel capture
+read 6.7 dB low and a stereo one 13.5 dB low while an 8-channel capture was at true level, whatever
+the source stream's own width (`--source-channels`). A running game can be measured against all
+three at once with `--pid`. That is what the recorder now relies on (8 channels, folded to stereo by
+`SurroundDownmix`); the controller endpoint itself still wants one run with a pad connected.
 
 ## The haptic endpoint-isolation probe
 

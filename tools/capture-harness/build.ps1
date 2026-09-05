@@ -87,6 +87,7 @@ $extraSources = @{
         (Join-Path $repo 'source\Services\Recording\AudioGapTracker.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioLoopbackRecorder.cs'),
+        (Join-Path $repo 'source\Services\Recording\SurroundDownmix.cs'),
         (Join-Path $repo 'source\Services\Recording\RenderEndpointScan.cs'),
         (Join-Path $repo 'source\Services\Recording\MicrophoneSelector.cs'),
         (Join-Path $repo 'source\Services\Recording\HapticEndpointClassifier.cs'),
