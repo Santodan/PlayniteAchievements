@@ -178,19 +178,5 @@ namespace PlayniteAchievements.Services.Tests.Capture
                 try { File.Delete(path); } catch { }
             }
         }
-
-        [TestMethod]
-        public void IsSilent_TellsDigitalSilenceAndFaintNoiseFromSignal()
-        {
-            Assert.IsTrue(PcmAudio.IsSilent(null));
-            Assert.IsTrue(PcmAudio.IsSilent(new byte[0]));
-            Assert.IsTrue(PcmAudio.IsSilent(new byte[PcmAudio.BytesPerSecond]), "zero-filled is silent");
-            // About -70 dBFS of noise: below the -60 dBFS default, so still "no game here".
-            Assert.IsTrue(PcmAudio.IsSilent(Samples(BandLimitedNoise(4800, 7, 12))));
-            // A quiet but real signal, about -40 dBFS, is not silent.
-            Assert.IsFalse(PcmAudio.IsSilent(Samples(BandLimitedNoise(4800, 7, 900))));
-            // The threshold is a parameter.
-            Assert.IsFalse(PcmAudio.IsSilent(Samples(BandLimitedNoise(4800, 7, 12)), thresholdDbfs: -90));
-        }
     }
 }

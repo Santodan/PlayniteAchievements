@@ -78,7 +78,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
             Assert.IsTrue(start >= 0 && end > start);
             var selection = service.Substring(start, end - start);
             StringAssert.Contains(selection, "return (audioPlan, null);");
-            StringAssert.Contains(selection, "PcmAudio.IsSilent(gameTree)");
+            StringAssert.Contains(selection, "recorder.ClipTrackDeliveredAudio(startUtc, endUtc)");
             StringAssert.Contains(selection, "RecordingPaths.FallbackChunkFilePrefix");
             Assert.IsFalse(selection.Contains("Subtract"), "Selection picks a track; it never processes audio.");
         }
@@ -146,15 +146,17 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void GameOnly_SilentGameTreeFallsBackToTheExcludeHostTrack()
+        public void GameOnly_TreeThatDeliveredNoAudioFallsBackToTheExcludeHostTrack()
         {
-            // An empty game-tree capture is indistinguishable from a process-tree miss (a launcher
-            // or emulator child the tree does not reach). Rather than proving anything about it,
-            // the clip is exported from the exclude-host fallback track, written under the clip
-            // prefix so the exporter reads it as an ordinary chunk.
+            // A game tree that delivered no packets has no render stream: the game plays from a
+            // process outside it (a launcher or emulator child the tree does not reach). Only then
+            // is the clip exported from the exclude-host fallback track, written under the clip
+            // prefix so the exporter reads it as an ordinary chunk. The signal is the capture's own
+            // packet stamps, never a level test, so a quiet game stays a quiet clip.
             var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            var start = service.IndexOf("if (!PcmAudio.IsSilent(gameTree))", StringComparison.Ordinal);
+            Assert.IsFalse(service.Contains("IsSilent"), "level tests are not a structural signal");
+            var start = service.IndexOf("if (recorder.ClipTrackDeliveredAudio(startUtc, endUtc))", StringComparison.Ordinal);
             var end = service.IndexOf("request.UsedFallbackTrack = true;", start, StringComparison.Ordinal);
             Assert.IsTrue(start >= 0 && end > start);
             var selection = service.Substring(start, end - start);
@@ -198,6 +200,14 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
             StringAssert.Contains(recorder, "SurroundCaptureFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 8)");
             StringAssert.Contains(recorder, "_dropActuatorChannels = AnyControllerEndpointActive();");
+            // A pad plugged in after the game started must still have its back pair dropped.
+            StringAssert.Contains(recorder, "RescanControllerIfDue();");
+            StringAssert.Contains(recorder, "private volatile bool _dropActuatorChannels;");
+            // A pad the classifier has never heard of is caught by its 4-channel quad layout.
+            var scan = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "RenderEndpointScan.cs"));
+            StringAssert.Contains(scan, "|| HasControllerLayout(endpoint)");
+            StringAssert.Contains(scan, "private const uint ControllerLayoutMask = 0x33;");
             StringAssert.Contains(recorder, "SurroundDownmix.ToStereo(");
             Assert.IsFalse(recorder.Contains("ReduceQuadToStereo"));
 
@@ -239,8 +249,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
         {
             // Clip audio is never processed against a reference: the unlock sound is kept out of
             // the capture by process exclusion, and haptics by channel identity. PcmAudio is left
-            // with format constants, the WAV writer, the mix-in used by the composite, and the
-            // silence test the Game Only fallback uses.
+            // with format constants, the WAV writer and the mix-in used by the composite.
             var pcm = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Capture", "PcmAudio.cs"));
             foreach (var banned in new[]
@@ -252,7 +261,8 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 Assert.IsFalse(pcm.Contains(banned), banned);
             }
 
-            StringAssert.Contains(pcm, "public static bool IsSilent(byte[] pcm, double thresholdDbfs = -60.0)");
+            StringAssert.Contains(pcm, "public static void MixInto(");
+            Assert.IsFalse(pcm.Contains("IsSilent"));
         }
 
         [TestMethod]
