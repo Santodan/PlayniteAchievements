@@ -157,9 +157,53 @@ namespace PlayniteAchievements.Services.Capture
             Assert.IsTrue(
                 first.Diagnostics.ResidualCorrelation > 0.15,
                 "the scenario must reproduce a high normalized residual; " + Describe(result));
-            Assert.IsTrue(first.Verified, Describe(result));
+            // The whole-window fit is rejected for the honest reason, its weakest standard block
+            // still holding the drift remnant, and the time-local pass verifies instead.
+            Assert.IsFalse(first.Verified, Describe(result));
+            Assert.IsTrue(first.Diagnostics.WeakestBlockSuppressionDb < 30, Describe(result));
+            Assert.IsTrue(
+                result.Attempts.Any(a => a.ReferenceKind == "resolved-file-local" && a.Verified),
+                Describe(result));
             Assert.IsTrue(result.Verified, Describe(result));
             AssertChimeSuppressed(result.CleanedPcm, game, live, rendered, -25, Describe(result));
+        }
+
+        [TestMethod]
+        public void MidSoundCaptureTearIsRelockedBlockByBlock()
+        {
+            // Field 2026-09-05: the onset of each live sound was removed 38-59 dB, but from
+            // 1.2-2.7 s in the rest survived at up to full level at a lag 8-24 frames off the
+            // onset's. A whole-window fit reports 40+ dB regardless because one least-squares gain
+            // zeroes its own projection; the honest weakest-block figure rejects it and the
+            // time-local pass re-locks every block after the tear.
+            var frames = Rate * 4;
+            var game = Noise(frames, 1013, 25);
+            var sound = Chime(Rate * 5 / 2, 494, 4800, 79);
+            var live = Tear(sound, Rate * 3 / 2, 18);
+            var launch = Rate;
+            var rendered = launch + 3900;
+            var endpoint = (short[])game.Clone();
+            Add(endpoint, live, rendered);
+
+            var result = ChimeRemovalEngine.RemoveAll(
+                Bytes(endpoint), null, null,
+                new[]
+                {
+                    new ChimeRemovalSource(
+                        Guid.NewGuid(), launch * 4L,
+                        (launch + sound.Length / 2) * 4L, Bytes(sound)),
+                });
+
+            var first = result.Attempts.First(a => a.ReferenceKind == "resolved-file");
+            Assert.IsFalse(first.Verified, Describe(result));
+            var local = result.Attempts.First(a => a.ReferenceKind == "resolved-file-local");
+            Assert.IsTrue(local.Verified, Describe(result));
+            Assert.IsTrue(local.Diagnostics.RelockedBlocks > 0, Describe(result));
+            Assert.IsTrue(
+                local.Diagnostics.MaxBlockLagShiftMs > 0.3 && local.Diagnostics.MaxBlockLagShiftMs < 0.45,
+                Describe(result));
+            Assert.IsTrue(result.Verified, Describe(result));
+            AssertChimeSuppressed(result.CleanedPcm, game, live, rendered, -30, Describe(result));
         }
 
         [TestMethod]
@@ -440,6 +484,24 @@ namespace PlayniteAchievements.Services.Capture
             return scaled;
         }
 
+        private static short[] Tear(short[] source, int tearFrame, int shiftFrames)
+        {
+            var frames = source.Length / 2;
+            var torn = new short[source.Length];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var from = frame < tearFrame ? frame : frame - shiftFrames;
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    torn[frame * 2 + channel] = from >= 0 && from < frames
+                        ? source[from * 2 + channel]
+                        : (short)0;
+                }
+            }
+
+            return torn;
+        }
+
         private static short[] Drift(short[] source, double startGain, double endGain)
         {
             var frames = source.Length / 2;
@@ -506,9 +568,11 @@ namespace PlayniteAchievements.Services.Capture
                 result.Attempts,
                 a => $"{a.ReferenceKind}:{a.Outcome} lag={a.Diagnostics.StartLagMs:0.###} " +
                     $"gain={a.Diagnostics.Gain:0.###} corr={a.Diagnostics.Correlation:0.###} " +
-                    $"supp={a.Diagnostics.SuppressionDb:0.0} residual={a.Diagnostics.ResidualCorrelation:0.###} " +
+                    $"supp={a.Diagnostics.SuppressionDb:0.0} weakest={a.Diagnostics.WeakestBlockSuppressionDb:0.0}@{a.Diagnostics.WeakestBlockStartMs:0}ms " +
+                    $"residual={a.Diagnostics.ResidualCorrelation:0.###} " +
                     $"blocks={a.Diagnostics.SubtractedBlocks}/{a.Diagnostics.TotalBlocks} " +
-                    $"restored={a.Diagnostics.RestoredBlocks}"));
+                    $"restored={a.Diagnostics.RestoredBlocks} relocked={a.Diagnostics.RelockedBlocks}" +
+                    (a.Diagnostics.RelockedBlocks > 0 ? $" shift={a.Diagnostics.MaxBlockLagShiftMs:0.##}ms" : "")));
         }
 
         private static void AssertGamePreserved(
