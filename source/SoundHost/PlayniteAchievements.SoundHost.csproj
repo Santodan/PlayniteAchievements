@@ -48,9 +48,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
-    <Compile Include="SoundEngine.cs" Condition="Exists('SoundEngine.cs')" />
+    <Compile Include="SoundEngine.cs" />
     <!-- Single source of truth for the line protocol, compiled into both the plugin and this exe. -->
-    <Compile Include="..\Services\Sound\SoundHostProtocol.cs" Condition="Exists('..\Services\Sound\SoundHostProtocol.cs')">
+    <Compile Include="..\Services\Sound\SoundHostProtocol.cs">
       <Link>SoundHostProtocol.cs</Link>
     </Compile>
   </ItemGroup>

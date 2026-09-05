@@ -20,8 +20,7 @@ namespace PlayniteAchievements.Services.UI
             DateTime? surfaceCaptureUtc,
             string soundFilePath = null,
             double? soundFileGain = null,
-            int? soundAlignmentDelayMs = null,
-            Guid? occurrenceId = null)
+            int? soundAlignmentDelayMs = null)
         {
             Wave = wave;
             ShownUtc = shownUtc;
@@ -30,7 +29,6 @@ namespace PlayniteAchievements.Services.UI
             SoundFilePath = soundFilePath;
             SoundFileGain = soundFileGain;
             SoundAlignmentDelayMs = soundAlignmentDelayMs;
-            OccurrenceId = occurrenceId ?? Guid.NewGuid();
         }
 
         public IReadOnlyList<AchievementToastViewModel> Wave { get; }
@@ -38,19 +36,12 @@ namespace PlayniteAchievements.Services.UI
         public DateTime ShownUtc { get; }
 
         /// <summary>
-        /// When this wave's unlock chime started playing. The recording service places the exact
-        /// resolved file on this timeline for removal, with the captured sidecar as fallback, then
-        /// mixes one clean replacement into the wave's clips. Null when no sound fired — including
-        /// an unrevealed wave, which deliberately plays none.
+        /// When the plugin asked the sound host to play this wave's unlock sound. The recording
+        /// service measures the sound-to-card gap from it and mixes the exact file into the wave's
+        /// clips at that lead. Null when no sound fired — including an unrevealed wave, which
+        /// deliberately plays none.
         /// </summary>
         public DateTime? SoundPlayedUtc { get; }
-
-        /// <summary>
-        /// Stable identity for this wave's one possible sound. It is intentionally not derived
-        /// from <see cref="SoundPlayedUtc"/> because separate waves may share a timestamp or sound
-        /// file, and every achievement in this wave must point to the same occurrence.
-        /// </summary>
-        public Guid OccurrenceId { get; }
 
         /// <summary>
         /// The exact sound file the sound host played for this wave, snapshotted the moment it was

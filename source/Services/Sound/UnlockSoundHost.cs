@@ -176,30 +176,27 @@ namespace PlayniteAchievements.Services.Sound
             }
         }
 
-        public void Dispose()
+        /// <summary>
+        /// Ends the host process (quit, then kill after a short grace) while leaving this object
+        /// usable: the next <see cref="TryStart"/> launches it again. Used when the user turns
+        /// unlock sounds off, so a disabled setting leaves no helper running.
+        /// </summary>
+        public void Shutdown()
         {
             Process process;
             lock (_gate)
             {
-                if (_disposed)
+                process = _process;
+                if (process == null)
                 {
                     return;
                 }
 
-                _disposed = true;
-                process = _process;
-                if (process != null)
-                {
-                    process.Exited -= OnProcessExited;
-                }
-
+                // Detach first: this exit is intended and must not schedule a restart.
+                process.Exited -= OnProcessExited;
                 Enqueue(SoundHostProtocol.QuitVerb);
                 _outbox?.CompleteAdding();
-            }
-
-            if (process == null)
-            {
-                return;
+                _consecutiveFailures = 0;
             }
 
             try
@@ -215,8 +212,28 @@ namespace PlayniteAchievements.Services.Sound
 
             lock (_gate)
             {
-                ReleaseProcessLocked();
+                if (ReferenceEquals(_process, process))
+                {
+                    ReleaseProcessLocked();
+                }
             }
+
+            _logger?.Info("[SoundHost] Stopped.");
+        }
+
+        public void Dispose()
+        {
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
+            }
+
+            Shutdown();
         }
 
         private void Enqueue(string line)

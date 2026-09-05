@@ -667,21 +667,6 @@ namespace PlayniteAchievements.Services.Tests.Capture
             CollectionAssert.AreEqual(before, mixture);
         }
 
-        [TestMethod]
-        public void HapticSafety_RequiresVerifiedCancellationForAnActiveReference()
-        {
-            var silent = new PcmCancellationDiagnostics { ReferenceHasSignal = false };
-            var active = new PcmCancellationDiagnostics { ReferenceHasSignal = true };
-
-            Assert.IsTrue(PcmAudio.IsReferenceSafelyAbsentOrRemoved(
-                PcmCancellationOutcome.CleanNoGameDetected, silent));
-            Assert.IsFalse(PcmAudio.IsReferenceSafelyAbsentOrRemoved(
-                PcmCancellationOutcome.CleanNoGameDetected, active));
-            Assert.IsFalse(PcmAudio.IsReferenceSafelyAbsentOrRemoved(
-                PcmCancellationOutcome.Unseparable, active));
-            Assert.IsTrue(PcmAudio.IsReferenceSafelyAbsentOrRemoved(
-                PcmCancellationOutcome.CancelledVerified, active));
-        }
 
         [TestMethod]
         public void CancelCorrelated_ResidualCeilingRejectsWithoutChangingTheRecording()
@@ -763,8 +748,10 @@ namespace PlayniteAchievements.Services.Tests.Capture
                 cancellationBlockFrames: 2400,
                 maximumResidualCorrelation: 0.35);
 
-            Assert.IsFalse(PcmAudio.IsReferenceSafelyAbsentOrRemoved(
-                secondOutcome, secondDiagnostics));
+            Assert.IsTrue(
+                secondDiagnostics.ReferenceHasSignal &&
+                secondOutcome != PcmCancellationOutcome.CancelledVerified,
+                $"an active but unrelated reference must be rejected: {secondOutcome}");
             CollectionAssert.AreEqual(
                 afterFirst,
                 working,

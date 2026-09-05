@@ -235,19 +235,6 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// Whether a captured reference needs no work or produced a usable cancellation. A usable
-        /// haptic pass may be partial: only independently verified blocks are changed, while all
-        /// uncertain audio remains exactly as recorded.
-        /// </summary>
-        public static bool IsReferenceSafelyAbsentOrRemoved(
-            PcmCancellationOutcome outcome,
-            PcmCancellationDiagnostics diagnostics)
-        {
-            return !diagnostics.ReferenceHasSignal ||
-                outcome == PcmCancellationOutcome.CancelledVerified;
-        }
-
-        /// <summary>
         /// Applies a linear fade-out over the final <paramref name="seconds"/> of a 16-bit PCM
         /// buffer in place, so a chime cut mid-ring ends silently instead of clicking.
         /// </summary>

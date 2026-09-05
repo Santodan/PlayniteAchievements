@@ -83,7 +83,9 @@ namespace PlayniteAchievements.Services.Sound
 
                 if (!Enabled)
                 {
-                    _host.Stop();
+                    // A disabled setting leaves no helper process behind; the next enable (or a
+                    // Test button press) launches it again.
+                    _host.Shutdown();
                     return;
                 }
 
