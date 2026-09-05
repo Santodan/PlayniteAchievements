@@ -100,6 +100,44 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
+        public void AgreedGapIsSizedByThePositionCounterNotTheJitteredStamp()
+        {
+            // A 200 ms dropout whose closing stamp arrived 0.4 ms late (scheduling jitter). The
+            // stamp alone would pad 19 extra frames and shift everything after the gap by 0.4 ms,
+            // which is the tear that left the tail of a live chime at another lag in the
+            // 2026-09-05 clips. The position counter counts the engine's own frames.
+            foreach (var positionRate in new[] { (long)Rate, 192000L })
+            {
+                var tracker = NewTracker();
+                var (pos, qpc) = FeedHealthy(tracker, 1000, positionRate);
+                var dropoutFrames = Rate / 5;
+                var positionJump = dropoutFrames * positionRate / Rate;
+                var elapsed = (long)(10.3 * Rate);
+                var gap = tracker.TakeGapBefore(
+                    pos + positionJump,
+                    PacketFrames,
+                    qpc + dropoutFrames * TicksPerSecond / Rate + 4_000,
+                    stampUsable: true,
+                    elapsed);
+                Assert.AreEqual(dropoutFrames, gap, $"positionRate={positionRate}");
+            }
+        }
+
+        [TestMethod]
+        public void DisagreeingWitnessesStillTakeTheSmallerClaim()
+        {
+            var tracker = NewTracker();
+            var (pos, qpc) = FeedHealthy(tracker, 1000, positionRate: Rate);
+
+            // The stamp claims a 1 s hole; the counter only advanced 100 ms of frames. Beyond the
+            // jitter threshold the witnesses disagree and the smaller claim is padded.
+            var elapsed = (long)(11.1 * Rate);
+            var gap = tracker.TakeGapBefore(
+                pos + Rate / 10, PacketFrames, qpc + TicksPerSecond, stampUsable: true, elapsed);
+            Assert.AreEqual(Rate / 10, gap, delta: 2);
+        }
+
+        [TestMethod]
         public void AlternatingStampJitterPadsNothing()
         {
             var tracker = NewTracker();
