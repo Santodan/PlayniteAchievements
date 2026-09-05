@@ -88,6 +88,19 @@ namespace PlayniteAchievements.Services.Capture
         /// listener still hears is not the captured copy, and cancellation cannot be the answer.
         /// </summary>
         public double ResidualCorrelation;
+
+        /// <summary>
+        /// Blocks whose lag was re-locked away from the slice-wide calibration because the
+        /// reference correlated better there. A recorder alignment tear inside the reference's
+        /// span moves every block after it.
+        /// </summary>
+        public int RelockedBlocks;
+
+        /// <summary>Largest per-block lag departure from the slice-wide calibration, in ms.</summary>
+        public double MaxBlockLagShiftMs;
+
+        /// <summary>Where the weakest scored block starts, in ms from the start of the slice.</summary>
+        public double WeakestBlockStartMs;
     }
 
     /// <summary>
@@ -342,7 +355,8 @@ namespace PlayniteAchievements.Services.Capture
             int gainCrossfadeFrames = CrossfadeFrames,
             int fractionalLagSteps = 0,
             double? calibratedLagFrames = null,
-            bool preferSmallLagOnWideSearch = true)
+            bool preferSmallLagOnWideSearch = true,
+            int blockLagRadiusFrames = 0)
         {
             diagnostics = default(PcmCancellationDiagnostics);
             if (mixture == null || gameReference == null ||
@@ -502,18 +516,89 @@ namespace PlayniteAchievements.Services.Capture
             var measuredBlocks = new List<MeasuredBlock>();
             var previousLeftGain = 0.0;
             var previousRightGain = 0.0;
+            var previousLagFrames = fixedLagFrames;
             var firstBlock = true;
             var requestedCrossfadeFrames = Math.Max(0, gainCrossfadeFrames);
             var blockFrames = Math.Max(
                 Math.Max(1, cancellationBlockFrames),
                 requestedCrossfadeFrames * 2);
 
-            for (var blockStart = 0; blockStart < mixtureFrames; blockStart += blockFrames)
+            for (var blockStart = 0; blockStart < mixtureFrames;)
             {
                 var blockEnd = Math.Min(mixtureFrames, blockStart + blockFrames);
+
+                // A recorder alignment tear inside the reference's span leaves every block after
+                // it at a slightly different lag (2026-09-05 clips: 8-24 frames, either direction,
+                // 1.2-2.7 s into a 4.5 s sound). A caller that allows it lets each block re-lock
+                // within a small radius of the slice-wide calibration; the block's own measured
+                // suppression, probed across both lags, still decides whether it stays.
+                var blockLagFrames = fixedLagFrames;
+                if (blockLagRadiusFrames > 0)
+                {
+                    blockLagFrames = RelockBlockLag(
+                        mixture, gameReference, blockStart, blockEnd,
+                        fixedLagFrames, blockLagRadiusFrames);
+
+                    // A tear lies inside a block, not on its boundary, and the block re-locks to
+                    // whichever side holds more of the sound. Find where the block's correlation at
+                    // that lag breaks, re-lock the other side on its own, and if it sits at a
+                    // different lag finish this iteration at the break so neither side is
+                    // subtracted at the other's alignment.
+                    var tear = FindLagBreakFrame(
+                        mixture, gameReference, blockStart, blockEnd, blockLagFrames,
+                        out var prefixIsOffLag);
+                    if (tear > blockStart && tear < blockEnd)
+                    {
+                        if (prefixIsOffLag)
+                        {
+                            var prefixLag = RelockBlockLag(
+                                mixture, gameReference, blockStart, tear,
+                                fixedLagFrames, blockLagRadiusFrames);
+                            if (Math.Abs(prefixLag - blockLagFrames) >= 1)
+                            {
+                                blockEnd = tear;
+                                blockLagFrames = prefixLag;
+                            }
+                        }
+                        else
+                        {
+                            var tailLag = RelockBlockLag(
+                                mixture, gameReference, tear, blockEnd,
+                                fixedLagFrames, blockLagRadiusFrames);
+                            if (Math.Abs(tailLag - blockLagFrames) >= 1)
+                            {
+                                blockEnd = tear;
+                            }
+                        }
+                    }
+
+                    if (blockLagFrames != fixedLagFrames)
+                    {
+                        diagnostics.RelockedBlocks++;
+                        diagnostics.MaxBlockLagShiftMs = Math.Max(
+                            diagnostics.MaxBlockLagShiftMs,
+                            Math.Abs(blockLagFrames - fixedLagFrames) * 1000.0 / SampleRate);
+                    }
+                }
+
+                // A re-locked block is measured across both lags so a spurious re-lock cannot hide
+                // the copy still sitting at the calibration; an unmoved block keeps the caller's
+                // exact radius.
+                var probeRadiusFrames = blockLagFrames == fixedLagFrames
+                    ? Math.Max(0, verificationLagRadiusFrames)
+                    : Math.Max(
+                        Math.Max(0, verificationLagRadiusFrames),
+                        (int)Math.Ceiling(Math.Abs(blockLagFrames - fixedLagFrames)) +
+                            SuppressionProbeLagFrames);
                 var block = FitKnownBlock(
                     mixture, gameReference, blockStart, blockEnd,
-                    fixedLagFrames, maximumGain, independentChannelGains);
+                    blockLagFrames, maximumGain, independentChannelGains);
+                var blockScore = ScoreBlock(
+                    mixture, gameReference, blockLagFrames, blockStart, blockEnd);
+                var blockReferenceRms = blockScore.Count <= 0 || blockScore.ReferenceEnergy <= 0
+                    ? 0
+                    : Math.Sqrt(blockScore.ReferenceEnergy / blockScore.Count);
+                var blockMixtureEnergy = MixtureEnergy(mixture, blockStart, blockEnd);
 
                 // The timestamps plus one slice-wide calibration choose the samples. The local
                 // least-squares fit only chooses their scale, bounded by the caller's gain range.
@@ -532,6 +617,12 @@ namespace PlayniteAchievements.Services.Capture
                 }
 
                 var hasFittedGain = leftGain > 0 || rightGain > 0;
+                var blockGainSquared = hasFittedGain
+                    ? (leftGain * leftGain + rightGain * rightGain) / 2
+                    : globalGain * globalGain;
+                var blockPlayedEnergy = blockGainSquared * blockScore.ReferenceEnergy;
+                var blockAudible = blockPlayedEnergy >=
+                    Math.Max(0, blockMixtureEnergy - blockPlayedEnergy);
                 if (block.HasSignal && hasFittedGain)
                 {
                     // Timestamp alignment plus the one slice-wide calibration decides what to try.
@@ -568,7 +659,8 @@ namespace PlayniteAchievements.Services.Capture
                     previousRightGain,
                     leftGain,
                     rightGain,
-                    fixedLagFrames,
+                    previousLagFrames,
+                    blockLagFrames,
                     crossfadeFrames);
 
                 diagnostics.TotalBlocks++;
@@ -585,8 +677,8 @@ namespace PlayniteAchievements.Services.Capture
                                 ? 0
                                 : Math.Min(blockSuppression, MeasureSuppressionDb(
                                     mixture, working, gameReference, blockStart, blockEnd,
-                                    fixedLagFrames,
-                                    Math.Max(0, verificationLagRadiusFrames),
+                                    blockLagFrames,
+                                    probeRadiusFrames,
                                     1,
                                     0));
                         }
@@ -596,8 +688,8 @@ namespace PlayniteAchievements.Services.Capture
                                 ? 0
                                 : Math.Min(blockSuppression, MeasureSuppressionDb(
                                     mixture, working, gameReference, blockStart, blockEnd,
-                                    fixedLagFrames,
-                                    Math.Max(0, verificationLagRadiusFrames),
+                                    blockLagFrames,
+                                    probeRadiusFrames,
                                     1,
                                     1));
                         }
@@ -606,8 +698,8 @@ namespace PlayniteAchievements.Services.Capture
                     {
                         blockSuppression = MeasureSuppressionDb(
                             mixture, working, gameReference, blockStart, blockEnd,
-                            fixedLagFrames,
-                            Math.Max(0, verificationLagRadiusFrames),
+                            blockLagFrames,
+                            probeRadiusFrames,
                             1);
                     }
                     suppressionsDb.Add(blockSuppression);
@@ -617,6 +709,8 @@ namespace PlayniteAchievements.Services.Capture
                         EndFrame = blockEnd,
                         SuppressionDb = blockSuppression,
                         Subtracted = true,
+                        ReferenceRms = blockReferenceRms,
+                        Audible = blockAudible,
                     });
                 }
                 else if (failedActiveBlock)
@@ -635,12 +729,20 @@ namespace PlayniteAchievements.Services.Capture
                         EndFrame = blockEnd,
                         SuppressionDb = 0,
                         Subtracted = blockWasModified,
+                        ReferenceRms = blockReferenceRms,
+                        Audible = blockAudible,
                     });
                 }
 
                 previousLeftGain = leftGain;
                 previousRightGain = rightGain;
+                previousLagFrames = blockLagFrames;
+                if (hasFittedGain)
+                {
+                    diagnostics.EndLagMs = blockLagFrames * 1000.0 / SampleRate;
+                }
                 firstBlock = false;
+                blockStart = blockEnd;
             }
 
             if (suppressionsDb.Count == 0)
@@ -653,7 +755,70 @@ namespace PlayniteAchievements.Services.Capture
             suppressionsDb.Sort();
             var suppression = suppressionsDb[(suppressionsDb.Count - 1) * 3 / 4];
             diagnostics.SuppressionDb = suppression;
-            diagnostics.WeakestBlockSuppressionDb = suppressionsDb[0];
+            // The held-out weakest figure counts the blocks a listener could still hear the
+            // reference in: its played copy at least as loud as the rest of the recorded audio
+            // there, and within 40 dB of the loudest block. A sliver of the sound's edge inside a
+            // block, or a decaying tail under the game, cannot be measured to a strong gate and is
+            // masked anyway. When no block qualifies the plain minimum stands.
+            var loudestBlockRms = 0.0;
+            foreach (var measured in measuredBlocks)
+            {
+                loudestBlockRms = Math.Max(loudestBlockRms, measured.ReferenceRms);
+            }
+
+            var weakestQualified = double.MaxValue;
+            var weakestQualifiedStart = -1;
+            foreach (var measured in measuredBlocks)
+            {
+                if (!measured.Audible || measured.ReferenceRms < loudestBlockRms / 100.0)
+                {
+                    continue;
+                }
+
+                if (measured.SuppressionDb < weakestQualified)
+                {
+                    weakestQualified = measured.SuppressionDb;
+                    weakestQualifiedStart = measured.StartFrame;
+                }
+            }
+
+            if (weakestQualifiedStart >= 0)
+            {
+                diagnostics.WeakestBlockSuppressionDb = weakestQualified;
+                diagnostics.WeakestBlockStartMs = weakestQualifiedStart * 1000.0 / SampleRate;
+            }
+            else
+            {
+                diagnostics.WeakestBlockSuppressionDb = suppressionsDb[0];
+                foreach (var measured in measuredBlocks)
+                {
+                    if (measured.SuppressionDb == suppressionsDb[0])
+                    {
+                        diagnostics.WeakestBlockStartMs = measured.StartFrame * 1000.0 / SampleRate;
+                        break;
+                    }
+                }
+            }
+
+            if (measuredBlocks.Count == 1 && measuredBlocks[0].Subtracted &&
+                blockFrames > BlockFrames * 2)
+            {
+                // One least-squares gain over the whole span zeroes the reference's projection at
+                // its own lag by construction, so the single block's figure cannot see a remnant
+                // confined to part of the span: after a recorder tear the rest of the sound sits at
+                // another lag and survives while the figure reads 40+ dB (2026-09-05 clips). Score
+                // the same fixed fit in standard blocks and let the weakest audible one stand as
+                // the held-out figure.
+                var weakest = MeasureWeakestStandardBlockDb(
+                    mixture, working, gameReference, fixedLagFrames, globalGain,
+                    Math.Max(0, verificationLagRadiusFrames),
+                    out var weakestStartFrame);
+                if (weakest.HasValue && weakest.Value < diagnostics.WeakestBlockSuppressionDb)
+                {
+                    diagnostics.WeakestBlockSuppressionDb = weakest.Value;
+                    diagnostics.WeakestBlockStartMs = weakestStartFrame * 1000.0 / SampleRate;
+                }
+            }
             var weakOverallPass = suppression < MinimumSuppressionDb;
             if (weakOverallPass && !commitVerifiedBlocksOnWeakPass)
             {
@@ -821,6 +986,17 @@ namespace PlayniteAchievements.Services.Capture
             public int EndFrame;
             public double SuppressionDb;
 
+            /// <summary>RMS of the reference inside this block at the block's lag.</summary>
+            public double ReferenceRms;
+
+            /// <summary>
+            /// Whether the played copy of the reference in this block is at least as loud as the
+            /// rest of the recorded audio there. Below that, the projection measure's own noise
+            /// floor exceeds any strong gate and a remnant is masked, so the block cannot be the
+            /// held-out weakest figure.
+            /// </summary>
+            public bool Audible;
+
             /// <summary>
             /// Whether anything was actually subtracted here. A block scored zero because its
             /// reference could not be fitted was never modified, so there is nothing to put back —
@@ -917,6 +1093,7 @@ namespace PlayniteAchievements.Services.Capture
             double previousRightGain,
             double leftGain,
             double rightGain,
+            double previousLagFrames,
             double lagFrames,
             int crossfadeFrames)
         {
@@ -934,15 +1111,25 @@ namespace PlayniteAchievements.Services.Capture
                     : 1.0;
                 for (var channel = 0; channel < 2; channel++)
                 {
-                    var referenceFrame = frame + lagFrames;
                     var referenceSample = ReadInterpolatedSample(
-                        reference, referenceFrame, channel);
+                        reference, frame + lagFrames, channel);
                     var previousGain = channel == 0 ? previousLeftGain : previousRightGain;
                     var gain = channel == 0 ? leftGain : rightGain;
-                    var effectiveGain = blend >= 1.0
-                        ? gain
-                        : (1.0 - blend) * previousGain + blend * gain;
-                    var subtracted = effectiveGain * referenceSample;
+                    double subtracted;
+                    if (blend >= 1.0)
+                    {
+                        subtracted = gain * referenceSample;
+                    }
+                    else
+                    {
+                        // The preceding block may have re-locked to a different lag; fade from
+                        // its copy of the reference to this block's, not merely between gains.
+                        var previousSample = ReadInterpolatedSample(
+                            reference, frame + previousLagFrames, channel);
+                        subtracted = (1.0 - blend) * previousGain * previousSample +
+                            blend * gain * referenceSample;
+                    }
+
                     if (subtracted == 0)
                     {
                         continue;
@@ -967,6 +1154,230 @@ namespace PlayniteAchievements.Services.Capture
         /// chime over quiet game audio caps it near 0 dB and fails good passes — whereas the chime
         /// is uncorrelated with the reference and cannot bias a projection.
         /// </summary>
+        /// <summary>
+        /// Finds the lag within <paramref name="radiusFrames"/> of the slice-wide calibration at
+        /// which this block correlates best with the reference: coarse integer steps, a fine
+        /// integer pass, then quarter-frame steps. Returns the calibration unchanged when the
+        /// block does not correlate at least 0.5 anywhere or does not improve on it, so a block
+        /// that is mostly game audio cannot wander onto a spurious lag.
+        /// </summary>
+        private static double RelockBlockLag(
+            byte[] mixture,
+            byte[] reference,
+            int blockStartFrame,
+            int blockEndFrame,
+            double calibratedLagFrames,
+            int radiusFrames)
+        {
+            var center = Math.Round(calibratedLagFrames);
+            var bestLag = center;
+            var bestValue = ScoreBlock(
+                mixture, reference, center, blockStartFrame, blockEndFrame).Value;
+            var calibratedValue = bestValue;
+            for (var offset = -radiusFrames; offset <= radiusFrames; offset += 8)
+            {
+                var value = ScoreBlock(
+                    mixture, reference, center + offset, blockStartFrame, blockEndFrame).Value;
+                if (value > bestValue)
+                {
+                    bestValue = value;
+                    bestLag = center + offset;
+                }
+            }
+
+            var coarseBest = bestLag;
+            for (var offset = -7; offset <= 7; offset++)
+            {
+                var lag = coarseBest + offset;
+                if (Math.Abs(lag - center) > radiusFrames)
+                {
+                    continue;
+                }
+
+                var value = ScoreBlock(
+                    mixture, reference, lag, blockStartFrame, blockEndFrame).Value;
+                if (value > bestValue)
+                {
+                    bestValue = value;
+                    bestLag = lag;
+                }
+            }
+
+            var fineBest = bestLag;
+            for (var quarter = -3; quarter <= 3; quarter++)
+            {
+                if (quarter == 0)
+                {
+                    continue;
+                }
+
+                var lag = fineBest + quarter / 4.0;
+                var value = ScoreBlock(
+                    mixture, reference, lag, blockStartFrame, blockEndFrame).Value;
+                if (value > bestValue)
+                {
+                    bestValue = value;
+                    bestLag = lag;
+                }
+            }
+
+            if (bestValue < 0.5 || bestValue <= calibratedValue)
+            {
+                return calibratedLagFrames;
+            }
+
+            return bestLag;
+        }
+
+        /// <summary>Recorded energy of a block, sampled on the same stride the block scorer uses.</summary>
+        private static double MixtureEnergy(byte[] pcm, int blockStartFrame, int blockEndFrame)
+        {
+            double energy = 0;
+            for (var frame = blockStartFrame; frame < blockEndFrame; frame += BlockFitStrideFrames)
+            {
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    double sample = ReadInt16(pcm, frame * BlockAlign + channel * 2);
+                    energy += sample * sample;
+                }
+            }
+
+            return energy;
+        }
+
+        /// <summary>
+        /// Locates a recorder alignment tear inside a block from the block's own 5 ms chunk
+        /// correlations at its re-locked lag. Chunks where the reference is silent are ignored.
+        /// The tear is the first chunk at which the chunks stop (or start) correlating well, "well"
+        /// being at least 70% of the best chunk. <paramref name="prefixIsOffLag"/> says which side
+        /// of the tear the lag does not fit. Returns <paramref name="blockEndFrame"/> when every
+        /// chunk with signal correlates alike.
+        /// </summary>
+        private static int FindLagBreakFrame(
+            byte[] mixture,
+            byte[] reference,
+            int blockStartFrame,
+            int blockEndFrame,
+            double lagFrames,
+            out bool prefixIsOffLag)
+        {
+            const int chunkFrames = 240;
+            prefixIsOffLag = false;
+            var starts = new List<int>();
+            var values = new List<double>();
+            var best = 0.0;
+            for (var chunkStart = blockStartFrame; chunkStart < blockEndFrame; chunkStart += chunkFrames)
+            {
+                var chunkEnd = Math.Min(blockEndFrame, chunkStart + chunkFrames);
+                var score = ScoreBlock(mixture, reference, lagFrames, chunkStart, chunkEnd);
+                var rms = score.Count <= 0 || score.ReferenceEnergy <= 0
+                    ? 0
+                    : Math.Sqrt(score.ReferenceEnergy / score.Count);
+                if (rms <= SilentReferenceRms)
+                {
+                    continue;
+                }
+
+                starts.Add(chunkStart);
+                values.Add(score.Value);
+                best = Math.Max(best, score.Value);
+            }
+
+            if (values.Count < 2 || best <= 0)
+            {
+                return blockEndFrame;
+            }
+
+            var threshold = best * 0.7;
+            var firstGood = values[0] >= threshold;
+            for (var i = 1; i < values.Count; i++)
+            {
+                if ((values[i] >= threshold) != firstGood)
+                {
+                    prefixIsOffLag = !firstGood;
+                    return starts[i];
+                }
+            }
+
+            return blockEndFrame;
+        }
+
+        /// <summary>
+        /// Held-out scoring for a fit made with one block over the whole span: suppression of the
+        /// same fixed subtraction measured in standard blocks. A block is not counted when its
+        /// reference is silent, sits more than 40 dB under the loudest block, or is already below
+        /// the game bed there: with the played copy under the bed, the projection measure's own
+        /// noise floor exceeds the gate, and a remnant of that copy is masked. The bed is estimated
+        /// as the block's recorded energy less the fitted copy's energy, which does not depend on
+        /// whether the subtraction succeeded. Null when no block qualifies.
+        /// </summary>
+        private static double? MeasureWeakestStandardBlockDb(
+            byte[] original,
+            byte[] working,
+            byte[] reference,
+            double lagFrames,
+            double gain,
+            int probeLagFrames,
+            out int weakestStartFrame)
+        {
+            weakestStartFrame = 0;
+            var frames = original.Length / BlockAlign;
+            var blocks = new List<Tuple<double, double, int>>();
+            var loudestRms = 0.0;
+            for (var start = 0; start < frames; start += BlockFrames)
+            {
+                var end = Math.Min(frames, start + BlockFrames);
+                var score = ScoreBlock(original, reference, lagFrames, start, end);
+                var rms = score.Count <= 0 || score.ReferenceEnergy <= 0
+                    ? 0
+                    : Math.Sqrt(score.ReferenceEnergy / score.Count);
+                if (rms <= SilentReferenceRms)
+                {
+                    continue;
+                }
+
+                var playedEnergy = gain * gain * score.ReferenceEnergy;
+                var mixtureEnergy = 0.0;
+                for (var frame = start; frame < end; frame += BlockFitStrideFrames)
+                {
+                    for (var channel = 0; channel < 2; channel++)
+                    {
+                        double sample = ReadInt16(original, frame * BlockAlign + channel * 2);
+                        mixtureEnergy += sample * sample;
+                    }
+                }
+
+                if (playedEnergy < Math.Max(0, mixtureEnergy - playedEnergy))
+                {
+                    continue;
+                }
+
+                loudestRms = Math.Max(loudestRms, rms);
+                blocks.Add(Tuple.Create(
+                    rms,
+                    MeasureSuppressionDb(
+                        original, working, reference, start, end, lagFrames, probeLagFrames, 1),
+                    start));
+            }
+
+            double? weakest = null;
+            foreach (var block in blocks)
+            {
+                if (block.Item1 < loudestRms / 100.0)
+                {
+                    continue;
+                }
+
+                if (!weakest.HasValue || block.Item2 < weakest.Value)
+                {
+                    weakest = block.Item2;
+                    weakestStartFrame = block.Item3;
+                }
+            }
+
+            return weakest;
+        }
+
         private static double MeasureSuppressionDb(
             byte[] original,
             byte[] working,
