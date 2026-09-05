@@ -11,8 +11,13 @@
 // when one is connected, else the default output). The parent captures include-tree on the child
 // twice: once stereo (today's format) and once 4-channel, and reports where the tone landed.
 //
-//   ChannelMapProbe.exe [--endpoint <index>] [--channels 4|6|8] [--tone-channel 2] [--hz 180]
+//   ChannelMapProbe.exe [--endpoint <index>] [--channels 4|6|8] [--tone-channel 2] [--hz 180] [--source-channels 4|8]
+//   ChannelMapProbe.exe --pid <processId>        capture a RUNNING process (a game) at 2, 4 and 8 channels for 5 s
 //   ChannelMapProbe.exe --tone <hz> <seconds> <channels> <activeChannel> <endpointId>   child mode
+//
+// --source-channels sets how many channels the child's stream has (a game on a 7.1 endpoint renders
+// 8). --pid skips the child and reports per-channel RMS of whatever the process is rendering, so a
+// real game's stream can be checked against the capture formats the recorder uses.
 //
 // Conclusive with a DualSense connected (its 4-channel endpoint is the real case). Against a
 // stereo endpoint the engine may already have downmixed the child's stream at the endpoint, so a
@@ -52,7 +57,14 @@ internal static class ChannelMapProbe
             return 2;
         }
 
+        var pid = Option(args, "--pid", -1);
+        if (pid > 0)
+        {
+            return CaptureExisting(pid);
+        }
+
         var channels = Option(args, "--channels", 4);
+        var sourceChannels = Option(args, "--source-channels", 4);
         var toneChannel = Option(args, "--tone-channel", 2);
         var hz = Option(args, "--hz", 180);
         var endpointIndex = Option(args, "--endpoint", -1);
@@ -86,7 +98,7 @@ internal static class ChannelMapProbe
 
         var targetIsHaptic = RenderEndpointScan.IsHapticEndpoint(target);
         Console.WriteLine();
-        Console.WriteLine($"rendering a {hz} Hz tone on channel {toneChannel} of a 4-channel stream to '{target.FriendlyName}'" +
+        Console.WriteLine($"rendering a {hz} Hz tone on channel {toneChannel} of a {sourceChannels}-channel stream to '{target.FriendlyName}'" +
             (targetIsHaptic ? " (controller endpoint: conclusive)" : " (not a controller endpoint: a fold here is inconclusive)"));
 
         var exe = Process.GetCurrentProcess().MainModule.FileName;
@@ -94,7 +106,7 @@ internal static class ChannelMapProbe
         {
             FileName = exe,
             Arguments = string.Format(
-                CultureInfo.InvariantCulture, "--tone {0} 8 4 {1} \"{2}\"", hz, toneChannel, target.Id),
+                CultureInfo.InvariantCulture, "--tone {0} 8 {1} {2} \"{3}\"", hz, sourceChannels, toneChannel, target.Id),
             UseShellExecute = false,
             CreateNoWindow = true,
         });
@@ -182,6 +194,70 @@ internal static class ChannelMapProbe
         return failures;
     }
 
+    /// <summary>
+    /// Captures a running process's tree at 2, 4 and 8 channels at once and reports per-channel
+    /// RMS, so a real game's render (whatever its stream format) can be checked against every
+    /// capture format the recorder might ask for. Play sound in the process while it runs.
+    /// </summary>
+    private static int CaptureExisting(int pid)
+    {
+        string name;
+        try { name = Process.GetProcessById(pid).ProcessName; }
+        catch (Exception ex) { Console.WriteLine($"pid {pid}: {ex.Message}"); return 2; }
+
+        Console.WriteLine($"capturing pid {pid} ({name}) include-tree at 2, 4 and 8 channels for 5 s; keep sound playing in it...");
+        var collectors = new List<Collector>();
+        foreach (var channels in new[] { 2, 4, 8 })
+        {
+            try
+            {
+                var capture = channels == 2
+                    ? new ProcessLoopbackCapture(pid, includeProcessTree: true)
+                    : new ProcessLoopbackCapture(pid, includeProcessTree: true,
+                        captureFormat: WaveFormat.CreateIeeeFloatWaveFormat(SampleRate, channels));
+                collectors.Add(new Collector(capture, channels));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"  {channels}-channel capture could not be created: {ex.Message}");
+            }
+        }
+
+        foreach (var collector in collectors) { collector.Start(); }
+        Thread.Sleep(5000);
+        foreach (var collector in collectors) { collector.Stop(); }
+
+        Console.WriteLine();
+        Console.WriteLine("RMS per capture channel (dBFS over the whole capture):");
+        var loudest = new Dictionary<int, double>();
+        foreach (var collector in collectors)
+        {
+            var rms = collector.RmsDb();
+            loudest[collector.Channels] = rms.Length == 0 ? -200 : rms.Max();
+            Console.WriteLine($"  {collector.Channels}-channel  frames={collector.Frames,7}  " + Format(rms));
+        }
+
+        Console.WriteLine();
+        if (!loudest.ContainsKey(2) || loudest[2] < -60)
+        {
+            Console.WriteLine("the stereo capture heard nothing: the process was not rendering (or renders from another process)");
+            return 1;
+        }
+
+        var failures = 0;
+        foreach (var channels in new[] { 4, 8 })
+        {
+            if (!loudest.ContainsKey(channels)) { continue; }
+            var gap = loudest[2] - loudest[channels];
+            var ok = gap <= 6;
+            if (!ok) { failures++; }
+            Console.WriteLine((ok ? "PASS " : "FAIL ") +
+                $"{channels}-channel capture carries the process's audio (loudest channel {loudest[channels]:0.0} dBFS vs stereo {loudest[2]:0.0} dBFS)");
+        }
+
+        return failures;
+    }
+
     private static int Option(string[] args, string name, int fallback)
     {
         for (var i = 0; i + 1 < args.Length; i++)
@@ -238,7 +314,47 @@ internal static class ChannelMapProbe
             };
         }
 
+        public int Channels => _channels;
+
+        public long Frames
+        {
+            get
+            {
+                lock (_bytes)
+                {
+                    return _bytes.Length / (4 * _channels);
+                }
+            }
+        }
+
         public void Start() => _capture.StartRecording();
+
+        /// <summary>Per-channel RMS in dBFS over everything captured.</summary>
+        public double[] RmsDb()
+        {
+            byte[] raw;
+            lock (_bytes)
+            {
+                raw = _bytes.ToArray();
+            }
+
+            var frames = raw.Length / (4 * _channels);
+            var levels = new double[_channels];
+            for (var channel = 0; channel < _channels; channel++)
+            {
+                double sum = 0;
+                for (var frame = 0; frame < frames; frame++)
+                {
+                    var sample = BitConverter.ToSingle(raw, (frame * _channels + channel) * 4);
+                    sum += sample * sample;
+                }
+
+                var rms = frames == 0 ? 0 : Math.Sqrt(sum / frames);
+                levels[channel] = rms > 0 ? 20.0 * Math.Log10(rms) : -200;
+            }
+
+            return levels;
+        }
 
         public void Stop()
         {
