@@ -17,36 +17,6 @@ namespace PlayniteAchievements.Services.Recording
         private const int SampleRate = 48000;
 
         /// <summary>
-        /// Reads the source's actual duration without decoding it. Used only on the background
-        /// cleanup worker so a custom sound that outlives the toast cannot escape the bounded
-        /// occurrence window. Null means the conservative toast-based estimate remains in force.
-        /// </summary>
-        public static double? TryGetDurationSeconds(string path, ILogger logger)
-        {
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                return null;
-            }
-
-            try
-            {
-                MediaFoundationApi.Startup();
-                using (var reader = new MediaFoundationReader(path))
-                {
-                    var seconds = reader.TotalTime.TotalSeconds;
-                    return double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds <= 0
-                        ? (double?)null
-                        : seconds;
-                }
-            }
-            catch (Exception ex)
-            {
-                logger?.Debug(ex, $"Chime sound duration could not be read: '{path}'.");
-                return null;
-            }
-        }
-
-        /// <summary>
         /// Reads up to <paramref name="maxSeconds"/> of the file, resampled to 48 kHz stereo and
         /// scaled by <paramref name="gain"/>. Returns null when the file cannot be decoded or has
         /// a channel layout the mixer does not handle (more than two channels).

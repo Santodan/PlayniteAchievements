@@ -2,26 +2,20 @@ namespace PlayniteAchievements.Services.Capture
 {
     /// <summary>
     /// The one parameter set the clip pipeline cancels a known reference out of captured audio
-    /// with — the non-game slice, and the live chime.
+    /// with: the session's simultaneously captured reference track (everything outside the game
+    /// tree, or the sound host's unlock sound).
     /// <para>
     /// Extracted from the export service so it can be measured: it depends on nothing but
-    /// <see cref="PcmAudio"/>, so <c>tools/capture-harness/ChimeRoundTripProbe</c> compiles it in
+    /// <see cref="PcmAudio"/>, so <c>tools/capture-harness/ChimeBurstProbe</c> compiles it in
     /// and exercises the real thresholds. Tuning these by reasoning about the audio rather than
     /// running that probe has produced two wrong answers in a row.
     /// </para>
     /// </summary>
     internal static class ReferenceCancellationPolicy
     {
-        public const int ChimeBlockFrames = 24000;
+        /// <summary>Half-second blocks at 48 kHz: the granularity the time-local subtraction uses.</summary>
+        public const int IsolationBlockFrames = 24000;
         public const int LocalCaptureLagFrames = 12000;
-        public const int FilePlaybackLagFrames = 36000;
-
-        /// <summary>
-        /// How far a time-local block may re-lock its lag from the slice-wide calibration: 10 ms,
-        /// well above the sub-millisecond recorder tears seen in the field and well below the
-        /// tens of milliseconds at which a tonal sound's partials start to repeat.
-        /// </summary>
-        public const int BlockRelockRadiusFrames = 480;
 
         public static PcmCancellationOutcome Subtract(
             byte[] mixture,

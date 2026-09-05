@@ -129,26 +129,20 @@ namespace PlayniteAchievements.Services.Recording
         public const string AudioChunkFilePrefix = "aud_";
 
         /// <summary>
-        /// Chime chunk filenames: chm_yyyyMMdd-HHmmssfffffffZ.wav — the Playnite process-tree
-        /// sidecar. When the game is also in that tree, its matching game-reference window is
-        /// cancelled from this track before the isolated chime is re-timed to the toast.
-        /// </summary>
-        public const string ChimeChunkFilePrefix = "chm_";
-
-        /// <summary>
-        /// Game-reference chunk filenames: gam_yyyyMMdd-HHmmssfffffffZ.wav. Capture uses this only when
-        /// Playnite's process tree contains the game, providing the raw game-only signal that must
-        /// be removed from the overlapping chime sidecar.
+        /// Game-witness chunk filenames: gam_yyyyMMdd-HHmmssfffffffZ.wav. Game Only capture records
+        /// the game tree itself alongside the reference: an empty witness means the game renders
+        /// outside the tracked tree (so the reference contains it and must not be subtracted), and a
+        /// mirrored game copy in the reference is purged against it before subtraction.
         /// </summary>
         public const string GameReferenceChunkFilePrefix = "gam_";
 
         /// <summary>
-        /// Non-game reference chunks: oth_yyyyMMdd-HHmmssfffffffZ.wav. Game-only capture records
-        /// the speaker endpoint as its haptic-free main track and captures every process except the
-        /// game tree here, so export can remove other applications without ever admitting a
-        /// controller endpoint into the clip audio.
+        /// Reference chunks: ref_yyyyMMdd-HHmmssfffffffZ.wav. Both modes record the speaker endpoint
+        /// as the haptic-free main track and capture one process-loopback reference here that export
+        /// subtracts from it: every process except the game tree in Game Only, the sound host's tree
+        /// in Full System. Neither ever admits a controller endpoint into the clip audio.
         /// </summary>
-        public const string NonGameReferenceChunkFilePrefix = "oth_";
+        public const string ReferenceChunkFilePrefix = "ref_";
 
         public const string AudioChunkFileExtension = ".wav";
     }

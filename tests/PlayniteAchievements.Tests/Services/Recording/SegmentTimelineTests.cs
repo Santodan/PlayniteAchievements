@@ -900,9 +900,8 @@ namespace PlayniteAchievements.Services.Tests.Recording
             var prefixes = new[]
             {
                 RecordingPaths.AudioChunkFilePrefix,
-                RecordingPaths.ChimeChunkFilePrefix,
                 RecordingPaths.GameReferenceChunkFilePrefix,
-                RecordingPaths.NonGameReferenceChunkFilePrefix,
+                RecordingPaths.ReferenceChunkFilePrefix,
             };
 
             foreach (var prefix in prefixes)

@@ -483,8 +483,6 @@
     <Compile Include="..\..\source\Common\WindowRectangles.cs" Link="Source\Common\WindowRectangles.cs" />
     <Compile Include="..\..\source\Services\Capture\PcmAudio.cs" Link="Source\Services\Capture\PcmAudio.cs" />
     <Compile Include="..\..\source\Services\Capture\ReferenceCancellationPolicy.cs" Link="Source\Services\Capture\ReferenceCancellationPolicy.cs" />
-    <Compile Include="..\..\source\Services\Capture\ChimeRemovalEngine.cs" Link="Source\Services\Capture\ChimeRemovalEngine.cs" />
-    <Compile Include="..\..\source\Services\Recording\WaveSoundOccurrence.cs" Link="Source\Services\Recording\WaveSoundOccurrence.cs" />
     <Compile Include="..\..\source\Services\Recording\HapticEndpointClassifier.cs" Link="Source\Services\Recording\HapticEndpointClassifier.cs" />
     <Compile Include="..\..\source\Services\UI\ControllerPadIds.cs" Link="Source\Services\UI\ControllerPadIds.cs" />
     <Compile Include="..\..\source\Services\UI\GameWindowRanking.cs" Link="Source\Services\UI\GameWindowRanking.cs" />

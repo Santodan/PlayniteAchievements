@@ -64,9 +64,6 @@ namespace PlayniteAchievements.Services.Capture
         /// </summary>
         public int FixedFitBlocks;
 
-        /// <summary>Weakest suppression among the blocks that were subtracted.</summary>
-        public double WeakestBlockSuppressionDb;
-
         /// <summary>
         /// Whether a weak whole-slice result was accepted by retaining only its independently
         /// verified blocks and restoring every other block exactly as recorded.
@@ -98,9 +95,6 @@ namespace PlayniteAchievements.Services.Capture
 
         /// <summary>Largest per-block lag departure from the slice-wide calibration, in ms.</summary>
         public double MaxBlockLagShiftMs;
-
-        /// <summary>Where the weakest scored block starts, in ms from the start of the slice.</summary>
-        public double WeakestBlockStartMs;
     }
 
     /// <summary>
@@ -755,70 +749,6 @@ namespace PlayniteAchievements.Services.Capture
             suppressionsDb.Sort();
             var suppression = suppressionsDb[(suppressionsDb.Count - 1) * 3 / 4];
             diagnostics.SuppressionDb = suppression;
-            // The held-out weakest figure counts the blocks a listener could still hear the
-            // reference in: its played copy at least as loud as the rest of the recorded audio
-            // there, and within 40 dB of the loudest block. A sliver of the sound's edge inside a
-            // block, or a decaying tail under the game, cannot be measured to a strong gate and is
-            // masked anyway. When no block qualifies the plain minimum stands.
-            var loudestBlockRms = 0.0;
-            foreach (var measured in measuredBlocks)
-            {
-                loudestBlockRms = Math.Max(loudestBlockRms, measured.ReferenceRms);
-            }
-
-            var weakestQualified = double.MaxValue;
-            var weakestQualifiedStart = -1;
-            foreach (var measured in measuredBlocks)
-            {
-                if (!measured.Audible || measured.ReferenceRms < loudestBlockRms / 100.0)
-                {
-                    continue;
-                }
-
-                if (measured.SuppressionDb < weakestQualified)
-                {
-                    weakestQualified = measured.SuppressionDb;
-                    weakestQualifiedStart = measured.StartFrame;
-                }
-            }
-
-            if (weakestQualifiedStart >= 0)
-            {
-                diagnostics.WeakestBlockSuppressionDb = weakestQualified;
-                diagnostics.WeakestBlockStartMs = weakestQualifiedStart * 1000.0 / SampleRate;
-            }
-            else
-            {
-                diagnostics.WeakestBlockSuppressionDb = suppressionsDb[0];
-                foreach (var measured in measuredBlocks)
-                {
-                    if (measured.SuppressionDb == suppressionsDb[0])
-                    {
-                        diagnostics.WeakestBlockStartMs = measured.StartFrame * 1000.0 / SampleRate;
-                        break;
-                    }
-                }
-            }
-
-            if (measuredBlocks.Count == 1 && measuredBlocks[0].Subtracted &&
-                blockFrames > BlockFrames * 2)
-            {
-                // One least-squares gain over the whole span zeroes the reference's projection at
-                // its own lag by construction, so the single block's figure cannot see a remnant
-                // confined to part of the span: after a recorder tear the rest of the sound sits at
-                // another lag and survives while the figure reads 40+ dB (2026-09-05 clips). Score
-                // the same fixed fit in standard blocks and let the weakest audible one stand as
-                // the held-out figure.
-                var weakest = MeasureWeakestStandardBlockDb(
-                    mixture, working, gameReference, fixedLagFrames, globalGain,
-                    Math.Max(0, verificationLagRadiusFrames),
-                    out var weakestStartFrame);
-                if (weakest.HasValue && weakest.Value < diagnostics.WeakestBlockSuppressionDb)
-                {
-                    diagnostics.WeakestBlockSuppressionDb = weakest.Value;
-                    diagnostics.WeakestBlockStartMs = weakestStartFrame * 1000.0 / SampleRate;
-                }
-            }
             var weakOverallPass = suppression < MinimumSuppressionDb;
             if (weakOverallPass && !commitVerifiedBlocksOnWeakPass)
             {
@@ -875,7 +805,6 @@ namespace PlayniteAchievements.Services.Capture
                     diagnostics.PartialCommit = true;
                     diagnostics.SuppressionDb = retainedSuppressions[
                         (retainedSuppressions.Count - 1) * 3 / 4];
-                    diagnostics.WeakestBlockSuppressionDb = retainedSuppressions[0];
                 }
             }
 
@@ -1338,82 +1267,6 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             return blockEndFrame;
-        }
-
-        /// <summary>
-        /// Held-out scoring for a fit made with one block over the whole span: suppression of the
-        /// same fixed subtraction measured in standard blocks. A block is not counted when its
-        /// reference is silent, sits more than 40 dB under the loudest block, or is already below
-        /// the game bed there: with the played copy under the bed, the projection measure's own
-        /// noise floor exceeds the gate, and a remnant of that copy is masked. The bed is estimated
-        /// as the block's recorded energy less the fitted copy's energy, which does not depend on
-        /// whether the subtraction succeeded. Null when no block qualifies.
-        /// </summary>
-        private static double? MeasureWeakestStandardBlockDb(
-            byte[] original,
-            byte[] working,
-            byte[] reference,
-            double lagFrames,
-            double gain,
-            int probeLagFrames,
-            out int weakestStartFrame)
-        {
-            weakestStartFrame = 0;
-            var frames = original.Length / BlockAlign;
-            var blocks = new List<Tuple<double, double, int>>();
-            var loudestRms = 0.0;
-            for (var start = 0; start < frames; start += BlockFrames)
-            {
-                var end = Math.Min(frames, start + BlockFrames);
-                var score = ScoreBlock(original, reference, lagFrames, start, end);
-                var rms = score.Count <= 0 || score.ReferenceEnergy <= 0
-                    ? 0
-                    : Math.Sqrt(score.ReferenceEnergy / score.Count);
-                if (rms <= SilentReferenceRms)
-                {
-                    continue;
-                }
-
-                var playedEnergy = gain * gain * score.ReferenceEnergy;
-                var mixtureEnergy = 0.0;
-                for (var frame = start; frame < end; frame += BlockFitStrideFrames)
-                {
-                    for (var channel = 0; channel < 2; channel++)
-                    {
-                        double sample = ReadInt16(original, frame * BlockAlign + channel * 2);
-                        mixtureEnergy += sample * sample;
-                    }
-                }
-
-                if (playedEnergy < Math.Max(0, mixtureEnergy - playedEnergy))
-                {
-                    continue;
-                }
-
-                loudestRms = Math.Max(loudestRms, rms);
-                blocks.Add(Tuple.Create(
-                    rms,
-                    MeasureSuppressionDb(
-                        original, working, reference, start, end, lagFrames, probeLagFrames, 1),
-                    start));
-            }
-
-            double? weakest = null;
-            foreach (var block in blocks)
-            {
-                if (block.Item1 < loudestRms / 100.0)
-                {
-                    continue;
-                }
-
-                if (!weakest.HasValue || block.Item2 < weakest.Value)
-                {
-                    weakest = block.Item2;
-                    weakestStartFrame = block.Item3;
-                }
-            }
-
-            return weakest;
         }
 
         private static double MeasureSuppressionDb(
