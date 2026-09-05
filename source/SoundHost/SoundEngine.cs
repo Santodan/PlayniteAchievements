@@ -38,6 +38,7 @@ namespace PlayniteAchievements.SoundHost
         private MMDeviceEnumerator _enumerator;
         private NotificationClient _notifications;
         private WasapiOut _output;
+        private string _deviceId;
         private WaveFormat _voiceFormat;
         private bool _streaming;
         private long _lastActivityTicks = Stopwatch.GetTimestamp();
@@ -95,7 +96,7 @@ namespace PlayniteAchievements.SoundHost
 
                 _voice.Assign(clip, (float)Math.Max(0.0, Math.Min(1.0, gain)), id);
                 _lastActivityTicks = Stopwatch.GetTimestamp();
-                EnsureStreaming();
+                EnsureStreaming(retryOnFailure: true);
             });
         }
 
@@ -157,11 +158,14 @@ namespace PlayniteAchievements.SoundHost
                 if (_enumerator == null)
                 {
                     _enumerator = new MMDeviceEnumerator();
-                    _notifications = new NotificationClient(() => Post(Reopen));
+                    _notifications = new NotificationClient(
+                        () => Post(Reopen),
+                        deviceId => Post(() => OnDeviceFormatChanged(deviceId)));
                     _enumerator.RegisterEndpointNotificationCallback(_notifications);
                 }
 
                 var device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                _deviceId = device.ID;
                 var mix = device.AudioClient.MixFormat;
                 var format = WaveFormat.CreateIeeeFloatWaveFormat(mix.SampleRate, mix.Channels);
                 if (_voiceFormat == null || !SameFormat(_voiceFormat, format))
@@ -187,15 +191,79 @@ namespace PlayniteAchievements.SoundHost
             }
         }
 
-        private void EnsureStreaming()
+        /// <summary>
+        /// Starts the stream if it is idle. A stream initialized against a device whose format has
+        /// since changed fails here with AUDCLNT_E_DEVICE_INVALIDATED; the pending sound is then
+        /// replayed once through a reopened stream rather than lost.
+        /// </summary>
+        private void EnsureStreaming(bool retryOnFailure)
         {
             if (_output == null || _streaming)
             {
                 return;
             }
 
-            _output.Play();
-            _streaming = true;
+            try
+            {
+                _output.Play();
+                _streaming = true;
+            }
+            catch (Exception ex)
+            {
+                _emit(SoundHostProtocol.EncodeError(-1, "Start failed: " + ex.Message));
+                RecoverStream(_output, retryOnFailure);
+            }
+        }
+
+        /// <summary>
+        /// Reopens after the stream owned by <paramref name="failed"/> broke. A sound assigned but
+        /// not yet rendered is re-decoded for the reopened format and replayed once. A report from
+        /// a stream that has already been replaced is ignored, so a late failure cannot tear down
+        /// the replacement while it plays.
+        /// </summary>
+        private void RecoverStream(object failed, bool replayPending)
+        {
+            if (_output != null && !ReferenceEquals(failed, _output))
+            {
+                return;
+            }
+
+            var pending = replayPending ? _voice.TakeIfUnannounced() : null;
+            Reopen();
+            if (pending == null)
+            {
+                return;
+            }
+
+            var clip = GetOrDecode(pending.Clip.Path, pending.Id);
+            if (clip != null)
+            {
+                _voice.Assign(clip, pending.Gain, pending.Id);
+                _lastActivityTicks = Stopwatch.GetTimestamp();
+                EnsureStreaming(retryOnFailure: false);
+            }
+        }
+
+        /// <summary>
+        /// The default device's shared-mode format changed (a speaker layout switch, for instance).
+        /// The open stream is bound to the old format and would fail on its next start, so reopen
+        /// now, while no sound is in flight, rather than lose the next one.
+        /// </summary>
+        private void OnDeviceFormatChanged(string deviceId)
+        {
+            if (_output == null || !string.Equals(deviceId, _deviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (_voice.IsActive)
+            {
+                // Let the current sound finish; a start against the stale stream is recovered by
+                // EnsureStreaming.
+                return;
+            }
+
+            Reopen();
         }
 
         private void StopIfIdle()
@@ -248,7 +316,7 @@ namespace PlayniteAchievements.SoundHost
             if (e.Exception != null)
             {
                 _emit(SoundHostProtocol.EncodeError(-1, "Playback stopped: " + e.Exception.Message));
-                Post(Reopen);
+                Post(() => RecoverStream(sender, replayPending: true));
             }
         }
 
@@ -310,7 +378,7 @@ namespace PlayniteAchievements.SoundHost
             try
             {
                 var samples = Decode(path, _voiceFormat);
-                var clip = new Clip(key, samples, _voiceFormat.Channels);
+                var clip = new Clip(key, path, samples, _voiceFormat.Channels);
                 if (CachedSeconds() + clip.Seconds(_voiceFormat.SampleRate) <= MaxCachedSeconds)
                 {
                     _cache[key] = clip;
@@ -378,14 +446,16 @@ namespace PlayniteAchievements.SoundHost
 
         private sealed class Clip
         {
-            public Clip(string key, float[] samples, int channels)
+            public Clip(string key, string path, float[] samples, int channels)
             {
                 Key = key;
+                Path = path;
                 Samples = samples;
                 Channels = channels;
             }
 
             public string Key { get; }
+            public string Path { get; }
             public float[] Samples { get; }
             public int Channels { get; }
 
@@ -424,6 +494,22 @@ namespace PlayniteAchievements.SoundHost
             public void Assign(Clip clip, float gain, int id)
             {
                 _current = clip == null ? null : new Playback(clip, gain, id);
+            }
+
+            /// <summary>
+            /// Detaches the assigned sound if the render thread never reached it, so a stream
+            /// failure between assignment and first read can replay it; null otherwise.
+            /// </summary>
+            public Playback TakeIfUnannounced()
+            {
+                var playback = _current;
+                if (playback == null || playback.Announced)
+                {
+                    return null;
+                }
+
+                _current = null;
+                return playback;
             }
 
             public int Read(float[] buffer, int offset, int count)
@@ -466,17 +552,31 @@ namespace PlayniteAchievements.SoundHost
 
         private sealed class NotificationClient : IMMNotificationClient
         {
-            private readonly Action _defaultChanged;
+            // PKEY_AudioEngine_DeviceFormat and PKEY_AudioEngine_OEMFormat: an endpoint's
+            // shared-mode mix format, which changes with its speaker layout or sample rate.
+            private static readonly Guid DeviceFormatKey = new Guid("f19f064d-082c-4e27-bc73-6882a1bb8e4c");
+            private static readonly Guid OemFormatKey = new Guid("e4870e26-3cc5-4cd2-ba46-ca0a9a70ed04");
 
-            public NotificationClient(Action defaultChanged)
+            private readonly Action _defaultChanged;
+            private readonly Action<string> _formatChanged;
+
+            public NotificationClient(Action defaultChanged, Action<string> formatChanged)
             {
                 _defaultChanged = defaultChanged;
+                _formatChanged = formatChanged;
             }
 
             public void OnDeviceStateChanged(string deviceId, DeviceState newState) { }
             public void OnDeviceAdded(string pwstrDeviceId) { }
             public void OnDeviceRemoved(string deviceId) { }
-            public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key) { }
+
+            public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
+            {
+                if (key.formatId == DeviceFormatKey || key.formatId == OemFormatKey)
+                {
+                    _formatChanged(pwstrDeviceId);
+                }
+            }
 
             public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
             {
