@@ -13,9 +13,11 @@ namespace PlayniteAchievements.Services.Recording
     /// unit cannot be assumed: on one machine a forced-48kHz endpoint capture (AUTOCONVERTPCM)
     /// advanced the counter at exactly 4x the frames delivered — a 192 kHz native mix format —
     /// so treating the delta as capture frames padded 3 s of silence per real second, overflowed
-    /// any ring, and shredded every clip. The position counter still serves two lesser roles:
+    /// any ring, and shredded every clip. The position counter still serves three lesser roles:
     /// the gap measure for packets whose stamp is unusable (preserving the old arithmetic
-    /// exactly), and a corroborating witness that bounds what a single wild stamp can inject.
+    /// exactly), a corroborating witness that bounds what a single wild stamp can inject, and,
+    /// once its rate is measured and it agrees with the stamp about a gap, the exact frame count
+    /// of that gap, so the audio after it is not re-anchored by one stamp's scheduling jitter.
     /// </para>
     /// </summary>
     internal sealed class AudioGapTracker
@@ -234,10 +236,15 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Bounds a stamped gap by what the position counter saw, once the counter's own rate
-        /// has been measured. A real dropout and a silent passage advance both witnesses in
-        /// step; they disagree only when one of them glitches, which is exactly when the
-        /// smaller claim is the safe one. A backwards counter (stream rebuild) abstains.
+        /// Sizes a stamped gap with the position counter once the counter's own rate has been
+        /// measured. A real dropout and a silent passage advance both witnesses in step. When
+        /// the two agree to within the jitter threshold the position counter's figure is used:
+        /// it counts the engine's own frames, while a stamp carries the scheduling jitter of the
+        /// packet it was read with, and padding by the stamp re-anchored everything after the
+        /// gap by that jitter (2026-09-05 clips: the tail of a live chime 0.2-0.5 ms off its
+        /// head, audible as a softer copy after cancellation). When they disagree by more, one
+        /// of them glitched and the smaller claim is the safe one. A backwards counter (stream
+        /// rebuild) abstains.
         /// </summary>
         private long CorroborateWithPosition(long devicePosition, long gapFrames)
         {
@@ -248,11 +255,17 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             var positionAdvance = devicePosition - _lastDevicePosition;
-            var advanceFrames = (long)(positionAdvance * _sampleRate / rate);
+            var advanceFrames = (long)Math.Round(positionAdvance * _sampleRate / rate);
             var positionGapFrames = advanceFrames - _lastFrames;
             if (positionGapFrames < 0)
             {
                 positionGapFrames = 0;
+            }
+
+            var jitterFrames = TicksToFrames(_jitterThreshold100ns);
+            if (Math.Abs(positionGapFrames - gapFrames) <= jitterFrames)
+            {
+                return positionGapFrames;
             }
 
             return Math.Min(gapFrames, positionGapFrames);
