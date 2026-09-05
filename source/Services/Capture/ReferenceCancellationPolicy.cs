@@ -16,6 +16,13 @@ namespace PlayniteAchievements.Services.Capture
         public const int LocalCaptureLagFrames = 12000;
         public const int FilePlaybackLagFrames = 36000;
 
+        /// <summary>
+        /// How far a time-local block may re-lock its lag from the slice-wide calibration: 10 ms,
+        /// well above the sub-millisecond recorder tears seen in the field and well below the
+        /// tens of milliseconds at which a tonal sound's partials start to repeat.
+        /// </summary>
+        public const int BlockRelockRadiusFrames = 480;
+
         public static PcmCancellationOutcome Subtract(
             byte[] mixture,
             byte[] reference,
@@ -26,7 +33,8 @@ namespace PlayniteAchievements.Services.Capture
             bool detectClean = false,
             double? calibratedLagFrames = null,
             bool preferSmallLagOnWideSearch = true,
-            bool attemptVerifiedBlocksWhenGloballyClean = false)
+            bool attemptVerifiedBlocksWhenGloballyClean = false,
+            int blockLagRadiusFrames = 0)
         {
             var floor = residualPass ? 0.001 : 0.005;
             return PcmAudio.CancelCorrelated(
@@ -55,7 +63,8 @@ namespace PlayniteAchievements.Services.Capture
                 gainCrossfadeFrames: 0,
                 fractionalLagSteps: 32,
                 calibratedLagFrames: calibratedLagFrames,
-                preferSmallLagOnWideSearch: preferSmallLagOnWideSearch);
+                preferSmallLagOnWideSearch: preferSmallLagOnWideSearch,
+                blockLagRadiusFrames: blockLagRadiusFrames);
         }
 
         /// <summary>
