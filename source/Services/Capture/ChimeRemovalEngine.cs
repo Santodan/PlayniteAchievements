@@ -372,7 +372,12 @@ namespace PlayniteAchievements.Services.Capture
                     // The ordinary clean shortcut has deliberately loose ceilings. On the final
                     // low-floor pass, make it try the fitted copy so held-out suppression—not the
                     // shortcut—decides whether a quiet live chime is actually present.
-                    attemptVerifiedBlocksWhenGloballyClean: residualPass);
+                    attemptVerifiedBlocksWhenGloballyClean: residualPass,
+                    // A recorder alignment tear inside the sound moves everything after it to a
+                    // slightly different lag. The time-local pass lets each block re-lock.
+                    blockLagRadiusFrames: timeLocalPass
+                        ? ReferenceCancellationPolicy.BlockRelockRadiusFrames
+                        : 0);
                 var verified = IsVerifiedAbsent(outcome, diagnostics);
                 AddAttempt(
                     attempts,
@@ -432,7 +437,10 @@ namespace PlayniteAchievements.Services.Capture
                             detectClean: true,
                             calibratedLagFrames: exactLag,
                             preferSmallLagOnWideSearch: !isResolvedFile,
-                            attemptVerifiedBlocksWhenGloballyClean: residualPass);
+                            attemptVerifiedBlocksWhenGloballyClean: residualPass,
+                            blockLagRadiusFrames: timeLocalPass
+                                ? ReferenceCancellationPolicy.BlockRelockRadiusFrames
+                                : 0);
                         var neighbourVerified =
                             IsVerifiedAbsent(neighbourOutcome, neighbourDiagnostics) &&
                             neighbourOutcome == PcmCancellationOutcome.CancelledVerified;
