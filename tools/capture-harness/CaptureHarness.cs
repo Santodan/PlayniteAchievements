@@ -34,12 +34,17 @@ internal static class CaptureHarness
     private const int ClientH = 720;
 
     private static string _pluginDir;
+    private static bool _softwareEncoder;
 
     [STAThread]
     private static void Main(string[] args)
     {
         if (args.Length > 2 && string.Equals(args[0], "--reencode", StringComparison.OrdinalIgnoreCase))
         {
+            // --software anywhere in the arguments keeps hardware transforms off the encoding sinks,
+            // so the passes run on Microsoft's software H.264 encoder — the universal fall-back path.
+            _softwareEncoder = args.Any(a => string.Equals(a, "--software", StringComparison.OrdinalIgnoreCase));
+            args = args.Where(a => !string.Equals(a, "--software", StringComparison.OrdinalIgnoreCase)).ToArray();
             // Re-run only the composition phase over an existing base clip, so a clip the full run
             // produced (a stalled one, say) can be worked on without recording again:
             //   CaptureHarness.exe --reencode <clip.mp4> <fps> [toastStartSeconds] [trimLeadSeconds] [pluginDir]
@@ -836,7 +841,9 @@ internal static class CaptureHarness
                 reencoderType, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null,
                 new object[] { ConsoleLogger.Create(reencoderType.GetConstructors(Flags)[0].GetParameters()[0].ParameterType) },
                 null);
-            reencoderType.GetProperty("SpliceEnabled", Flags).SetValue(reencoder, splice);
+            // Older builds of the plugin (a baseline for comparison) have neither switch.
+            reencoderType.GetProperty("SpliceEnabled", Flags)?.SetValue(reencoder, splice);
+            reencoderType.GetProperty("PreferSoftwareEncoder", Flags)?.SetValue(reencoder, _softwareEncoder);
 
             var qualityType = plugin.GetType("PlayniteAchievements.Models.Settings.RecordingQuality");
             var quality = Enum.Parse(qualityType, Enum.GetNames(qualityType)[0]);
