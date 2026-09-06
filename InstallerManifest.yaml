@@ -1,8 +1,17 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 3.1.3.3
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-09-06
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v3.1.3.3/PlayniteAchievementsSantodan_3_1_3_3.pext
+    Changelog:
+    - "Fixed achievements not been retrieve correctly when an `<appid>.json` existed in the steam's folder"
+    - "Fixed freezing when right clicking a game in the library"
+    - "Fixed `Solaris` theme migration"
+
   - Version: 3.1.3.2
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-08-13
+    ReleaseDate: 2026-08-30
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v3.1.3.2/PlayniteAchievementsSantodan_3_1_3_2.pext
     Changelog:
     - "Fixed missing categorized achievements fro `Local` platform"
@@ -10,7 +19,7 @@ Packages:
 
   - Version: 3.1.3.1
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-08-13
+    ReleaseDate: 2026-08-24
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v3.1.3.1/PlayniteAchievementsSantodan_3_1_3_1.pext
     Changelog:
     - "v3.1.3 merge"
