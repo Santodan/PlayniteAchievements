@@ -31,9 +31,12 @@ namespace PlayniteAchievements.Services.Capture
         // split costs, so the planner folds it into its re-encoded neighbours instead.
         private const double MinCopySeconds = 3.0;
 
-        // 0: untested. 1: a re-encoded run's parameter sets matched the capture's. -1: they
-        // differed, so no further clip in this process tries the splice.
-        private static volatile int s_spliceCompatibility;
+        // Consecutive clips whose re-encoded runs signalled different parameter sets from the
+        // capture's. One mismatch can be incidental (the D3D-manager sink failing over to the
+        // software encoder for that clip); a streak means this machine's encoder never agrees, and
+        // paying for the probe run on every clip stops being worth it.
+        private static int s_spliceMismatches;
+        private const int MaxSpliceMismatches = 3;
 
         /// <summary>Diagnostic switch: the whole-clip pass runs unconditionally when false.</summary>
         internal bool SpliceEnabled { get; set; } = true;
@@ -58,7 +61,7 @@ namespace PlayniteAchievements.Services.Capture
             double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath,
             int configuredFps, RecordingQuality quality, DXGIDeviceManager deviceManager)
         {
-            if (s_spliceCompatibility < 0)
+            if (System.Threading.Volatile.Read(ref s_spliceMismatches) >= MaxSpliceMismatches)
             {
                 return false;
             }
@@ -113,7 +116,7 @@ namespace PlayniteAchievements.Services.Capture
                     }
                 }
 
-                s_spliceCompatibility = 1;
+                System.Threading.Volatile.Write(ref s_spliceMismatches, 0);
                 var encodeMs = timer.ElapsedMilliseconds;
                 Remux(
                     baseClipPath, plan, encoded, trimLead, endInclusive - trimLead,
@@ -172,18 +175,19 @@ namespace PlayniteAchievements.Services.Capture
         /// Whether a re-encoded run can share a track with the base clip: its parameter sets must
         /// match the base clip's byte for byte, and it must hold exactly the frames it was given (an
         /// encoder that dropped or reordered frames would put the stamps on the wrong pictures). A
-        /// parameter-set mismatch is a property of the encoder, so it is remembered.
+        /// parameter-set mismatch is a property of the encoder, so a streak of them is remembered.
         /// </summary>
         private bool RunIsSpliceable(byte[] baseHeader, string runPath, int expectedFrames)
         {
             var runHeader = ReadSequenceHeader(runPath);
             if (!BytesEqual(baseHeader, runHeader))
             {
-                s_spliceCompatibility = -1;
+                var streak = System.Threading.Interlocked.Increment(ref s_spliceMismatches);
                 _logger?.Info(
                     "[Recording] Toast splice: the re-encoder's H.264 parameter sets differ from the capture's " +
-                    $"({runHeader?.Length ?? 0} vs {baseHeader.Length} bytes), so copied and re-encoded video " +
-                    "cannot share a track; clips re-encode whole from now on.");
+                    $"({runHeader?.Length ?? 0} vs {baseHeader.Length} bytes: {Hex(runHeader)} vs {Hex(baseHeader)}), " +
+                    "so copied and re-encoded video cannot share a track; re-encoding this clip whole" +
+                    (streak >= MaxSpliceMismatches ? " and every clip after it." : "."));
                 return false;
             }
 
@@ -197,6 +201,11 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             return true;
+        }
+
+        private static string Hex(byte[] bytes)
+        {
+            return bytes == null ? "none" : BitConverter.ToString(bytes).Replace("-", string.Empty).ToLowerInvariant();
         }
 
         private static bool BytesEqual(byte[] a, byte[] b)
@@ -316,7 +325,15 @@ namespace PlayniteAchievements.Services.Capture
                 }
 
                 var stack = FrameOverlayStack.Create(overlays, frameW, frameH, stride);
-                var nominalDuration = OneSecond100ns / Math.Max(1, fps);
+                // Declare the rate the capture declared, not the base clip's own average: a clip
+                // whose capture stalled averages below the capture rate, and the rate is written
+                // into the H.264 sequence parameters, so a run declaring the average would no
+                // longer share the capture's parameter sets. The remux re-stamps every frame with
+                // its base-clip duration anyway, so the declared rate never reaches the output's
+                // timing; the whole-clip pass, whose encoder output is the final track, keeps the
+                // average for that reason.
+                var declaredFps = configuredFps > 0 ? configuredFps : fps;
+                var nominalDuration = OneSecond100ns / Math.Max(1, declaredFps);
                 var width = frameW;
                 var height = frameH;
                 var readerMs = phase.ElapsedMilliseconds;
@@ -326,7 +343,7 @@ namespace PlayniteAchievements.Services.Capture
                     var videoStream = -1;
                     sink = CreateEncodingSink(
                         tempPath, deviceManager,
-                        s => videoStream = AddVideoStream(s, decodedType, width, height, fps, quality),
+                        s => videoStream = AddVideoStream(s, decodedType, width, height, declaredFps, quality),
                         null, out var usedManager);
                     var sinkMs = phase.ElapsedMilliseconds - readerMs;
 
