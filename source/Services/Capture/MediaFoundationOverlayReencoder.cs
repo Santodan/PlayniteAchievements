@@ -236,10 +236,9 @@ namespace PlayniteAchievements.Services.Capture
                 frameW = (int)(size >> 32);
                 frameH = (int)(size & 0xffffffff);
                 fps = ReadFps(decodedType, configuredFps);
-                // Every frame is copied out of the decoder into the contiguous layout before it is
-                // touched (see DetachFromDecoder), whose luma rows are exactly the frame width, so
-                // that is the stride the compositor and the encoder are told regardless of the
-                // pitch the decoder's own buffers used.
+                // Every frame is repacked out of the decoder to exactly frameW × frameH before it is
+                // touched (see DetachFromDecoder), so that is the stride the compositor and the
+                // encoder are told, whatever pitch the decoder's own surfaces used.
                 stride = frameW;
                 return decodedType;
             }
@@ -251,33 +250,52 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// Creates and starts an H.264 encoding sink with hardware transforms enabled;
-        /// <paramref name="configureStreams"/> adds the streams. No D3D device manager is bound:
-        /// with NV12 input the vendor's hardware encoder is selected directly, and the NVIDIA
-        /// transform rejects system-memory samples (E_INVALIDARG on the first write) while a
-        /// manager is bound. The manager was only ever needed to get that encoder chosen behind
-        /// the RGB colour converter the pass used to feed.
+        /// Creates and starts an H.264 encoding sink; <paramref name="configureStreams"/> adds the
+        /// streams. No D3D device manager is bound: with NV12 input the vendor's hardware encoder is
+        /// selected directly, and the NVIDIA transform rejects system-memory samples (E_INVALIDARG on
+        /// the first write) while a manager is bound. The manager was only ever needed to get that
+        /// encoder chosen behind the RGB colour converter the pass used to feed.
+        /// <para>
+        /// The first attempt allows hardware transforms; if that sink cannot be set up, a second
+        /// attempt disallows them, which selects Microsoft's software H.264 encoder. Only NVIDIA's
+        /// transform could be tested here, so the retry is what stands behind every other vendor:
+        /// a transform that declines system-memory NV12, or this configuration of it, costs the
+        /// clip some encode speed instead of costing it the toast card.
+        /// </para>
         /// </summary>
         private SinkWriter CreateEncodingSink(string outputPath, Action<SinkWriter> configureStreams)
         {
-            SinkWriter sink = null;
-            try
+            var allowHardware = !PreferSoftwareEncoder;
+            while (true)
             {
-                using (var sinkAttributes = new MediaAttributes(1))
+                SinkWriter sink = null;
+                try
                 {
-                    sinkAttributes.Set(
-                        SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, PreferSoftwareEncoder ? 0 : 1);
-                    sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
-                }
+                    using (var sinkAttributes = new MediaAttributes(1))
+                    {
+                        sinkAttributes.Set(
+                            SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, allowHardware ? 1 : 0);
+                        sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
+                    }
 
-                configureStreams(sink);
-                sink.BeginWriting();
-                return sink;
-            }
-            catch
-            {
-                sink?.Dispose();
-                throw;
+                    configureStreams(sink);
+                    sink.BeginWriting();
+                    return sink;
+                }
+                catch (Exception ex)
+                {
+                    sink?.Dispose();
+                    if (!allowHardware)
+                    {
+                        throw;
+                    }
+
+                    _logger?.Info(
+                        ex,
+                        "[Recording] The hardware H.264 encoder would not take this pass's NV12 frames; " +
+                        "re-encoding through the software encoder instead.");
+                    allowHardware = false;
+                }
             }
         }
 
@@ -490,30 +508,26 @@ namespace PlayniteAchievements.Services.Capture
         /// from two different frames. The RGB path never met this because its colour converter
         /// copied every frame; feeding NV12 straight through needs the copy made here.
         /// <para>
-        /// The copy is the contiguous layout, rows packed at the frame width — but the decoder's
-        /// surfaces are allocated at a macroblock-aligned height (1088 rows for 1080p), and the
-        /// contiguous copy keeps that padding, which puts the chroma plane 8 luma rows later than
-        /// the exact-height layout the encoder and the compositor address. Left alone, every
-        /// picture's chroma lands 16 rows below its luma while the card, blended by the same wrong
-        /// assumption, looks right. The chroma plane is therefore moved up to follow exactly
-        /// <paramref name="frameH"/> luma rows and the padding is dropped.
+        /// The copy also normalizes the layout. A decoder's surface has its own row pitch and is
+        /// allocated at a macroblock-aligned height (1088 rows for 1080p), so its chroma plane sits
+        /// further down than the packed <c>frameW</c> × <c>frameH</c> layout the encoder and the
+        /// compositor address — left as it came, every picture's chroma lands rows below its luma
+        /// while the card, blended by the same wrong assumption, looks right. Media Foundation's
+        /// own contiguous form is no help: it packs rows to the frame width but keeps the aligned
+        /// height, which is exactly the trap. Both planes are therefore copied row by row, the
+        /// pitch read from the buffer and the aligned height derived from the contiguous length, so
+        /// no vendor's choice of either is assumed. Buffers with no 2D view are packed already.
         /// </para>
         /// </summary>
         private Sample DetachFromDecoder(Sample decoded, int frameW, int frameH)
         {
             using (decoded)
             {
-                var length = decoded.TotalLength;
-                var exactLength = frameW * frameH * 3 / 2;
-                var buffer = MediaFactory.CreateMemoryBuffer(Math.Max(length, exactLength));
+                var packedLength = frameW * frameH * 3 / 2;
+                var buffer = MediaFactory.CreateMemoryBuffer(packedLength);
                 try
                 {
-                    decoded.CopyToBuffer(buffer);
-                    if (length != exactLength)
-                    {
-                        RepackPaddedNv12(buffer, length, frameW, frameH, exactLength);
-                    }
-
+                    CopyPacked(decoded, buffer, frameW, frameH, packedLength);
                     var copy = MediaFactory.CreateSample();
                     copy.AddBuffer(buffer);
                     copy.SampleTime = decoded.SampleTime;
@@ -527,48 +541,124 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        private byte[] _chromaScratch;
-        private bool _paddingLogged;
+        private bool _layoutLogged;
 
         /// <summary>
-        /// Moves the chroma plane of a padded-height NV12 frame (rows beyond <paramref name="frameH"/>
-        /// are allocation padding) to directly after the frame's luma rows, and trims the buffer.
+        /// Copies one decoded frame into <paramref name="destination"/> as packed NV12 of exactly
+        /// <paramref name="packedLength"/> bytes.
         /// </summary>
-        private void RepackPaddedNv12(MediaBuffer buffer, int length, int frameW, int frameH, int exactLength)
+        private void CopyPacked(Sample decoded, MediaBuffer destination, int frameW, int frameH, int packedLength)
         {
-            var lumaStride = frameW;
-            var planeBytes = lumaStride * 3 / 2;
-            if (length < exactLength || length % planeBytes != 0)
+            using (var source = decoded.ConvertToContiguousBuffer())
+            using (var view = Buffer2DHandle.From(source))
             {
-                throw new InvalidDataException(
-                    $"Decoded NV12 frame of {length} bytes does not fit {frameW}x{frameH} at any padded height.");
+                var destinationPtr = destination.Lock(out _, out _);
+                try
+                {
+                    if (view.IsValid)
+                    {
+                        view.Buffer.Lock2D(out var scanline0, out var pitch);
+                        try
+                        {
+                            var alignedH = AlignedHeight(view.Buffer, source, frameW, frameH, pitch);
+                            if (!_layoutLogged)
+                            {
+                                _layoutLogged = true;
+                                _logger?.Debug(
+                                    $"[Recording] Decoder frames are {frameW}x{frameH} NV12 at pitch {pitch} " +
+                                    $"over {alignedH} allocated rows; repacking each to {packedLength} bytes.");
+                            }
+
+                            CopyRows(scanline0, pitch, destinationPtr, frameW, frameW, frameH);
+                            CopyRows(
+                                IntPtr.Add(scanline0, pitch * alignedH), pitch,
+                                IntPtr.Add(destinationPtr, frameW * frameH), frameW, frameW, frameH / 2);
+                        }
+                        finally
+                        {
+                            view.Buffer.Unlock2D();
+                        }
+                    }
+                    else
+                    {
+                        // No 2D view: the buffer is already the packed layout by MF's convention.
+                        var sourcePtr = source.Lock(out _, out var sourceLength);
+                        try
+                        {
+                            if (sourceLength < packedLength)
+                            {
+                                throw new InvalidDataException(
+                                    $"A decoded {frameW}x{frameH} NV12 frame holds {sourceLength} bytes, " +
+                                    $"short of the {packedLength} packed NV12 needs.");
+                            }
+
+                            CopyMemory(destinationPtr, sourcePtr, (UIntPtr)packedLength);
+                        }
+                        finally
+                        {
+                            source.Unlock();
+                        }
+                    }
+                }
+                finally
+                {
+                    destination.Unlock();
+                }
             }
 
-            var paddedH = length / planeBytes;
-            if (!_paddingLogged)
+            destination.CurrentLength = packedLength;
+        }
+
+        [DllImport("kernel32.dll", EntryPoint = "RtlMoveMemory")]
+        private static extern void CopyMemory(IntPtr destination, IntPtr source, UIntPtr length);
+
+        /// <summary>
+        /// Copies <paramref name="rows"/> rows of <paramref name="rowBytes"/> bytes. A source whose
+        /// pitch is already the row width is one contiguous block and is copied in a single call;
+        /// only a padded pitch is walked row by row.
+        /// </summary>
+        private static void CopyRows(
+            IntPtr source, int sourcePitch, IntPtr destination, int destinationPitch, int rowBytes, int rows)
+        {
+            if (sourcePitch == rowBytes && destinationPitch == rowBytes)
             {
-                _paddingLogged = true;
-                _logger?.Debug($"[Recording] Decoder frames carry {paddedH - frameH} padded rows; repacking to {frameW}x{frameH}.");
+                CopyMemory(destination, source, (UIntPtr)(uint)(rowBytes * rows));
+                return;
             }
 
-            var chromaBytes = lumaStride * frameH / 2;
-            if (_chromaScratch == null || _chromaScratch.Length < chromaBytes)
+            for (var row = 0; row < rows; row++)
             {
-                _chromaScratch = new byte[chromaBytes];
+                CopyMemory(
+                    IntPtr.Add(destination, row * destinationPitch),
+                    IntPtr.Add(source, row * sourcePitch),
+                    (UIntPtr)(uint)rowBytes);
+            }
+        }
+
+        /// <summary>
+        /// The number of luma rows a decoded frame's surface is allocated over — the chroma plane
+        /// begins that many rows down, not <paramref name="frameH"/>. Media Foundation exposes no
+        /// direct accessor, so it comes from the contiguous length, which packs rows to the frame
+        /// width while keeping the allocated height; the buffer's own capacity is the cross-check,
+        /// and an answer that fits neither is refused rather than guessed at (the pass then falls
+        /// back to leaving the clip without its card, never to writing one with torn colour).
+        /// </summary>
+        private static int AlignedHeight(IMF2DBuffer view, MediaBuffer buffer, int frameW, int frameH, int pitch)
+        {
+            var planeBytes = frameW * 3 / 2;
+            var contiguousLength = view.GetContiguousLength();
+            if (pitch >= frameW && planeBytes > 0 && contiguousLength % planeBytes == 0)
+            {
+                var alignedH = contiguousLength / planeBytes;
+                if (alignedH >= frameH && (long)pitch * alignedH * 3 / 2 <= buffer.MaxLength)
+                {
+                    return alignedH;
+                }
             }
 
-            var ptr = buffer.Lock(out _, out _);
-            try
-            {
-                Marshal.Copy(IntPtr.Add(ptr, lumaStride * paddedH), _chromaScratch, 0, chromaBytes);
-                Marshal.Copy(_chromaScratch, 0, IntPtr.Add(ptr, lumaStride * frameH), chromaBytes);
-            }
-            finally
-            {
-                buffer.Unlock();
-            }
-
-            buffer.CurrentLength = exactLength;
+            throw new InvalidDataException(
+                $"A decoded {frameW}x{frameH} NV12 frame at pitch {pitch} reports {contiguousLength} contiguous " +
+                $"bytes in {buffer.MaxLength} allocated, which fits no plane layout this pass can address.");
         }
 
         /// <summary>
