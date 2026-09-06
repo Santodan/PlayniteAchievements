@@ -132,6 +132,17 @@ existing one below it: a sink that cannot be created, a transform that refuses t
 sets that do not match all end in a working clip — with the software encoder, without the splice, or in
 the last resort without the card, never with a corrupt one.
 
+The parameter-set check costs nothing to reach that verdict. The encoder publishes its sequence header
+on the sink's own transform as soon as writing begins, so the plugin compares it there, 1-2 ms after the
+sink exists and before a single frame is encoded; a mismatch abandons the run having done no work. The
+comparison is per NAL unit rather than over the raw blob, because the same encoder reports four-byte
+start codes on its output type and three-byte ones in the file it writes, and comparing the blobs whole
+calls that a mismatch. Decoding the two signatures with `Decode-Sps.ps1`-style field parsing showed the
+NVIDIA capture and the Microsoft software encoder differ in exactly three places: `max_num_ref_frames`
+(1 vs 2), the VUI colour description (present vs absent) and the timing tick ratio (1000/120000 vs 1/120,
+both 60 fps). Only the first is settable through the codec API, so making two different encoders sign
+alike is not achievable, and the pass detects rather than pursues it.
+
 ### Native lifetime/page-heap stress
 
 ```powershell
