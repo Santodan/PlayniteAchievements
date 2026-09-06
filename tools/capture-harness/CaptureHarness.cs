@@ -38,6 +38,25 @@ internal static class CaptureHarness
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Length > 2 && string.Equals(args[0], "--reencode", StringComparison.OrdinalIgnoreCase))
+        {
+            // Re-run only the composition phase over an existing base clip, so a clip the full run
+            // produced (a stalled one, say) can be worked on without recording again:
+            //   CaptureHarness.exe --reencode <clip.mp4> <fps> [toastStartSeconds] [trimLeadSeconds] [pluginDir]
+            var here = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            _pluginDir = args.Length > 5 ? args[5] : Path.GetFullPath(Path.Combine(here, @"..\..\..\source\bin\Debug"));
+            AppDomain.CurrentDomain.AssemblyResolve += Resolve;
+            var loaded = Assembly.LoadFrom(Path.Combine(_pluginDir, "PlayniteAchievements.dll"));
+            var invariant = System.Globalization.CultureInfo.InvariantCulture;
+            _videoLeadSeconds = args.Length > 4 ? double.Parse(args[4], invariant) : 0;
+            _paints = new List<Tuple<int, double>> { Tuple.Create(0, 0.0) };
+            CompareTimestamps(args[1]);
+            MeasureComposition(
+                loaded, args[1], Path.Combine(here, "reencode_composited.mp4"), int.Parse(args[2]),
+                args.Length > 3 ? double.Parse(args[3], invariant) : (double?)null);
+            return;
+        }
+
         var stress = args.Length > 0 && string.Equals(args[0], "--stress", StringComparison.OrdinalIgnoreCase);
         var mfStress = args.Length > 0 && string.Equals(args[0], "--mf-stress", StringComparison.OrdinalIgnoreCase);
         var diagnosticStress = stress || mfStress;
@@ -770,10 +789,11 @@ internal static class CaptureHarness
     /// over the same frames; the third run puts the card inside the second GOP with no chime, so
     /// the audio passes through as AAC and the plan has to copy after the card instead of before.
     /// </summary>
-    private static void MeasureComposition(Assembly plugin, string baseClip, string outputPath, int fps)
+    private static void MeasureComposition(
+        Assembly plugin, string baseClip, string outputPath, int fps, double? toastStartOverride = null)
     {
         var clipSeconds = Mp4.VideoTiming(baseClip).Seconds;
-        var lateToast = clipSeconds - ToastMaxSeconds - 0.5;
+        var lateToast = toastStartOverride ?? clipSeconds - ToastMaxSeconds - 0.5;
         var outDir = Path.GetDirectoryName(outputPath);
         var stem = Path.GetFileNameWithoutExtension(outputPath);
 
@@ -905,7 +925,7 @@ internal static class CaptureHarness
     }
 
     /// <summary>
-    /// Reads which output frames carry the card, by colour at the card's centre (the harness card is
+    /// Reads which output frames carry the card, by chroma at the card's centre (the harness card is
     /// a translucent purple the window never paints), and checks that set against the window the
     /// card was asked to cover. Catches a splice that drops the compositing or lands it on the wrong
     /// frames, which frame identities alone cannot see.
@@ -913,71 +933,13 @@ internal static class CaptureHarness
     private static void ReportCardWindow(string clip, double expectedStart, double expectedEnd, int fps)
     {
         var carded = new List<Tuple<double, bool>>();
-        MediaManager.Startup();
-        try
+        DecodeNv12(clip, (time, frame, stride, w, h) =>
         {
-            using (var attributes = new MediaAttributes(1))
-            {
-                attributes.Set(SourceReaderAttributeKeys.EnableAdvancedVideoProcessing, true);
-                using (var reader = new SourceReader(clip, attributes))
-                {
-                    reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
-                    reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
-                    using (var request = new MediaType())
-                    {
-                        request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
-                        request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
-                        reader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
-                    }
-
-                    int w, h, stride;
-                    using (var decoded = reader.GetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream))
-                    {
-                        var size = decoded.Get(MediaTypeAttributeKeys.FrameSize);
-                        w = (int)(size >> 32);
-                        h = (int)(size & 0xffffffff);
-                        try { stride = decoded.Get(MediaTypeAttributeKeys.DefaultStride); }
-                        catch { stride = w * 4; }
-                    }
-
-                    // BuildTrack: bottom-left, 24 DIP gap at scale 1, 420x130 card in a 1920x1080 client.
-                    var cx = (int)((24 + 420 / 2.0) * w / 1920.0);
-                    var cy = (int)((1080 - 24 - 130 / 2.0) * h / 1080.0);
-                    var absStride = Math.Abs(stride);
-                    var bottomUp = stride < 0;
-                    var frame = new byte[absStride * h];
-                    while (true)
-                    {
-                        var sample = reader.ReadSample(
-                            (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
-                            out _, out var flags, out _);
-                        if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
-                        {
-                            sample?.Dispose();
-                            break;
-                        }
-
-                        using (sample)
-                        {
-                            using (var buffer = sample.ConvertToContiguousBuffer())
-                            {
-                                var ptr = buffer.Lock(out _, out var length);
-                                try { Marshal.Copy(ptr, frame, 0, Math.Min(length, frame.Length)); }
-                                finally { buffer.Unlock(); }
-                            }
-
-                            carded.Add(Tuple.Create(
-                                sample.SampleTime / 10_000_000.0,
-                                IsCardPurple(frame, absStride, h, bottomUp, cx, cy)));
-                        }
-                    }
-                }
-            }
-        }
-        finally
-        {
-            try { MediaManager.Shutdown(); } catch { }
-        }
+            // BuildTrack: bottom-left, 24 DIP gap at scale 1, 420x130 card in a 1920x1080 client.
+            var cx = (int)((24 + 420 / 2.0) * w / 1920.0);
+            var cy = (int)((1080 - 24 - 130 / 2.0) * h / 1080.0);
+            carded.Add(Tuple.Create(time, IsCardPurpleNv12(frame, stride, h, cx, cy)));
+        });
 
         var tolerance = 1.5 / fps;
         var cardedCount = 0;
@@ -1012,27 +974,26 @@ internal static class CaptureHarness
     }
 
     // The harness card is 0x90/0x18/0x40 (R/G/B) at alpha 0xC0 over a dark window whose only other
-    // colours are white, gold text and an orange-red bar: under the card blue stays well above green
-    // and red well above green; without it either the frame is grey (equal channels) or, under the
-    // bar, blue is far below green.
-    private static bool IsCardPurple(byte[] frame, int stride, int height, bool bottomUp, int cx, int cy)
+    // colours are white, gold text and an orange-red bar. In BT.709 limited Y'CbCr the card lands
+    // near Cb 134 / Cr 179 over the dark ground and Cb 121 / Cr 200 over the bar; the bar alone is
+    // Cb 79 / Cr 212, gold text Cb 30 / Cr 154, and grey ground or white text sit at 128 / 128.
+    // Cr well above neutral together with Cb not far below it is therefore the card and nothing else.
+    private static bool IsCardPurpleNv12(byte[] frame, int stride, int height, int cx, int cy)
     {
-        long r = 0, g = 0, b = 0, n = 0;
-        for (var dy = -3; dy <= 3; dy++)
+        long cb = 0, cr = 0, n = 0;
+        var chromaPlane = stride * height;
+        for (var dy = -2; dy <= 2; dy++)
         {
-            for (var dx = -3; dx <= 3; dx++)
+            for (var dx = -2; dx <= 2; dx++)
             {
-                var y = cy + dy;
-                var row = bottomUp ? height - 1 - y : y;
-                var offset = row * stride + (cx + dx) * 4;
-                if (offset < 0 || offset + 2 >= frame.Length)
+                var offset = chromaPlane + (((cy / 2) + dy) * stride) + (((cx / 2) + dx) * 2);
+                if (offset < 0 || offset + 1 >= frame.Length)
                 {
                     continue;
                 }
 
-                b += frame[offset];
-                g += frame[offset + 1];
-                r += frame[offset + 2];
+                cb += frame[offset];
+                cr += frame[offset + 1];
                 n++;
             }
         }
@@ -1042,8 +1003,8 @@ internal static class CaptureHarness
             return false;
         }
 
-        r /= n; g /= n; b /= n;
-        return b - g > 15 && r - g > 60;
+        cb /= n; cr /= n;
+        return cr > 150 && cb > 110;
     }
 
     /// <summary>
@@ -1744,65 +1705,103 @@ internal static class CaptureHarness
         return audioPlan;
     }
 
-    // === phase 4: read each output frame's identity back ===
-
-    private static List<Tuple<double, int>> DecodeAndReport(string clip, double shiftSeconds, string label)
+    /// <summary>
+    /// Compares the video's compressed sample times with the times the decoding reader hands back
+    /// under each processing mode. Advanced video processing includes frame-rate conversion, which
+    /// re-times decoded frames onto the type's declared (average) frame rate; on a clip with a
+    /// capture stall that average is below the capture rate, and every decoded timestamp drifts
+    /// from the compressed one it came from.
+    /// </summary>
+    private static void CompareTimestamps(string clip)
     {
-        var identities = new List<Tuple<double, int>>();
+        Console.WriteLine();
+        Console.WriteLine("=== compressed vs decoded sample times");
+        var compressed = ReadTimes(clip, null, false);
+        Console.WriteLine("  compressed: " + compressed.Count + " samples, last at " + Last(compressed));
+        foreach (var mode in new[] { "advanced", "basic", "none" })
+        {
+            try
+            {
+                var decoded = ReadTimes(clip, mode, mode != "none");
+                var pairs = Math.Min(compressed.Count, decoded.Count);
+                var worst = 0.0;
+                var worstAt = -1;
+                for (var i = 0; i < pairs; i++)
+                {
+                    var delta = Math.Abs(decoded[i] - compressed[i]);
+                    if (delta > worst)
+                    {
+                        worst = delta;
+                        worstAt = i;
+                    }
+                }
+
+                Console.WriteLine("  " + mode.PadRight(9) + decoded.Count + " samples, last at " + Last(decoded) +
+                    ", worst |decoded - compressed| = " + (worst * 1000).ToString("0.0") + "ms at index " + worstAt +
+                    (worst > 0.002 ? "   <-- decoded times are not the compressed times" : string.Empty));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("  " + mode.PadRight(9) + "failed: " + ex.Message);
+            }
+        }
+    }
+
+    private static string Last(List<double> times)
+    {
+        return times.Count == 0 ? "-" : times[times.Count - 1].ToString("0.000") + "s";
+    }
+
+    /// <param name="processing">null: native compressed samples; "advanced"/"basic": RGB32 via that reader flag; "none": the decoder's own output type.</param>
+    private static List<double> ReadTimes(string clip, string processing, bool rgb)
+    {
+        var times = new List<double>();
         MediaManager.Startup();
         try
         {
-            using (var attributes = new MediaAttributes(1))
+            MediaAttributes attributes = null;
+            if (processing == "advanced" || processing == "basic")
             {
-                attributes.Set(SourceReaderAttributeKeys.EnableAdvancedVideoProcessing, true);
-                using (var reader = new SourceReader(clip, attributes))
+                attributes = new MediaAttributes(1);
+                if (processing == "advanced")
                 {
-                    reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
-                    reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
+                    attributes.Set(SourceReaderAttributeKeys.EnableAdvancedVideoProcessing, true);
+                }
+                else
+                {
+                    attributes.Set(SourceReaderAttributeKeys.EnableVideoProcessing, 1);
+                }
+            }
+
+            using (attributes)
+            using (var reader = attributes == null ? new SourceReader(clip) : new SourceReader(clip, attributes))
+            {
+                reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
+                reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
+                if (processing != null)
+                {
                     using (var request = new MediaType())
                     {
                         request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
-                        request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
+                        request.Set(MediaTypeAttributeKeys.Subtype, rgb ? VideoFormatGuids.Rgb32 : VideoFormatGuids.NV12);
                         reader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
                     }
+                }
 
-                    int w, h, stride;
-                    using (var decoded = reader.GetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream))
+                while (true)
+                {
+                    var sample = reader.ReadSample(
+                        (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
+                        out _, out var flags, out _);
+                    if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
                     {
-                        var size = decoded.Get(MediaTypeAttributeKeys.FrameSize);
-                        w = (int)(size >> 32);
-                        h = (int)(size & 0xffffffff);
-                        try { stride = decoded.Get(MediaTypeAttributeKeys.DefaultStride); }
-                        catch { stride = w * 4; }
+                        sample?.Dispose();
+                        break;
                     }
 
-                    var absStride = Math.Abs(stride);
-                    var bottomUp = stride < 0;
-                    var frame = new byte[absStride * h];
-                    while (true)
+                    using (sample)
                     {
-                        var sample = reader.ReadSample(
-                            (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
-                            out _, out var flags, out _);
-                        if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
-                        {
-                            sample?.Dispose();
-                            break;
-                        }
-
-                        using (sample)
-                        {
-                            using (var buffer = sample.ConvertToContiguousBuffer())
-                            {
-                                var ptr = buffer.Lock(out _, out var length);
-                                try { Marshal.Copy(ptr, frame, 0, Math.Min(length, frame.Length)); }
-                                finally { buffer.Unlock(); }
-                            }
-
-                            identities.Add(Tuple.Create(
-                                sample.SampleTime / 10_000_000.0,
-                                Barcode.Read(frame, absStride, h, bottomUp, w)));
-                        }
+                        times.Add(sample.SampleTime / 10_000_000.0);
                     }
                 }
             }
@@ -1812,9 +1811,96 @@ internal static class CaptureHarness
             try { MediaManager.Shutdown(); } catch { }
         }
 
+        return times;
+    }
+
+    // === phase 4: read each output frame's identity back ===
+
+    private static List<Tuple<double, int>> DecodeAndReport(string clip, double shiftSeconds, string label)
+    {
+        var identities = new List<Tuple<double, int>>();
+        DecodeNv12(clip, (time, frame, stride, w, h) =>
+            identities.Add(Tuple.Create(time, Barcode.ReadNv12(frame, stride, w))));
+
         Analyse(identities);
         ReportAlignment(identities, shiftSeconds, label);
         return identities;
+    }
+
+    /// <summary>
+    /// Decodes a clip's video to the decoder's own NV12 and hands each frame to
+    /// <paramref name="onFrame"/> as (seconds, planes, luma stride, width, height): the chroma plane
+    /// follows the luma plane at the same stride. No video-processing attribute is set on the
+    /// reader, on purpose: advanced processing re-times frames onto the average frame rate (see
+    /// <see cref="CompareTimestamps"/>), and the checks here are about where frames really sit.
+    /// </summary>
+    private static void DecodeNv12(string clip, Action<double, byte[], int, int, int> onFrame)
+    {
+        MediaManager.Startup();
+        try
+        {
+            using (var reader = new SourceReader(clip))
+            {
+                reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
+                reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
+                using (var request = new MediaType())
+                {
+                    request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
+                    request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.NV12);
+                    reader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
+                }
+
+                int w, h, typeStride;
+                using (var decoded = reader.GetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream))
+                {
+                    var size = decoded.Get(MediaTypeAttributeKeys.FrameSize);
+                    w = (int)(size >> 32);
+                    h = (int)(size & 0xffffffff);
+                    try { typeStride = Math.Abs(decoded.Get(MediaTypeAttributeKeys.DefaultStride)); }
+                    catch { typeStride = w; }
+                }
+
+                byte[] frame = null;
+                while (true)
+                {
+                    var sample = reader.ReadSample(
+                        (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
+                        out _, out var flags, out _);
+                    if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
+                    {
+                        sample?.Dispose();
+                        break;
+                    }
+
+                    using (sample)
+                    using (var buffer = sample.ConvertToContiguousBuffer())
+                    {
+                        var ptr = buffer.Lock(out _, out var length);
+                        try
+                        {
+                            // A contiguous NV12 buffer packs its rows; derive the stride from the
+                            // length when it divides evenly, else trust the type.
+                            var stride = length % (h * 3 / 2) == 0 ? length / (h * 3 / 2) : typeStride;
+                            if (frame == null || frame.Length < length)
+                            {
+                                frame = new byte[length];
+                            }
+
+                            Marshal.Copy(ptr, frame, 0, length);
+                            onFrame(sample.SampleTime / 10_000_000.0, frame, stride, w, h);
+                        }
+                        finally
+                        {
+                            buffer.Unlock();
+                        }
+                    }
+                }
+            }
+        }
+        finally
+        {
+            try { MediaManager.Shutdown(); } catch { }
+        }
     }
 
     private static void Analyse(List<Tuple<double, int>> identities)
@@ -2046,6 +2132,42 @@ internal static class CaptureHarness
             }
 
             return value;
+        }
+
+        /// <summary>
+        /// The counter from an NV12 frame's luma plane: the same cells as <see cref="Read"/>, sampled
+        /// as Y' directly. Limited-range white (235) and black (16) clear the same thresholds.
+        /// </summary>
+        public static int ReadNv12(byte[] frame, int stride, int frameWidth)
+        {
+            var scale = frameWidth / (double)ClientW;
+            var cell = CellSize * scale;
+            var y = (int)((BarcodeY + CellSize / 2.0) * scale);
+
+            var sync = LumaNv12(frame, stride, (int)(cell * 0.5), y);
+            var dark = LumaNv12(frame, stride, (int)(cell * 1.5), y);
+            if (sync < 140 || dark > 110 || sync - dark < 60)
+            {
+                return -1;
+            }
+
+            var mid = (sync + dark) / 2;
+            var value = 0;
+            for (var bit = 0; bit < BitCount; bit++)
+            {
+                if (LumaNv12(frame, stride, (int)(cell * (2.5 + bit)), y) > mid)
+                {
+                    value |= 1 << bit;
+                }
+            }
+
+            return value;
+        }
+
+        private static int LumaNv12(byte[] frame, int stride, int x, int y)
+        {
+            var offset = (y * stride) + x;
+            return offset < 0 || offset >= frame.Length ? 0 : frame[offset];
         }
 
         private static int Luma(byte[] frame, int stride, int height, bool bottomUp, int x, int y)
