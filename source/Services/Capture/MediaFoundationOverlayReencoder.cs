@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.ExceptionServices;
@@ -23,6 +24,13 @@ namespace PlayniteAchievements.Services.Capture
     /// failure returns false — the caller keeps the toastless base clip, so a re-encode failure
     /// can never lose a clip.
     /// <para>
+    /// The card is one <see cref="IFrameOverlaySource"/>; the passes below take a list of them, so
+    /// further overlays add a source and an interval rather than a code path. When the base clip's
+    /// GOP structure allows it, the pass in the <c>.Splice</c> partial stream-copies the compressed
+    /// video no overlay touches and re-encodes only the runs around the overlays; this file holds
+    /// the whole-clip pass it falls back to and the helpers both share.
+    /// </para>
+    /// <para>
     /// The card is blended in system memory by <see cref="OverlayCompositor"/>. A GPU-resident version
     /// of this pass was roughly twenty times faster per composited frame but produced frames carrying a
     /// picture from seconds earlier, and the cause was never found; since only the carded frames are
@@ -30,7 +38,7 @@ namespace PlayniteAchievements.Services.Capture
     /// 15 s clip to do this correctly instead.
     /// </para>
     /// </summary>
-    internal sealed class MediaFoundationOverlayReencoder
+    internal sealed partial class MediaFoundationOverlayReencoder
     {
         private const long OneSecond100ns = 10_000_000L;
 
@@ -93,148 +101,24 @@ namespace PlayniteAchievements.Services.Capture
                 DXGIDeviceManager deviceManager = null;
                 try
                 {
-                    try
-                    {
-                        encodeDevice = new D3D11.Device(
-                            SharpDX.Direct3D.DriverType.Hardware,
-                            D3D11.DeviceCreationFlags.BgraSupport | D3D11.DeviceCreationFlags.VideoSupport);
-                        // MF worker threads share the device through the manager.
-                        using (var multithread = encodeDevice.QueryInterface<D3D11.Multithread>())
-                        {
-                            multithread.SetMultithreadProtected(true);
-                        }
+                    CreateEncodeDevice(out encodeDevice, out deviceManager);
 
-                        deviceManager = new DXGIDeviceManager();
-                        deviceManager.ResetDevice(encodeDevice);
-                    }
-                    catch (Exception ex)
+                    var toastStart = ToTicks(toastStartSeconds);
+                    var overlays = new IFrameOverlaySource[]
                     {
-                        _logger?.Debug(
-                            ex, "[Recording] No D3D device for the re-encode sink; using system-memory transforms.");
-                        deviceManager?.Dispose();
-                        deviceManager = null;
-                        encodeDevice?.Dispose();
-                        encodeDevice = null;
+                        new ToastOverlaySource(track, toastStart, ToastEndTicks(toastStart, toastMaxSeconds, track)),
+                    };
+
+                    if (SpliceEnabled && TrySpliceExport(
+                            baseClipPath, overlays, trimLeadSeconds, endSeconds, chimePcm, chimeStartSeconds,
+                            outputPath, configuredFps, quality, deviceManager))
+                    {
+                        return true;
                     }
 
-                    using (var readerAttributes = new MediaAttributes(1))
-                    {
-                        // Advanced video processing lets the reader chain the H.264 decoder plus a
-                        // color converter so it can hand us RGB32 directly.
-                        readerAttributes.Set(SourceReaderAttributeKeys.EnableAdvancedVideoProcessing, true);
-                        using (var videoReader = new SourceReader(baseClipPath, readerAttributes))
-                        {
-                            videoReader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
-                            videoReader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
-
-                            int frameW, frameH, fps;
-                            using (var request = new MediaType())
-                            {
-                                request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
-                                request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
-                                videoReader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
-                            }
-
-                            int stride;
-                            MediaType decodedType = videoReader.GetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream);
-                            using (decodedType)
-                            {
-                                var size = decodedType.Get(MediaTypeAttributeKeys.FrameSize);
-                                frameW = (int)(size >> 32);
-                                frameH = (int)(size & 0xffffffff);
-                                fps = ReadFps(decodedType, configuredFps);
-                                stride = ReadStride(decodedType, frameW);
-
-                                // The sink must agree with our row-order interpretation. When the
-                                // decoder's type omits MF_MT_DEFAULT_STRIDE, MF's convention for RGB
-                                // is bottom-up — the encoder's converter would vertically flip the
-                                // whole clip even though the video processor hands us top-down rows.
-                                // Declaring the stride we actually assume removes the ambiguity.
-                                decodedType.Set(MediaTypeAttributeKeys.DefaultStride, stride);
-
-                                // The decoder/converter hands back full-range RGB regardless of the base
-                                // clip's own range, so say so: the sink's RGB -> encoder converter then
-                                // compresses to the limited range the output type declares.
-                                MediaFoundationColor.ApplyFullRangeRgbInput(decodedType);
-
-                                SinkWriter sink = null;
-                                try
-                                {
-                                    var videoStream = -1;
-                                    var audioStream = -1;
-                                    SourceReader audioReader = null;
-                                    var usedManager = false;
-                                    // First attempt binds the D3D manager so a hardware encoder MFT
-                                    // can be selected; any setup failure through BeginWriting retries
-                                    // the whole sink without it (the old configuration).
-                                    foreach (var manager in deviceManager != null
-                                        ? new[] { deviceManager, null }
-                                        : new DXGIDeviceManager[] { null })
-                                    {
-                                        try
-                                        {
-                                            using (var sinkAttributes = new MediaAttributes(manager != null ? 2 : 1))
-                                            {
-                                                sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, 1);
-                                                if (manager != null)
-                                                {
-                                                    sinkAttributes.Set(SinkWriterAttributeKeys.D3DManager, manager);
-                                                }
-
-                                                sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
-                                            }
-
-                                            videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps, quality);
-                                            audioStream = TryAddAudio(
-                                                sink, baseClipPath, decodeToPcm: chimePcm != null, out audioReader);
-                                            sink.BeginWriting();
-                                            usedManager = manager != null;
-                                            break;
-                                        }
-                                        catch (Exception ex) when (manager != null)
-                                        {
-                                            _logger?.Debug(
-                                                ex,
-                                                "[Recording] Re-encode sink setup with the D3D manager failed; " +
-                                                "retrying with system-memory transforms.");
-                                            audioReader?.Dispose();
-                                            audioReader = null;
-                                            sink?.Dispose();
-                                            sink = null;
-                                        }
-                                    }
-
-                                    // Says whether this pass actually got a hardware encoder — the
-                                    // pass dominates clip latency, so a silent software fallback is
-                                    // worth being able to see.
-                                    _logger?.Debug(
-                                        "[Recording] Toast re-encode transforms: " +
-                                        MediaFoundationH264Encoder.DescribeTransforms(sink, videoStream) +
-                                        (usedManager ? " (D3D manager bound)." : " (no D3D manager)."));
-
-                                    var compositor = new OverlayCompositor(frameW, frameH, stride);
-                                    using (audioReader)
-                                    {
-                                        var timer = Stopwatch.StartNew();
-                                        var counts = WriteComposited(
-                                            sink, videoStream, videoReader, audioStream, audioReader,
-                                            track, toastStartSeconds, toastMaxSeconds, trimLeadSeconds,
-                                            endSeconds, audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
-                                            frameW, frameH, OneSecond100ns / Math.Max(1, fps),
-                                            compositor);
-                                        sink.Finalize();
-                                        LogPassCost(timer, counts, frameW, frameH);
-                                    }
-
-                                    return true;
-                                }
-                                finally
-                                {
-                                    sink?.Dispose();
-                                }
-                            }
-                        }
-                    }
+                    return ReencodeWhole(
+                        baseClipPath, overlays, trimLeadSeconds, endSeconds, chimePcm, chimeStartSeconds,
+                        outputPath, configuredFps, quality, deviceManager);
                 }
                 catch (Exception ex)
                 {
@@ -245,6 +129,218 @@ namespace PlayniteAchievements.Services.Capture
                 {
                     deviceManager?.Dispose();
                     encodeDevice?.Dispose();
+                }
+            }
+        }
+
+        private void CreateEncodeDevice(out D3D11.Device encodeDevice, out DXGIDeviceManager deviceManager)
+        {
+            encodeDevice = null;
+            deviceManager = null;
+            try
+            {
+                encodeDevice = new D3D11.Device(
+                    SharpDX.Direct3D.DriverType.Hardware,
+                    D3D11.DeviceCreationFlags.BgraSupport | D3D11.DeviceCreationFlags.VideoSupport);
+                // MF worker threads share the device through the manager.
+                using (var multithread = encodeDevice.QueryInterface<D3D11.Multithread>())
+                {
+                    multithread.SetMultithreadProtected(true);
+                }
+
+                deviceManager = new DXGIDeviceManager();
+                deviceManager.ResetDevice(encodeDevice);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(
+                    ex, "[Recording] No D3D device for the re-encode sink; using system-memory transforms.");
+                deviceManager?.Dispose();
+                deviceManager = null;
+                encodeDevice?.Dispose();
+                encodeDevice = null;
+            }
+        }
+
+        /// <summary>
+        /// The whole-clip pass: every frame of the base clip decodes, the ones an overlay covers
+        /// are composited, and everything re-encodes into one sink alongside the audio.
+        /// </summary>
+        private bool ReencodeWhole(
+            string baseClipPath, IReadOnlyList<IFrameOverlaySource> overlays, double trimLeadSeconds,
+            double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath,
+            int configuredFps, RecordingQuality quality, DXGIDeviceManager deviceManager)
+        {
+            using (var videoReader = CreateDecodingVideoReader(baseClipPath))
+            using (var decodedType = ConfigureRgb32Output(
+                videoReader, configuredFps, out var frameW, out var frameH, out var fps, out var stride))
+            {
+                SinkWriter sink = null;
+                try
+                {
+                    var videoStream = -1;
+                    var audioStream = -1;
+                    SourceReader audioReader = null;
+                    sink = CreateEncodingSink(
+                        outputPath, deviceManager,
+                        s =>
+                        {
+                            videoStream = AddVideoStream(s, decodedType, frameW, frameH, fps, quality);
+                            audioStream = TryAddAudio(s, baseClipPath, decodeToPcm: chimePcm != null, out audioReader);
+                        },
+                        () =>
+                        {
+                            audioReader?.Dispose();
+                            audioReader = null;
+                        },
+                        out var usedManager);
+
+                    // Says whether this pass actually got a hardware encoder — the pass dominates
+                    // clip latency, so a silent software fallback is worth being able to see.
+                    _logger?.Debug(
+                        "[Recording] Toast re-encode transforms: " +
+                        MediaFoundationH264Encoder.DescribeTransforms(sink, videoStream) +
+                        (usedManager ? " (D3D manager bound)." : " (no D3D manager)."));
+
+                    var stack = FrameOverlayStack.Create(overlays, frameW, frameH, stride);
+                    using (audioReader)
+                    {
+                        var timer = Stopwatch.StartNew();
+                        var counts = WriteComposited(
+                            sink, videoStream, videoReader, audioStream, audioReader,
+                            stack, trimLeadSeconds, endSeconds,
+                            audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
+                            OneSecond100ns / Math.Max(1, fps));
+                        sink.Finalize();
+                        LogPassCost(timer, counts, frameW, frameH);
+                    }
+
+                    return true;
+                }
+                finally
+                {
+                    sink?.Dispose();
+                }
+            }
+        }
+
+        /// <summary>The last base-clip tick the card shows on: bounded by the slot and the track's own length.</summary>
+        private static long ToastEndTicks(long toastStart, double toastMaxSeconds, ToastOverlayTrack track)
+        {
+            return toastStart + ToTicks(Math.Min(Math.Max(0, toastMaxSeconds), track.DurationSeconds));
+        }
+
+        /// <summary>A reader on the base clip's video stream that hands back decoded frames.</summary>
+        private static SourceReader CreateDecodingVideoReader(string baseClipPath)
+        {
+            using (var readerAttributes = new MediaAttributes(1))
+            {
+                // Advanced video processing lets the reader chain the H.264 decoder plus a
+                // color converter so it can hand us RGB32 directly.
+                readerAttributes.Set(SourceReaderAttributeKeys.EnableAdvancedVideoProcessing, true);
+                var videoReader = new SourceReader(baseClipPath, readerAttributes);
+                try
+                {
+                    videoReader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
+                    videoReader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
+                    return videoReader;
+                }
+                catch
+                {
+                    videoReader.Dispose();
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Asks the reader for RGB32 and returns the decoded type it settled on, adjusted so the
+        /// encoding sink interprets the frames the same way this pass does. The caller disposes it.
+        /// </summary>
+        private static MediaType ConfigureRgb32Output(
+            SourceReader videoReader, int configuredFps,
+            out int frameW, out int frameH, out int fps, out int stride)
+        {
+            using (var request = new MediaType())
+            {
+                request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
+                request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
+                videoReader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
+            }
+
+            var decodedType = videoReader.GetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream);
+            try
+            {
+                var size = decodedType.Get(MediaTypeAttributeKeys.FrameSize);
+                frameW = (int)(size >> 32);
+                frameH = (int)(size & 0xffffffff);
+                fps = ReadFps(decodedType, configuredFps);
+                stride = ReadStride(decodedType, frameW);
+
+                // The sink must agree with our row-order interpretation. When the decoder's type
+                // omits MF_MT_DEFAULT_STRIDE, MF's convention for RGB is bottom-up — the encoder's
+                // converter would vertically flip the whole clip even though the video processor
+                // hands us top-down rows. Declaring the stride we actually assume removes the
+                // ambiguity.
+                decodedType.Set(MediaTypeAttributeKeys.DefaultStride, stride);
+
+                // The decoder/converter hands back full-range RGB regardless of the base clip's own
+                // range, so say so: the sink's RGB -> encoder converter then compresses to the
+                // limited range the output type declares.
+                MediaFoundationColor.ApplyFullRangeRgbInput(decodedType);
+                return decodedType;
+            }
+            catch
+            {
+                decodedType.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Creates and starts an H.264 encoding sink. The first attempt binds the D3D manager so a
+        /// hardware encoder MFT can be selected; any setup failure through BeginWriting retries the
+        /// whole sink without it (the old configuration). <paramref name="configureStreams"/> adds
+        /// the streams and may throw to trigger that retry; <paramref name="onRetry"/> releases
+        /// whatever it opened before the second attempt.
+        /// </summary>
+        private SinkWriter CreateEncodingSink(
+            string outputPath, DXGIDeviceManager deviceManager,
+            Action<SinkWriter> configureStreams, Action onRetry, out bool usedManager)
+        {
+            var managers = deviceManager != null
+                ? new[] { deviceManager, null }
+                : new DXGIDeviceManager[] { null };
+            for (var attempt = 0; ; attempt++)
+            {
+                var manager = managers[attempt];
+                SinkWriter sink = null;
+                try
+                {
+                    using (var sinkAttributes = new MediaAttributes(manager != null ? 2 : 1))
+                    {
+                        sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, 1);
+                        if (manager != null)
+                        {
+                            sinkAttributes.Set(SinkWriterAttributeKeys.D3DManager, manager);
+                        }
+
+                        sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
+                    }
+
+                    configureStreams(sink);
+                    sink.BeginWriting();
+                    usedManager = manager != null;
+                    return sink;
+                }
+                catch (Exception ex) when (manager != null)
+                {
+                    _logger?.Debug(
+                        ex,
+                        "[Recording] Re-encode sink setup with the D3D manager failed; " +
+                        "retrying with system-memory transforms.");
+                    onRetry?.Invoke();
+                    sink?.Dispose();
                 }
             }
         }
@@ -348,48 +444,11 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// Decodes, composites, re-stamps, and writes both streams interleaved by output time
-        /// (a multi-stream SinkWriter blocks a stream that runs too far ahead of the other).
+        /// The first audio sample past the lead, or a throw when a declared audio stream yields
+        /// none — the pass must abort rather than write a silent track over the base clip's audio.
         /// </summary>
-        private CompositeCounts WriteComposited(
-            SinkWriter sink, int videoStream, SourceReader videoReader,
-            int audioStream, SourceReader audioReader,
-            ToastOverlayTrack track,
-            double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
-            double endSeconds, byte[] chimePcm, double chimeStartSeconds,
-            int frameW, int frameH, long nominalDuration,
-            OverlayCompositor compositor)
+        private static Sample ReadFirstAudio(int audioStream, SourceReader audioReader, long trimLead)
         {
-            var trimLead = ToTicks(trimLeadSeconds);
-            var toastStart = ToTicks(toastStartSeconds);
-            var toastEnd = toastStart + ToTicks(Math.Min(Math.Max(0, toastMaxSeconds), track.DurationSeconds));
-            // Output-timeline end cut (base timeline minus the lead): both streams stop here.
-            var endLimit = ToTicks(endSeconds) - trimLead;
-            // Output-timeline chime onset; may be negative (chime head before the clip start),
-            // which the mix offsets handle by skipping the chime's head.
-            var chimeStartOut = ToTicks(chimeStartSeconds) - trimLead;
-
-            byte[] inflated = null;
-            var inflatedIndex = -1;
-
-            // The card's shadow/glow halo, captured effect-free at record time and re-applied here
-            // per output frame as frame + layer × interpolated scale (the recorded pixels carry no
-            // effects). Inflated once for the whole export; composited into a scratch so the XOR
-            // reconstruction buffer stays pristine. The ray-burst layers work the same way but are
-            // timed: the cursor advances with output time and the current layer is inflated on
-            // change.
-            var shadowLayer = track.ShadowLayer;
-            var shadowPixels = shadowLayer?.Inflate();
-            byte[] glowScratch = null;
-            // Adjacent ray layers are crossfaded by output time — the rays drift slowly, so the
-            // blend reads as smooth motion at a fraction of the capture rate. Two layers stay
-            // inflated: the current one and the next, promoted forward as the cursor advances.
-            var rayCursor = -1;
-            var rayIndex = -1;
-            byte[] rayPixels = null;
-            var rayNextIndex = -1;
-            byte[] rayNextPixels = null;
-
             var pendingAudio = audioStream >= 0 ? ReadNextAudio(audioReader, trimLead) : null;
             if (audioStream >= 0 && pendingAudio == null)
             {
@@ -397,6 +456,28 @@ namespace PlayniteAchievements.Services.Capture
                     "The base clip declared audio but produced no samples after lead trimming.");
             }
 
+            return pendingAudio;
+        }
+
+        /// <summary>
+        /// Decodes, composites, re-stamps, and writes both streams interleaved by output time
+        /// (a multi-stream SinkWriter blocks a stream that runs too far ahead of the other).
+        /// </summary>
+        private CompositeCounts WriteComposited(
+            SinkWriter sink, int videoStream, SourceReader videoReader,
+            int audioStream, SourceReader audioReader,
+            FrameOverlayStack overlays, double trimLeadSeconds,
+            double endSeconds, byte[] chimePcm, double chimeStartSeconds,
+            long nominalDuration)
+        {
+            var trimLead = ToTicks(trimLeadSeconds);
+            // Output-timeline end cut (base timeline minus the lead): both streams stop here.
+            var endLimit = ToTicks(endSeconds) - trimLead;
+            // Output-timeline chime onset; may be negative (chime head before the clip start),
+            // which the mix offsets handle by skipping the chime's head.
+            var chimeStartOut = ToTicks(chimeStartSeconds) - trimLead;
+
+            var pendingAudio = ReadFirstAudio(audioStream, audioReader, trimLead);
             var counts = default(CompositeCounts);
 
             while (true)
@@ -432,125 +513,55 @@ namespace PlayniteAchievements.Services.Capture
                     pendingAudio = ReadNextAudio(audioReader, trimLead);
                 }
 
-                Sample outSample = null;
-                try
-                {
-                    if (time >= toastStart && time <= toastEnd)
-                    {
-                        var secondsIntoTrack = (time - toastStart) / (double)OneSecond100ns;
-                        var sampleIndex = track.FindSampleIndexAtOrBefore(secondsIntoTrack);
-                        if (sampleIndex >= 0 &&
-                            TryGetOverlay(track, sampleIndex, ref inflated, ref inflatedIndex, out var overlayFrame))
-                        {
-                            // Pixels hold at the nearest-previous sample; the position is synthesized
-                            // (lone-toast corner + slide offset) and interpolated to this frame's
-                            // instant, so motion stays smooth even where pixel frames repeat.
-                            var destRect = ToastOverlayExportMath.ComputeDestRect(
-                                track, sampleIndex, secondsIntoTrack, frameW, frameH);
-
-                            rayCursor = ToastOverlayExportMath.FindRayLayerAtOrBefore(
-                                track, secondsIntoTrack, rayCursor);
-                            var displayIndex = track.RayLayers.Count > 0 ? Math.Max(0, rayCursor) : -1;
-                            if (displayIndex >= 0 && displayIndex != rayIndex)
-                            {
-                                rayPixels = displayIndex == rayNextIndex
-                                    ? rayNextPixels
-                                    : track.RayLayers[displayIndex].Layer?.Inflate();
-                                rayIndex = displayIndex;
-                            }
-
-                            var followIndex = displayIndex >= 0 && displayIndex + 1 < track.RayLayers.Count
-                                ? displayIndex + 1
-                                : -1;
-                            if (followIndex >= 0 && followIndex != rayNextIndex)
-                            {
-                                rayNextPixels = track.RayLayers[followIndex].Layer?.Inflate();
-                                rayNextIndex = followIndex;
-                            }
-
-                            var composeRays = rayIndex >= 0 && rayPixels != null &&
-                                LayerMatchesFrame(track.RayLayers[rayIndex].Layer, overlayFrame) &&
-                                rayPixels.Length == inflated.Length;
-                            var composeShadow = shadowPixels != null &&
-                                shadowLayer.Width == overlayFrame.Width &&
-                                shadowLayer.Height == overlayFrame.Height &&
-                                shadowPixels.Length == inflated.Length;
-
-                            var overlayPixels = inflated;
-                            if (composeRays || composeShadow)
-                            {
-                                if (glowScratch == null || glowScratch.Length != inflated.Length)
-                                {
-                                    glowScratch = new byte[inflated.Length];
-                                }
-
-                                Buffer.BlockCopy(inflated, 0, glowScratch, 0, inflated.Length);
-                                if (composeRays)
-                                {
-                                    var hostOpacity = ToastOverlayExportMath.GetHostOpacity(
-                                        track, sampleIndex, secondsIntoTrack);
-                                    var blend = ToastOverlayExportMath.GetRayLayerBlend(
-                                        track, rayCursor, secondsIntoTrack);
-                                    var blendNext = blend > 0 && followIndex >= 0 && rayNextPixels != null &&
-                                        LayerMatchesFrame(track.RayLayers[followIndex].Layer, overlayFrame) &&
-                                        rayNextPixels.Length == inflated.Length;
-                                    OverlayBlitMath.AddScaled(
-                                        glowScratch, rayPixels, hostOpacity * (blendNext ? 1.0 - blend : 1.0));
-                                    if (blendNext)
-                                    {
-                                        OverlayBlitMath.AddScaled(glowScratch, rayNextPixels, hostOpacity * blend);
-                                    }
-                                }
-
-                                if (composeShadow)
-                                {
-                                    OverlayBlitMath.AddScaled(
-                                        glowScratch, shadowPixels,
-                                        ToastOverlayExportMath.GetGlowScale(track, sampleIndex, secondsIntoTrack));
-                                }
-
-                                overlayPixels = glowScratch;
-                            }
-
-                            outSample = compositor.Compose(
-                                sample, overlayPixels, overlayFrame.Width, overlayFrame.Height, destRect);
-                            if (outSample != null)
-                            {
-                                counts.Composited++;
-                            }
-                        }
-                    }
-
-                    if (outSample == null)
-                    {
-                        // Outside the toast interval (or no overlay): pass the frame through.
-                        outSample = sample;
-                        sample = null;
-                        counts.PassedThrough++;
-                    }
-                }
-                finally
-                {
-                    sample?.Dispose();
-                }
+                var outSample = ComposeOrPassThrough(overlays, sample, time, ref counts);
 
                 // Write straight away, with the duration the base clip already carries. Holding a
                 // frame back to measure the gap to the next one would keep the reader's decoded
                 // surface alive past the read that may recycle it, which shows up as the wrong
                 // picture on some frames.
                 var outTime = time - trimLead;
-                var duration = sourceDuration > 0 ? sourceDuration : nominalDuration;
-                var remaining = endLimit - outTime;
-                if (remaining > 0 && duration > remaining)
-                {
-                    duration = remaining;
-                }
-
-                WriteVideoAndDispose(sink, videoStream, outSample, outTime, duration);
+                WriteVideoAndDispose(
+                    sink, videoStream, outSample, outTime,
+                    ClampDuration(sourceDuration > 0 ? sourceDuration : nominalDuration, outTime, endLimit));
                 WaitForEncoderQueue(sink, videoStream);
             }
 
-            // Trailing audio after the last video sample, up to the end cut.
+            WriteTrailingAudio(sink, audioStream, audioReader, pendingAudio, trimLead, endLimit, chimePcm, chimeStartOut);
+            return counts;
+        }
+
+        /// <summary>
+        /// The frame to write for a decoded sample: a composited copy when an overlay covers it (the
+        /// source is disposed), otherwise the source itself. Ownership passes to the caller.
+        /// </summary>
+        private static Sample ComposeOrPassThrough(
+            FrameOverlayStack overlays, Sample sample, long time, ref CompositeCounts counts)
+        {
+            var composed = overlays?.TryCompose(sample, time);
+            if (composed != null)
+            {
+                sample.Dispose();
+                counts.Composited++;
+                return composed;
+            }
+
+            // Outside the toast interval (or no overlay): pass the frame through.
+            counts.PassedThrough++;
+            return sample;
+        }
+
+        /// <summary>A frame's duration, shortened so the last frame ends exactly on the end cut.</summary>
+        private static long ClampDuration(long duration, long outTime, long endLimit)
+        {
+            var remaining = endLimit - outTime;
+            return remaining > 0 && duration > remaining ? remaining : duration;
+        }
+
+        /// <summary>Audio after the last video sample, up to the end cut.</summary>
+        private static void WriteTrailingAudio(
+            SinkWriter sink, int audioStream, SourceReader audioReader, Sample pendingAudio,
+            long trimLead, long endLimit, byte[] chimePcm, long chimeStartOut)
+        {
             while (pendingAudio != null && pendingAudio.SampleTime <= endLimit)
             {
                 WriteAndDispose(sink, audioStream, MixChime(pendingAudio, chimePcm, chimeStartOut));
@@ -558,7 +569,6 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             pendingAudio?.Dispose();
-            return counts;
         }
 
         /// <summary>What one pass wrote, for the cost line below.</summary>
@@ -569,9 +579,9 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// Reports what the pass cost. Every frame of the clip is decoded and re-encoded here, not just
-        /// the ones the toast covers, so this is the bulk of the time between an unlock and its clip
-        /// appearing — worth being able to see per clip rather than inferring it.
+        /// Reports what the whole-clip pass cost. Every frame of the clip is decoded and re-encoded
+        /// here, not just the ones the toast covers, so this is the bulk of the time between an unlock
+        /// and its clip appearing — worth being able to see per clip rather than inferring it.
         /// </summary>
         private void LogPassCost(Stopwatch timer, CompositeCounts counts, int frameW, int frameH)
         {
@@ -701,53 +711,6 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        /// <summary>
-        /// The track frame for a sample, reconstructed lazily and cached (tracks are sampled per
-        /// recording frame, but consecutive samples share a frame whenever the card's pixels did not
-        /// change, and frames are stored as XOR deltas against their predecessor). Samples are walked
-        /// forward, so the usual cost is one inflate-and-XOR onto the frame already in hand.
-        ///
-        /// A broken chain — a frame whose compression failed — falls back to the previously
-        /// reconstructed frame so the card holds instead of flickering out, and recovers at the track's
-        /// next keyframe.
-        /// </summary>
-        private static bool TryGetOverlay(
-            ToastOverlayTrack track, int sampleIndex,
-            ref byte[] inflated, ref int inflatedIndex, out ToastOverlayTrack.Frame frame)
-        {
-            frame = null;
-            var frameIndex = track.Samples[sampleIndex].FrameIndex;
-            if (frameIndex < 0 || frameIndex >= track.Frames.Count)
-            {
-                frameIndex = inflatedIndex;
-            }
-
-            if (frameIndex < 0)
-            {
-                return false;
-            }
-
-            // Keep the last good reconstruction so a failure can fall back to it: TryReconstructFrame
-            // clears the index it is handed when it gives up partway.
-            var held = inflated;
-            var heldIndex = inflatedIndex;
-            if (track.TryReconstructFrame(frameIndex, ref inflated, ref inflatedIndex))
-            {
-                frame = track.Frames[frameIndex];
-                return inflated != null;
-            }
-
-            inflated = held;
-            inflatedIndex = heldIndex;
-            if (inflatedIndex < 0 || inflated == null)
-            {
-                return false;
-            }
-
-            frame = track.Frames[inflatedIndex];
-            return frame != null;
-        }
-
         private static Sample ReadNextAudio(SourceReader audioReader, long trimLead)
         {
             while (true)
@@ -827,13 +790,5 @@ namespace PlayniteAchievements.Services.Capture
         {
             return (long)(Math.Max(0, seconds) * OneSecond100ns);
         }
-
-        private static bool LayerMatchesFrame(ToastOverlayTrack.Frame layer, ToastOverlayTrack.Frame frame)
-        {
-            return layer != null && frame != null &&
-                layer.Width == frame.Width && layer.Height == frame.Height;
-        }
     }
 }
-
-
