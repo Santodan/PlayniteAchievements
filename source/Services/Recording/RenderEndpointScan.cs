@@ -49,6 +49,20 @@ namespace PlayniteAchievements.Services.Recording
             return verdict;
         }
 
+        /// <summary>Drops a cached verdict, for an endpoint whose format was reported changed.</summary>
+        internal static void Forget(string endpointId)
+        {
+            if (string.IsNullOrEmpty(endpointId))
+            {
+                return;
+            }
+
+            lock (CacheGate)
+            {
+                Cache.Remove(endpointId);
+            }
+        }
+
         /// <summary>
         /// Whether the endpoint's mix format is the 4-channel front-and-back-pairs layout a
         /// DualSense exposes. Quadraphonic speaker outputs share it and are treated the same way:

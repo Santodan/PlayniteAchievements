@@ -126,6 +126,19 @@ namespace PlayniteAchievements.Services.Recording
         // by capture callbacks; a bool write is atomic and volatile keeps it visible.
         private volatile bool _dropActuatorChannels;
         private DateTime _nextControllerScanUtc;
+        // Set from the endpoint-change callback (a COM thread); the pump clears it and re-scans on
+        // its next tick, so a pad plugged in is dropped within one pump interval. The 5 s poll
+        // stays as the fallback for a machine where the callback registration fails.
+        private volatile bool _controllerRescanRequested;
+        private IDisposable _endpointWatch;
+        // Host pid re-binding: the exclusion filter of a process-loopback client is fixed at
+        // creation, so a restarted sound host is excluded again only by recreating the capture.
+        // While the old capture ran against a dead pid, the new host's sounds were not excluded;
+        // those spans are kept so the export can refuse a composite for a clip that overlaps one.
+        private const int HostCheckIntervalMs = 1000;
+        private DateTime _nextHostCheckUtc;
+        private DateTime _hostConfirmedUtc;
+        private readonly List<KeyValuePair<DateTime, DateTime>> _exclusionGaps = new List<KeyValuePair<DateTime, DateTime>>();
         // Seconds (UTC) in which the process-scoped clip track delivered a packet. Sparse process
         // loopback delivers nothing for a tree with no render stream, so this is the structural
         // record of whether the game tree rendered over a clip window; the pump-paced chunks
@@ -149,6 +162,28 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>Whether the fallback track failed and its chunks were deleted.</summary>
         public bool FallbackFailed => _stampedFallbackTrack?.Failed == true;
+
+        /// <summary>
+        /// Whether the sound host was excluded from the clip track for the whole of
+        /// [<paramref name="startUtc"/>, <paramref name="endUtc"/>]. False when a host restart
+        /// left a span in which the running capture excluded a dead pid; a clip over such a span
+        /// may already hold the live sound and must not receive a composited copy.
+        /// </summary>
+        public bool HostExclusionCovered(DateTime startUtc, DateTime endUtc)
+        {
+            lock (_activityGate)
+            {
+                foreach (var gap in _exclusionGaps)
+                {
+                    if (gap.Key <= endUtc && gap.Value >= startUtc)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
 
         public AudioLoopbackRecorder(
             string bufferDirectory,
@@ -186,10 +221,23 @@ namespace PlayniteAchievements.Services.Recording
                         ? StereoFormat
                         : _systemCapture.WaveFormat;
                     _systemBuffer = NewBuffer(systemFormat);
-                    _systemCapture.DataAvailable += (s, e) => AppendSystem(e);
-                    if (_reduceSurround && _systemCapture is ProcessLoopbackCapture stampedClipTrack)
+                    HookClipTrack(_systemCapture);
+                    if (_reduceSurround)
                     {
-                        stampedClipTrack.StampedDataAvailable += (s, e) => NoteClipTrackActivity(e);
+                        _hostConfirmedUtc = CaptureTimelineClock.UtcNow;
+                        _nextHostCheckUtc = _hostConfirmedUtc.AddMilliseconds(HostCheckIntervalMs);
+                        try
+                        {
+                            _endpointWatch = AudioEndpointEnumerator.WatchEndpoints(id =>
+                            {
+                                RenderEndpointScan.Forget(id);
+                                _controllerRescanRequested = true;
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, "[Recording] Endpoint change notifications unavailable; controller presence is polled.");
+                        }
                     }
 
                     ISampleProvider systemSamples = _systemBuffer.ToSampleProvider();
@@ -237,7 +285,7 @@ namespace PlayniteAchievements.Services.Recording
                     }
 
                     _outputFormat = _mix.WaveFormat;
-                    AttachFallbackTrack();
+                    AttachFallbackTrack(_fallbackCapture);
 
                     _systemCapture.StartRecording();
                     StartOptionalCaptures();
@@ -480,14 +528,18 @@ namespace PlayniteAchievements.Services.Recording
         /// stream in 50 ms batches and produced 1-4 ms alignment steps; main clip audio stays
         /// pump-paced because it may contain a microphone and multiple sources.
         /// </summary>
-        private void AttachFallbackTrack()
+        private void AttachFallbackTrack(IWaveIn capture)
         {
-            if (!(_fallbackCapture is ProcessLoopbackCapture fallback))
+            if (!(capture is ProcessLoopbackCapture fallback))
             {
                 return;
             }
 
-            _stampedFallbackTrack = new StampedAuxiliaryTrack(RecordingPaths.FallbackChunkFilePrefix, StereoFormat);
+            if (_stampedFallbackTrack == null)
+            {
+                _stampedFallbackTrack = new StampedAuxiliaryTrack(RecordingPaths.FallbackChunkFilePrefix, StereoFormat);
+            }
+
             fallback.StampedDataAvailable += (s, e) =>
             {
                 var stereo = SurroundDownmix.ToStereo(
@@ -966,6 +1018,7 @@ namespace PlayniteAchievements.Services.Recording
                     }
 
                     RescanControllerIfDue();
+                    RebindClipTrackIfHostChanged();
                     Thread.Sleep(PumpIntervalMs);
                 }
             }
@@ -990,11 +1043,12 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             var now = CaptureTimelineClock.UtcNow;
-            if (now < _nextControllerScanUtc)
+            if (now < _nextControllerScanUtc && !_controllerRescanRequested)
             {
                 return;
             }
 
+            _controllerRescanRequested = false;
             _nextControllerScanUtc = now.AddMilliseconds(ControllerScanIntervalMs);
             var present = AnyControllerEndpointActive();
             if (present == _dropActuatorChannels)
@@ -1006,6 +1060,101 @@ namespace PlayniteAchievements.Services.Recording
             _logger?.Info(present
                 ? "[Recording] A controller endpoint appeared; the clip track now drops its back pair (haptics)."
                 : "[Recording] No controller endpoint remains; the clip track folds its back pair again.");
+        }
+
+        private void HookClipTrack(IWaveIn capture)
+        {
+            capture.DataAvailable += (s, e) => AppendSystem(e);
+            if (_reduceSurround && capture is ProcessLoopbackCapture stampedClipTrack)
+            {
+                stampedClipTrack.StampedDataAvailable += (s, e) => NoteClipTrackActivity(e);
+            }
+        }
+
+        /// <summary>
+        /// Recreates whichever capture excludes the sound host when the host's pid has changed
+        /// (the helper restarted). Full System: the clip track itself; Game Only: the fallback
+        /// track, the game-tree clip track being pid-independent. The span from the last time the
+        /// old pid was confirmed alive to the swap is recorded as an exclusion gap.
+        /// </summary>
+        private void RebindClipTrackIfHostChanged()
+        {
+            if (!_reduceSurround || !ExcludedSoundHostProcessId.HasValue)
+            {
+                return;
+            }
+
+            var now = CaptureTimelineClock.UtcNow;
+            if (now < _nextHostCheckUtc)
+            {
+                return;
+            }
+
+            _nextHostCheckUtc = now.AddMilliseconds(HostCheckIntervalMs);
+            var hostPid = _soundHostProcessId?.Invoke();
+            if (!hostPid.HasValue || hostPid.Value <= 0)
+            {
+                // Down: nothing to exclude, and nothing is playing that could leak. The gap opens
+                // when a new host appears, measured from the last confirmation.
+                return;
+            }
+
+            if (hostPid.Value == ExcludedSoundHostProcessId.Value)
+            {
+                _hostConfirmedUtc = now;
+                return;
+            }
+
+            IWaveIn retired = null;
+            try
+            {
+                var replacement = new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, SurroundCaptureFormat);
+                lock (_gate)
+                {
+                    if (_stopped)
+                    {
+                        replacement.Dispose();
+                        return;
+                    }
+
+                    if (ClipTrack == ClipTrackKind.ExcludeSoundHost)
+                    {
+                        HookClipTrack(replacement);
+                        replacement.StartRecording();
+                        retired = _systemCapture;
+                        _systemCapture = replacement;
+                    }
+                    else
+                    {
+                        AttachFallbackTrack(replacement);
+                        replacement.StartRecording();
+                        retired = _fallbackCapture;
+                        _fallbackCapture = replacement;
+                    }
+
+                    ExcludedSoundHostProcessId = hostPid.Value;
+                }
+
+                lock (_activityGate)
+                {
+                    _exclusionGaps.Add(new KeyValuePair<DateTime, DateTime>(_hostConfirmedUtc, CaptureTimelineClock.UtcNow));
+                }
+
+                _hostConfirmedUtc = CaptureTimelineClock.UtcNow;
+                _logger?.Info(
+                    $"[Recording] The sound host restarted (pid {hostPid.Value}); the " +
+                    (ClipTrack == ClipTrackKind.ExcludeSoundHost ? "clip track" : "fallback track") +
+                    " now excludes the new process. Clips overlapping the changeover get no composited chime.");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[Recording] The sound host restarted but the clip track could not be re-bound; clips this session keep the live unlock sound.");
+                // Prevent a retry storm; the composite decision still sees the mismatch.
+                _nextHostCheckUtc = now.AddMinutes(1);
+            }
+
+            // Outside the gate: Dispose joins the capture thread, which may be delivering data.
+            StopCapture(retired);
         }
 
         private void NoteClipTrackActivity(StampedPacketEventArgs packet)
@@ -1141,6 +1290,8 @@ namespace PlayniteAchievements.Services.Recording
                 fallback = _fallbackCapture;
                 mic = _micCapture;
                 LogAuxiliaryTracksLocked();
+                try { _endpointWatch?.Dispose(); } catch { }
+                _endpointWatch = null;
             }
 
             // Outside the gate: capture Dispose joins its thread, which may be delivering data.
@@ -1340,6 +1491,8 @@ namespace PlayniteAchievements.Services.Recording
         private void CleanupLocked()
         {
             _running = false;
+            try { _endpointWatch?.Dispose(); } catch { }
+            _endpointWatch = null;
             CloseChunkLocked();
             CloseAuxiliaryTracksLocked();
             DisposeCapture(ref _systemCapture);

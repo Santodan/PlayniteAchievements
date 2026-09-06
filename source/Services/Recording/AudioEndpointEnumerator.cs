@@ -194,6 +194,22 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>Every active endpoint on this flow. Throws when the enumeration itself fails.</summary>
+        /// <summary>
+        /// Subscribes to endpoint arrivals, removals, state and format changes and default-device
+        /// switches. <paramref name="changed"/> receives the endpoint id (null for a default-device
+        /// switch) on a COM worker thread; do the actual work elsewhere. Dispose to unsubscribe.
+        /// Built on this file's own interop, never NAudio's enumerator (see the class doc).
+        /// </summary>
+        public static IDisposable WatchEndpoints(Action<string> changed)
+        {
+            if (changed == null)
+            {
+                throw new ArgumentNullException(nameof(changed));
+            }
+
+            return new EndpointWatch(changed);
+        }
+
         public static List<EndpointIdentity> EnumerateActive(AudioDataFlow flow)
         {
             var found = new List<EndpointIdentity>();
@@ -557,6 +573,116 @@ namespace PlayniteAchievements.Services.Recording
 
             [PreserveSig]
             int UnregisterEndpointNotificationCallback(IntPtr client);
+        }
+
+        [ComImport, Guid("7991EEC9-7E89-4D85-8390-6C703CEC60C0"),
+         InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IMMNotificationClient
+        {
+            [PreserveSig]
+            int OnDeviceStateChanged([MarshalAs(UnmanagedType.LPWStr)] string deviceId, int newState);
+
+            [PreserveSig]
+            int OnDeviceAdded([MarshalAs(UnmanagedType.LPWStr)] string deviceId);
+
+            [PreserveSig]
+            int OnDeviceRemoved([MarshalAs(UnmanagedType.LPWStr)] string deviceId);
+
+            [PreserveSig]
+            int OnDefaultDeviceChanged(int dataFlow, int role, [MarshalAs(UnmanagedType.LPWStr)] string defaultDeviceId);
+
+            [PreserveSig]
+            int OnPropertyValueChanged([MarshalAs(UnmanagedType.LPWStr)] string deviceId, PropertyKey key);
+        }
+
+        /// <summary>
+        /// The registered callback object and the enumerator it is registered with. A COM-callable
+        /// wrapper is handed to the engine as a raw interface pointer, so the object is kept alive
+        /// here and the pointer released on dispose.
+        /// </summary>
+        [ComVisible(true)]
+        private sealed class EndpointWatch : IMMNotificationClient, IDisposable
+        {
+            private readonly Action<string> _changed;
+            private IMMDeviceEnumerator _enumerator;
+            private IntPtr _self;
+
+            public EndpointWatch(Action<string> changed)
+            {
+                _changed = changed;
+                _enumerator = CreateEnumerator();
+                _self = Marshal.GetComInterfaceForObject(this, typeof(IMMNotificationClient));
+                var hr = _enumerator.RegisterEndpointNotificationCallback(_self);
+                if (hr != 0)
+                {
+                    Dispose();
+                    Marshal.ThrowExceptionForHR(hr);
+                }
+            }
+
+            public int OnDeviceStateChanged(string deviceId, int newState)
+            {
+                Notify(deviceId);
+                return 0;
+            }
+
+            public int OnDeviceAdded(string deviceId)
+            {
+                Notify(deviceId);
+                return 0;
+            }
+
+            public int OnDeviceRemoved(string deviceId)
+            {
+                Notify(deviceId);
+                return 0;
+            }
+
+            public int OnDefaultDeviceChanged(int dataFlow, int role, string defaultDeviceId)
+            {
+                Notify(null);
+                return 0;
+            }
+
+            public int OnPropertyValueChanged(string deviceId, PropertyKey key)
+            {
+                // Only a format change can alter what an endpoint is; names and icons cannot.
+                if (key.FormatId == DeviceFormatKey.FormatId)
+                {
+                    Notify(deviceId);
+                }
+
+                return 0;
+            }
+
+            private void Notify(string deviceId)
+            {
+                try
+                {
+                    _changed(deviceId);
+                }
+                catch
+                {
+                }
+            }
+
+            public void Dispose()
+            {
+                var enumerator = _enumerator;
+                _enumerator = null;
+                if (enumerator != null && _self != IntPtr.Zero)
+                {
+                    try { enumerator.UnregisterEndpointNotificationCallback(_self); } catch { }
+                }
+
+                if (_self != IntPtr.Zero)
+                {
+                    try { Marshal.Release(_self); } catch { }
+                    _self = IntPtr.Zero;
+                }
+
+                Release(enumerator);
+            }
         }
 
         [ComImport, Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"),

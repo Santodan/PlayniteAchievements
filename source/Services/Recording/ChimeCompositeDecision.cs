@@ -46,14 +46,19 @@ namespace PlayniteAchievements.Services.Recording
         /// Game Only only: the clip's audio came from the exclude-host fallback because the game
         /// tree carried no signal over the window.
         /// </param>
-        /// <param name="excludedHostProcessId">The host pid the exclusion keyed off at session start.</param>
+        /// <param name="excludedHostProcessId">The host pid the exclusion currently keys off.</param>
         /// <param name="currentHostProcessId">The host pid at export, or null when the host is down.</param>
+        /// <param name="exclusionCoveredWindow">
+        /// Whether the exclusion held for the whole clip window. False when the host restarted and
+        /// the capture was re-bound mid-window: sounds in between were not excluded.
+        /// </param>
         public static ChimeCompositeVerdict Decide(
             bool audioRecorded,
             ClipTrackKind clipTrack,
             bool usedFallbackTrack,
             int? excludedHostProcessId,
-            int? currentHostProcessId)
+            int? currentHostProcessId,
+            bool exclusionCoveredWindow = true)
         {
             if (!audioRecorded)
             {
@@ -68,7 +73,8 @@ namespace PlayniteAchievements.Services.Recording
 
                 case ClipTrackKind.IncludeGame:
                 case ClipTrackKind.ExcludeSoundHost:
-                    return excludedHostProcessId.HasValue && currentHostProcessId == excludedHostProcessId
+                    return exclusionCoveredWindow &&
+                           excludedHostProcessId.HasValue && currentHostProcessId == excludedHostProcessId
                         ? ChimeCompositeVerdict.HostExcluded
                         : ChimeCompositeVerdict.HostChanged;
 
