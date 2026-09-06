@@ -83,6 +83,34 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
+        public void Pcm16_MatchesTheFloatFoldScaledToShorts()
+        {
+            var input = Frame(0.5f, -0.25f, 0.2f, 0f, 0.9f, 0.9f, 0f, 0f);
+            var floats = Stereo(SurroundDownmix.ToStereo(input, input.Length, 8, dropBackChannels: true));
+            var pcm = SurroundDownmix.ToStereoPcm16(input, input.Length, 8, dropBackChannels: true);
+
+            Assert.AreEqual(4, pcm.Length, "one stereo frame of 16-bit samples");
+            Assert.AreEqual((short)Math.Round(floats[0] * short.MaxValue), BitConverter.ToInt16(pcm, 0));
+            Assert.AreEqual((short)Math.Round(floats[1] * short.MaxValue), BitConverter.ToInt16(pcm, 2));
+        }
+
+        [TestMethod]
+        public void Downmixer_ReusesItsBuffersAcrossPackets()
+        {
+            // The recorder feeds one instance a hundred packets a second; after the first packet
+            // of a given size no further allocation may happen, so the same array comes back.
+            var downmixer = new SurroundDownmixer();
+            var input = Frame(0.1f, 0.2f, 0f, 0f, 0f, 0f, 0f, 0f);
+            downmixer.ToStereoFloat(input, input.Length, 8, false, out var first);
+            downmixer.ToStereoFloat(input, input.Length, 8, false, out var second);
+            Assert.AreSame(first, second);
+
+            // Unsupported input reports -1 and no buffer.
+            Assert.AreEqual(-1, downmixer.ToStereoFloat(input, input.Length, 3, false, out var none));
+            Assert.IsNull(none);
+        }
+
+        [TestMethod]
         public void UnsupportedChannelCounts_ReturnNull()
         {
             Assert.IsNull(SurroundDownmix.ToStereo(new byte[16], 16, 2, false));

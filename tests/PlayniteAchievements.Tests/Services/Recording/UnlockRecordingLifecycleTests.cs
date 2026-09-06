@@ -213,8 +213,13 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 "source", "Services", "Recording", "RenderEndpointScan.cs"));
             StringAssert.Contains(scan, "|| HasControllerLayout(endpoint)");
             StringAssert.Contains(scan, "private const uint ControllerLayoutMask = 0x33;");
-            StringAssert.Contains(recorder, "SurroundDownmix.ToStereo(");
+            StringAssert.Contains(recorder, "downmixer.ToStereoFloat(");
+            StringAssert.Contains(recorder, "downmixer.ToStereoPcm16(");
             Assert.IsFalse(recorder.Contains("ReduceQuadToStereo"));
+            // Chunks are written as 16-bit PCM, folded from the float mix: half the disk writes.
+            StringAssert.Contains(recorder, "Pcm16StereoFormat = new WaveFormat(48000, 16, 2)");
+            StringAssert.Contains(recorder, "_writerFormat = new WaveFormat(_outputFormat.SampleRate, 16, _outputFormat.Channels);");
+            StringAssert.Contains(recorder, "new WaveFileWriter(Path.Combine(_bufferDirectory, name), _writerFormat)");
 
             var downmix = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "SurroundDownmix.cs"));
