@@ -650,9 +650,11 @@ namespace PlayniteAchievements
                         // refresh a game we cannot classify is free, but refusing to capture one
                         // costs a clip that cannot be recovered afterwards.
                         game => Providers == null || AnyProviderCapable(game),
-                        // The sound host's pid, so Full System captures its render as the
-                        // reference that takes the live unlock sound out of clips.
-                        () => _unlockSounds?.HostProcessId);
+                        // The sound host's pid, so the recorder excludes its process from clip
+                        // captures, and its measured onsets, so composited chimes land where the
+                        // live ones were heard.
+                        () => _unlockSounds?.HostProcessId,
+                        id => _unlockSounds?.TryGetAudibleOnsetUtc(id));
                     _captureLibraryService = new Services.Captures.CaptureLibraryService(
                         () => _settingsViewModel?.Settings?.Persisted,
                         _logger);

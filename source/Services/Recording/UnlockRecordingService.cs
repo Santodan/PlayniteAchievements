@@ -141,6 +141,9 @@ namespace PlayniteAchievements.Services.Recording
         // from the clip track, and read again at export so a host restarted since then is
         // detected. Null while the host is down: those sessions keep the live unlock sound.
         private readonly Func<int?> _getSoundHostProcessId;
+        // The measured audible onset of a played sound, by the host's play id: the composited
+        // chime is placed from it when available, from the modelled alignment otherwise.
+        private readonly Func<int, DateTime?> _getSoundAudibleOnsetUtc;
         private readonly HashSet<Task> _inFlightTasks = new HashSet<Task>();
         // One overlay re-encode at a time so a burst wave doesn't saturate the encoder while the
         // game is running.
@@ -188,7 +191,8 @@ namespace PlayniteAchievements.Services.Recording
             Func<string, bool> isProviderRecordingEnabled = null,
             ActiveGameWindowTracker windowTracker = null,
             Func<Playnite.SDK.Models.Game, bool> isAnyProviderCapable = null,
-            Func<int?> getSoundHostProcessId = null)
+            Func<int?> getSoundHostProcessId = null,
+            Func<int, DateTime?> getSoundAudibleOnsetUtc = null)
         {
             _api = api;
             _settings = settings;
@@ -196,6 +200,7 @@ namespace PlayniteAchievements.Services.Recording
             _pluginUserDataPath = pluginUserDataPath;
             _getGameProcessId = getGameProcessId;
             _getSoundHostProcessId = getSoundHostProcessId;
+            _getSoundAudibleOnsetUtc = getSoundAudibleOnsetUtc;
             _toastNotifications = toastNotifications;
             _isProviderRecordingEnabled = isProviderRecordingEnabled;
             _isAnyProviderCapable = isAnyProviderCapable;
@@ -288,6 +293,9 @@ namespace PlayniteAchievements.Services.Recording
             /// has no such latency. Null when no sound fired.
             /// </summary>
             public int? OwnSoundAlignmentMs;
+
+            /// <summary>The sound host's play id for this wave's sound; resolves the measured onset at export.</summary>
+            public int? OwnSoundPlaybackId;
 
             /// <summary>
             /// Game Only only: set by clip-audio selection when the game tree carried no signal
@@ -1165,6 +1173,7 @@ namespace PlayniteAchievements.Services.Recording
                             soundMatch.OwnSoundFilePath = e.SoundFilePath;
                             soundMatch.OwnSoundFileGain = e.SoundFileGain ?? 1.0;
                             soundMatch.OwnSoundAlignmentMs = e.SoundAlignmentDelayMs;
+                            soundMatch.OwnSoundPlaybackId = e.SoundPlaybackId;
                         }
                     }
 
@@ -1543,22 +1552,30 @@ namespace PlayniteAchievements.Services.Recording
             var chimePcm = TryReadChimePcm(request);
             bool usedFallbackTrack;
             int? alignmentMs;
+            int? playbackId;
             lock (_gate)
             {
                 usedFallbackTrack = request.UsedFallbackTrack;
                 alignmentMs = request.OwnSoundAlignmentMs;
+                playbackId = request.OwnSoundPlaybackId;
             }
 
+            var chimePlacement = "none";
             if (chimePcm != null)
             {
                 // Exactly one chime per clip: the composited copy only when the clip track
-                // structurally excluded the sound host, the live one otherwise.
+                // structurally excluded the sound host, the live one otherwise. The recorder's
+                // state is read live: a host restart re-binds the exclusion and records the gap.
+                var recorder = session.AudioRecorder;
+                var excludedHostPid = recorder?.ExcludedSoundHostProcessId ?? session.ExcludedSoundHostProcessId;
+                var exclusionCovered = recorder?.HostExclusionCovered(window.StartUtc, window.EndUtc) ?? true;
                 var verdict = ChimeCompositeDecision.Decide(
                     session.AudioRecorded,
                     session.ClipTrack,
                     usedFallbackTrack,
-                    session.ExcludedSoundHostProcessId,
-                    _getSoundHostProcessId?.Invoke());
+                    excludedHostPid,
+                    _getSoundHostProcessId?.Invoke(),
+                    exclusionCovered);
                 if (ChimeCompositeDecision.AllowsComposite(verdict))
                 {
                     _logger?.Debug(
@@ -1576,9 +1593,26 @@ namespace PlayniteAchievements.Services.Recording
 
             if (chimePcm != null)
             {
-                chimeLeadSeconds = Math.Max(
-                    0,
-                    chimeLeadSeconds - (alignmentMs ?? ChimeAlignmentFallbackMs) / 1000.0);
+                // Placement. Measured: the host reported when this sound's first samples reached
+                // the listener, so the chime goes exactly where it was heard against the card.
+                // Modelled: the launch-to-card gap minus the alignment delay the toast service
+                // applied, the file having no launch-to-audible latency of its own.
+                var measuredOnset = playbackId.HasValue ? _getSoundAudibleOnsetUtc?.Invoke(playbackId.Value) : null;
+                var measuredLead = measuredOnset.HasValue && track.StartUtc != default(DateTime)
+                    ? (track.StartUtc - measuredOnset.Value).TotalSeconds
+                    : (double?)null;
+                if (measuredLead.HasValue && measuredLead.Value >= 0 && measuredLead.Value <= ChimeLeadMaxSeconds)
+                {
+                    chimeLeadSeconds = measuredLead.Value;
+                    chimePlacement = "measured";
+                }
+                else
+                {
+                    chimeLeadSeconds = Math.Max(
+                        0,
+                        chimeLeadSeconds - (alignmentMs ?? ChimeAlignmentFallbackMs) / 1000.0);
+                    chimePlacement = measuredLead.HasValue ? "modelled-onset-implausible" : "modelled";
+                }
             }
 
             // Where the card landed, and how far the real notification was from it. Unlock-anchored,
@@ -1594,7 +1628,7 @@ namespace PlayniteAchievements.Services.Recording
                 $"({Stamp(track.StartUtc)}). lead={videoLeadSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
                 $"end={endSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
                 $"chimeLead={chimeLeadSeconds.ToString("F3", CultureInfo.InvariantCulture)}s " +
-                $"chimeSource={(chimePcm == null ? "none" : "file")}");
+                $"chimeSource={(chimePcm == null ? "none" : "file")} chimePlacement={chimePlacement}");
             var chimeStartSeconds = toastStartSeconds - chimeLeadSeconds;
             var tempPath = Path.Combine(session.BufferDirectory, $"clipovl_{Guid.NewGuid():N}.mp4");
             await _reencodeGate.WaitAsync().ConfigureAwait(false);
