@@ -227,7 +227,8 @@ namespace PlayniteAchievements.Services.UI
             DateTime? surfaceCaptureUtc,
             string soundFilePath = null,
             double? soundFileGain = null,
-            int? soundAlignmentDelayMs = null)
+            int? soundAlignmentDelayMs = null,
+            int? soundPlaybackId = null)
         {
             // Progress waves never own a capture or a clip, so the recording side has nothing to
             // learn from them.
@@ -247,7 +248,8 @@ namespace PlayniteAchievements.Services.UI
                         surfaceCaptureUtc,
                         soundFilePath,
                         soundFileGain,
-                        soundAlignmentDelayMs));
+                        soundAlignmentDelayMs,
+                        soundPlaybackId));
             }
             catch (Exception ex)
             {
@@ -2410,6 +2412,7 @@ namespace PlayniteAchievements.Services.UI
             string soundFilePath = null;
             double? soundFileGain = null;
             int? soundAlignmentMs = null;
+            int? soundPlaybackId = null;
             if (visible && !wave[0].IsProgressUpdate)
             {
                 // Play the sound first, then show the toast after a short delay so the audio onset
@@ -2421,6 +2424,7 @@ namespace PlayniteAchievements.Services.UI
                     soundFilePath = playback.FilePath;
                     soundFileGain = playback.Gain;
                     soundAlignmentMs = SoundAlignmentDelayMs;
+                    soundPlaybackId = playback.Id;
                 }
 
                 await Task.Delay(SoundAlignmentDelayMs).ConfigureAwait(true);
@@ -2762,7 +2766,7 @@ namespace PlayniteAchievements.Services.UI
                 // window.
                 RaiseWaveDisplayed(
                     cardItems, soundPlayedUtc, surfaceCaptureUtc, soundFilePath, soundFileGain,
-                    soundAlignmentMs);
+                    soundAlignmentMs, soundPlaybackId);
 
                 // Layout and placement are final: verify a lone card actually settled on its corner.
                 ReportSettledCornerDrift(window, cardItems);

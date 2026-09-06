@@ -63,11 +63,20 @@ namespace PlayniteAchievements.Services.Sound
             return ReadyVerb + Separator + pid.ToString(CultureInfo.InvariantCulture);
         }
 
-        public static string EncodeStarted(int id, long qpc)
+        /// <summary>
+        /// <c>started id qpc [audibleDelayMs]</c>: the render thread took the sound's first samples
+        /// at <paramref name="qpc"/> (raw Stopwatch ticks, one system-wide clock), and they reach
+        /// the listener <paramref name="audibleDelayMs"/> later (the buffer already queued ahead of
+        /// them plus the endpoint's reported stream latency). Older hosts omit the delay.
+        /// </summary>
+        public static string EncodeStarted(int id, long qpc, double? audibleDelayMs = null)
         {
-            return StartedVerb + Separator
+            var line = StartedVerb + Separator
                 + id.ToString(CultureInfo.InvariantCulture) + Separator
                 + qpc.ToString(CultureInfo.InvariantCulture);
+            return audibleDelayMs.HasValue
+                ? line + Separator + audibleDelayMs.Value.ToString("0.###", CultureInfo.InvariantCulture)
+                : line;
         }
 
         public static string EncodeError(int id, string message)
@@ -144,7 +153,15 @@ namespace PlayniteAchievements.Services.Sound
                         return false;
                     }
 
-                    message = new SoundHostMessage(verb) { Id = id, Qpc = qpc };
+                    double? audibleDelayMs = null;
+                    if (fields.Length >= 4 &&
+                        double.TryParse(fields[3], NumberStyles.Float, CultureInfo.InvariantCulture, out var delay) &&
+                        delay >= 0 && delay < 10000)
+                    {
+                        audibleDelayMs = delay;
+                    }
+
+                    message = new SoundHostMessage(verb) { Id = id, Qpc = qpc, AudibleDelayMs = audibleDelayMs };
                     return true;
                 }
 
@@ -190,6 +207,9 @@ namespace PlayniteAchievements.Services.Sound
 
         public double Gain { get; set; }
         public long Qpc { get; set; }
+
+        /// <summary>Milliseconds from <see cref="Qpc"/> to the audible onset; null when not reported.</summary>
+        public double? AudibleDelayMs { get; set; }
         public string Path { get; set; }
         public string[] Paths { get; set; }
         public string Text { get; set; }

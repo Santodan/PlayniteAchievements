@@ -12,12 +12,16 @@ namespace PlayniteAchievements.Services.Sound
     /// <summary>What one wave played, so the recorder can mix the same file at the same level.</summary>
     internal sealed class UnlockSoundPlayback
     {
-        public UnlockSoundPlayback(DateTime sentUtc, ResolvedUnlockSound sound, double gain)
+        public UnlockSoundPlayback(int id, DateTime sentUtc, ResolvedUnlockSound sound, double gain)
         {
+            Id = id;
             SentUtc = sentUtc;
             Sound = sound;
             Gain = gain;
         }
+
+        /// <summary>The host's play id; <see cref="UnlockSoundService.TryGetAudibleOnsetUtc"/> resolves it later.</summary>
+        public int Id { get; }
 
         /// <summary>When the plugin asked for the sound (the launch moment, not the audible onset).</summary>
         public DateTime SentUtc { get; }
@@ -117,9 +121,15 @@ namespace PlayniteAchievements.Services.Sound
                 }
 
                 var gain = (_settings?.Persisted?.UnlockSoundVolumePercent ?? 0) / 100.0;
-                var sentUtc = _host.Play(resolved.Path, gain);
-                return sentUtc.HasValue ? new UnlockSoundPlayback(sentUtc.Value, resolved, gain) : null;
+                var sentUtc = _host.Play(resolved.Path, gain, out var id);
+                return sentUtc.HasValue ? new UnlockSoundPlayback(id, sentUtc.Value, resolved, gain) : null;
             }
+        }
+
+        /// <summary>The measured audible onset of a played sound, once the host has reported it.</summary>
+        public DateTime? TryGetAudibleOnsetUtc(int playbackId)
+        {
+            return _host.TryGetAudibleOnsetUtc(playbackId);
         }
 
         public void Dispose()

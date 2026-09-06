@@ -27,6 +27,9 @@ namespace PlayniteAchievements.Services.Sound
         private readonly ILogger _logger;
         private readonly object _gate = new object();
         private readonly Dictionary<int, long> _sentQpcById = new Dictionary<int, long>();
+        // The measured audible onset of each recent sound, by play id, for the recorder's
+        // composite placement. Bounded like _sentQpcById.
+        private readonly Dictionary<int, DateTime> _audibleOnsetUtcById = new Dictionary<int, DateTime>();
         private Process _process;
         private BlockingCollection<string> _outbox;
         private long _writeStartedTicks;
@@ -147,24 +150,43 @@ namespace PlayniteAchievements.Services.Sound
         /// and could not be started). The stamp is the send time, not the audible onset; the
         /// caller adds its alignment constant, and the host's started event logs the real lag.
         /// </summary>
-        public DateTime? Play(string path, double gain)
+        public DateTime? Play(string path, double gain, out int id)
         {
             lock (_gate)
             {
+                id = 0;
                 if (!TryStart())
                 {
                     return null;
                 }
 
-                var id = ++_nextPlayId;
+                id = ++_nextPlayId;
                 if (_sentQpcById.Count > 64)
                 {
                     _sentQpcById.Clear();
                 }
 
+                if (_audibleOnsetUtcById.Count > 64)
+                {
+                    _audibleOnsetUtcById.Clear();
+                }
+
                 _sentQpcById[id] = Stopwatch.GetTimestamp();
                 Enqueue(SoundHostProtocol.EncodePlay(id, path, gain));
                 return CaptureTimelineClock.UtcNow;
+            }
+        }
+
+        /// <summary>
+        /// When the sound with this play id became audible, as measured by the host (render-thread
+        /// start plus queued buffer plus endpoint latency) and projected onto the capture timeline.
+        /// Null until the host reports it, or when the host did not report a delay.
+        /// </summary>
+        public DateTime? TryGetAudibleOnsetUtc(int id)
+        {
+            lock (_gate)
+            {
+                return _audibleOnsetUtcById.TryGetValue(id, out var onset) ? onset : (DateTime?)null;
             }
         }
 
@@ -335,7 +357,24 @@ namespace PlayniteAchievements.Services.Sound
             }
 
             var lagMs = (message.Qpc - sentQpc) * 1000.0 / Stopwatch.Frequency;
-            _logger?.Info($"[SoundHost] Sound id={message.Id} started {lagMs:0.0} ms after it was requested.");
+            if (message.AudibleDelayMs.HasValue)
+            {
+                // The helper's QPC is the same system clock as ours, so its render-start stamp
+                // projects straight onto the capture timeline.
+                var started = CaptureTimelineClock.FromQpc100ns(
+                    CaptureTimelineClock.TimestampTo100ns(message.Qpc, Stopwatch.Frequency), out _);
+                var onset = started.AddMilliseconds(message.AudibleDelayMs.Value);
+                lock (_gate)
+                {
+                    _audibleOnsetUtcById[message.Id] = onset;
+                }
+            }
+
+            _logger?.Info(
+                $"[SoundHost] Sound id={message.Id} started {lagMs:0.0} ms after it was requested" +
+                (message.AudibleDelayMs.HasValue
+                    ? $", audible {message.AudibleDelayMs.Value:0.0} ms after that."
+                    : "."));
         }
 
         private void OnProcessExited(object sender, EventArgs e)

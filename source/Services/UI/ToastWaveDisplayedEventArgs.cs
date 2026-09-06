@@ -20,7 +20,8 @@ namespace PlayniteAchievements.Services.UI
             DateTime? surfaceCaptureUtc,
             string soundFilePath = null,
             double? soundFileGain = null,
-            int? soundAlignmentDelayMs = null)
+            int? soundAlignmentDelayMs = null,
+            int? soundPlaybackId = null)
         {
             Wave = wave;
             ShownUtc = shownUtc;
@@ -29,7 +30,15 @@ namespace PlayniteAchievements.Services.UI
             SoundFilePath = soundFilePath;
             SoundFileGain = soundFileGain;
             SoundAlignmentDelayMs = soundAlignmentDelayMs;
+            SoundPlaybackId = soundPlaybackId;
         }
+
+        /// <summary>
+        /// The sound host's play id for this wave's sound, so export can look up the measured
+        /// audible onset instead of modelling it from <see cref="SoundAlignmentDelayMs"/>. Null
+        /// when no sound fired.
+        /// </summary>
+        public int? SoundPlaybackId { get; }
 
         public IReadOnlyList<AchievementToastViewModel> Wave { get; }
 

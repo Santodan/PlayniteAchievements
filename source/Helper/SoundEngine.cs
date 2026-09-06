@@ -38,6 +38,7 @@ namespace PlayniteAchievements.Helper
         private MMDeviceEnumerator _enumerator;
         private NotificationClient _notifications;
         private WasapiOut _output;
+        private AudioClient _outputClient;
         private string _deviceId;
         private WaveFormat _voiceFormat;
         private bool _streaming;
@@ -180,6 +181,8 @@ namespace PlayniteAchievements.Helper
                 output.PlaybackStopped += OnPlaybackStopped;
                 output.Init(_voice);
                 _output = output;
+                _outputClient = TryGetAudioClient(output);
+                _voice.AudibleDelayMs = MeasureAudibleDelayMs;
                 _streaming = false;
                 return true;
             }
@@ -320,9 +323,53 @@ namespace PlayniteAchievements.Helper
             }
         }
 
-        private void OnVoiceStarted(int id, long qpc)
+        private void OnVoiceStarted(int id, long qpc, double? audibleDelayMs)
         {
-            _emit(SoundHostProtocol.EncodeStarted(id, qpc));
+            _emit(SoundHostProtocol.EncodeStarted(id, qpc, audibleDelayMs));
+        }
+
+        /// <summary>
+        /// How long the samples the render thread is about to write will take to reach the
+        /// listener: the frames already queued in the shared buffer ahead of them, plus the
+        /// endpoint's reported stream latency. Read on the render thread, right where NAudio itself
+        /// just read the padding, so the value describes exactly the write that follows. Null when
+        /// the client is not reachable (NAudio keeps it private; reflection may fail on another
+        /// version) and the plugin then falls back to its modelled alignment.
+        /// </summary>
+        private double? MeasureAudibleDelayMs()
+        {
+            var client = _outputClient;
+            var format = _voiceFormat;
+            if (client == null || format == null || format.SampleRate <= 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                var queuedMs = client.CurrentPadding * 1000.0 / format.SampleRate;
+                var latencyMs = client.StreamLatency / 10000.0; // REFERENCE_TIME is 100 ns
+                return queuedMs + latencyMs;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private static AudioClient TryGetAudioClient(WasapiOut output)
+        {
+            try
+            {
+                var field = typeof(WasapiOut).GetField(
+                    "audioClient",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                return field?.GetValue(output) as AudioClient;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         private void PreloadCurrentSet()
@@ -488,7 +535,8 @@ namespace PlayniteAchievements.Helper
             private volatile Playback _current;
 
             public WaveFormat WaveFormat { get; set; }
-            public Action<int, long> Started { get; set; }
+            public Action<int, long, double?> Started { get; set; }
+            public Func<double?> AudibleDelayMs { get; set; }
             public bool IsActive => _current != null;
 
             public void Assign(Clip clip, float gain, int id)
@@ -521,7 +569,7 @@ namespace PlayniteAchievements.Helper
                     if (!playback.Announced)
                     {
                         playback.Announced = true;
-                        Started?.Invoke(playback.Id, Stopwatch.GetTimestamp());
+                        Started?.Invoke(playback.Id, Stopwatch.GetTimestamp(), AudibleDelayMs?.Invoke());
                     }
 
                     var samples = playback.Clip.Samples;
