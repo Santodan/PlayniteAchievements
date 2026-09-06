@@ -106,8 +106,22 @@ The same investigation moved the plugin's compositing off RGB altogether: frames
 decoder through the in-place card blend to the encoder, which removed both colour converters from the
 pass, and the D3D device manager was dropped from the encoding sink because the NVIDIA transform
 rejects system-memory NV12 samples while one is bound (`E_INVALIDARG` on the first write) yet is
-selected as the hardware encoder without it. Measured on the stalled 10.7 s clip: the whole-clip pass
-went from 5.2 s to 1.8 s (402 fps) and the spliced pass to 1.26 s.
+selected as the hardware encoder without it. Two more things had to be true for the NV12 path to be
+correct, both found by comparing dumped frames against the base clip: each decoded frame is copied out of
+the decoder before it is written, because the decoder reuses its output buffers while the encoding sink
+still holds the queued sample (luma and chroma from different frames otherwise), and the copy is repacked
+from the decoder's macroblock-aligned height (1088 rows for 1080p) to the exact frame height, because
+the padding puts the chroma plane 8 luma rows later than the encoder assumes (every picture's chroma sat
+16 rows below its luma while the card, blended by the same assumption, looked right). With both in
+place the composited frames match the base clip at 71-74 dB PSNR outside the card, where the RGB path
+managed 53 dB, and the card region matches the old path within codec noise (53-57 dB). Measured on the
+stalled 10.7 s clip without the harness window painting: the whole-clip pass went from 3.1 s to 2.1 s
+and the spliced pass runs in 1.6 s.
+
+`--software` on the `--reencode` line keeps hardware transforms off the encoding sinks, so the passes run
+on Microsoft's software H.264 encoder — the path any machine without a usable vendor transform takes.
+Its parameter sets differ from the capture's, so this also exercises the splice detecting the mismatch
+and falling back to the whole-clip pass.
 
 ### Native lifetime/page-heap stress
 
