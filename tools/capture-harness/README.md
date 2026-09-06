@@ -86,6 +86,29 @@ is written into the SPS timing fields, and a base clip whose capture stalled ave
 a 60 fps capture, in one run), so deriving the rate from the clip produced a different SPS. The plugin
 declares the captured rate for re-encoded runs and compares sequence headers before it splices.
 
+### Re-running the composition over an existing clip
+
+```powershell
+tools\capture-harness\bin\CaptureHarness.exe --reencode <clip.mp4> <fps> [toastStartSeconds] [trimLeadSeconds] [pluginDir]
+```
+
+Runs only the composition phase (the three passes above and their checks) over a base clip the full run
+left behind, so a clip that exposed something — one with a capture stall, say — can be worked on without
+recording again. It first prints a compressed-vs-decoded timestamp comparison under each reader mode.
+That comparison is what found that the source reader's *advanced* video processing includes frame-rate
+conversion: it re-times every decoded frame onto the type's declared frame rate, an average the MP4
+source derives from the file, so on a stalled clip decoded timestamps drifted from the compressed ones
+by the whole stall (404 ms measured) while *basic* processing and the decoder's own NV12 output kept
+them exact. The plugin and this harness now decode NV12 with no processing attribute; barcodes are read
+from the luma plane and the card from the chroma plane.
+
+The same investigation moved the plugin's compositing off RGB altogether: frames stay in NV12 from the
+decoder through the in-place card blend to the encoder, which removed both colour converters from the
+pass, and the D3D device manager was dropped from the encoding sink because the NVIDIA transform
+rejects system-memory NV12 samples while one is bound (`E_INVALIDARG` on the first write) yet is
+selected as the hardware encoder without it. Measured on the stalled 10.7 s clip: the whole-clip pass
+went from 5.2 s to 1.8 s (402 fps) and the spliced pass to 1.26 s.
+
 ### Native lifetime/page-heap stress
 
 ```powershell
