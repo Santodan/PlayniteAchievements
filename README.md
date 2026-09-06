@@ -99,6 +99,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-09-06 - v3.1.3.3
+
 - Fixed achievements not been retrieve correctly when an `<appid>.json` existed in the steam's folder
 - Fixed freezing when right clicking a game in the library
 - Fixed `Solaris` theme migration
@@ -111,6 +113,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## 2026-08-24 - v3.1.3.1
 
 - v3.1.3 merge
+
+## Old Changelogs
+<details>
 
 ## 2026-08-13 - v3.1.2.1
 
