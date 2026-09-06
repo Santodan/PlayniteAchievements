@@ -158,7 +158,7 @@ namespace PlayniteAchievements.Services.Capture
                             sink, videoStream, videoReader, audioStream, audioReader,
                             stack, trimLeadSeconds, endSeconds,
                             audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
-                            OneSecond100ns / Math.Max(1, fps));
+                            OneSecond100ns / Math.Max(1, fps), frameW, frameH);
                         sink.Finalize();
                         LogPassCost(timer, counts, frameW, frameH);
                     }
@@ -236,9 +236,11 @@ namespace PlayniteAchievements.Services.Capture
                 frameW = (int)(size >> 32);
                 frameH = (int)(size & 0xffffffff);
                 fps = ReadFps(decodedType, configuredFps);
-                // NV12 luma rows are the width unless the type says otherwise; the compositor's 2D
-                // path reads the real pitch from each buffer anyway.
-                stride = ReadStride(decodedType, frameW);
+                // Every frame is copied out of the decoder into the contiguous layout before it is
+                // touched (see DetachFromDecoder), whose luma rows are exactly the frame width, so
+                // that is the stride the compositor and the encoder are told regardless of the
+                // pitch the decoder's own buffers used.
+                stride = frameW;
                 return decodedType;
             }
             catch
@@ -256,14 +258,15 @@ namespace PlayniteAchievements.Services.Capture
         /// manager is bound. The manager was only ever needed to get that encoder chosen behind
         /// the RGB colour converter the pass used to feed.
         /// </summary>
-        private static SinkWriter CreateEncodingSink(string outputPath, Action<SinkWriter> configureStreams)
+        private SinkWriter CreateEncodingSink(string outputPath, Action<SinkWriter> configureStreams)
         {
             SinkWriter sink = null;
             try
             {
                 using (var sinkAttributes = new MediaAttributes(1))
                 {
-                    sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, 1);
+                    sinkAttributes.Set(
+                        SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, PreferSoftwareEncoder ? 0 : 1);
                     sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
                 }
 
@@ -417,7 +420,7 @@ namespace PlayniteAchievements.Services.Capture
             int audioStream, SourceReader audioReader,
             FrameOverlayStack overlays, double trimLeadSeconds,
             double endSeconds, byte[] chimePcm, double chimeStartSeconds,
-            long nominalDuration)
+            long nominalDuration, int frameW, int frameH)
         {
             var trimLead = ToTicks(trimLeadSeconds);
             // Output-timeline end cut (base timeline minus the lead): both streams stop here.
@@ -455,6 +458,8 @@ namespace PlayniteAchievements.Services.Capture
                     break;
                 }
 
+                sample = DetachFromDecoder(sample, frameW, frameH);
+
                 // Drain audio up to this video timestamp so both streams advance together.
                 while (pendingAudio != null && pendingAudio.SampleTime <= time - trimLead)
                 {
@@ -464,10 +469,7 @@ namespace PlayniteAchievements.Services.Capture
 
                 Compose(overlays, sample, time, ref counts);
 
-                // Write straight away, with the duration the base clip already carries. Holding a
-                // frame back to measure the gap to the next one would keep the reader's decoded
-                // surface alive past the read that may recycle it, which shows up as the wrong
-                // picture on some frames.
+                // Write with the duration the base clip already carries.
                 var outTime = time - trimLead;
                 WriteVideoAndDispose(
                     sink, videoStream, sample, outTime,
@@ -477,6 +479,96 @@ namespace PlayniteAchievements.Services.Capture
 
             WriteTrailingAudio(sink, audioStream, audioReader, pendingAudio, trimLead, endLimit, chimePcm, chimeStartOut);
             return counts;
+        }
+
+        /// <summary>
+        /// Copies a decoded frame into a buffer of this pass's own and disposes the decoder's
+        /// sample. The decoder hands out samples from a small pool and reuses a buffer as soon as
+        /// its sample is released — but the encoding sink queues written samples and reads them
+        /// later on its own thread, so a frame written straight from the decoder can be partly
+        /// overwritten by a later decode before the encoder sees it, which shows as luma and chroma
+        /// from two different frames. The RGB path never met this because its colour converter
+        /// copied every frame; feeding NV12 straight through needs the copy made here.
+        /// <para>
+        /// The copy is the contiguous layout, rows packed at the frame width — but the decoder's
+        /// surfaces are allocated at a macroblock-aligned height (1088 rows for 1080p), and the
+        /// contiguous copy keeps that padding, which puts the chroma plane 8 luma rows later than
+        /// the exact-height layout the encoder and the compositor address. Left alone, every
+        /// picture's chroma lands 16 rows below its luma while the card, blended by the same wrong
+        /// assumption, looks right. The chroma plane is therefore moved up to follow exactly
+        /// <paramref name="frameH"/> luma rows and the padding is dropped.
+        /// </para>
+        /// </summary>
+        private Sample DetachFromDecoder(Sample decoded, int frameW, int frameH)
+        {
+            using (decoded)
+            {
+                var length = decoded.TotalLength;
+                var exactLength = frameW * frameH * 3 / 2;
+                var buffer = MediaFactory.CreateMemoryBuffer(Math.Max(length, exactLength));
+                try
+                {
+                    decoded.CopyToBuffer(buffer);
+                    if (length != exactLength)
+                    {
+                        RepackPaddedNv12(buffer, length, frameW, frameH, exactLength);
+                    }
+
+                    var copy = MediaFactory.CreateSample();
+                    copy.AddBuffer(buffer);
+                    copy.SampleTime = decoded.SampleTime;
+                    copy.SampleDuration = decoded.SampleDuration;
+                    return copy;
+                }
+                finally
+                {
+                    buffer.Dispose();
+                }
+            }
+        }
+
+        private byte[] _chromaScratch;
+        private bool _paddingLogged;
+
+        /// <summary>
+        /// Moves the chroma plane of a padded-height NV12 frame (rows beyond <paramref name="frameH"/>
+        /// are allocation padding) to directly after the frame's luma rows, and trims the buffer.
+        /// </summary>
+        private void RepackPaddedNv12(MediaBuffer buffer, int length, int frameW, int frameH, int exactLength)
+        {
+            var lumaStride = frameW;
+            var planeBytes = lumaStride * 3 / 2;
+            if (length < exactLength || length % planeBytes != 0)
+            {
+                throw new InvalidDataException(
+                    $"Decoded NV12 frame of {length} bytes does not fit {frameW}x{frameH} at any padded height.");
+            }
+
+            var paddedH = length / planeBytes;
+            if (!_paddingLogged)
+            {
+                _paddingLogged = true;
+                _logger?.Debug($"[Recording] Decoder frames carry {paddedH - frameH} padded rows; repacking to {frameW}x{frameH}.");
+            }
+
+            var chromaBytes = lumaStride * frameH / 2;
+            if (_chromaScratch == null || _chromaScratch.Length < chromaBytes)
+            {
+                _chromaScratch = new byte[chromaBytes];
+            }
+
+            var ptr = buffer.Lock(out _, out _);
+            try
+            {
+                Marshal.Copy(IntPtr.Add(ptr, lumaStride * paddedH), _chromaScratch, 0, chromaBytes);
+                Marshal.Copy(_chromaScratch, 0, IntPtr.Add(ptr, lumaStride * frameH), chromaBytes);
+            }
+            finally
+            {
+                buffer.Unlock();
+            }
+
+            buffer.CurrentLength = exactLength;
         }
 
         /// <summary>

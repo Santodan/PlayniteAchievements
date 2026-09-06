@@ -41,6 +41,14 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>Diagnostic switch: the whole-clip pass runs unconditionally when false.</summary>
         internal bool SpliceEnabled { get; set; } = true;
 
+        /// <summary>
+        /// Diagnostic switch: leaves hardware transforms disabled on the encoding sinks so the pass
+        /// runs on Microsoft's software H.264 encoder — the path a machine without a usable vendor
+        /// transform takes, and one whose parameter sets differ from the capture's, so it also
+        /// exercises the splice's fall-back to the whole-clip pass.
+        /// </summary>
+        internal bool PreferSoftwareEncoder { get; set; }
+
         /// <summary>A frame's place on the base clip's timeline, recorded as its run was encoded.</summary>
         private struct FrameStamp
         {
@@ -394,6 +402,7 @@ namespace PlayniteAchievements.Services.Capture
                             break;
                         }
 
+                        sample = DetachFromDecoder(sample, width, height);
                         Compose(stack, sample, time, ref counts);
                         var duration = sourceDuration > 0 ? sourceDuration : nominalDuration;
                         // The run's own timeline is synthetic: frames go to the encoder evenly spaced
