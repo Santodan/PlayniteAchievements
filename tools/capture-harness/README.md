@@ -109,19 +109,28 @@ rejects system-memory NV12 samples while one is bound (`E_INVALIDARG` on the fir
 selected as the hardware encoder without it. Two more things had to be true for the NV12 path to be
 correct, both found by comparing dumped frames against the base clip: each decoded frame is copied out of
 the decoder before it is written, because the decoder reuses its output buffers while the encoding sink
-still holds the queued sample (luma and chroma from different frames otherwise), and the copy is repacked
-from the decoder's macroblock-aligned height (1088 rows for 1080p) to the exact frame height, because
-the padding puts the chroma plane 8 luma rows later than the encoder assumes (every picture's chroma sat
-16 rows below its luma while the card, blended by the same assumption, looked right). With both in
-place the composited frames match the base clip at 71-74 dB PSNR outside the card, where the RGB path
-managed 53 dB, and the card region matches the old path within codec noise (53-57 dB). Measured on the
-stalled 10.7 s clip without the harness window painting: the whole-clip pass went from 3.1 s to 2.1 s
-and the spliced pass runs in 1.6 s.
+still holds the queued sample (luma and chroma from different frames otherwise), and each copy is
+repacked from the decoder's own pitch and macroblock-aligned height (1088 rows for 1080p at 1080p) to
+the packed frame, because that padding puts the chroma plane below where the encoder and the compositor
+address it (every picture's chroma sat 16 rows below its luma while the card, blended by the same
+assumption, looked right). Media Foundation's own contiguous copy does not solve this: it packs rows to
+the frame width but keeps the aligned height, which `GetContiguousLength` reporting 3133440 rather than
+3110400 is exactly what says. The aligned height is derived from that number instead of assumed, so a
+vendor's choice of pitch or alignment is never guessed at. With both in place the composited frames
+match the base clip at 71-74 dB PSNR outside the card, where the RGB path managed 53 dB, and the card
+region matches the old path within codec noise (53-57 dB).
 
 `--software` on the `--reencode` line keeps hardware transforms off the encoding sinks, so the passes run
-on Microsoft's software H.264 encoder — the path any machine without a usable vendor transform takes.
-Its parameter sets differ from the capture's, so this also exercises the splice detecting the mismatch
-and falling back to the whole-clip pass.
+on Microsoft's software H.264 encoder — the path any machine without a usable vendor transform takes, and
+the one the plugin falls back to by itself when a hardware sink cannot be set up. Its parameter sets
+differ from the capture's, so this also exercises the splice detecting the mismatch and falling back to
+the whole-clip pass. It composites at the same rate and reads 60 dB against the base clip (the encoder is
+simply noisier), so the fall-back costs encode speed, never the card.
+
+Only the NVIDIA encoder was available here. What stands behind AMD and Intel is that fall-back and the
+existing one below it: a sink that cannot be created, a transform that refuses the frames, or parameter
+sets that do not match all end in a working clip — with the software encoder, without the splice, or in
+the last resort without the card, never with a corrupt one.
 
 ### Native lifetime/page-heap stress
 
