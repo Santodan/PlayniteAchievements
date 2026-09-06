@@ -153,6 +153,10 @@ Primary fork areas:
   filter and Preset list, backed by the `LocalGames` compatibility collection.
 - Re-running Solaris migration updates an already-migrated theme without
   duplicating its `Local` button, preset, list, or visibility triggers.
+- Solaris migration preserves distinct theme-owned `SuccessStory` and
+  `PlayniteAchievements` panel/toggle names and their references, while migrating
+  plugin bindings and custom-control prefixes. Restore the migration backup
+  before migrating themes whose names were merged by the old migration.
 - The StartPage add-on's Recent Achievements widget sorts achievements globally
   by unlock time while still respecting both its total maximum and its
   maximum-per-game setting.

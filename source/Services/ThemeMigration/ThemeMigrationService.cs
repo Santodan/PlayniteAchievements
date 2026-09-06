@@ -635,7 +635,45 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// </summary>
         private string ProcessStandardFile(string content, string originalContent, ref int replacements)
         {
-            return ApplyReplacements(content, originalContent, ref replacements);
+            // Theme-owned names are identifiers, not plugin aliases. Renaming them can
+            // merge distinct panels (e.g. Solaris's SuccessStory and PlayniteAchievements).
+            // Keep references to those names intact as well. Registered custom controls
+            // still need their source prefix migrated so Playnite can instantiate them.
+            var names = Regex.Matches(content,
+                @"(?<![\w:])(?:x:Name|Name|(?:Storyboard\.)?TargetName|ElementName)\s*=\s*(?:""(?<name>[^""]*)""|'(?<name>[^']*)'|(?<name>[\w]+))");
+            var protectedNames = new Dictionary<string, string>();
+            var marker = "__ThemeName_" + Guid.NewGuid().ToString("N") + "_";
+            var result = new StringBuilder();
+            int position = 0;
+            foreach (Match match in names)
+            {
+                var name = match.Groups["name"];
+                if (!name.Value.Contains("SuccessStory") && !name.Value.Contains("SSHelper"))
+                {
+                    continue;
+                }
+                if (name.Value.StartsWith("SuccessStory_", StringComparison.Ordinal) ||
+                    name.Value.StartsWith("SSHelper_", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var segment = content.Substring(position, name.Index - position);
+                result.Append(segment);
+                var placeholder = marker + protectedNames.Count + "__";
+                protectedNames.Add(placeholder, name.Value);
+                result.Append(placeholder);
+                position = name.Index + name.Length;
+            }
+
+            var remainder = content.Substring(position);
+            result.Append(remainder);
+            var migrated = ApplyReplacements(result.ToString(), originalContent, ref replacements);
+            foreach (var entry in protectedNames)
+            {
+                migrated = migrated.Replace(entry.Key, entry.Value);
+            }
+            return migrated;
         }
 
         /// <summary>

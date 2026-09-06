@@ -101,6 +101,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 - Fixed achievements not been retrieve correctly when an `<appid>.json` existed in the steam's folder
 - Fixed freezing when right clicking a game in the library
+- Fixed `Solaris` theme migration
 
 ## 2026-08-30 - v3.1.3.2
 

@@ -15120,7 +15120,7 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..13cfcd60019034621b70dbc493f425ba
  
          private static string GetStandaloneControlNamePattern(string controlName)
 diff --git a/source/Services/ThemeMigration/ThemeMigrationService.cs b/source/Services/ThemeMigration/ThemeMigrationService.cs
-index 3d6443c00ad71f3045beaed435923d89a44ae4e5..a1ef0d8dfb3aa846285c7bd4e0cdfa039102135f 100644
+index 3d6443c00ad71f3045beaed435923d89a44ae4e5..6be72d5d9f46571b9f4aa090d00e77fbf7896dab 100644
 --- a/source/Services/ThemeMigration/ThemeMigrationService.cs
 +++ b/source/Services/ThemeMigration/ThemeMigrationService.cs
 @@ -24,6 +24,17 @@ public sealed class ThemeMigrationService
@@ -15325,7 +15325,54 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..a1ef0d8dfb3aa846285c7bd4e0cdfa03
                  if (ShouldModernizeBindings(mode, customSelection))
                  {
                      foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
-@@ -563,27 +646,75 @@ private string ApplyReplacements(string content, string originalContent, ref int
+@@ -552,7 +635,45 @@ private string ProcessYamlFile(string content, string originalContent, ref int r
+         /// </summary>
+         private string ProcessStandardFile(string content, string originalContent, ref int replacements)
+         {
+-            return ApplyReplacements(content, originalContent, ref replacements);
++            // Theme-owned names are identifiers, not plugin aliases. Renaming them can
++            // merge distinct panels (e.g. Solaris's SuccessStory and PlayniteAchievements).
++            // Keep references to those names intact as well. Registered custom controls
++            // still need their source prefix migrated so Playnite can instantiate them.
++            var names = Regex.Matches(content,
++                @"(?<![\w:])(?:x:Name|Name|(?:Storyboard\.)?TargetName|ElementName)\s*=\s*(?:""(?<name>[^""]*)""|'(?<name>[^']*)'|(?<name>[\w]+))");
++            var protectedNames = new Dictionary<string, string>();
++            var marker = "__ThemeName_" + Guid.NewGuid().ToString("N") + "_";
++            var result = new StringBuilder();
++            int position = 0;
++            foreach (Match match in names)
++            {
++                var name = match.Groups["name"];
++                if (!name.Value.Contains("SuccessStory") && !name.Value.Contains("SSHelper"))
++                {
++                    continue;
++                }
++                if (name.Value.StartsWith("SuccessStory_", StringComparison.Ordinal) ||
++                    name.Value.StartsWith("SSHelper_", StringComparison.Ordinal))
++                {
++                    continue;
++                }
++
++                var segment = content.Substring(position, name.Index - position);
++                result.Append(segment);
++                var placeholder = marker + protectedNames.Count + "__";
++                protectedNames.Add(placeholder, name.Value);
++                result.Append(placeholder);
++                position = name.Index + name.Length;
++            }
++
++            var remainder = content.Substring(position);
++            result.Append(remainder);
++            var migrated = ApplyReplacements(result.ToString(), originalContent, ref replacements);
++            foreach (var entry in protectedNames)
++            {
++                migrated = migrated.Replace(entry.Key, entry.Value);
++            }
++            return migrated;
+         }
+ 
+         /// <summary>
+@@ -563,27 +684,75 @@ private string ApplyReplacements(string content, string originalContent, ref int
              string result = content;
  
              // Replace SuccessStoryFullscreenHelper first (most specific - fullscreen installation checks)
@@ -15410,7 +15457,7 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..a1ef0d8dfb3aa846285c7bd4e0cdfa03
  
              // Convert DataContext bindings to use PluginSettings with our exposed properties
              // {Binding SelectedGame.DisplayBackgroundImageObject} -> {PluginSettings Plugin=PlayniteAchievements, Path=SelectedGameBackgroundPath}
-@@ -613,9 +744,157 @@ private string ApplyReplacements(string content, string originalContent, ref int
+@@ -613,9 +782,157 @@ private string ApplyReplacements(string content, string originalContent, ref int
              result = result.Replace("&#xE820;", "&#xEDD7;");
              replacements += CountOccurrences(originalContent, "&#xE820;");
  
@@ -15568,7 +15615,7 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..a1ef0d8dfb3aa846285c7bd4e0cdfa03
          /// <summary>
          /// Applies modernization replacements: selected control element names and binding paths.
          /// </summary>
-@@ -637,6 +916,21 @@ private string ApplyModernizationReplacements(
+@@ -637,6 +954,21 @@ private string ApplyModernizationReplacements(
                  controlReplacements += ReplaceStandaloneControlName(ref result, mapping.Key, mapping.Value);
              }
  
@@ -15590,7 +15637,7 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..a1ef0d8dfb3aa846285c7bd4e0cdfa03
              // Replace LegacyData binding paths with Theme binding paths
              // These appear in XAML as {Binding LegacyData.HasData} etc.
              if (ShouldModernizeBindings(mode, customSelection))
-@@ -675,7 +969,16 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
+@@ -675,7 +1007,16 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
          {
              if (mode == MigrationMode.Full)
              {
@@ -15608,7 +15655,7 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..a1ef0d8dfb3aa846285c7bd4e0cdfa03
              }
  
              if (mode != MigrationMode.Custom || customSelection == null)
-@@ -684,7 +987,54 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
+@@ -684,7 +1025,54 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
              }
  
              return ControlMappings.LegacyToModernControlNames
@@ -22152,19 +22199,52 @@ index 60160aef932e3b17f6cbab12c9f857b7c173c166..12fc646f5fc6a6c80633b35099a37bff
          public void ResolveProviderForGame_FfxivBeforeSteam_ClaimsStoreBackedFfxivTitle()
          {
 diff --git a/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs b/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
-index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..8eeb2b8c24d47f6a4825d264106b27744f98701e 100644
+index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..dccf22ccbb7d85c418222966e21690f9100a48b6 100644
 --- a/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
 +++ b/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
-@@ -14,7 +14,7 @@ namespace PlayniteAchievements.ThemeMigration.Tests
+@@ -14,7 +14,40 @@ namespace PlayniteAchievements.ThemeMigration.Tests
      public class ThemeDiscoveryServiceTests
      {
          [TestMethod]
 -        public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeFilesContainPlayniteAchievements()
++        public async Task MigrateThemeAsync_PreservesDistinctSolarisNamesAndReferences()
++        {
++            var themesRoot = CreateThemesRoot();
++            try
++            {
++                var themePath = Path.Combine(themesRoot, "Fullscreen", "Solaris");
++                Directory.CreateDirectory(themePath);
++                var viewPath = Path.Combine(themePath, "View.xaml");
++                const string original = @"<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
++<StackPanel>
++<Border x:Name='SuccessStory'/><Border x:Name='PlayniteAchievements'/>
++<CheckBox Name='ToggleSuccessStory'/><CheckBox Name='TogglePlayniteAchievements'/>
++<TextBlock Text='{Binding Tag, ElementName=SuccessStory}'/>
++<ContentControl x:Name='SuccessStory_PluginList'/>
++</StackPanel>
++<ControlTemplate.Triggers><Trigger Property='Tag' Value='Test'>
++<Setter TargetName='SuccessStory' Property='Visibility' Value='Collapsed'/>
++</Trigger></ControlTemplate.Triggers></ControlTemplate>";
++                File.WriteAllText(viewPath, original);
++                var service = new ThemeMigrationService(new FakeLogger());
++                Assert.IsTrue((await service.MigrateThemeAsync(themePath)).Success);
++                var migrated = File.ReadAllText(viewPath);
++                Assert.AreEqual(original.Replace("SuccessStory_PluginList", "PlayniteAchievements_PluginList"), migrated);
++                Assert.IsTrue((await service.MigrateThemeAsync(themePath)).Success);
++                Assert.AreEqual(migrated, File.ReadAllText(viewPath));
++            }
++            finally
++            {
++                DeleteDirectory(themesRoot);
++            }
++        }
++
++        [TestMethod]
 +        public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeContainsNativeSantodanSupport()
          {
              var themesRoot = CreateThemesRoot();
  
-@@ -25,7 +25,7 @@ public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeFilesContainPla
+@@ -25,7 +58,7 @@ public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeFilesContainPla
                  File.WriteAllText(Path.Combine(themePath, "theme.yaml"), "Name: Aniki ReMake\nVersion: 2.5.5\n");
                  File.WriteAllText(
                      Path.Combine(themePath, "View.xaml"),
@@ -22173,7 +22253,7 @@ index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..8eeb2b8c24d47f6a4825d264106b2774
  
                  var service = new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi());
                  var themes = service.DiscoverThemes(themesRoot);
-@@ -121,6 +121,79 @@ public async Task MigrateThemeAsync_AllowsLimitedModeForFullscreenThemes()
+@@ -121,6 +154,79 @@ public async Task MigrateThemeAsync_AllowsLimitedModeForFullscreenThemes()
              }
          }
  

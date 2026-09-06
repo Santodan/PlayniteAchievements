@@ -14,6 +14,39 @@ namespace PlayniteAchievements.ThemeMigration.Tests
     public class ThemeDiscoveryServiceTests
     {
         [TestMethod]
+        public async Task MigrateThemeAsync_PreservesDistinctSolarisNamesAndReferences()
+        {
+            var themesRoot = CreateThemesRoot();
+            try
+            {
+                var themePath = Path.Combine(themesRoot, "Fullscreen", "Solaris");
+                Directory.CreateDirectory(themePath);
+                var viewPath = Path.Combine(themePath, "View.xaml");
+                const string original = @"<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
+<StackPanel>
+<Border x:Name='SuccessStory'/><Border x:Name='PlayniteAchievements'/>
+<CheckBox Name='ToggleSuccessStory'/><CheckBox Name='TogglePlayniteAchievements'/>
+<TextBlock Text='{Binding Tag, ElementName=SuccessStory}'/>
+<ContentControl x:Name='SuccessStory_PluginList'/>
+</StackPanel>
+<ControlTemplate.Triggers><Trigger Property='Tag' Value='Test'>
+<Setter TargetName='SuccessStory' Property='Visibility' Value='Collapsed'/>
+</Trigger></ControlTemplate.Triggers></ControlTemplate>";
+                File.WriteAllText(viewPath, original);
+                var service = new ThemeMigrationService(new FakeLogger());
+                Assert.IsTrue((await service.MigrateThemeAsync(themePath)).Success);
+                var migrated = File.ReadAllText(viewPath);
+                Assert.AreEqual(original.Replace("SuccessStory_PluginList", "PlayniteAchievements_PluginList"), migrated);
+                Assert.IsTrue((await service.MigrateThemeAsync(themePath)).Success);
+                Assert.AreEqual(migrated, File.ReadAllText(viewPath));
+            }
+            finally
+            {
+                DeleteDirectory(themesRoot);
+            }
+        }
+
+        [TestMethod]
         public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeContainsNativeSantodanSupport()
         {
             var themesRoot = CreateThemesRoot();
