@@ -8,7 +8,7 @@
 //
 //   this process   (orchestrator; stands in for Playnite, plays nothing during the waves)
 //   child "game"   plays a continuous AM-warbled game tone (an emulator's role)
-//   child "host"   plays the wave chimes on schedule (PlayniteAchievements.SoundHost's role)
+//   child "host"   plays the wave chimes on schedule (PlayniteAchievementsHelper's sound role)
 //
 // A wave of three achievements plays ONE chime (highest tier wins, ToastNotificationService), so
 // two waves of three means two chimes at wave cadence: with the default 6 s toast, wave 2's chime
