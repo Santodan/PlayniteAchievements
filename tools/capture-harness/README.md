@@ -61,11 +61,30 @@ What it reports, and why each check exists:
 | Screenshot alignment — a live grab's frame vs when the grab happened | How current a live screenshot can be, and that its path involves no mapping |
 | Paint intervals during recording and compositing | Whether the pipeline stutters the application being captured |
 | Encoder duration handling | Per-sample durations being flattened onto a fixed grid |
+| **Spliced vs whole-clip re-encode** — same base clip through both passes, frame identities compared one to one, card presence read back per frame | A splice point that shifts, drops or duplicates frames, or lands the card on the wrong frames |
+| Audio through the overlay pass — a synthetic 440 Hz loopback track and a 1 kHz composited chime, read back by Goertzel | The remux losing the track, shortening it, or mixing the chime at the wrong time (both AAC passthrough and PCM re-encode modes) |
 
 `freezeAt`/`freezeFor` stop the window painting mid-recording, which is what a game that stops presenting
 looks like to the capture. Wired but not yet exercised.
 
 Per-frame offsets are written to `alignment_*.csv` next to the executable.
+
+The composition phase runs the overlay re-encoder three times over the same base clip: spliced (the
+default, `MediaFoundationOverlayReencoder.SpliceEnabled = true`) and whole-clip with a production-shaped
+card at the end of the clip and a chime mixed into the audio, then a card two seconds in with no chime.
+The spliced output must decode to the same source frame at the same output time as the whole-clip one,
+carry the card on exactly the frames the window covers, and keep its audio; the last case makes the plan
+copy after the card instead of before it and takes the AAC passthrough path. Each pass prints the plugin's
+own `Toast splice` lines (runs copied and re-encoded, per-run reader/sink/frames/finalize cost) so the
+saving is measured, not inferred. The harness records no real audio, so `ExportClip` writes one synthetic
+`aud_*.wav` chunk per video segment, named and timed like the audio recorder's, before exporting.
+
+The avcC check after it is what makes the splice possible at all: copied and re-encoded GOPs can share one
+track only if the two encoders emit byte-identical parameter sets. Measured on the NVIDIA MFT they do, at
+the higher re-encode bitrate too, but only when the re-encode declares the capture's frame rate: the rate
+is written into the SPS timing fields, and a base clip whose capture stalled averages below it (56 fps for
+a 60 fps capture, in one run), so deriving the rate from the clip produced a different SPS. The plugin
+declares the captured rate for re-encoded runs and compares sequence headers before it splices.
 
 ### Native lifetime/page-heap stress
 
