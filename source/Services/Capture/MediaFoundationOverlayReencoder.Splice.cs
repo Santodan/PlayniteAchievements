@@ -31,12 +31,18 @@ namespace PlayniteAchievements.Services.Capture
         // split costs, so the planner folds it into its re-encoded neighbours instead.
         private const double MinCopySeconds = 3.0;
 
-        // Consecutive clips whose re-encoded runs signalled different parameter sets from the
-        // capture's. One mismatch can be incidental (the D3D-manager sink failing over to the
-        // software encoder for that clip); a streak means this machine's encoder never agrees, and
-        // paying for the probe run on every clip stops being worth it.
-        private static int s_spliceMismatches;
-        private const int MaxSpliceMismatches = 3;
+        // Encoder configurations found to sign their output differently from the capture's, and how
+        // many more clips will take that verdict on trust before one pays to ask again. Keyed by
+        // the capture's own parameter sets plus the frame geometry and rate that shape the
+        // re-encode's; a session that changes capture resolution or rate asks again anyway.
+        // The verdict expires because which encoder gets selected is not fixed for the life of the
+        // process: a clip produced while every hardware encoding session was taken falls back to
+        // the software encoder, whose signature differs, and the hardware encoder coming free again
+        // should not leave the splice switched off until Playnite restarts.
+        private static readonly Dictionary<string, int> IncompatibleEncoders =
+            new Dictionary<string, int>(StringComparer.Ordinal);
+
+        private const int IncompatibleEncoderTrustedClips = 12;
 
         /// <summary>Diagnostic switch: the whole-clip pass runs unconditionally when false.</summary>
         internal bool SpliceEnabled { get; set; } = true;
@@ -69,11 +75,6 @@ namespace PlayniteAchievements.Services.Capture
             double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath,
             int configuredFps, RecordingQuality quality)
         {
-            if (System.Threading.Volatile.Read(ref s_spliceMismatches) >= MaxSpliceMismatches)
-            {
-                return false;
-            }
-
             var encoded = new List<EncodedRun>();
             try
             {
@@ -95,6 +96,9 @@ namespace PlayniteAchievements.Services.Capture
                     _logger?.Debug("[Recording] Toast splice: the base clip declares no H.264 sequence header; re-encoding the whole clip.");
                     return false;
                 }
+
+                _baseHeader = baseHeader;
+                _incompatible = false;
 
                 var timer = Stopwatch.StartNew();
                 var counts = default(CompositeCounts);
@@ -119,13 +123,14 @@ namespace PlayniteAchievements.Services.Capture
                     EncodeRun(
                         baseClipPath, run, overlays, item.Path, configuredFps, quality,
                         item.Stamps, ref counts, out frameW, out frameH);
-                    if (!RunIsSpliceable(baseHeader, item.Path, item.Stamps.Count))
+                    // The encoder's own signature was compared before this run encoded anything;
+                    // an abandoned run leaves an empty temp file and no frames.
+                    if (_incompatible || !RunIsSpliceable(baseHeader, item.Path, item.Stamps.Count))
                     {
                         return false;
                     }
                 }
 
-                System.Threading.Volatile.Write(ref s_spliceMismatches, 0);
                 var encodeMs = timer.ElapsedMilliseconds;
                 Remux(
                     baseClipPath, plan, encoded, trimLead, endInclusive - trimLead,
@@ -194,22 +199,151 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// Whether a re-encoded run can share a track with the base clip: its parameter sets must
+        /// The capture's parameter sets for the clip being spliced, and whether this export has
+        /// already found an encoder that will not match them. Set per export; the pass is
+        /// serialized by the caller's re-encode gate.
+        /// </summary>
+        private byte[] _baseHeader;
+        private bool _incompatible;
+
+        /// <summary>
+        /// Compares the parameter sets the encoder negotiated for a sink against the capture's,
+        /// before a single frame is encoded — the sink's encoder MFT publishes them on its output
+        /// type as soon as writing begins. Returns whether the pass may go on: false marks the
+        /// export incompatible and remembers this encoder configuration, so later clips skip even
+        /// creating a sink. A sink that publishes nothing yet leaves the verdict to the check the
+        /// finished run gets instead.
+        /// </summary>
+        private bool EncoderSignatureMatches(SinkWriter sink, int videoStream, string cacheKey)
+        {
+            var encoderHeader = TryReadNegotiatedSequenceHeader(sink, videoStream);
+            if (encoderHeader == null)
+            {
+                return true;
+            }
+
+            if (SequenceHeadersMatch(_baseHeader, encoderHeader))
+            {
+                return true;
+            }
+
+            lock (IncompatibleEncoders)
+            {
+                IncompatibleEncoders[cacheKey] = IncompatibleEncoderTrustedClips;
+            }
+
+            _incompatible = true;
+            _logger?.Info(
+                "[Recording] Toast splice: this machine's H.264 encoder signs its output differently from the " +
+                $"capture's ({Hex(encoderHeader)} vs {Hex(_baseHeader)}), so copied and re-encoded video cannot " +
+                "share a track; clips re-encode whole while that holds.");
+            return false;
+        }
+
+        /// <summary>
+        /// The H.264 sequence header the sink's encoder settled on, or null when no transform in the
+        /// chain publishes one yet.
+        /// </summary>
+        private static byte[] TryReadNegotiatedSequenceHeader(SinkWriter sink, int videoStream)
+        {
+            try
+            {
+                using (var writerEx = sink.QueryInterfaceOrNull<SinkWriterEx>())
+                {
+                    if (writerEx == null)
+                    {
+                        return null;
+                    }
+
+                    // The encoder is the last transform in the stream's chain; the bound matches
+                    // the one DescribeTransforms walks.
+                    byte[] header = null;
+                    for (var index = 0; index < 8; index++)
+                    {
+                        Transform transform = null;
+                        try
+                        {
+                            writerEx.GetTransformForStream(videoStream, index, out _, out transform);
+                            transform.GetOutputCurrentType(0, out var outputType);
+                            using (outputType)
+                            {
+                                header = outputType.Get(MediaTypeAttributeKeys.MpegSequenceHeader) ?? header;
+                            }
+                        }
+                        catch
+                        {
+                            break;
+                        }
+                        finally
+                        {
+                            transform?.Dispose();
+                        }
+                    }
+
+                    return header;
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Identifies an encoder configuration for the incompatibility cache.</summary>
+        private static string EncoderKey(byte[] baseHeader, int frameW, int frameH, int fps, RecordingQuality quality)
+        {
+            return $"{Hex(baseHeader)}|{frameW}x{frameH}@{fps}|{quality}";
+        }
+
+        /// <summary>
+        /// Whether this clip should skip the splice on a remembered verdict rather than set up a
+        /// sink to re-check. Each skip spends one of the verdict's trusted clips; the last one
+        /// forgets it, so the next clip asks the encoder again.
+        /// </summary>
+        private bool SkipKnownIncompatible(string cacheKey)
+        {
+            int remaining;
+            lock (IncompatibleEncoders)
+            {
+                if (!IncompatibleEncoders.TryGetValue(cacheKey, out remaining))
+                {
+                    return false;
+                }
+
+                remaining--;
+                if (remaining <= 0)
+                {
+                    IncompatibleEncoders.Remove(cacheKey);
+                }
+                else
+                {
+                    IncompatibleEncoders[cacheKey] = remaining;
+                }
+            }
+
+            _logger?.Debug(
+                "[Recording] Toast splice: this encoder configuration signed its output differently from the " +
+                $"capture's, so the whole clip is re-encoded ({remaining} more clip(s) before asking it again).");
+            return true;
+        }
+
+        /// <summary>
+        /// Whether a finished run can share a track with the base clip: its parameter sets must
         /// match the base clip's byte for byte, and it must hold exactly the frames it was given (an
-        /// encoder that dropped or reordered frames would put the stamps on the wrong pictures). A
-        /// parameter-set mismatch is a property of the encoder, so a streak of them is remembered.
+        /// encoder that dropped or reordered frames would put the stamps on the wrong pictures).
+        /// The first half normally settles before any frame is encoded (see
+        /// <see cref="EncoderSignatureMatches"/>); this is the backstop for an encoder that
+        /// publishes nothing until frames have flowed.
         /// </summary>
         private bool RunIsSpliceable(byte[] baseHeader, string runPath, int expectedFrames)
         {
             var runHeader = ReadSequenceHeader(runPath);
-            if (!BytesEqual(baseHeader, runHeader))
+            if (!SequenceHeadersMatch(baseHeader, runHeader))
             {
-                var streak = System.Threading.Interlocked.Increment(ref s_spliceMismatches);
                 _logger?.Info(
-                    "[Recording] Toast splice: the re-encoder's H.264 parameter sets differ from the capture's " +
+                    "[Recording] Toast splice: the re-encoded run's H.264 parameter sets differ from the capture's " +
                     $"({runHeader?.Length ?? 0} vs {baseHeader.Length} bytes: {Hex(runHeader)} vs {Hex(baseHeader)}), " +
-                    "so copied and re-encoded video cannot share a track; re-encoding this clip whole" +
-                    (streak >= MaxSpliceMismatches ? " and every clip after it." : "."));
+                    "so copied and re-encoded video cannot share a track; re-encoding this clip whole.");
                 return false;
             }
 
@@ -228,6 +362,79 @@ namespace PlayniteAchievements.Services.Capture
         private static string Hex(byte[] bytes)
         {
             return bytes == null ? "none" : BitConverter.ToString(bytes).Replace("-", string.Empty).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Whether two H.264 sequence headers declare the same thing: the same NAL units carrying
+        /// the same bytes, in the same order. The framing around them is not part of that — the
+        /// same encoder reports its parameter sets with four-byte start codes on its output type
+        /// and three-byte ones in the file it writes, so comparing the blobs whole calls a match a
+        /// mismatch.
+        /// </summary>
+        private static bool SequenceHeadersMatch(byte[] a, byte[] b)
+        {
+            var left = SplitNalUnits(a);
+            var right = SplitNalUnits(b);
+            if (left == null || right == null || left.Count != right.Count || left.Count == 0)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < left.Count; i++)
+            {
+                if (!BytesEqual(left[i], right[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// The Annex B NAL units in a blob, each without its start code. Start codes are three
+        /// bytes, optionally with leading zero bytes, so both framings split the same way.
+        /// </summary>
+        private static List<byte[]> SplitNalUnits(byte[] blob)
+        {
+            if (blob == null || blob.Length < 4)
+            {
+                return null;
+            }
+
+            var starts = new List<int>();
+            for (var i = 0; i + 2 < blob.Length; i++)
+            {
+                if (blob[i] == 0 && blob[i + 1] == 0 && blob[i + 2] == 1)
+                {
+                    starts.Add(i + 3);
+                    i += 2;
+                }
+            }
+
+            var units = new List<byte[]>(starts.Count);
+            for (var n = 0; n < starts.Count; n++)
+            {
+                var from = starts[n];
+                // The next unit's start code may carry leading zero bytes that belong to it, not to
+                // this unit; trailing zeros are never part of a parameter set's payload.
+                var to = n + 1 < starts.Count ? starts[n + 1] - 3 : blob.Length;
+                while (to > from && blob[to - 1] == 0)
+                {
+                    to--;
+                }
+
+                if (to <= from)
+                {
+                    continue;
+                }
+
+                var unit = new byte[to - from];
+                Array.Copy(blob, from, unit, 0, unit.Length);
+                units.Add(unit);
+            }
+
+            return units;
         }
 
         private static bool BytesEqual(byte[] a, byte[] b)
@@ -359,6 +566,16 @@ namespace PlayniteAchievements.Services.Capture
                 var width = frameW;
                 var height = frameH;
                 var readerMs = phase.ElapsedMilliseconds;
+
+                // An encoder configuration already known not to match the capture's signature never
+                // gets a sink: the splice cannot use what it produces.
+                var cacheKey = EncoderKey(_baseHeader, width, height, declaredFps, quality);
+                if (SkipKnownIncompatible(cacheKey))
+                {
+                    _incompatible = true;
+                    return;
+                }
+
                 SinkWriter sink = null;
                 try
                 {
@@ -366,6 +583,12 @@ namespace PlayniteAchievements.Services.Capture
                     sink = CreateEncodingSink(
                         tempPath, s => videoStream = AddVideoStream(s, width, height, stride, declaredFps, quality));
                     var sinkMs = phase.ElapsedMilliseconds - readerMs;
+                    if (!EncoderSignatureMatches(sink, videoStream, cacheKey))
+                    {
+                        return;
+                    }
+
+                    var signatureMs = phase.ElapsedMilliseconds - readerMs - sinkMs;
 
                     var skippedBefore = 0;
                     var firstDelivered = -1L;
@@ -415,7 +638,7 @@ namespace PlayniteAchievements.Services.Capture
                         WaitForEncoderQueue(sink, videoStream);
                     }
 
-                    var loopMs = phase.ElapsedMilliseconds - readerMs - sinkMs;
+                    var loopMs = phase.ElapsedMilliseconds - readerMs - sinkMs - signatureMs;
                     if (stamps.Count == 0)
                     {
                         throw new InvalidDataException(
@@ -431,8 +654,8 @@ namespace PlayniteAchievements.Services.Capture
                         $"[Recording] Toast splice run: {stamps.Count} frames from {run.Start / (double)OneSecond100ns:0.00}s " +
                         $"(reader delivered from {firstDelivered / (double)OneSecond100ns:0.000}s, {skippedBefore} before the run) " +
                         $"via {MediaFoundationH264Encoder.DescribeTransforms(sink, videoStream)}; " +
-                        $"reader {readerMs}ms, sink {sinkMs}ms, frames {loopMs}ms, " +
-                        $"finalize {phase.ElapsedMilliseconds - readerMs - sinkMs - loopMs}ms.");
+                        $"reader {readerMs}ms, sink {sinkMs}ms, signature {signatureMs}ms, frames {loopMs}ms, " +
+                        $"finalize {phase.ElapsedMilliseconds - readerMs - sinkMs - signatureMs - loopMs}ms.");
                 }
                 finally
                 {
