@@ -575,7 +575,7 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        private static bool IsKeyframe(Sample sample)
+        internal static bool IsKeyframe(Sample sample)
         {
             try
             {
