@@ -85,6 +85,10 @@ namespace PlayniteAchievements.Services.Recording
         // channels arrive on the back pair by position; see the class doc.
         private static readonly WaveFormat SurroundCaptureFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 8);
         private static readonly WaveFormat StereoFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2);
+        // Chunks are written as 16-bit PCM: half the bytes of the float mix they are folded from,
+        // which halves disk writes and doubles how far back the buffer budget reaches. The
+        // exporter reads 16-bit windows regardless of the source format.
+        private static readonly WaveFormat Pcm16StereoFormat = new WaveFormat(48000, 16, 2);
 
         private IWaveIn _systemCapture;
         // Game Only: the exclude-host track kept beside the include-game clip track, for a game that
@@ -95,6 +99,8 @@ namespace PlayniteAchievements.Services.Recording
         private BufferedWaveProvider _micBuffer;
         private ISampleProvider _mix;
         private WaveFormat _outputFormat;
+        // The 16-bit PCM form of _outputFormat that the clip-track chunks are written in.
+        private WaveFormat _writerFormat;
 
         private WaveFileWriter _writer;
         private StampedAuxiliaryTrack _stampedFallbackTrack;
@@ -285,6 +291,7 @@ namespace PlayniteAchievements.Services.Recording
                     }
 
                     _outputFormat = _mix.WaveFormat;
+                    _writerFormat = new WaveFormat(_outputFormat.SampleRate, 16, _outputFormat.Channels);
                     AttachFallbackTrack(_fallbackCapture);
 
                     _systemCapture.StartRecording();
@@ -314,7 +321,7 @@ namespace PlayniteAchievements.Services.Recording
                     _logger?.Info(
                         $"[Recording] Audio capture started (source={_source}, " +
                         $"mic={(_micCapture == null ? "False" : "'" + _micName + "'")}, " +
-                        $"{_outputFormat}, clipTrack={ClipTrack}" +
+                        $"{_writerFormat}, clipTrack={ClipTrack}" +
                         $"{(ExcludedSoundHostProcessId.HasValue ? " soundHostPid=" + ExcludedSoundHostProcessId.Value : string.Empty)}" +
                         $"{(HasFallbackTrack ? "+fallback" : string.Empty)}, haptics={haptics}).");
                     return true;
@@ -537,18 +544,21 @@ namespace PlayniteAchievements.Services.Recording
 
             if (_stampedFallbackTrack == null)
             {
-                _stampedFallbackTrack = new StampedAuxiliaryTrack(RecordingPaths.FallbackChunkFilePrefix, StereoFormat);
+                _stampedFallbackTrack = new StampedAuxiliaryTrack(RecordingPaths.FallbackChunkFilePrefix, Pcm16StereoFormat);
             }
 
+            // One downmixer per capture: its buffers are reused packet to packet, and the write
+            // below completes before the callback returns, so nothing holds them afterwards.
+            var downmixer = new SurroundDownmixer();
             fallback.StampedDataAvailable += (s, e) =>
             {
-                var stereo = SurroundDownmix.ToStereo(
-                    e?.Buffer, e?.Bytes ?? 0, fallback.WaveFormat.Channels, _dropActuatorChannels);
-                if (stereo != null)
+                var count = downmixer.ToStereoPcm16(
+                    e?.Buffer, e?.Bytes ?? 0, fallback.WaveFormat.Channels, _dropActuatorChannels, out var pcm);
+                if (count > 0)
                 {
                     WriteStampedAuxiliaryPacket(
                         _stampedFallbackTrack,
-                        new StampedPacketEventArgs(stereo, stereo.Length, e.CaptureUtc));
+                        new StampedPacketEventArgs(pcm, count, e.CaptureUtc));
                 }
             };
             fallback.RecordingStopped += (s, e) =>
@@ -846,7 +856,7 @@ namespace PlayniteAchievements.Services.Recording
             return (long)UnlockRecordingService.SegmentSeconds * sampleRate;
         }
 
-        private void AppendSystem(WaveInEventArgs packet)
+        private void AppendSystem(WaveInEventArgs packet, SurroundDownmixer downmixer)
         {
             if (!_extractControllerProgramAudio && !_reduceSurround)
             {
@@ -854,16 +864,28 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
-            var programAudio = _reduceSurround
-                ? SurroundDownmix.ToStereo(
+            if (_reduceSurround)
+            {
+                // The ring copies the bytes synchronously, so the downmixer's reused buffer is
+                // free again when Append returns.
+                var count = downmixer.ToStereoFloat(
                     packet?.Buffer,
                     packet?.BytesRecorded ?? 0,
                     _systemCapture?.WaveFormat?.Channels ?? 0,
-                    _dropActuatorChannels)
-                : ProcessLoopbackCapture.ExtractDualSenseProgramAudio(
-                    packet?.Buffer,
-                    packet?.BytesRecorded ?? 0,
-                    _systemCapture?.WaveFormat);
+                    _dropActuatorChannels,
+                    out var folded);
+                if (count > 0)
+                {
+                    Append(_systemBuffer, new WaveInEventArgs(folded, count));
+                }
+
+                return;
+            }
+
+            var programAudio = ProcessLoopbackCapture.ExtractDualSenseProgramAudio(
+                packet?.Buffer,
+                packet?.BytesRecorded ?? 0,
+                _systemCapture?.WaveFormat);
             if (programAudio == null)
             {
                 return;
@@ -1064,7 +1086,8 @@ namespace PlayniteAchievements.Services.Recording
 
         private void HookClipTrack(IWaveIn capture)
         {
-            capture.DataAvailable += (s, e) => AppendSystem(e);
+            var downmixer = new SurroundDownmixer();
+            capture.DataAvailable += (s, e) => AppendSystem(e, downmixer);
             if (_reduceSurround && capture is ProcessLoopbackCapture stampedClipTrack)
             {
                 stampedClipTrack.StampedDataAvailable += (s, e) => NoteClipTrackActivity(e);
@@ -1357,7 +1380,7 @@ namespace PlayniteAchievements.Services.Recording
                 _chunkStartWallClockSamples,
                 _outputFormat.SampleRate);
             var name = RecordingPaths.BuildAudioChunkFileName(prefix, startUtc);
-            _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _outputFormat);
+            _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _writerFormat);
             _chunkSamplesWritten = 0;
         }
 
