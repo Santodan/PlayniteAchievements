@@ -3,22 +3,29 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading;
-using NAudio.MediaFoundation;
-using PlayniteAchievements.Services.Sound;
 
-namespace PlayniteAchievements.SoundHost
+namespace PlayniteAchievements.Helper
 {
     /// <summary>
-    /// Entry point of the unlock-sound host. Reads protocol lines from stdin and exits when stdin
-    /// closes (the plugin died or disposed it), on "quit", or when the parent process named by
-    /// <c>--parent &lt;pid&gt;</c> is gone, so an orphan never outlives the plugin or blocks an
-    /// extension update from replacing the exe.
+    /// Entry point of the plugin's out-of-process helper. The first argument names the role the
+    /// process plays; everything else is role-specific. Today there is one role:
+    /// <list type="bullet">
+    /// <item><c>sound</c> — renders unlock sounds (<see cref="SoundRole"/>), so the recorder can
+    /// exclude this process from clip captures.</item>
+    /// </list>
+    /// Every role speaks a line protocol over stdin/stdout and exits when stdin closes (the plugin
+    /// died or disposed it) or when the parent process named by <c>--parent &lt;pid&gt;</c> is
+    /// gone, so an orphan never outlives the plugin or blocks an extension update from replacing
+    /// the exe.
     /// </summary>
     internal static class Program
     {
+        private const int UsageExitCode = 2;
+
         [MTAThread]
         private static int Main(string[] args)
         {
+            var role = args.Length > 0 && !args[0].StartsWith("--", StringComparison.Ordinal) ? args[0] : null;
             var utf8 = new UTF8Encoding(false);
             var stdoutGate = new object();
             var stdout = new StreamWriter(Console.OpenStandardOutput(), utf8) { AutoFlush = true };
@@ -36,48 +43,18 @@ namespace PlayniteAchievements.SoundHost
                 }
             };
 
-            MediaFoundationApi.Startup();
-            using (var engine = new SoundEngine(emit))
             using (var stdin = new StreamReader(Console.OpenStandardInput(), utf8))
+            using (WatchParent(ParseParentPid(args)))
             {
-                emit(SoundHostProtocol.EncodeReady(Process.GetCurrentProcess().Id));
-                using (WatchParent(ParseParentPid(args)))
+                switch (role)
                 {
-                    string line;
-                    while ((line = stdin.ReadLine()) != null)
-                    {
-                        if (!SoundHostProtocol.TryParse(line, out var message))
-                        {
-                            continue;
-                        }
-
-                        if (message.Verb == SoundHostProtocol.QuitVerb)
-                        {
-                            break;
-                        }
-
-                        Dispatch(engine, message);
-                    }
+                    case SoundRole.Name:
+                        return SoundRole.Run(emit, stdin);
+                    default:
+                        Console.Error.WriteLine(
+                            "usage: PlayniteAchievementsHelper.exe <role> [--parent <pid>]  roles: " + SoundRole.Name);
+                        return UsageExitCode;
                 }
-            }
-
-            MediaFoundationApi.Shutdown();
-            return 0;
-        }
-
-        private static void Dispatch(SoundEngine engine, SoundHostMessage message)
-        {
-            switch (message.Verb)
-            {
-                case SoundHostProtocol.PreloadVerb:
-                    engine.Preload(message.Paths);
-                    break;
-                case SoundHostProtocol.PlayVerb:
-                    engine.Play(message.Id, message.Path, message.Gain);
-                    break;
-                case SoundHostProtocol.StopVerb:
-                    engine.Stop();
-                    break;
             }
         }
 

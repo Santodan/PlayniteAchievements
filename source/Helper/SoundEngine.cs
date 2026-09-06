@@ -9,7 +9,7 @@ using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Wave;
 using PlayniteAchievements.Services.Sound;
 
-namespace PlayniteAchievements.SoundHost
+namespace PlayniteAchievements.Helper
 {
     /// <summary>
     /// Renders preloaded clips through one persistent shared-mode WASAPI stream. A play is a

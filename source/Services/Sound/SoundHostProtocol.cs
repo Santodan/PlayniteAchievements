@@ -16,7 +16,10 @@ namespace PlayniteAchievements.Services.Sound
     /// </summary>
     internal static class SoundHostProtocol
     {
-        public const string ExecutableName = "PlayniteAchievements.SoundHost.exe";
+        public const string ExecutableName = "PlayniteAchievementsHelper.exe";
+
+        /// <summary>The helper's role argument that selects the unlock-sound renderer.</summary>
+        public const string RoleArgument = "sound";
 
         public const string PreloadVerb = "preload";
         public const string PlayVerb = "play";

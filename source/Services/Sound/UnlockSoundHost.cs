@@ -90,7 +90,7 @@ namespace PlayniteAchievements.Services.Sound
                         StartInfo = new ProcessStartInfo
                         {
                             FileName = _executablePath,
-                            Arguments = "--parent " + Process.GetCurrentProcess().Id,
+                            Arguments = SoundHostProtocol.RoleArgument + " --parent " + Process.GetCurrentProcess().Id,
                             UseShellExecute = false,
                             CreateNoWindow = true,
                             RedirectStandardInput = true,

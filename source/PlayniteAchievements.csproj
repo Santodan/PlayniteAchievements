@@ -183,21 +183,21 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
-    <!-- SoundHost is its own exe project (see below); its sources must not compile into the plugin. -->
-    <Compile Include="**\*.cs" Exclude="bin\**;obj\**;SoundHost\**;**\*.g.cs;**\*.g.i.cs" />
+    <!-- Helper is its own exe project (see below); its sources must not compile into the plugin. -->
+    <Compile Include="**\*.cs" Exclude="bin\**;obj\**;Helper\**;**\*.g.cs;**\*.g.i.cs" />
   </ItemGroup>
   <ItemGroup>
     <!-- Builds the unlock-sound host before this project (ReferenceOutputAssembly=false: the plugin
          never references the exe) and ships only its exe as loose content beside the plugin dll, so
          Toolbox packs it. No second NAudio.dll and no .pdb come along; the copy is tracked by
          FileWrites so Clean removes it. -->
-    <ProjectReference Include="SoundHost\PlayniteAchievements.SoundHost.csproj">
+    <ProjectReference Include="Helper\PlayniteAchievements.Helper.csproj">
       <Project>{7A2E4C51-9B3D-4F6E-8C1A-2D5F7E9B0C43}</Project>
-      <Name>PlayniteAchievements.SoundHost</Name>
+      <Name>PlayniteAchievements.Helper</Name>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
-    <Content Include="SoundHost\bin\$(Configuration)\PlayniteAchievements.SoundHost.exe">
-      <Link>PlayniteAchievements.SoundHost.exe</Link>
+    <Content Include="Helper\bin\$(Configuration)\PlayniteAchievementsHelper.exe">
+      <Link>PlayniteAchievementsHelper.exe</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Visible>false</Visible>
     </Content>
