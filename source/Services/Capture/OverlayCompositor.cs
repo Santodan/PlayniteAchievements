@@ -16,11 +16,13 @@ namespace PlayniteAchievements.Services.Capture
     /// conversions and three full-frame copies per frame that made a carded frame cost about 2.6
     /// times a plain one at 1080p and dominated the re-encode.
     /// <para>
-    /// The buffer is addressed through <c>IMF2DBuffer</c> when the sample offers it, which hands
-    /// out the real scanline pointer and pitch; otherwise the contiguous buffer is locked and rows
-    /// are mapped by the decoded type's stride. A sample holding several buffers is first collapsed
-    /// to one, which the sample then keeps, so the caller's sample is always the one carrying the
-    /// card. The chroma plane follows the luma plane at the same pitch, NV12's layout.
+    /// The buffer is addressed through <see cref="IMF2DBuffer"/> when the sample offers it, which
+    /// hands out the real scanline pointer and pitch; otherwise the buffer is locked flat and rows
+    /// are mapped by the stride it was created with. A sample holding several buffers is first
+    /// collapsed to one, which the sample then keeps, so the caller's sample is always the one
+    /// carrying the card. The chroma plane follows the luma plane at the same pitch, NV12's layout;
+    /// the re-encoder hands over frames already repacked to the exact frame height, so that plane
+    /// sits exactly <c>frameH</c> rows down.
     /// </para>
     /// </summary>
     internal sealed class OverlayCompositor
@@ -105,16 +107,14 @@ namespace PlayniteAchievements.Services.Capture
         private bool TryBlend2D(
             MediaBuffer buffer, byte[] overlay, int overlayW, int overlayH, Rectangle region, Rectangle regionRect)
         {
-            var unknown = Marshal.GetObjectForIUnknown(buffer.NativePointer);
-            try
+            using (var view = Buffer2DHandle.From(buffer))
             {
-                var buffer2D = unknown as IMF2DBuffer;
-                if (buffer2D == null)
+                if (!view.IsValid)
                 {
                     return false;
                 }
 
-                buffer2D.Lock2D(out var scanline0, out var pitch);
+                view.Buffer.Lock2D(out var scanline0, out var pitch);
                 try
                 {
                     if (pitch <= 0)
@@ -126,14 +126,10 @@ namespace PlayniteAchievements.Services.Capture
                 }
                 finally
                 {
-                    buffer2D.Unlock2D();
+                    view.Buffer.Unlock2D();
                 }
 
                 return true;
-            }
-            finally
-            {
-                Marshal.ReleaseComObject(unknown);
             }
         }
 
@@ -199,29 +195,5 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        /// <summary>
-        /// Media Foundation's 2D buffer interface, declared by hand because SharpDX's binding of
-        /// <c>Lock2D</c> marshals the scanline pointer as a byte array.
-        /// </summary>
-        [ComImport]
-        [Guid("7DC9D5F9-9ED9-44EC-9BBF-0600BB589FBB")]
-        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IMF2DBuffer
-        {
-            void Lock2D(out IntPtr scanline0, out int pitch);
-
-            void Unlock2D();
-
-            void GetScanline0AndPitch(out IntPtr scanline0, out int pitch);
-
-            [return: MarshalAs(UnmanagedType.Bool)]
-            bool IsContiguousFormat();
-
-            int GetContiguousLength();
-
-            void ContiguousCopyTo(IntPtr destination, int destinationLength);
-
-            void ContiguousCopyFrom(IntPtr source, int sourceLength);
-        }
     }
 }
