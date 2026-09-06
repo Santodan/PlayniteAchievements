@@ -776,7 +776,7 @@ index 24d697d2e72b9fc4062e0e8d4421ceef911f7013..ac8bf488447fa00192116a06b61c6f99
 +  <Import Project="$(WinFxTargetsPath)" Condition="'$(MSBuildRuntimeType)' == 'Core' and '$(WinFxTargetsPath)' != ''" />
  </Project>
 diff --git a/source/PlayniteAchievementsPlugin.Menus.cs b/source/PlayniteAchievementsPlugin.Menus.cs
-index 02be1b0ca5c609dff13aa19daefa7a24e2290cb5..5e6ba23cc87f9dd77e5c885aadfb0deaa6514a61 100644
+index 02be1b0ca5c609dff13aa19daefa7a24e2290cb5..97494a8a640280274538ee8111185b1eabade361 100644
 --- a/source/PlayniteAchievementsPlugin.Menus.cs
 +++ b/source/PlayniteAchievementsPlugin.Menus.cs
 @@ -1,11 +1,13 @@
@@ -847,7 +847,7 @@ index 02be1b0ca5c609dff13aa19daefa7a24e2290cb5..5e6ba23cc87f9dd77e5c885aadfb0dea
 +                Action = _ => ChangeLocalSteamUserOverride(game, null)
 +            };
 +            var localProvider = Providers?.OfType<LocalSavesProvider>().FirstOrDefault();
-+            foreach (var user in localProvider?.GetAvailableSteamAppCacheUsers() ??
++            foreach (var user in localProvider?.GetAvailableSteamAppCacheUsersForMenu() ??
 +                     Enumerable.Empty<LocalSteamAppCacheUserOption>())
 +            {
 +                var userId = user.UserId;
@@ -946,7 +946,7 @@ index 892021b1c932c199f41b05b05f065367f735346e..06fc2e4d11f1d3ea0d736f24d9dc8b4e
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index 6f2543da504c063c15870117225cefd2ebbf8c70..13a9ec4a8f2d3809cb514222a8b670ce04933eee 100644
+index 6f2543da504c063c15870117225cefd2ebbf8c70..af0097353ca23c89ac767eda3e49c4381532c685 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -38,6 +38,7 @@
@@ -1144,7 +1144,21 @@ index 6f2543da504c063c15870117225cefd2ebbf8c70..13a9ec4a8f2d3809cb514222a8b670ce
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                  _gameCustomDataStore.AttachRuntimeSettings(settings);
-@@ -584,7 +701,9 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -473,6 +590,13 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+                     providers = _providerRegistry.CreateProviders(settings, PlayniteApi, pluginUserDataPath);
+                 }
+ 
++                // Steam-user discovery probes the filesystem and can take seconds on cold or
++                // unavailable drives. Warm the menu snapshot in the background so Playnite's
++                // UI-thread context-menu callback never has to perform that work.
++                providers.OfType<Providers.Local.LocalSavesProvider>()
++                    .FirstOrDefault()
++                    ?.GetAvailableSteamAppCacheUsersForMenu();
++
+                 // Phase 3: Wire core services, refresh pipeline, and tagging.
+                 using (PerfScope.StartStartup(_logger, "PluginCtor.RefreshServiceCreation", thresholdMs: 50))
+                 {
+@@ -584,7 +708,9 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          // Late-bound: the recording service is constructed just below, but the
                          // toast service only ever invokes this from an unlock handler, long after
                          // the field is assigned.
@@ -1155,7 +1169,7 @@ index 6f2543da504c063c15870117225cefd2ebbf8c70..13a9ec4a8f2d3809cb514222a8b670ce
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
                          settings,
-@@ -610,7 +729,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -610,7 +736,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _cacheManager,
                          _refreshService,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1164,7 +1178,7 @@ index 6f2543da504c063c15870117225cefd2ebbf8c70..13a9ec4a8f2d3809cb514222a8b670ce
                      _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
  
                      // Create tag sync service
-@@ -772,7 +891,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
+@@ -772,7 +898,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
                  Opened = () =>
                  {
                      return new OverviewHostControl(
@@ -1173,7 +1187,7 @@ index 6f2543da504c063c15870117225cefd2ebbf8c70..13a9ec4a8f2d3809cb514222a8b670ce
                          _logger,
                          PlayniteApi,
                          _refreshService,
-@@ -1161,6 +1280,11 @@ private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEve
+@@ -1161,6 +1287,11 @@ private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEve
                  ReconfigureInGameMonitor();
              }
  
@@ -1185,7 +1199,7 @@ index 6f2543da504c063c15870117225cefd2ebbf8c70..13a9ec4a8f2d3809cb514222a8b670ce
              if (e.PropertyName == nameof(PersistedSettings.UseUniformRarityBadges) ||
                  e.PropertyName == nameof(PersistedSettings.RarityColors))
              {
-@@ -1280,6 +1404,38 @@ private void ReconfigureInGameMonitor()
+@@ -1280,6 +1411,38 @@ private void ReconfigureInGameMonitor()
              }
          }
  
@@ -1224,7 +1238,7 @@ index 6f2543da504c063c15870117225cefd2ebbf8c70..13a9ec4a8f2d3809cb514222a8b670ce
          public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
          {
              _logger.Info("OnApplicationStopped called.");
-@@ -1317,6 +1473,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+@@ -1317,6 +1480,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
              DisposeStartPageViews();
  
              // Shutdown logging system
@@ -1232,7 +1246,7 @@ index 6f2543da504c063c15870117225cefd2ebbf8c70..13a9ec4a8f2d3809cb514222a8b670ce
              try { PluginLogger.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown logger: {ex}"); }
          }
  
-@@ -1653,6 +1810,17 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
+@@ -1653,6 +1817,17 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
                          continue;
                      }
  
@@ -1250,7 +1264,7 @@ index 6f2543da504c063c15870117225cefd2ebbf8c70..13a9ec4a8f2d3809cb514222a8b670ce
                      addedGameIds.Add(game.Id);
                  }
  
-@@ -1672,6 +1840,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
+@@ -1672,6 +1847,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
                          continue;
                      }
  
@@ -1262,7 +1276,7 @@ index 6f2543da504c063c15870117225cefd2ebbf8c70..13a9ec4a8f2d3809cb514222a8b670ce
                      _ = TriggerRemovedGameCleanupAsync(game);
                  }
              }
-@@ -1683,6 +1856,40 @@ private void Games_ItemUpdated(object sender, ItemUpdatedEventArgs<Game> e)
+@@ -1683,6 +1863,40 @@ private void Games_ItemUpdated(object sender, ItemUpdatedEventArgs<Game> e)
              // invalidate so the cached overview/start-page projection is rebuilt with fresh values.
              // Invalidate() coalesces bursts (e.g. library scans) via its warm debounce.
              _libraryProjectionService?.Invalidate();

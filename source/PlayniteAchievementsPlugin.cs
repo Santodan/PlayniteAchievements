@@ -590,6 +590,13 @@ namespace PlayniteAchievements
                     providers = _providerRegistry.CreateProviders(settings, PlayniteApi, pluginUserDataPath);
                 }
 
+                // Steam-user discovery probes the filesystem and can take seconds on cold or
+                // unavailable drives. Warm the menu snapshot in the background so Playnite's
+                // UI-thread context-menu callback never has to perform that work.
+                providers.OfType<Providers.Local.LocalSavesProvider>()
+                    .FirstOrDefault()
+                    ?.GetAvailableSteamAppCacheUsersForMenu();
+
                 // Phase 3: Wire core services, refresh pipeline, and tagging.
                 using (PerfScope.StartStartup(_logger, "PluginCtor.RefreshServiceCreation", thresholdMs: 50))
                 {

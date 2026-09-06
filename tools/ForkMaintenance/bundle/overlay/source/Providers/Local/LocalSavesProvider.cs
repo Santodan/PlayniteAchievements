@@ -109,6 +109,9 @@ namespace PlayniteAchievements.Providers.Local
         private IReadOnlyList<string> _steamUserdataRootsCache;
         private IReadOnlyList<string> _steamInstallRootsCache;
         private HashSet<int> _steamLocalProgressAppIdsCache;
+        private IReadOnlyList<LocalSteamAppCacheUserOption> _steamAppCacheUsersMenuCache;
+        private bool _steamAppCacheUsersMenuDiscoveryRunning;
+        private int _steamAppCacheUsersMenuCacheGeneration;
 
         private string ResolvedProviderIconKey
         {
@@ -4114,6 +4117,70 @@ namespace PlayniteAchievements.Providers.Local
                 .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
                 .Select(id => new LocalSteamAppCacheUserOption(id, BuildSteamAppCacheUserDisplayName(id, personaNamesById)))
                 .ToList();
+        }
+
+        /// <summary>
+        /// Returns the last Steam-user discovery snapshot without touching the filesystem. When no
+        /// snapshot exists, starts one background discovery and returns an empty list immediately.
+        /// This is intentionally separate from <see cref="GetAvailableSteamAppCacheUsers"/> because
+        /// Playnite enumerates game-menu items on its UI thread.
+        /// </summary>
+        internal IReadOnlyList<LocalSteamAppCacheUserOption> GetAvailableSteamAppCacheUsersForMenu()
+        {
+            int generation;
+            lock (_discoveryCacheLock)
+            {
+                if (_steamAppCacheUsersMenuCache != null)
+                {
+                    return _steamAppCacheUsersMenuCache;
+                }
+
+                if (_steamAppCacheUsersMenuDiscoveryRunning)
+                {
+                    return Array.Empty<LocalSteamAppCacheUserOption>();
+                }
+
+                _steamAppCacheUsersMenuDiscoveryRunning = true;
+                generation = _steamAppCacheUsersMenuCacheGeneration;
+            }
+
+            _ = Task.Run(() => PopulateSteamAppCacheUsersMenuCache(generation));
+            return Array.Empty<LocalSteamAppCacheUserOption>();
+        }
+
+        private void PopulateSteamAppCacheUsersMenuCache(int generation)
+        {
+            var startedUtc = DateTime.UtcNow;
+            try
+            {
+                var users = GetAvailableSteamAppCacheUsers();
+                lock (_discoveryCacheLock)
+                {
+                    if (generation == _steamAppCacheUsersMenuCacheGeneration)
+                    {
+                        _steamAppCacheUsersMenuCache = users?.ToList() ??
+                            new List<LocalSteamAppCacheUserOption>();
+                    }
+                }
+
+                _logger?.Debug(
+                    $"[Local] Background Steam menu-user discovery completed: " +
+                    $"users={users?.Count ?? 0}, ms={(DateTime.UtcNow - startedUtc).TotalMilliseconds:0}.");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[Local] Background Steam menu-user discovery failed.");
+            }
+            finally
+            {
+                lock (_discoveryCacheLock)
+                {
+                    if (generation == _steamAppCacheUsersMenuCacheGeneration)
+                    {
+                        _steamAppCacheUsersMenuDiscoveryRunning = false;
+                    }
+                }
+            }
         }
 
         private void TryReadSteamLoginUsers(string steamBasePath, IDictionary<string, string> personaNamesById)
@@ -10101,6 +10168,9 @@ namespace PlayniteAchievements.Providers.Local
                     _steamInstallRootsCache = null;
                     _steamUserdataRootsCache = null;
                     _steamLocalProgressAppIdsCache = null;
+                    _steamAppCacheUsersMenuCache = null;
+                    _steamAppCacheUsersMenuDiscoveryRunning = false;
+                    _steamAppCacheUsersMenuCacheGeneration++;
                     _steamAppCacheSchemaFilePathsCache.Clear();
                     _localFolderCandidatesCache.Clear();
                 }

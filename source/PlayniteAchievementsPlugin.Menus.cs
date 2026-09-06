@@ -415,7 +415,7 @@ namespace PlayniteAchievements
                 Action = _ => ChangeLocalSteamUserOverride(game, null)
             };
             var localProvider = Providers?.OfType<LocalSavesProvider>().FirstOrDefault();
-            foreach (var user in localProvider?.GetAvailableSteamAppCacheUsers() ??
+            foreach (var user in localProvider?.GetAvailableSteamAppCacheUsersForMenu() ??
                      Enumerable.Empty<LocalSteamAppCacheUserOption>())
             {
                 var userId = user.UserId;
