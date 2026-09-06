@@ -81,7 +81,10 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>The runs in output order, alternating in kind.</summary>
         public IReadOnlyList<Run> Runs { get; }
 
-        /// <summary>Base-clip time the output starts at: the keyframe lead being trimmed off.</summary>
+        /// <summary>
+        /// Base-clip time the first run starts at: the trimmed lead, or the first keyframe after it
+        /// when no frame falls between the two.
+        /// </summary>
         public long Start { get; }
 
         /// <summary>Exclusive base-clip end of the output.</summary>
@@ -263,13 +266,37 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             runs = AbsorbShortCopies(runs, minCopyTicks);
-            var plan = new OverlaySplicePlan(runs, trimLead, end);
-            if (plan.CountFrames(samples) == 0)
+            CountFrames(runs, samples, trimLead, end);
+            // A run no frame falls in (a head narrower than one frame, an interval inside a
+            // capture gap) has nothing to encode or copy; dropping it may leave two runs of one
+            // kind adjacent, which merge.
+            runs = MergeAdjacent(runs.FindAll(run => run.Frames > 0));
+            if (runs.Count == 0)
             {
                 return null;
             }
 
-            return plan;
+            var plan = new OverlaySplicePlan(runs, runs[0].Start, end);
+            return plan.CopyFrames > 0 ? plan : null;
+        }
+
+        private static List<Run> MergeAdjacent(List<Run> runs)
+        {
+            var result = new List<Run>(runs.Count);
+            foreach (var run in runs)
+            {
+                var last = result.Count > 0 ? result[result.Count - 1] : null;
+                if (last != null && last.Kind == run.Kind)
+                {
+                    last.End = run.End;
+                    last.Frames += run.Frames;
+                    continue;
+                }
+
+                result.Add(run);
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -311,29 +338,27 @@ namespace PlayniteAchievements.Services.Capture
             return result;
         }
 
-        /// <summary>Counts each run's frames; returns how many were copied.</summary>
-        private int CountFrames(IReadOnlyList<SampleInfo> samples)
+        /// <summary>Counts the kept samples falling in each run.</summary>
+        private static void CountFrames(List<Run> runs, IReadOnlyList<SampleInfo> samples, long start, long end)
         {
             var index = 0;
             foreach (var sample in samples)
             {
-                if (sample.Time < Start || sample.Time >= End)
+                if (sample.Time < start || sample.Time >= end)
                 {
                     continue;
                 }
 
-                while (index < Runs.Count && sample.Time >= Runs[index].End)
+                while (index < runs.Count && sample.Time >= runs[index].End)
                 {
                     index++;
                 }
 
-                if (index < Runs.Count)
+                if (index < runs.Count)
                 {
-                    Runs[index].Frames++;
+                    runs[index].Frames++;
                 }
             }
-
-            return CopyFrames;
         }
 
         private static long FirstKeyframeAtOrAfter(List<long> keyframes, long time)

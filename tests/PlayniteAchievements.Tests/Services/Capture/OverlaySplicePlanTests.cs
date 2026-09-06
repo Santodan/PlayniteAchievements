@@ -149,6 +149,18 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
+        public void Plan_DropsAHeadNarrowerThanOneFrame()
+        {
+            // The window starts 12 ms before the keyframe at 1 s: no frame lies in [0.988 s, 1 s).
+            var plan = OverlaySplicePlan.TryPlan(Clip(10), Ticks(0.988), new[] { Card(6.0, 9.5) }, Ticks(10), Ticks(3));
+
+            Assert.IsNotNull(plan);
+            Assert.AreEqual("copy[1,6) recode[6,10)", Describe(plan));
+            Assert.IsTrue(plan.Runs.All(r => r.Frames > 0), Describe(plan));
+            AssertAlternates(plan);
+        }
+
+        [TestMethod]
         public void Plan_HasNoHeadWhenThereIsNoLead()
         {
             var plan = OverlaySplicePlan.TryPlan(Clip(10), 0, new[] { Card(6.0, 9.5) }, Ticks(10), Ticks(3));
