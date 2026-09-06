@@ -181,7 +181,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
             StringAssert.Contains(service, "the clip keeps the live unlock sound");
 
             var decide = service.IndexOf("ChimeCompositeDecision.Decide(", StringComparison.Ordinal);
-            var pidRead = service.IndexOf("_getSoundHostProcessId?.Invoke());", decide, StringComparison.Ordinal);
+            var pidRead = service.IndexOf("_getSoundHostProcessId?.Invoke(),", decide, StringComparison.Ordinal);
             var allows = service.IndexOf(
                 "if (ChimeCompositeDecision.AllowsComposite(verdict))", decide, StringComparison.Ordinal);
             var cleared = service.IndexOf("chimePcm = null;", allows, StringComparison.Ordinal);
@@ -203,6 +203,11 @@ namespace PlayniteAchievements.Services.Tests.Recording
             // A pad plugged in after the game started must still have its back pair dropped.
             StringAssert.Contains(recorder, "RescanControllerIfDue();");
             StringAssert.Contains(recorder, "private volatile bool _dropActuatorChannels;");
+            // Device changes arrive by notification, with the poll as the fallback; a restarted
+            // sound host re-binds the excluding capture and records the uncovered span.
+            StringAssert.Contains(recorder, "AudioEndpointEnumerator.WatchEndpoints(");
+            StringAssert.Contains(recorder, "RebindClipTrackIfHostChanged();");
+            StringAssert.Contains(recorder, "public bool HostExclusionCovered(DateTime startUtc, DateTime endUtc)");
             // A pad the classifier has never heard of is caught by its 4-channel quad layout.
             var scan = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "RenderEndpointScan.cs"));
@@ -334,8 +339,10 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 StringSplitOptions.None).Length - 1);
             StringAssert.Contains(reencode, "request.UsedFallbackTrack");
             StringAssert.Contains(reencode, "chimePcm, chimeStartSeconds");
-            // The mixed file has no launch-to-audible latency, so the live alignment delay is
-            // always subtracted from the measured stamp gap.
+            // Placement prefers the host's measured audible onset; only without one is the live
+            // alignment delay subtracted from the launch-to-card stamp gap.
+            StringAssert.Contains(reencode, "_getSoundAudibleOnsetUtc?.Invoke(playbackId.Value)");
+            StringAssert.Contains(reencode, "(track.StartUtc - measuredOnset.Value).TotalSeconds");
             StringAssert.Contains(reencode, "(alignmentMs ?? ChimeAlignmentFallbackMs) / 1000.0");
         }
 

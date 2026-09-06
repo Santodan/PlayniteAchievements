@@ -84,6 +84,23 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
+        public void ExclusionGapInsideTheWindow_RefusesTheCompositeEvenWithAStablePid()
+        {
+            // The host restarted and the capture was re-bound: the pid matches again at export,
+            // but sounds played between the restart and the re-bind were never excluded.
+            var verdict = ChimeCompositeDecision.Decide(
+                audioRecorded: true, clipTrack: ClipTrackKind.ExcludeSoundHost, usedFallbackTrack: false,
+                excludedHostProcessId: 4243, currentHostProcessId: 4243, exclusionCoveredWindow: false);
+            Assert.AreEqual(ChimeCompositeVerdict.HostChanged, verdict);
+
+            // The game-tree track never held the host, gap or not.
+            var gameTree = ChimeCompositeDecision.Decide(
+                audioRecorded: true, clipTrack: ClipTrackKind.IncludeGame, usedFallbackTrack: false,
+                excludedHostProcessId: 4243, currentHostProcessId: 4243, exclusionCoveredWindow: false);
+            Assert.AreEqual(ChimeCompositeVerdict.HostExcluded, gameTree);
+        }
+
+        [TestMethod]
         public void ExcludeSoundHost_WithoutARecordedPid_NeverAllowsTheComposite()
         {
             var verdict = ChimeCompositeDecision.Decide(
