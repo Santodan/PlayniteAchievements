@@ -6,113 +6,222 @@ using SharpDX.MediaFoundation;
 namespace PlayniteAchievements.Services.Capture
 {
     /// <summary>
-    /// Composites the toast card in system memory: the decoded frame is copied into a managed buffer,
-    /// blended by <see cref="OverlayBlitMath"/>, and copied into a fresh Media Foundation buffer. Costs
-    /// three full-frame copies plus (for bottom-up rows) two row flips per composited frame — about
-    /// 44 MB of memcpy at 1440p. Only the frames the card covers pay that, and the pass around it is
-    /// dominated by decode and encode, so it costs about 95 ms on a 15 s clip; the GPU-resident version
-    /// that replaced it was far faster per frame but composited the wrong frames, so this is the one
-    /// that ships. Kept separate from the write loop so which frames get a card stays independent of how
-    /// the pixels are touched.
+    /// Blends a premultiplied-BGRA overlay into a decoded NV12 frame in place. Only the chroma
+    /// blocks the card's rectangle covers are touched: their luma and chroma rows are copied out
+    /// of the sample's own buffer, blended by <see cref="OverlayBlitMath.BlendOntoNv12"/>, and
+    /// copied back, so a card costs its own area rather than the frame's. The earlier version
+    /// worked on RGB32: the reader converted every decoded frame to RGB, the compositor copied the
+    /// whole frame into managed memory, blended, allocated a fresh Media Foundation buffer and
+    /// copied the frame back, and the encoding sink converted RGB back to NV12 — two colour
+    /// conversions and three full-frame copies per frame that made a carded frame cost about 2.6
+    /// times a plain one at 1080p and dominated the re-encode.
+    /// <para>
+    /// The buffer is addressed through <c>IMF2DBuffer</c> when the sample offers it, which hands
+    /// out the real scanline pointer and pitch; otherwise the contiguous buffer is locked and rows
+    /// are mapped by the decoded type's stride. A sample holding several buffers is first collapsed
+    /// to one, which the sample then keeps, so the caller's sample is always the one carrying the
+    /// card. The chroma plane follows the luma plane at the same pitch, NV12's layout.
+    /// </para>
     /// </summary>
     internal sealed class OverlayCompositor
     {
-        private byte[] _frameBuffer;
-        private readonly int _absStride;
-        private readonly bool _bottomUp;
+        private readonly int _stride;
         private readonly int _frameW;
         private readonly int _frameH;
+        private byte[] _yRegion;
+        private byte[] _uvRegion;
 
         /// <param name="stride">
-        /// The decoded type's default stride. Negative means bottom-up rows, which the blend has to be
-        /// normalized around: <see cref="OverlayBlitMath.BlendOnto"/> works top-down.
+        /// The decoded type's default stride (bytes per luma row), used only by the contiguous
+        /// fallback; the 2D path reads the pitch from the buffer itself.
         /// </param>
         public OverlayCompositor(int frameW, int frameH, int stride)
         {
             _frameW = frameW;
             _frameH = frameH;
-            _absStride = Math.Abs(stride);
-            _bottomUp = stride < 0;
+            _stride = Math.Abs(stride);
         }
 
-        public Sample Compose(Sample source, byte[] overlay, int overlayW, int overlayH, Rectangle destRect)
+        /// <summary>
+        /// Draws the overlay into <paramref name="frame"/> at <paramref name="destRect"/>
+        /// (nearest-neighbour scaled, clipped to the frame). Returns false when nothing was drawn:
+        /// no overlay, or a rectangle entirely off the frame.
+        /// </summary>
+        public bool Compose(Sample frame, byte[] overlay, int overlayW, int overlayH, Rectangle destRect)
         {
-            if (source == null || overlay == null)
+            if (frame == null || overlay == null || overlayW <= 0 || overlayH <= 0)
             {
-                return null;
+                return false;
             }
 
-            // Allocated on first use: this is the fallback path, and a full frame at 1440p is a 14 MB
-            // large-object allocation not worth making on every export that never touches it.
-            if (_frameBuffer == null)
+            var region = OverlayBlitMath.AlignToChromaBlocks(
+                OverlayBlitMath.ClipToFrame(destRect, _frameW, _frameH), _frameW, _frameH);
+            if (region.IsEmpty)
             {
-                _frameBuffer = new byte[_absStride * _frameH];
+                return false;
             }
 
-            using (var buffer = source.ConvertToContiguousBuffer())
+            var lumaLength = region.Width * region.Height;
+            if (_yRegion == null || _yRegion.Length < lumaLength)
             {
-                var ptr = buffer.Lock(out _, out var currentLength);
-                try
+                _yRegion = new byte[lumaLength];
+                _uvRegion = new byte[lumaLength / 2];
+            }
+
+            // The rectangle relative to the region, so the blit's own clipping lands the same pixels.
+            var regionRect = new Rectangle(
+                destRect.X - region.X, destRect.Y - region.Y, destRect.Width, destRect.Height);
+
+            if (frame.BufferCount == 1)
+            {
+                using (var buffer = frame.GetBufferByIndex(0))
                 {
-                    var length = Math.Min(currentLength, _frameBuffer.Length);
-                    Marshal.Copy(ptr, _frameBuffer, 0, length);
+                    if (!TryBlend2D(buffer, overlay, overlayW, overlayH, region, regionRect))
+                    {
+                        BlendContiguous(buffer, overlay, overlayW, overlayH, region, regionRect);
+                    }
                 }
-                finally
-                {
-                    buffer.Unlock();
-                }
+
+                return true;
             }
 
-            // A negative stride means bottom-up rows: normalize to top-down, blit, restore.
-            if (_bottomUp)
+            // Several buffers: collapse to one contiguous buffer, blend into it, and make it the
+            // sample's only buffer so the composited pixels are what the sink receives.
+            using (var contiguous = frame.ConvertToContiguousBuffer())
             {
-                FlipRows(_frameBuffer, _absStride, _frameH);
+                BlendContiguous(contiguous, overlay, overlayW, overlayH, region, regionRect);
+                frame.RemoveAllBuffers();
+                frame.AddBuffer(contiguous);
             }
 
-            OverlayBlitMath.BlendOnto(
-                _frameBuffer, _frameW, _frameH, _absStride, overlay, overlayW, overlayH, destRect);
+            return true;
+        }
 
-            if (_bottomUp)
-            {
-                FlipRows(_frameBuffer, _absStride, _frameH);
-            }
-
-            var outBuffer = MediaFactory.CreateMemoryBuffer(_frameBuffer.Length);
+        /// <summary>
+        /// The 2D path: locks the buffer's scanlines directly. Returns false when the buffer does
+        /// not implement <c>IMF2DBuffer</c> or reports a bottom-up pitch (never the case for NV12),
+        /// leaving the contiguous fallback to do the work.
+        /// </summary>
+        private bool TryBlend2D(
+            MediaBuffer buffer, byte[] overlay, int overlayW, int overlayH, Rectangle region, Rectangle regionRect)
+        {
+            var unknown = Marshal.GetObjectForIUnknown(buffer.NativePointer);
             try
             {
-                var outPtr = outBuffer.Lock(out _, out _);
+                var buffer2D = unknown as IMF2DBuffer;
+                if (buffer2D == null)
+                {
+                    return false;
+                }
+
+                buffer2D.Lock2D(out var scanline0, out var pitch);
                 try
                 {
-                    Marshal.Copy(_frameBuffer, 0, outPtr, _frameBuffer.Length);
+                    if (pitch <= 0)
+                    {
+                        return false;
+                    }
+
+                    BlendPlanes(scanline0, pitch, overlay, overlayW, overlayH, region, regionRect);
                 }
                 finally
                 {
-                    outBuffer.Unlock();
+                    buffer2D.Unlock2D();
                 }
 
-                outBuffer.CurrentLength = _frameBuffer.Length;
-
-                var outSample = MediaFactory.CreateSample();
-                outSample.AddBuffer(outBuffer);
-                return outSample;
+                return true;
             }
             finally
             {
-                outBuffer.Dispose();
+                Marshal.ReleaseComObject(unknown);
             }
         }
 
-        private static void FlipRows(byte[] buffer, int stride, int height)
+        /// <summary>The contiguous path: a 1D lock with rows laid out by the decoded type's stride.</summary>
+        private void BlendContiguous(
+            MediaBuffer buffer, byte[] overlay, int overlayW, int overlayH, Rectangle region, Rectangle regionRect)
         {
-            var temp = new byte[stride];
-            for (int top = 0, bottom = height - 1; top < bottom; top++, bottom--)
+            var ptr = buffer.Lock(out _, out var currentLength);
+            try
             {
-                Buffer.BlockCopy(buffer, top * stride, temp, 0, stride);
-                Buffer.BlockCopy(buffer, bottom * stride, buffer, top * stride, stride);
-                Buffer.BlockCopy(temp, 0, buffer, bottom * stride, stride);
+                if (currentLength < _stride * _frameH * 3 / 2)
+                {
+                    return;
+                }
+
+                BlendPlanes(ptr, _stride, overlay, overlayW, overlayH, region, regionRect);
+            }
+            finally
+            {
+                buffer.Unlock();
             }
         }
 
+        /// <summary>
+        /// Copies the region's luma rows and the chroma rows beneath them out of the frame, blends
+        /// the overlay into them, and copies both back. The chroma plane starts <c>frameH</c> rows
+        /// below the luma plane and shares its pitch; its rows cover two luma rows each.
+        /// </summary>
+        private void BlendPlanes(
+            IntPtr scanline0, int pitch, byte[] overlay, int overlayW, int overlayH, Rectangle region, Rectangle regionRect)
+        {
+            var chromaPlane = IntPtr.Add(scanline0, pitch * _frameH);
+            var chromaRows = region.Height / 2;
+            for (var row = 0; row < region.Height; row++)
+            {
+                Marshal.Copy(
+                    IntPtr.Add(scanline0, ((region.Y + row) * pitch) + region.X),
+                    _yRegion, row * region.Width, region.Width);
+            }
+
+            for (var row = 0; row < chromaRows; row++)
+            {
+                Marshal.Copy(
+                    IntPtr.Add(chromaPlane, (((region.Y / 2) + row) * pitch) + region.X),
+                    _uvRegion, row * region.Width, region.Width);
+            }
+
+            OverlayBlitMath.BlendOntoNv12(
+                _yRegion, _uvRegion, region.Width, region.Height, overlay, overlayW, overlayH, regionRect);
+
+            for (var row = 0; row < region.Height; row++)
+            {
+                Marshal.Copy(
+                    _yRegion, row * region.Width,
+                    IntPtr.Add(scanline0, ((region.Y + row) * pitch) + region.X), region.Width);
+            }
+
+            for (var row = 0; row < chromaRows; row++)
+            {
+                Marshal.Copy(
+                    _uvRegion, row * region.Width,
+                    IntPtr.Add(chromaPlane, (((region.Y / 2) + row) * pitch) + region.X), region.Width);
+            }
+        }
+
+        /// <summary>
+        /// Media Foundation's 2D buffer interface, declared by hand because SharpDX's binding of
+        /// <c>Lock2D</c> marshals the scanline pointer as a byte array.
+        /// </summary>
+        [ComImport]
+        [Guid("7DC9D5F9-9ED9-44EC-9BBF-0600BB589FBB")]
+        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IMF2DBuffer
+        {
+            void Lock2D(out IntPtr scanline0, out int pitch);
+
+            void Unlock2D();
+
+            void GetScanline0AndPitch(out IntPtr scanline0, out int pitch);
+
+            [return: MarshalAs(UnmanagedType.Bool)]
+            bool IsContiguousFormat();
+
+            int GetContiguousLength();
+
+            void ContiguousCopyTo(IntPtr destination, int destinationLength);
+
+            void ContiguousCopyFrom(IntPtr source, int sourceLength);
+        }
     }
 }
-

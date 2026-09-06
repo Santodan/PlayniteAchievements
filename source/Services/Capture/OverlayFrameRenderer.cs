@@ -65,23 +65,21 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// A new sample with the card blended onto <paramref name="source"/> when
-        /// <paramref name="baseTime"/> falls inside the card interval and the track has a frame for
-        /// it; null otherwise, in which case the caller passes the source frame through. The source
-        /// is never modified or disposed here.
+        /// Blends the card into <paramref name="frame"/> in place when <paramref name="baseTime"/>
+        /// falls inside the card interval and the track has a frame for it; returns whether it did.
         /// </summary>
-        public Sample TryCompose(Sample source, long baseTime)
+        public bool TryCompose(Sample frame, long baseTime)
         {
             if (!Covers(baseTime))
             {
-                return null;
+                return false;
             }
 
             var secondsIntoTrack = (baseTime - _toastStart) / (double)OneSecond100ns;
             var sampleIndex = _track.FindSampleIndexAtOrBefore(secondsIntoTrack);
             if (sampleIndex < 0 || !TryGetOverlay(sampleIndex, out var overlayFrame))
             {
-                return null;
+                return false;
             }
 
             // Pixels hold at the nearest-previous sample; the position is synthesized (lone-toast
@@ -151,7 +149,7 @@ namespace PlayniteAchievements.Services.Capture
                 overlayPixels = _glowScratch;
             }
 
-            return _compositor.Compose(source, overlayPixels, overlayFrame.Width, overlayFrame.Height, destRect);
+            return _compositor.Compose(frame, overlayPixels, overlayFrame.Width, overlayFrame.Height, destRect);
         }
 
         /// <summary>

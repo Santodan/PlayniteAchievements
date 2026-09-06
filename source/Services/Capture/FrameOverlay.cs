@@ -24,16 +24,17 @@ namespace PlayniteAchievements.Services.Capture
     internal interface IFrameOverlay
     {
         /// <summary>
-        /// A new sample with the overlay drawn onto <paramref name="source"/>, or null to leave
-        /// the frame as it is. Never modifies or disposes the source.
+        /// Draws the overlay into <paramref name="frame"/> in place when <paramref name="baseTime"/>
+        /// falls inside its interval and it has something to draw; returns whether it did. Never
+        /// disposes the frame.
         /// </summary>
-        Sample TryCompose(Sample source, long baseTime);
+        bool TryCompose(Sample frame, long baseTime);
     }
 
     /// <summary>
-    /// The overlays of one export applied in order to each frame, each drawing onto the previous
-    /// one's result, so any number of cards or other marks compose without knowing about each
-    /// other. Frames no overlay touches pass through untouched.
+    /// The overlays of one export applied in order to each frame, each drawing over the previous
+    /// one's result in the same buffer, so any number of cards or other marks compose without
+    /// knowing about each other. Frames no overlay touches pass through untouched.
     /// </summary>
     internal sealed class FrameOverlayStack
     {
@@ -68,26 +69,16 @@ namespace PlayniteAchievements.Services.Capture
             return intervals;
         }
 
-        /// <summary>
-        /// The composited frame, or null when no overlay drew on it. The source is never modified
-        /// or disposed; intermediate results are.
-        /// </summary>
-        public Sample TryCompose(Sample source, long baseTime)
+        /// <summary>Draws every overlay covering this frame into it; returns whether any did.</summary>
+        public bool TryCompose(Sample frame, long baseTime)
         {
-            Sample current = null;
+            var drew = false;
             foreach (var overlay in _overlays)
             {
-                var next = overlay.TryCompose(current ?? source, baseTime);
-                if (next == null)
-                {
-                    continue;
-                }
-
-                current?.Dispose();
-                current = next;
+                drew |= overlay.TryCompose(frame, baseTime);
             }
 
-            return current;
+            return drew;
         }
     }
 
