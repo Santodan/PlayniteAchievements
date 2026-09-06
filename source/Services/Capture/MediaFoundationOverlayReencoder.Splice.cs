@@ -59,7 +59,7 @@ namespace PlayniteAchievements.Services.Capture
         private bool TrySpliceExport(
             string baseClipPath, IReadOnlyList<IFrameOverlaySource> overlays, double trimLeadSeconds,
             double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath,
-            int configuredFps, RecordingQuality quality, DXGIDeviceManager deviceManager)
+            int configuredFps, RecordingQuality quality)
         {
             if (System.Threading.Volatile.Read(ref s_spliceMismatches) >= MaxSpliceMismatches)
             {
@@ -80,6 +80,7 @@ namespace PlayniteAchievements.Services.Capture
                     return false;
                 }
 
+                _logger?.Debug("[Recording] Toast splice plan: " + DescribeRuns(plan));
                 var baseHeader = ReadSequenceHeader(baseClipPath);
                 if (baseHeader == null || baseHeader.Length == 0)
                 {
@@ -108,7 +109,7 @@ namespace PlayniteAchievements.Services.Capture
                     };
                     encoded.Add(item);
                     EncodeRun(
-                        baseClipPath, deviceManager, run, overlays, item.Path, configuredFps, quality,
+                        baseClipPath, run, overlays, item.Path, configuredFps, quality,
                         item.Stamps, ref counts, out frameW, out frameH);
                     if (!RunIsSpliceable(baseHeader, item.Path, item.Stamps.Count))
                     {
@@ -142,6 +143,19 @@ namespace PlayniteAchievements.Services.Capture
                     TryDelete(item.Path);
                 }
             }
+        }
+
+        private static string DescribeRuns(OverlaySplicePlan plan)
+        {
+            var parts = new List<string>(plan.Runs.Count);
+            foreach (var run in plan.Runs)
+            {
+                parts.Add(
+                    (run.Kind == OverlaySplicePlan.RunKind.Copy ? "copy" : "recode") +
+                    $"[{run.Start / (double)OneSecond100ns:0.000}, {run.End / (double)OneSecond100ns:0.000}) {run.Frames}f");
+            }
+
+            return string.Join(" ", parts);
         }
 
         private static string RunPath(string outputPath, int index)
@@ -306,14 +320,14 @@ namespace PlayniteAchievements.Services.Capture
         /// before it.
         /// </summary>
         private void EncodeRun(
-            string baseClipPath, DXGIDeviceManager deviceManager, OverlaySplicePlan.Run run,
+            string baseClipPath, OverlaySplicePlan.Run run,
             IReadOnlyList<IFrameOverlaySource> overlays, string tempPath, int configuredFps,
             RecordingQuality quality, List<FrameStamp> stamps, ref CompositeCounts counts,
             out int frameW, out int frameH)
         {
             var phase = Stopwatch.StartNew();
             using (var videoReader = CreateDecodingVideoReader(baseClipPath))
-            using (var decodedType = ConfigureRgb32Output(
+            using (var decodedType = ConfigureNv12Output(
                 videoReader, configuredFps, out frameW, out frameH, out var fps, out var stride))
             {
                 if (run.Start > 0)
@@ -342,11 +356,12 @@ namespace PlayniteAchievements.Services.Capture
                 {
                     var videoStream = -1;
                     sink = CreateEncodingSink(
-                        tempPath, deviceManager,
-                        s => videoStream = AddVideoStream(s, decodedType, width, height, declaredFps, quality),
-                        null, out var usedManager);
+                        tempPath, s => videoStream = AddVideoStream(s, width, height, stride, declaredFps, quality));
                     var sinkMs = phase.ElapsedMilliseconds - readerMs;
 
+                    var skippedBefore = 0;
+                    var firstDelivered = -1L;
+                    var lastDelivered = -1L;
                     while (true)
                     {
                         var sample = videoReader.ReadSample(
@@ -360,8 +375,15 @@ namespace PlayniteAchievements.Services.Capture
 
                         var time = sample.SampleTime;
                         var sourceDuration = sample.SampleDuration;
+                        if (firstDelivered < 0)
+                        {
+                            firstDelivered = time;
+                        }
+
+                        lastDelivered = time;
                         if (time < run.Start)
                         {
+                            skippedBefore++;
                             sample.Dispose();
                             continue;
                         }
@@ -372,20 +394,34 @@ namespace PlayniteAchievements.Services.Capture
                             break;
                         }
 
-                        var outSample = ComposeOrPassThrough(stack, sample, time, ref counts);
+                        Compose(stack, sample, time, ref counts);
                         var duration = sourceDuration > 0 ? sourceDuration : nominalDuration;
+                        // The run's own timeline is synthetic: frames go to the encoder evenly spaced
+                        // at the declared rate, because the encoding sink fills any gap between input
+                        // timestamps (a capture stall) with repeated frames, and a run that comes back
+                        // with more frames than it was given cannot be stamped. The remux puts the
+                        // base clip's own times and durations back from `stamps`.
+                        WriteVideoAndDispose(sink, videoStream, sample, stamps.Count * nominalDuration, nominalDuration);
                         stamps.Add(new FrameStamp { Time = time, Duration = duration });
-                        // The run's own timeline starts at zero; the remux re-stamps from `stamps`.
-                        WriteVideoAndDispose(sink, videoStream, outSample, time - run.Start, duration);
                         WaitForEncoderQueue(sink, videoStream);
                     }
 
                     var loopMs = phase.ElapsedMilliseconds - readerMs - sinkMs;
+                    if (stamps.Count == 0)
+                    {
+                        throw new InvalidDataException(
+                            $"Run [{run.Start / (double)OneSecond100ns:0.000}, {run.End / (double)OneSecond100ns:0.000}) " +
+                            $"decoded no frames: the reader delivered {skippedBefore} before it, " +
+                            (firstDelivered < 0
+                                ? "nothing at all."
+                                : $"from {firstDelivered / (double)OneSecond100ns:0.000}s to {lastDelivered / (double)OneSecond100ns:0.000}s."));
+                    }
+
                     sink.Finalize();
                     _logger?.Debug(
                         $"[Recording] Toast splice run: {stamps.Count} frames from {run.Start / (double)OneSecond100ns:0.00}s " +
-                        $"via {MediaFoundationH264Encoder.DescribeTransforms(sink, videoStream)}" +
-                        $"{(usedManager ? " (D3D manager bound)" : " (no D3D manager)")}; " +
+                        $"(reader delivered from {firstDelivered / (double)OneSecond100ns:0.000}s, {skippedBefore} before the run) " +
+                        $"via {MediaFoundationH264Encoder.DescribeTransforms(sink, videoStream)}; " +
                         $"reader {readerMs}ms, sink {sinkMs}ms, frames {loopMs}ms, " +
                         $"finalize {phase.ElapsedMilliseconds - readerMs - sinkMs - loopMs}ms.");
                 }
