@@ -331,7 +331,11 @@
                                                     IsEnabled="{Binding HasThemeCandidates}"
                                                     Margin="6,0,0,0">
                                                 <Button.ContextMenu>
-                                                    <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"/>
+                                                    <!-- Plain action items, not the checkable ones
+                                                         the rarity selectors use: each entry plays
+                                                         a sound rather than toggling a value. -->
+                                                    <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                                 ItemContainerStyle="{StaticResource AchievementContextMenuItemStyle}"/>
                                                 </Button.ContextMenu>
                                             </Button>
                                         </Grid>
