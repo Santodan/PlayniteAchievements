@@ -34,10 +34,34 @@ internal static class CaptureHarness
     private const int ClientH = 720;
 
     private static string _pluginDir;
+    private static bool _softwareEncoder;
 
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Length > 2 && string.Equals(args[0], "--reencode", StringComparison.OrdinalIgnoreCase))
+        {
+            // --software anywhere in the arguments keeps hardware transforms off the encoding sinks,
+            // so the passes run on Microsoft's software H.264 encoder — the universal fall-back path.
+            _softwareEncoder = args.Any(a => string.Equals(a, "--software", StringComparison.OrdinalIgnoreCase));
+            args = args.Where(a => !string.Equals(a, "--software", StringComparison.OrdinalIgnoreCase)).ToArray();
+            // Re-run only the composition phase over an existing base clip, so a clip the full run
+            // produced (a stalled one, say) can be worked on without recording again:
+            //   CaptureHarness.exe --reencode <clip.mp4> <fps> [toastStartSeconds] [trimLeadSeconds] [pluginDir]
+            var here = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            _pluginDir = args.Length > 5 ? args[5] : Path.GetFullPath(Path.Combine(here, @"..\..\..\source\bin\Debug"));
+            AppDomain.CurrentDomain.AssemblyResolve += Resolve;
+            var loaded = Assembly.LoadFrom(Path.Combine(_pluginDir, "PlayniteAchievements.dll"));
+            var invariant = System.Globalization.CultureInfo.InvariantCulture;
+            _videoLeadSeconds = args.Length > 4 ? double.Parse(args[4], invariant) : 0;
+            _paints = new List<Tuple<int, double>> { Tuple.Create(0, 0.0) };
+            CompareTimestamps(args[1]);
+            MeasureComposition(
+                loaded, args[1], Path.Combine(here, "reencode_composited.mp4"), int.Parse(args[2]),
+                args.Length > 3 ? double.Parse(args[3], invariant) : (double?)null);
+            return;
+        }
+
         var stress = args.Length > 0 && string.Equals(args[0], "--stress", StringComparison.OrdinalIgnoreCase);
         var mfStress = args.Length > 0 && string.Equals(args[0], "--mf-stress", StringComparison.OrdinalIgnoreCase);
         var diagnosticStress = stress || mfStress;
@@ -94,7 +118,8 @@ internal static class CaptureHarness
         var paints = Record(plugin, buffer, seconds, fps);
         File.WriteAllLines(
             Path.Combine(scratch, "paints.csv"),
-            new[] { "counter,elapsedMs" }.Concat(paints.Select(p => p.Item1 + "," + p.Item2.ToString("0.000"))));
+            // Snapshot first: the window keeps painting (and appending) while this enumerates.
+            new[] { "counter,elapsedMs" }.Concat(paints.ToArray().Select(p => p.Item1 + "," + p.Item2.ToString("0.000"))));
         Console.WriteLine("painted " + paints.Count + " frames");
 
         ReportSegments(buffer);
@@ -745,10 +770,69 @@ internal static class CaptureHarness
 
     // === phase 5: what compositing costs the captured window ===
 
-    private static void MeasureComposition(Assembly plugin, string baseClip, string outputPath, int fps)
+    private const double ToastMaxSeconds = 4.0;
+
+    // The composited "chime": one second of a 1 kHz tone, 48 kHz stereo 16-bit like the plugin's,
+    // mixed in a little ahead of the card. The synthetic game audio is 440 Hz, so each is
+    // measurable on its own.
+    private const double ChimeSeconds = 1.0;
+    private const double ChimeLeadSeconds = 0.3;
+    private const int ChimeHz = 1000;
+    private const int GameToneHz = 440;
+
+    private sealed class CompositionResult
+    {
+        public long Milliseconds;
+        public List<Tuple<double, int>> Identities;
+    }
+
+    /// <summary>
+    /// Runs the overlay re-encode three ways over the same base clip. The spliced pass and the
+    /// whole-clip pass get a production-shaped card — the clip ends half a second after the card
+    /// fades, so the card sits at the end and most of the clip is the lead-in the splice copies —
+    /// plus a chime mixed into the audio, and must produce the same frame sequence with the card
+    /// over the same frames; the third run puts the card inside the second GOP with no chime, so
+    /// the audio passes through as AAC and the plan has to copy after the card instead of before.
+    /// </summary>
+    private static void MeasureComposition(
+        Assembly plugin, string baseClip, string outputPath, int fps, double? toastStartOverride = null)
+    {
+        var clipSeconds = Mp4.VideoTiming(baseClip).Seconds;
+        var lateToast = toastStartOverride ?? clipSeconds - ToastMaxSeconds - 0.5;
+        var outDir = Path.GetDirectoryName(outputPath);
+        var stem = Path.GetFileNameWithoutExtension(outputPath);
+
+        var spliced = RunComposition(plugin, baseClip, outputPath, fps, lateToast, true, true, "spliced");
+        var whole = RunComposition(
+            plugin, baseClip, Path.Combine(outDir, stem + "_whole.mp4"), fps, lateToast, false, true, "whole-clip");
+        RunComposition(
+            plugin, baseClip, Path.Combine(outDir, stem + "_early.mp4"), fps, 2.0, true, false, "early card, audio passthrough");
+        Report("while recording", 0, 22000);
+
+        Console.WriteLine();
+        Console.WriteLine("=== spliced vs whole-clip");
+        if (spliced == null || whole == null)
+        {
+            Console.WriteLine("  one of the passes failed; nothing to compare");
+            return;
+        }
+
+        Console.WriteLine("  spliced " + spliced.Milliseconds + "ms vs whole-clip " + whole.Milliseconds + "ms => " +
+            (100.0 * spliced.Milliseconds / Math.Max(1, whole.Milliseconds)).ToString("0") + "% of the whole-clip time");
+        CompareIdentities(spliced.Identities, whole.Identities);
+    }
+
+    private static CompositionResult RunComposition(
+        Assembly plugin, string baseClip, string outputPath, int fps, double toastStartSeconds,
+        bool splice, bool chime, string label)
     {
         Console.WriteLine();
-        Console.WriteLine("=== composition (overlay re-encode) with the window still painting");
+        Console.WriteLine("=== composition (overlay re-encode, " + label + ") with the window still painting");
+        if (File.Exists(outputPath))
+        {
+            File.Delete(outputPath);
+        }
+
         try
         {
             var track = BuildTrack(plugin);
@@ -757,50 +841,327 @@ internal static class CaptureHarness
                 reencoderType, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null,
                 new object[] { ConsoleLogger.Create(reencoderType.GetConstructors(Flags)[0].GetParameters()[0].ParameterType) },
                 null);
+            // Older builds of the plugin (a baseline for comparison) have neither switch.
+            reencoderType.GetProperty("SpliceEnabled", Flags)?.SetValue(reencoder, splice);
+            reencoderType.GetProperty("PreferSoftwareEncoder", Flags)?.SetValue(reencoder, _softwareEncoder);
 
             var qualityType = plugin.GetType("PlayniteAchievements.Models.Settings.RecordingQuality");
             var quality = Enum.Parse(qualityType, Enum.GetNames(qualityType)[0]);
 
             var clipSeconds = Mp4.VideoTiming(baseClip).Seconds;
+            var chimeStart = toastStartSeconds - ChimeLeadSeconds;
             var startedAt = _paints[_paints.Count - 1].Item2;
             var timer = Stopwatch.StartNew();
 
             var ok = (bool)reencoderType.GetMethod("Export", Flags).Invoke(reencoder, new object[]
             {
                 baseClip, track,
-                2.0,                    // toastStartSeconds
-                4.0,                    // toastMaxSeconds
-                0.5,                    // trimLeadSeconds (the keyframe lead the export reported)
+                toastStartSeconds,      // toastStartSeconds, on the base clip's timeline
+                ToastMaxSeconds,        // toastMaxSeconds
+                _videoLeadSeconds,      // trimLeadSeconds: the keyframe lead the export reported
                 clipSeconds,            // endSeconds
-                null, 0d,               // no chime
+                chime ? Tone(ChimeHz, ChimeSeconds, 0.5) : null,
+                chimeStart,
                 outputPath, fps, quality,
             });
 
             timer.Stop();
             var endedAt = _paints[_paints.Count - 1].Item2;
             Console.WriteLine("  Export=" + ok + " in " + timer.ElapsedMilliseconds + "ms for a " +
-                clipSeconds.ToString("0.0") + "s clip");
+                clipSeconds.ToString("0.0") + "s clip (card at " + toastStartSeconds.ToString("0.00") + "s" +
+                (chime ? ", chime at " + chimeStart.ToString("0.00") + "s" : ", no chime") + ")");
             Report("while compositing", startedAt, endedAt);
-            Report("while recording", 0, 22000);
-            if (ok)
+            if (!ok)
             {
-                foreach (var line in Mp4.Describe(outputPath))
-                {
-                    Console.WriteLine("  composited " + line);
-                }
-
-                // The reported defect is wrong frames in the *composited* output, so read its identities
-                // back too rather than trusting that the base clip being right means this one is.
-                Console.WriteLine();
-                Console.WriteLine("=== decoded frame identities of the COMPOSITED clip");
-                DecodeAndReport(outputPath, 0.0, "composited");
-
+                return null;
             }
+
+            foreach (var line in Mp4.Describe(outputPath))
+            {
+                Console.WriteLine("  composited " + line);
+            }
+
+            // The reported defect is wrong frames in the *composited* output, so read its identities
+            // back too rather than trusting that the base clip being right means this one is.
+            Console.WriteLine();
+            Console.WriteLine("=== decoded frame identities of the COMPOSITED clip (" + label + ")");
+            var identities = DecodeAndReport(outputPath, 0.0, "composited");
+            // The card covers base [toastStart, toastStart + ToastMax]; the output drops the lead.
+            ReportCardWindow(
+                outputPath, toastStartSeconds - _videoLeadSeconds,
+                toastStartSeconds - _videoLeadSeconds + ToastMaxSeconds, fps);
+            ReportAudio(outputPath, clipSeconds - _videoLeadSeconds, chime ? chimeStart - _videoLeadSeconds : -1);
+            return new CompositionResult { Milliseconds = timer.ElapsedMilliseconds, Identities = identities };
         }
         catch (Exception ex)
         {
             Console.WriteLine("  composition failed: " + (ex.InnerException ?? ex));
+            return null;
         }
+    }
+
+    /// <summary>
+    /// Both passes decode the same base frames and must put the same source frame at the same
+    /// output time; a spliced clip that is merely well-ordered could still be shifted or missing
+    /// frames at a splice point.
+    /// </summary>
+    private static void CompareIdentities(List<Tuple<double, int>> spliced, List<Tuple<double, int>> whole)
+    {
+        Console.WriteLine("  frames: spliced=" + spliced.Count + " whole=" + whole.Count);
+        var differences = 0;
+        var count = Math.Min(spliced.Count, whole.Count);
+        for (var i = 0; i < count; i++)
+        {
+            var a = spliced[i];
+            var b = whole[i];
+            if (a.Item2 != b.Item2 || Math.Abs(a.Item1 - b.Item1) > 0.001)
+            {
+                differences++;
+                if (differences <= 10)
+                {
+                    Console.WriteLine("  DIFF at index " + i + ": spliced " + a.Item1.ToString("0.000") + "s->" + a.Item2 +
+                        "  whole " + b.Item1.ToString("0.000") + "s->" + b.Item2);
+                }
+            }
+        }
+
+        differences += Math.Abs(spliced.Count - whole.Count);
+        Console.WriteLine(differences == 0
+            ? "  SPLICE == WHOLE: identical frame sequence and timing"
+            : "  SPLICE != WHOLE: " + differences + " differing frames   <-- splice defect");
+    }
+
+    /// <summary>
+    /// Reads which output frames carry the card, by chroma at the card's centre (the harness card is
+    /// a translucent purple the window never paints), and checks that set against the window the
+    /// card was asked to cover. Catches a splice that drops the compositing or lands it on the wrong
+    /// frames, which frame identities alone cannot see.
+    /// </summary>
+    private static void ReportCardWindow(string clip, double expectedStart, double expectedEnd, int fps)
+    {
+        var carded = new List<Tuple<double, bool>>();
+        DecodeNv12(clip, (time, frame, stride, w, h) =>
+        {
+            // BuildTrack: bottom-left, 24 DIP gap at scale 1, 420x130 card in a 1920x1080 client.
+            var cx = (int)((24 + 420 / 2.0) * w / 1920.0);
+            var cy = (int)((1080 - 24 - 130 / 2.0) * h / 1080.0);
+            carded.Add(Tuple.Create(time, IsCardPurpleNv12(frame, stride, h, cx, cy)));
+        });
+
+        var tolerance = 1.5 / fps;
+        var cardedCount = 0;
+        var outsideWindow = 0;
+        var missingInside = 0;
+        double first = -1, last = -1;
+        foreach (var entry in carded)
+        {
+            var inside = entry.Item1 >= expectedStart - tolerance && entry.Item1 <= expectedEnd + tolerance;
+            var strictlyInside = entry.Item1 >= expectedStart + tolerance && entry.Item1 <= expectedEnd - tolerance;
+            if (entry.Item2)
+            {
+                cardedCount++;
+                if (first < 0) { first = entry.Item1; }
+                last = entry.Item1;
+                if (!inside) { outsideWindow++; }
+            }
+            else if (strictlyInside)
+            {
+                missingInside++;
+            }
+        }
+
+        Console.WriteLine("  card frames: " + cardedCount + " of " + carded.Count +
+            (cardedCount > 0 ? " from " + first.ToString("0.000") + "s to " + last.ToString("0.000") + "s" : string.Empty) +
+            "; expected window " + expectedStart.ToString("0.000") + "s to " + expectedEnd.ToString("0.000") + "s");
+        Console.WriteLine("  carded frames outside the window: " + outsideWindow +
+            "   uncarded frames inside it: " + missingInside);
+        Console.WriteLine(cardedCount > 0 && outsideWindow == 0 && missingInside == 0
+            ? "  CARD WINDOW OK"
+            : "  CARD WINDOW MISMATCH   <-- the card is missing or on the wrong frames");
+    }
+
+    // The harness card is 0x90/0x18/0x40 (R/G/B) at alpha 0xC0 over a dark window whose only other
+    // colours are white, gold text and an orange-red bar. In BT.709 limited Y'CbCr the card lands
+    // near Cb 134 / Cr 179 over the dark ground and Cb 121 / Cr 200 over the bar; the bar alone is
+    // Cb 79 / Cr 212, gold text Cb 30 / Cr 154, and grey ground or white text sit at 128 / 128.
+    // Cr well above neutral together with Cb not far below it is therefore the card and nothing else.
+    private static bool IsCardPurpleNv12(byte[] frame, int stride, int height, int cx, int cy)
+    {
+        long cb = 0, cr = 0, n = 0;
+        var chromaPlane = stride * height;
+        for (var dy = -2; dy <= 2; dy++)
+        {
+            for (var dx = -2; dx <= 2; dx++)
+            {
+                var offset = chromaPlane + (((cy / 2) + dy) * stride) + (((cx / 2) + dx) * 2);
+                if (offset < 0 || offset + 1 >= frame.Length)
+                {
+                    continue;
+                }
+
+                cb += frame[offset];
+                cr += frame[offset + 1];
+                n++;
+            }
+        }
+
+        if (n == 0)
+        {
+            return false;
+        }
+
+        cb /= n; cr /= n;
+        return cr > 150 && cb > 110;
+    }
+
+    /// <summary>
+    /// Decodes the clip's audio and checks that it survived the pass: the track runs the length of
+    /// the video, the synthetic game tone is present throughout, and — when a chime was mixed in —
+    /// the chime tone appears only inside its second. Exercises the remux's audio interleave in
+    /// both modes: AAC passthrough (no chime) and PCM decode, mix, re-encode (chime).
+    /// </summary>
+    private static void ReportAudio(string clip, double expectedSeconds, double chimeStartOut)
+    {
+        var pcm = DecodeAudio(clip);
+        if (pcm == null)
+        {
+            Console.WriteLine("  AUDIO MISSING   <-- the clip has no decodable audio track");
+            return;
+        }
+
+        var seconds = pcm.Length / (4.0 * 48000);
+        var durationOk = Math.Abs(seconds - expectedSeconds) < 0.25;
+        var gameBefore = ToneDb(pcm, GameToneHz, 0.5, 1.5);
+        var gameAfter = ToneDb(pcm, GameToneHz, seconds - 1.5, seconds - 0.5);
+        Console.WriteLine("  audio: " + seconds.ToString("0.000") + "s (video " + expectedSeconds.ToString("0.000") + "s); " +
+            GameToneHz + "Hz game tone " + gameBefore.ToString("0.0") + "dB at the start, " +
+            gameAfter.ToString("0.0") + "dB at the end");
+        var gameOk = gameBefore > -40 && gameAfter > -40;
+
+        var chimeOk = true;
+        if (chimeStartOut >= 0)
+        {
+            var inside = ToneDb(pcm, ChimeHz, chimeStartOut + 0.1, chimeStartOut + ChimeSeconds - 0.1);
+            var before = ToneDb(pcm, ChimeHz, chimeStartOut - 1.2, chimeStartOut - 0.2);
+            var after = ToneDb(pcm, ChimeHz, chimeStartOut + ChimeSeconds + 0.2, chimeStartOut + ChimeSeconds + 1.2);
+            Console.WriteLine("  chime " + ChimeHz + "Hz: " + inside.ToString("0.0") + "dB inside its second, " +
+                before.ToString("0.0") + "dB before, " + after.ToString("0.0") + "dB after");
+            chimeOk = inside > before + 20 && inside > after + 20;
+        }
+
+        Console.WriteLine(durationOk && gameOk && chimeOk
+            ? "  AUDIO OK"
+            : "  AUDIO MISMATCH   <-- " + (!durationOk ? "length " : string.Empty) +
+              (!gameOk ? "game-tone " : string.Empty) + (!chimeOk ? "chime " : string.Empty));
+    }
+
+    /// <summary>The clip's first audio stream as 48 kHz stereo 16-bit PCM, or null.</summary>
+    private static byte[] DecodeAudio(string clip)
+    {
+        MediaManager.Startup();
+        try
+        {
+            using (var reader = new SourceReader(clip))
+            {
+                reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
+                reader.SetStreamSelection((int)SourceReaderIndex.FirstAudioStream, true);
+                using (var pcmType = new MediaType())
+                {
+                    pcmType.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Audio);
+                    pcmType.Set(MediaTypeAttributeKeys.Subtype, AudioFormatGuids.Pcm);
+                    pcmType.Set(MediaTypeAttributeKeys.AudioSamplesPerSecond, 48000);
+                    pcmType.Set(MediaTypeAttributeKeys.AudioNumChannels, 2);
+                    pcmType.Set(MediaTypeAttributeKeys.AudioBitsPerSample, 16);
+                    pcmType.Set(MediaTypeAttributeKeys.AudioBlockAlignment, 4);
+                    pcmType.Set(MediaTypeAttributeKeys.AudioAvgBytesPerSecond, 48000 * 4);
+                    reader.SetCurrentMediaType((int)SourceReaderIndex.FirstAudioStream, pcmType);
+                }
+
+                using (var output = new MemoryStream())
+                {
+                    while (true)
+                    {
+                        var sample = reader.ReadSample(
+                            (int)SourceReaderIndex.FirstAudioStream, SourceReaderControlFlags.None,
+                            out _, out var flags, out _);
+                        if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
+                        {
+                            sample?.Dispose();
+                            break;
+                        }
+
+                        using (sample)
+                        using (var buffer = sample.ConvertToContiguousBuffer())
+                        {
+                            var ptr = buffer.Lock(out _, out var length);
+                            try
+                            {
+                                var bytes = new byte[length];
+                                Marshal.Copy(ptr, bytes, 0, length);
+                                output.Write(bytes, 0, length);
+                            }
+                            finally
+                            {
+                                buffer.Unlock();
+                            }
+                        }
+                    }
+
+                    return output.Length > 0 ? output.ToArray() : null;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("  audio decode failed: " + ex.Message);
+            return null;
+        }
+        finally
+        {
+            try { MediaManager.Shutdown(); } catch { }
+        }
+    }
+
+    /// <summary>Goertzel power of one tone in the left channel over [from, to] seconds, in dBFS.</summary>
+    private static double ToneDb(byte[] pcm, int hz, double from, double to)
+    {
+        var start = Math.Max(0, (int)(from * 48000));
+        var end = Math.Min(pcm.Length / 4, (int)(to * 48000));
+        var n = end - start;
+        if (n < 480)
+        {
+            return double.NegativeInfinity;
+        }
+
+        var coefficient = 2.0 * Math.Cos(2.0 * Math.PI * hz / 48000.0);
+        double s0 = 0, s1 = 0, s2 = 0;
+        for (var i = start; i < end; i++)
+        {
+            var sample = BitConverter.ToInt16(pcm, i * 4) / 32768.0;
+            s0 = sample + coefficient * s1 - s2;
+            s2 = s1;
+            s1 = s0;
+        }
+
+        var power = (s1 * s1 + s2 * s2 - coefficient * s1 * s2) / (n * (double)n) * 4.0;
+        return 10.0 * Math.Log10(Math.Max(1e-12, power));
+    }
+
+    /// <summary>A stereo 48 kHz 16-bit tone of the given length and amplitude, phase starting at zero.</summary>
+    private static byte[] Tone(int hz, double seconds, double amplitude)
+    {
+        var frames = (int)(seconds * 48000);
+        var bytes = new byte[frames * 4];
+        for (var i = 0; i < frames; i++)
+        {
+            var value = (short)(Math.Sin(2.0 * Math.PI * hz * i / 48000.0) * amplitude * short.MaxValue);
+            bytes[i * 4] = (byte)value;
+            bytes[i * 4 + 1] = (byte)(value >> 8);
+            bytes[i * 4 + 2] = (byte)value;
+            bytes[i * 4 + 3] = (byte)(value >> 8);
+        }
+
+        return bytes;
     }
 
     // A one-keyframe track: a translucent card, held for the whole toast interval.
@@ -1231,13 +1592,16 @@ internal static class CaptureHarness
         // Normally sample the last few segments, keeping the export short however long the recording ran.
         // For the short-buffer case, anchor to the OLDEST segment and ask for a start before it — that is
         // the only way to guarantee the window reaches past what the buffer holds.
-        var first = item.GetValue(
-            segments, new object[] { reachBackSeconds > 0 ? 0 : Math.Max(0, count - 3) });
-        var startUtc = reachBackSeconds > 0
-            ? ((DateTime)first.GetType().GetProperty("StartUtc").GetValue(first)).AddSeconds(-reachBackSeconds)
-            : ((DateTime)first.GetType().GetProperty("StartUtc").GetValue(first)).AddSeconds(0.5);
+        var first = item.GetValue(segments, new object[] { 0 });
+        var firstStartUtc = (DateTime)first.GetType().GetProperty("StartUtc").GetValue(first);
         var last = item.GetValue(segments, new object[] { count - 1 });
         var endUtc = (DateTime)last.GetType().GetProperty("StartUtc").GetValue(last);
+        // A fixed window ending at the last segment's start, so the clip keeps its production shape
+        // (a long lead-in ahead of the card) however irregularly the segments rotated. 9.7 s rather
+        // than 10 so the start falls between keyframes and the export reports a lead to trim.
+        var startUtc = reachBackSeconds > 0
+            ? firstStartUtc.AddSeconds(-reachBackSeconds)
+            : endUtc.AddSeconds(-9.7) > firstStartUtc.AddSeconds(0.5) ? endUtc.AddSeconds(-9.7) : firstStartUtc.AddSeconds(0.5);
 
         Console.WriteLine();
         Console.WriteLine("=== export window " + startUtc.ToString("HH:mm:ss.fff") + " -> " + endUtc.ToString("HH:mm:ss.fff") +
@@ -1278,72 +1642,173 @@ internal static class CaptureHarness
                 shortfall.ToString("0.00") + "s early — the toast-placement defect");
         }
 
-        var callArgs = new object[] { plan, null, outputPath, 0d };
+        var audioPlan = PlanSyntheticAudio(plugin, buffer, timeline, parse, startUtc, plan);
+        var callArgs = new object[] { plan, audioPlan, outputPath, 0d };
         var ok = (bool)exporterType.GetMethod("Export", Flags).Invoke(exporter, callArgs);
         _videoLeadSeconds = (double)callArgs[3];
         Console.WriteLine("  Export=" + ok + " videoLead=" + _videoLeadSeconds.ToString("0.000") + "s");
         return ok && File.Exists(outputPath);
     }
 
-    // === phase 4: read each output frame's identity back ===
-
-    private static void DecodeAndReport(string clip, double shiftSeconds, string label)
+    /// <summary>
+    /// A synthetic loopback track for the base clip: one WAV chunk per video segment, named and
+    /// timed like the audio recorder's (aud_ + the segment's UTC stamp), each running exactly to
+    /// the next segment's start so the exporter's concatenation meets no gap or overlap, carrying
+    /// a continuous 440 Hz tone. The harness records no real audio, and without an audio track the
+    /// overlay pass's audio interleave and chime mix never run.
+    /// </summary>
+    private static object PlanSyntheticAudio(
+        Assembly plugin, string buffer, Type timeline, MethodInfo parse, DateTime startUtc, object videoPlan)
     {
-        var identities = new List<Tuple<double, int>>();
+        var stamps = Directory.GetFiles(buffer, "seg_*.mp4")
+            .Select(Path.GetFileName)
+            .Select(name => name.Substring(4, 23))
+            .Select(stamp => DateTime.ParseExact(
+                stamp, "yyyyMMdd-HHmmssfffffff'Z'", System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal))
+            .OrderBy(t => t)
+            .ToList();
+        if (stamps.Count == 0)
+        {
+            return null;
+        }
+
+        for (var i = 0; i < stamps.Count; i++)
+        {
+            var path = Path.Combine(buffer, "aud_" + stamps[i].ToString("yyyyMMdd-HHmmssfffffff'Z'") + ".wav");
+            if (File.Exists(path))
+            {
+                continue;
+            }
+
+            var chunkSeconds = i + 1 < stamps.Count ? (stamps[i + 1] - stamps[i]).TotalSeconds : 6.0;
+            var firstFrame = (long)Math.Round((stamps[i] - stamps[0]).TotalSeconds * 48000);
+            var frames = (int)Math.Round(chunkSeconds * 48000);
+            using (var writer = new NAudio.Wave.WaveFileWriter(path, new NAudio.Wave.WaveFormat(48000, 16, 2)))
+            {
+                var bytes = new byte[frames * 4];
+                for (var f = 0; f < frames; f++)
+                {
+                    var value = (short)(Math.Sin(2.0 * Math.PI * GameToneHz * (firstFrame + f) / 48000.0) * 0.3 * short.MaxValue);
+                    bytes[f * 4] = (byte)value;
+                    bytes[f * 4 + 1] = (byte)(value >> 8);
+                    bytes[f * 4 + 2] = (byte)value;
+                    bytes[f * 4 + 3] = (byte)(value >> 8);
+                }
+
+                writer.Write(bytes, 0, bytes.Length);
+            }
+        }
+
+        var files = Directory.GetFiles(buffer, "aud_*.wav")
+            .OrderBy(p => p)
+            .Select(p => new ValueTuple<string, long>(p, new FileInfo(p).Length))
+            .ToList();
+        var chunks = parse.Invoke(null, new object[] { files, TimeZoneInfo.Local, "aud_", ".wav" });
+        var planEndUtc = (DateTime)videoPlan.GetType().GetProperty("EndUtc").GetValue(videoPlan);
+        var audioPlan = timeline.GetMethod("PlanClip", Flags)
+            .Invoke(null, new object[] { chunks, startUtc, planEndUtc, 5, null });
+        Console.WriteLine("  synthetic audio: " + files.Count + " chunk(s), plan " + (audioPlan == null ? "null" : "ok"));
+        return audioPlan;
+    }
+
+    /// <summary>
+    /// Compares the video's compressed sample times with the times the decoding reader hands back
+    /// under each processing mode. Advanced video processing includes frame-rate conversion, which
+    /// re-times decoded frames onto the type's declared (average) frame rate; on a clip with a
+    /// capture stall that average is below the capture rate, and every decoded timestamp drifts
+    /// from the compressed one it came from.
+    /// </summary>
+    private static void CompareTimestamps(string clip)
+    {
+        Console.WriteLine();
+        Console.WriteLine("=== compressed vs decoded sample times");
+        var compressed = ReadTimes(clip, null, false);
+        Console.WriteLine("  compressed: " + compressed.Count + " samples, last at " + Last(compressed));
+        foreach (var mode in new[] { "advanced", "basic", "none" })
+        {
+            try
+            {
+                var decoded = ReadTimes(clip, mode, mode != "none");
+                var pairs = Math.Min(compressed.Count, decoded.Count);
+                var worst = 0.0;
+                var worstAt = -1;
+                for (var i = 0; i < pairs; i++)
+                {
+                    var delta = Math.Abs(decoded[i] - compressed[i]);
+                    if (delta > worst)
+                    {
+                        worst = delta;
+                        worstAt = i;
+                    }
+                }
+
+                Console.WriteLine("  " + mode.PadRight(9) + decoded.Count + " samples, last at " + Last(decoded) +
+                    ", worst |decoded - compressed| = " + (worst * 1000).ToString("0.0") + "ms at index " + worstAt +
+                    (worst > 0.002 ? "   <-- decoded times are not the compressed times" : string.Empty));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("  " + mode.PadRight(9) + "failed: " + ex.Message);
+            }
+        }
+    }
+
+    private static string Last(List<double> times)
+    {
+        return times.Count == 0 ? "-" : times[times.Count - 1].ToString("0.000") + "s";
+    }
+
+    /// <param name="processing">null: native compressed samples; "advanced"/"basic": RGB32 via that reader flag; "none": the decoder's own output type.</param>
+    private static List<double> ReadTimes(string clip, string processing, bool rgb)
+    {
+        var times = new List<double>();
         MediaManager.Startup();
         try
         {
-            using (var attributes = new MediaAttributes(1))
+            MediaAttributes attributes = null;
+            if (processing == "advanced" || processing == "basic")
             {
-                attributes.Set(SourceReaderAttributeKeys.EnableAdvancedVideoProcessing, true);
-                using (var reader = new SourceReader(clip, attributes))
+                attributes = new MediaAttributes(1);
+                if (processing == "advanced")
                 {
-                    reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
-                    reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
+                    attributes.Set(SourceReaderAttributeKeys.EnableAdvancedVideoProcessing, true);
+                }
+                else
+                {
+                    attributes.Set(SourceReaderAttributeKeys.EnableVideoProcessing, 1);
+                }
+            }
+
+            using (attributes)
+            using (var reader = attributes == null ? new SourceReader(clip) : new SourceReader(clip, attributes))
+            {
+                reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
+                reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
+                if (processing != null)
+                {
                     using (var request = new MediaType())
                     {
                         request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
-                        request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
+                        request.Set(MediaTypeAttributeKeys.Subtype, rgb ? VideoFormatGuids.Rgb32 : VideoFormatGuids.NV12);
                         reader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
                     }
+                }
 
-                    int w, h, stride;
-                    using (var decoded = reader.GetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream))
+                while (true)
+                {
+                    var sample = reader.ReadSample(
+                        (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
+                        out _, out var flags, out _);
+                    if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
                     {
-                        var size = decoded.Get(MediaTypeAttributeKeys.FrameSize);
-                        w = (int)(size >> 32);
-                        h = (int)(size & 0xffffffff);
-                        try { stride = decoded.Get(MediaTypeAttributeKeys.DefaultStride); }
-                        catch { stride = w * 4; }
+                        sample?.Dispose();
+                        break;
                     }
 
-                    var absStride = Math.Abs(stride);
-                    var bottomUp = stride < 0;
-                    var frame = new byte[absStride * h];
-                    while (true)
+                    using (sample)
                     {
-                        var sample = reader.ReadSample(
-                            (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
-                            out _, out var flags, out _);
-                        if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
-                        {
-                            sample?.Dispose();
-                            break;
-                        }
-
-                        using (sample)
-                        {
-                            using (var buffer = sample.ConvertToContiguousBuffer())
-                            {
-                                var ptr = buffer.Lock(out _, out var length);
-                                try { Marshal.Copy(ptr, frame, 0, Math.Min(length, frame.Length)); }
-                                finally { buffer.Unlock(); }
-                            }
-
-                            identities.Add(Tuple.Create(
-                                sample.SampleTime / 10_000_000.0,
-                                Barcode.Read(frame, absStride, h, bottomUp, w)));
-                        }
+                        times.Add(sample.SampleTime / 10_000_000.0);
                     }
                 }
             }
@@ -1353,8 +1818,96 @@ internal static class CaptureHarness
             try { MediaManager.Shutdown(); } catch { }
         }
 
+        return times;
+    }
+
+    // === phase 4: read each output frame's identity back ===
+
+    private static List<Tuple<double, int>> DecodeAndReport(string clip, double shiftSeconds, string label)
+    {
+        var identities = new List<Tuple<double, int>>();
+        DecodeNv12(clip, (time, frame, stride, w, h) =>
+            identities.Add(Tuple.Create(time, Barcode.ReadNv12(frame, stride, w))));
+
         Analyse(identities);
         ReportAlignment(identities, shiftSeconds, label);
+        return identities;
+    }
+
+    /// <summary>
+    /// Decodes a clip's video to the decoder's own NV12 and hands each frame to
+    /// <paramref name="onFrame"/> as (seconds, planes, luma stride, width, height): the chroma plane
+    /// follows the luma plane at the same stride. No video-processing attribute is set on the
+    /// reader, on purpose: advanced processing re-times frames onto the average frame rate (see
+    /// <see cref="CompareTimestamps"/>), and the checks here are about where frames really sit.
+    /// </summary>
+    private static void DecodeNv12(string clip, Action<double, byte[], int, int, int> onFrame)
+    {
+        MediaManager.Startup();
+        try
+        {
+            using (var reader = new SourceReader(clip))
+            {
+                reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
+                reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
+                using (var request = new MediaType())
+                {
+                    request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
+                    request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.NV12);
+                    reader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
+                }
+
+                int w, h, typeStride;
+                using (var decoded = reader.GetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream))
+                {
+                    var size = decoded.Get(MediaTypeAttributeKeys.FrameSize);
+                    w = (int)(size >> 32);
+                    h = (int)(size & 0xffffffff);
+                    try { typeStride = Math.Abs(decoded.Get(MediaTypeAttributeKeys.DefaultStride)); }
+                    catch { typeStride = w; }
+                }
+
+                byte[] frame = null;
+                while (true)
+                {
+                    var sample = reader.ReadSample(
+                        (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
+                        out _, out var flags, out _);
+                    if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
+                    {
+                        sample?.Dispose();
+                        break;
+                    }
+
+                    using (sample)
+                    using (var buffer = sample.ConvertToContiguousBuffer())
+                    {
+                        var ptr = buffer.Lock(out _, out var length);
+                        try
+                        {
+                            // A contiguous NV12 buffer packs its rows; derive the stride from the
+                            // length when it divides evenly, else trust the type.
+                            var stride = length % (h * 3 / 2) == 0 ? length / (h * 3 / 2) : typeStride;
+                            if (frame == null || frame.Length < length)
+                            {
+                                frame = new byte[length];
+                            }
+
+                            Marshal.Copy(ptr, frame, 0, length);
+                            onFrame(sample.SampleTime / 10_000_000.0, frame, stride, w, h);
+                        }
+                        finally
+                        {
+                            buffer.Unlock();
+                        }
+                    }
+                }
+            }
+        }
+        finally
+        {
+            try { MediaManager.Shutdown(); } catch { }
+        }
     }
 
     private static void Analyse(List<Tuple<double, int>> identities)
@@ -1588,6 +2141,42 @@ internal static class CaptureHarness
             return value;
         }
 
+        /// <summary>
+        /// The counter from an NV12 frame's luma plane: the same cells as <see cref="Read"/>, sampled
+        /// as Y' directly. Limited-range white (235) and black (16) clear the same thresholds.
+        /// </summary>
+        public static int ReadNv12(byte[] frame, int stride, int frameWidth)
+        {
+            var scale = frameWidth / (double)ClientW;
+            var cell = CellSize * scale;
+            var y = (int)((BarcodeY + CellSize / 2.0) * scale);
+
+            var sync = LumaNv12(frame, stride, (int)(cell * 0.5), y);
+            var dark = LumaNv12(frame, stride, (int)(cell * 1.5), y);
+            if (sync < 140 || dark > 110 || sync - dark < 60)
+            {
+                return -1;
+            }
+
+            var mid = (sync + dark) / 2;
+            var value = 0;
+            for (var bit = 0; bit < BitCount; bit++)
+            {
+                if (LumaNv12(frame, stride, (int)(cell * (2.5 + bit)), y) > mid)
+                {
+                    value |= 1 << bit;
+                }
+            }
+
+            return value;
+        }
+
+        private static int LumaNv12(byte[] frame, int stride, int x, int y)
+        {
+            var offset = (y * stride) + x;
+            return offset < 0 || offset >= frame.Length ? 0 : frame[offset];
+        }
+
         private static int Luma(byte[] frame, int stride, int height, bool bottomUp, int x, int y)
         {
             var row = bottomUp ? height - 1 - y : y;
@@ -1753,7 +2342,7 @@ internal static class CaptureHarness
                 // stsd: 4 version/flags + 4 entry count, then the sample entry; avc1's own header is
                 // 78 bytes before its child boxes.
                 var avc1 = Find(bytes, stsd.Item1 + 8, stsd.Item2, "avc1");
-                var avcC = Find(bytes, avc1.Item1 + 78 - 8, avc1.Item2, "avcC");
+                var avcC = Find(bytes, avc1.Item1 + 78, avc1.Item2, "avcC");
                 var length = (int)(avcC.Item2 - avcC.Item1);
                 var result = new byte[length];
                 Array.Copy(bytes, (int)avcC.Item1, result, 0, length);
@@ -1763,11 +2352,33 @@ internal static class CaptureHarness
             throw new InvalidDataException("no video avcC");
         }
 
+        /// <summary>The audio track's media duration in seconds, 0 when the file has none.</summary>
+        public static double AudioSeconds(string path)
+        {
+            var bytes = File.ReadAllBytes(path);
+            var moov = Find(bytes, 0, bytes.Length, "moov");
+            foreach (var trak in All(bytes, moov.Item1, moov.Item2, "trak"))
+            {
+                var mdia = Find(bytes, trak.Item1, trak.Item2, "mdia");
+                var hdlr = Find(bytes, mdia.Item1, mdia.Item2, "hdlr");
+                if (Type(bytes, hdlr.Item1 + 8) != "soun")
+                {
+                    continue;
+                }
+
+                var mdhd = Find(bytes, mdia.Item1, mdia.Item2, "mdhd");
+                return U32(bytes, mdhd.Item1 + 16) / (double)U32(bytes, mdhd.Item1 + 12);
+            }
+
+            return 0;
+        }
+
         public static IEnumerable<string> Describe(string path)
         {
             var timing = VideoTiming(path);
             yield return "video: frames=" + timing.Samples + " sttsEntries=" + timing.SttsEntries +
                 " media=" + timing.Seconds.ToString("0.000") + "s";
+            yield return "audio: media=" + AudioSeconds(path).ToString("0.000") + "s";
         }
 
         private static long U32(byte[] b, long offset)
