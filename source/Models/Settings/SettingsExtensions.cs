@@ -114,6 +114,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ControllerVibrationDurationMs = source.ControllerVibrationDurationMs;
             target.UseHiddenUnlockSound = source.UseHiddenUnlockSound;
             target.EnableUnlockSounds = source.EnableUnlockSounds;
+            target.AllowThemeUnlockSounds = source.AllowThemeUnlockSounds;
             target.UnlockSoundVolumePercent = source.UnlockSoundVolumePercent;
             target.UnlockSounds = source.UnlockSounds?.Clone() ?? UnlockSoundSettings.CreateDefault();
             target.UnlockSoundsSeededFromUniPlaySong = source.UnlockSoundsSeededFromUniPlaySong;
