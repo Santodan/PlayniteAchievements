@@ -108,51 +108,6 @@ namespace PlayniteAchievements.Views.Settings.General
             }
         }
 
-        /// <summary>
-        /// Plays what a theme ships for this tier. One candidate is not worth a menu, so the button
-        /// plays it outright; two means the desktop and the fullscreen theme both provide the tier
-        /// and the listener has to pick, which is the case this exists for — either can be heard
-        /// without restarting Playnite into the other mode.
-        /// </summary>
-        private void UnlockSoundTheme_Click(object sender, RoutedEventArgs e)
-        {
-            Keyboard.ClearFocus();
-            if (!(sender is Button button) || !(button.DataContext is UnlockSoundRowItem row))
-            {
-                return;
-            }
-
-            if (row.ThemeCandidates.Count == 0)
-            {
-                return;
-            }
-
-            if (row.ThemeCandidates.Count == 1)
-            {
-                _unlockSoundsViewModel?.TestFile(row.ThemeCandidates[0].Path);
-                return;
-            }
-
-            var menu = button.ContextMenu;
-            if (menu == null)
-            {
-                return;
-            }
-
-            menu.Items.Clear();
-            foreach (var candidate in row.ThemeCandidates)
-            {
-                var path = candidate.Path;
-                var item = new MenuItem { Header = candidate.Label };
-                item.Click += (s, args) => _unlockSoundsViewModel?.TestFile(path);
-                menu.Items.Add(item);
-            }
-
-            menu.PlacementTarget = button;
-            menu.Placement = PlacementMode.Bottom;
-            menu.IsOpen = true;
-        }
-
         public static readonly DependencyProperty CleanRaritiesTextProperty =
             DependencyProperty.Register(nameof(CleanRaritiesText), typeof(string), typeof(NotificationsSection),
                 new PropertyMetadata(string.Empty));
