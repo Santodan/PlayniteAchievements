@@ -63,6 +63,14 @@ namespace PlayniteAchievements.Services.Sound
         /// <summary>The sound host's pid for the recorder's reference capture; null when it is down.</summary>
         public int? HostProcessId => _host.ProcessId;
 
+        /// <summary>
+        /// How long a sound may play, in seconds, or null for the whole file. Wired to the toast
+        /// service's resolved display time so a sound never outlives the card it belongs to, which
+        /// also bounds an over-long theme file. Assigned after construction because the toast
+        /// service is built after this one.
+        /// </summary>
+        public Func<double?> MaxPlaybackSeconds { get; set; }
+
         private bool Enabled
         {
             get
@@ -121,7 +129,7 @@ namespace PlayniteAchievements.Services.Sound
                 }
 
                 var gain = (_settings?.Persisted?.UnlockSoundVolumePercent ?? 0) / 100.0;
-                var sentUtc = _host.Play(resolved.Path, gain, out var id);
+                var sentUtc = _host.Play(resolved.Path, gain, SafeMaxSeconds(), out var id);
                 return sentUtc.HasValue ? new UnlockSoundPlayback(id, sentUtc.Value, resolved, gain) : null;
             }
         }
@@ -142,7 +150,25 @@ namespace PlayniteAchievements.Services.Sound
                 }
 
                 var gain = (_settings?.Persisted?.UnlockSoundVolumePercent ?? 0) / 100.0;
-                return _host.Play(path, gain, out _).HasValue;
+                return _host.Play(path, gain, SafeMaxSeconds(), out _).HasValue;
+            }
+        }
+
+        /// <summary>
+        /// The play-time cap, or 0 for the whole file. A provider that throws or is unset leaves the
+        /// sound uncapped rather than silencing or truncating it unpredictably.
+        /// </summary>
+        private double SafeMaxSeconds()
+        {
+            try
+            {
+                var seconds = MaxPlaybackSeconds?.Invoke();
+                return seconds.HasValue && seconds.Value > 0 ? seconds.Value : 0.0;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[UnlockSound] The playback cap could not be read; playing the whole file.");
+                return 0.0;
             }
         }
 

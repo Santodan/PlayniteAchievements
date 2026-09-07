@@ -150,7 +150,7 @@ namespace PlayniteAchievements.Services.Sound
         /// and could not be started). The stamp is the send time, not the audible onset; the
         /// caller adds its alignment constant, and the host's started event logs the real lag.
         /// </summary>
-        public DateTime? Play(string path, double gain, out int id)
+        public DateTime? Play(string path, double gain, double maxSeconds, out int id)
         {
             lock (_gate)
             {
@@ -172,7 +172,7 @@ namespace PlayniteAchievements.Services.Sound
                 }
 
                 _sentQpcById[id] = Stopwatch.GetTimestamp();
-                Enqueue(SoundHostProtocol.EncodePlay(id, path, gain));
+                Enqueue(SoundHostProtocol.EncodePlay(id, path, gain, maxSeconds));
                 return CaptureTimelineClock.UtcNow;
             }
         }
