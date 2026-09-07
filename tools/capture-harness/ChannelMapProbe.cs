@@ -162,21 +162,44 @@ internal static class ChannelMapProbe
                 return 1;
             }
 
-            var front = Math.Max(multiLevels[0], multiLevels[1]);
-            var onTarget = multiLevels[toneChannel];
+            // The capture channel to look at is the one holding the SAME SPEAKER POSITION as the
+            // source channel the tone was rendered on. The layouts differ, so the index usually
+            // does too: back-left is channel 2 of a quad stream but channel 4 of a 7.1 capture.
+            var expected = MapChannel(toneChannel, sourceChannels, channels);
+            if (expected < 0 || expected >= multiLevels.Length)
+            {
+                Console.WriteLine($"FAIL channel {toneChannel} of a {sourceChannels}-channel stream has no counterpart in a {channels}-channel capture");
+                return 1;
+            }
+
+            // Compare against the loudest OTHER channel, not against the front pair: when the tone
+            // is itself on a front channel, comparing the front pair to itself is degenerate.
+            var elsewhere = -200.0;
+            for (var i = 0; i < multiLevels.Length; i++)
+            {
+                if (i != expected)
+                {
+                    elsewhere = Math.Max(elsewhere, multiLevels[i]);
+                }
+            }
+
+            var front = elsewhere;
+            var onTarget = multiLevels[expected];
             var preserved = onTarget - front >= 20;
             var folded = front - onTarget >= 10;
             Console.WriteLine();
+            Console.WriteLine($"source channel {toneChannel} ({PositionName(toneChannel, sourceChannels)}) " +
+                $"maps to capture channel {expected} in a {channels}-channel layout");
             if (preserved)
             {
-                Console.WriteLine($"PASS channel identity preserved: channel {toneChannel} carries the tone {onTarget - front:0.0} dB above the front channels");
+                Console.WriteLine($"PASS channel identity preserved: channel {expected} carries the tone {onTarget - front:0.0} dB above every other channel");
                 Console.WriteLine("verdict: exclude-host capture at 4 channels can drop actuator channels structurally" +
                     (targetIsHaptic ? "." : " (rerun with a controller connected to confirm on its real endpoint)."));
             }
             else if (folded)
             {
                 failures++;
-                Console.WriteLine($"FAIL the tone was folded into the front channels ({front:0.0} dB front vs {onTarget:0.0} dB on channel {toneChannel})");
+                Console.WriteLine($"FAIL the tone leaked into other channels ({front:0.0} dB elsewhere vs {onTarget:0.0} dB on channel {expected})");
                 Console.WriteLine(targetIsHaptic
                     ? "verdict: the engine mixes contributing streams before the capture format; actuators cannot be separated by channel."
                     : "verdict: inconclusive on a stereo endpoint (the endpoint itself downmixed the stream); rerun with a controller connected.");
@@ -184,7 +207,7 @@ internal static class ChannelMapProbe
             else
             {
                 failures++;
-                Console.WriteLine($"FAIL ambiguous: front {front:0.0} dB vs channel {toneChannel} {onTarget:0.0} dB");
+                Console.WriteLine($"FAIL ambiguous: {front:0.0} dB elsewhere vs channel {expected} {onTarget:0.0} dB");
             }
         }
         finally
@@ -257,6 +280,43 @@ internal static class ChannelMapProbe
         }
 
         return failures;
+    }
+
+    // The standard speaker orders behind the masks ProcessLoopbackCapture requests.
+    private static readonly string[] Stereo = { "FL", "FR" };
+    private static readonly string[] Quad = { "FL", "FR", "BL", "BR" };
+    private static readonly string[] Surround51 = { "FL", "FR", "C", "LFE", "BL", "BR" };
+    private static readonly string[] Surround71 = { "FL", "FR", "C", "LFE", "BL", "BR", "SL", "SR" };
+
+    private static string[] Layout(int channels)
+    {
+        switch (channels)
+        {
+            case 2: return Stereo;
+            case 4: return Quad;
+            case 6: return Surround51;
+            case 8: return Surround71;
+            default: return null;
+        }
+    }
+
+    private static string PositionName(int channel, int channels)
+    {
+        var layout = Layout(channels);
+        return layout != null && channel >= 0 && channel < layout.Length ? layout[channel] : "ch" + channel;
+    }
+
+    /// <summary>The index of one layout's speaker position in another layout; -1 when absent.</summary>
+    private static int MapChannel(int channel, int fromChannels, int toChannels)
+    {
+        var from = Layout(fromChannels);
+        var to = Layout(toChannels);
+        if (from == null || to == null || channel < 0 || channel >= from.Length)
+        {
+            return -1;
+        }
+
+        return Array.IndexOf(to, from[channel]);
     }
 
     private static int Option(string[] args, string name, int fallback)
