@@ -320,14 +320,24 @@
                                                     Click="UnlockSoundTest_Click"
                                                     Content="{DynamicResource LOCPlayAch_Button_Test}"
                                                     Margin="6,0,0,0"/>
-                                            <!-- The per-tier theme audition button is withheld
-                                                 pending diagnosis: playing a theme file through
-                                                 UnlockSoundService.PlayFile produced sustained loud
-                                                 noise on a headphone endpoint, from a source file
-                                                 measured quiet and decoded 1:1. The resolver's
-                                                 FindThemeCandidates and the service's PlayFile stay
-                                                 in place for the fix; only the trigger is gone, so
-                                                 nobody can reach it from the settings page. -->
+                                            <!-- Plays what a theme ships for this tier, in either
+                                                 Playnite mode, whatever the chain currently
+                                                 resolves to. Disabled when neither theme provides
+                                                 the tier. -->
+                                            <Button Grid.Column="7"
+                                                    Click="UnlockSoundTheme_Click"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
+                                                    ToolTip="{DynamicResource LOCPlayAch_Settings_UnlockSoundTheme_Tooltip}"
+                                                    IsEnabled="{Binding HasThemeCandidates}"
+                                                    Margin="6,0,0,0">
+                                                <Button.ContextMenu>
+                                                    <!-- Plain action items, not the checkable ones
+                                                         the rarity selectors use: each entry plays
+                                                         a sound rather than toggling a value. -->
+                                                    <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                                 ItemContainerStyle="{StaticResource AchievementContextMenuItemStyle}"/>
+                                                </Button.ContextMenu>
+                                            </Button>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
