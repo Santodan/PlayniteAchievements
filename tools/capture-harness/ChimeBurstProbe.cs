@@ -66,12 +66,27 @@ internal static class ChimeBurstProbe
     private const double Wave1ChimeHz = 440;
     private const double Wave2ChimeHz = 587;
     private const double HapticToneHz = 180;
+    // A bin nothing is played at, clear of every tone above and of 180 Hz's harmonics (360, 540).
+    // The game signal is band-limited noise, so this reads each capture's own noise floor, and the
+    // haptic bin is judged against it rather than against the game marker: the marker's level
+    // swings with what else lands in a slice (a cold start zero-fills part of one), which made a
+    // marker-normalised haptic check fail on a slice that carried no actuator content at all.
+    private const double ControlToneHz = 250;
 
     // Production timing being replicated: each slice is read through its toast plus a tail.
     private const double ToastDurationSeconds = 6.0;
     private const double WaveGapSeconds = 7.5;
     private const double ChimeSeconds = 2.5;
     private const double SliceTailSeconds = 0.5;
+
+    // How much less the actuator bin must rise above the noise floor in a clip track than in a
+    // stereo capture of the same audio. Set from measurement; see the README.
+    private const double HapticExclusionDb = 20;
+
+    // How far this wave's chime bin may sit above the other wave's, in the window where its own
+    // chime is playing live. A live chime in the capture reads 15 dB or more above it; noise
+    // against noise stays within a few dB.
+    private const double ChimeRiseDb = 12;
 
     private static int _failures;
 
@@ -107,7 +122,9 @@ internal static class ChimeBurstProbe
             HasSingleControllerEndpoint(out controllerName);
         Console.WriteLine(hapticsLayer
             ? $"haptic layer: ON — the game child also renders {HapticToneHz} Hz to '{controllerName}'"
-            : "haptic layer: off (no single controller endpoint connected)");
+            : args.Contains("--no-haptics")
+                ? "haptic layer: off (--no-haptics)"
+                : "haptic layer: off (no single controller endpoint connected)");
 
         // The game signal is band-limited noise with the marker tone embedded, so a chime bin's
         // leakage is measured as its during-vs-after rise above that noise rather than as an
@@ -336,16 +353,20 @@ internal static class ChimeBurstProbe
         // every recorder capture did before the 8-channel format; its haptic-to-game ratio is the
         // contamination a clip track must sit well below. Ratios cancel the capture paths' volume
         // scaling. Both tones run for the whole session, so no slice alignment is needed.
-        double contaminationRatioDb = 0;
+        // How far the actuator tone rises above the noise floor in a capture that folds it in.
+        // Both terms come from the same signal, so the figure does not move with the game marker.
+        var contaminationExcessDb = 0.0;
         if (gameTreeStereo != null)
         {
             var frames = gameTreeStereo.Length / 4;
             var game = GoertzelDb(gameTreeStereo, 0, frames, GameToneHz);
             var haptic = GoertzelDb(gameTreeStereo, 0, frames, HapticToneHz);
-            contaminationRatioDb = haptic - game;
+            var control = GoertzelDb(gameTreeStereo, 0, frames, ControlToneHz);
+            contaminationExcessDb = haptic - control;
             Console.WriteLine(
-                $"stereo game-tree capture: haptic {haptic:0.0} dB, game {game:0.0} dB, " +
-                $"ratio {contaminationRatioDb:0.0} dB (what a stereo capture carries)");
+                $"stereo game-tree capture: haptic {haptic:0.0} dB, floor({ControlToneHz:0} Hz) {control:0.0} dB, " +
+                $"game {game:0.0} dB -> haptic rises {contaminationExcessDb:0.0} dB above its floor " +
+                "(what a stereo capture carries)");
         }
 
         var sliceSeconds = ToastDurationSeconds + SliceTailSeconds;
@@ -361,11 +382,11 @@ internal static class ChimeBurstProbe
             Console.WriteLine($"--- {mode} {wave.Name}: slice {wave.SoundUtc:HH:mm:ss.fff} +{sliceSeconds:0.0}s ---");
             var sliceEnd = wave.SoundUtc.AddSeconds(sliceSeconds);
             AssertClipSlice(mode, wave, "aud_ (clip track)", ReadWindow(aud, wave.SoundUtc, sliceEnd),
-                gameTreeStereo != null, contaminationRatioDb);
+                gameTreeStereo != null, contaminationExcessDb);
             if (expectsFallback)
             {
                 AssertClipSlice(mode, wave, "alt_ (exclude-host fallback)", ReadWindow(alt, wave.SoundUtc, sliceEnd),
-                    gameTreeStereo != null, contaminationRatioDb);
+                    gameTreeStereo != null, contaminationExcessDb);
             }
         }
     }
@@ -380,7 +401,7 @@ internal static class ChimeBurstProbe
         string track,
         byte[] slice,
         bool hapticsLayer,
-        double contaminationRatioDb)
+        double contaminationExcessDb)
     {
         // Steady middle of this wave's chime, and an equal-length window after it ends. The game
         // signal is broadband noise, so absolute power in a chime bin is dominated by the noise
@@ -396,18 +417,32 @@ internal static class ChimeBurstProbe
         var ownDuring = GoertzelDb(slice, p0, p1, wave.OwnHz);
         var ownAfter = GoertzelDb(slice, a0, a1, wave.OwnHz);
 
+        // The other wave's chime frequency, measured in this same window. Its chime is 7.5 s away,
+        // so that bin is pure noise here, which makes it the floor reference: same window, so a
+        // slice that is quieter overall cannot read as a chime, and a neighbouring frequency, so
+        // the noise floor's slope barely enters. Referencing the same bin in a LATER window, or a
+        // control bin in a different window, differences two independent single-bin noise
+        // estimates and adds their scatter instead of cancelling it.
+        var otherDuring = GoertzelDb(slice, p0, p1, wave.OtherHz);
+        var chimeRise = ownDuring - otherDuring;
+
         Check(game > ownAfter + 15,
             $"{mode} {wave.Name}: {track} carries the game marker tone",
             $"marker {game:0.0} vs noise floor {ownAfter:0.0} dB");
-        Check(ownDuring - ownAfter <= 12,
+        Check(chimeRise <= ChimeRiseDb,
             $"{mode} {wave.Name}: {track} shows no chime during the live chime",
-            $"during {ownDuring:0.0} vs after {ownAfter:0.0} dB");
+            $"its chime bin sits {chimeRise:0.0}dB from the other wave's in the same window " +
+            $"({ownDuring:0.0} vs {otherDuring:0.0} dB)");
         if (hapticsLayer)
         {
+            // Both captures are judged the same way: how far the actuator bin rises above this
+            // capture's own noise floor. An excluded track shows no rise at all.
             var haptic = GoertzelDb(slice, p0, p1, HapticToneHz);
-            Check(contaminationRatioDb - (haptic - game) >= 30,
-                $"{mode} {wave.Name}: {track} excludes the haptic tone by >= 30dB",
-                $"stereo-capture ratio {contaminationRatioDb:0.0}dB vs track ratio {haptic - game:0.0}dB");
+            var control = GoertzelDb(slice, p0, p1, ControlToneHz);
+            var excess = haptic - control;
+            Check(contaminationExcessDb - excess >= HapticExclusionDb,
+                $"{mode} {wave.Name}: {track} excludes the haptic tone by >= {HapticExclusionDb:0}dB",
+                $"rises {excess:0.0}dB above its floor vs {contaminationExcessDb:0.0}dB in a stereo capture");
         }
     }
 
