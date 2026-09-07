@@ -28,6 +28,9 @@ namespace PlayniteAchievements.Helper
         private const int IdleStopSeconds = 60;
         private const int MaxCachedSeconds = 60;
 
+        /// <summary>Declick ramp at the end of a decoded clip. See <see cref="ApplyEndFade"/>.</summary>
+        private const int EndFadeMs = 8;
+
         private readonly Action<string> _emit;
         private readonly BlockingCollection<Action> _work = new BlockingCollection<Action>();
         private readonly Thread _thread;
@@ -482,7 +485,49 @@ namespace PlayniteAchievements.Helper
                     offset += chunk.Length;
                 }
 
+                ApplyEndFade(samples, target.Channels, target.SampleRate);
                 return samples;
+            }
+        }
+
+        /// <summary>
+        /// Ramps the last few milliseconds of a decoded clip down to zero.
+        ///
+        /// A file whose final sample is not already near zero ends mid-waveform, and going straight
+        /// from that level to the silence the voice writes afterwards is a step discontinuity, which
+        /// is audible as a click. Measured 2026-09-07: all five of Aniki ReMake's
+        /// <c>audio/Achievements/*.wav</c> end at -23.6 dBFS with their last 10 ms peaking at
+        /// -19.4 dBFS, and clicked on every play; the bundled pack and other themes tested end in
+        /// silence and never did. Applied at decode so it is paid once and cached, and applied
+        /// unconditionally because a ramp this short is inaudible on a clip that already ends quiet.
+        ///
+        /// Note this shapes what the host PLAYS. A clip exported by the recorder composites the
+        /// chime straight from the file through ChimeSoundFile, which does not fade, so a hard-cut
+        /// theme file still steps there.
+        /// </summary>
+        private static void ApplyEndFade(float[] samples, int channels, int sampleRate)
+        {
+            if (samples == null || channels <= 0 || sampleRate <= 0)
+            {
+                return;
+            }
+
+            var frames = samples.Length / channels;
+            if (frames <= 0)
+            {
+                return;
+            }
+
+            var fadeFrames = Math.Min(frames, Math.Max(1, sampleRate * EndFadeMs / 1000));
+            for (var frame = frames - fadeFrames; frame < frames; frame++)
+            {
+                // Reaches exactly zero on the final frame, so nothing is left to step from.
+                var gain = (frames - frame - 1) / (float)fadeFrames;
+                var start = frame * channels;
+                for (var channel = 0; channel < channels; channel++)
+                {
+                    samples[start + channel] *= gain;
+                }
             }
         }
 
