@@ -50,11 +50,14 @@ namespace PlayniteAchievements.Helper
         private const int EndFadeMs = 8;
 
         /// <summary>
-        /// Ramp used when a sound is cut short by the notification's display time. Longer than
-        /// <see cref="EndFadeMs"/> because that cut can land anywhere, including full level, where a
-        /// few milliseconds is not enough to be inaudible.
+        /// Fade-out used when a sound is cut short by the notification's display time: long enough
+        /// to read as the sound ending rather than being cut, and finishing exactly at the cap so it
+        /// lands on silence as the card goes. Whichever is shorter, so a short notification does not
+        /// spend most of its sound fading.
         /// </summary>
-        private const int CutFadeMs = 40;
+        private const int CutFadeMaxMs = 750;
+
+        private const double CutFadeFraction = 0.25;
 
         private readonly Action<string> _emit;
         private readonly BlockingCollection<Action> _work = new BlockingCollection<Action>();
@@ -128,16 +131,24 @@ namespace PlayniteAchievements.Helper
                 }
 
                 var limit = clip.Samples.Length;
+                var fadeSamples = 0;
                 if (maxSeconds > 0 && _voiceFormat != null)
                 {
-                    var allowed = (int)(maxSeconds * _voiceFormat.SampleRate) * _voiceFormat.Channels;
+                    var channels = Math.Max(1, _voiceFormat.Channels);
+                    var allowed = (int)(maxSeconds * _voiceFormat.SampleRate) * channels;
                     if (allowed > 0 && allowed < limit)
                     {
                         limit = allowed;
+
+                        // The fade ends where the sound does, so silence arrives with the card.
+                        var frames = limit / channels;
+                        var maxFadeFrames = CutFadeMaxMs * _voiceFormat.SampleRate / 1000;
+                        var fadeFrames = Math.Min(maxFadeFrames, (int)(frames * CutFadeFraction));
+                        fadeSamples = Math.Max(1, fadeFrames) * channels;
                     }
                 }
 
-                _voice.Assign(clip, (float)Math.Max(0.0, Math.Min(1.0, gain)), id, limit);
+                _voice.Assign(clip, (float)Math.Max(0.0, Math.Min(1.0, gain)), id, limit, fadeSamples);
                 _lastActivityTicks = Stopwatch.GetTimestamp();
                 EnsureStreaming(retryOnFailure: true);
             });
@@ -602,12 +613,13 @@ namespace PlayniteAchievements.Helper
         /// <summary>A clip in flight; immutable apart from the render thread's position.</summary>
         private sealed class Playback
         {
-            public Playback(Clip clip, float gain, int id, int limitSamples)
+            public Playback(Clip clip, float gain, int id, int limitSamples, int fadeSamples)
             {
                 Clip = clip;
                 Gain = gain;
                 Id = id;
                 LimitSamples = Math.Max(0, Math.Min(limitSamples, clip?.Samples?.Length ?? 0));
+                FadeSamples = Math.Max(0, Math.Min(fadeSamples, LimitSamples));
             }
 
             public Clip Clip { get; }
@@ -620,8 +632,14 @@ namespace PlayniteAchievements.Helper
             /// </summary>
             public int LimitSamples { get; }
 
-            /// <summary>True when the limit cuts the clip short, so the tail needs a runtime fade.</summary>
-            public bool IsCut => LimitSamples < (Clip?.Samples?.Length ?? 0);
+            /// <summary>
+            /// Length of the fade-out that ends at <see cref="LimitSamples"/>, or 0 when the clip
+            /// runs to its own end and the decoder's baked-in ramp already finishes it.
+            /// </summary>
+            public int FadeSamples { get; }
+
+            /// <summary>Where the fade-out begins.</summary>
+            public int FadeFromSample => LimitSamples - FadeSamples;
 
             public int Position;
             public bool Announced;
@@ -640,12 +658,12 @@ namespace PlayniteAchievements.Helper
 
             public void Assign(Clip clip, float gain, int id)
             {
-                Assign(clip, gain, id, int.MaxValue);
+                Assign(clip, gain, id, int.MaxValue, 0);
             }
 
-            public void Assign(Clip clip, float gain, int id, int limitSamples)
+            public void Assign(Clip clip, float gain, int id, int limitSamples, int fadeSamples)
             {
-                _current = clip == null ? null : new Playback(clip, gain, id, limitSamples);
+                _current = clip == null ? null : new Playback(clip, gain, id, limitSamples, fadeSamples);
             }
 
             /// <summary>
@@ -715,14 +733,15 @@ namespace PlayniteAchievements.Helper
                         _scratch[i] = samples[playback.Position + i] * gain;
                     }
 
-                    // A clip cut short by the notification's duration stops mid-waveform, so it
-                    // gets the same treatment the decoder gives a file's own ending: a ramp to
-                    // zero, longer here because the cut can land at full level.
-                    if (playback.IsCut && take > 0)
+                    // A clip cut short by the notification's duration would otherwise stop
+                    // mid-waveform. Fade it out instead, finishing exactly at the limit so silence
+                    // arrives as the card goes. Raised cosine rather than a straight line: it
+                    // leaves and reaches zero with no slope, which is what makes it read as the
+                    // sound ending rather than as a ramp being applied to it.
+                    if (playback.FadeSamples > 0 && take > 0)
                     {
-                        var channels = Math.Max(1, playback.Clip.Channels);
-                        var fadeSamples = Math.Max(channels, CutFadeMs * (WaveFormat?.SampleRate ?? 48000) / 1000 * channels);
-                        var fadeFrom = limit - fadeSamples;
+                        var fadeFrom = playback.FadeFromSample;
+                        var fadeSpan = (double)playback.FadeSamples;
                         for (var i = 0; i < take; i++)
                         {
                             var position = playback.Position + i;
@@ -731,9 +750,11 @@ namespace PlayniteAchievements.Helper
                                 continue;
                             }
 
-                            var frameFromEnd = (limit - 1 - position) / channels;
-                            var ramp = frameFromEnd / (float)Math.Max(1, fadeSamples / channels);
-                            _scratch[i] *= ramp < 0f ? 0f : ramp;
+                            var progress = (position - fadeFrom) / fadeSpan;
+                            if (progress < 0.0) progress = 0.0;
+                            if (progress > 1.0) progress = 1.0;
+                            var ramp = 0.5 * (1.0 + Math.Cos(Math.PI * progress));
+                            _scratch[i] *= (float)ramp;
                         }
                     }
 
