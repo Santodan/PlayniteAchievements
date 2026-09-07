@@ -25,10 +25,13 @@
     <sys:String x:Key="LOCPlayAch_Common_Default">Default</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_DeselectAll">Deselect All</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Descending">Descending</sys:String>
+    <!-- Common_Desktop / Common_Fullscreen: bare names of Playnite's two modes (and their themes) -->
+    <sys:String x:Key="LOCPlayAch_Common_Desktop">Desktop</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Duplicate">Duplicate</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Edit">Edit</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Enabled">Enabled</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_FilterAchievementsPlaceholder">Filter achievements...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Fullscreen">Fullscreen</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_General">General</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Hide">Hide</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Category">Category</sys:String>
@@ -580,7 +583,9 @@
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationDuration">Vibration duration (ms):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableUnlockSounds">Play a sound on unlock notifications</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UnlockSoundVolume">Volume (%):</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_UnlockSoundFilesHint">Leave a tier blank to use your theme's sound, or the built-in default. Game completion uses the Capstone sound.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UnlockSoundFilesHint">A blank tier is never silent: it plays your theme's sound when theme sounds are on, otherwise the built-in default named on the row. Game completion uses the Capstone sound.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseThemeUnlockSounds">Use unlock sounds provided by the active theme</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UnlockSoundTheme_Tooltip">Play the unlock sound the active desktop or fullscreen theme provides for this tier.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseHiddenUnlockSound">Use the hidden achievement sound instead of the rarity sound</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_BottomRight">Bottom right</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_BottomLeft">Bottom left</sys:String>
