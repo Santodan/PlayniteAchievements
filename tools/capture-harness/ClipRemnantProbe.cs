@@ -572,14 +572,26 @@ internal static class ClipRemnantProbe
         return a <= 0 || b <= 0 ? 0 : dot / Math.Sqrt(a * b);
     }
 
+    // Frames outside either buffer are skipped rather than read. An occurrence close to the end of
+    // the clip has fewer clip frames left than the sound is long, and the per-block lag search
+    // leaves its previous offset in place when every candidate for a block runs past the end, so
+    // callers cannot guarantee the window fits.
     private static double Gain(short[] clip, short[] sound, int clipStart, int offset, int frames)
     {
+        var clipFrames = clip.Length / Channels;
+        var soundFrames = sound.Length / Channels;
         double dot = 0, b = 0;
         for (var f = offset; f < offset + frames; f++)
         {
+            var c = clipStart + f;
+            if (f < 0 || f >= soundFrames || c < 0 || c >= clipFrames)
+            {
+                continue;
+            }
+
             for (var ch = 0; ch < Channels; ch++)
             {
-                double x = clip[(clipStart + f) * Channels + ch];
+                double x = clip[c * Channels + ch];
                 double y = sound[f * Channels + ch];
                 dot += x * y;
                 b += y * y;
@@ -588,10 +600,12 @@ internal static class ClipRemnantProbe
         return b <= 0 ? 0 : dot / b;
     }
 
+    /// <summary>Energy over a frame window, counting only frames the buffer actually holds.</summary>
     private static double Energy(short[] pcm, int offset, int frames)
     {
+        var total = pcm.Length / Channels;
         double e = 0;
-        for (var f = offset; f < offset + frames; f++)
+        for (var f = Math.Max(0, offset); f < Math.Min(total, offset + frames); f++)
         {
             for (var ch = 0; ch < Channels; ch++)
             {
