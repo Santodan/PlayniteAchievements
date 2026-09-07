@@ -11,7 +11,7 @@ namespace PlayniteAchievements.Services.Sound
     /// Newtonsoft.Json and tuple syntax: the host exe cannot resolve the Playnite-provided
     /// assemblies Toolbox strips from the package.
     ///
-    /// plugin to host:  preload\t{path}...  |  play\t{id}\t{gain}\t{path}  |  stop  |  quit
+    /// plugin to host:  preload\t{path}...  |  play\t{id}\t{gain}\t{maxMs}\t{path}  |  stop  |  quit
     /// host to plugin:  ready\t{pid}  |  started\t{id}\t{qpc}  |  error\t{id or -1}\t{message}
     /// </summary>
     internal static class SoundHostProtocol
@@ -48,13 +48,19 @@ namespace PlayniteAchievements.Services.Sound
             return string.Join(Separator.ToString(), parts);
         }
 
-        public static string EncodePlay(int id, string path, double gain)
+        /// <param name="maxSeconds">
+        /// How long the sound may play before it is faded out, or 0 for the whole file. Carried on
+        /// the wire as whole milliseconds ahead of the path, since the path must stay last.
+        /// </param>
+        public static string EncodePlay(int id, string path, double gain, double maxSeconds)
         {
+            var maxMs = maxSeconds > 0 ? (long)Math.Round(maxSeconds * 1000.0) : 0L;
             return string.Join(
                 Separator.ToString(),
                 PlayVerb,
                 id.ToString(CultureInfo.InvariantCulture),
                 gain.ToString("0.####", CultureInfo.InvariantCulture),
+                maxMs.ToString(CultureInfo.InvariantCulture),
                 Sanitize(path));
         }
 
@@ -118,13 +124,40 @@ namespace PlayniteAchievements.Services.Sound
                 {
                     if (fields.Length < 4
                         || !TryParseInt(fields[1], out var id)
-                        || !double.TryParse(fields[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var gain)
-                        || string.IsNullOrWhiteSpace(fields[3]))
+                        || !double.TryParse(fields[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var gain))
                     {
                         return false;
                     }
 
-                    message = new SoundHostMessage(verb) { Id = id, Gain = gain, Path = fields[3] };
+                    // Five fields carry a duration cap ahead of the path; four is the older form
+                    // with no cap, accepted so a host binary from a previous build still plays
+                    // rather than rejecting the line and going silent.
+                    var maxSeconds = 0.0;
+                    var path = fields[3];
+                    if (fields.Length >= 5)
+                    {
+                        if (!long.TryParse(fields[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var maxMs)
+                            || maxMs < 0)
+                        {
+                            return false;
+                        }
+
+                        maxSeconds = maxMs / 1000.0;
+                        path = fields[4];
+                    }
+
+                    if (string.IsNullOrWhiteSpace(path))
+                    {
+                        return false;
+                    }
+
+                    message = new SoundHostMessage(verb)
+                    {
+                        Id = id,
+                        Gain = gain,
+                        MaxSeconds = maxSeconds,
+                        Path = path
+                    };
                     return true;
                 }
 
@@ -206,6 +239,10 @@ namespace PlayniteAchievements.Services.Sound
         public int Id { get; set; }
 
         public double Gain { get; set; }
+
+        /// <summary>Play only: seconds the sound may run before being faded out; 0 for the whole file.</summary>
+        public double MaxSeconds { get; set; }
+
         public long Qpc { get; set; }
 
         /// <summary>Milliseconds from <see cref="Qpc"/> to the audible onset; null when not reported.</summary>
