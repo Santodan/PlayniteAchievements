@@ -49,7 +49,7 @@ namespace PlayniteAchievements.Helper
                     engine.Preload(message.Paths);
                     break;
                 case SoundHostProtocol.PlayVerb:
-                    engine.Play(message.Id, message.Path, message.Gain);
+                    engine.Play(message.Id, message.Path, message.Gain, message.MaxSeconds);
                     break;
                 case SoundHostProtocol.StopVerb:
                     engine.Stop();

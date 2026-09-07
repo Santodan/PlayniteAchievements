@@ -49,6 +49,13 @@ namespace PlayniteAchievements.Helper
         /// <summary>Declick ramp at the end of a decoded clip. See <see cref="ApplyEndFade"/>.</summary>
         private const int EndFadeMs = 8;
 
+        /// <summary>
+        /// Ramp used when a sound is cut short by the notification's display time. Longer than
+        /// <see cref="EndFadeMs"/> because that cut can land anywhere, including full level, where a
+        /// few milliseconds is not enough to be inaudible.
+        /// </summary>
+        private const int CutFadeMs = 40;
+
         private readonly Action<string> _emit;
         private readonly BlockingCollection<Action> _work = new BlockingCollection<Action>();
         private readonly Thread _thread;
@@ -100,7 +107,11 @@ namespace PlayniteAchievements.Helper
             });
         }
 
-        public void Play(int id, string path, double gain)
+        /// <param name="maxSeconds">
+        /// How long the sound may run before it is faded out, or 0 for the whole file. The plugin
+        /// passes the notification's display time, so a sound never outlives the card it belongs to.
+        /// </param>
+        public void Play(int id, string path, double gain, double maxSeconds)
         {
             Post(() =>
             {
@@ -116,7 +127,17 @@ namespace PlayniteAchievements.Helper
                     return;
                 }
 
-                _voice.Assign(clip, (float)Math.Max(0.0, Math.Min(1.0, gain)), id);
+                var limit = clip.Samples.Length;
+                if (maxSeconds > 0 && _voiceFormat != null)
+                {
+                    var allowed = (int)(maxSeconds * _voiceFormat.SampleRate) * _voiceFormat.Channels;
+                    if (allowed > 0 && allowed < limit)
+                    {
+                        limit = allowed;
+                    }
+                }
+
+                _voice.Assign(clip, (float)Math.Max(0.0, Math.Min(1.0, gain)), id, limit);
                 _lastActivityTicks = Stopwatch.GetTimestamp();
                 EnsureStreaming(retryOnFailure: true);
             });
@@ -581,16 +602,27 @@ namespace PlayniteAchievements.Helper
         /// <summary>A clip in flight; immutable apart from the render thread's position.</summary>
         private sealed class Playback
         {
-            public Playback(Clip clip, float gain, int id)
+            public Playback(Clip clip, float gain, int id, int limitSamples)
             {
                 Clip = clip;
                 Gain = gain;
                 Id = id;
+                LimitSamples = Math.Max(0, Math.Min(limitSamples, clip?.Samples?.Length ?? 0));
             }
 
             public Clip Clip { get; }
             public float Gain { get; }
             public int Id { get; }
+
+            /// <summary>
+            /// How many samples of the clip this playback may use, at most its whole length. Below
+            /// the clip's length when the notification it belongs to is shorter than the file.
+            /// </summary>
+            public int LimitSamples { get; }
+
+            /// <summary>True when the limit cuts the clip short, so the tail needs a runtime fade.</summary>
+            public bool IsCut => LimitSamples < (Clip?.Samples?.Length ?? 0);
+
             public int Position;
             public bool Announced;
         }
@@ -608,7 +640,12 @@ namespace PlayniteAchievements.Helper
 
             public void Assign(Clip clip, float gain, int id)
             {
-                _current = clip == null ? null : new Playback(clip, gain, id);
+                Assign(clip, gain, id, int.MaxValue);
+            }
+
+            public void Assign(Clip clip, float gain, int id, int limitSamples)
+            {
+                _current = clip == null ? null : new Playback(clip, gain, id, limitSamples);
             }
 
             /// <summary>
@@ -666,7 +703,8 @@ namespace PlayniteAchievements.Helper
                     }
 
                     var samples = playback.Clip.Samples;
-                    var remaining = samples.Length - playback.Position;
+                    var limit = playback.LimitSamples;
+                    var remaining = limit - playback.Position;
 
                     // Clamped rather than trusted: a position past the end would otherwise make the
                     // copy length negative, which throws on the render thread.
@@ -677,9 +715,31 @@ namespace PlayniteAchievements.Helper
                         _scratch[i] = samples[playback.Position + i] * gain;
                     }
 
+                    // A clip cut short by the notification's duration stops mid-waveform, so it
+                    // gets the same treatment the decoder gives a file's own ending: a ramp to
+                    // zero, longer here because the cut can land at full level.
+                    if (playback.IsCut && take > 0)
+                    {
+                        var channels = Math.Max(1, playback.Clip.Channels);
+                        var fadeSamples = Math.Max(channels, CutFadeMs * (WaveFormat?.SampleRate ?? 48000) / 1000 * channels);
+                        var fadeFrom = limit - fadeSamples;
+                        for (var i = 0; i < take; i++)
+                        {
+                            var position = playback.Position + i;
+                            if (position < fadeFrom)
+                            {
+                                continue;
+                            }
+
+                            var frameFromEnd = (limit - 1 - position) / channels;
+                            var ramp = frameFromEnd / (float)Math.Max(1, fadeSamples / channels);
+                            _scratch[i] *= ramp < 0f ? 0f : ramp;
+                        }
+                    }
+
                     playback.Position += take;
                     written = take;
-                    if (playback.Position >= samples.Length && ReferenceEquals(_current, playback))
+                    if (playback.Position >= limit && ReferenceEquals(_current, playback))
                     {
                         _current = null;
                     }
