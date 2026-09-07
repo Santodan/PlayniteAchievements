@@ -61,11 +61,87 @@ What it reports, and why each check exists:
 | Screenshot alignment — a live grab's frame vs when the grab happened | How current a live screenshot can be, and that its path involves no mapping |
 | Paint intervals during recording and compositing | Whether the pipeline stutters the application being captured |
 | Encoder duration handling | Per-sample durations being flattened onto a fixed grid |
+| **Spliced vs whole-clip re-encode** — same base clip through both passes, frame identities compared one to one, card presence read back per frame | A splice point that shifts, drops or duplicates frames, or lands the card on the wrong frames |
+| Audio through the overlay pass — a synthetic 440 Hz loopback track and a 1 kHz composited chime, read back by Goertzel | The remux losing the track, shortening it, or mixing the chime at the wrong time (both AAC passthrough and PCM re-encode modes) |
 
 `freezeAt`/`freezeFor` stop the window painting mid-recording, which is what a game that stops presenting
 looks like to the capture. Wired but not yet exercised.
 
 Per-frame offsets are written to `alignment_*.csv` next to the executable.
+
+The composition phase runs the overlay re-encoder three times over the same base clip: spliced (the
+default, `MediaFoundationOverlayReencoder.SpliceEnabled = true`) and whole-clip with a production-shaped
+card at the end of the clip and a chime mixed into the audio, then a card two seconds in with no chime.
+The spliced output must decode to the same source frame at the same output time as the whole-clip one,
+carry the card on exactly the frames the window covers, and keep its audio; the last case makes the plan
+copy after the card instead of before it and takes the AAC passthrough path. Each pass prints the plugin's
+own `Toast splice` lines (runs copied and re-encoded, per-run reader/sink/frames/finalize cost) so the
+saving is measured, not inferred. The harness records no real audio, so `ExportClip` writes one synthetic
+`aud_*.wav` chunk per video segment, named and timed like the audio recorder's, before exporting.
+
+The avcC check after it is what makes the splice possible at all: copied and re-encoded GOPs can share one
+track only if the two encoders emit byte-identical parameter sets. Measured on the NVIDIA MFT they do, at
+the higher re-encode bitrate too, but only when the re-encode declares the capture's frame rate: the rate
+is written into the SPS timing fields, and a base clip whose capture stalled averages below it (56 fps for
+a 60 fps capture, in one run), so deriving the rate from the clip produced a different SPS. The plugin
+declares the captured rate for re-encoded runs and compares sequence headers before it splices.
+
+### Re-running the composition over an existing clip
+
+```powershell
+tools\capture-harness\bin\CaptureHarness.exe --reencode <clip.mp4> <fps> [toastStartSeconds] [trimLeadSeconds] [pluginDir]
+```
+
+Runs only the composition phase (the three passes above and their checks) over a base clip the full run
+left behind, so a clip that exposed something — one with a capture stall, say — can be worked on without
+recording again. It first prints a compressed-vs-decoded timestamp comparison under each reader mode.
+That comparison is what found that the source reader's *advanced* video processing includes frame-rate
+conversion: it re-times every decoded frame onto the type's declared frame rate, an average the MP4
+source derives from the file, so on a stalled clip decoded timestamps drifted from the compressed ones
+by the whole stall (404 ms measured) while *basic* processing and the decoder's own NV12 output kept
+them exact. The plugin and this harness now decode NV12 with no processing attribute; barcodes are read
+from the luma plane and the card from the chroma plane.
+
+The same investigation moved the plugin's compositing off RGB altogether: frames stay in NV12 from the
+decoder through the in-place card blend to the encoder, which removed both colour converters from the
+pass, and the D3D device manager was dropped from the encoding sink because the NVIDIA transform
+rejects system-memory NV12 samples while one is bound (`E_INVALIDARG` on the first write) yet is
+selected as the hardware encoder without it. Two more things had to be true for the NV12 path to be
+correct, both found by comparing dumped frames against the base clip: each decoded frame is copied out of
+the decoder before it is written, because the decoder reuses its output buffers while the encoding sink
+still holds the queued sample (luma and chroma from different frames otherwise), and each copy is
+repacked from the decoder's own pitch and macroblock-aligned height (1088 rows for 1080p at 1080p) to
+the packed frame, because that padding puts the chroma plane below where the encoder and the compositor
+address it (every picture's chroma sat 16 rows below its luma while the card, blended by the same
+assumption, looked right). Media Foundation's own contiguous copy does not solve this: it packs rows to
+the frame width but keeps the aligned height, which `GetContiguousLength` reporting 3133440 rather than
+3110400 is exactly what says. The aligned height is derived from that number instead of assumed, so a
+vendor's choice of pitch or alignment is never guessed at. With both in place the composited frames
+match the base clip at 71-74 dB PSNR outside the card, where the RGB path managed 53 dB, and the card
+region matches the old path within codec noise (53-57 dB).
+
+`--software` on the `--reencode` line keeps hardware transforms off the encoding sinks, so the passes run
+on Microsoft's software H.264 encoder — the path any machine without a usable vendor transform takes, and
+the one the plugin falls back to by itself when a hardware sink cannot be set up. Its parameter sets
+differ from the capture's, so this also exercises the splice detecting the mismatch and falling back to
+the whole-clip pass. It composites at the same rate and reads 60 dB against the base clip (the encoder is
+simply noisier), so the fall-back costs encode speed, never the card.
+
+Only the NVIDIA encoder was available here. What stands behind AMD and Intel is that fall-back and the
+existing one below it: a sink that cannot be created, a transform that refuses the frames, or parameter
+sets that do not match all end in a working clip — with the software encoder, without the splice, or in
+the last resort without the card, never with a corrupt one.
+
+The parameter-set check costs nothing to reach that verdict. The encoder publishes its sequence header
+on the sink's own transform as soon as writing begins, so the plugin compares it there, 1-2 ms after the
+sink exists and before a single frame is encoded; a mismatch abandons the run having done no work. The
+comparison is per NAL unit rather than over the raw blob, because the same encoder reports four-byte
+start codes on its output type and three-byte ones in the file it writes, and comparing the blobs whole
+calls that a mismatch. Decoding the two signatures with `Decode-Sps.ps1`-style field parsing showed the
+NVIDIA capture and the Microsoft software encoder differ in exactly three places: `max_num_ref_frames`
+(1 vs 2), the VUI colour description (present vs absent) and the timing tick ratio (1000/120000 vs 1/120,
+both 60 fps). Only the first is settable through the codec API, so making two different encoders sign
+alike is not achievable, and the pass detects rather than pursues it.
 
 ### Native lifetime/page-heap stress
 
@@ -330,6 +406,24 @@ gives 147. Real frames do not look like that; the ramp case is the representativ
 - **`GenerationLoss.exe <source.mp4> <outDir> [bitrateKbps...]`** — re-encodes a clip at several bitrates
   and reports PSNR against the source, for sizing the export-time bitrate headroom. Slow: each rate costs a
   decode plus an encode plus two comparison decodes.
+
+## The clip remnant probe
+
+```powershell
+tools\capture-harness\bin\ClipRemnantProbe.exe <clip.mp4> <sound file> [--volume 0.5] [--floor 0.06] [--block 0.25]
+```
+
+Measures what an exported clip still carries of a notification sound, from the clip alone. It decodes
+the clip's audio and the sound file to the export format, finds every occurrence of the sound by
+normalized correlation against its first second, and prints each occurrence's level relative to the
+played volume plus a per-block row of signed gain and best lag offset. The composited chime reads
+0 dB at lag 0 in every block, and it should be the ONLY occurrence: clip tracks exclude the sound
+host's process, so a second occurrence anywhere means the live sound reached the capture and the
+exclusion failed. Rows inside the composited chime's own span with correlation around 0.1-0.2 are the
+jingle correlating with its own later notes, not a second copy. The per-block gain and lag columns
+date from the cancellation era and still read the same way: a flat row is a level mismatch, a sloped
+row a time-varying level, and a row whose lag steps partway through is a capture alignment tear. Needs no capture
+buffer, so it works on clips a user sends.
 
 ## The chime separation probe
 
