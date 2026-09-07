@@ -628,6 +628,11 @@ namespace PlayniteAchievements
                         pluginInstallDirectory,
                         _logger);
                     SettingsSaved += OnSettingsSavedForUnlockSounds;
+                    // Bound a sound by the card it belongs to. Read through a delegate because the
+                    // toast service is constructed below this one, and because the effective
+                    // duration can come from a theme override rather than the setting.
+                    _unlockSounds.MaxPlaybackSeconds =
+                        () => _toastNotifications?.GetEffectiveToastDurationSecondsSafe();
                     _toastNotifications = new ToastNotificationService(
                         PlayniteApi,
                         settings,
