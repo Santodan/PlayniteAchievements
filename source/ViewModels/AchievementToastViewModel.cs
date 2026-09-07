@@ -1593,31 +1593,25 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        // UniPlaySong's URI segment for hidden achievements. Named because UniPlaySong may rename
-        // it; the four rarity segments and capstone are inline in SoundTierSegment below.
-        public const string HiddenSoundSegment = "hidden";
-
         /// <summary>
-        /// Whether this unlock plays UniPlaySong's hidden-achievement sound: the achievement is
-        /// hidden and the user opted into the hidden sound. Shared by
-        /// <see cref="SoundTierSegment"/> and <see cref="SoundTierRank"/> so the two cannot
-        /// disagree about which unlocks are hidden.
+        /// Whether this unlock plays the hidden-achievement sound: the achievement is hidden and
+        /// the user opted into the hidden sound. Shared by <see cref="SoundTier"/> and
+        /// <see cref="SoundTierRank"/> so the two cannot disagree about which unlocks are hidden.
         /// </summary>
         private bool UseHiddenSound => _settings.UseHiddenUnlockSound && _args.IsHidden;
 
         /// <summary>
-        /// UniPlaySong URI segment for this unlock's tier (e.g. "rareachievement"). The hidden
-        /// sound takes precedence over everything when enabled, then capstone and the completion
-        /// notification, and otherwise the rarity tier is used. Note this order is deliberately the
-        /// inverse of <see cref="SoundTierRank"/>'s, which keeps capstone at the top: a hidden
-        /// capstone plays the hidden sound while still ranking as a capstone in its wave.
+        /// The sound slot this unlock plays. The hidden sound takes precedence over everything
+        /// when enabled, then capstone and the completion notification, and otherwise the rarity
+        /// tier is used. Note this order is deliberately the inverse of
+        /// <see cref="SoundTierRank"/>'s, which keeps capstone at the top: a hidden capstone plays
+        /// the hidden sound while still ranking as a capstone in its wave. Null for a progress
+        /// notification, which is silent by design.
         /// </summary>
-        public string SoundTierSegment
+        public UnlockSoundTier? SoundTier
         {
             get
             {
-                // Progress notifications are silent by design; the wave gate never asks, but a
-                // null segment keeps a direct caller silent too.
                 if (IsProgressUpdate)
                 {
                     return null;
@@ -1625,27 +1619,28 @@ namespace PlayniteAchievements.ViewModels
 
                 if (UseHiddenSound)
                 {
-                    return HiddenSoundSegment;
+                    return UnlockSoundTier.Hidden;
                 }
 
                 if (IsCapstone || IsGameCompleted)
                 {
-                    return "capstoneachievement";
+                    return UnlockSoundTier.Capstone;
                 }
 
                 switch (_rarity)
                 {
                     case RarityTier.UltraRare:
-                        return "ultrarareachievement";
+                        return UnlockSoundTier.UltraRare;
                     case RarityTier.Rare:
-                        return "rareachievement";
+                        return UnlockSoundTier.Rare;
                     case RarityTier.Uncommon:
-                        return "uncommonachievement";
+                        return UnlockSoundTier.Uncommon;
                     default:
-                        return "commonachievement";
+                        return UnlockSoundTier.Common;
                 }
             }
         }
+
 
         /// <summary>
         /// Rarity ranking used to pick a single representative sound when several unlocks show at

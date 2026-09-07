@@ -218,6 +218,47 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void Constructor_DefaultsUnlockSoundsOnAtHalfVolumeWithNoCustomFiles()
+        {
+            var settings = new PersistedSettings();
+
+            Assert.IsTrue(settings.EnableUnlockSounds);
+            Assert.AreEqual(50, settings.UnlockSoundVolumePercent);
+            Assert.IsFalse(settings.UnlockSoundsSeededFromUniPlaySong);
+            Assert.IsNotNull(settings.UnlockSounds);
+            foreach (var tier in UnlockSoundTierExtensions.All)
+            {
+                Assert.IsNull(settings.UnlockSounds.GetPath(tier), tier.ToString());
+            }
+        }
+
+        [TestMethod]
+        public void UnlockSoundVolumePercent_ClampsToPercentRange()
+        {
+            var settings = new PersistedSettings { UnlockSoundVolumePercent = 150 };
+            Assert.AreEqual(100, settings.UnlockSoundVolumePercent);
+
+            settings.UnlockSoundVolumePercent = -5;
+            Assert.AreEqual(0, settings.UnlockSoundVolumePercent);
+        }
+
+        [TestMethod]
+        public void UnlockSoundSettings_BlankPathsNormalizeToNullAndCloneIsIndependent()
+        {
+            var sounds = new UnlockSoundSettings();
+            sounds.SetPath(UnlockSoundTier.Rare, @"  C:\sounds\rare.wav  ");
+            sounds.SetPath(UnlockSoundTier.Hidden, "   ");
+
+            Assert.AreEqual(@"C:\sounds\rare.wav", sounds.Rare);
+            Assert.IsNull(sounds.Hidden);
+
+            var clone = sounds.Clone();
+            clone.Rare = null;
+            Assert.AreEqual(@"C:\sounds\rare.wav", sounds.GetPath(UnlockSoundTier.Rare));
+            Assert.IsNull(clone.GetPath(UnlockSoundTier.Rare));
+        }
+
+        [TestMethod]
         public void Constructor_DefaultsRoundRarityPercentagesOff()
         {
             var settings = new PersistedSettings();

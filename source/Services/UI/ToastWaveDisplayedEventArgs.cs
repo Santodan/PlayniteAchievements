@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Services.UI
             string soundFilePath = null,
             double? soundFileGain = null,
             int? soundAlignmentDelayMs = null,
-            Guid? occurrenceId = null)
+            int? soundPlaybackId = null)
         {
             Wave = wave;
             ShownUtc = shownUtc;
@@ -30,49 +30,47 @@ namespace PlayniteAchievements.Services.UI
             SoundFilePath = soundFilePath;
             SoundFileGain = soundFileGain;
             SoundAlignmentDelayMs = soundAlignmentDelayMs;
-            OccurrenceId = occurrenceId ?? Guid.NewGuid();
+            SoundPlaybackId = soundPlaybackId;
         }
+
+        /// <summary>
+        /// The sound host's play id for this wave's sound, so export can look up the measured
+        /// audible onset instead of modelling it from <see cref="SoundAlignmentDelayMs"/>. Null
+        /// when no sound fired.
+        /// </summary>
+        public int? SoundPlaybackId { get; }
 
         public IReadOnlyList<AchievementToastViewModel> Wave { get; }
 
         public DateTime ShownUtc { get; }
 
         /// <summary>
-        /// When this wave's unlock chime started playing. The recording service places the exact
-        /// resolved file on this timeline for removal, with the captured sidecar as fallback, then
-        /// mixes one clean replacement into the wave's clips. Null when no sound fired — including
-        /// an unrevealed wave, which deliberately plays none.
+        /// When the plugin asked the sound host to play this wave's unlock sound. The recording
+        /// service measures the sound-to-card gap from it and mixes the exact file into the wave's
+        /// clips at that lead. Null when no sound fired — including an unrevealed wave, which
+        /// deliberately plays none.
         /// </summary>
         public DateTime? SoundPlayedUtc { get; }
 
         /// <summary>
-        /// Stable identity for this wave's one possible sound. It is intentionally not derived
-        /// from <see cref="SoundPlayedUtc"/> because separate waves may share a timestamp or sound
-        /// file, and every achievement in this wave must point to the same occurrence.
-        /// </summary>
-        public Guid OccurrenceId { get; }
-
-        /// <summary>
-        /// The exact sound file UniPlaySong resolved for this wave, snapshotted the moment it
-        /// fired, or null when it cannot be known (UniPlaySong before 1.8.4, resolution failure).
-        /// With a path, export mixes this file at the composited toast instead of separating a
-        /// captured copy of the chime.
+        /// The exact sound file the sound host played for this wave, snapshotted the moment it was
+        /// asked for, or null when no sound played. Export mixes this file at the composited toast.
         /// </summary>
         public string SoundFilePath { get; }
 
         /// <summary>
-        /// The sound-alignment delay the toast service applied between launching the chime and
-        /// revealing the card, in milliseconds. The delay models the launch-to-audible latency of
-        /// the live playback path (in-process vs URI), so the audible onset lands on the reveal;
-        /// export subtracts it from the launch-to-card gap when placing the chime, because the
-        /// mixed file has no such latency. Null when no sound fired.
+        /// The sound-alignment delay the toast service applied between asking the host for the
+        /// sound and revealing the card, in milliseconds. The delay models the launch-to-audible
+        /// latency of the host, so the audible onset lands on the reveal; export subtracts it from
+        /// the launch-to-card gap when placing the chime, because the mixed file has no such
+        /// latency. Null when no sound fired.
         /// </summary>
         public int? SoundAlignmentDelayMs { get; }
 
         /// <summary>
-        /// The volume UniPlaySong played the sound at (0..1), snapshotted with the path so the
-        /// mixed chime is as loud as the live one the user heard. Null when unknown; export then
-        /// uses its fixed fallback gain.
+        /// The gain the sound was played at (0..1, the user's volume setting), snapshotted with the
+        /// path so the mixed chime is as loud as the live one the user heard. Null when unknown;
+        /// export then uses its fixed fallback gain.
         /// </summary>
         public double? SoundFileGain { get; }
 

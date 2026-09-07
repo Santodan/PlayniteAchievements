@@ -29,14 +29,28 @@ namespace PlayniteAchievements.Services.Recording
             string friendlyName,
             string deviceFriendlyName,
             string instanceId,
-            IReadOnlyList<string> propertyStrings)
+            IReadOnlyList<string> propertyStrings,
+            int mixChannels = 0,
+            uint mixChannelMask = 0)
         {
             Id = id;
             FriendlyName = friendlyName;
             DeviceFriendlyName = deviceFriendlyName;
             InstanceId = instanceId;
             PropertyStrings = propertyStrings ?? new string[0];
+            MixChannels = mixChannels;
+            MixChannelMask = mixChannelMask;
         }
+
+        /// <summary>Channel count of the endpoint's shared-mode mix format; 0 when unreadable.</summary>
+        public int MixChannels { get; }
+
+        /// <summary>
+        /// Speaker mask of the mix format when it is WAVEFORMATEXTENSIBLE; 0 otherwise. A DualSense
+        /// exposes 4 channels with mask 0x33 (front and back pairs), a layout no ordinary speaker
+        /// output uses.
+        /// </summary>
+        public uint MixChannelMask { get; }
 
         public string Id { get; }
 
@@ -89,6 +103,8 @@ namespace PlayniteAchievements.Services.Recording
         private const ushort VT_LPSTR = 30;
         private const ushort VT_LPWSTR = 31;
         private const ushort VT_VECTOR = 0x1000;
+        private const ushort VT_BLOB = 0x41;
+        private const ushort WaveFormatExtensibleTag = 0xFFFE;
 
         private static readonly Guid MMDeviceEnumeratorClsid =
             new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E");
@@ -104,6 +120,10 @@ namespace PlayniteAchievements.Services.Recording
         // endpoint's own property store, so reading it there yields nothing on any machine.
         private static readonly PropertyKey InstancePathKey =
             new PropertyKey(new Guid("b3f8fa53-0004-438e-9003-51a46e139bfc"), 2);
+
+        // PKEY_AudioEngine_DeviceFormat: the shared-mode mix format as a WAVEFORMATEX blob.
+        private static readonly PropertyKey DeviceFormatKey =
+            new PropertyKey(new Guid("f19f064d-082c-4e27-bc73-6882a1bb8e4c"), 0);
 
         // PROPVARIANT: an 8-byte header (VARTYPE plus three pad WORDs) then a pointer-aligned union
         // whose largest member used here (CALPWSTR) is a count followed by a pointer.
@@ -174,6 +194,22 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>Every active endpoint on this flow. Throws when the enumeration itself fails.</summary>
+        /// <summary>
+        /// Subscribes to endpoint arrivals, removals, state and format changes and default-device
+        /// switches. <paramref name="changed"/> receives the endpoint id (null for a default-device
+        /// switch) on a COM worker thread; do the actual work elsewhere. Dispose to unsubscribe.
+        /// Built on this file's own interop, never NAudio's enumerator (see the class doc).
+        /// </summary>
+        public static IDisposable WatchEndpoints(Action<string> changed)
+        {
+            if (changed == null)
+            {
+                throw new ArgumentNullException(nameof(changed));
+            }
+
+            return new EndpointWatch(changed);
+        }
+
         public static List<EndpointIdentity> EnumerateActive(AudioDataFlow flow)
         {
             var found = new List<EndpointIdentity>();
@@ -287,6 +323,8 @@ namespace PlayniteAchievements.Services.Recording
             string deviceFriendlyName = null;
             string instanceId = null;
             var strings = new List<string>();
+            var mixChannels = 0;
+            var mixChannelMask = 0u;
 
             IPropertyStore store = null;
             try
@@ -297,6 +335,7 @@ namespace PlayniteAchievements.Services.Recording
                     deviceFriendlyName = ReadSingleString(store, InterfaceFriendlyNameKey);
                     instanceId = ReadSingleString(store, InstancePathKey);
                     CollectAllStrings(store, strings);
+                    ReadMixFormat(store, out mixChannels, out mixChannelMask);
                 }
             }
             catch
@@ -307,7 +346,72 @@ namespace PlayniteAchievements.Services.Recording
                 Release(store);
             }
 
-            return new EndpointIdentity(id, friendlyName, deviceFriendlyName, instanceId, strings);
+            return new EndpointIdentity(
+                id, friendlyName, deviceFriendlyName, instanceId, strings, mixChannels, mixChannelMask);
+        }
+
+        /// <summary>
+        /// Reads the mix format's channel count and, for WAVEFORMATEXTENSIBLE, its speaker mask.
+        /// Both stay 0 when the property is absent or not a blob.
+        /// </summary>
+        private static void ReadMixFormat(IPropertyStore store, out int channels, out uint channelMask)
+        {
+            channels = 0;
+            channelMask = 0;
+            var buffer = Marshal.AllocCoTaskMem(PropVariantSize);
+            try
+            {
+                for (var offset = 0; offset < PropVariantSize; offset += 4)
+                {
+                    Marshal.WriteInt32(buffer, offset, 0);
+                }
+
+                var key = DeviceFormatKey;
+                if (store.GetValue(ref key, buffer) != 0)
+                {
+                    return;
+                }
+
+                try
+                {
+                    var vt = unchecked((ushort)Marshal.ReadInt16(buffer));
+                    if (vt != VT_BLOB)
+                    {
+                        return;
+                    }
+
+                    // BLOB: a byte count, then -- pointer-aligned -- the data pointer.
+                    var payload = buffer + 8;
+                    var size = Marshal.ReadInt32(payload);
+                    var data = Marshal.ReadIntPtr(payload + IntPtr.Size);
+                    if (data == IntPtr.Zero || size < 18)
+                    {
+                        return;
+                    }
+
+                    // WAVEFORMATEX: wFormatTag @0, nChannels @2, ..., cbSize @16;
+                    // WAVEFORMATEXTENSIBLE continues with wValidBitsPerSample @18, dwChannelMask @20.
+                    var formatTag = unchecked((ushort)Marshal.ReadInt16(data));
+                    channels = Marshal.ReadInt16(data, 2);
+                    if (formatTag == WaveFormatExtensibleTag && size >= 24)
+                    {
+                        channelMask = unchecked((uint)Marshal.ReadInt32(data, 20));
+                    }
+                }
+                finally
+                {
+                    try { PropVariantClear(buffer); } catch { }
+                }
+            }
+            catch
+            {
+                channels = 0;
+                channelMask = 0;
+            }
+            finally
+            {
+                Marshal.FreeCoTaskMem(buffer);
+            }
         }
 
         private static string ReadSingleString(IPropertyStore store, PropertyKey key)
@@ -469,6 +573,116 @@ namespace PlayniteAchievements.Services.Recording
 
             [PreserveSig]
             int UnregisterEndpointNotificationCallback(IntPtr client);
+        }
+
+        [ComImport, Guid("7991EEC9-7E89-4D85-8390-6C703CEC60C0"),
+         InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IMMNotificationClient
+        {
+            [PreserveSig]
+            int OnDeviceStateChanged([MarshalAs(UnmanagedType.LPWStr)] string deviceId, int newState);
+
+            [PreserveSig]
+            int OnDeviceAdded([MarshalAs(UnmanagedType.LPWStr)] string deviceId);
+
+            [PreserveSig]
+            int OnDeviceRemoved([MarshalAs(UnmanagedType.LPWStr)] string deviceId);
+
+            [PreserveSig]
+            int OnDefaultDeviceChanged(int dataFlow, int role, [MarshalAs(UnmanagedType.LPWStr)] string defaultDeviceId);
+
+            [PreserveSig]
+            int OnPropertyValueChanged([MarshalAs(UnmanagedType.LPWStr)] string deviceId, PropertyKey key);
+        }
+
+        /// <summary>
+        /// The registered callback object and the enumerator it is registered with. A COM-callable
+        /// wrapper is handed to the engine as a raw interface pointer, so the object is kept alive
+        /// here and the pointer released on dispose.
+        /// </summary>
+        [ComVisible(true)]
+        private sealed class EndpointWatch : IMMNotificationClient, IDisposable
+        {
+            private readonly Action<string> _changed;
+            private IMMDeviceEnumerator _enumerator;
+            private IntPtr _self;
+
+            public EndpointWatch(Action<string> changed)
+            {
+                _changed = changed;
+                _enumerator = CreateEnumerator();
+                _self = Marshal.GetComInterfaceForObject(this, typeof(IMMNotificationClient));
+                var hr = _enumerator.RegisterEndpointNotificationCallback(_self);
+                if (hr != 0)
+                {
+                    Dispose();
+                    Marshal.ThrowExceptionForHR(hr);
+                }
+            }
+
+            public int OnDeviceStateChanged(string deviceId, int newState)
+            {
+                Notify(deviceId);
+                return 0;
+            }
+
+            public int OnDeviceAdded(string deviceId)
+            {
+                Notify(deviceId);
+                return 0;
+            }
+
+            public int OnDeviceRemoved(string deviceId)
+            {
+                Notify(deviceId);
+                return 0;
+            }
+
+            public int OnDefaultDeviceChanged(int dataFlow, int role, string defaultDeviceId)
+            {
+                Notify(null);
+                return 0;
+            }
+
+            public int OnPropertyValueChanged(string deviceId, PropertyKey key)
+            {
+                // Only a format change can alter what an endpoint is; names and icons cannot.
+                if (key.FormatId == DeviceFormatKey.FormatId)
+                {
+                    Notify(deviceId);
+                }
+
+                return 0;
+            }
+
+            private void Notify(string deviceId)
+            {
+                try
+                {
+                    _changed(deviceId);
+                }
+                catch
+                {
+                }
+            }
+
+            public void Dispose()
+            {
+                var enumerator = _enumerator;
+                _enumerator = null;
+                if (enumerator != null && _self != IntPtr.Zero)
+                {
+                    try { enumerator.UnregisterEndpointNotificationCallback(_self); } catch { }
+                }
+
+                if (_self != IntPtr.Zero)
+                {
+                    try { Marshal.Release(_self); } catch { }
+                    _self = IntPtr.Zero;
+                }
+
+                Release(enumerator);
+            }
         }
 
         [ComImport, Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"),

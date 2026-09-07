@@ -11,21 +11,20 @@ using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Services.Recording
 {
-    internal enum PlayniteChimeCaptureMode
-    {
-        Unavailable,
-        CancelGameReference
-    }
-
     /// <summary>
     /// Best-effort rolling capture of audio into short WAV chunks written next to the video segments,
-    /// so clip export can mux matching sound. Both settings record the actual default render
-    /// endpoint. Full System keeps that mix apart from the verified removal of Playnite's own
-    /// sounds so the chime can be re-timed onto the composited toast; Game Only subtracts a
-    /// simultaneous non-game process reference after export verification. Both fall back to the
-    /// audible endpoint mix. The optional
-    /// microphone is mixed into either mode. Chunk names mirror the video
-    /// convention (aud_yyyyMMdd-HHmmssfffffffZ.wav, UTC timeline) and rotate every
+    /// so clip export can mux matching sound. The clip track is chosen structurally, never cleaned
+    /// by cancellation: Full System records every process except the sound host's tree, Game Only
+    /// records the game's tree (with an exclude-host fallback track for a game that renders outside
+    /// it), both as 8-channel process loopback. The width matters twice over: the engine converts
+    /// each stream to its endpoint's mix format and then AVERAGES it down to a narrower capture
+    /// format (measured 2026-09-05 on a 7.1 endpoint: an 8-to-4 capture reads 6.7 dB low, 8-to-2
+    /// 13.5 dB low, 8-to-8 exact), so 8 channels is lossless for every endpoint up to 7.1; and a
+    /// controller's actuator channels land on the back pair by position, where they can be
+    /// dropped. Without a sound host pid, or below Windows 10 19041, the clip track is the
+    /// default render endpoint itself and the live unlock sound stays in it. The optional microphone
+    /// is mixed into either mode. Chunk names mirror the video convention
+    /// (aud_yyyyMMdd-HHmmssfffffffZ.wav, UTC timeline) and rotate every
     /// <see cref="UnlockRecordingService.SegmentSeconds"/> seconds.
     ///
     /// A single pump thread reads the (optionally mixed) audio at a wall-clock pace and writes it,
@@ -34,19 +33,26 @@ namespace PlayniteAchievements.Services.Recording
     /// pipeline untouched; NAudio types are confined to this file, ProcessLoopbackCapture and
     /// RenderEndpointScan.
     ///
-    /// User-facing capture always comes from one real render endpoint, never the virtual
-    /// all-process/all-endpoint loopback device. A separate controller actuator endpoint therefore
-    /// cannot enter the recording. If the DualSense itself is the default output, its proven native
-    /// layout is split and only the front L/R program channels are retained.
+    /// Haptics: a DualSense on USB is a 4-channel endpoint (front L/R, then the two actuators as
+    /// back L/R, mask 0x33) and games render their haptics to channels 2/3 of it. A process-loopback
+    /// stream captured as stereo folds those into L/R, which is the buzz reported in clips; captured
+    /// at 8 channels the engine keeps each stream's channels by speaker position (measured
+    /// 2026-09-05 with tools/capture-harness/ChannelMapProbe), so the actuators arrive on the back
+    /// pair and <see cref="SurroundDownmix"/> drops that pair whenever a controller endpoint is
+    /// active. Without one, the back pair is a surround system's rear channels and is folded into
+    /// L/R with the rest. If the DualSense itself is the
+    /// default output and no host is available, its proven native layout is split the same way.
     ///
-    /// The chime sidecar and its game-only cancellation reference are likewise written directly from
-    /// packet stamps. They are independent process-loopback clients; sending either through a 50 ms
-    /// pump caused millisecond alignment steps whenever the chime's render stream changed the graph.
+    /// The fallback track is written directly from packet stamps. It is an independent
+    /// process-loopback client; sending it through a 50 ms pump caused millisecond alignment steps
+    /// whenever a render stream changed the graph.
     /// </summary>
     internal sealed class AudioLoopbackRecorder : IDisposable
     {
         // Wall-clock pump cadence and buffered-provider depth.
         private const int PumpIntervalMs = 50;
+        private const int ControllerScanIntervalMs = 5000;
+        private const int ActivityRetentionSeconds = 20 * 60;
 
         // The ring has to absorb a maximal gap pad without evicting the audio around it. An
         // endpoint loopback delivers nothing while the endpoint is silent but its device clock
@@ -71,21 +77,33 @@ namespace PlayniteAchievements.Services.Recording
         private readonly RecordingAudioSource _source;
         private readonly bool _includeMicrophone;
         private readonly Func<int?> _gameProcessId;
+        private readonly Func<int?> _soundHostProcessId;
         private readonly object _gate = new object();
 
+        // Every process-loopback clip track is captured at 8 channels (7.1 mask): wide enough that
+        // the engine never averages a stream down on the way in, and a controller's actuator
+        // channels arrive on the back pair by position; see the class doc.
+        private static readonly WaveFormat SurroundCaptureFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 8);
+        private static readonly WaveFormat StereoFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2);
+        // Chunks are written as 16-bit PCM: half the bytes of the float mix they are folded from,
+        // which halves disk writes and doubles how far back the buffer budget reaches. The
+        // exporter reads 16-bit windows regardless of the source format.
+        private static readonly WaveFormat Pcm16StereoFormat = new WaveFormat(48000, 16, 2);
+
         private IWaveIn _systemCapture;
-        private IWaveIn _gameReferenceCapture;
-        private IWaveIn _nonGameCapture;
+        // Game Only: the exclude-host track kept beside the include-game clip track, for a game that
+        // renders outside its tracked tree (alt_*.wav). Export uses it when the clip track is silent.
+        private IWaveIn _fallbackCapture;
         private IWaveIn _micCapture;
         private BufferedWaveProvider _systemBuffer;
         private BufferedWaveProvider _micBuffer;
         private ISampleProvider _mix;
         private WaveFormat _outputFormat;
+        // The 16-bit PCM form of _outputFormat that the clip-track chunks are written in.
+        private WaveFormat _writerFormat;
 
         private WaveFileWriter _writer;
-        private StampedAuxiliaryTrack _stampedChimeTrack;
-        private StampedAuxiliaryTrack _stampedGameReferenceTrack;
-        private StampedAuxiliaryTrack _stampedNonGameTrack;
+        private StampedAuxiliaryTrack _stampedFallbackTrack;
         private long _chunkSamplesWritten;
         private long _chunkStartWallClockSamples;
         private DateTime _pumpStartUtc;
@@ -107,25 +125,71 @@ namespace PlayniteAchievements.Services.Recording
         // sidecar chunks close. Sidecar writes happen on packet arrival, so this absorbs capture
         // delivery latency; it replaces a fixed segment-length-plus-margin sleep at the reader.
         private const int AuxiliaryFlushMarginMs = 750;
-        private bool _writeGameReference;
-        private bool _removeNonGameFromSpeakerMix;
         private bool _extractControllerProgramAudio;
+        private bool _reduceSurround;
+        // Read at start and re-read every ControllerScanIntervalMs by the pump, so a pad plugged in
+        // after the game started still has its back pair dropped. Written by the pump thread, read
+        // by capture callbacks; a bool write is atomic and volatile keeps it visible.
+        private volatile bool _dropActuatorChannels;
+        private DateTime _nextControllerScanUtc;
+        // Set from the endpoint-change callback (a COM thread); the pump clears it and re-scans on
+        // its next tick, so a pad plugged in is dropped within one pump interval. The 5 s poll
+        // stays as the fallback for a machine where the callback registration fails.
+        private volatile bool _controllerRescanRequested;
+        private IDisposable _endpointWatch;
+        // Host pid re-binding: the exclusion filter of a process-loopback client is fixed at
+        // creation, so a restarted sound host is excluded again only by recreating the capture.
+        // While the old capture ran against a dead pid, the new host's sounds were not excluded;
+        // those spans are kept so the export can refuse a composite for a clip that overlaps one.
+        private const int HostCheckIntervalMs = 1000;
+        private DateTime _nextHostCheckUtc;
+        private DateTime _hostConfirmedUtc;
+        private readonly List<KeyValuePair<DateTime, DateTime>> _exclusionGaps = new List<KeyValuePair<DateTime, DateTime>>();
+        // Seconds (UTC) in which the process-scoped clip track delivered a packet. Sparse process
+        // loopback delivers nothing for a tree with no render stream, so this is the structural
+        // record of whether the game tree rendered over a clip window; the pump-paced chunks
+        // themselves zero-fill and cannot tell.
+        private readonly SortedSet<long> _clipTrackActiveSeconds = new SortedSet<long>();
+        private readonly object _activityGate = new object();
         private bool _hapticExclusionProven;
         private string _micName;
 
+        /// <summary>What the clip track recorded; decides whether a clip may carry a composited chime.</summary>
+        public ClipTrackKind ClipTrack { get; private set; }
+
         /// <summary>
-        /// Game-only mode records the speaker endpoint and removes this recorder's non-game
-        /// sidecar at export. The main track is therefore haptic-free even if that cleanup fails.
+        /// The sound host pid the clip track (or its fallback) excludes, read once at
+        /// <see cref="Start"/>; null when the clip track is the endpoint mix.
         /// </summary>
-        public bool RequiresNonGameCleanup => _removeNonGameFromSpeakerMix;
+        public int? ExcludedSoundHostProcessId { get; private set; }
 
-        public bool NonGameReferenceFailed => _stampedNonGameTrack?.Failed == true;
+        /// <summary>Whether a Game Only session writes the exclude-host fallback track.</summary>
+        public bool HasFallbackTrack => _stampedFallbackTrack != null;
 
-        /// <summary>Whether the gam_ cancellation reference failed and its chunks were deleted.</summary>
-        public bool GameReferenceFailed => _stampedGameReferenceTrack?.Failed == true;
+        /// <summary>Whether the fallback track failed and its chunks were deleted.</summary>
+        public bool FallbackFailed => _stampedFallbackTrack?.Failed == true;
 
-        /// <summary>On the chime sidecar instance: whether its chm_ track failed and was deleted.</summary>
-        public bool ChimeReferenceFailed => _stampedChimeTrack?.Failed == true;
+        /// <summary>
+        /// Whether the sound host was excluded from the clip track for the whole of
+        /// [<paramref name="startUtc"/>, <paramref name="endUtc"/>]. False when a host restart
+        /// left a span in which the running capture excluded a dead pid; a clip over such a span
+        /// may already hold the live sound and must not receive a composited copy.
+        /// </summary>
+        public bool HostExclusionCovered(DateTime startUtc, DateTime endUtc)
+        {
+            lock (_activityGate)
+            {
+                foreach (var gap in _exclusionGaps)
+                {
+                    if (gap.Key <= endUtc && gap.Value >= startUtc)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
 
         public AudioLoopbackRecorder(
             string bufferDirectory,
@@ -133,33 +197,15 @@ namespace PlayniteAchievements.Services.Recording
             RecordingAudioSource source = RecordingAudioSource.FullSystem,
             bool includeMicrophone = false,
             Func<int?> gameProcessId = null,
-            bool capturePlayniteChimes = false)
+            Func<int?> soundHostProcessId = null)
         {
             _bufferDirectory = bufferDirectory;
             _logger = logger;
             _source = source;
             _includeMicrophone = includeMicrophone;
             _gameProcessId = gameProcessId;
-            _capturePlayniteChimes = capturePlayniteChimes;
+            _soundHostProcessId = soundHostProcessId;
         }
-
-        // When true this instance is the chime sidecar: it records Playnite's process tree (where
-        // UniPlaySong plays the unlock chimes) into chm_*.wav chunks. That tree can also contain a
-        // game launched by Playnite; in that case the main recorder captures its game signal
-        // to a reference WAV so the game can be cancelled before the chime is re-timed.
-        private readonly bool _capturePlayniteChimes;
-
-        /// <summary>
-        /// Whether the chime sidecar track can exist on this machine (per-process loopback,
-        /// Windows 10 19041+).
-        /// </summary>
-        public static bool IsChimeCaptureSupported => ProcessLoopbackCapture.IsSupported;
-
-        /// <summary>
-        /// Whether the Playnite-tree sidecar has a simultaneous game reference that must be
-        /// cancelled before the isolated chime is re-timed.
-        /// </summary>
-        public PlayniteChimeCaptureMode ChimeCaptureMode { get; private set; }
 
         /// <summary>
         /// Builds the capture graph and starts the pump. Returns false (after one Warn log) when audio
@@ -177,11 +223,28 @@ namespace PlayniteAchievements.Services.Recording
                 try
                 {
                     _systemCapture = CreateSystemCapture();
-                    var systemFormat = _extractControllerProgramAudio
-                        ? WaveFormat.CreateIeeeFloatWaveFormat(48000, 2)
+                    var systemFormat = _extractControllerProgramAudio || _reduceSurround
+                        ? StereoFormat
                         : _systemCapture.WaveFormat;
                     _systemBuffer = NewBuffer(systemFormat);
-                    _systemCapture.DataAvailable += (s, e) => AppendSystem(e);
+                    HookClipTrack(_systemCapture);
+                    if (_reduceSurround)
+                    {
+                        _hostConfirmedUtc = CaptureTimelineClock.UtcNow;
+                        _nextHostCheckUtc = _hostConfirmedUtc.AddMilliseconds(HostCheckIntervalMs);
+                        try
+                        {
+                            _endpointWatch = AudioEndpointEnumerator.WatchEndpoints(id =>
+                            {
+                                RenderEndpointScan.Forget(id);
+                                _controllerRescanRequested = true;
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, "[Recording] Endpoint change notifications unavailable; controller presence is polled.");
+                        }
+                    }
 
                     ISampleProvider systemSamples = _systemBuffer.ToSampleProvider();
 
@@ -228,7 +291,8 @@ namespace PlayniteAchievements.Services.Recording
                     }
 
                     _outputFormat = _mix.WaveFormat;
-                    AttachTimestampedCancellationTracks();
+                    _writerFormat = new WaveFormat(_outputFormat.SampleRate, 16, _outputFormat.Channels);
+                    AttachFallbackTrack(_fallbackCapture);
 
                     _systemCapture.StartRecording();
                     StartOptionalCaptures();
@@ -251,10 +315,15 @@ namespace PlayniteAchievements.Services.Recording
                     };
                     _pumpThread.Start();
 
+                    var haptics = _reduceSurround
+                        ? (_dropActuatorChannels ? "controller-present-back-pair-dropped" : "no-controller-back-pair-folded")
+                        : _hapticExclusionProven ? "excluded-by-endpoint" : "unproven-audio-retained";
                     _logger?.Info(
-                        $"[Recording] Audio capture started (source={CaptureSourceName()}, " +
+                        $"[Recording] Audio capture started (source={_source}, " +
                         $"mic={(_micCapture == null ? "False" : "'" + _micName + "'")}, " +
-                        $"{_outputFormat}, haptics={(_hapticExclusionProven ? "excluded-by-endpoint" : "unproven-audio-retained")}).");
+                        $"{_writerFormat}, clipTrack={ClipTrack}" +
+                        $"{(ExcludedSoundHostProcessId.HasValue ? " soundHostPid=" + ExcludedSoundHostProcessId.Value : string.Empty)}" +
+                        $"{(HasFallbackTrack ? "+fallback" : string.Empty)}, haptics={haptics}).");
                     return true;
                 }
                 catch (Exception ex)
@@ -268,107 +337,20 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Builds the required endpoint source and, for Game Only, its optional non-game sidecar.
+        /// Builds the clip track: a process-scoped 8-channel capture when a sound host pid is
+        /// available, otherwise the default render endpoint.
         /// </summary>
         private IWaveIn CreateSystemCapture()
         {
-            if (_capturePlayniteChimes)
+            var excluding = TryCreateExcludingClipTrack();
+            if (excluding != null)
             {
-                // No fallback: a full-system fallback here would duplicate the main track.
-                return new ProcessLoopbackCapture(
-                    System.Diagnostics.Process.GetCurrentProcess().Id, includeProcessTree: true);
+                return excluding;
             }
 
-            var gamePid = _gameProcessId?.Invoke();
-            if (_source == RecordingAudioSource.GameOnly &&
-                gamePid.HasValue && gamePid.Value > 0 &&
-                ProcessLoopbackCapture.IsSupported)
-            {
-                try
-                {
-                    // The main source is deliberately the real speaker endpoint: controller
-                    // endpoints can never enter it. Everything except the game tree is captured
-                    // separately and removed offline; a failed separation retains this speaker mix,
-                    // so failure means extra system audio rather than haptic buzz or silence.
-                    _nonGameCapture = new ProcessLoopbackCapture(
-                        gamePid.Value, includeProcessTree: false);
-                    _removeNonGameFromSpeakerMix = true;
-
-                    // Capture a fallback copy of the actual UPS render. The file resolved at
-                    // launch is the primary removal/composite source; this Playnite-tree track
-                    // covers an unresolved or transformed sound. It can also contain a
-                    // Playnite-launched game, so capture that game tree for verified separation.
-                    try
-                    {
-                        _gameReferenceCapture = new ProcessLoopbackCapture(
-                            gamePid.Value, includeProcessTree: true);
-                        _writeGameReference = true;
-                        ChimeCaptureMode = PlayniteChimeCaptureMode.CancelGameReference;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Warn(
-                            ex,
-                            "[Recording] The game reference for chime re-timing could not start; " +
-                            "Game Only isolation remains active with the live chime removed.");
-                        DisposeCapture(ref _gameReferenceCapture);
-                        _writeGameReference = false;
-                        ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Warn(
-                        ex,
-                        "[Recording] Game-only isolation reference could not start; " +
-                        "recording haptic-free full-system speaker audio.");
-                    DisposeCapture(ref _nonGameCapture);
-                    _removeNonGameFromSpeakerMix = false;
-                }
-            }
-            else if (_source == RecordingAudioSource.GameOnly)
-            {
-                _logger?.Info(
-                    "[Recording] Game-only isolation unavailable (no pid or OS < 19041); " +
-                    "recording haptic-free full-system speaker audio.");
-            }
-            else if (gamePid.HasValue && gamePid.Value > 0 && ProcessLoopbackCapture.IsSupported)
-            {
-                // Full System also captures a fallback copy of the actual UPS render. The game
-                // tree is recorded alongside because a Playnite-launched game lives inside both
-                // trees and must be cancelled before this reference can be trusted.
-                try
-                {
-                    _gameReferenceCapture = new ProcessLoopbackCapture(
-                        gamePid.Value, includeProcessTree: true);
-                    _writeGameReference = true;
-                    ChimeCaptureMode = PlayniteChimeCaptureMode.CancelGameReference;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Warn(
-                        ex,
-                        "[Recording] The captured chime fallback could not be game-purged; " +
-                        "resolved-file chime cleanup remains available.");
-                    DisposeCapture(ref _gameReferenceCapture);
-                    _writeGameReference = false;
-                }
-            }
-            else
-            {
-                _logger?.Info(
-                    "[Recording] Captured chime fallback unavailable (no pid or OS < 19041); " +
-                    "resolved-file chime cleanup remains available.");
-            }
-
-            // Both user-facing modes record the actual default render endpoint. A DualSense
-            // actuator stream lives on its own endpoint and therefore never reaches aud_*.wav.
-            if (!_writeGameReference)
-            {
-                // Without a game reference the Playnite-tree sidecar cannot be verified game-free,
-                // so it cannot be used as a fallback. Resolved-file cleanup is independent of it.
-                ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
-            }
+            // The actual default render endpoint. A DualSense actuator stream lives on its own
+            // endpoint and therefore never reaches aud_*.wav; the live unlock sound does.
+            ClipTrack = ClipTrackKind.EndpointMix;
             try
             {
                 var speaker = AudioEndpointEnumerator.TryGetDefaultEndpoint(
@@ -436,95 +418,181 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Writes the two tracks that participate in chime cancellation directly from their packet
-        /// stamps. Sending them through independent wall-clock pumps re-timed each stream in 50 ms
-        /// batches and produced 1-4 ms alignment steps inside one chime slice. Main clip audio stays
-        /// pump-paced because it may contain a microphone and multiple sources; the chime sidecar
-        /// and raw game reference are single process-loopback streams and need no such mixing.
+        /// The process-scoped clip track, or null when the endpoint mix must be recorded instead:
+        /// Full System excludes the sound host's tree; Game Only includes the game's tree and keeps
+        /// an exclude-host fallback beside it. Both are 8-channel captures reduced to stereo per
+        /// packet by <see cref="SurroundDownmix"/> (see <see cref="AppendSystem"/>). Any failure here falls back to the endpoint
+        /// mix, so failure means the live unlock sound in a clip, never silence.
         /// </summary>
-        private void AttachTimestampedCancellationTracks()
+        private IWaveIn TryCreateExcludingClipTrack()
         {
-            if (_capturePlayniteChimes && _systemCapture is ProcessLoopbackCapture chimeCapture)
+            var hostPid = _soundHostProcessId?.Invoke();
+            if (!ProcessLoopbackCapture.IsSupported)
             {
-                _stampedChimeTrack = new StampedAuxiliaryTrack(
-                    RecordingPaths.ChimeChunkFilePrefix, chimeCapture.WaveFormat);
-                chimeCapture.StampedDataAvailable +=
-                    (s, e) => WriteStampedAuxiliaryPacket(_stampedChimeTrack, e);
+                _logger?.Info(
+                    "[Recording] Process loopback unavailable (OS < 19041); recording the endpoint " +
+                    "mix, so clips keep the live unlock sound" +
+                    (_source == RecordingAudioSource.GameOnly ? " and Game Only is off." : "."));
+                return null;
             }
 
-            if (_nonGameCapture is ProcessLoopbackCapture nonGameCapture)
+            if (!hostPid.HasValue || hostPid.Value <= 0)
             {
-                _stampedNonGameTrack = new StampedAuxiliaryTrack(
-                    RecordingPaths.NonGameReferenceChunkFilePrefix,
-                    nonGameCapture.WaveFormat);
-                nonGameCapture.StampedDataAvailable +=
-                    (s, e) => WriteStampedAuxiliaryPacket(_stampedNonGameTrack, e);
-                nonGameCapture.RecordingStopped += (s, e) =>
+                _logger?.Info(
+                    "[Recording] No sound host pid; recording the endpoint mix, so clips keep the " +
+                    "live unlock sound" + (_source == RecordingAudioSource.GameOnly ? " and Game Only is off." : "."));
+                return null;
+            }
+
+            _dropActuatorChannels = AnyControllerEndpointActive();
+            _nextControllerScanUtc = CaptureTimelineClock.UtcNow.AddMilliseconds(ControllerScanIntervalMs);
+            var gamePid = _gameProcessId?.Invoke();
+            try
+            {
+                if (_source == RecordingAudioSource.GameOnly && gamePid.HasValue && gamePid.Value > 0)
                 {
-                    lock (_gate)
+                    var game = new ProcessLoopbackCapture(gamePid.Value, includeProcessTree: true, SurroundCaptureFormat);
+                    try
                     {
-                        if (!_stopped && e.Exception != null)
-                        {
-                            FailAuxiliaryTrackLocked(_stampedNonGameTrack);
-                        }
+                        _fallbackCapture = new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, SurroundCaptureFormat);
                     }
-                };
+                    catch (Exception ex)
+                    {
+                        _logger?.Warn(
+                            ex,
+                            "[Recording] The Game Only fallback track could not start; a game that " +
+                            "renders outside its process tree will leave clips silent this session.");
+                        DisposeCapture(ref _fallbackCapture);
+                    }
+
+                    ClipTrack = ClipTrackKind.IncludeGame;
+                    ExcludedSoundHostProcessId = hostPid.Value;
+                    _reduceSurround = true;
+                    _logger?.Info(
+                        $"[Recording] Clip track: the game tree (pid {gamePid.Value}) at 8 channels; " +
+                        $"the sound host (pid {hostPid.Value}) is never inside it" +
+                        (_fallbackCapture != null ? ", with an exclude-host fallback track." : "."));
+                    return game;
+                }
+
+                if (_source == RecordingAudioSource.GameOnly)
+                {
+                    _logger?.Info("[Recording] Game Only has no game pid; recording everything except the sound host instead.");
+                }
+
+                var excluded = new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, SurroundCaptureFormat);
+                ClipTrack = ClipTrackKind.ExcludeSoundHost;
+                ExcludedSoundHostProcessId = hostPid.Value;
+                _reduceSurround = true;
+                _logger?.Info(
+                    $"[Recording] Clip track: everything except the sound host (pid {hostPid.Value}) at 8 channels; " +
+                    "the live unlock sound never enters clips.");
+                return excluded;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(
+                    ex,
+                    "[Recording] The process-scoped clip track could not start; recording the " +
+                    "endpoint mix, so clips keep the live unlock sound.");
+                DisposeCapture(ref _fallbackCapture);
+                ClipTrack = ClipTrackKind.EndpointMix;
+                ExcludedSoundHostProcessId = null;
+                _reduceSurround = false;
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Whether a controller render endpoint is active. When one is, the 8-channel process capture
+        /// drops its back pair, where a pad's actuators land; otherwise that pair is a surround
+        /// system's rear channels and is folded into L/R.
+        /// </summary>
+        private bool AnyControllerEndpointActive()
+        {
+            try
+            {
+                foreach (var endpoint in AudioEndpointEnumerator.EnumerateActive(AudioDataFlow.Render))
+                {
+                    if (RenderEndpointScan.IsHapticEndpoint(endpoint))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[Recording] Controller endpoint scan failed; treating channels 2/3 as actuators.");
+                return true;
             }
 
-            if (!_writeGameReference)
+            return false;
+        }
+
+        /// <summary>
+        /// Writes the Game Only fallback track directly from its packet stamps, reduced to stereo
+        /// the same way as the clip track. Sending it through the wall-clock pump re-timed the
+        /// stream in 50 ms batches and produced 1-4 ms alignment steps; main clip audio stays
+        /// pump-paced because it may contain a microphone and multiple sources.
+        /// </summary>
+        private void AttachFallbackTrack(IWaveIn capture)
+        {
+            if (!(capture is ProcessLoopbackCapture fallback))
             {
                 return;
             }
 
-            var gameCapture = (_gameReferenceCapture ?? _systemCapture) as ProcessLoopbackCapture;
-            if (gameCapture == null)
+            if (_stampedFallbackTrack == null)
             {
-                throw new InvalidOperationException(
-                    "The game cancellation reference has no timestamped process-loopback source.");
+                _stampedFallbackTrack = new StampedAuxiliaryTrack(RecordingPaths.FallbackChunkFilePrefix, Pcm16StereoFormat);
             }
 
-            _stampedGameReferenceTrack = new StampedAuxiliaryTrack(
-                RecordingPaths.GameReferenceChunkFilePrefix, gameCapture.WaveFormat);
-            gameCapture.StampedDataAvailable +=
-                (s, e) => WriteStampedAuxiliaryPacket(_stampedGameReferenceTrack, e);
+            // One downmixer per capture: its buffers are reused packet to packet, and the write
+            // below completes before the callback returns, so nothing holds them afterwards.
+            var downmixer = new SurroundDownmixer();
+            fallback.StampedDataAvailable += (s, e) =>
+            {
+                var count = downmixer.ToStereoPcm16(
+                    e?.Buffer, e?.Bytes ?? 0, fallback.WaveFormat.Channels, _dropActuatorChannels, out var pcm);
+                if (count > 0)
+                {
+                    WriteStampedAuxiliaryPacket(
+                        _stampedFallbackTrack,
+                        new StampedPacketEventArgs(pcm, count, e.CaptureUtc));
+                }
+            };
+            fallback.RecordingStopped += (s, e) =>
+            {
+                lock (_gate)
+                {
+                    if (!_stopped && e.Exception != null)
+                    {
+                        FailAuxiliaryTrackLocked(_stampedFallbackTrack);
+                    }
+                }
+            };
         }
 
         /// <summary>
-        /// Starts sidecars independently of the required speaker capture. A broken GameOnly,
-        /// chime, or microphone helper may reduce isolation, but it must never discard audible
-        /// speaker audio that is already running.
+        /// Starts sidecars independently of the required clip capture. A broken fallback or
+        /// microphone helper may reduce what a clip can fall back to, but it must never discard
+        /// audible clip audio that is already running.
         /// </summary>
         private void StartOptionalCaptures()
         {
             try
             {
-                _gameReferenceCapture?.StartRecording();
+                _fallbackCapture?.StartRecording();
             }
             catch (Exception ex)
             {
                 _logger?.Warn(
                     ex,
-                    "[Recording] The game reference for chime re-timing failed to start; " +
-                    "speaker audio remains active.");
-                DisposeCapture(ref _gameReferenceCapture);
-                _writeGameReference = false;
-                ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
-                FailAuxiliaryTrackLocked(_stampedGameReferenceTrack);
-            }
-
-            try
-            {
-                _nonGameCapture?.StartRecording();
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(
-                    ex,
-                    "[Recording] Game-only isolation failed to start; retaining haptic-free " +
-                    "full-system speaker audio.");
-                DisposeCapture(ref _nonGameCapture);
-                _removeNonGameFromSpeakerMix = false;
-                FailAuxiliaryTrackLocked(_stampedNonGameTrack);
+                    "[Recording] The Game Only fallback track failed to start; the game-tree clip " +
+                    "track remains active.");
+                DisposeCapture(ref _fallbackCapture);
+                FailAuxiliaryTrackLocked(_stampedFallbackTrack);
+                _stampedFallbackTrack = null;
             }
 
             try
@@ -542,7 +610,7 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Places one continuous chime/game-reference packet at its own QPC-derived UTC position.
+        /// Places one continuous fallback-track packet at its own QPC-derived UTC position.
         /// Long idle spans start a sparse chunk; short holes are explicit silence; overlaps are
         /// trimmed. Nothing is re-paced by the main recorder's 50 ms pump.
         /// </summary>
@@ -682,32 +750,23 @@ namespace PlayniteAchievements.Services.Recording
 
         private void CloseExpiredAuxiliaryChunksLocked(DateTime nowUtc)
         {
-            foreach (var track in new[]
+            var track = _stampedFallbackTrack;
+            if (track?.Writer == null || !track.OriginUtc.HasValue)
             {
-                _stampedChimeTrack,
-                _stampedGameReferenceTrack,
-                _stampedNonGameTrack,
-            })
-            {
-                if (track?.Writer == null || !track.OriginUtc.HasValue)
-                {
-                    continue;
-                }
+                return;
+            }
 
-                var nowFrame = RecordingPaths.AudioFrameAt(
-                    track.OriginUtc.Value, nowUtc, track.Format.SampleRate);
-                if (nowFrame - track.ChunkStartFrame >= AuxiliaryChunkFrames(track.Format.SampleRate))
-                {
-                    CloseAuxiliaryChunkLocked(track);
-                }
+            var nowFrame = RecordingPaths.AudioFrameAt(
+                track.OriginUtc.Value, nowUtc, track.Format.SampleRate);
+            if (nowFrame - track.ChunkStartFrame >= AuxiliaryChunkFrames(track.Format.SampleRate))
+            {
+                CloseAuxiliaryChunkLocked(track);
             }
         }
 
         private void CloseAuxiliaryTracksLocked()
         {
-            CloseAuxiliaryChunkLocked(_stampedChimeTrack);
-            CloseAuxiliaryChunkLocked(_stampedGameReferenceTrack);
-            CloseAuxiliaryChunkLocked(_stampedNonGameTrack);
+            CloseAuxiliaryChunkLocked(_stampedFallbackTrack);
         }
 
         private static void CloseAuxiliaryChunkLocked(StampedAuxiliaryTrack track)
@@ -734,16 +793,6 @@ namespace PlayniteAchievements.Services.Recording
                 try { File.Delete(path); } catch { }
             }
             track.Paths.Clear();
-        }
-
-        private string CaptureSourceName()
-        {
-            if (_capturePlayniteChimes)
-            {
-                return "PlayniteChimes";
-            }
-
-            return _source.ToString();
         }
 
         private static BufferedWaveProvider NewBuffer(WaveFormat format)
@@ -807,11 +856,29 @@ namespace PlayniteAchievements.Services.Recording
             return (long)UnlockRecordingService.SegmentSeconds * sampleRate;
         }
 
-        private void AppendSystem(WaveInEventArgs packet)
+        private void AppendSystem(WaveInEventArgs packet, SurroundDownmixer downmixer)
         {
-            if (!_extractControllerProgramAudio)
+            if (!_extractControllerProgramAudio && !_reduceSurround)
             {
                 Append(_systemBuffer, packet);
+                return;
+            }
+
+            if (_reduceSurround)
+            {
+                // The ring copies the bytes synchronously, so the downmixer's reused buffer is
+                // free again when Append returns.
+                var count = downmixer.ToStereoFloat(
+                    packet?.Buffer,
+                    packet?.BytesRecorded ?? 0,
+                    _systemCapture?.WaveFormat?.Channels ?? 0,
+                    _dropActuatorChannels,
+                    out var folded);
+                if (count > 0)
+                {
+                    Append(_systemBuffer, new WaveInEventArgs(folded, count));
+                }
+
                 return;
             }
 
@@ -892,7 +959,7 @@ namespace PlayniteAchievements.Services.Recording
                 // Expected: these follow one process tree and pad whenever it is quiet.
                 _logger?.Debug(
                     $"[Recording] Sidecar silence padding: {sidecarFrames / (double)sampleRate:0.###}s " +
-                    "across the reference tracks (idle spans, not dropouts).");
+                    "across the fallback track (idle spans, not dropouts).");
             }
         }
 
@@ -941,7 +1008,7 @@ namespace PlayniteAchievements.Services.Recording
                 {
                     lock (_gate)
                     {
-                        if (_writer == null && _stampedChimeTrack == null)
+                        if (_writer == null)
                         {
                             break;
                         }
@@ -972,6 +1039,8 @@ namespace PlayniteAchievements.Services.Recording
                         SettleAuxiliaryFlushRequestLocked(CaptureTimelineClock.UtcNow);
                     }
 
+                    RescanControllerIfDue();
+                    RebindClipTrackIfHostChanged();
                     Thread.Sleep(PumpIntervalMs);
                 }
             }
@@ -981,6 +1050,168 @@ namespace PlayniteAchievements.Services.Recording
                 {
                     FailLocked(ex, "[Recording] Audio pump failed; audio capture stopped for this session.");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Re-reads whether a controller endpoint is active, off the gate, so a pad plugged in or
+        /// unplugged mid-session changes what the next packets do with the back pair.
+        /// </summary>
+        private void RescanControllerIfDue()
+        {
+            if (!_reduceSurround)
+            {
+                return;
+            }
+
+            var now = CaptureTimelineClock.UtcNow;
+            if (now < _nextControllerScanUtc && !_controllerRescanRequested)
+            {
+                return;
+            }
+
+            _controllerRescanRequested = false;
+            _nextControllerScanUtc = now.AddMilliseconds(ControllerScanIntervalMs);
+            var present = AnyControllerEndpointActive();
+            if (present == _dropActuatorChannels)
+            {
+                return;
+            }
+
+            _dropActuatorChannels = present;
+            _logger?.Info(present
+                ? "[Recording] A controller endpoint appeared; the clip track now drops its back pair (haptics)."
+                : "[Recording] No controller endpoint remains; the clip track folds its back pair again.");
+        }
+
+        private void HookClipTrack(IWaveIn capture)
+        {
+            var downmixer = new SurroundDownmixer();
+            capture.DataAvailable += (s, e) => AppendSystem(e, downmixer);
+            if (_reduceSurround && capture is ProcessLoopbackCapture stampedClipTrack)
+            {
+                stampedClipTrack.StampedDataAvailable += (s, e) => NoteClipTrackActivity(e);
+            }
+        }
+
+        /// <summary>
+        /// Recreates whichever capture excludes the sound host when the host's pid has changed
+        /// (the helper restarted). Full System: the clip track itself; Game Only: the fallback
+        /// track, the game-tree clip track being pid-independent. The span from the last time the
+        /// old pid was confirmed alive to the swap is recorded as an exclusion gap.
+        /// </summary>
+        private void RebindClipTrackIfHostChanged()
+        {
+            if (!_reduceSurround || !ExcludedSoundHostProcessId.HasValue)
+            {
+                return;
+            }
+
+            var now = CaptureTimelineClock.UtcNow;
+            if (now < _nextHostCheckUtc)
+            {
+                return;
+            }
+
+            _nextHostCheckUtc = now.AddMilliseconds(HostCheckIntervalMs);
+            var hostPid = _soundHostProcessId?.Invoke();
+            if (!hostPid.HasValue || hostPid.Value <= 0)
+            {
+                // Down: nothing to exclude, and nothing is playing that could leak. The gap opens
+                // when a new host appears, measured from the last confirmation.
+                return;
+            }
+
+            if (hostPid.Value == ExcludedSoundHostProcessId.Value)
+            {
+                _hostConfirmedUtc = now;
+                return;
+            }
+
+            IWaveIn retired = null;
+            try
+            {
+                var replacement = new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, SurroundCaptureFormat);
+                lock (_gate)
+                {
+                    if (_stopped)
+                    {
+                        replacement.Dispose();
+                        return;
+                    }
+
+                    if (ClipTrack == ClipTrackKind.ExcludeSoundHost)
+                    {
+                        HookClipTrack(replacement);
+                        replacement.StartRecording();
+                        retired = _systemCapture;
+                        _systemCapture = replacement;
+                    }
+                    else
+                    {
+                        AttachFallbackTrack(replacement);
+                        replacement.StartRecording();
+                        retired = _fallbackCapture;
+                        _fallbackCapture = replacement;
+                    }
+
+                    ExcludedSoundHostProcessId = hostPid.Value;
+                }
+
+                lock (_activityGate)
+                {
+                    _exclusionGaps.Add(new KeyValuePair<DateTime, DateTime>(_hostConfirmedUtc, CaptureTimelineClock.UtcNow));
+                }
+
+                _hostConfirmedUtc = CaptureTimelineClock.UtcNow;
+                _logger?.Info(
+                    $"[Recording] The sound host restarted (pid {hostPid.Value}); the " +
+                    (ClipTrack == ClipTrackKind.ExcludeSoundHost ? "clip track" : "fallback track") +
+                    " now excludes the new process. Clips overlapping the changeover get no composited chime.");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[Recording] The sound host restarted but the clip track could not be re-bound; clips this session keep the live unlock sound.");
+                // Prevent a retry storm; the composite decision still sees the mismatch.
+                _nextHostCheckUtc = now.AddMinutes(1);
+            }
+
+            // Outside the gate: Dispose joins the capture thread, which may be delivering data.
+            StopCapture(retired);
+        }
+
+        private void NoteClipTrackActivity(StampedPacketEventArgs packet)
+        {
+            if (packet == null || packet.Bytes <= 0 || !packet.CaptureUtc.HasValue)
+            {
+                return;
+            }
+
+            var second = packet.CaptureUtc.Value.Ticks / TimeSpan.TicksPerSecond;
+            lock (_activityGate)
+            {
+                _clipTrackActiveSeconds.Add(second);
+                var horizon = second - ActivityRetentionSeconds;
+                while (_clipTrackActiveSeconds.Count > 0 && _clipTrackActiveSeconds.Min < horizon)
+                {
+                    _clipTrackActiveSeconds.Remove(_clipTrackActiveSeconds.Min);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Whether the process-scoped clip track delivered any packet whose capture instant falls
+        /// in [<paramref name="startUtc"/>, <paramref name="endUtc"/>], at one-second resolution.
+        /// False for the endpoint-mix clip track, which is never sparse.
+        /// </summary>
+        public bool ClipTrackDeliveredAudio(DateTime startUtc, DateTime endUtc)
+        {
+            var from = startUtc.Ticks / TimeSpan.TicksPerSecond;
+            var to = Math.Max(from, endUtc.Ticks / TimeSpan.TicksPerSecond);
+            lock (_activityGate)
+            {
+                return _clipTrackActiveSeconds.Count > 0 &&
+                    _clipTrackActiveSeconds.GetViewBetween(from, to).Count > 0;
             }
         }
 
@@ -1068,7 +1299,7 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>Stops capture and closes the current chunk cleanly. Idempotent.</summary>
         public void Stop()
         {
-            IWaveIn system, gameReference, nonGame, mic;
+            IWaveIn system, fallback, mic;
             lock (_gate)
             {
                 if (_stopped)
@@ -1079,56 +1310,37 @@ namespace PlayniteAchievements.Services.Recording
                 _stopped = true;
                 _running = false;
                 system = _systemCapture;
-                gameReference = _gameReferenceCapture;
-                nonGame = _nonGameCapture;
+                fallback = _fallbackCapture;
                 mic = _micCapture;
                 LogAuxiliaryTracksLocked();
+                try { _endpointWatch?.Dispose(); } catch { }
+                _endpointWatch = null;
             }
 
             // Outside the gate: capture Dispose joins its thread, which may be delivering data.
             StopCapture(system);
-            StopCapture(gameReference);
-            StopCapture(nonGame);
+            StopCapture(fallback);
             StopCapture(mic);
 
             lock (_gate)
             {
                 CloseChunkLocked();
                 CloseAuxiliaryTracksLocked();
-                LogTimelineNotices(system, mic, gameReference, nonGame);
+                LogTimelineNotices(system, mic, fallback);
                 _systemCapture = null;
-                _gameReferenceCapture = null;
-                _nonGameCapture = null;
+                _fallbackCapture = null;
                 _micCapture = null;
             }
         }
 
         private void LogAuxiliaryTracksLocked()
         {
-            var tracks = new List<string>();
-            foreach (var track in new[]
-            {
-                _stampedChimeTrack,
-                _stampedGameReferenceTrack,
-                _stampedNonGameTrack,
-            })
-            {
-                if (track == null)
-                {
-                    continue;
-                }
-
-                tracks.Add(
-                    $"{track.Prefix.TrimEnd('_')}: stamped={track.StampedPackets} " +
-                    $"unstamped={track.UnstampedPackets} chunks={track.Paths.Count} " +
-                    $"failed={track.Failed}");
-            }
-
-            if (tracks.Count > 0)
+            var track = _stampedFallbackTrack;
+            if (track != null)
             {
                 _logger?.Info(
-                    "[Recording] Timestamped cancellation tracks: " +
-                    string.Join("; ", tracks.ToArray()) + ".");
+                    $"[Recording] Fallback track: stamped={track.StampedPackets} " +
+                    $"unstamped={track.UnstampedPackets} chunks={track.Paths.Count} failed={track.Failed}.");
             }
         }
 
@@ -1156,9 +1368,7 @@ namespace PlayniteAchievements.Services.Recording
 
         private void OpenChunkLocked()
         {
-            var prefix = _capturePlayniteChimes
-                ? RecordingPaths.ChimeChunkFilePrefix
-                : RecordingPaths.AudioChunkFilePrefix;
+            var prefix = RecordingPaths.AudioChunkFilePrefix;
             _chunkStartWallClockSamples = TotalFramesWritten();
 
             // Stamp from the pump's own timeline rather than the wall clock at rotation. Clip
@@ -1170,12 +1380,7 @@ namespace PlayniteAchievements.Services.Recording
                 _chunkStartWallClockSamples,
                 _outputFormat.SampleRate);
             var name = RecordingPaths.BuildAudioChunkFileName(prefix, startUtc);
-
-            if (_stampedChimeTrack == null)
-            {
-                _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _outputFormat);
-            }
-
+            _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _writerFormat);
             _chunkSamplesWritten = 0;
         }
 
@@ -1241,11 +1446,9 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Asks the pump to close the stamped sidecar chunks covering <paramref name="utc"/> once
+        /// Asks the pump to close the stamped fallback-track chunk covering <paramref name="utc"/> once
         /// the wall clock is safely past it, instead of waiting out their natural chunk length.
-        /// Also flushes the main chunk when this recorder writes its sidecar through the main
-        /// writer (the unstamped chime mode). Completes once the covering chunks are closed;
-        /// callers bound the wait.
+        /// Completes once the covering chunks are closed; callers bound the wait.
         /// </summary>
         public async Task FlushAuxiliaryChunksThroughAsync(DateTime utc)
         {
@@ -1255,23 +1458,17 @@ namespace PlayniteAchievements.Services.Recording
             {
             }
 
-            var mainFlush = _capturePlayniteChimes ? FlushChunksThroughAsync(utc) : null;
             while (_running && Interlocked.Read(ref _flushAuxThroughUtcTicks) != 0)
             {
                 await Task.Delay(50).ConfigureAwait(false);
             }
-
-            if (mainFlush != null)
-            {
-                await mainFlush.ConfigureAwait(false);
-            }
         }
 
         /// <summary>
-        /// Closes the sidecar chunks covering an auxiliary flush request once the wall clock is
-        /// past the request by <see cref="AuxiliaryFlushMarginMs"/> (sidecar writes trail the
-        /// audio by capture delivery latency). Sparse tracks reopen on their next packet, exactly
-        /// as after a natural expiry. Runs under the gate on the pump thread.
+        /// Closes the fallback-track chunk covering an auxiliary flush request once the wall clock
+        /// is past the request by <see cref="AuxiliaryFlushMarginMs"/> (stamped writes trail the
+        /// audio by capture delivery latency). The sparse track reopens on its next packet,
+        /// exactly as after a natural expiry. Runs under the gate on the pump thread.
         /// </summary>
         private void SettleAuxiliaryFlushRequestLocked(DateTime nowUtc)
         {
@@ -1287,18 +1484,9 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             var requestUtc = new DateTime(requested, DateTimeKind.Utc);
-            foreach (var track in new[]
+            var track = _stampedFallbackTrack;
+            if (track?.Writer != null && track.OriginUtc.HasValue)
             {
-                _stampedChimeTrack,
-                _stampedGameReferenceTrack,
-                _stampedNonGameTrack,
-            })
-            {
-                if (track?.Writer == null || !track.OriginUtc.HasValue)
-                {
-                    continue;
-                }
-
                 var requestFrame = RecordingPaths.AudioFrameAt(
                     track.OriginUtc.Value, requestUtc, track.Format.SampleRate);
                 if (track.ChunkStartFrame <= requestFrame)
@@ -1326,18 +1514,19 @@ namespace PlayniteAchievements.Services.Recording
         private void CleanupLocked()
         {
             _running = false;
+            try { _endpointWatch?.Dispose(); } catch { }
+            _endpointWatch = null;
             CloseChunkLocked();
             CloseAuxiliaryTracksLocked();
             DisposeCapture(ref _systemCapture);
-            DisposeCapture(ref _gameReferenceCapture);
-            DisposeCapture(ref _nonGameCapture);
+            DisposeCapture(ref _fallbackCapture);
             DisposeCapture(ref _micCapture);
             _systemBuffer = null;
             _micBuffer = null;
             _mix = null;
         }
 
-        /// <summary>One directly timestamped chime, game, or non-game reference track.</summary>
+        /// <summary>The directly timestamped fallback track.</summary>
         private sealed class StampedAuxiliaryTrack
         {
             public StampedAuxiliaryTrack(string prefix, WaveFormat format)

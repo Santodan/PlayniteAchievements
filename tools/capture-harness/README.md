@@ -407,47 +407,6 @@ gives 147. Real frames do not look like that; the ramp case is the representativ
   and reports PSNR against the source, for sizing the export-time bitrate headroom. Slow: each rate costs a
   decode plus an encode plus two comparison decodes.
 
-## The chime cancellation probe
-
-```powershell
-tools\capture-harness\bin\ChimeCancelProbe.exe <sessionDir> [--start yyyyMMdd-HHmmssfffffff[Z]] [--seconds 4.5] [--wav-out dir]
-tools\capture-harness\bin\ChimeCancelProbe.exe --selftest
-```
-
-Runs the plugin's real game-audio cancellation (`PcmAudio.CancelCorrelated`, compiled in from
-`source\Services\Capture\PcmAudio.cs` so it always reflects the current algorithm, not a built DLL)
-against the `chm_`/`gam_` WAV chunks of a `RecordingBuffer\<session>` directory.
-With no `--start` it sweeps the whole overlap of the two tracks in consecutive windows and prints one
-line per window: RMS of both tracks, the outcome (`CancelledVerified` / `CleanNoGameDetected` /
-`Unseparable`), the tracked lag range, fitted gain, correlation, and achieved suppression in dB.
-`--wav-out` writes `<stamp>_mixture.wav`, `_cancelled.wav`, and `_reference.wav` per window so the
-residual can be listened to directly — the fastest way to judge whether a reported "duplicated game
-audio in the chime" case is a cancellation failure or something upstream.
-Buffers are pruned when a session ends, so copy the session directory out while Playnite is still
-running (or ask a reporting user to zip theirs before closing Playnite).
-`--selftest` replays the field-shaped fixtures (drifting lag at gain 0.9, unrelated-reference clean
-pass) without needing any capture data.
-
-## The production chime-occurrence probe
-
-```powershell
-tools\capture-harness\bin\ChimeOccurrenceProbe.exe
-```
-
-Compiles the actual `WaveSoundOccurrenceRegistry`, `ChimeRemovalEngine`, cancellation policy, and PCM
-implementation directly from `source/`. It needs no audio device or routing setup. The probe covers a
-wave owning several unlocks, player truncation on the next UPS launch, overlapping cleanup clusters,
-file-only removal through a 667 ms timeline displacement, two render copies of one sound, a quiet game
-bed under a level-drifting live copy (the 2026-09-05 field rejection on normalized residual
-correlation), a mid-sound capture alignment tear of 18 frames (the 2026-09-05 clips whose tails
-survived at another lag), a block-varying remnant of the kind Game Only isolation leaves, player-truncated
-playback, four different sounds, captured-reference fallback, a silent game-tree capture, simultaneous
-duplicates, a wrong/transformed-file fail-closed result, game preservation, and exactly one replacement
-mixed at the selected time. Scenarios that shape a remnant use the five-note `Jingle` generator: a
-single decaying tone is near-periodic and lets a headless remnant lock a lag search onto a repeat of
-its own partials, which is a property of the synthetic rather than of the search. It also reports the one- and four-wave engine times; cleanup is prewarmed and
-cached in production, so this work normally finishes before export needs it.
-
 ## The clip remnant probe
 
 ```powershell
@@ -457,12 +416,13 @@ tools\capture-harness\bin\ClipRemnantProbe.exe <clip.mp4> <sound file> [--volume
 Measures what an exported clip still carries of a notification sound, from the clip alone. It decodes
 the clip's audio and the sound file to the export format, finds every occurrence of the sound by
 normalized correlation against its first second, and prints each occurrence's level relative to the
-played volume plus a per-block row of signed gain and best lag offset. The composited replacement reads
-0 dB at lag 0 in every block. A live copy that survived removal reads below that; a flat row is a level
-mismatch, a sloped row a time-varying level, and a row whose lag steps partway through is a capture
-alignment tear, which is what the 2026-09-05 clips showed (onset removed 38-59 dB, tail from 1.2-2.7 s
-on at up to full level, 8-24 frames off). Rows inside the replacement's own span with correlation
-around 0.1-0.2 are the jingle correlating with its own later notes, not remnants. Needs no capture
+played volume plus a per-block row of signed gain and best lag offset. The composited chime reads
+0 dB at lag 0 in every block, and it should be the ONLY occurrence: clip tracks exclude the sound
+host's process, so a second occurrence anywhere means the live sound reached the capture and the
+exclusion failed. Rows inside the composited chime's own span with correlation around 0.1-0.2 are the
+jingle correlating with its own later notes, not a second copy. The per-block gain and lag columns
+date from the cancellation era and still read the same way: a flat row is a level mismatch, a sloped
+row a time-varying level, and a row whose lag steps partway through is a capture alignment tear. Needs no capture
 buffer, so it works on clips a user sends.
 
 ## The chime separation probe
@@ -472,18 +432,18 @@ tools\capture-harness\bin\ChimeSeparationProbe.exe          # plays two quiet to
 tools\capture-harness\bin\ChimeSeparationProbe.exe --tone <freqHz> <seconds> [amp] [amHz]
 ```
 
-End-to-end proof that Playnite-chime vs emulator audio separation works on real WASAPI sessions,
-without Playnite.
+End-to-end proof that process-scoped loopback separates a chime from emulator audio on real WASAPI
+sessions, without Playnite.
 The probe recreates the process topology of a Playnite-launched emulator — it plays a 440 Hz "chime"
-from its own process (UniPlaySong's role) while a spawned child process plays an AM-warbled 1320 Hz
-"game" tone (RetroArch's role) — then captures three streams with the plugin's real
-`ProcessLoopbackCapture` (compiled in from source, like the cancellation): include-tree on the child
-(the GameOnly main track), include-tree on itself (the `chm_` sidecar; the child is inside that
-tree), and exclude-tree on itself (the FullSystem main track).
-Goertzel power at the two frequencies then verifies each scope (child-scoped capture must not carry
-the parent's chime; the excluded capture must carry neither tone), and `PcmAudio.CancelCorrelated`
-runs across the two *independent* loopback clients — real inter-client clock offset and drift — with
-the assertion that the game tone is suppressed >= 10 dB while the chime survives within 3 dB.
+from its own process (the sound host's role) while a spawned child process plays an AM-warbled
+1320 Hz "game" tone (RetroArch's role) — then captures three streams with the plugin's real
+`ProcessLoopbackCapture` (compiled in from source): include-tree on the child (the Game Only clip
+track), include-tree on itself (the sound host's own render; the child is inside that tree, so this
+is the 0 dB reference for the other two), and exclude-tree on itself (the Full System clip track).
+Goertzel power at the two frequencies then verifies each scope: the child-scoped capture must not
+carry the parent's chime, and the excluded capture must carry neither tone.
+There is no cancellation step; the plugin keeps the unlock sound out of clips by excluding the sound
+host's process, so the only thing to prove is that the scopes are what the filters say they are.
 The exe carries a Win10 `supportedOS` manifest (`win10.manifest`) because
 `ProcessLoopbackCapture.IsSupported` reads `Environment.OSVersion`, which lies (6.2) in unmanifested
 processes; inside Playnite the plugin never sees this.
@@ -493,36 +453,61 @@ exclude-tree check is informational when something else is playing.
 ## The chime burst probe
 
 ```powershell
-tools\capture-harness\bin\ChimeBurstProbe.exe [--keep] [--no-haptics]
+tools\capture-harness\bin\ChimeBurstProbe.exe [--keep] [--no-haptics] [--cold]
 ```
 
 The burst scenario — two toast waves of three achievements — on the REAL recorder plumbing.
 Unlike the separation probe's raw loopback clients, this drives two actual `AudioLoopbackRecorder`
-instances (the GameOnly main recorder and the chime sidecar, wired exactly as
-`UnlockRecordingService` wires them), so the mixer graph, direct packet timestamping, wall-clock
-main pump, gap padding, and chunk rotation are all exercised.
+instances concurrently, one Game Only and one Full System, wired exactly as
+`UnlockRecordingService` wires them (game pid and sound-host pid delegates), so the mixer graph,
+direct packet timestamping, wall-clock main pump, gap padding, chunk rotation, the 8-channel process
+captures and their stereo reduction are all exercised. The topology is production's: a spawned
+"game" child plays the game tone, a spawned "sound host" child plays the wave chimes on schedule and
+reports each launch stamp, and the probe itself plays nothing during the waves.
 A wave plays one chime regardless of its card count, so two waves of three means two chimes at wave
-cadence (~7.5 s apart with the default 6 s toast), each at a distinct frequency (440 / 587 Hz) so
-the wrong wave's chime appearing in a slice is directly measurable. Chimes and the game tone all
-carry band-limited noise with distinct seeds: a pure sine's periodic autocorrelation lets a lag
-search lock any period multiple, a signal pathology real broadband audio does not have.
-Per wave it reads the occurrence's toast-plus-tail window, runs the real cancellation against the
-timestamped `gam_` chunks, and asserts: the speaker-endpoint
-track carries the game, `gam_` exists even with an unknown tree probe, each slice holds only its
-own wave's chime, the game is suppressed, and the chime survives. Its additional GameOnly and
-FullSystem calculations are hardware diagnostics; `ChimeOccurrenceProbe` is the authoritative test of
-the current transactional export policy.
-When exactly one controller endpoint is connected, the child also renders a 180 Hz actuator tone
-for the whole run and every user-facing output is asserted to exclude it — one run then covers
-full/game audio, with/without haptics, and the chime paths. `--no-haptics` skips that layer for an
-A/B. Under continuous haptic crossfeed the sidecar cancellation may legitimately fail closed
-(chime dropped, nothing unverified ships); the probe reports that outcome as a labeled pass.
-The run takes ~35 s and plays whisper-level tones; `--keep` retains the chunk directory (failures
-keep it automatically) so `ChimeCancelProbe` can map lag over time on the same data.
-This probe is what surfaced the recorder pump's 1-2 ms alignment tears (correlated with a render
-stream starting — i.e. the chime itself) that motivated multi-window global calibration and
-failed-block fallback in `PcmAudio.CancelCorrelated`. The production path never changes lag inside
-the slice.
+cadence (~7.5 s apart with the default 6 s toast), each at a distinct frequency (440 / 587 Hz) so a
+chime leaking into a slice is directly measurable. The game tone rides on band-limited noise, so a
+chime bin's leakage is measured as its during-vs-after rise above that noise rather than as an
+absolute level.
+Per mode and per wave it reads the toast-plus-tail slice of the clip track (`aud_`) and, in Game
+Only, of the exclude-host fallback track (`alt_`), and asserts that each carries the game marker tone
+and shows no rise at the chime frequency while the live chime plays. It also checks the recorders'
+own account of what they captured (`ClipTrack`, `HasFallbackTrack`, `ExcludedSoundHostProcessId`)
+and runs the production `ChimeCompositeDecision` (compiled in from source) to confirm both modes
+receive the composited chime.
+When exactly one controller endpoint is connected, the game child also renders a 180 Hz actuator
+tone for the whole run. The probe then runs a plain stereo process capture of the game tree beside
+the recorders: that capture folds the actuator channels into L/R, the way every recorder capture did
+before the 8-channel format, and its haptic-to-game ratio is the contamination reference every clip
+track must sit at least 30 dB below. `--no-haptics` skips that layer for an A/B; `--cold` skips the
+sound host's warm-up so its first render stream starts cold.
+The run takes ~35 s and plays whisper-level tones; `--keep` retains the chunk directories (failures
+keep them automatically).
+
+## The channel-map probe
+
+```powershell
+tools\capture-harness\bin\ChannelMapProbe.exe [--endpoint <index>] [--channels 4|6|8] [--tone-channel 2] [--hz 180]
+```
+
+Answers one question: does process loopback keep channel identity when the capture asks for a
+multichannel format? A child renders a tone on one channel of a 4-channel stream to the chosen
+endpoint (the controller when one is connected, else the default output); the parent captures
+include-tree on the child both stereo (the recorder's format today) and at the requested channel
+count, and reports the tone's power per capture channel. A DualSense on USB exposes a 4-channel
+endpoint whose channels 2/3 carry the haptics, so a preserved channel means an exclude-host capture
+at 4 channels can drop the actuators by channel and the haptics never need cancelling. Measured
+2026-09-05: against a stereo default endpoint the engine accepts 4, 6 and 8-channel process-loopback
+formats but the tone lands in the front channels, because the stereo endpoint downmixed the stream
+before the tap. Against a 7.1 endpoint a tone rendered on back-left arrived on capture channel 2 of
+a 4-channel capture (and channel 4 of an 8-channel one) with channels 0/1 at -140 dB: the engine
+keeps each channel at its speaker position when the capture has room for it. The same endpoint
+also showed why the capture must be as wide as the widest endpoint: the tap converts every stream
+to its endpoint's mix format and then averages it down to a narrower capture, so a 4-channel capture
+read 6.7 dB low and a stereo one 13.5 dB low while an 8-channel capture was at true level, whatever
+the source stream's own width (`--source-channels`). A running game can be measured against all
+three at once with `--pid`. That is what the recorder now relies on (8 channels, folded to stereo by
+`SurroundDownmix`); the controller endpoint itself still wants one run with a pad connected.
 
 ## The haptic endpoint-isolation probe
 

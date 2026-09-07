@@ -64,39 +64,30 @@ $refs = $framework + $sharp + $tuple
 
 $tools = @(
     'CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss',
-    'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe', 'ChimeCancelProbe',
-    'ChimeSeparationProbe', 'ChimeBurstProbe', 'ChimeOccurrenceProbe', 'HapticProbe', 'ComposerProbe',
-    'ChimeRoundTripProbe', 'CaptureStarvationProbe', 'ClipRemnantProbe')
+    'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe',
+    'ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe', 'ComposerProbe',
+    'CaptureStarvationProbe', 'ChannelMapProbe', 'ClipRemnantProbe')
 # Tools that compile plugin source files in directly, so they always test the current algorithm
 # rather than a built DLL.
 $extraSources = @{
-    ChimeCancelProbe = @((Join-Path $repo 'source\Services\Capture\PcmAudio.cs'))
     CaptureStarvationProbe = @(
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioGapTracker.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
-    ChimeRoundTripProbe = @(
-        (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
-        (Join-Path $repo 'source\Services\Capture\ReferenceCancellationPolicy.cs'))
-    ChimeOccurrenceProbe = @(
-        (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
-        (Join-Path $repo 'source\Services\Capture\ReferenceCancellationPolicy.cs'),
-        (Join-Path $repo 'source\Services\Capture\ChimeRemovalEngine.cs'),
-        (Join-Path $repo 'source\Services\Recording\WaveSoundOccurrence.cs'))
     ChimeSeparationProbe = @(
-        (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioGapTracker.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
     ChimeBurstProbe = @(
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
-        (Join-Path $repo 'source\Services\Recording\ChimeSoundFile.cs'),
+        (Join-Path $repo 'source\Services\Recording\ChimeCompositeDecision.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioGapTracker.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioLoopbackRecorder.cs'),
+        (Join-Path $repo 'source\Services\Recording\SurroundDownmix.cs'),
         (Join-Path $repo 'source\Services\Recording\RenderEndpointScan.cs'),
         (Join-Path $repo 'source\Services\Recording\MicrophoneSelector.cs'),
         (Join-Path $repo 'source\Services\Recording\HapticEndpointClassifier.cs'),
@@ -109,6 +100,15 @@ $extraSources = @{
     ComposerProbe = @(
         (Join-Path $repo 'source\Services\Capture\FrameComposer.cs'),
         (Join-Path $here 'ReferenceFramePath.cs'))
+    ChannelMapProbe = @(
+        (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
+        (Join-Path $repo 'source\Services\Recording\AudioGapTracker.cs'),
+        (Join-Path $repo 'source\Services\Recording\AudioEndpointEnumerator.cs'),
+        (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'),
+        (Join-Path $repo 'source\Services\Recording\RenderEndpointScan.cs'),
+        (Join-Path $repo 'source\Services\Recording\MicrophoneSelector.cs'),
+        (Join-Path $repo 'source\Services\Recording\HapticEndpointClassifier.cs'),
+        (Join-Path $repo 'source\Services\UI\ControllerPadIds.cs'))
     HapticProbe = @(
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioGapTracker.cs'),
@@ -122,7 +122,7 @@ $extraSources = @{
 }
 # Tools that need Environment.OSVersion to report the real Windows version (the manifest opts out
 # of the 6.2 compatibility shim); ProcessLoopbackCapture.IsSupported depends on it.
-$manifestTools = @('ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe', 'CaptureStarvationProbe')
+$manifestTools = @('ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe', 'CaptureStarvationProbe', 'ChannelMapProbe')
 $failed = @()
 foreach ($tool in $tools) {
     $source = Join-Path $here ($tool + '.cs')

@@ -129,26 +129,12 @@ namespace PlayniteAchievements.Services.Recording
         public const string AudioChunkFilePrefix = "aud_";
 
         /// <summary>
-        /// Chime chunk filenames: chm_yyyyMMdd-HHmmssfffffffZ.wav — the Playnite process-tree
-        /// sidecar. When the game is also in that tree, its matching game-reference window is
-        /// cancelled from this track before the isolated chime is re-timed to the toast.
+        /// Fallback chunk filenames: alt_yyyyMMdd-HHmmssfffffffZ.wav. Game Only records the game's
+        /// process tree as its clip track and this exclude-sound-host track beside it; a clip whose
+        /// game-tree window is silent (the game renders outside its tracked tree) is exported from
+        /// this track instead, so it carries the game rather than nothing.
         /// </summary>
-        public const string ChimeChunkFilePrefix = "chm_";
-
-        /// <summary>
-        /// Game-reference chunk filenames: gam_yyyyMMdd-HHmmssfffffffZ.wav. Capture uses this only when
-        /// Playnite's process tree contains the game, providing the raw game-only signal that must
-        /// be removed from the overlapping chime sidecar.
-        /// </summary>
-        public const string GameReferenceChunkFilePrefix = "gam_";
-
-        /// <summary>
-        /// Non-game reference chunks: oth_yyyyMMdd-HHmmssfffffffZ.wav. Game-only capture records
-        /// the speaker endpoint as its haptic-free main track and captures every process except the
-        /// game tree here, so export can remove other applications without ever admitting a
-        /// controller endpoint into the clip audio.
-        /// </summary>
-        public const string NonGameReferenceChunkFilePrefix = "oth_";
+        public const string FallbackChunkFilePrefix = "alt_";
 
         public const string AudioChunkFileExtension = ".wav";
     }
