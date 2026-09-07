@@ -985,6 +985,15 @@ internal static class CaptureHarness
     // near Cb 134 / Cr 179 over the dark ground and Cb 121 / Cr 200 over the bar; the bar alone is
     // Cb 79 / Cr 212, gold text Cb 30 / Cr 154, and grey ground or white text sit at 128 / 128.
     // Cr well above neutral together with Cb not far below it is therefore the card and nothing else.
+    //
+    // The Cr floor is 165 rather than a value just clear of neutral, because the sweeping bar
+    // crosses this very sample point: it is painted across [ClientH-120, ClientH-40), and the card's
+    // centre sits at ClientH-89 in the same units. A frame caught mid-sweep samples part bar and
+    // part ground, and that blend reached Cb 115 / Cr 152, which a 150 floor accepted as a card on
+    // frames seconds away from the toast. Mixing the bar (Cb 79 / Cr 212) with the ground
+    // (Cb 131 / Cr 128) by any fraction t gives Cb = 131 - 52t and Cr = 128 + 84t, so Cr above 165
+    // forces t above 0.44 and therefore Cb below 108 — under the Cb floor. No mixture of the two can
+    // satisfy both bounds, while the card clears them either way it is composited.
     private static bool IsCardPurpleNv12(byte[] frame, int stride, int height, int cx, int cy)
     {
         long cb = 0, cr = 0, n = 0;
@@ -1011,7 +1020,7 @@ internal static class CaptureHarness
         }
 
         cb /= n; cr /= n;
-        return cr > 150 && cb > 110;
+        return cr > 165 && cb > 110;
     }
 
     /// <summary>
@@ -1328,42 +1337,50 @@ internal static class CaptureHarness
                 File.Delete(outputPath);
             }
 
-            var deviceType = Type.GetType("SharpDX.Direct3D11.Device, SharpDX.Direct3D11");
-            var device = Activator.CreateInstance(
-                deviceType,
-                Type.GetType("SharpDX.Direct3D.DriverType, SharpDX").GetField("Hardware").GetValue(null),
-                Enum.ToObject(Type.GetType("SharpDX.Direct3D11.DeviceCreationFlags, SharpDX.Direct3D11"), 0x20 | 0x800));
-
-            var encoderType = plugin.GetType("PlayniteAchievements.Services.Capture.MediaFoundationH264Encoder");
-            var encoder = Activator.CreateInstance(
-                encoderType, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public, null,
-                new object[] { device, outputPath, 640, 360, fps, 4_000_000 }, null);
-
-            var textureType = Type.GetType("SharpDX.Direct3D11.Texture2D, SharpDX.Direct3D11");
-            var write = encoderType.GetMethod("WriteFrame", Flags);
-            var time = 0L;
-            for (var i = 0; i < 60; i++)
+            // The encoder does not start Media Foundation itself — whoever owns a run of encoders
+            // holds one MediaFoundationRuntime lease around all of them. Every call site inside the
+            // plugin was given one when that became the contract; this standalone test was not, and
+            // had been failing on its first write ever since with "Shutdown() has been called".
+            var runtimeType = plugin.GetType("PlayniteAchievements.Services.Capture.MediaFoundationRuntime");
+            using ((IDisposable)runtimeType.GetMethod("Acquire", Flags).Invoke(null, null))
             {
-                var duration = i % 2 == 0 ? 100_000L : 566_666L; // 10 ms / 56.67 ms
-                var texture = MakeTexture(deviceType, textureType, device, 640, 360);
-                using ((IDisposable)texture)
+                var deviceType = Type.GetType("SharpDX.Direct3D11.Device, SharpDX.Direct3D11");
+                var device = Activator.CreateInstance(
+                    deviceType,
+                    Type.GetType("SharpDX.Direct3D.DriverType, SharpDX").GetField("Hardware").GetValue(null),
+                    Enum.ToObject(Type.GetType("SharpDX.Direct3D11.DeviceCreationFlags, SharpDX.Direct3D11"), 0x20 | 0x800));
+
+                var encoderType = plugin.GetType("PlayniteAchievements.Services.Capture.MediaFoundationH264Encoder");
+                var encoder = Activator.CreateInstance(
+                    encoderType, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public, null,
+                    new object[] { device, outputPath, 640, 360, fps, 4_000_000 }, null);
+
+                var textureType = Type.GetType("SharpDX.Direct3D11.Texture2D, SharpDX.Direct3D11");
+                var write = encoderType.GetMethod("WriteFrame", Flags);
+                var time = 0L;
+                for (var i = 0; i < 60; i++)
                 {
-                    write.Invoke(encoder, new object[] { texture, time, duration });
+                    var duration = i % 2 == 0 ? 100_000L : 566_666L; // 10 ms / 56.67 ms
+                    var texture = MakeTexture(deviceType, textureType, device, 640, 360);
+                    using ((IDisposable)texture)
+                    {
+                        write.Invoke(encoder, new object[] { texture, time, duration });
+                    }
+
+                    time += duration;
                 }
 
-                time += duration;
+                ((IDisposable)encoder).Dispose();
+                ((IDisposable)device).Dispose();
+
+                var info = Mp4.VideoTiming(outputPath);
+                Console.WriteLine(
+                    "  wrote 60 frames summing to 2.000s; result frames=" + info.Samples +
+                    " sttsEntries=" + info.SttsEntries + " media=" + info.Seconds.ToString("0.000") + "s");
+                Console.WriteLine(info.SttsEntries > 1
+                    ? "  => encoder PRESERVES per-frame durations"
+                    : "  => encoder FLATTENS durations to a uniform grid  <-- this is the drift cause");
             }
-
-            ((IDisposable)encoder).Dispose();
-            ((IDisposable)device).Dispose();
-
-            var info = Mp4.VideoTiming(outputPath);
-            Console.WriteLine(
-                "  wrote 60 frames summing to 2.000s; result frames=" + info.Samples +
-                " sttsEntries=" + info.SttsEntries + " media=" + info.Seconds.ToString("0.000") + "s");
-            Console.WriteLine(info.SttsEntries > 1
-                ? "  => encoder PRESERVES per-frame durations"
-                : "  => encoder FLATTENS durations to a uniform grid  <-- this is the drift cause");
         }
         catch (Exception ex)
         {
