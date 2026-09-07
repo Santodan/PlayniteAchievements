@@ -619,7 +619,12 @@ namespace PlayniteAchievements
                             () => settings?.Persisted?.UnlockSounds,
                             () => soundThemeResolver.ResolveActiveThemeDirectories(Application.Current?.Resources),
                             UnlockSoundResolver.GetBundledSoundsDirectory(pluginInstallDirectory),
-                            _logger),
+                            _logger,
+                            () => settings?.Persisted?.AllowThemeUnlockSounds ?? true,
+                            mode => soundThemeResolver.ResolveThemeDirectoriesForMode(
+                                Application.Current?.Resources,
+                                mode),
+                            () => soundThemeResolver.ActiveThemeModeName),
                         pluginInstallDirectory,
                         _logger);
                     SettingsSaved += OnSettingsSavedForUnlockSounds;
