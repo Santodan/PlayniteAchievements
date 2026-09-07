@@ -218,11 +218,29 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CloneAndCopyFrom_PreserveAllowThemeUnlockSounds()
+        {
+            // Defaults true, so the off state is the one a lost copy would silently restore.
+            var source = new PersistedSettings
+            {
+                AllowThemeUnlockSounds = false
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.IsFalse(clone.AllowThemeUnlockSounds);
+            Assert.IsFalse(target.AllowThemeUnlockSounds);
+        }
+
+        [TestMethod]
         public void Constructor_DefaultsUnlockSoundsOnAtHalfVolumeWithNoCustomFiles()
         {
             var settings = new PersistedSettings();
 
             Assert.IsTrue(settings.EnableUnlockSounds);
+            Assert.IsTrue(settings.AllowThemeUnlockSounds);
             Assert.AreEqual(50, settings.UnlockSoundVolumePercent);
             Assert.IsFalse(settings.UnlockSoundsSeededFromUniPlaySong);
             Assert.IsNotNull(settings.UnlockSounds);
