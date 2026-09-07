@@ -237,6 +237,12 @@
                                          TextAlignment="Right"
                                          Margin="0,0,0,8"/>
                             </Grid>
+                            <!-- Drops the theme step out of the per-tier chain, leaving the user's
+                                 own file and the bundled default. On by default so a theme that
+                                 ships sounds is heard without configuring anything. -->
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseThemeUnlockSounds}"
+                                      IsChecked="{Binding Persisted.AllowThemeUnlockSounds}"
+                                      Margin="0,0,0,8"/>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseHiddenUnlockSound}"
                                       IsChecked="{Binding Persisted.UseHiddenUnlockSound}"
                                       Margin="0,0,0,8"/>
@@ -253,41 +259,81 @@
                                     <DataTemplate DataType="{x:Type vm:UnlockSoundRowItem}">
                                         <Grid Margin="0,0,0,4">
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto" SharedSizeGroup="UnlockSoundTier"/>
                                                 <ColumnDefinition Width="Auto" SharedSizeGroup="UnlockSoundSource"/>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0"
+                                            <!-- The tier's own badge, drawn from the user's rarity
+                                                 appearance, so the table reads as the notifications
+                                                 it configures. -->
+                                            <Image Grid.Column="0"
+                                                   Source="{Binding BadgeImage}"
+                                                   Width="20"
+                                                   Height="20"
+                                                   Stretch="Uniform"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0"/>
+                                            <TextBlock Grid.Column="1"
                                                        Text="{Binding TierLabel}"
                                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                        VerticalAlignment="Center"
                                                        Margin="0,0,10,0"/>
-                                            <TextBlock Grid.Column="1"
+                                            <TextBlock Grid.Column="2"
                                                        Text="{Binding SourceLabel}"
                                                        Style="{StaticResource MutedTextStyle}"
                                                        VerticalAlignment="Center"
                                                        ToolTip="{Binding ResolvedPath}"
                                                        Margin="0,0,10,0"/>
-                                            <TextBox Grid.Column="2"
+                                            <TextBox Grid.Column="3"
                                                      Text="{Binding CustomPath, UpdateSourceTrigger=LostFocus}"
                                                      ToolTip="{Binding ResolvedPath}"
                                                      VerticalAlignment="Center"/>
-                                            <Button Grid.Column="3"
+                                            <!-- Drawn over the empty box, not behind it, so the
+                                                 theme's TextBox background cannot hide it; clicks
+                                                 pass through to the box underneath. Names the file
+                                                 a blank tier will actually play, so an
+                                                 unconfigured row reads as its source rather than
+                                                 as nothing. -->
+                                            <TextBlock Grid.Column="3"
+                                                       Text="{Binding ResolvedFileName}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       IsHitTestVisible="False"
+                                                       Margin="5,0,4,0"
+                                                       Visibility="{Binding ShowResolvedFileName, Converter={StaticResource BoolToVis}}"/>
+                                            <Button Grid.Column="4"
                                                     Click="UnlockSoundBrowse_Click"
                                                     Content="{DynamicResource LOCPlayAch_Button_Browse}"
                                                     Margin="6,0,0,0"/>
-                                            <Button Grid.Column="4"
+                                            <Button Grid.Column="5"
                                                     Click="UnlockSoundClear_Click"
                                                     Content="{DynamicResource LOCPlayAch_Button_Clear}"
                                                     IsEnabled="{Binding HasCustomPath}"
                                                     Margin="6,0,0,0"/>
-                                            <Button Grid.Column="5"
+                                            <Button Grid.Column="6"
                                                     Click="UnlockSoundTest_Click"
                                                     Content="{DynamicResource LOCPlayAch_Button_Test}"
                                                     Margin="6,0,0,0"/>
+                                            <!-- Plays what a theme ships for this tier, in either
+                                                 Playnite mode, whatever the chain currently
+                                                 resolves to. Disabled when neither theme provides
+                                                 the tier. -->
+                                            <Button Grid.Column="7"
+                                                    Click="UnlockSoundTheme_Click"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
+                                                    ToolTip="{DynamicResource LOCPlayAch_Settings_UnlockSoundTheme_Tooltip}"
+                                                    IsEnabled="{Binding HasThemeCandidates}"
+                                                    Margin="6,0,0,0">
+                                                <Button.ContextMenu>
+                                                    <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"/>
+                                                </Button.ContextMenu>
+                                            </Button>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

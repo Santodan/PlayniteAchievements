@@ -195,6 +195,118 @@ namespace PlayniteAchievements.Tests.Services.UI
                 UnlockSoundResolver.BuildOpenFileDialogFilter());
         }
 
+        [TestMethod]
+        public void Resolve_SkipsThemeWhenThemeSoundsAreTurnedOff()
+        {
+            Touch(Path.Combine(_themeA, UnlockSoundResolver.ThemeSoundsRelativeDirectory, "rare.wav"));
+
+            var resolved = Create(allowThemeSounds: false).Resolve(UnlockSoundTier.Rare);
+
+            Assert.AreEqual(UnlockSoundSource.Default, resolved.Source);
+            Assert.AreEqual(Path.Combine(_bundled, "rare.mp3"), resolved.Path);
+        }
+
+        [TestMethod]
+        public void Resolve_UsesThemeWhenThemeSoundsAreTurnedOn()
+        {
+            var theme = Touch(Path.Combine(_themeA, UnlockSoundResolver.ThemeSoundsRelativeDirectory, "rare.wav"));
+
+            var resolved = Create(allowThemeSounds: true).Resolve(UnlockSoundTier.Rare);
+
+            Assert.AreEqual(UnlockSoundSource.Theme, resolved.Source);
+            Assert.AreEqual(theme, resolved.Path);
+        }
+
+        [TestMethod]
+        public void Resolve_KeepsTheUsersOwnFileWhenThemeSoundsAreTurnedOff()
+        {
+            var custom = Touch(Path.Combine(_root, "mine.wav"));
+            Touch(Path.Combine(_themeA, UnlockSoundResolver.ThemeSoundsRelativeDirectory, "rare.wav"));
+            _settings.Rare = custom;
+
+            var resolved = Create(allowThemeSounds: false).Resolve(UnlockSoundTier.Rare);
+
+            Assert.AreEqual(UnlockSoundSource.Custom, resolved.Source);
+            Assert.AreEqual(custom, resolved.Path);
+        }
+
+        [TestMethod]
+        public void FindThemeCandidates_ReportsBothModesWithTheRunningModeFirst()
+        {
+            var desktop = Touch(Path.Combine(_themeA, UnlockSoundResolver.ThemeSoundsRelativeDirectory, "rare.wav"));
+            var fullscreen = Touch(Path.Combine(_themeB, UnlockSoundResolver.ThemeSoundsRelativeDirectory, "rare.mp3"));
+
+            var candidates = CreateWithModes(activeIsFullscreen: true).FindThemeCandidates(UnlockSoundTier.Rare);
+
+            Assert.AreEqual(2, candidates.Count);
+            Assert.AreEqual(UnlockSoundResolver.FullscreenModeName, candidates[0].ModeName);
+            Assert.AreEqual(fullscreen, candidates[0].Path);
+            Assert.AreEqual(UnlockSoundResolver.DesktopModeName, candidates[1].ModeName);
+            Assert.AreEqual(desktop, candidates[1].Path);
+        }
+
+        [TestMethod]
+        public void FindThemeCandidates_PutsDesktopFirstWhenDesktopIsTheRunningMode()
+        {
+            Touch(Path.Combine(_themeA, UnlockSoundResolver.ThemeSoundsRelativeDirectory, "rare.wav"));
+            Touch(Path.Combine(_themeB, UnlockSoundResolver.ThemeSoundsRelativeDirectory, "rare.mp3"));
+
+            var candidates = CreateWithModes(activeIsFullscreen: false).FindThemeCandidates(UnlockSoundTier.Rare);
+
+            Assert.AreEqual(2, candidates.Count);
+            Assert.AreEqual(UnlockSoundResolver.DesktopModeName, candidates[0].ModeName);
+            Assert.AreEqual(UnlockSoundResolver.FullscreenModeName, candidates[1].ModeName);
+        }
+
+        [TestMethod]
+        public void FindThemeCandidates_ReportsThemeFilesEvenWhenThemeSoundsAreTurnedOff()
+        {
+            // The switch governs what plays on an unlock; the settings page still has to be able to
+            // audition what a theme ships, which is the whole point of the per-tier theme button.
+            Touch(Path.Combine(_themeB, UnlockSoundResolver.ThemeSoundsRelativeDirectory, "rare.mp3"));
+
+            var candidates = CreateWithModes(activeIsFullscreen: true, allowThemeSounds: false)
+                .FindThemeCandidates(UnlockSoundTier.Rare);
+
+            Assert.AreEqual(1, candidates.Count);
+            Assert.AreEqual(UnlockSoundResolver.FullscreenModeName, candidates[0].ModeName);
+        }
+
+        [TestMethod]
+        public void FindThemeCandidates_ReportsOneEntryForAFileBothModesShare()
+        {
+            var shared = Touch(Path.Combine(_themeA, UnlockSoundResolver.ThemeSoundsRelativeDirectory, "rare.wav"));
+
+            var candidates = CreateWithModes(
+                    activeIsFullscreen: false,
+                    desktopDirectories: new List<string> { _themeA },
+                    fullscreenDirectories: new List<string> { _themeA })
+                .FindThemeCandidates(UnlockSoundTier.Rare);
+
+            Assert.AreEqual(1, candidates.Count);
+            Assert.AreEqual(shared, candidates[0].Path);
+            Assert.AreEqual(UnlockSoundResolver.DesktopModeName, candidates[0].ModeName);
+        }
+
+        [TestMethod]
+        public void FindThemeCandidates_FindsTheLegacyUniPlaySongLayout()
+        {
+            var legacy = Touch(Path.Combine(_themeB, UnlockSoundResolver.LegacyThemeSoundsRelativeDirectory, "rare.flac"));
+
+            var candidates = CreateWithModes(activeIsFullscreen: true).FindThemeCandidates(UnlockSoundTier.Rare);
+
+            Assert.AreEqual(1, candidates.Count);
+            Assert.AreEqual(legacy, candidates[0].Path);
+        }
+
+        [TestMethod]
+        public void FindThemeCandidates_IsEmptyWhenNeitherThemeProvidesTheTier()
+        {
+            var candidates = CreateWithModes(activeIsFullscreen: true).FindThemeCandidates(UnlockSoundTier.Rare);
+
+            Assert.AreEqual(0, candidates.Count);
+        }
+
         private UnlockSoundResolver Create()
         {
             return new UnlockSoundResolver(
@@ -202,6 +314,44 @@ namespace PlayniteAchievements.Tests.Services.UI
                 () => new List<string> { _themeA, _themeB },
                 _bundled,
                 _logger);
+        }
+
+        private UnlockSoundResolver Create(bool allowThemeSounds)
+        {
+            return new UnlockSoundResolver(
+                () => _settings,
+                () => new List<string> { _themeA, _themeB },
+                _bundled,
+                _logger,
+                () => allowThemeSounds);
+        }
+
+        /// <summary>
+        /// A resolver whose two modes have separate theme directories: <see cref="_themeA"/> is the
+        /// desktop theme and <see cref="_themeB"/> the fullscreen one, with the active-mode
+        /// delegate pointed at whichever mode is meant to be running.
+        /// </summary>
+        private UnlockSoundResolver CreateWithModes(
+            bool activeIsFullscreen,
+            bool allowThemeSounds = true,
+            List<string> desktopDirectories = null,
+            List<string> fullscreenDirectories = null)
+        {
+            var desktop = desktopDirectories ?? new List<string> { _themeA };
+            var fullscreen = fullscreenDirectories ?? new List<string> { _themeB };
+
+            return new UnlockSoundResolver(
+                () => _settings,
+                () => activeIsFullscreen ? fullscreen : desktop,
+                _bundled,
+                _logger,
+                () => allowThemeSounds,
+                mode => string.Equals(mode, UnlockSoundResolver.FullscreenModeName, StringComparison.OrdinalIgnoreCase)
+                    ? fullscreen
+                    : desktop,
+                () => activeIsFullscreen
+                    ? UnlockSoundResolver.FullscreenModeName
+                    : UnlockSoundResolver.DesktopModeName);
         }
 
         private static string Touch(string path)

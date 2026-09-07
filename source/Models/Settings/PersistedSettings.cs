@@ -87,6 +87,7 @@ namespace PlayniteAchievements.Models.Settings
         private int _controllerVibrationDurationMs = 650;
         private bool _useHiddenUnlockSound = false;
         private bool _enableUnlockSounds = true;
+        private bool _allowThemeUnlockSounds = true;
         private int _unlockSoundVolumePercent = 50;
         private UnlockSoundSettings _unlockSounds = UnlockSoundSettings.CreateDefault();
         private bool _unlockSoundsSeededFromUniPlaySong = false;
@@ -1224,6 +1225,19 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _enableUnlockSounds;
             set => SetValue(ref _enableUnlockSounds, value);
+        }
+
+        /// <summary>
+        /// Whether a tier with no file of the user's own may take the active theme's sound. On by
+        /// default, so a theme that ships sounds is heard without the user configuring anything.
+        /// Turning it off drops the theme step out of the chain, leaving the user's own file and
+        /// the bundled default, which is how someone keeps the built-in pack while running a theme
+        /// whose sounds they do not want.
+        /// </summary>
+        public bool AllowThemeUnlockSounds
+        {
+            get => _allowThemeUnlockSounds;
+            set => SetValue(ref _allowThemeUnlockSounds, value);
         }
 
         /// <summary>
@@ -2831,6 +2845,7 @@ namespace PlayniteAchievements.Models.Settings
                 ControllerVibrationDurationMs = this.ControllerVibrationDurationMs,
                 UseHiddenUnlockSound = this.UseHiddenUnlockSound,
                 EnableUnlockSounds = this.EnableUnlockSounds,
+                AllowThemeUnlockSounds = this.AllowThemeUnlockSounds,
                 UnlockSoundVolumePercent = this.UnlockSoundVolumePercent,
                 UnlockSounds = this.UnlockSounds?.Clone() ?? UnlockSoundSettings.CreateDefault(),
                 UnlockSoundsSeededFromUniPlaySong = this.UnlockSoundsSeededFromUniPlaySong,
