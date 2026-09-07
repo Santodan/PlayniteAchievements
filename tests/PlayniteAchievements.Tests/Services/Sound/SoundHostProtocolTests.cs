@@ -12,7 +12,7 @@ namespace PlayniteAchievements.Tests.Services.Sound
         public void Play_RoundTripsIdGainAndAPathWithSpacesAndUnicode()
         {
             var path = @"C:\Users\Jürgen\Meine Sounds\rare (final).wav";
-            var line = SoundHostProtocol.EncodePlay(42, path, 0.35);
+            var line = SoundHostProtocol.EncodePlay(42, path, 0.35, 0);
 
             Assert.IsTrue(SoundHostProtocol.TryParse(line, out var message));
             Assert.AreEqual(SoundHostProtocol.PlayVerb, message.Verb);
@@ -28,7 +28,7 @@ namespace PlayniteAchievements.Tests.Services.Sound
             try
             {
                 Thread.CurrentThread.CurrentCulture = new CultureInfo("de-DE");
-                var line = SoundHostProtocol.EncodePlay(1, @"C:\a.wav", 0.5);
+                var line = SoundHostProtocol.EncodePlay(1, @"C:\a.wav", 0.5, 0);
 
                 StringAssert.Contains(line, "\t0.5\t");
                 Assert.IsTrue(SoundHostProtocol.TryParse(line, out var message));
@@ -98,8 +98,73 @@ namespace PlayniteAchievements.Tests.Services.Sound
         public void Play_PathContainingAVerbWordIsStillAPath()
         {
             var path = @"C:\stop\quit\play.wav";
-            Assert.IsTrue(SoundHostProtocol.TryParse(SoundHostProtocol.EncodePlay(3, path, 1.0), out var message));
+            Assert.IsTrue(SoundHostProtocol.TryParse(SoundHostProtocol.EncodePlay(3, path, 1.0, 0), out var message));
             Assert.AreEqual(path, message.Path);
+        }
+
+        [TestMethod]
+        public void Play_RoundTripsTheDurationCapAsWholeMilliseconds()
+        {
+            var path = @"C:\sounds\rare (final).wav";
+            var line = SoundHostProtocol.EncodePlay(7, path, 0.5, 6.25);
+
+            StringAssert.Contains(line, "\t6250\t");
+            Assert.IsTrue(SoundHostProtocol.TryParse(line, out var message));
+            Assert.AreEqual(6.25, message.MaxSeconds, 1e-9);
+            Assert.AreEqual(path, message.Path);
+        }
+
+        [TestMethod]
+        public void Play_ZeroCapMeansTheWholeFile()
+        {
+            var line = SoundHostProtocol.EncodePlay(1, @"C:\a.wav", 0.5, 0);
+
+            Assert.IsTrue(SoundHostProtocol.TryParse(line, out var message));
+            Assert.AreEqual(0.0, message.MaxSeconds, 1e-9);
+        }
+
+        [TestMethod]
+        public void Play_CapIsInvariantRegardlessOfThreadCulture()
+        {
+            var previous = Thread.CurrentThread.CurrentCulture;
+            try
+            {
+                Thread.CurrentThread.CurrentCulture = new CultureInfo("de-DE");
+                var line = SoundHostProtocol.EncodePlay(1, @"C:\a.wav", 0.5, 6.0);
+
+                StringAssert.Contains(line, "\t6000\t");
+                Assert.IsTrue(SoundHostProtocol.TryParse(line, out var message));
+                Assert.AreEqual(6.0, message.MaxSeconds, 1e-9);
+            }
+            finally
+            {
+                Thread.CurrentThread.CurrentCulture = previous;
+            }
+        }
+
+        [TestMethod]
+        public void Play_AcceptsTheOlderFourFieldFormAsUncapped()
+        {
+            // A host binary left over from a previous build must keep playing rather than reject
+            // the line and go silent, so the cap field is optional on the way in.
+            var path = @"C:\sounds\common.mp3";
+            var line = string.Join("\t", SoundHostProtocol.PlayVerb, "9", "0.25", path);
+
+            Assert.IsTrue(SoundHostProtocol.TryParse(line, out var message));
+            Assert.AreEqual(9, message.Id);
+            Assert.AreEqual(0.25, message.Gain, 1e-9);
+            Assert.AreEqual(0.0, message.MaxSeconds, 1e-9);
+            Assert.AreEqual(path, message.Path);
+        }
+
+        [TestMethod]
+        public void Play_RejectsANegativeOrUnparsableCap()
+        {
+            var path = @"C:\sounds\common.mp3";
+            Assert.IsFalse(SoundHostProtocol.TryParse(
+                string.Join("\t", SoundHostProtocol.PlayVerb, "1", "0.5", "-1", path), out _));
+            Assert.IsFalse(SoundHostProtocol.TryParse(
+                string.Join("\t", SoundHostProtocol.PlayVerb, "1", "0.5", "soon", path), out _));
         }
     }
 }
