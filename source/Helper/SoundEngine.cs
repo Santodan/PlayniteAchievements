@@ -25,7 +25,25 @@ namespace PlayniteAchievements.Helper
     internal sealed class SoundEngine : IDisposable
     {
         private const int LatencyMs = 30;
-        private const int IdleStopSeconds = 60;
+        /// <summary>
+        /// How long the stream stays open after the voice goes idle, and how often that is checked.
+        ///
+        /// Was 60 s, on the assumption that keeping the stream warm bought meaningful latency. It
+        /// does not: measured 2026-09-07 on a shared-mode endpoint, Stop followed by Play on the
+        /// already-initialized client costs 0.3 to 0.6 ms before the render thread asks for its
+        /// first samples, against the 50 ms alignment the plugin applies anyway. What the 60 s did
+        /// buy was a minute of digital silence pushed at the endpoint after every chime, which some
+        /// devices gate or auto-mute on, audibly. A second is long enough to coalesce a burst of
+        /// unlocks and repeated Test presses onto one warm stream, and short enough that the device
+        /// is not held open in silence.
+        ///
+        /// The clip's own end fade plus this hold mean the endpoint has been fed true zeroes for a
+        /// while before the stop, so the stop itself has nothing to step from.
+        /// </summary>
+        private const int IdleStopMs = 1000;
+
+        private const int IdlePollMs = 250;
+
         private const int MaxCachedSeconds = 60;
 
         /// <summary>Declick ramp at the end of a decoded clip. See <see cref="ApplyEndFade"/>.</summary>
@@ -54,7 +72,7 @@ namespace PlayniteAchievements.Helper
             _voice.Started = OnVoiceStarted;
             _thread = new Thread(Run) { IsBackground = true, Name = "SoundEngine" };
             _thread.Start();
-            _idleTimer = new Timer(_ => Post(StopIfIdle), null, 5000, 5000);
+            _idleTimer = new Timer(_ => Post(StopIfIdle), null, IdlePollMs, IdlePollMs);
         }
 
         public void Post(Action action)
@@ -274,13 +292,16 @@ namespace PlayniteAchievements.Helper
 
         private void StopIfIdle()
         {
+            // Cheap enough to run four times a second: once the stream is stopped this returns on
+            // the _streaming check, and a clip still in flight returns on IsActive however long it
+            // runs, so a 10 s sound is never cut short by the idle hold.
             if (_output == null || !_streaming || _voice.IsActive)
             {
                 return;
             }
 
-            var idleSeconds = (Stopwatch.GetTimestamp() - _lastActivityTicks) / (double)Stopwatch.Frequency;
-            if (idleSeconds >= IdleStopSeconds)
+            var idleMs = (Stopwatch.GetTimestamp() - _lastActivityTicks) * 1000.0 / Stopwatch.Frequency;
+            if (idleMs >= IdleStopMs)
             {
                 _output.Stop();
                 _streaming = false;
