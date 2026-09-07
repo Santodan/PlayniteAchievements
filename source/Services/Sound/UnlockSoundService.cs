@@ -126,6 +126,26 @@ namespace PlayniteAchievements.Services.Sound
             }
         }
 
+        /// <summary>
+        /// Plays one named file at the configured volume, for the settings page's per-tier theme
+        /// test. Always forced and never preloaded: the file is a theme's, possibly from the mode
+        /// Playnite is not running, so it is deliberately outside the resolved set the host keeps
+        /// warm. Returns whether the host took it.
+        /// </summary>
+        public bool PlayFile(string path)
+        {
+            lock (_gate)
+            {
+                if (_disposed || string.IsNullOrWhiteSpace(path))
+                {
+                    return false;
+                }
+
+                var gain = (_settings?.Persisted?.UnlockSoundVolumePercent ?? 0) / 100.0;
+                return _host.Play(path, gain, out _).HasValue;
+            }
+        }
+
         /// <summary>The measured audible onset of a played sound, once the host has reported it.</summary>
         public DateTime? TryGetAudibleOnsetUtc(int playbackId)
         {
