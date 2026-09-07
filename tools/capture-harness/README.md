@@ -467,8 +467,13 @@ reports each launch stamp, and the probe itself plays nothing during the waves.
 A wave plays one chime regardless of its card count, so two waves of three means two chimes at wave
 cadence (~7.5 s apart with the default 6 s toast), each at a distinct frequency (440 / 587 Hz) so a
 chime leaking into a slice is directly measurable. The game tone rides on band-limited noise, so a
-chime bin's leakage is measured as its during-vs-after rise above that noise rather than as an
-absolute level.
+chime bin's leakage is measured against the OTHER wave's chime bin in the same window, whose own
+chime is 7.5 s away and which is therefore pure noise there. Same window and a neighbouring
+frequency, so neither a slice that is quieter overall nor the noise floor's slope can read as a
+chime. Referencing the same bin in a later window, or a control bin in a different window,
+differences two independent single-bin noise estimates and adds their scatter: measured 2026-09-06,
+that left under 1 dB of margin and produced a false failure, while the same-window form spans -22
+to +6 dB against a 12 dB limit, with a real leak reading 15 dB or more.
 Per mode and per wave it reads the toast-plus-tail slice of the clip track (`aud_`) and, in Game
 Only, of the exclude-host fallback track (`alt_`), and asserts that each carries the game marker tone
 and shows no rise at the chime frequency while the live chime plays. It also checks the recorders'
@@ -478,8 +483,13 @@ receive the composited chime.
 When exactly one controller endpoint is connected, the game child also renders a 180 Hz actuator
 tone for the whole run. The probe then runs a plain stereo process capture of the game tree beside
 the recorders: that capture folds the actuator channels into L/R, the way every recorder capture did
-before the 8-channel format, and its haptic-to-game ratio is the contamination reference every clip
-track must sit at least 30 dB below. `--no-haptics` skips that layer for an A/B; `--cold` skips the
+before the 8-channel format. How far the actuator bin rises above that capture's own noise floor
+(a 250 Hz control bin, clear of every tone and of 180 Hz's harmonics) is the contamination
+reference, and every clip track must rise at least 20 dB less than it. Both terms come from the same
+signal, so the figure does not move with the game marker, which an earlier marker-normalised form
+did: the marker swung 11 dB between slices and manufactured a haptic failure on a cold start whose
+actuator bin was sitting at the noise floor. Measured 2026-09-06 with a DualSense connected, a
+stereo capture rises 39.6 to 41.2 dB and every clip track -1.9 to +3.3 dB. `--no-haptics` skips that layer for an A/B; `--cold` skips the
 sound host's warm-up so its first render stream starts cold.
 The run takes ~35 s and plays whisper-level tones; `--keep` retains the chunk directories (failures
 keep them automatically).
