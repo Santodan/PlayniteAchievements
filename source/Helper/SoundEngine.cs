@@ -530,9 +530,10 @@ namespace PlayniteAchievements.Helper
         }
 
         /// <summary>The single always-attached source: silence until a clip is assigned.</summary>
-        private sealed class Voice : ISampleProvider
+        private sealed class Voice : IWaveProvider
         {
             private volatile Playback _current;
+            private float[] _scratch = new float[0];
 
             public WaveFormat WaveFormat { get; set; }
             public Action<int, long, double?> Started { get; set; }
@@ -560,8 +561,34 @@ namespace PlayniteAchievements.Helper
                 return playback;
             }
 
-            public int Read(float[] buffer, int offset, int count)
+            /// <summary>
+            /// Fills the whole requested byte range on every call: the clip's remaining samples,
+            /// then zeroes.
+            ///
+            /// Deliberately an <see cref="IWaveProvider"/> and not an <see cref="ISampleProvider"/>.
+            /// <c>WasapiOut.Init</c> wraps a sample provider in NAudio's SampleToWaveProvider, and
+            /// through that wrapper the samples this voice zero-filled did not all reach the byte
+            /// buffer the endpoint reads, so WASAPI kept replaying whatever its render buffer still
+            /// held. A clip that ends at full level then repeated as loud noise for as long as the
+            /// stream stayed open, which is up to the idle stop. Measured 2026-09-07 on a 9.97 s
+            /// theme file: through the wrapper the region after the clip peaked at -25 dBFS with
+            /// 216678 non-zero samples; writing the bytes here leaves exact silence. Do not hand
+            /// this class to Init as a sample provider again.
+            /// </summary>
+            public int Read(byte[] buffer, int offset, int count)
             {
+                var requested = count / sizeof(float);
+                if (requested <= 0)
+                {
+                    Array.Clear(buffer, offset, count);
+                    return count;
+                }
+
+                if (_scratch.Length < requested)
+                {
+                    _scratch = new float[requested];
+                }
+
                 var playback = _current;
                 var written = 0;
                 if (playback != null)
@@ -574,11 +601,14 @@ namespace PlayniteAchievements.Helper
 
                     var samples = playback.Clip.Samples;
                     var remaining = samples.Length - playback.Position;
-                    var take = Math.Min(remaining, count);
+
+                    // Clamped rather than trusted: a position past the end would otherwise make the
+                    // copy length negative, which throws on the render thread.
+                    var take = Math.Max(0, Math.Min(remaining, requested));
                     var gain = playback.Gain;
                     for (var i = 0; i < take; i++)
                     {
-                        buffer[offset + i] = samples[playback.Position + i] * gain;
+                        _scratch[i] = samples[playback.Position + i] * gain;
                     }
 
                     playback.Position += take;
@@ -589,9 +619,19 @@ namespace PlayniteAchievements.Helper
                     }
                 }
 
-                if (written < count)
+                if (written < requested)
                 {
-                    Array.Clear(buffer, offset + written, count - written);
+                    Array.Clear(_scratch, written, requested - written);
+                }
+
+                Buffer.BlockCopy(_scratch, 0, buffer, offset, requested * sizeof(float));
+
+                // A request that is not a whole number of samples cannot arise from a float format,
+                // but leaving any byte of the range unwritten is the exact fault being fixed here.
+                var partial = count - (requested * sizeof(float));
+                if (partial > 0)
+                {
+                    Array.Clear(buffer, offset + (requested * sizeof(float)), partial);
                 }
 
                 return count;
