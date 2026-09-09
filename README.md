@@ -99,6 +99,12 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-09-09 - v3.2.0.2
+
+- Fixed not taking the screenshot when achievements were unlocked
+- Fixed video recording not working with the custom notification style
+- Changed the `[InGameMonitor] Configured...` logs to only when there are changes or every 5 minutes
+
 ## 2026-09-09 - v3.2.0.1
 
 - v3.2.0 merge
@@ -109,6 +115,10 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed freezing when right clicking a game in the library
 - Fixed `Solaris` theme migration
 
+
+## Old Changelogs
+<details>
+
 ## 2026-08-30 - v3.1.3.2
 
 - Fixed missing categorized achievements fro `Local` platform
@@ -118,9 +128,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 - v3.1.3 merge
 
-## Old Changelogs
-<details>
-
 ## 2026-08-13 - v3.1.2.1
 
 - v3.1.2 merge
@@ -128,9 +135,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the multiple folders dropdown not showing correctly
 - Fixed the RA subset selection not been saved after Playnite's restart
 - Added the option in the `Theme Migration` to change the right click behavior for the `StartPage` extension to use the default playnite context menu
-
-## Old Changelogs
-<details>
 
 ## 2026-08-08 - v3.1.1.1
 

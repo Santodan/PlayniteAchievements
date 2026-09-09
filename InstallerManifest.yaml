@@ -1,5 +1,14 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 3.2.0.2
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-09-09
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v3.2.0.2/PlayniteAchievementsSantodan_3_2_0_2.pext
+    Changelog:
+    - "Fixed not taking the screenshot when achievements were unlocked"
+    - "Fixed video recording not working with the custom notification style"
+    - "Changed the `[InGameMonitor] Configured...` logs to only when there are changes or every 5 minutes"
+
   - Version: 3.2.0.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-09-09
