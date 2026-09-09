@@ -14,7 +14,7 @@ Packages:
     - "[New] Notifications and captures can each be delayed after an unlock."
     - "[New] Display option to show rarity badges below the progress bar in game grids."
     - "[New] Test notification hotkey has been renamed to Retrigger notification, and allows you to re-capture your latest notification while in game."
-    - "[New] Removed dependency on UniPlaySong, enabling more flexible audio processing. New sound settings are available in Settings > Notifiations > Behavior. Please continue to support the dev!"
+    - "[New] Removed dependency on UniPlaySong, enabling more flexible audio processing. New sound settings are available in Settings > Notifications > Behavior. Please continue to support the dev!"
     - "[Adjusted] Improved in-game unlock detection for GOG Galaxy and Epic games."
     - "[Adjusted] Capstone unlock and 100% completion unlock notifications are now more distinct."
     - "[Adjusted] The compare dropdown in friends views now includes yourself."
