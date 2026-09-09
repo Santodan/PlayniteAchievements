@@ -1,0 +1,359 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{4FDF1E89-5BC3-4C72-8FDA-0D580E7A5D5F}</ProjectGuid>
+    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>PlayniteAchievements</RootNamespace>
+    <AssemblyName>PlayniteAchievements</AssemblyName>
+    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
+    <!-- Enables consuming the WinRT winmd references (Windows.Graphics.Capture) at net462. -->
+    <TargetPlatformVersion>10.0.19041.0</TargetPlatformVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildProjectDirectory)=/PlayniteAchievements/source</PathMap>
+    <LangVersion>preview</LangVersion>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <LangVersion>preview</LangVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <!-- No symbols in the packed .pext: the .pdb was 3.58 MB of a 10.36 MB package, and logged
+         exceptions are overwhelmingly environmental (HTTP/socket/IO/JSON), where the exception type
+         and the method name in the trace are the whole diagnosis. Traces still carry exception type,
+         message, inner exceptions, and namespace-qualified method names; only the trailing
+         "in [file]:line N" is lost. DebugType=portable is NOT an alternative: .NET Framework cannot
+         read portable PDBs, so it drops line numbers anyway at a fifth of the size. Build Debug to
+         get symbols while developing. -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <LangVersion>preview</LangVersion>
+    <!-- Release output is what Toolbox packs into the .pext. Suppress the .pdb and IntelliSense .xml
+         files MSBuild otherwise copies next to each referenced assembly: neither is loaded at runtime,
+         and together they accounted for 1.59 MB of the 10.36 MB 3.1.2 package. This also cleared an
+         orphaned protobuf-net.pdb, whose DLL Toolbox already strips because Playnite provides it. -->
+    <AllowedReferenceRelatedFileExtensions>none</AllowedReferenceRelatedFileExtensions>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Plugin dependencies -->
+    <!-- D3D11 device + texture read-back for WGC HDR capture (Services\Capture). -->
+    <!-- Media Foundation H.264 encode (GPU-resident) for WGC unlock video. -->
+    <!-- WinRT projections for Windows.Graphics.Capture (WGC). The winmds are compile-time metadata
+         (Private=False: the OS provides the types at runtime); System.Runtime.WindowsRuntime carries
+         the projection glue (IAsyncOperation/AsTask, WinRT events). Requires TargetPlatformVersion. -->
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Helper is its own exe project (see below); its sources must not compile into the plugin. -->
+    <Compile Include="**\*.cs" Exclude="bin\**;obj\**;Helper\**;**\*.g.cs;**\*.g.i.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Builds the unlock-sound host before this project (ReferenceOutputAssembly=false: the plugin
+         never references the exe) and ships only its exe as loose content beside the plugin dll, so
+         Toolbox packs it. No second NAudio.dll and no .pdb come along; the copy is tracked by
+         FileWrites so Clean removes it. -->
+    <ProjectReference Include="Helper\PlayniteAchievements.Helper.csproj">
+      <Project>{7A2E4C51-9B3D-4F6E-8C1A-2D5F7E9B0C43}</Project>
+      <Name>PlayniteAchievements.Helper</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+    <Content Include="Helper\bin\$(Configuration)\PlayniteAchievementsHelper.exe">
+      <Link>PlayniteAchievementsHelper.exe</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="extension.yaml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="icon.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Localization\*.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- UnlockedAchIcon is needed as a loose file too: HoyoverseDefinitionClient resolves it by path
+         as the icon fallback. HiddenAchIcon is only ever loaded through its pack:// URI, so it ships
+         as a Resource alone. -->
+    <Content Include="Resources\UnlockedAchIcon.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Hoyoverse\**\*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- Bundled unlock sounds ship as loose files: the sound host process opens them by path. -->
+    <Content Include="Resources\Sounds\*.mp3;Resources\Sounds\notices.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Providers\RetroAchievements\PlatformMapping\console-mappings.json" />
+    <EmbeddedResource Include="Providers\Hoyoverse\Data\starrailstation.json">
+      <LogicalName>PlayniteAchievements.Providers.Hoyoverse.Data.starrailstation.json</LogicalName>
+    </EmbeddedResource>
+    <!-- Single-source default notification templates: rendered at runtime AND returned by the
+         "Export default template" action. Embedded (not Page) so the resolver can read the raw
+         XAML text; excluded from the Page glob above. -->
+    <EmbeddedResource Include="Resources\DefaultTemplates\AchievementToast.xaml">
+      <LogicalName>PlayniteAchievements.Resources.DefaultTemplates.AchievementToast.xaml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\DefaultTemplates\ScreenshotFrame.xaml">
+      <LogicalName>PlayniteAchievements.Resources.DefaultTemplates.ScreenshotFrame.xaml</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+  <PropertyGroup>
+    <PostBuildEvent>xcopy "$(ProjectDir)Localization\*.xaml" "$(TargetDir)\Localization" /Y /I /E</PostBuildEvent>
+  </PropertyGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\DiscUtils.Core.0.16.13\lib\net45\DiscUtils.Core.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\DiscUtils.Iso9660.0.16.13\lib\net45\DiscUtils.Iso9660.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\DiscUtils.Streams.0.16.13\lib\net45\DiscUtils.Streams.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\DiscUtils.Udf.0.16.13\lib\net45\DiscUtils.Udf.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\HtmlAgilityPack.1.11.62\lib\Net45\HtmlAgilityPack.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\LiveCharts.0.9.7\lib\net45\LiveCharts.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\LiveCharts.Wpf.0.9.7\lib\net45\LiveCharts.Wpf.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Microsoft.CSharp.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\mscorlib.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\NAudio.1.10.0\lib\net35\NAudio.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\Newtonsoft.Json.10.0.3\lib\net45\Newtonsoft.Json.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\PlayniteSDK.6.14.0\lib\net462\Playnite.SDK.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\PresentationCore.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\PresentationFramework.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\protobuf-net.2.0.0.668\lib\net40\protobuf-net.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\SharpCompress.0.26.0\lib\net46\SharpCompress.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\SharpDX.D3DCompiler.4.2.0\lib\net45\SharpDX.D3DCompiler.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\SharpDX.Direct3D11.4.2.0\lib\net45\SharpDX.Direct3D11.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\SharpDX.4.2.0\lib\net45\SharpDX.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\SharpDX.DXGI.4.2.0\lib\net45\SharpDX.DXGI.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\SharpDX.Mathematics.4.2.0\lib\net45\SharpDX.Mathematics.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\SharpDX.MediaFoundation.4.2.0\lib\net45\SharpDX.MediaFoundation.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\SQLNado.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\StartPage.SDK.1.0.0\lib\net462\StartPage.SDK.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.Core.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.Drawing.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.IO.Compression.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.IO.Compression.FileSystem.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.Net.Http.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.Numerics.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.Runtime.Serialization.dll" />
+    <ReferencePath Include="C:\WINDOWS\Microsoft.Net\assembly\GAC_MSIL\System.Runtime.WindowsRuntime\v4.0_4.0.0.0__b77a5c561934e089\System.Runtime.WindowsRuntime.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.Security.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\System.ValueTuple.4.5.0\lib\net461\System.ValueTuple.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.Windows.Forms.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.Xaml.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.Xml.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\System.Xml.Linq.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\VirtualizingWrapPanel.1.5.4\lib\net45\VirtualizingWrapPanel.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\Microsoft.Windows.SDK.Contracts.10.0.19041.1\ref\netstandard2.0\Windows.Foundation.FoundationContract.winmd" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\Microsoft.Windows.SDK.Contracts.10.0.19041.1\ref\netstandard2.0\Windows.Foundation.UniversalApiContract.winmd" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\WindowsBase.dll" />
+    <ReferencePath Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\packages\XamlAnimatedGif.2.3.2\lib\net45\XamlAnimatedGif.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Collections.Concurrent.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Collections.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.ComponentModel.Annotations.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.ComponentModel.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.ComponentModel.EventBasedAsync.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Diagnostics.Contracts.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Diagnostics.Debug.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Diagnostics.Tools.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Diagnostics.Tracing.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Dynamic.Runtime.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Globalization.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.IO.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Linq.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Linq.Expressions.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Linq.Parallel.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Linq.Queryable.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Net.NetworkInformation.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Net.Primitives.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Net.Requests.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Net.WebHeaderCollection.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.ObjectModel.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Reflection.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Reflection.Emit.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Reflection.Emit.ILGeneration.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Reflection.Emit.Lightweight.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Reflection.Extensions.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Reflection.Primitives.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Resources.ResourceManager.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Runtime.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Runtime.Extensions.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Runtime.Handles.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Runtime.InteropServices.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Runtime.InteropServices.WindowsRuntime.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Runtime.Numerics.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Runtime.Serialization.Json.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Runtime.Serialization.Primitives.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Runtime.Serialization.Xml.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Security.Principal.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.ServiceModel.Duplex.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.ServiceModel.Http.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.ServiceModel.NetTcp.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.ServiceModel.Primitives.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.ServiceModel.Security.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Text.Encoding.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Text.Encoding.Extensions.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Text.RegularExpressions.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Threading.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Threading.Tasks.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Threading.Tasks.Parallel.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Threading.Timer.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Xml.ReaderWriter.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Xml.XDocument.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2\Facades\System.Xml.XmlSerializer.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\BattleNet\BattleNetSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\EA\EASettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\Epic\EpicSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\Exophase\ExophaseSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\Ffxiv\FfxivSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\GameJolt\GameJoltSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\GOG\GogSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\Hoyoverse\HoyoverseSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\Manual\ManualSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\PSN\PsnSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\RetroAchievements\RetroAchievementsSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\Riot\RiotSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\RPCS3\Rpcs3SettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\ShadPS4\ShadPS4SettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\Steam\SteamSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\Xbox\XboxSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Providers\Xenia\XeniaSettingsView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Controls\AchievementCompactItemControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Controls\AchievementDataGridControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Controls\AuthStatusCard.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Controls\CategoryPickerBox.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Controls\FriendSummariesGridControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Controls\GameSummariesGridControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Controls\GridControlBarControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Controls\MediaTransportBar.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Controls\PieChartTooltip.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Controls\PieChartWithRadialIcons.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Controls\ScoreCardControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\CustomRefreshControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Dialogs\AchievementNoteDialog.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Dialogs\AlphaColorPickerDialog.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Dialogs\CaptureGalleryViewer.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Dialogs\CategoryPickerDialog.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Dialogs\FullscreenMediaViewer.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Dialogs\ScoreInfoDialog.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Dialogs\TextInputDialog.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\FirstTimeLandingPage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\FriendCustomRefreshControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\FriendsOverviewControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\FriendsSettingsTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Helpers\FullscreenOverlayContainer.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ManageAchievements\ManageAchievementsAchievementIconsTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ManageAchievements\ManageAchievementsAchievementOrderTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ManageAchievements\ManageAchievementsCapstonesTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ManageAchievements\ManageAchievementsCategoryTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ManageAchievements\ManageAchievementsControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ManageAchievements\ManageAchievementsFiltersTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ManageAchievements\ManageAchievementsGoalsTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ManageAchievements\ManageAchievementsManualTrackingTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ManageAchievements\ManageAchievementsNotesTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ManageAchievements\ManageAchievementsOverridesTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ManageAchievements\ManageAchievementsOverviewTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\OverviewControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\OverviewHostControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ParityTests\CompatibilityParityTestView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ParityTests\DynamicThemeCommandTestView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ParityTests\GameViewControlHost.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ParityTests\ModernParityTestView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\RefreshProgressControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\SettingsControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Controls\GridOptionsEditor.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\AchievementsWindowDisplaySection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\AppearanceSection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\DisplayGeneralSection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\DisplaySettingsTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\FriendsAchievementsWindowDisplaySection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\FriendsOverviewDisplaySection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\OverviewDisplaySection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\StartPageDisplaySection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\ThemeControls\BarChartThemePage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\ThemeControls\ButtonThemePage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\ThemeControls\CompactListThemePage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\ThemeControls\CompactLockedListThemePage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\ThemeControls\CompactUnlockedListThemePage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\ThemeControls\DataGridThemePage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\ThemeControls\MigrationThemePage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\ThemeControls\PieChartThemePage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\ThemeControls\ProgressBarThemePage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\ThemeControls\StatsThemePage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Display\ThemeControls\ViewItemThemePage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\General\GeneralOverviewSection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\General\GeneralSettingsTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\General\HotkeySettingsSection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\General\MaintenanceSettingsSection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\General\NotificationAppearanceSection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\General\NotificationsSection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\General\NotificationSurfaceStyleEditor.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\General\SyncUpdatesSection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\General\TaggingSettingsSection.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Navigation\SettingsMasterDetailControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\Settings\Notifications\NotificationsSettingsTab.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\StartPage\StartPageFriendsRecentUnlocksGridView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\StartPage\StartPageGameSummariesGridView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\StartPage\StartPagePieWidgetView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\StartPage\StartPageRecentUnlocksGridView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\StartPage\StartPageScoreCardWidgetView.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Legacy\Controls\AchievementImage.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Legacy\PluginButtonControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Legacy\PluginChartControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Legacy\PluginCompactListControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Legacy\PluginCompactLockedControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Legacy\PluginCompactUnlockedControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Legacy\PluginListControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Legacy\PluginProgressBarControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Legacy\PluginUserStatsControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Legacy\PluginViewItemControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementBarChartControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementButtonControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementCompactListControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementCompactLockedListControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementCompactUnlockedListControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementDataGridControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementFriendAchievementsGridControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementFriendGameSummariesGridControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementFriendSummariesGridControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementPieChartControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementProgressBarControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementStatsControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementToastControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\AchievementViewItemControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ThemeIntegration\Modern\Shared\RarityBadgesControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ViewAchievementsControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\Views\ViewFriendsAchievementsControl.g.cs" />
+    <Compile Include="C:\Users\Justin\Desktop\PlayniteAchievements\source\obj\Release\GeneratedInternalTypeHelper.g.cs" />
+  </ItemGroup>
+</Project>
