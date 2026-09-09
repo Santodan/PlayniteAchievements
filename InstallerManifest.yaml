@@ -1,5 +1,12 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 3.2.0.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-09-09
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v3.2.0.1/PlayniteAchievementsSantodan_3_2_0_1.pext
+    Changelog:
+    - "v3.2.0 merge"
+
   - Version: 3.1.3.3
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-09-06
