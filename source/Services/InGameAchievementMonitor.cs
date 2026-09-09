@@ -29,6 +29,7 @@ namespace PlayniteAchievements.Services
         private const int StartupDelaySeconds = 20;
         private static readonly TimeSpan SchedulerResolution = TimeSpan.FromMilliseconds(100);
         private static readonly TimeSpan FileDebounce = TimeSpan.FromMilliseconds(150);
+        private static readonly TimeSpan ConfiguredLogInterval = TimeSpan.FromMinutes(5);
         private static readonly int[] StableReadRetryMilliseconds = { 100, 250, 500, 1000 };
 
         private sealed class FriendPollTarget
@@ -65,6 +66,7 @@ namespace PlayniteAchievements.Services
             public DateTime NextFallbackDueUtc;
             public DateTime FirstPollUtc;
             public DateTime LastQuietPollLogUtc = DateTime.UtcNow;
+            public DateTime LastConfiguredLogUtc;
             public DateTime NextFriendDueUtc;
             public DateTime RecoveryCooldownUtc;
             public IDataProvider Provider;
@@ -851,6 +853,8 @@ namespace PlayniteAchievements.Services
                 state.Registration?.UnlockAnchorBias == registration?.UnlockAnchorBias;
 
             List<IDisposable> oldSubscriptions = null;
+            var shouldLogConfigured = false;
+            var allowConfiguredLog = !RealtimePollingLogScope.IsActive;
             int generation;
             lock (_stateLock)
             {
@@ -885,6 +889,14 @@ namespace PlayniteAchievements.Services
                 if (state.NextFriendDueUtc == default || state.NextFriendDueUtc > configuredFriendDue)
                 {
                     state.NextFriendDueUtc = configuredFriendDue;
+                }
+
+                if (allowConfiguredLog &&
+                    (!equivalent || state.LastConfiguredLogUtc == default ||
+                     now - state.LastConfiguredLogUtc >= ConfiguredLogInterval))
+                {
+                    state.LastConfiguredLogUtc = now;
+                    shouldLogConfigured = true;
                 }
             }
 
@@ -922,7 +934,7 @@ namespace PlayniteAchievements.Services
                 DisposeSubscriptions(subscriptions);
             }
 
-            if (!RealtimePollingLogScope.IsActive)
+            if (shouldLogConfigured)
             {
                 _logger?.Debug(
                     $"[InGameMonitor] Configured game={state.Game.Name}, provider={provider.ProviderKey}, " +

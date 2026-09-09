@@ -5539,7 +5539,7 @@ index 87100899b54a94bd7c188199394f10e3e46a31ee..6a6887ea2671272759c954d6cb0217eb
  
      /// <summary>
 diff --git a/source/Services/InGameAchievementMonitor.cs b/source/Services/InGameAchievementMonitor.cs
-index 6a350368c57b3e2a2d1c50e8885c0422e64efbd9..e7d44eb723420ebbf47e70ef0ee879e5725a9640 100644
+index 6a350368c57b3e2a2d1c50e8885c0422e64efbd9..33092f09f5e1e82893a63b32fb835fe7a050f53c 100644
 --- a/source/Services/InGameAchievementMonitor.cs
 +++ b/source/Services/InGameAchievementMonitor.cs
 @@ -12,12 +12,14 @@
@@ -5557,23 +5557,56 @@ index 6a350368c57b3e2a2d1c50e8885c0422e64efbd9..e7d44eb723420ebbf47e70ef0ee879e5
  using PlayniteAchievements.Services.Refresh;
  
  namespace PlayniteAchievements.Services
-@@ -61,6 +63,8 @@ public GamePollState()
+@@ -27,6 +29,7 @@ internal sealed class InGameAchievementMonitor : IDisposable
+         private const int StartupDelaySeconds = 20;
+         private static readonly TimeSpan SchedulerResolution = TimeSpan.FromMilliseconds(100);
+         private static readonly TimeSpan FileDebounce = TimeSpan.FromMilliseconds(150);
++        private static readonly TimeSpan ConfiguredLogInterval = TimeSpan.FromMinutes(5);
+         private static readonly int[] StableReadRetryMilliseconds = { 100, 250, 500, 1000 };
+ 
+         private sealed class FriendPollTarget
+@@ -61,6 +64,9 @@ public GamePollState()
              /// <see cref="Schedule"/> so the two prongs cannot move each other's deadline.
              /// </summary>
              public DateTime NextFallbackDueUtc;
 +            public DateTime FirstPollUtc;
 +            public DateTime LastQuietPollLogUtc = DateTime.UtcNow;
++            public DateTime LastConfiguredLogUtc;
              public DateTime NextFriendDueUtc;
              public DateTime RecoveryCooldownUtc;
              public IDataProvider Provider;
-@@ -918,9 +922,13 @@ provider is IInGameProgressSource candidate &&
+@@ -847,6 +853,8 @@ provider is IInGameProgressSource candidate &&
+                 state.Registration?.UnlockAnchorBias == registration?.UnlockAnchorBias;
+ 
+             List<IDisposable> oldSubscriptions = null;
++            var shouldLogConfigured = false;
++            var allowConfiguredLog = !RealtimePollingLogScope.IsActive;
+             int generation;
+             lock (_stateLock)
+             {
+@@ -882,6 +890,14 @@ provider is IInGameProgressSource candidate &&
+                 {
+                     state.NextFriendDueUtc = configuredFriendDue;
+                 }
++
++                if (allowConfiguredLog &&
++                    (!equivalent || state.LastConfiguredLogUtc == default ||
++                     now - state.LastConfiguredLogUtc >= ConfiguredLogInterval))
++                {
++                    state.LastConfiguredLogUtc = now;
++                    shouldLogConfigured = true;
++                }
+             }
+ 
+             DisposeSubscriptions(oldSubscriptions);
+@@ -918,9 +934,13 @@ provider is IInGameProgressSource candidate &&
                  DisposeSubscriptions(subscriptions);
              }
  
 -            _logger?.Debug(
 -                $"[InGameMonitor] Configured game={state.Game.Name}, provider={provider.ProviderKey}, " +
 -                $"prongs={DescribeProngs(state)}, targets={nextTargets.Count}.");
-+            if (!RealtimePollingLogScope.IsActive)
++            if (shouldLogConfigured)
 +            {
 +                _logger?.Debug(
 +                    $"[InGameMonitor] Configured game={state.Game.Name}, provider={provider.ProviderKey}, " +
@@ -5583,7 +5616,7 @@ index 6a350368c57b3e2a2d1c50e8885c0422e64efbd9..e7d44eb723420ebbf47e70ef0ee879e5
              return true;
          }
  
-@@ -986,28 +994,33 @@ private async Task RunFallbackBatchAsync(
+@@ -986,28 +1006,33 @@ private async Task RunFallbackBatchAsync(
                          state => _cacheManager?.LoadGameData(state.Game.Id.ToString()));
                      var gameIds = batch.Select(state => state.Game.Id).ToList();
                      var timer = Stopwatch.StartNew();
@@ -5638,7 +5671,7 @@ index 6a350368c57b3e2a2d1c50e8885c0422e64efbd9..e7d44eb723420ebbf47e70ef0ee879e5
                      timer.Stop();
  
                      foreach (var state in batch)
-@@ -1052,6 +1065,13 @@ await _executeRefreshAsync(
+@@ -1052,6 +1077,13 @@ await _executeRefreshAsync(
                                  // Refresh-prong unlocks carry the same provider stamps the fast
                                  // source reports, so a registered bias applies here too.
                                  state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero);
@@ -5652,7 +5685,7 @@ index 6a350368c57b3e2a2d1c50e8885c0422e64efbd9..e7d44eb723420ebbf47e70ef0ee879e5
                          if (completion != null)
                          {
                              _notifyUnlocked?.Invoke(completion);
-@@ -1493,7 +1513,9 @@ private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarge
+@@ -1493,7 +1525,9 @@ private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarge
          private bool ShouldPollGame(Game game, bool logReason)
          {
              var persisted = _settings?.Persisted;
@@ -5663,7 +5696,7 @@ index 6a350368c57b3e2a2d1c50e8885c0422e64efbd9..e7d44eb723420ebbf47e70ef0ee879e5
              {
                  if (logReason) _logger?.Debug("[InGameMonitor] Disabled in settings.");
                  return false;
-@@ -1525,6 +1547,17 @@ private bool ShouldRunFriendRefresh()
+@@ -1525,6 +1559,17 @@ private bool ShouldRunFriendRefresh()
  
          private TimeSpan GetPollInterval()
          {
