@@ -1,8 +1,8 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-09-06T15:52:31.6722454Z",
+    "generatedUtc":  "2026-09-09T16:14:24.8088844Z",
     "baselineRef":  "upstream/main",
-    "baselineCommit":  "24b1bcab770277a645ef93f52795823739e0ae0e",
+    "baselineCommit":  "f778a5a6d673b9cb766bc83c0074f9d8bd0c1761",
     "protectedPaths":  [
                            "README.md",
                            "source/extension.yaml",
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "4D37D357C99F623CCA1796B321D2B323EF1924FF6B466F23F0BB97F479F9732E"
+                  "sha256":  "CA56294C8D607768D3FA06B4EA68DEFD433983DDF53B9031197BF1962294B2CB"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",

@@ -411,8 +411,9 @@ namespace PlayniteAchievements.Services.UI
 
             var persisted = _settings?.Persisted;
             var custom = ProviderRegistry.Settings<LocalSettings>();
-            var useMainSettings = persisted?.EnableUnlockScreenshots == true;
-            if (!useMainSettings && custom?.EnableUnlockScreenshots != true)
+            var useCustomSettings = custom?.EnableUnlockScreenshots == true;
+            var useMainSettings = !useCustomSettings && persisted?.EnableUnlockScreenshots == true;
+            if (!useCustomSettings && !useMainSettings)
             {
                 return false;
             }
@@ -3124,6 +3125,23 @@ namespace PlayniteAchievements.Services.UI
                         plan, window, waveIsTestFire, baseCaptureTask, anchorFramesTask);
                 }
 
+                // A screenshot-only custom notification is hosted in WebView2. Its first frame is
+                // asynchronous, so keep the hidden window (and therefore the WebView controller)
+                // alive until that frame has been captured. Returning immediately here used to
+                // close and dispose the window while CaptureWebViewFrameAsync was still waiting for
+                // document readiness, making every with-notification screenshot race an
+                // ObjectDisposedException.
+                if (!visible && trackRecorder == null && toastCompositeTask != null)
+                {
+                    await toastCompositeTask.ConfigureAwait(true);
+                    if (_disposed)
+                    {
+                        DisposeCaptureTask(baseCaptureTask);
+                        DisposeAnchorFramesTask(anchorFramesTask);
+                        return;
+                    }
+                }
+
                 if (plan != null)
                 {
                     _ = SaveWaveScreenshotsAsync(plan, baseCaptureTask, anchorFramesTask, toastCompositeTask);
@@ -3438,8 +3456,12 @@ namespace PlayniteAchievements.Services.UI
 
             var persisted = _settings?.Persisted;
             var custom = ProviderRegistry.Settings<LocalSettings>();
-            var useMainSettings = persisted?.EnableUnlockScreenshots == true;
-            if (!useMainSettings && custom?.EnableUnlockScreenshots != true)
+            // Memories is an independent capture configuration. When it is explicitly enabled it
+            // owns screenshot capture even if the upstream notification screenshot switch is also
+            // enabled, matching the recording service's settings precedence.
+            var useCustomSettings = custom?.EnableUnlockScreenshots == true;
+            var useMainSettings = !useCustomSettings && persisted?.EnableUnlockScreenshots == true;
+            if (!useCustomSettings && !useMainSettings)
             {
                 return null;
             }

@@ -472,6 +472,7 @@ namespace PlayniteAchievements.Services.UI
                 Directory.CreateDirectory(folder);
                 var path = EnsureUniquePath(Path.Combine(folder, relative.FileName));
                 writeToPath(path);
+                _logger?.Info($"[Screenshot] Saved unlock screenshot: {path}");
             }
             catch (Exception ex)
             {
