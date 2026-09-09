@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Providers.PSN;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Tests.Providers
 {
@@ -64,6 +65,82 @@ namespace PlayniteAchievements.Tests.Providers
         public void MapTrophyGroupToCategoryType_ClassifiesBaseVsDlc(string groupId, string expected)
         {
             Assert.AreEqual(expected, PsnTrophyCategoryHelper.MapTrophyGroupToCategoryType(groupId));
+        }
+
+        [DataTestMethod]
+        [DataRow(null)]
+        [DataRow("")]
+        [DataRow("default")]
+        public void ResolveCollectionCategory_BaseGroup_ReturnsSetTitle(string groupId)
+        {
+            // Each included game of a collection renders as its own category, named by its set,
+            // rather than by the shared base-group title.
+            Assert.AreEqual(
+                "Spyro the Dragon",
+                PsnTrophyCategoryHelper.ResolveCollectionCategory(groupId, Groups(), "  Spyro the Dragon  "));
+        }
+
+        [TestMethod]
+        public void ResolveCollectionCategory_DlcGroupWithName_NestsTheGroupUnderTheSetTitle()
+        {
+            Assert.AreEqual(
+                "Horizon Zero Dawn::Frozen Wilds",
+                PsnTrophyCategoryHelper.ResolveCollectionCategory("001", Groups(), "Horizon Zero Dawn"));
+        }
+
+        [TestMethod]
+        public void ResolveCollectionCategory_KeepsASetTitleContainingADashInOneSegment()
+        {
+            var path = PsnTrophyCategoryHelper.ResolveCollectionCategory(
+                "001",
+                Groups(),
+                "Ratchet & Clank - Size Matters");
+
+            Assert.AreEqual("Ratchet & Clank - Size Matters::Frozen Wilds", path);
+            Assert.AreEqual(2, CategoryPathHelper.Split(path).Count);
+        }
+
+        [TestMethod]
+        public void ResolveCollectionCategory_KeepsAGroupNameContainingTheSeparatorInOneSegment()
+        {
+            var groups = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["001"] = "Act I::Act II"
+            };
+
+            var path = PsnTrophyCategoryHelper.ResolveCollectionCategory("001", groups, "Some Game");
+
+            Assert.AreEqual(2, CategoryPathHelper.Split(path).Count);
+            Assert.AreEqual("Some Game::Act I:Act II", path);
+        }
+
+        [DataTestMethod]
+        [DataRow("002")]
+        [DataRow("999")]
+        public void ResolveCollectionCategory_DlcGroupWithoutName_ReturnsSetTitle(string groupId)
+        {
+            Assert.AreEqual(
+                "Horizon Zero Dawn",
+                PsnTrophyCategoryHelper.ResolveCollectionCategory(groupId, Groups(), "Horizon Zero Dawn"));
+        }
+
+        [TestMethod]
+        public void ResolveCollectionCategory_NoSetTitle_FallsBackToGroupNameForDlc()
+        {
+            // Without a set title a named DLC group still labels itself; the base group has no
+            // label left to use, so the hydrator renders its localized default.
+            Assert.AreEqual(
+                "Frozen Wilds",
+                PsnTrophyCategoryHelper.ResolveCollectionCategory("001", Groups(), "   "));
+            Assert.IsNull(PsnTrophyCategoryHelper.ResolveCollectionCategory("default", Groups(), null));
+        }
+
+        [TestMethod]
+        public void ResolveCollectionCategory_NullMap_ReturnsSetTitle()
+        {
+            Assert.AreEqual(
+                "Spyro the Dragon",
+                PsnTrophyCategoryHelper.ResolveCollectionCategory("001", null, "Spyro the Dragon"));
         }
     }
 }

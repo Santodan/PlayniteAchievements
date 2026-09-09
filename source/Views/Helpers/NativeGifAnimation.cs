@@ -101,6 +101,27 @@ namespace PlayniteAchievements.Views.Helpers
             AnimationBehavior.SetSourceStream(_image, _stream);
         }
 
+        /// <summary>
+        /// Suspends frame advances for the notification slide's span (each advance decodes and
+        /// WritePixels on the UI thread). A no-op until the decoder finishes loading — a GIF that
+        /// becomes ready mid-slide simply starts then, bounded by the slide.
+        /// </summary>
+        internal void Pause()
+        {
+            if (!_disposed)
+            {
+                AnimationBehavior.GetAnimator(_image)?.Pause();
+            }
+        }
+
+        internal void Resume()
+        {
+            if (!_disposed)
+            {
+                AnimationBehavior.GetAnimator(_image)?.Play();
+            }
+        }
+
         private void OnAnimationLoaded(object sender, RoutedEventArgs e)
         {
             if (_disposed || !ReferenceEquals(sender, _image))

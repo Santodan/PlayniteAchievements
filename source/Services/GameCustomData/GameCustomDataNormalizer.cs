@@ -380,6 +380,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     };
 
                 case "FFXIV":
+                case "Riot":
                     return new ProviderOverrideData
                     {
                         ProviderKey = providerKey,
@@ -576,6 +577,11 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return "GameJolt";
             }
 
+            if (string.Equals(normalized, "Riot", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Riot";
+            }
+
             return null;
         }
 
@@ -618,7 +624,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var categoryLabel in categoryLabels)
             {
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryLabel);
+                var label = CategoryPathHelper.NormalizePath(categoryLabel);
                 if (string.IsNullOrWhiteSpace(label) || !seen.Add(label))
                 {
                     continue;
@@ -676,7 +682,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                     continue;
                 }
 
-                normalized[apiName] = category;
+                // Blank stays dropped rather than becoming an explicit Default assignment; a real
+                // value is canonicalized so nothing downstream has to re-normalize the path.
+                normalized[apiName] = CategoryPathHelper.NormalizePath(category);
             }
 
             return normalized.Count > 0 ? normalized : null;
@@ -854,7 +862,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             var normalized = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in values)
             {
-                var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var category = CategoryPathHelper.NormalizePath(pair.Key);
                 var art = NormalizeString(pair.Value?.Art);
                 if (string.IsNullOrWhiteSpace(category) || string.IsNullOrWhiteSpace(art))
                 {
@@ -878,11 +886,14 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return null;
             }
 
+            var normalizedLabel = CategoryPathHelper.NormalizePath(label);
             var providerLabel = AchievementCategoryTypeHelper.NormalizeCategory(value?.ProviderLabel);
             return new GameSummaryCategoryData
             {
-                Label = label,
-                ProviderLabel = string.IsNullOrWhiteSpace(providerLabel) ? label : providerLabel
+                Label = normalizedLabel,
+                ProviderLabel = string.IsNullOrWhiteSpace(providerLabel)
+                    ? normalizedLabel
+                    : CategoryPathHelper.NormalizePath(providerLabel)
             };
         }
 

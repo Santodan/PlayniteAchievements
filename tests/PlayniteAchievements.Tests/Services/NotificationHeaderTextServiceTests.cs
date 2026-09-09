@@ -17,6 +17,7 @@ namespace PlayniteAchievements.Tests.Services
     <sys:String x:Key=""LOCPlayAch_Toast_FriendUnlocked"">{0} unlocked</sys:String>
     <sys:String x:Key=""LOCPlayAch_Toast_Congratulations"">Congratulations!</sys:String>
     <sys:String x:Key=""LOCPlayAch_Toast_CompletedTheGame"">completed the game!</sys:String>
+    <sys:String x:Key=""LOCPlayAch_Toast_AchievementProgress"">Achievement progress</sys:String>
 </ResourceDictionary>";
 
         private const string GermanXaml = @"<ResourceDictionary
@@ -25,6 +26,7 @@ namespace PlayniteAchievements.Tests.Services
     xmlns:sys=""clr-namespace:System;assembly=mscorlib"">
     <sys:String x:Key=""LOCPlayAch_Toast_AchievementUnlocked"">Erfolg freigeschaltet</sys:String>
     <sys:String x:Key=""LOCPlayAch_Toast_CompletedTheGame"">hat das Spiel abgeschlossen!</sys:String>
+    <sys:String x:Key=""LOCPlayAch_Toast_AchievementProgress"">Erfolgsfortschritt</sys:String>
 </ResourceDictionary>";
 
         private string _tempDirectory;
@@ -90,6 +92,21 @@ namespace PlayniteAchievements.Tests.Services
             Assert.IsNull(settings.NotificationStyle.Toast.HeaderTexts.FriendCompletionHeaderFormat);
             // User-customized text sticks.
             Assert.AreEqual("My own header", settings.NotificationStyle.Toast.HeaderTexts.CompletionHeader);
+        }
+
+        [TestMethod]
+        public void Relocalize_CoversTheProgressHeader()
+        {
+            var service = new NotificationHeaderTextService(_tempDirectory);
+            var settings = new PersistedSettings();
+            settings.NotificationStyle.Toast.HeaderTexts.ProgressHeader = "Erfolgsfortschritt";
+            settings.NotificationStyle.Frame.HeaderTexts.ProgressHeader = "Almost there";
+
+            var changed = service.RelocalizeDefaultHeaderTexts(settings);
+
+            Assert.IsTrue(changed);
+            Assert.IsNull(settings.NotificationStyle.Toast.HeaderTexts.ProgressHeader);
+            Assert.AreEqual("Almost there", settings.NotificationStyle.Frame.HeaderTexts.ProgressHeader);
         }
 
         [TestMethod]

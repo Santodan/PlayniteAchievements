@@ -19,6 +19,12 @@ namespace PlayniteAchievements.Providers.PSN.Models
     {
         [JsonProperty("npCommunicationId")]
         public string NpCommunicationId { get; set; }
+
+        [JsonProperty("trophyTitleName")]
+        public string TrophyTitleName { get; set; }
+
+        [JsonProperty("trophyTitleIconUrl")]
+        public string TrophyTitleIconUrl { get; set; }
     }
 
     /// <summary>

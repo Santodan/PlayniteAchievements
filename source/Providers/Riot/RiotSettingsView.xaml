@@ -1,0 +1,170 @@
+<settings:ProviderSettingsViewBase x:Class="PlayniteAchievements.Providers.Riot.RiotSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="700">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderSettingsScopedControlStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+
+            <!-- Provider Header -->
+            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                    <Path Data="{StaticResource GeoRiot}" Fill="{StaticResource PlayAch.Brush.ProviderRiot}"/>
+                </Viewbox>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Riot}" Style="{StaticResource ProviderTitleTextStyle}"/>
+            </StackPanel>
+
+            <!-- Provider Enable Toggle -->
+            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}">
+                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
+                          IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
+                          FontWeight="SemiBold"
+                          FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
+            </Border>
+
+            <!-- Provider Disabled Message -->
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
+
+            <Border Style="{StaticResource SectionBorderStyle}"
+                    IsEnabled="{Binding Settings.IsEnabled}">
+                <StackPanel>
+
+                    <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Riot_Help}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"
+                                   helpers:HyperlinkFormatText.Format="{DynamicResource LOCPlayAch_Settings_Riot_SetupStep1}"
+                                   helpers:HyperlinkFormatText.LinkText="Riot Developer Portal"
+                                   helpers:HyperlinkFormatText.NavigateUri="https://developer.riotgames.com/"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Riot_SetupStep2}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Riot_SetupStep3}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Riot_Expiry}"
+                                   Style="{StaticResource MutedTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                        <TextBlock Style="{StaticResource MutedTextStyle}"
+                                   TextWrapping="Wrap"
+                                   helpers:HyperlinkFormatText.Format="{DynamicResource LOCPlayAch_Settings_Riot_Note}"
+                                   helpers:HyperlinkFormatText.LinkText="application process"
+                                   helpers:HyperlinkFormatText.NavigateUri="https://developer.riotgames.com/application-process.html"/>
+                    </StackPanel>
+
+                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   x:Name="AuthLabel"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Top"
+                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
+
+                        <Border Grid.Column="1" Style="{StaticResource AuthStatusBorderStyle}">
+                            <StackPanel>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- No local RenderTransform here: the style installs a
+                                         RotateTransform that the checking state animates, and a
+                                         local value would replace it and kill the spinner. -->
+                                    <TextBlock Grid.Column="0"
+                                               Style="{StaticResource AuthStatusIconStyle}"/>
+
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                               VerticalAlignment="Center"
+                                               TextWrapping="Wrap"/>
+
+                                    <Button Grid.Column="2"
+                                            x:Name="CheckButton"
+                                            Content="{DynamicResource LOCPlayAch_Common_Check}"
+                                            Style="{StaticResource AuthActionButtonStyle}"
+                                            Click="Check_Click"/>
+                                </Grid>
+
+                                <Border BorderBrush="{DynamicResource PopupBorderBrush}"
+                                        BorderThickness="0,1,0,0"
+                                        Padding="0,12,0,0">
+                                    <StackPanel>
+
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RiotId}"
+                                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="140"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0"
+                                                     Text="{Binding Settings.RiotGameName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Padding="4"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="#"
+                                                       VerticalAlignment="Center"
+                                                       Margin="6,0,6,0"
+                                                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                                            <TextBox Grid.Column="2"
+                                                     Text="{Binding Settings.RiotTagLine, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Padding="4"/>
+                                        </Grid>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RiotId_Help}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
+                                                   TextWrapping="Wrap"/>
+
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_Region}"
+                                                   Margin="0,12,0,8"/>
+                                        <ComboBox x:Name="RegionCombo"
+                                                  DisplayMemberPath="Label"
+                                                  SelectedValuePath="Platform"
+                                                  SelectedValue="{Binding Settings.PlatformRegion, Mode=TwoWay}"
+                                                  Padding="4"/>
+
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RiotApiKey}"
+                                                   Margin="0,12,0,8"/>
+                                        <TextBox Text="{Binding Settings.RiotApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Padding="4"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</settings:ProviderSettingsViewBase>

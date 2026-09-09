@@ -96,6 +96,15 @@ namespace PlayniteAchievements.ViewModels
         public bool IsBottomLine { get; set; }
 
         /// <summary>
+        /// This line's position in the user's line order (0 = top), set by the owning view model.
+        /// The bundled templates lay every line out as an explicit block whose Grid.Row binds to
+        /// this, so the Appearance page's drag-reorder is pure data while each line's markup and
+        /// bindings stay visible in the template. A hidden line keeps its index; its collapsed
+        /// block leaves a zero-height row.
+        /// </summary>
+        public int RowIndex { get; set; }
+
+        /// <summary>
         /// Glyph ink can fall below a TextBlock's measured height, so a descender (p, q, g, y) on
         /// the bottom line renders outside the bounds that the line host's ClipToBounds, the
         /// description's <see cref="ToastDescriptionLine.MaxTextHeight"/> clamp, and the overlay
@@ -385,6 +394,62 @@ namespace PlayniteAchievements.ViewModels
 
         public override Visibility LineVisibility =>
             HasGameCategoryContent ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// The incremental-progress row: a bar and the "current/target" count. Renders only on
+    /// progress notifications (toast surface) and collapses on every other kind, so an unlock
+    /// toast is unchanged by the row's presence in the line order.
+    /// </summary>
+    public sealed class ToastProgressLine : ToastLineDescriptor
+    {
+        public ToastProgressLine(
+            AchievementToastViewModel parent,
+            double fontSize,
+            FontFamily fontFamily,
+            Effect textShadow,
+            Brush barBrush,
+            Brush trackBrush)
+            : base(parent, fontSize, fontFamily, textShadow)
+        {
+            BarBrush = barBrush;
+            TrackBrush = trackBrush;
+        }
+
+        public bool ShowProgress => Parent.IsProgressUpdate && Parent.HasProgress;
+
+        /// <summary>The "current/target" count text.</summary>
+        public string ProgressText => Parent.ProgressText;
+
+        /// <summary>Filled share of the bar after the advance, 0..1.</summary>
+        public double ProgressFraction => Parent.ProgressFraction;
+
+        /// <summary>Filled share before the advance, 0..1 (0 when unknown).</summary>
+        public double PreviousProgressFraction => Parent.PreviousProgressFraction;
+
+        /// <summary>The bar fill (the achievement's rarity color).</summary>
+        public Brush BarBrush { get; }
+
+        /// <summary>The unfilled track behind the bar.</summary>
+        public Brush TrackBrush { get; }
+
+        /// <summary>
+        /// Bar thickness follows the count text: about half an em, never thinner than 4 DIPs.
+        /// </summary>
+        public double BarHeight => Math.Max(4, Math.Round(FontSize * 0.5));
+
+        public CornerRadius BarCornerRadius => new CornerRadius(BarHeight / 2);
+
+        /// <summary>
+        /// One text line's box height at this row's font (the same metric the other lines lay out
+        /// with). The row is held to at least this height with the bar centered in it, so it spaces
+        /// exactly like a text line: the same leading above and below, plus the surface's line
+        /// padding through <see cref="ToastLineDescriptor.LeftIndentMargin"/>, and nothing extra.
+        /// </summary>
+        public double LineBoxHeight => FontSize * (FontFamily?.LineSpacing ?? 1.2);
+
+        public override Visibility LineVisibility =>
+            ShowProgress ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>

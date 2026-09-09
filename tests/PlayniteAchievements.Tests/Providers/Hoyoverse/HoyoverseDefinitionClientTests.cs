@@ -116,5 +116,14 @@ namespace PlayniteAchievements.Tests.Providers.Hoyoverse
             Assert.AreEqual("tw", HoyoverseDefinitionClient.MapGlobalLanguageToZzzLocale("tchinese"));
             Assert.AreEqual("tw", HoyoverseDefinitionClient.MapGlobalLanguageToZzzLocale("zh-tw"));
         }
+
+        [TestMethod]
+        public void MapGlobalLanguageToPaimonLocale_UsesPaimonMoeChineseFileNames()
+        {
+            Assert.AreEqual("zh", HoyoverseDefinitionClient.MapGlobalLanguageToPaimonLocale("schinese"));
+            Assert.AreEqual("zh", HoyoverseDefinitionClient.MapGlobalLanguageToPaimonLocale("Simplified Chinese"));
+            Assert.AreEqual("tw", HoyoverseDefinitionClient.MapGlobalLanguageToPaimonLocale("tchinese"));
+            Assert.AreEqual("tw", HoyoverseDefinitionClient.MapGlobalLanguageToPaimonLocale("Traditional Chinese"));
+        }
     }
 }

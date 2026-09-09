@@ -43,7 +43,6 @@ namespace PlayniteAchievements.Tests.Views
                 "ColumnSettingsKey=\"{Binding AchievementColumnSettingsKey}\"",
                 "EnableCategoryMode=\"{Binding HasFriendSelection}\"",
                 "CategoryColumnSettingsKey=\"ViewFriendsAchievementsCategorySummaries\"",
-                "HideBackButton=\"True\"",
                 "HideCategorySummaryRow=\"{Binding HideCategorySummaryRow}\"",
                 "DrilledCategory=\"{Binding SelectedCategoryName, Mode=OneWayToSource}\"",
                 "ShowGameColumn=\"True\"",

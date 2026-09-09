@@ -61,18 +61,28 @@ namespace PlayniteAchievements.Services.Recording
         // AUDCLNT_BUFFERFLAGS_SILENT: the packet is digital silence, so its zeroed buffer stands.
         private const int BufferFlagsSilent = 0x2;
 
-        // The most dropped audio one gap will stand silence in for.
-        private const int MaxGapSeconds = 5;
+        // AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR: the engine could not stamp this packet reliably.
+        // Such a stamp can look plausible while being off by tens of milliseconds — enough to
+        // read as a dropout — so gap arithmetic must treat the packet as unstamped.
+        private const int BufferFlagsTimestampError = 0x4;
 
-        private const int CLSCTX_ALL = 23;
+        /// <summary>
+        /// The most dropped audio one gap will stand silence in for. A consumer buffering these
+        /// packets must size its ring well above this: the pad arrives as a single burst, so a ring
+        /// merely equal to it is filled by one gap and drops everything else it held.
+        /// </summary>
+        internal const int MaxGapSeconds = 5;
 
-        private static readonly Guid MMDeviceEnumeratorClsid = new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E");
         private static readonly Guid IID_IAudioClient = new Guid("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
         private static readonly Guid IID_IAudioCaptureClient = new Guid("C8ADBD64-E71E-48A0-A4DE-185C395CD317");
+        private static readonly Guid IeeeFloatSubFormat =
+            new Guid("00000003-0000-0010-8000-00aa00389b71");
 
         private readonly int _processId;
         private readonly int _mode;
         private readonly bool _endpointCapture;
+        private readonly bool _nativeEndpointFormat;
+        private readonly bool _inputEndpoint;
         private IAudioClient _audioClient;
         private IAudioCaptureClient _captureClient;
         private Thread _pollThread;
@@ -105,41 +115,90 @@ namespace PlayniteAchievements.Services.Recording
 
         private DateTime? _firstPacketCaptureUtc;
 
+        // Unlike FirstPacketCaptureUtc, this is frame-zero inferred from several packets. The
+        // endpoint pump consumes DataAvailable in sequence, including explicit gap padding, so a
+        // later packet's vote has to subtract every frame that precedes it in that exact stream.
+        private AudioTimelineAnchorConsensus _timelineAnchor;
+        private long _timelineFramesDelivered;
+
+        /// <summary>
+        /// Gets a consensus origin for the sequential DataAvailable stream. See
+        /// <see cref="AudioTimelineAnchorConsensus"/>. A timeout caller may allow fewer than the
+        /// ordinary nine samples so a sparse startup still uses every stamp it did receive.
+        /// </summary>
+        public bool TryGetTimelineOrigin(
+            bool allowPartial,
+            out DateTime originUtc,
+            out int samples,
+            out double spreadMilliseconds)
+        {
+            var anchor = _timelineAnchor;
+            if (anchor == null)
+            {
+                originUtc = default(DateTime);
+                samples = 0;
+                spreadMilliseconds = 0;
+                return false;
+            }
+
+            return anchor.TryGet(
+                allowPartial, out originUtc, out samples, out spreadMilliseconds);
+        }
+
         /// <summary>
         /// Frames of silence delivered in place of audio the engine dropped, over this capture's life.
         /// Non-zero means the track carries real glitches — worth reporting before a listener blames
         /// the gaps on a sync bug.
         /// </summary>
-        public long PaddedGapFrames => _paddedGapFrames;
-
-        private long _paddedGapFrames;
-
-        // The device frame position the next packet should begin at; -1 until the first one fixes it.
-        private long _nextDevicePosition = -1;
+        public long PaddedGapFrames => _gapTracker?.PaddedGapFrames ?? 0;
 
         /// <summary>
-        /// Frames missing between where the previous packet ended and where this one begins, per the
-        /// device's own frame counter, and advances that counter past this packet.
-        /// <para>
-        /// A jump is audio the engine dropped before it reached us — the glitch
-        /// AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY reports, whose size only the position reveals. The
-        /// result is capped so a driver reporting a nonsense position cannot make us insert an
-        /// unbounded run of silence, and drivers that never move the position simply report no gaps.
-        /// </para>
+        /// Frames of silence to stand in before the packet at hand. The arithmetic lives in
+        /// <see cref="AudioGapTracker"/>: gaps are measured from the packets' QPC stamps, whose
+        /// unit is fixed, rather than from <c>devicePosition</c> deltas, whose unit a client
+        /// that asked the engine to convert format (AUTOCONVERTPCM, which every forced-format
+        /// endpoint capture uses) cannot assume — a field machine advanced that counter at 4x
+        /// the frames delivered and padded 3 s of silence per real second. The position counter
+        /// remains the fallback for packets whose stamp is unusable, and the wall-clock
+        /// allowance still bounds every path.
         /// </summary>
-        private long TakeGapBefore(long devicePosition, uint framesAvailable)
+        private long TakeGapBefore(
+            long devicePosition, uint framesAvailable, long qpcPosition, bool stampUsable)
         {
-            var expected = _nextDevicePosition;
-            _nextDevicePosition = devicePosition + framesAvailable;
-            if (expected < 0 || devicePosition <= expected)
-            {
-                return 0;
-            }
-
-            var gap = devicePosition - expected;
-            var cap = (long)WaveFormat.SampleRate * MaxGapSeconds;
-            return gap > cap ? cap : gap;
+            var elapsedFrames = (long)(
+                (CaptureTimelineClock.UtcNow - _captureStartedUtc).TotalSeconds * WaveFormat.SampleRate);
+            return _gapTracker.TakeGapBefore(
+                devicePosition, framesAvailable, qpcPosition, stampUsable, elapsedFrames);
         }
+
+        /// <summary>
+        /// Silence a gap witness asked for beyond what the wall clock allows. Non-zero means a
+        /// witness is lying — a position counter not in this capture's frames, or a wild stamp.
+        /// </summary>
+        public long ImpossibleGapFrames => _gapTracker?.ImpossibleGapFrames ?? 0;
+
+        /// <summary>
+        /// How fast the device position counter actually advances, in its own units per second,
+        /// measured against the packets' QPC stamps. Zero until measurable. Deviation from
+        /// <see cref="WaveFormat"/>'s rate names the unit mismatch the summary above describes.
+        /// </summary>
+        public double MeasuredDevicePositionRate => _gapTracker?.MeasuredDevicePositionRate ?? 0;
+
+        /// <summary>
+        /// Forces gap arithmetic onto the devicePosition fallback, ignoring stamps. A seam for
+        /// <c>tools/capture-harness/CaptureStarvationProbe</c> (--legacy-gap) so the pre-stamp
+        /// behavior stays reproducible from the same binary. Nothing in the plugin changes it.
+        /// </summary>
+        internal static bool ForceDevicePositionGaps { get; set; }
+
+        private AudioGapTracker _gapTracker;
+        private DateTime _captureStartedUtc = DateTime.UtcNow;
+
+        /// <summary>
+        /// The endpoint's own mix format, when this capture forced a different one. Null for
+        /// process-loopback clients, which have no endpoint of their own.
+        /// </summary>
+        public WaveFormat NativeMixFormat { get; private set; }
 
         /// <summary>
         /// Converts a GetBuffer QPC stamp (100-ns units on the performance counter's timebase) to
@@ -194,6 +253,13 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>48 kHz stereo 32-bit IEEE float — the format the loopback client mixes the process to.</summary>
         public WaveFormat WaveFormat { get; set; } = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2);
 
+        /// <summary>
+        /// Priority of every capture poll thread. A seam for
+        /// <c>tools/capture-harness/CaptureStarvationProbe</c>, which A/Bs it under CPU load to
+        /// show what a missed 200 ms deadline costs. Nothing in the plugin changes it.
+        /// </summary>
+        internal static ThreadPriority PollThreadPriority { get; set; } = ThreadPriority.AboveNormal;
+
         /// <summary>Process-loopback activation exists on Windows 10 build 19041+ (20H1).</summary>
         public static bool IsSupported
         {
@@ -212,9 +278,25 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         public ProcessLoopbackCapture(int processId, bool includeProcessTree = true)
+            : this(processId, includeProcessTree, null)
+        {
+        }
+
+        /// <summary>
+        /// Process loopback in the given capture format. More than two channels asks the engine
+        /// for a WAVEFORMATEXTENSIBLE with the standard speaker mask for that count (4 = quad, 6 =
+        /// 5.1, 8 = 7.1), so a contributing multichannel stream keeps its channel identity instead
+        /// of being folded into a stereo mix. Null keeps the 48 kHz stereo default.
+        /// </summary>
+        public ProcessLoopbackCapture(int processId, bool includeProcessTree, WaveFormat captureFormat)
         {
             _processId = processId;
             _mode = includeProcessTree ? IncludeTargetProcessTree : ExcludeTargetProcessTree;
+            if (captureFormat != null)
+            {
+                WaveFormat = captureFormat;
+            }
+
             try
             {
                 _audioClient = ActivateProcessLoopbackClient(processId, _mode);
@@ -227,9 +309,11 @@ namespace PlayniteAchievements.Services.Recording
             }
         }
 
-        private ProcessLoopbackCapture(string deviceId)
+        private ProcessLoopbackCapture(string deviceId, bool nativeFormat, bool inputEndpoint = false)
         {
             _endpointCapture = true;
+            _nativeEndpointFormat = nativeFormat;
+            _inputEndpoint = inputEndpoint;
             try
             {
                 _audioClient = ActivateEndpointClient(deviceId);
@@ -254,7 +338,83 @@ namespace PlayniteAchievements.Services.Recording
                 throw new ArgumentNullException(nameof(deviceId));
             }
 
-            return new ProcessLoopbackCapture(deviceId);
+            return new ProcessLoopbackCapture(deviceId, nativeFormat: false);
+        }
+
+        /// <summary>
+        /// Captures an endpoint in its shared-mode native mix format. This lets the recorder retain
+        /// only the program channels when a controller is itself the default output. Callers must
+        /// inspect <see cref="WaveFormat"/> and convert retained packets; ordinary endpoint callers
+        /// should use <see cref="ForEndpoint"/>.
+        /// </summary>
+        public static ProcessLoopbackCapture ForEndpointNative(string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                throw new ArgumentNullException(nameof(deviceId));
+            }
+
+            return new ProcessLoopbackCapture(deviceId, nativeFormat: true);
+        }
+
+        /// <summary>
+        /// Captures an <em>input</em> endpoint — a microphone — by its id. Identical to
+        /// <see cref="ForEndpoint"/> but for the loopback flag, which a capture endpoint must not
+        /// carry: its stream is already what the device records. Delivered in the same 48 kHz
+        /// stereo float as every other track here, so the mixer needs no special case.
+        /// </summary>
+        public static ProcessLoopbackCapture ForCaptureEndpoint(string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                throw new ArgumentNullException(nameof(deviceId));
+            }
+
+            return new ProcessLoopbackCapture(deviceId, nativeFormat: false, inputEndpoint: true);
+        }
+
+        /// <summary>The verified DualSense native layout: FL, FR, left actuator, right actuator.</summary>
+        internal static bool IsDualSenseActuatorFormat(WaveFormat format)
+        {
+            var extensible = format as WaveFormatExtensible;
+            if (extensible == null || format.SampleRate != 48000 || format.Channels != 4 ||
+                format.BitsPerSample != 32 || format.BlockAlign != 16 ||
+                extensible.SubFormat != IeeeFloatSubFormat)
+            {
+                return false;
+            }
+
+            var maskField = typeof(WaveFormatExtensible).GetField(
+                "dwChannelMask",
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.NonPublic);
+            return maskField != null && Convert.ToUInt32(maskField.GetValue(extensible)) == 0x33u;
+        }
+
+        /// <summary>
+        /// Extracts the native front-left/right program channels and discards the two actuator
+        /// channels. This is used when the DualSense is itself the user's default output.
+        /// </summary>
+        internal static byte[] ExtractDualSenseProgramAudio(
+            byte[] source,
+            int bytes,
+            WaveFormat format)
+        {
+            if (source == null || !IsDualSenseActuatorFormat(format))
+            {
+                return null;
+            }
+
+            var frames = Math.Min(Math.Max(0, bytes), source.Length) / format.BlockAlign;
+            var output = new byte[checked(frames * 2 * sizeof(float))];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var sourceOffset = frame * format.BlockAlign;
+                var outputOffset = frame * 2 * sizeof(float);
+                Buffer.BlockCopy(source, sourceOffset, output, outputOffset, 2 * sizeof(float));
+            }
+
+            return output;
         }
 
         private IAudioClient ActivateProcessLoopbackClient(int processId, int mode)
@@ -299,39 +459,11 @@ namespace PlayniteAchievements.Services.Recording
         /// </summary>
         private static IAudioClient ActivateEndpointClient(string deviceId)
         {
-            // Created from the CLSID rather than through a [ComImport] coclass: NAudio declares its
-            // own class for the same CLSID, and two managed types claiming one CLSID make the
-            // activation hand back whichever was registered first — which then fails to cast.
-            var enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(
-                Type.GetTypeFromCLSID(MMDeviceEnumeratorClsid));
-            try
-            {
-                var hr = enumerator.GetDevice(deviceId, out var device);
-                if (hr != 0 || device == null)
-                {
-                    Marshal.ThrowExceptionForHR(hr != 0 ? hr : unchecked((int)0x80004005));
-                }
-
-                try
-                {
-                    var iid = IID_IAudioClient;
-                    hr = device.Activate(ref iid, CLSCTX_ALL, IntPtr.Zero, out var client);
-                    if (hr != 0 || client == null)
-                    {
-                        Marshal.ThrowExceptionForHR(hr != 0 ? hr : unchecked((int)0x80004005));
-                    }
-
-                    return (IAudioClient)client;
-                }
-                finally
-                {
-                    Marshal.ReleaseComObject(device);
-                }
-            }
-            finally
-            {
-                Marshal.ReleaseComObject(enumerator);
-            }
+            // Through AudioEndpointEnumerator rather than NAudio: two managed types claiming the
+            // enumerator's one CLSID make the activation hand back whichever was registered first,
+            // which then fails to cast. See that file.
+            return (IAudioClient)AudioEndpointEnumerator.ActivateEndpointInterface(
+                deviceId, IID_IAudioClient);
         }
 
         private static IAudioClient ActivateAudioClient(string devicePath, PROPVARIANT activationParams)
@@ -372,27 +504,77 @@ namespace PlayniteAchievements.Services.Recording
 
         private void InitializeClient()
         {
-            var format = new WAVEFORMATEX
+            IntPtr formatPtr;
+            var nativeAllocation = false;
+            if (_nativeEndpointFormat)
             {
-                wFormatTag = (ushort)WAVE_FORMAT_IEEE_FLOAT,
-                nChannels = (ushort)WaveFormat.Channels,
-                nSamplesPerSec = (uint)WaveFormat.SampleRate,
-                wBitsPerSample = (ushort)WaveFormat.BitsPerSample,
-                nBlockAlign = (ushort)(WaveFormat.Channels * WaveFormat.BitsPerSample / 8),
-                cbSize = 0,
-            };
-            format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
+                var mixHr = _audioClient.GetMixFormat(out formatPtr);
+                if (mixHr != 0 || formatPtr == IntPtr.Zero)
+                {
+                    Marshal.ThrowExceptionForHR(mixHr != 0 ? mixHr : unchecked((int)0x80004005));
+                }
 
-            var formatPtr = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(WAVEFORMATEX)));
+                nativeAllocation = true;
+                WaveFormat = WaveFormat.MarshalFromPtr(formatPtr);
+            }
+            else
+            {
+                // Read the endpoint's own mix format even though we are about to force ours. It is
+                // what the device clock counts in, so it is the first thing to look at when
+                // devicePosition and the frames we are handed disagree — see TakeGapBefore.
+                try
+                {
+                    if (_audioClient.GetMixFormat(out var nativePtr) == 0 && nativePtr != IntPtr.Zero)
+                    {
+                        NativeMixFormat = WaveFormat.MarshalFromPtr(nativePtr);
+                        Marshal.FreeCoTaskMem(nativePtr);
+                    }
+                }
+                catch
+                {
+                }
+
+                var format = new WAVEFORMATEX
+                {
+                    wFormatTag = (ushort)WAVE_FORMAT_IEEE_FLOAT,
+                    nChannels = (ushort)WaveFormat.Channels,
+                    nSamplesPerSec = (uint)WaveFormat.SampleRate,
+                    wBitsPerSample = (ushort)WaveFormat.BitsPerSample,
+                    nBlockAlign = (ushort)(WaveFormat.Channels * WaveFormat.BitsPerSample / 8),
+                    cbSize = 0,
+                };
+                format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
+                if (WaveFormat.Channels > 2)
+                {
+                    // Shared-mode formats beyond stereo must say which speaker each channel is;
+                    // the plain WAVEFORMATEX has no mask, so the engine would refuse or guess.
+                    format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+                    format.cbSize = 22;
+                    var extensible = new WAVEFORMATEXTENSIBLE
+                    {
+                        Format = format,
+                        wValidBitsPerSample = (ushort)WaveFormat.BitsPerSample,
+                        dwChannelMask = SpeakerMaskFor(WaveFormat.Channels),
+                        SubFormat = IeeeFloatSubFormat,
+                    };
+                    formatPtr = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(WAVEFORMATEXTENSIBLE)));
+                    Marshal.StructureToPtr(extensible, formatPtr, false);
+                }
+                else
+                {
+                    formatPtr = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(WAVEFORMATEX)));
+                    Marshal.StructureToPtr(format, formatPtr, false);
+                }
+            }
+
             try
             {
-                Marshal.StructureToPtr(format, formatPtr, false);
-
-                // 200 ms buffer (100-ns units). Both modes require shared mode + the loopback flag;
-                // an endpoint additionally needs the engine's converter, because its own mix format
-                // is whatever the device runs at.
-                var flags = AUDCLNT_STREAMFLAGS_LOOPBACK;
-                if (_endpointCapture)
+                // 200 ms buffer (100-ns units). Loopback modes require shared mode + the loopback
+                // flag; an input endpoint records directly and must not carry it. A forced-format
+                // endpoint additionally needs the engine's converter, while a native endpoint
+                // supplies GetMixFormat verbatim and needs no conversion flags.
+                var flags = _inputEndpoint ? 0 : AUDCLNT_STREAMFLAGS_LOOPBACK;
+                if (_endpointCapture && !_nativeEndpointFormat)
                 {
                     flags |= AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
                 }
@@ -406,7 +588,14 @@ namespace PlayniteAchievements.Services.Recording
             }
             finally
             {
-                Marshal.FreeHGlobal(formatPtr);
+                if (nativeAllocation)
+                {
+                    Marshal.FreeCoTaskMem(formatPtr);
+                }
+                else
+                {
+                    Marshal.FreeHGlobal(formatPtr);
+                }
             }
 
             var captureIid = IID_IAudioCaptureClient;
@@ -426,18 +615,33 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
-            // The device counter is only meaningful within one run: carrying it across a restart would
-            // read as an enormous gap and pad the track with silence that never happened.
-            _nextDevicePosition = -1;
+            // Neither the device counter nor the stamp chain is meaningful across a restart:
+            // carrying either would read the stopped interval as an enormous gap and pad the
+            // track with silence that never happened.
+            _gapTracker = new AudioGapTracker(
+                WaveFormat.SampleRate, MaxGapSeconds, stampsDisabled: ForceDevicePositionGaps);
+            _timelineAnchor = new AudioTimelineAnchorConsensus(WaveFormat.SampleRate);
+            _timelineFramesDelivered = 0;
+            _captureStartedUtc = CaptureTimelineClock.UtcNow;
             _audioClient.Start();
             _capturing = true;
             _pollThread = new Thread(PollLoop)
             {
                 IsBackground = true,
                 Name = "PA-ProcLoopback",
-                // Background capture work. WASAPI buffers the packets this loop drains, so yielding
-                // to the game and the shell costs latency here, not audio.
-                Priority = ThreadPriority.BelowNormal,
+                // This loop has a HARD 200 ms deadline: that is the client's buffer duration
+                // (2_000_000 in 100-ns units, see InitializeClient), and WASAPI overwrites the ring
+                // once it is full. A late wake here does not cost latency, it destroys audio --
+                // the engine's device position jumps and TakeGapBefore pads the hole with silence
+                // that never played.
+                //
+                // It ran BelowNormal, which held while a GPU-bound title left CPU headroom and
+                // collapsed under an emulator that did not: a field log shows a RetroArch session
+                // reporting more padded dropout and discarded overflow than the session was long,
+                // heard as continuous stutter. There are up to four of these clients live at once
+                // (endpoint, game reference, non-game, chime sidecar), so all four have to make
+                // the deadline.
+                Priority = PollThreadPriority,
             };
             _pollThread.Start();
         }
@@ -475,7 +679,14 @@ namespace PlayniteAchievements.Services.Recording
                             _firstPacketCaptureUtc = QpcToUtc(qpcPosition);
                         }
 
-                        var gapFrames = TakeGapBefore(devicePosition, framesAvailable);
+                        // The placement conversion already vetted the stamp (positive, plausibly
+                        // recent); the engine's own error flag vetoes it besides. SILENT packets
+                        // pass through here too — their positions and stamps keep the chain whole.
+                        var stampUsable = packetUtc.HasValue &&
+                            (flags & BufferFlagsTimestampError) == 0;
+                        var gapFrames = TakeGapBefore(
+                            devicePosition, framesAvailable, qpcPosition, stampUsable);
+                        var timelineFramesBeforePacket = _timelineFramesDelivered + gapFrames;
 
                         var buffer = new byte[bytes];
                         if ((flags & BufferFlagsSilent) == 0 && dataPtr != IntPtr.Zero && bytes > 0)
@@ -490,7 +701,6 @@ namespace PlayniteAchievements.Services.Recording
                         // permanently early against picture — A/V drift that never recovers.
                         if (gapFrames > 0)
                         {
-                            _paddedGapFrames += gapFrames;
                             var gapBytes = (int)gapFrames * blockAlign;
                             DataAvailable?.Invoke(this, new WaveInEventArgs(new byte[gapBytes], gapBytes));
                         }
@@ -505,6 +715,24 @@ namespace PlayniteAchievements.Services.Recording
                             StampedDataAvailable?.Invoke(
                                 this, new StampedPacketEventArgs(buffer, bytes, packetUtc));
                             DataAvailable?.Invoke(this, new WaveInEventArgs(buffer, bytes));
+                        }
+
+                        _timelineFramesDelivered += gapFrames + framesAvailable;
+
+                        // Publish the vote only after DataAvailable synchronously appended this
+                        // packet. Otherwise AwaitAnchor could wake on the ninth vote, ask the pump
+                        // for nine packets, and have ReadFully manufacture silence for the ninth
+                        // while it was still waiting below this event callback.
+                        //
+                        // The packet stamp names its first frame. Gap padding belongs immediately
+                        // before it, while all earlier delivered packets precede both. Subtracting
+                        // that full frame count turns every packet into an independent vote for
+                        // frame zero; the median rejects a bad-but-plausible startup stamp.
+                        if (stampUsable)
+                        {
+                            _timelineAnchor?.Observe(
+                                packetUtc.Value,
+                                timelineFramesBeforePacket);
                         }
 
                         if (_captureClient.GetNextPacketSize(out frames) != 0)
@@ -617,7 +845,9 @@ namespace PlayniteAchievements.Services.Recording
             public IntPtr blobData;
         }
 
-        [StructLayout(LayoutKind.Sequential)]
+        // Pack = 2: the native struct is 18 bytes with WORD alignment. Default packing pads it to
+        // 20, which is harmless alone but shifts every field of a WAVEFORMATEXTENSIBLE built on it.
+        [StructLayout(LayoutKind.Sequential, Pack = 2)]
         private struct WAVEFORMATEX
         {
             public ushort wFormatTag;
@@ -629,43 +859,26 @@ namespace PlayniteAchievements.Services.Recording
             public ushort cbSize;
         }
 
-        [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"),
-         InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IMMDeviceEnumerator
+        private const ushort WAVE_FORMAT_EXTENSIBLE = 0xFFFE;
+
+        [StructLayout(LayoutKind.Sequential, Pack = 2)]
+        private struct WAVEFORMATEXTENSIBLE
         {
-            [PreserveSig]
-            int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr devices);
-
-            [PreserveSig]
-            int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice device);
-
-            [PreserveSig]
-            int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
-
-            [PreserveSig]
-            int RegisterEndpointNotificationCallback(IntPtr client);
-
-            [PreserveSig]
-            int UnregisterEndpointNotificationCallback(IntPtr client);
+            public WAVEFORMATEX Format;
+            public ushort wValidBitsPerSample;
+            public uint dwChannelMask;
+            public Guid SubFormat;
         }
 
-        [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"),
-         InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IMMDevice
+        /// <summary>The standard speaker mask for a channel count: quad, 5.1, 7.1; quad otherwise.</summary>
+        internal static uint SpeakerMaskFor(int channels)
         {
-            [PreserveSig]
-            int Activate(
-                ref Guid interfaceId, int classContext, IntPtr activationParams,
-                [MarshalAs(UnmanagedType.IUnknown)] out object instance);
-
-            [PreserveSig]
-            int OpenPropertyStore(int access, out IntPtr properties);
-
-            [PreserveSig]
-            int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
-
-            [PreserveSig]
-            int GetState(out int state);
+            switch (channels)
+            {
+                case 6: return 0x3F;
+                case 8: return 0x63F;
+                default: return 0x33;
+            }
         }
 
         [ComImport, Guid("41D949AB-9862-444A-80F6-C261334DA5EB"),

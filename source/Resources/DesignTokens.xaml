@@ -50,6 +50,7 @@
     <Color x:Key="PlayAch.Color.ProviderManual">#FF652C</Color>
     <Color x:Key="PlayAch.Color.ProviderPsn">#0070D1</Color>
     <Color x:Key="PlayAch.Color.ProviderRetroAchievements">#FFD700</Color>
+    <Color x:Key="PlayAch.Color.ProviderRiot">#D13639</Color>
     <Color x:Key="PlayAch.Color.ProviderRpcs3">#686DE0</Color>
     <Color x:Key="PlayAch.Color.ProviderShadPS4">#752BFD</Color>
     <Color x:Key="PlayAch.Color.ProviderUbisoft">#0044AA</Color>
@@ -119,6 +120,7 @@
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderManual" Color="{StaticResource PlayAch.Color.ProviderManual}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderPsn" Color="{StaticResource PlayAch.Color.ProviderPsn}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderRetroAchievements" Color="{StaticResource PlayAch.Color.ProviderRetroAchievements}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderRiot" Color="{StaticResource PlayAch.Color.ProviderRiot}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderRpcs3" Color="{StaticResource PlayAch.Color.ProviderRpcs3}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderShadPS4" Color="{StaticResource PlayAch.Color.ProviderShadPS4}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderUbisoft" Color="{StaticResource PlayAch.Color.ProviderUbisoft}"/>

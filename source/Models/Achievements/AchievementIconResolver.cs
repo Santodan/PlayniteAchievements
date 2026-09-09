@@ -13,9 +13,105 @@ namespace PlayniteAchievements.Models.Achievements
         private const string CacheBustPrefix = "cachebust|";
 
         /// <summary>
-        /// Get the default hidden icon pack URI.
+        /// Supplies the user's custom locked cover image path, or null/blank for the built-in
+        /// placeholder. Assigned once at plugin startup. Read through on every call so a settings
+        /// dialog's in-flight edits and its cancel-time instance swap are both picked up without
+        /// depending on PropertyChanged handler ordering.
+        /// </summary>
+        public static Func<string> LockedFallbackPathAccessor { get; set; }
+
+        /// <summary>
+        /// Supplies the user's custom hidden cover image path, or null/blank for the built-in
+        /// placeholder. See <see cref="LockedFallbackPathAccessor"/>.
+        /// </summary>
+        public static Func<string> HiddenFallbackPathAccessor { get; set; }
+
+        /// <summary>
+        /// Get the built-in placeholder pack URI. This is the "no image" thumbnail used by the
+        /// icon editors and the stand-in for an achievement with no artwork at all, so it ignores
+        /// the user's cover settings; the masked states use <see cref="GetLockedFallbackIcon"/> and
+        /// <see cref="GetHiddenFallbackIcon"/> instead.
         /// </summary>
         public static string GetDefaultIcon() => DefaultIconPackUri;
+
+        /// <summary>
+        /// The cover drawn over a locked achievement's icon while it is masked, that is, while
+        /// ShowLockedIcon is off and the row has not been revealed. Clicking the cover reveals the
+        /// real icon underneath, which never uses this image.
+        /// </summary>
+        public static string GetLockedFallbackIcon() =>
+            ResolveCustomFallback(LockedFallbackPathAccessor) ?? DefaultIconPackUri;
+
+        /// <summary>
+        /// The cover drawn over a hidden achievement's icon while it is masked. Takes precedence
+        /// over the locked cover when a row is both hidden and locked-masked.
+        /// </summary>
+        public static string GetHiddenFallbackIcon() =>
+            ResolveCustomFallback(HiddenFallbackPathAccessor) ?? DefaultIconPackUri;
+
+        /// <summary>
+        /// The icon for one grid row: the hidden cover when the row's icon is hidden-masked, the
+        /// locked cover when it is locked-masked, otherwise the real artwork. Hidden is tested
+        /// first so the more spoiler-sensitive state wins when both apply.
+        ///
+        /// AchievementDisplayItem.DisplayIcon deliberately keeps its own expanded copy of this
+        /// decision rather than delegating here: a source-text test
+        /// (AchievementSpoilerVisibilityDefinitionTests) asserts on its literal branch lines.
+        /// </summary>
+        public static string ResolveRowDisplayIcon(
+            bool isIconHidden,
+            bool isLockedIconHidden,
+            bool unlocked,
+            string unlockedIconPath,
+            string lockedIconPath)
+        {
+            if (isIconHidden)
+            {
+                return GetHiddenFallbackIcon();
+            }
+
+            if (isLockedIconHidden)
+            {
+                return GetLockedFallbackIcon();
+            }
+
+            return unlocked
+                ? GetUnlockedDisplayIcon(unlockedIconPath)
+                : GetLockedDisplayIcon(unlockedIconPath, lockedIconPath);
+        }
+
+        /// <summary>
+        /// Resolves a configured cover path into a display source, or null when unset or the
+        /// file is gone. Routed through <see cref="BuildDisplayIcon"/> so the managed file picks up
+        /// a cache-bust token: the slot filename is fixed, so replacing the image overwrites the
+        /// same path and would otherwise keep serving the previously decoded bitmap.
+        /// </summary>
+        private static string ResolveCustomFallback(Func<string> accessor)
+        {
+            if (accessor == null)
+            {
+                return null;
+            }
+
+            string configured;
+            try
+            {
+                configured = accessor();
+            }
+            catch
+            {
+                return null;
+            }
+
+            var normalized = NormalizeDisplaySource(configured);
+            if (string.IsNullOrWhiteSpace(normalized) || !IsUsableDisplayPath(normalized))
+            {
+                return null;
+            }
+
+            var candidate = BuildDisplayIcon(normalized, gray: false);
+            return string.IsNullOrWhiteSpace(candidate) ? null : candidate;
+        }
 
         /// <summary>
         /// Returns a plain path/pack URI without cache-busting or grayscale prefixes.
@@ -34,6 +130,14 @@ namespace PlayniteAchievements.Models.Achievements
                 ? DefaultIconPackUri
                 : BuildDisplayIcon(unlockedIconPath, gray: false);
 
+        /// <summary>
+        /// The real artwork for a locked achievement: an explicit locked icon when one exists,
+        /// otherwise the grayscaled unlocked icon, otherwise the built-in placeholder.
+        ///
+        /// The user's custom locked image is deliberately not consulted here. It is cover art for
+        /// the masked state only (<see cref="GetLockedFallbackIcon"/>), so revealing a cover shows
+        /// the achievement's own artwork rather than the same custom image again.
+        /// </summary>
         public static string GetLockedDisplayIcon(string unlockedIconPath, string lockedIconPath)
         {
             if (HasExplicitLockedIcon(lockedIconPath, unlockedIconPath))
@@ -133,8 +237,21 @@ namespace PlayniteAchievements.Models.Achievements
                 return true;
             }
 
+            // A remote source is usable: MemoryImageService downloads http(s) URIs through the disk
+            // cache and grayscales afterwards. Requiring File.Exists here made a URL-valued locked
+            // override fall through to the grayscaled unlocked icon, while an identical unlocked
+            // override rendered fine because GetUnlockedDisplayIcon never checked at all.
+            if (IsHttpUrl(value))
+            {
+                return true;
+            }
+
             return File.Exists(value);
         }
+
+        private static bool IsHttpUrl(string value) =>
+            value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
         private static string BuildDisplayIcon(string iconPath, bool gray)
         {

@@ -66,9 +66,30 @@ namespace PlayniteAchievements.Models
         public int TotalCount { get; set; }
 
         /// <summary>
-        /// True when the game is complete after this unlock (all achievements unlocked, or the
-        /// capstone unlocked) — the "completion achievement" state on a real unlock, distinct
-        /// from the standalone IsGameCompleted notification.
+        /// True for an incremental-progress notification: a still-locked achievement whose
+        /// provider-reported progress (e.g. 3/10 kills) advanced without unlocking. Silent and
+        /// capture-free. The three progress values below are set only for this kind; unlock
+        /// notifications leave them null.
+        /// </summary>
+        public bool IsProgressUpdate { get; set; }
+
+        /// <summary>Progress numerator after the advance (progress notifications only).</summary>
+        public int? ProgressNum { get; set; }
+
+        /// <summary>Progress denominator, the achievement's target (progress notifications only).</summary>
+        public int? ProgressDenom { get; set; }
+
+        /// <summary>
+        /// Progress numerator before the advance, null when the previous snapshot carried none
+        /// (progress notifications only).
+        /// </summary>
+        public int? PreviousProgressNum { get; set; }
+
+        /// <summary>
+        /// True when the game reaches 100% (all achievements unlocked) with this unlock — the
+        /// "completion achievement" state on a real unlock, distinct from the standalone
+        /// IsGameCompleted notification. A capstone unlock below 100% does not carry this flag;
+        /// its completion-grade treatment comes from IsCapstone.
         /// </summary>
         public bool IsCompletionAchievement { get; set; }
 
@@ -81,8 +102,9 @@ namespace PlayniteAchievements.Models
 
         /// <summary>
         /// True for the standalone "Congratulations! Game Complete!" notification emitted in its
-        /// own wave after the completing unlock's toasts. It runs the full notification pipeline
-        /// like any other own unlock: toasts, screenshots, and recording clips.
+        /// own wave after the completing unlock's toasts. Fires only when the game reaches true
+        /// 100% — never on a capstone unlock alone. It runs the full notification pipeline like
+        /// any other own unlock: toasts, screenshots, and recording clips.
         /// </summary>
         public bool IsGameCompleted { get; set; }
 

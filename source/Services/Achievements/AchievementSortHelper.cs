@@ -1073,8 +1073,9 @@ namespace PlayniteAchievements.Services.Achievements
             AchievementSortScope scope)
         {
             // Within a single game, unlock-time ties (the locked tail) group by category in the
-            // per-game category order before the progress/rarity chain. Recent-achievement lists
-            // span games whose category labels are unrelated, so they never group.
+            // per-game category order before the progress/default-order/rarity chain.
+            // Recent-achievement lists span games whose category labels are unrelated, so they
+            // never group.
             if (scope == AchievementSortScope.GameAchievements)
             {
                 var categoryComparison = CompareByCategoryOrder(a, b);
@@ -1092,6 +1093,16 @@ namespace PlayniteAchievements.Services.Achievements
             if (progressComparison != 0)
             {
                 return progressComparison;
+            }
+
+            // Default order (custom order when the game has one, provider order otherwise) breaks
+            // unlock-time ties ahead of rarity. Items never stamped with an index (friend rows,
+            // recent-unlock projections, mock data) sit at int.MaxValue and keep the rarity chain.
+            var orderComparison = (a?.DefaultOrderIndex ?? int.MaxValue)
+                .CompareTo(b?.DefaultOrderIndex ?? int.MaxValue);
+            if (orderComparison != 0)
+            {
+                return orderComparison;
             }
 
             var rarityComparison = a.RaritySortValue.CompareTo(b.RaritySortValue);
@@ -1197,7 +1208,8 @@ namespace PlayniteAchievements.Services.Achievements
                 TrophyType = detail?.TrophyType,
                 PointsValue = detail?.Points,
                 ProgressNum = detail?.ProgressNum,
-                ProgressDenom = detail?.ProgressDenom
+                ProgressDenom = detail?.ProgressDenom,
+                DefaultOrderIndex = detail?.DefaultOrderIndex ?? int.MaxValue
             };
         }
 
@@ -1242,6 +1254,7 @@ namespace PlayniteAchievements.Services.Achievements
             ordered = ordered
                 .ThenByDescending(a => HasProgress(a?.ProgressNum, a?.ProgressDenom))
                 .ThenByDescending(a => GetProgressFraction(a?.ProgressNum, a?.ProgressDenom) ?? 0)
+                .ThenBy(a => a?.DefaultOrderIndex ?? int.MaxValue)
                 .ThenBy(a => a?.RaritySortValue ?? double.MaxValue)
                 .ThenByDescending(a => GetTrophyRank(a?.TrophyType))
                 .ThenByDescending(a => a?.Points ?? 0);

@@ -54,20 +54,24 @@ namespace PlayniteAchievements.Services.Images
 
         private readonly DiskImageService _diskImageService;
         private readonly ManagedCustomIconService _managedCustomIconService;
-        private readonly PersistedSettings _settings;
+        // An accessor rather than the PersistedSettings instance: CancelEdit replaces
+        // that instance, and this service lives as long as the refresh runtime.
+        private readonly Func<PersistedSettings> _settingsAccessor;
         private readonly ILogger _logger;
 
         public AchievementIconService(
             DiskImageService diskImageService,
             ManagedCustomIconService managedCustomIconService,
-            PersistedSettings settings,
+            Func<PersistedSettings> settingsAccessor,
             ILogger logger)
         {
             _diskImageService = diskImageService ?? throw new ArgumentNullException(nameof(diskImageService));
             _managedCustomIconService = managedCustomIconService ?? throw new ArgumentNullException(nameof(managedCustomIconService));
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _settingsAccessor = settingsAccessor ?? throw new ArgumentNullException(nameof(settingsAccessor));
             _logger = logger;
         }
+
+        private PersistedSettings Persisted => _settingsAccessor();
 
         public async Task PopulateAchievementIconCacheAsync(
             GameAchievementData data,
@@ -99,7 +103,7 @@ namespace PlayniteAchievements.Services.Images
                 return;
             }
 
-            var useSeparateLockedIcons = GameCustomDataLookup.ShouldUseSeparateLockedIcons(data?.PlayniteGameId, _settings);
+            var useSeparateLockedIcons = GameCustomDataLookup.ShouldUseSeparateLockedIcons(data?.PlayniteGameId, Persisted);
             var gameId = ResolveGameId(data);
             var fileStems = AchievementIconCachePathBuilder.BuildFileStems(
                 data.Achievements.Select(achievement => achievement?.ApiName));
@@ -421,7 +425,6 @@ namespace PlayniteAchievements.Services.Images
                     unlockedCandidate,
                     lockedCandidate,
                     useSeparateLockedIcons,
-                    !string.IsNullOrWhiteSpace(resolvedUnlockedOverride),
                     !string.IsNullOrWhiteSpace(resolvedLockedOverride));
             }
         }
@@ -866,9 +869,14 @@ namespace PlayniteAchievements.Services.Images
             bool useSeparateLockedIcons)
         {
             var finalLockedCandidate = resolvedLockedCandidate ?? achievement.LockedIconPath;
-            var hasExplicitUnlockedIcon = _managedCustomIconService.IsManagedCustomIconPath(
-                finalUnlockedPath,
-                gameId);
+
+            // A download that did not resolve leaves the remote URL in place. The cache stores local
+            // paths only, so treat it as absent rather than persisting a path that can never render.
+            if (IsHttpIconPath(finalLockedCandidate))
+            {
+                finalLockedCandidate = null;
+            }
+
             var hasExplicitLockedIcon = _managedCustomIconService.IsManagedCustomIconPath(
                     finalLockedCandidate,
                     gameId) &&
@@ -877,7 +885,6 @@ namespace PlayniteAchievements.Services.Images
                 finalUnlockedPath,
                 finalLockedCandidate,
                 useSeparateLockedIcons,
-                hasExplicitUnlockedIcon,
                 hasExplicitLockedIcon);
         }
 

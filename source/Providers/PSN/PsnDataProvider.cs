@@ -16,12 +16,19 @@ namespace PlayniteAchievements.Providers.PSN
 {
     internal sealed class PsnDataProvider : DataProviderBase<PsnSettings>, IDataProvider, IProviderOverride
     {
+        // Accepts a single NP Communication ID, or several joined with '+' or ',' so a
+        // compilation's trophy sets can be supplied manually when lookup cannot resolve them.
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_PSN",
-            raw => PsnNpCommIdHelper.TryNormalize(raw, out var commId)
-                ? ProviderOverrideValidation.Valid(commId)
-                : ProviderOverrideValidation.Invalid(
-                    "LOCPlayAch_Menu_PsnNpCommId_InvalidId"));
+            raw =>
+            {
+                var sets = PsnTrophySetResolutionHelper.ParseOverrideSets(raw);
+                return sets.Count > 0
+                    ? ProviderOverrideValidation.Valid(
+                        PsnTrophySetResolutionHelper.BuildCanonicalOverrideValue(sets))
+                    : ProviderOverrideValidation.Invalid(
+                        "LOCPlayAch_Menu_PsnNpCommId_InvalidId");
+            });
 
         private readonly PsnSessionManager _sessionManager;
         private readonly PsnScanner _scanner;

@@ -26,15 +26,26 @@ namespace PlayniteAchievements.Providers
         public static (DateTime? Utc, UnlockVideoAnchorSource Source) Select(
             InGameUnlockAnchorPolicy policy,
             DateTime? providerReportedUtc,
-            DateTime observedUtc)
+            DateTime observedUtc,
+            TimeSpan reportedBias = default(TimeSpan))
         {
             var useObservation = policy == InGameUnlockAnchorPolicy.SourceObservation ||
                 !providerReportedUtc.HasValue;
-            return (
-                useObservation ? observedUtc : providerReportedUtc,
-                useObservation
-                    ? UnlockVideoAnchorSource.SourceObservation
-                    : UnlockVideoAnchorSource.ProviderReported);
+            if (useObservation)
+            {
+                return (observedUtc, UnlockVideoAnchorSource.SourceObservation);
+            }
+
+            // The bias compensates a provider whose reported stamp systematically precedes the
+            // on-screen moment. It can never push the anchor past the observation itself: the
+            // unlock was already visible by then.
+            var anchor = providerReportedUtc.Value + reportedBias;
+            if (reportedBias > TimeSpan.Zero && anchor > observedUtc)
+            {
+                anchor = observedUtc;
+            }
+
+            return (anchor, UnlockVideoAnchorSource.ProviderReported);
         }
     }
 
@@ -73,6 +84,14 @@ namespace PlayniteAchievements.Providers
 
         public InGameUnlockAnchorPolicy UnlockAnchorPolicy { get; set; } =
             InGameUnlockAnchorPolicy.ProviderReported;
+
+        /// <summary>
+        /// Correction added to the provider-reported timestamp when it anchors video capture, for
+        /// a provider whose stamp systematically precedes the on-screen moment (second-truncated
+        /// timestamps, or a stamp taken at the game's unlock call rather than its visible payoff).
+        /// Ignored under <see cref="InGameUnlockAnchorPolicy.SourceObservation"/>.
+        /// </summary>
+        public TimeSpan UnlockAnchorBias { get; set; }
 
         /// <summary>
         /// Opaque provider-owned state resolved once at game start (for example a title id or

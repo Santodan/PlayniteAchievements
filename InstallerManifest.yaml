@@ -1,6 +1,38 @@
 AddonId: PlayniteAchievements
 Packages:
 
+  - Version: 3.2.0
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-08-31
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v3.2.0/PlayniteAchievements_3_2_0.pext
+    Changelog:
+    - "[New] Subcategories! Categories can now contain other categories. Platforms that group their achievements (Steam DLC, PlayStation collections, World of Warcraft, StarCraft II, Final Fantasy XIV, and more) show their real structure, and category lists draw the tree."
+    - "[New] Improved category management in Manage Achievements: create, rename, duplicate, merge, and delete categories and subcategories."
+    - "[New] Progress notifications! See a quiet notification when you make progress toward an achievement while in game. Can be turned off overall or per platform."
+    - "[New] Riot Games support: track your League of Legends Challenges."
+    - "[New] Choose your own cover images for locked and hidden achievements."
+    - "[New] Notifications and captures can each be delayed after an unlock."
+    - "[New] Display option to show rarity badges below the progress bar in game grids."
+    - "[New] Test notification hotkey has been renamed to Retrigger notification, and allows you to re-capture your latest notification while in game."
+    - "[New] Removed dependency on UniPlaySong, enabling more flexible audio processing. New sound settings are available in Settings > Notifiations > Behavior. Please continue to support the dev!"
+    - "[Adjusted] Improved in-game unlock detection for GOG Galaxy and Epic games."
+    - "[Adjusted] Capstone unlock and 100% completion unlock notifications are now more distinct."
+    - "[Adjusted] The compare dropdown in friends views now includes yourself."
+    - "[Fixed] PlayStation collections now include every trophy set, not just the first."
+    - "[Fixed] Tag sync better respects which tags you have enabled."
+    - "[Fixed] Final Fantasy XIV explains what to do when FFXIV Collect or the Lodestone is down, or when your achievements are private."
+    - "[Fixed] Steam games where every achievement is hidden now refresh correctly."
+    - "[Fixed] Fixed clips that recorded without any sound on some setups, and the notification chime in clips is quieter and better timed."
+    - "[Fixed] Recordings now follow the game itself, not its launcher window."
+    - "[Fixed] Clips export faster after an unlock."
+    - "[Fixed] Achievements unlocked at the same moment keep the game's own order in lists and notifications."
+    - "[Fixed] Smoother notification slide-in, especially while a refresh is running."
+    - "[Fixed] HoYoverse achievements now display in Chinese for Chinese languages."
+    - "[Fixed] MSX2 games now match the right RetroAchievements console."
+    - "[Fixed] Games with no achievements no longer show an empty progress bar."
+    - "[Fixed] Plugin windows now respond to clicks after switching to a display with a different scale."
+    - "As always, many additional improvements and fixes behind the scenes."
+
   - Version: 3.1.3
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-08-23

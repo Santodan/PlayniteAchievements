@@ -287,6 +287,9 @@ namespace PlayniteAchievements.Views.Helpers
                     using (DpiAwarenessScope.PerMonitorV2())
                     {
                         new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+                        // Handle this window's messages under a matching thread context so the
+                        // Win32 reads its handlers make resolve in the window's own coordinate space.
+                        PerMonitorWindowMessageScope.Attach(window);
                     }
                 }
 

@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PlayniteAchievements", "Pla
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PlayniteAchievements.Tests", "..\tests\PlayniteAchievements.Tests\PlayniteAchievements.Tests.csproj", "{8BC5AFA1-B4DF-4564-8AC7-C19C348A7599}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PlayniteAchievements.Helper", "Helper\PlayniteAchievements.Helper.csproj", "{7A2E4C51-9B3D-4F6E-8C1A-2D5F7E9B0C43}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{8BC5AFA1-B4DF-4564-8AC7-C19C348A7599}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8BC5AFA1-B4DF-4564-8AC7-C19C348A7599}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8BC5AFA1-B4DF-4564-8AC7-C19C348A7599}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A2E4C51-9B3D-4F6E-8C1A-2D5F7E9B0C43}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A2E4C51-9B3D-4F6E-8C1A-2D5F7E9B0C43}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A2E4C51-9B3D-4F6E-8C1A-2D5F7E9B0C43}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A2E4C51-9B3D-4F6E-8C1A-2D5F7E9B0C43}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

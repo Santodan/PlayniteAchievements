@@ -9,6 +9,7 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.BattleNet.Models;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Providers.BattleNet
 {
@@ -346,14 +347,25 @@ namespace PlayniteAchievements.Providers.BattleNet
                 var subcategories = ReadSubcategories(categoryData.Subcategories);
                 if (subcategories.Count > 0)
                 {
+                    // The catalog nests achievements one level below the category ("Dungeons &
+                    // Raids" > "Cataclysm"), which is how the in-game journal presents them.
+                    // JoinRaw degenerates to the category alone when a subcategory is unnamed.
                     foreach (var subcategory in subcategories)
                     {
-                        AddAchievements(achievements, seen, subcategory?.Achievements, category);
+                        AddAchievements(
+                            achievements,
+                            seen,
+                            subcategory?.Achievements,
+                            CategoryPathHelper.JoinRaw(category, subcategory?.Name));
                     }
                 }
                 else
                 {
-                    AddAchievements(achievements, seen, categoryData.AchievementsList, category);
+                    AddAchievements(
+                        achievements,
+                        seen,
+                        categoryData.AchievementsList,
+                        CategoryPathHelper.JoinRaw(category));
                 }
             }
 
@@ -407,7 +419,10 @@ namespace PlayniteAchievements.Providers.BattleNet
                     DisplayName = FirstNonEmpty(definition?.Name, key),
                     Description = definition?.Description,
                     Points = definition != null && definition.Points > 0 ? definition.Points : (int?)null,
-                    Category = definition?.Category?.Name,
+                    // Flat by necessity: the official achievement-category resource exposes a
+                    // parent_category that WowOfficialAchievementCategory does not model, so a
+                    // catalog-only achievement lands at the root next to the nested catalog ones.
+                    Category = CategoryPathHelper.JoinRaw(definition?.Category?.Name),
                     CategoryType = IsOfficiallyUnobtainable(definition) ? "Missable" : null,
                     Hidden = definition?.IsHidden == true,
                     ProviderKey = "BattleNet",

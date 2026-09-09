@@ -1,4 +1,5 @@
 using HtmlAgilityPack;
+using PlayniteAchievements.Providers.Steam.Models;
 using System;
 using System.Text.RegularExpressions;
 
@@ -134,6 +135,83 @@ namespace PlayniteAchievements.Providers.Steam
                 html,
                 @"<a[^>]+class\s*=\s*[""'][^""']*\bglobal_action_link\b[^""']*[""'][^>]+href\s*=\s*[""'][^""']*/login[^""']*[""']",
                 RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        }
+
+        public static bool HasOnlyHiddenAchievementRows(string html)
+        {
+            var doc = TryParseHtmlDocument(html);
+            if (doc?.DocumentNode == null)
+            {
+                return false;
+            }
+
+            var nodes = doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveRow')]") ??
+                        doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveTxtHolder')]") ??
+                        doc.DocumentNode.SelectNodes("//*[contains(@class,'achievement') and (.//h3 or .//div[contains(@class,'achieveUnlockTime')])]");
+
+            if (nodes == null || nodes.Count == 0)
+            {
+                return false;
+            }
+
+            var hasHiddenRow = false;
+            foreach (var row in nodes)
+            {
+                var isHidden = row.SelectSingleNode(".//div[contains(@class,'achieveHiddenBox')]") != null;
+                if (!isHidden)
+                {
+                    return false;
+                }
+
+                hasHiddenRow = true;
+            }
+
+            return hasHiddenRow;
+        }
+
+        public static int? TryGetHiddenRemainingCount(string html)
+        {
+            var doc = TryParseHtmlDocument(html);
+            var box = doc?.DocumentNode?.SelectSingleNode("//div[contains(@class,'achieveHiddenBox')]");
+            if (box == null)
+            {
+                return null;
+            }
+
+            // The surrounding "N hidden achievements remaining" text is localized; only the bare
+            // ASCII digits are read. Locales with non-ASCII digits yield null, meaning no evidence.
+            var match = Regex.Match(box.InnerText ?? string.Empty, "[0-9]+");
+            return match.Success && int.TryParse(match.Value, out var count) ? count : (int?)null;
+        }
+
+        /// <summary>
+        /// Decides whether an AllHidden scrape result proves the user has zero unlocks, so an
+        /// empty unlock set can be stored instead of failing the game as unreadable.
+        ///
+        /// A visible schema achievement always renders a normal row (locked or unlocked), so an
+        /// all-hidden page cannot occur unless every schema achievement is hidden. An unlocked
+        /// hidden achievement renders as a full parseable row, so the scrape would have been
+        /// classified Scraped rather than AllHidden. A hidden-remaining count that parses to a
+        /// number different from the schema total means the page and schema describe different
+        /// achievement sets, so confirmation is withheld and the conservative failure stands.
+        /// </summary>
+        public static bool ConfirmsAllHiddenZeroUnlocks(SchemaAndPercentages schema, int? hiddenRemainingCount)
+        {
+            var achievements = schema?.Achievements;
+            if (achievements == null || achievements.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var achievement in achievements)
+            {
+                if (achievement == null || achievement.Hidden == 0)
+                {
+                    return false;
+                }
+            }
+
+            return hiddenRemainingCount == null || hiddenRemainingCount == achievements.Count;
         }
 
         private static HtmlDocument TryParseHtmlDocument(string html)

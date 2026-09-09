@@ -221,9 +221,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             }
         }
 
-        public int FriendCompletionPercent => AchievementCount > 0
-            ? (int)Math.Round(Math.Max(0, UniqueFriendUnlockedAchievementsCount) * 100d / AchievementCount)
-            : 0;
+        public int FriendCompletionPercent =>
+            AchievementCompletionPercentCalculator.ComputeRoundedPercent(UniqueFriendUnlockedAchievementsCount, AchievementCount);
 
         public string FriendCompletionText => AchievementCount > 0
             ? PercentFormatter.FormatWhole(FriendCompletionPercent)

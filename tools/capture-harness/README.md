@@ -61,11 +61,87 @@ What it reports, and why each check exists:
 | Screenshot alignment — a live grab's frame vs when the grab happened | How current a live screenshot can be, and that its path involves no mapping |
 | Paint intervals during recording and compositing | Whether the pipeline stutters the application being captured |
 | Encoder duration handling | Per-sample durations being flattened onto a fixed grid |
+| **Spliced vs whole-clip re-encode** — same base clip through both passes, frame identities compared one to one, card presence read back per frame | A splice point that shifts, drops or duplicates frames, or lands the card on the wrong frames |
+| Audio through the overlay pass — a synthetic 440 Hz loopback track and a 1 kHz composited chime, read back by Goertzel | The remux losing the track, shortening it, or mixing the chime at the wrong time (both AAC passthrough and PCM re-encode modes) |
 
 `freezeAt`/`freezeFor` stop the window painting mid-recording, which is what a game that stops presenting
 looks like to the capture. Wired but not yet exercised.
 
 Per-frame offsets are written to `alignment_*.csv` next to the executable.
+
+The composition phase runs the overlay re-encoder three times over the same base clip: spliced (the
+default, `MediaFoundationOverlayReencoder.SpliceEnabled = true`) and whole-clip with a production-shaped
+card at the end of the clip and a chime mixed into the audio, then a card two seconds in with no chime.
+The spliced output must decode to the same source frame at the same output time as the whole-clip one,
+carry the card on exactly the frames the window covers, and keep its audio; the last case makes the plan
+copy after the card instead of before it and takes the AAC passthrough path. Each pass prints the plugin's
+own `Toast splice` lines (runs copied and re-encoded, per-run reader/sink/frames/finalize cost) so the
+saving is measured, not inferred. The harness records no real audio, so `ExportClip` writes one synthetic
+`aud_*.wav` chunk per video segment, named and timed like the audio recorder's, before exporting.
+
+The avcC check after it is what makes the splice possible at all: copied and re-encoded GOPs can share one
+track only if the two encoders emit byte-identical parameter sets. Measured on the NVIDIA MFT they do, at
+the higher re-encode bitrate too, but only when the re-encode declares the capture's frame rate: the rate
+is written into the SPS timing fields, and a base clip whose capture stalled averages below it (56 fps for
+a 60 fps capture, in one run), so deriving the rate from the clip produced a different SPS. The plugin
+declares the captured rate for re-encoded runs and compares sequence headers before it splices.
+
+### Re-running the composition over an existing clip
+
+```powershell
+tools\capture-harness\bin\CaptureHarness.exe --reencode <clip.mp4> <fps> [toastStartSeconds] [trimLeadSeconds] [pluginDir]
+```
+
+Runs only the composition phase (the three passes above and their checks) over a base clip the full run
+left behind, so a clip that exposed something — one with a capture stall, say — can be worked on without
+recording again. It first prints a compressed-vs-decoded timestamp comparison under each reader mode.
+That comparison is what found that the source reader's *advanced* video processing includes frame-rate
+conversion: it re-times every decoded frame onto the type's declared frame rate, an average the MP4
+source derives from the file, so on a stalled clip decoded timestamps drifted from the compressed ones
+by the whole stall (404 ms measured) while *basic* processing and the decoder's own NV12 output kept
+them exact. The plugin and this harness now decode NV12 with no processing attribute; barcodes are read
+from the luma plane and the card from the chroma plane.
+
+The same investigation moved the plugin's compositing off RGB altogether: frames stay in NV12 from the
+decoder through the in-place card blend to the encoder, which removed both colour converters from the
+pass, and the D3D device manager was dropped from the encoding sink because the NVIDIA transform
+rejects system-memory NV12 samples while one is bound (`E_INVALIDARG` on the first write) yet is
+selected as the hardware encoder without it. Two more things had to be true for the NV12 path to be
+correct, both found by comparing dumped frames against the base clip: each decoded frame is copied out of
+the decoder before it is written, because the decoder reuses its output buffers while the encoding sink
+still holds the queued sample (luma and chroma from different frames otherwise), and each copy is
+repacked from the decoder's own pitch and macroblock-aligned height (1088 rows for 1080p at 1080p) to
+the packed frame, because that padding puts the chroma plane below where the encoder and the compositor
+address it (every picture's chroma sat 16 rows below its luma while the card, blended by the same
+assumption, looked right). Media Foundation's own contiguous copy does not solve this: it packs rows to
+the frame width but keeps the aligned height, which `GetContiguousLength` reporting 3133440 rather than
+3110400 is exactly what says. The aligned height is derived from that number instead of assumed, so a
+vendor's choice of pitch or alignment is never guessed at. With both in place the composited frames
+match the base clip at 71-74 dB PSNR outside the card, where the RGB path managed 53 dB, and the card
+region matches the old path within codec noise (53-57 dB).
+
+`--software` on the `--reencode` line keeps hardware transforms off the encoding sinks, so the passes run
+on Microsoft's software H.264 encoder — the path any machine without a usable vendor transform takes, and
+the one the plugin falls back to by itself when a hardware sink cannot be set up. Its parameter sets
+differ from the capture's, so this also exercises the splice detecting the mismatch and falling back to
+the whole-clip pass. It composites at the same rate and reads 60 dB against the base clip (the encoder is
+simply noisier), so the fall-back costs encode speed, never the card.
+
+Only the NVIDIA encoder was available here. What stands behind AMD and Intel is that fall-back and the
+existing one below it: a sink that cannot be created, a transform that refuses the frames, or parameter
+sets that do not match all end in a working clip — with the software encoder, without the splice, or in
+the last resort without the card, never with a corrupt one.
+
+The parameter-set check costs nothing to reach that verdict. The encoder publishes its sequence header
+on the sink's own transform as soon as writing begins, so the plugin compares it there, 1-2 ms after the
+sink exists and before a single frame is encoded; a mismatch abandons the run having done no work. The
+comparison is per NAL unit rather than over the raw blob, because the same encoder reports four-byte
+start codes on its output type and three-byte ones in the file it writes, and comparing the blobs whole
+calls that a mismatch. Decoding the two signatures with `Decode-Sps.ps1`-style field parsing showed the
+NVIDIA capture and the Microsoft software encoder differ in exactly three places: `max_num_ref_frames`
+(1 vs 2), the VUI colour description (present vs absent) and the timing tick ratio (1000/120000 vs 1/120,
+both 60 fps). Only the first is settable through the codec API, so making two different encoders sign
+alike is not achievable, and the pass detects rather than pursues it.
 
 ### Native lifetime/page-heap stress
 
@@ -227,8 +303,12 @@ Measures the composition rate actually sustained *during* the motion, per mechan
 display's own period read from the OS.
 
 ```powershell
-tools\capture-harness\bin\SlideCadenceProbe.exe [--repeats 5]
+tools\capture-harness\bin\SlideCadenceProbe.exe [--repeats 5] [--load N]
 ```
+
+`--load N` spawns N child processes of the probe itself, each rendering large animated blurs every
+frame. GPU contention arrives from other processes when a game runs, so the load deliberately lives
+outside the measuring process: it competes at the GPU and DWM, never inside this render loop.
 
 Measured on a 165 Hz display:
 
@@ -245,6 +325,20 @@ the display's rate, and animating content inside a stationary one costs none of 
 the window reserves is free, a bitmap cache buys nothing because the transform path is already at the
 ceiling — so it is not worth its invalidation risk against the countdown bar and animated backgrounds —
 and overlay-track sampling does not pull the slide off the refresh rate either.
+
+Measured on a 60 Hz display with `--load 3` (GPU saturated by three child render processes):
+
+| mechanism | sustained | % of refresh |
+|---|---|---|
+| `Transform` | 30 Hz | 50% |
+| `TransformCached` (+ `BitmapCache`) | 30 Hz | 50% |
+| `TransformNoPadding` | 30 Hz | 50% |
+| `TransformWithSampling` | 30 Hz | 50% |
+
+Under contention every transform variant degrades identically: the per-frame cost that loses frames is
+the layered window's own composition against a saturated GPU, not card re-rasterization — the retained
+tree already avoids re-rasterizing a static card on translate. A `BitmapCache` therefore buys nothing in
+the contended regime either, which is why the plugin's quiet-slide scope does not cache the slide host.
 
 Counting the animation's own value changes would prove nothing: a WPF timeline advances once per composed
 frame by construction, so that only re-measures the render loop. The rate the loop itself holds is the
@@ -313,26 +407,23 @@ gives 147. Real frames do not look like that; the ramp case is the representativ
   and reports PSNR against the source, for sizing the export-time bitrate headroom. Slow: each rate costs a
   decode plus an encode plus two comparison decodes.
 
-## The chime cancellation probe
+## The clip remnant probe
 
 ```powershell
-tools\capture-harness\bin\ChimeCancelProbe.exe <sessionDir> [--start yyyyMMdd-HHmmssfffffff[Z]] [--seconds 4.5] [--wav-out dir]
-tools\capture-harness\bin\ChimeCancelProbe.exe --selftest
+tools\capture-harness\bin\ClipRemnantProbe.exe <clip.mp4> <sound file> [--volume 0.5] [--floor 0.06] [--block 0.25]
 ```
 
-Runs the plugin's real game-audio cancellation (`PcmAudio.CancelCorrelated`, compiled in from
-`source\Services\Capture\PcmAudio.cs` so it always reflects the current algorithm, not a built DLL)
-against the `chm_`/`gam_` WAV chunks of a `RecordingBuffer\<session>` directory.
-With no `--start` it sweeps the whole overlap of the two tracks in consecutive windows and prints one
-line per window: RMS of both tracks, the outcome (`CancelledVerified` / `CleanNoGameDetected` /
-`Unseparable`), the tracked lag range, fitted gain, correlation, and achieved suppression in dB.
-`--wav-out` writes `<stamp>_mixture.wav`, `_cancelled.wav`, and `_reference.wav` per window so the
-residual can be listened to directly — the fastest way to judge whether a reported "duplicated game
-audio in the chime" case is a cancellation failure or something upstream.
-Buffers are pruned when a session ends, so copy the session directory out while Playnite is still
-running (or ask a reporting user to zip theirs before closing Playnite).
-`--selftest` replays the field-shaped fixtures (drifting lag at gain 0.9, unrelated-reference clean
-pass) without needing any capture data.
+Measures what an exported clip still carries of a notification sound, from the clip alone. It decodes
+the clip's audio and the sound file to the export format, finds every occurrence of the sound by
+normalized correlation against its first second, and prints each occurrence's level relative to the
+played volume plus a per-block row of signed gain and best lag offset. The composited chime reads
+0 dB at lag 0 in every block, and it should be the ONLY occurrence: clip tracks exclude the sound
+host's process, so a second occurrence anywhere means the live sound reached the capture and the
+exclusion failed. Rows inside the composited chime's own span with correlation around 0.1-0.2 are the
+jingle correlating with its own later notes, not a second copy. The per-block gain and lag columns
+date from the cancellation era and still read the same way: a flat row is a level mismatch, a sloped
+row a time-varying level, and a row whose lag steps partway through is a capture alignment tear. Needs no capture
+buffer, so it works on clips a user sends.
 
 ## The chime separation probe
 
@@ -341,18 +432,18 @@ tools\capture-harness\bin\ChimeSeparationProbe.exe          # plays two quiet to
 tools\capture-harness\bin\ChimeSeparationProbe.exe --tone <freqHz> <seconds> [amp] [amHz]
 ```
 
-End-to-end proof that Playnite-chime vs emulator audio separation works on real WASAPI sessions,
-without Playnite.
+End-to-end proof that process-scoped loopback separates a chime from emulator audio on real WASAPI
+sessions, without Playnite.
 The probe recreates the process topology of a Playnite-launched emulator — it plays a 440 Hz "chime"
-from its own process (UniPlaySong's role) while a spawned child process plays an AM-warbled 1320 Hz
-"game" tone (RetroArch's role) — then captures three streams with the plugin's real
-`ProcessLoopbackCapture` (compiled in from source, like the cancellation): include-tree on the child
-(the GameOnly main track), include-tree on itself (the `chm_` sidecar; the child is inside that
-tree), and exclude-tree on itself (the FullSystem main track).
-Goertzel power at the two frequencies then verifies each scope (child-scoped capture must not carry
-the parent's chime; the excluded capture must carry neither tone), and `PcmAudio.CancelCorrelated`
-runs across the two *independent* loopback clients — real inter-client clock offset and drift — with
-the assertion that the game tone is suppressed >= 10 dB while the chime survives within 3 dB.
+from its own process (the sound host's role) while a spawned child process plays an AM-warbled
+1320 Hz "game" tone (RetroArch's role) — then captures three streams with the plugin's real
+`ProcessLoopbackCapture` (compiled in from source): include-tree on the child (the Game Only clip
+track), include-tree on itself (the sound host's own render; the child is inside that tree, so this
+is the 0 dB reference for the other two), and exclude-tree on itself (the Full System clip track).
+Goertzel power at the two frequencies then verifies each scope: the child-scoped capture must not
+carry the parent's chime, and the excluded capture must carry neither tone.
+There is no cancellation step; the plugin keeps the unlock sound out of clips by excluding the sound
+host's process, so the only thing to prove is that the scopes are what the filters say they are.
 The exe carries a Win10 `supportedOS` manifest (`win10.manifest`) because
 `ProcessLoopbackCapture.IsSupported` reads `Environment.OSVersion`, which lies (6.2) in unmanifested
 processes; inside Playnite the plugin never sees this.
@@ -362,71 +453,95 @@ exclude-tree check is informational when something else is playing.
 ## The chime burst probe
 
 ```powershell
-tools\capture-harness\bin\ChimeBurstProbe.exe [--keep]
+tools\capture-harness\bin\ChimeBurstProbe.exe [--keep] [--no-haptics] [--cold]
 ```
 
 The burst scenario — two toast waves of three achievements — on the REAL recorder plumbing.
 Unlike the separation probe's raw loopback clients, this drives two actual `AudioLoopbackRecorder`
-instances (the GameOnly main recorder and the chime sidecar, wired exactly as
-`UnlockRecordingService` wires them), so the mixer graph, direct packet timestamping, wall-clock
-main pump, gap padding, and chunk rotation are all exercised.
+instances concurrently, one Game Only and one Full System, wired exactly as
+`UnlockRecordingService` wires them (game pid and sound-host pid delegates), so the mixer graph,
+direct packet timestamping, wall-clock main pump, gap padding, chunk rotation, the 8-channel process
+captures and their stereo reduction are all exercised. The topology is production's: a spawned
+"game" child plays the game tone, a spawned "sound host" child plays the wave chimes on schedule and
+reports each launch stamp, and the probe itself plays nothing during the waves.
 A wave plays one chime regardless of its card count, so two waves of three means two chimes at wave
-cadence (~7.5 s apart with the default 6 s toast), each at a distinct frequency (440 / 587 Hz) so
-the wrong wave's chime appearing in a slice is directly measurable.
-Per wave it replicates the production sidecar slice (ownSound + min(toast, 4 s cap) + 0.5 s), runs
-the real cancellation against the timestamped `gam_` chunks, and asserts: the main track carries no chime,
-`gam_` exists even with an unknown tree probe, each slice holds only its own wave's chime, the game
-is suppressed, and the chime survives.
-The run takes ~25 s and plays whisper-level tones; `--keep` retains the chunk directory (failures
-keep it automatically) so `ChimeCancelProbe` can map lag over time on the same data.
-This probe is what surfaced the recorder pump's 1-2 ms alignment tears (correlated with a render
-stream starting — i.e. the chime itself) that motivated multi-window global calibration and
-failed-block fallback in `PcmAudio.CancelCorrelated`. The production path never changes lag inside
-the slice.
+cadence (~7.5 s apart with the default 6 s toast), each at a distinct frequency (440 / 587 Hz) so a
+chime leaking into a slice is directly measurable. The game tone rides on band-limited noise, so a
+chime bin's leakage is measured against the OTHER wave's chime bin in the same window, whose own
+chime is 7.5 s away and which is therefore pure noise there. Same window and a neighbouring
+frequency, so neither a slice that is quieter overall nor the noise floor's slope can read as a
+chime. Referencing the same bin in a later window, or a control bin in a different window,
+differences two independent single-bin noise estimates and adds their scatter: measured 2026-09-06,
+that left under 1 dB of margin and produced a false failure, while the same-window form spans -22
+to +6 dB against a 12 dB limit, with a real leak reading 15 dB or more.
+Per mode and per wave it reads the toast-plus-tail slice of the clip track (`aud_`) and, in Game
+Only, of the exclude-host fallback track (`alt_`), and asserts that each carries the game marker tone
+and shows no rise at the chime frequency while the live chime plays. It also checks the recorders'
+own account of what they captured (`ClipTrack`, `HasFallbackTrack`, `ExcludedSoundHostProcessId`)
+and runs the production `ChimeCompositeDecision` (compiled in from source) to confirm both modes
+receive the composited chime.
+When exactly one controller endpoint is connected, the game child also renders a 180 Hz actuator
+tone for the whole run. The probe then runs a plain stereo process capture of the game tree beside
+the recorders: that capture folds the actuator channels into L/R, the way every recorder capture did
+before the 8-channel format. How far the actuator bin rises above that capture's own noise floor
+(a 250 Hz control bin, clear of every tone and of 180 Hz's harmonics) is the contamination
+reference, and every clip track must rise at least 20 dB less than it. Both terms come from the same
+signal, so the figure does not move with the game marker, which an earlier marker-normalised form
+did: the marker swung 11 dB between slices and manufactured a haptic failure on a cold start whose
+actuator bin was sitting at the noise floor. Measured 2026-09-06 with a DualSense connected, a
+stereo capture rises 39.6 to 41.2 dB and every clip track -1.9 to +3.3 dB. `--no-haptics` skips that layer for an A/B; `--cold` skips the
+sound host's warm-up so its first render stream starts cold.
+The run takes ~35 s and plays whisper-level tones; `--keep` retains the chunk directories (failures
+keep them automatically).
 
-## The haptic capture and cancellation probe
+## The channel-map probe
+
+```powershell
+tools\capture-harness\bin\ChannelMapProbe.exe [--endpoint <index>] [--channels 4|6|8] [--tone-channel 2] [--hz 180]
+```
+
+Answers one question: does process loopback keep channel identity when the capture asks for a
+multichannel format? A child renders a tone on one channel of a 4-channel stream to the chosen
+endpoint (the controller when one is connected, else the default output); the parent captures
+include-tree on the child both stereo (the recorder's format today) and at the requested channel
+count, and reports the tone's power per capture channel. A DualSense on USB exposes a 4-channel
+endpoint whose channels 2/3 carry the haptics, so a preserved channel means an exclude-host capture
+at 4 channels can drop the actuators by channel and the haptics never need cancelling. Measured
+2026-09-05: against a stereo default endpoint the engine accepts 4, 6 and 8-channel process-loopback
+formats but the tone lands in the front channels, because the stereo endpoint downmixed the stream
+before the tap. Against a 7.1 endpoint a tone rendered on back-left arrived on capture channel 2 of
+a 4-channel capture (and channel 4 of an 8-channel one) with channels 0/1 at -140 dB: the engine
+keeps each channel at its speaker position when the capture has room for it. The same endpoint
+also showed why the capture must be as wide as the widest endpoint: the tap converts every stream
+to its endpoint's mix format and then averages it down to a narrower capture, so a 4-channel capture
+read 6.7 dB low and a stereo one 13.5 dB low while an 8-channel capture was at true level, whatever
+the source stream's own width (`--source-channels`). A running game can be measured against all
+three at once with `--pid`. That is what the recorder now relies on (8 channels, folded to stereo by
+`SurroundDownmix`); the controller endpoint itself still wants one run with a pad connected.
+
+## The haptic endpoint-isolation probe
 
 ```powershell
 tools\capture-harness\bin\HapticProbe.exe
-tools\capture-harness\bin\HapticProbe.exe --check <endpoint-index>
-tools\capture-harness\bin\HapticProbe.exe --stamps <endpoint-index>
+tools\capture-harness\bin\HapticProbe.exe --auto
 tools\capture-harness\bin\HapticProbe.exe --measure <endpoint-index>
 ```
 
-With no arguments, inventories active render endpoints, shows which ones production classifies as
-controller-haptic references, reports the safe microphone selection (controller inputs are omitted),
-and checks that the first selected endpoint can be activated. `--stamps` renders a quiet signal and
-verifies that every endpoint packet has a stable QPC timestamp.
+With no arguments, the tool inventories active render endpoints and reports the safe microphone
+selection. `--auto` requires exactly one detected controller output and drives native actuator
+channels 2 and 3 separately while a normal game tone plays to the default output.
 
-`--measure` is the destructive-quality test: select a non-default idle output, because it renders a
-quiet game tone to the default device and a synthetic haptic pattern to the selected endpoint for
-eight seconds. The haptic signal is deliberately a series of 60 ms bursts, not the old continuous
-tone that made every half-second fit artificially easy. It runs the exact production haptic policy
-(250 ms global range, 50 ms blocks, low-gain removal, and restoration of any block that cannot be
-verified). A weak whole-clip result may retain only blocks that independently prove at least 10 dB
-of removal; blocks that fail that proof remain byte-for-byte recorded audio. The probe requires 10 dB
-haptic suppression while the game tone stays within 3 dB.
-The complete report is also saved as `HapticProbe-report.txt` beside the executable.
+For each actuator it compares the endpoint audio production records with endpoint-agnostic process
+loopback. The endpoint track must reject the controller tone by at least 30 dB while retaining the
+game tone within 3 dB. This tests the actual invariant used by both recording settings: a separate
+controller endpoint never enters the main WAV. If the controller is itself the default output, the
+probe follows production by keeping native front L/R and discarding actuator channels 2/3.
+`--measure` runs the same two-actuator proof on a listed controller. The complete report is saved as
+`HapticProbe-report.txt` beside the executable.
 
-Sparse references use a haptic-only global entry floor of 0.15. That correlation is used once to
-calibrate the stamped slice's fixed endpoint latency; it is not a per-block permission gate.
-Production then straight-subtracts every reference-active 50 ms block at that lag, fitting only its
-scale because sparse activity makes one whole-slice level inaccurate.
-Each block still needs 10 dB measured removal or its exact recorded samples are restored. Haptics
-also continue into calibration when the
-generic chime policy would call a sub-0.20 correlation/sub-0.10 gain slice globally clean: the latest
-field hap1 measured 0.18 correlation at 0.05-0.08 gain, which can still be audible against a loud pad.
-
-For a field report, the decisive production log lines are `Render endpoints`, `Controller endpoint
-disappeared/appeared`, each `Haptic cancellation (hapN)` result, and the final per-endpoint `Haptic
-reference` packet/peak/stamp summary. A reference with zero peak means the game rendered no waveform
-to that endpoint; an absent `hapN` window means capture coverage failed before cancellation ran.
-
-Production always fails back to the recorded audio. An incomplete endpoint scan, default-output
-controller, late/disconnected/dead endpoint capture, missing packet stamp, unreadable covered
-reference, or a pass that cannot be verified leaves that reference's buzz in the clip. Independently
-verified passes from other controller endpoints are still kept. A residual above 0.35 rejects only
-that pass, and a cleaned-track mux failure retries with the original recorded WAV chunks.
+Game Only subsequently removes a timestamped non-game sidecar with one full-clip stereo subtraction.
+That separation is best effort; failure keeps the audible endpoint mix. It cannot reintroduce controller
+audio or turn a clip into video-only. Full System uses the endpoint mix directly.
 
 ## Limits
 

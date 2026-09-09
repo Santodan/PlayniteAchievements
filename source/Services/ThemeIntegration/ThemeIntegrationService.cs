@@ -634,7 +634,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             RequestFriendStateRefresh();
         }
 
-        public void NotifyCustomDataChanged(Guid? gameId)
+        /// <param name="refreshLibraryState">
+        /// False when the change cannot move anything the library-wide lists read. The selected-game
+        /// surface still rebuilds, so a per-game edit (a category move, a goal reorder) is visible
+        /// where the user made it without paying for a whole-library theme rebuild per edit.
+        /// </param>
+        public void NotifyCustomDataChanged(Guid? gameId, bool refreshLibraryState = true)
         {
             try
             {
@@ -659,6 +664,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Failed to refresh selected-game theme state after custom-data change.");
+            }
+
+            if (!refreshLibraryState)
+            {
+                return;
             }
 
             try
@@ -1797,6 +1807,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.XeniaGames = ProjectGameSummaries(library.XeniaGames);
             _settings.ModernTheme.ShadPS4Games = ProjectGameSummaries(library.ShadPS4Games);
             _settings.ModernTheme.GameJoltGames = ProjectGameSummaries(library.GameJoltGames);
+            _settings.ModernTheme.RiotGames = ProjectGameSummaries(library.RiotGames);
             _settings.ModernTheme.FFXIVGames = ProjectGameSummaries(library.FFXIVGames);
             _settings.ModernTheme.ManualGames = ProjectGameSummaries(library.ManualGames);
             _settings.ModernTheme.MostRecentUnlocksTop3 = library.MostRecentUnlocksTop3;
@@ -3528,7 +3539,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.DynamicAchievementsCategoryLabelFilterLabel =
                 string.Equals(categoryKey, DynamicThemeViewKeys.All, StringComparison.OrdinalIgnoreCase)
                     ? DynamicThemeLabels.GetLabel(DynamicThemeViewKeys.All, DynamicThemeViewKeys.All)
-                    : AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(categoryKey);
+                    // Leaf, matching the options list this label summarizes.
+                    : AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(categoryKey);
             _settings.ModernTheme.DynamicAchievementCategoryLabelFilterOptions =
                 DynamicThemeOptionFactory.CreateCategoryLabelOptions(
                     state?.AllAchievements,

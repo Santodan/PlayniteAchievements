@@ -2030,6 +2030,13 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> RiotGames
+        {
+            get => ModernTheme.RiotGames;
+            set => ModernTheme.RiotGames = value;
+        }
+
+        [DontSerialize]
         public ObservableCollection<GameAchievementSummary> FFXIVGames
         {
             get => ModernTheme.FFXIVGames;

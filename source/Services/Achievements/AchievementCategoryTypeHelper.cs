@@ -162,6 +162,48 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// The group-based type signature shared by a set of category type values, picking the most
+        /// common signature so a coherent single group wins over a mixture (never Base+DLC). Values
+        /// carrying no group-based type form their own signature and are counted, so a category that
+        /// is mostly untagged resolves to no group. Empty when the input is empty.
+        /// </summary>
+        public static IReadOnlyList<string> ResolveDominantGroupType(IEnumerable<string> categoryTypeValues)
+        {
+            if (categoryTypeValues == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+            var bySignature = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+
+            foreach (var value in categoryTypeValues)
+            {
+                var group = GetGroupTypeComponents(value);
+                var signature = string.Join("|", group);
+                counts.TryGetValue(signature, out var count);
+                counts[signature] = count + 1;
+                if (!bySignature.ContainsKey(signature))
+                {
+                    bySignature[signature] = group;
+                }
+            }
+
+            if (counts.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var bestSignature = counts
+                .OrderByDescending(pair => pair.Value)
+                .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+                .First()
+                .Key;
+
+            return bySignature[bestSignature];
+        }
+
+        /// <summary>
         /// The non-group components of a category type value (everything except Base/DLC/Update/
         /// Subset), in canonical order. These are preserved when an achievement is merged into
         /// another category.
@@ -287,25 +329,69 @@ namespace PlayniteAchievements.Services.Achievements
             return L($"LOCPlayAch_ManageAchievements_Category_Type_{canonical}", canonical);
         }
 
+        /// <summary>
+        /// A nested label renders with its separator spelled out: "DLC::Season Pass" reads as
+        /// "DLC &gt; Season Pass". A flat label is returned exactly as before.
+        /// </summary>
         public static string ToCategoryLabelDisplayText(string rawValue)
         {
-            var label = NormalizeCategoryOrDefault(rawValue);
+            var label = CategoryPathHelper.NormalizePath(rawValue);
             return string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
                 ? L("LOCPlayAch_Common_Default", DefaultCategoryLabel)
-                : label;
+                : CategoryPathHelper.ToDisplayPath(label);
+        }
+
+        /// <summary>
+        /// Leaf variant of <see cref="ToCategoryLabelDisplayText"/>, for surfaces that convey
+        /// ancestry structurally rather than in the text - a nested dropdown, an indented row.
+        /// "DLC::Season Pass" reads as "Season Pass".
+        /// </summary>
+        public static string ToCategoryLeafDisplayText(string rawValue)
+        {
+            var label = CategoryPathHelper.NormalizePath(rawValue);
+            return string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
+                ? L("LOCPlayAch_Common_Default", DefaultCategoryLabel)
+                : CategoryPathHelper.ToDisplayLeaf(label);
         }
 
         /// <summary>
         /// Grid-cell variant of <see cref="ToCategoryLabelDisplayText"/>: the Default bucket
         /// renders as an empty string instead of the localized "Default" placeholder. Category
         /// management rows, summaries, and theme options keep the named bucket.
+        ///
+        /// Shows the leaf only. A grid column has no room for a path, and a column of paths sharing
+        /// long prefixes is harder to scan than a column of names; the full path is the cell's
+        /// tooltip - see <see cref="ToCategoryLabelCellPathText"/>.
         /// </summary>
         public static string ToCategoryLabelCellText(string rawValue)
         {
-            var label = NormalizeCategory(rawValue);
-            return label == null || string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
+            if (NormalizeCategory(rawValue) == null)
+            {
+                return string.Empty;
+            }
+
+            var label = CategoryPathHelper.NormalizePath(rawValue);
+            return string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
                 ? string.Empty
-                : label;
+                : CategoryPathHelper.ToDisplayLeaf(label);
+        }
+
+        /// <summary>
+        /// Tooltip companion to <see cref="ToCategoryLabelCellText"/>: the full path, so hovering a
+        /// cell reveals where a nested category sits. For a flat label this is the label itself,
+        /// which also keeps the pre-existing reveal of a name the column had to ellipsize.
+        /// </summary>
+        public static string ToCategoryLabelCellPathText(string rawValue)
+        {
+            if (NormalizeCategory(rawValue) == null)
+            {
+                return string.Empty;
+            }
+
+            var label = CategoryPathHelper.NormalizePath(rawValue);
+            return string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
+                ? string.Empty
+                : CategoryPathHelper.ToDisplayPath(label);
         }
 
         private static string L(string key, string fallback)

@@ -253,7 +253,7 @@ namespace PlayniteAchievements.Services.Capture
             return Stopwatch.GetTimestamp() - started;
         }
 
-        private static string DescribeTransforms(SinkWriter writer, int streamIndex)
+        internal static string DescribeTransforms(SinkWriter writer, int streamIndex)
         {
             var descriptions = new List<string>();
             try

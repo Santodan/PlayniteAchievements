@@ -153,6 +153,15 @@ namespace PlayniteAchievements.Views.Helpers
                 _lastRenderingTime = renderingTime.Value;
             }
 
+            // Stand down for a notification slide's span: every invalidation here costs a burst
+            // re-render on the frame the slide needs. Skipping before the due-time math means the
+            // catch-up loop below treats the quiet span exactly like a stall and resumes on
+            // cadence; phase comes from GlowAnimationClock per tick, so no drift accumulates.
+            if (RenderQuietGate.IsEngaged)
+            {
+                return;
+            }
+
             var nowMs = GlowAnimationClock.ElapsedMilliseconds;
             if (nowMs < _nextDueMs - DueToleranceMs)
             {

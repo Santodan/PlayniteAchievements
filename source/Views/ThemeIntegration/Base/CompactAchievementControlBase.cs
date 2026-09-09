@@ -220,9 +220,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         {
             if (obscured)
             {
-                var defaultIcon = AchievementIconResolver.GetDefaultIcon();
-                image.Icon = defaultIcon;
-                image.IconCustom = defaultIcon;
+                var hiddenIcon = AchievementIconResolver.GetHiddenFallbackIcon();
+                image.Icon = hiddenIcon;
+                image.IconCustom = hiddenIcon;
                 image.ToolTip = ResourceProvider.GetString("LOCPlayAch_Achievements_HiddenTitle");
             }
             else

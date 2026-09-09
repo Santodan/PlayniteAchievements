@@ -272,6 +272,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 EnsureManualControl(forceRecreate: false);
                 if (_manualRefreshPending && !IsManualViewModelRefreshing() && _manualControl != null)
                 {
+                    // Icons only, not a reload: recreating this tab cancels an in-flight refresh
+                    // and throws away the wizard stage plus any unsaved unlock edits.
+                    _manualViewModel?.RefreshAchievementIcons();
                     _manualRefreshPending = false;
                 }
             }
@@ -897,6 +900,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _settings,
                 _logger);
             _categoryViewModel.CategoryMetadataPersisted += CategoryViewModel_CategoryMetadataPersisted;
+            _categoryViewModel.DeferredLibraryRefreshRequired += CategoryViewModel_DeferredLibraryRefreshRequired;
             _categoryControl = new ManageAchievementsCategoryTab(_categoryViewModel);
             CategoryHost.Content = _categoryControl;
         }
@@ -1169,7 +1173,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             if (_categoryViewModel != null)
             {
+                // Before unsubscribing: the tab's edits skipped the library-wide passes, and this
+                // is where they are paid for, once.
+                _categoryViewModel.FlushDeferredLibraryRefresh();
                 _categoryViewModel.CategoryMetadataPersisted -= CategoryViewModel_CategoryMetadataPersisted;
+                _categoryViewModel.DeferredLibraryRefreshRequired -= CategoryViewModel_DeferredLibraryRefreshRequired;
             }
 
             _categoryControl = null;
@@ -1184,6 +1192,30 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private void CategoryViewModel_CategoryMetadataPersisted(object sender, EventArgs e)
         {
             _viewModel?.RefreshGameImage();
+        }
+
+        private void CategoryViewModel_DeferredLibraryRefreshRequired(object sender, EventArgs e)
+        {
+            if (_viewModel == null)
+            {
+                return;
+            }
+
+            // Scoped to this game: the overview routes a named game through its per-game fragment
+            // path rather than a full rebuild, and the projection is dropped once.
+            _viewModel.NotifyCustomDataChanged(requiresRefresh: false);
+
+            // A cache invalidation alone does not rebuild the desktop theme's library-wide lists,
+            // and those carry every game's achievements with their category labels.
+            try
+            {
+                PlayniteAchievementsPlugin.Instance?.ThemeIntegrationService?
+                    .NotifyCustomDataChanged(_viewModel.GameId);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to refresh theme state after deferred category edits.");
+            }
         }
 
         private void CleanupFilters()

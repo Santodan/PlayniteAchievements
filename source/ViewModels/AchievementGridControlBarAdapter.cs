@@ -148,9 +148,16 @@ namespace PlayniteAchievements.ViewModels
                 .Where(item => item != null)
                 .ToList();
 
-            _searchIndex.Rebuild(items);
             IEnumerable<AchievementDisplayItem> filtered = items;
             var searchQuery = SearchQuery.From(SearchText);
+
+            // Only index while a search is active: SearchTextIndex.Matches lazily fills missing
+            // entries, and hosts that keep their own search pipeline (adapter SearchText empty)
+            // never pay for indexing the source rows.
+            if (searchQuery.HasValue)
+            {
+                _searchIndex.Rebuild(items);
+            }
 
             if (!ShowHidden)
             {
@@ -249,6 +256,17 @@ namespace PlayniteAchievements.ViewModels
         {
             _searchIndex.Clear();
             UpdateOptions(null);
+        }
+
+        // Replaces the unlock-state toggle availability computed by the last UpdateOptions call.
+        // Used when the options source is a fallback while the exact rows load on demand, so the
+        // toggles can reflect known summary counts instead of the fallback's unlocked-only rows.
+        public void OverrideUnlockStateAvailability(bool hasUnlocked, bool hasLocked, bool hasHiddenLocked)
+        {
+            _hasUnlocked = hasUnlocked;
+            _hasLocked = hasLocked;
+            _hasHiddenLocked = hasHiddenLocked;
+            ControlBar.Refresh();
         }
 
         // True when any filter deviates from "show everything" (used for header/count logic).
@@ -403,6 +421,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 Width = 140,
                 IsCategoryFilter = true,
+                RendersCategoryTree = true,
                 ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Label")
             });
             _friendCompareFilter = new GridMultiSelectFilter(

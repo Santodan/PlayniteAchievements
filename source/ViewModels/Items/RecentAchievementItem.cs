@@ -244,6 +244,9 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public string CategoryLabelDisplay => AchievementCategoryTypeHelper.ToCategoryLabelCellText(CategoryLabel);
 
+        /// <summary>Full path for the category cell's tooltip; the cell itself shows the leaf.</summary>
+        public string CategoryLabelPathDisplay => AchievementCategoryTypeHelper.ToCategoryLabelCellPathText(CategoryLabel);
+
         private string _achievementNote;
         public string AchievementNote
         {

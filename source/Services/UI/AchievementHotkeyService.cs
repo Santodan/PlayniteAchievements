@@ -371,7 +371,21 @@ namespace PlayniteAchievements.Services.UI
                 // pass Guid.Empty so the monitor uses the library-wide most recent unlock (not the
                 // merely-selected game). No "no target" prompt: the library-wide path resolves it.
                 var running = _targetResolver.ResolveRunningGame();
-                _fireTestUnlock?.Invoke(running?.HasTarget == true ? running.GameId : Guid.Empty);
+                var hasRunningGame = running?.HasTarget == true;
+
+                // Out of a game a retrigger has nowhere sensible to go: there is no gameplay to
+                // capture, and its full-monitor screenshot would enter a game's collection as if it
+                // were a real unlock. The test folder is the case where that is wanted, so it is
+                // also what enables the shortcut here. Silent by design — the shortcut is global,
+                // so a stray press outside a game should cost nothing.
+                if (!hasRunningGame && !(_settings?.Persisted?.EnableCaptureTestFolder ?? false))
+                {
+                    _logger?.Debug(
+                        "[Hotkey] Retrigger ignored: no game is running and the capture test folder is disabled.");
+                    return;
+                }
+
+                _fireTestUnlock?.Invoke(hasRunningGame ? running.GameId : Guid.Empty);
                 return;
             }
 

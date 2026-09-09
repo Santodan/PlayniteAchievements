@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using NAudio.CoreAudioApi;
 using Playnite.SDK;
 
 namespace PlayniteAchievements.Services.Recording
@@ -22,42 +21,42 @@ namespace PlayniteAchievements.Services.Recording
         private static string _lastInventory;
 
         /// <summary>
-        /// The safe device to record from, or null to omit microphone capture. The caller owns the
-        /// returned device for the life of the capture.
+        /// The safe device to record from, or null to omit microphone capture.
         /// </summary>
-        public static MMDevice TryChoose(ILogger logger)
+        public static EndpointIdentity TryChoose(ILogger logger)
         {
             try
             {
-                var enumerator = new MMDeviceEnumerator();
-                var candidates = new List<MMDevice>();
+                var candidates = AudioEndpointEnumerator.EnumerateActive(AudioDataFlow.Capture);
                 var inventory = new List<string>();
-                foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
-                {
-                    candidates.Add(device);
-                }
 
-                var console = TryGetDefault(enumerator, Role.Console);
-                var communications = TryGetDefault(enumerator, Role.Communications);
+                var console = Match(
+                    AudioEndpointEnumerator.TryGetDefaultEndpointId(
+                        AudioDataFlow.Capture, AudioEndpointRole.Console),
+                    candidates);
+                var communications = Match(
+                    AudioEndpointEnumerator.TryGetDefaultEndpointId(
+                        AudioDataFlow.Capture, AudioEndpointRole.Communications),
+                    candidates);
 
                 foreach (var device in candidates)
                 {
                     inventory.Add(
-                        $"'{Describe(device)}'{(IsSame(device, console) ? " default" : string.Empty)}" +
-                        $"{(IsSame(device, communications) ? " comms" : string.Empty)}" +
+                        $"'{Describe(device)}'{(device.IsSame(console) ? " default" : string.Empty)}" +
+                        $"{(device.IsSame(communications) ? " comms" : string.Empty)}" +
                         $"{(IsControllerMicrophone(device) ? " CONTROLLER" : string.Empty)}");
                 }
 
                 // In preference order: the default, the communications default, then anything else
                 // present — each only if it is not a controller's own microphone.
-                var chosen = FirstUsable(new[] { console, communications }, candidates) ?? FirstUsable(candidates);
+                var chosen = FirstUsable(new[] { console, communications }) ?? FirstUsable(candidates);
                 if (chosen == null && candidates.Count > 0)
                 {
                     logger?.Warn(
                         "[Recording] No non-controller microphone is available; microphone capture " +
                         "is omitted so controller haptics cannot enter the clip acoustically.");
                 }
-                else if (chosen != null && !IsSame(chosen, console))
+                else if (chosen != null && !chosen.IsSame(console))
                 {
                     logger?.Info(
                         $"[Recording] Recording from '{Describe(chosen)}' rather than the default input " +
@@ -78,25 +77,11 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>The first of <paramref name="preferred"/> that is present and not a controller.</summary>
-        private static MMDevice FirstUsable(IEnumerable<MMDevice> preferred, List<MMDevice> present)
+        private static EndpointIdentity FirstUsable(IEnumerable<EndpointIdentity> preferred)
         {
             foreach (var device in preferred)
             {
-                var match = Match(device, present);
-                if (match != null && !IsControllerMicrophone(match))
-                {
-                    return match;
-                }
-            }
-
-            return null;
-        }
-
-        private static MMDevice FirstUsable(List<MMDevice> present)
-        {
-            foreach (var device in present)
-            {
-                if (!IsControllerMicrophone(device))
+                if (device != null && !IsControllerMicrophone(device))
                 {
                     return device;
                 }
@@ -106,20 +91,19 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// The enumerated device with this id. The default-endpoint call returns its own object, and
-        /// using it while the enumerated one is also alive would leave two references to the same
-        /// endpoint with separate lifetimes.
+        /// The enumerated device with this id. The default-endpoint call reports an id rather than
+        /// an entry of the inventory, so it is resolved back into one and the two never diverge.
         /// </summary>
-        private static MMDevice Match(MMDevice device, List<MMDevice> present)
+        private static EndpointIdentity Match(string id, List<EndpointIdentity> present)
         {
-            if (device == null)
+            if (string.IsNullOrEmpty(id))
             {
                 return null;
             }
 
             foreach (var candidate in present)
             {
-                if (IsSame(candidate, device))
+                if (string.Equals(candidate.Id, id, StringComparison.OrdinalIgnoreCase))
                 {
                     return candidate;
                 }
@@ -128,54 +112,12 @@ namespace PlayniteAchievements.Services.Recording
             return null;
         }
 
-        private static bool IsControllerMicrophone(MMDevice device)
+        private static bool IsControllerMicrophone(EndpointIdentity device)
         {
-            var identities = new List<string>();
-            try
-            {
-                var properties = device.Properties;
-                for (var i = 0; i < properties.Count; i++)
-                {
-                    try
-                    {
-                        if (properties.GetValue(i).Value is string text &&
-                            (text.IndexOf("VID_", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                             text.IndexOf("VID&", StringComparison.OrdinalIgnoreCase) >= 0))
-                        {
-                            identities.Add(text);
-                        }
-                    }
-                    catch
-                    {
-                    }
-                }
-            }
-            catch
-            {
-            }
-
             return HapticEndpointClassifier.IsHapticEndpoint(
-                identities, TryRead(() => device.FriendlyName), TryRead(() => device.DeviceFriendlyName));
-        }
-
-        private static bool IsSame(MMDevice left, MMDevice right)
-        {
-            return left != null && right != null &&
-                   string.Equals(TryRead(() => left.ID), TryRead(() => right.ID), StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static MMDevice TryGetDefault(MMDeviceEnumerator enumerator, Role role)
-        {
-            try
-            {
-                return enumerator.HasDefaultAudioEndpoint(DataFlow.Capture, role)
-                    ? enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, role)
-                    : null;
-            }
-            catch
-            {
-                return null;
-            }
+                RenderEndpointScan.IdentityCandidates(device),
+                device.FriendlyName,
+                device.DeviceFriendlyName);
         }
 
         private static void LogInventory(ILogger logger, List<string> inventory)
@@ -194,26 +136,9 @@ namespace PlayniteAchievements.Services.Recording
             logger?.Info("[Recording] Input devices: " + line);
         }
 
-        private static string Describe(MMDevice device)
+        private static string Describe(EndpointIdentity device)
         {
-            if (device == null)
-            {
-                return "none";
-            }
-
-            return TryRead(() => device.FriendlyName) ?? TryRead(() => device.DeviceFriendlyName) ?? "unnamed";
-        }
-
-        private static string TryRead(Func<string> read)
-        {
-            try
-            {
-                return read();
-            }
-            catch
-            {
-                return null;
-            }
+            return device == null ? "none" : device.Describe();
         }
     }
 }

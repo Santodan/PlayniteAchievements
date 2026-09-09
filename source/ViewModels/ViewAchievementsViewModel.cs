@@ -841,7 +841,8 @@ namespace PlayniteAchievements.ViewModels
         {
             if (AchievementDisplayItem.IsAppearanceSettingPropertyName(e?.PropertyName))
             {
-                ApplyAppearanceSettingsToAchievements();
+                ApplyAppearanceSettingsToAchievements(
+                    AchievementDisplayItem.IsIconCoverPropertyName(e?.PropertyName));
                 return;
             }
 
@@ -945,7 +946,12 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void ApplyAppearanceSettingsToAchievements()
+        /// <summary>
+        /// Pushes the current appearance settings onto every live row. A cover-image change stores
+        /// nothing on the item, so applying the snapshot short-circuits in each setter and the rows
+        /// keep their old icons; <paramref name="refreshIconsOnly"/> re-raises them instead.
+        /// </summary>
+        private void ApplyAppearanceSettingsToAchievements(bool refreshIconsOnly = false)
         {
             if (_settings?.Persisted == null)
             {
@@ -973,7 +979,14 @@ namespace PlayniteAchievements.ViewModels
 
                 foreach (var item in items)
                 {
-                    item.ApplyAppearanceSettings(_settings);
+                    if (refreshIconsOnly)
+                    {
+                        item.RefreshIconDisplay();
+                    }
+                    else
+                    {
+                        item.ApplyAppearanceSettings(_settings);
+                    }
                 }
             });
         }

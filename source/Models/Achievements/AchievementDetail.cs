@@ -126,6 +126,15 @@ namespace PlayniteAchievements.Models.Achievements
         public int CategoryOrderIndex { get; set; } = int.MaxValue;
 
         /// <summary>
+        /// Runtime-only index of this achievement in the game's default order: the user's custom
+        /// achievement order when one exists, otherwise provider/source order. Stamped by the
+        /// hydrator; <see cref="int.MaxValue"/> when never hydrated (friend rows, recent-unlock
+        /// projections, mock data), in which case unlock-time sorts fall back to rarity.
+        /// </summary>
+        [IgnoreDataMember]
+        public int DefaultOrderIndex { get; set; } = int.MaxValue;
+
+        /// <summary>
         /// Runtime-only full path to this achievement's saved clean unlock screenshot (no toast,
         /// no frame). Null when none exists on disk; when re-fires produced duplicates the
         /// original file wins. Resolved from the capture library, never persisted.

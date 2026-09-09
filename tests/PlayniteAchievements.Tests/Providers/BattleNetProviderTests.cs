@@ -16,6 +16,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.BattleNet;
 using PlayniteAchievements.Providers.BattleNet.Models;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Tests.Providers
 {
@@ -94,13 +95,53 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.AreEqual("Equip an epic item.", unlocked.Description);
             Assert.AreEqual("https://example.test/icon.jpg", unlocked.UnlockedIconPath);
             Assert.AreEqual(10, unlocked.Points);
-            Assert.AreEqual("Characters", unlocked.Category);
+            Assert.AreEqual("Characters::Global", unlocked.Category);
             Assert.IsTrue(unlocked.Unlocked);
             Assert.AreEqual(DateTimeKind.Utc, unlocked.UnlockTimeUtc.Value.Kind);
 
             var locked = achievements.Single(item => item.ApiName == "2");
             Assert.IsFalse(locked.Unlocked);
             Assert.IsFalse(locked.UnlockTimeUtc.HasValue);
+        }
+
+        [TestMethod]
+        public void WowParser_FallsBackToTheCategoryWhenASubcategoryIsUnnamed()
+        {
+            var payload = JsonConvert.DeserializeObject<WowAchievementsData>(@"
+{
+  ""name"": ""Exploration"",
+  ""subcategories"": {
+    ""blank"": {
+      ""id"": ""blank"",
+      ""achievements"": [ { ""id"": 40, ""name"": ""Wanderer"" } ]
+    }
+  }
+}");
+
+            var achievements = WowGameStrategy.ParseAchievements(new[] { payload });
+
+            Assert.AreEqual("Exploration", achievements.Single().Category);
+        }
+
+        [TestMethod]
+        public void WowParser_KeepsASubcategoryNameContainingTheSeparatorInOneSegment()
+        {
+            var payload = JsonConvert.DeserializeObject<WowAchievementsData>(@"
+{
+  ""name"": ""Dungeons"",
+  ""subcategories"": {
+    ""odd"": {
+      ""id"": ""odd"",
+      ""name"": ""Wing A::Wing B"",
+      ""achievements"": [ { ""id"": 41, ""name"": ""Clear It"" } ]
+    }
+  }
+}");
+
+            var category = WowGameStrategy.ParseAchievements(new[] { payload }).Single().Category;
+
+            Assert.AreEqual("Dungeons::Wing A:Wing B", category);
+            Assert.AreEqual(2, CategoryPathHelper.Split(category).Count);
         }
 
         [TestMethod]

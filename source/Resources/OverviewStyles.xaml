@@ -74,9 +74,20 @@
                 <ControlTemplate TargetType="{x:Type DataGridRow}">
                     <Border x:Name="DGR_Border"
                             Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
                             SnapsToDevicePixels="True">
+                      <Grid>
+                        <!-- The separator is drawn behind the cells rather than as the border of
+                             this Border. As a border it would inset the content by its own
+                             thickness, which leaves a one-pixel break in anything a cell draws to
+                             the row edge - the category tree connectors run the full height of
+                             every row and have to cross it unbroken. Behind the cells it still
+                             reads as a separator everywhere else, since nothing else paints over
+                             it. BorderThickness is left unbound for the same reason. -->
+                        <Rectangle x:Name="DGR_Separator"
+                                   Height="1"
+                                   VerticalAlignment="Bottom"
+                                   Fill="{TemplateBinding BorderBrush}"
+                                   SnapsToDevicePixels="True"/>
                         <SelectiveScrollingGrid>
                             <SelectiveScrollingGrid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -101,14 +112,24 @@
                                                Visibility="{Binding HeadersVisibility, ConverterParameter={x:Static DataGridHeadersVisibility.Row}, Converter={x:Static DataGrid.HeadersVisibilityConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"/>
 
                         </SelectiveScrollingGrid>
+                      </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
                             <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                         </DataTrigger>
-                        <Trigger Property="IsMouseOver" Value="True">
+                        <!-- Hover highlight holds off while the mouse sits on a collapse toggle:
+                             the glyph's own hover fill is the feedback there, and lighting the
+                             whole row would suggest the click selects and drills it. Property
+                             conditions rather than bindings - an attached-property binding path
+                             here fails to resolve and silently kills the whole trigger. -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                                <Condition Property="controls:CategoryTreeGuide.IsToggleHovered" Value="False"/>
+                            </MultiTrigger.Conditions>
                             <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
-                        </Trigger>
+                        </MultiTrigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                         </Trigger>
@@ -183,29 +204,12 @@
                 Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"/>
     </Style>
 
+    <!-- Bar centering under asymmetric name/footer rows is handled by a measured
+         TranslateTransform on the stack in GameSummariesGridControl.xaml
+         (ProgressStackCenteringOffsetConverter), not by triggers here. -->
     <Style x:Key="OverviewProgressStackStyle" TargetType="StackPanel">
         <Setter Property="VerticalAlignment"
                 Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"/>
-        <Setter Property="RenderTransform">
-            <Setter.Value>
-                <TranslateTransform Y="0"/>
-            </Setter.Value>
-        </Setter>
-        <Style.Triggers>
-            <!-- Bar-centering nudge for the bar+badges layout; with the name row shown the
-                 stack is symmetric around the bar, so plain centering is already correct. -->
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding VerticalAlignment, RelativeSource={RelativeSource Self}}" Value="Center"/>
-                    <Condition Binding="{Binding ShowNameAboveProgress, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="False"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="RenderTransform">
-                    <Setter.Value>
-                        <TranslateTransform Y="11"/>
-                    </Setter.Value>
-                </Setter>
-            </MultiDataTrigger>
-        </Style.Triggers>
     </Style>
 
     <Style x:Key="OverviewProgressBarStyle" TargetType="ProgressBar" BasedOn="{StaticResource GameProgressBar}">
@@ -214,6 +218,10 @@
             <DataTrigger Binding="{Binding IsCompleted}" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Progress.CompletedFill}"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Progress.CompletedFill}"/>
+            </DataTrigger>
+            <!-- Rows with no achievements (e.g. empty categories) show no bar at all. -->
+            <DataTrigger Binding="{Binding TotalAchievements}" Value="0">
+                <Setter Property="Visibility" Value="Collapsed"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>
@@ -234,6 +242,12 @@
                                   Opacity="0.55"/>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <!-- Follows the bar: no achievements, no percent overlay. -->
+            <DataTrigger Binding="{Binding TotalAchievements}" Value="0">
+                <Setter Property="Visibility" Value="Collapsed"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="OverviewProgressMetaRowStyle" TargetType="StackPanel">
@@ -245,6 +259,11 @@
         <Setter Property="HorizontalAlignment" Value="Stretch"/>
         <Setter Property="Margin" Value="0,7,0,0"/>
         <Setter Property="MinHeight" Value="{StaticResource PlayAch.Size.Icon.Tiny}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding ShowRarityBadgesBelowProgress, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="False">
+                <Setter Property="Visibility" Value="Collapsed"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="OverviewMiniBadgeItemStyle" TargetType="StackPanel">

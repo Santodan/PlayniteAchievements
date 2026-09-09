@@ -110,6 +110,12 @@ namespace PlayniteAchievements.Providers.Steam.Models
         public string Detail { get; set; }
         public SteamScrapeDetail DetailCode { get; set; }
 
+        /// <summary>
+        /// Count parsed from the "N hidden achievements remaining" box when DetailCode is AllHidden.
+        /// Null when the box is missing or its digits could not be read.
+        /// </summary>
+        public int? HiddenRemainingCount { get; set; }
+
         public string RequestedUrl { get; set; }
         public string FinalUrl { get; set; }
         public int StatusCode { get; set; }

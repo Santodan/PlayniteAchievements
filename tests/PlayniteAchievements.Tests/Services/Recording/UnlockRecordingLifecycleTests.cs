@@ -58,51 +58,361 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void HapticRemoval_NeverDropsRecordedAudioOnUncertainty()
+        public void RecordingModes_ExcludeTheSoundHostAndSelectionFailsOpenToRecordedAudio()
         {
-            var source = File.ReadAllText(FindRepoFile(
-                "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            var start = source.IndexOf("private SegmentTimeline.ClipPlan TryRemoveHapticAudio", StringComparison.Ordinal);
-            var end = source.IndexOf("private void TryDeleteCleanedAudio", start, StringComparison.Ordinal);
+            var recorder = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
+            StringAssert.Contains(recorder, "_source == RecordingAudioSource.GameOnly");
+            StringAssert.Contains(recorder, "includeProcessTree: false, SurroundCaptureFormat");
+            StringAssert.Contains(recorder, "ProcessLoopbackCapture.ForEndpoint(speaker.Id)");
+            StringAssert.Contains(recorder, "return ProcessLoopbackCapture.ForEndpoint(fallbackId);");
+            StringAssert.Contains(recorder, "clips keep the live unlock sound");
 
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            var start = service.IndexOf(
+                "private (SegmentTimeline.ClipPlan Plan, string CleanedDirectory) SelectClipAudio(",
+                StringComparison.Ordinal);
+            var end = service.IndexOf(
+                "/// <summary>Removes the temporary cleaned-audio chunk", start, StringComparison.Ordinal);
             Assert.IsTrue(start >= 0 && end > start);
-            var removal = source.Substring(start, end - start);
-            StringAssert.Contains(removal, "HasHapticHole");
-            StringAssert.Contains(removal, "IsReferenceSafelyAbsentOrRemoved");
-            StringAssert.Contains(removal, "maximumResidualCorrelation");
-            StringAssert.Contains(removal, "commitVerifiedBlocksOnWeakPass: true");
-            StringAssert.Contains(removal, "minimumCorrelation: HapticCancellationMinimumCorrelation");
-            StringAssert.Contains(removal, "attemptVerifiedBlocksWhenGloballyClean: true");
-            StringAssert.Contains(removal, "independentChannelGains: true");
-            StringAssert.Contains(removal, "gainCrossfadeFrames: 0");
-            StringAssert.Contains(removal, "fractionalLagSteps: 32");
-            StringAssert.Contains(removal, "referenceCovered && reference == null");
-            StringAssert.Contains(removal, "keeping the recorded audio");
-            Assert.IsFalse(
-                removal.Contains("return null;"),
-                "A non-null recorded plan must never become the exporter's no-audio sentinel.");
-            Assert.IsFalse(
-                removal.Contains("without audio"),
-                "Haptic-removal uncertainty must retain the recorded audio, buzz included.");
+            var selection = service.Substring(start, end - start);
+            StringAssert.Contains(selection, "return (audioPlan, null);");
+            StringAssert.Contains(selection, "recorder.ClipTrackDeliveredAudio(startUtc, endUtc)");
+            StringAssert.Contains(selection, "RecordingPaths.FallbackChunkFilePrefix");
+            Assert.IsFalse(selection.Contains("Subtract"), "Selection picks a track; it never processes audio.");
         }
 
         [TestMethod]
-        public void ChimeAndHaptics_UseTheSameTimestampAlignedSubtractionPath()
+        public void BothModes_ExcludeTheSoundHostFromTheClipTrack()
+        {
+            // Full System records every process except the sound host's; Game Only records the
+            // game's tree, which the host is never inside. Either way the live unlock sound is
+            // structurally absent from the clip track, so nothing is subtracted at export. No
+            // host pid means the endpoint mix: the clip keeps the live sound and gets no copy.
+            var recorder = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
+            StringAssert.Contains(recorder, "ClipTrack = ClipTrackKind.ExcludeSoundHost;");
+            StringAssert.Contains(recorder, "ClipTrack = ClipTrackKind.IncludeGame;");
+            StringAssert.Contains(recorder, "_soundHostProcessId");
+            StringAssert.Contains(recorder, "new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, SurroundCaptureFormat)");
+            StringAssert.Contains(recorder, "new ProcessLoopbackCapture(gamePid.Value, includeProcessTree: true, SurroundCaptureFormat)");
+            StringAssert.Contains(recorder, "clips keep the live unlock sound");
+
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            StringAssert.Contains(service, "_getSoundHostProcessId");
+            StringAssert.Contains(service, "session.ClipTrack = recorder.ClipTrack;");
+            StringAssert.Contains(service, "session.ExcludedSoundHostProcessId = recorder.ExcludedSoundHostProcessId;");
+        }
+
+        [TestMethod]
+        public void NoChimeRemovalPathExists()
+        {
+            // The removal engine, its occurrence registry, the Playnite-tree sidecar and the
+            // composite authorization gates all went with UniPlaySong; nothing may grow them back.
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            foreach (var banned in new[]
+            {
+                "ChimeRemovalEngine", "_soundOccurrences", "ChimeCompositeAuthorized",
+                "ChimeCompositeClaimed", "ChimeRecorder", "ChimeCleanupTasks", "chm_", "UniPlaySong",
+                // The reference-subtraction path that briefly replaced the engine went the same way:
+                // the sound host is excluded from the capture, so there is nothing to cancel.
+                "SubtractReference", "TryReadReference", "CancelCorrelated", "ReferenceCancellationPolicy",
+                "LiveSoundRemoved", "ref_", "gam_",
+            })
+            {
+                Assert.IsFalse(service.Contains(banned), banned);
+            }
+
+            var recorder = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
+            foreach (var banned in new[]
+            {
+                "capturePlayniteChimes", "PlayniteChimeCaptureMode", "ChimeChunkFilePrefix",
+                "ReferenceTrackKind", "_stampedReferenceTrack", "GameReferenceChunkFilePrefix",
+            })
+            {
+                Assert.IsFalse(recorder.Contains(banned), banned);
+            }
+
+            var recordingDirectory = Path.GetDirectoryName(
+                FindRepoFile("source", "Services", "Recording", "UnlockRecordingService.cs"));
+            var captureDirectory = Path.Combine(Path.GetDirectoryName(recordingDirectory), "Capture");
+            Assert.IsFalse(File.Exists(Path.Combine(recordingDirectory, "WaveSoundOccurrence.cs")));
+            Assert.IsFalse(File.Exists(Path.Combine(captureDirectory, "ChimeRemovalEngine.cs")));
+            Assert.IsFalse(File.Exists(Path.Combine(captureDirectory, "ReferenceCancellationPolicy.cs")));
+        }
+
+        [TestMethod]
+        public void GameOnly_TreeThatDeliveredNoAudioFallsBackToTheExcludeHostTrack()
+        {
+            // A game tree that delivered no packets has no render stream: the game plays from a
+            // process outside it (a launcher or emulator child the tree does not reach). Only then
+            // is the clip exported from the exclude-host fallback track, written under the clip
+            // prefix so the exporter reads it as an ordinary chunk. The signal is the capture's own
+            // packet stamps, never a level test, so a quiet game stays a quiet clip.
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            Assert.IsFalse(service.Contains("IsSilent"), "level tests are not a structural signal");
+            var start = service.IndexOf("if (recorder.ClipTrackDeliveredAudio(startUtc, endUtc))", StringComparison.Ordinal);
+            var end = service.IndexOf("request.UsedFallbackTrack = true;", start, StringComparison.Ordinal);
+            Assert.IsTrue(start >= 0 && end > start);
+            var selection = service.Substring(start, end - start);
+
+            StringAssert.Contains(selection, "recorder.FallbackFailed");
+            StringAssert.Contains(selection, "RecordingPaths.FallbackChunkFilePrefix");
+            StringAssert.Contains(selection, "RecordingPaths.BuildAudioChunkFileName(");
+            StringAssert.Contains(selection, "RecordingPaths.AudioChunkFilePrefix,");
+            StringAssert.Contains(selection, "PcmAudio.WriteWav(");
+        }
+
+        [TestMethod]
+        public void ChimeComposite_IsAddedOnlyWhenTheClipTrackExcludedTheHost()
+        {
+            // One chime per clip, never zero and never two: the composite is mixed only when the
+            // clip track structurally excluded the sound host (or the session recorded no audio);
+            // otherwise the live sound stays in the clip and no copy is added. The decision reads
+            // the host pid again at export so a host restarted mid-session is caught.
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            StringAssert.Contains(service, "public bool UsedFallbackTrack;");
+            StringAssert.Contains(service, "the clip keeps the live unlock sound");
+
+            var decide = service.IndexOf("ChimeCompositeDecision.Decide(", StringComparison.Ordinal);
+            var pidRead = service.IndexOf("_getSoundHostProcessId?.Invoke(),", decide, StringComparison.Ordinal);
+            var allows = service.IndexOf(
+                "if (ChimeCompositeDecision.AllowsComposite(verdict))", decide, StringComparison.Ordinal);
+            var cleared = service.IndexOf("chimePcm = null;", allows, StringComparison.Ordinal);
+            Assert.IsTrue(decide >= 0 && pidRead > decide && allows > pidRead && cleared > allows);
+        }
+
+        [TestMethod]
+        public void SurroundCapture_KeepsActuatorChannelsOnTheBackPairSoTheyCanBeDropped()
+        {
+            // Process loopback keeps each source channel at its speaker position, so a controller's
+            // actuator channels arrive on the back pair and are dropped rather than folded into L/R
+            // the way a stereo capture folds them. The capture is 8 channels wide because the engine
+            // averages a stream down to any narrower capture format (a 4-channel capture on a 7.1
+            // endpoint reads 6.7 dB low), and 8 is lossless for every endpoint up to 7.1.
+            var recorder = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
+            StringAssert.Contains(recorder, "SurroundCaptureFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 8)");
+            StringAssert.Contains(recorder, "_dropActuatorChannels = AnyControllerEndpointActive();");
+            // A pad plugged in after the game started must still have its back pair dropped.
+            StringAssert.Contains(recorder, "RescanControllerIfDue();");
+            StringAssert.Contains(recorder, "private volatile bool _dropActuatorChannels;");
+            // Device changes arrive by notification, with the poll as the fallback; a restarted
+            // sound host re-binds the excluding capture and records the uncovered span.
+            StringAssert.Contains(recorder, "AudioEndpointEnumerator.WatchEndpoints(");
+            StringAssert.Contains(recorder, "RebindClipTrackIfHostChanged();");
+            StringAssert.Contains(recorder, "public bool HostExclusionCovered(DateTime startUtc, DateTime endUtc)");
+            // A pad the classifier has never heard of is caught by its 4-channel quad layout.
+            var scan = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "RenderEndpointScan.cs"));
+            StringAssert.Contains(scan, "|| HasControllerLayout(endpoint)");
+            StringAssert.Contains(scan, "private const uint ControllerLayoutMask = 0x33;");
+            StringAssert.Contains(recorder, "downmixer.ToStereoFloat(");
+            StringAssert.Contains(recorder, "downmixer.ToStereoPcm16(");
+            Assert.IsFalse(recorder.Contains("ReduceQuadToStereo"));
+            // Chunks are written as 16-bit PCM, folded from the float mix: half the disk writes.
+            StringAssert.Contains(recorder, "Pcm16StereoFormat = new WaveFormat(48000, 16, 2)");
+            StringAssert.Contains(recorder, "_writerFormat = new WaveFormat(_outputFormat.SampleRate, 16, _outputFormat.Channels);");
+            StringAssert.Contains(recorder, "new WaveFileWriter(Path.Combine(_bufferDirectory, name), _writerFormat)");
+
+            var downmix = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "SurroundDownmix.cs"));
+            StringAssert.Contains(downmix, "public static byte[] ToStereo(byte[] source, int bytes, int channels, bool dropBackChannels)");
+
+            var capture = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "ProcessLoopbackCapture.cs"));
+            StringAssert.Contains(capture, "dwChannelMask = SpeakerMaskFor(WaveFormat.Channels)");
+            // WAVEFORMATEX is 18 bytes with WORD alignment; default packing shifts the extensible
+            // fields and the activation fails with E_INVALIDARG.
+            StringAssert.Contains(capture, "[StructLayout(LayoutKind.Sequential, Pack = 2)]");
+        }
+
+        [TestMethod]
+        public void UnlockScreenshot_CurrentSegmentRetriesTheSameAnchorBeforeLiveFallback()
         {
             var source = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            var marker = "PcmAudio.CancelCorrelated(";
-            var first = source.IndexOf(marker, StringComparison.Ordinal);
-            var second = source.IndexOf(marker, first + marker.Length, StringComparison.Ordinal);
+            var start = source.IndexOf(
+                "internal System.Drawing.Bitmap TryCaptureAnchorFrame", StringComparison.Ordinal);
+            var end = source.IndexOf(
+                "private void OnAchievementUnlocked", start, StringComparison.Ordinal);
+            Assert.IsTrue(start >= 0 && end > start);
+            var capture = source.Substring(start, end - start);
 
-            Assert.IsTrue(first >= 0 && second > first,
-                "Both chime cleanup and haptic cleanup must use the shared subtraction path.");
+            StringAssert.Contains(capture, "var retryCeilingUtc");
+            StringAssert.Contains(capture, "var nominalCloseUtc");
+            StringAssert.Contains(capture, "Thread.Sleep(100)");
+            StringAssert.Contains(capture, "covering.Path");
+            StringAssert.Contains(capture, "offsetSeconds");
+            Assert.IsFalse(capture.Contains("ReferenceEquals(covering"),
+                "A pre-created next segment makes newest-file identity an invalid open-file test.");
+        }
 
+        [TestMethod]
+        public void PcmAudio_HasNoCancellationPrimitive()
+        {
+            // Clip audio is never processed against a reference: the unlock sound is kept out of
+            // the capture by process exclusion, and haptics by channel identity. PcmAudio is left
+            // with format constants, the WAV writer and the mix-in used by the composite.
             var pcm = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Capture", "PcmAudio.cs"));
-            StringAssert.Contains(pcm, "FitKnownBlock(");
-            Assert.IsFalse(pcm.Contains("private static BlockFit FitBlock("));
-            Assert.IsFalse(pcm.Contains("SearchLags("));
+            foreach (var banned in new[]
+            {
+                "CancelCorrelated", "RestoreBlock", "MuteBlock", "WeakestBlock", "Correlation",
+                "PcmCancellationOutcome", "lagFrames",
+            })
+            {
+                Assert.IsFalse(pcm.Contains(banned), banned);
+            }
+
+            StringAssert.Contains(pcm, "public static void MixInto(");
+            Assert.IsFalse(pcm.Contains("IsSilent"));
+        }
+
+        [TestMethod]
+        public void EpicInGameCapture_UsesTheLocalObservationClock()
+        {
+            var epic = File.ReadAllText(FindRepoFile(
+                "source", "Providers", "Epic", "EpicDataProvider.cs"));
+            StringAssert.Contains(
+                epic,
+                "UnlockAnchorPolicy = InGameUnlockAnchorPolicy.SourceObservation");
+        }
+
+        [TestMethod]
+        public void ControllerDefaultOutput_KeepsProgramChannelsAndDropsActuatorChannels()
+        {
+            var recorder = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
+            StringAssert.Contains(recorder, "RenderEndpointScan.IsHapticEndpoint(speaker)");
+            StringAssert.Contains(recorder, "ProcessLoopbackCapture.ForEndpointNative");
+            StringAssert.Contains(recorder, "ExtractDualSenseProgramAudio");
+            StringAssert.Contains(recorder, "native front L/R channels");
+
+            var capture = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "ProcessLoopbackCapture.cs"));
+            var start = capture.IndexOf("internal static byte[] ExtractDualSenseProgramAudio", StringComparison.Ordinal);
+            var end = capture.IndexOf("private IAudioClient ActivateProcessLoopbackClient", start, StringComparison.Ordinal);
+            Assert.IsTrue(start >= 0 && end > start);
+            var extraction = capture.Substring(start, end - start);
+            StringAssert.Contains(extraction, "Buffer.BlockCopy(source, sourceOffset, output");
+            Assert.IsFalse(extraction.Contains("sourceOffset + 2 * sizeof(float)"));
+        }
+
+        [TestMethod]
+        public void GameOnly_WritesTheExcludeHostFallbackBesideTheGameTree()
+        {
+            // Game Only's clip track is the game tree; the exclude-host track is written beside it
+            // only in that mode, so a game rendering outside its tree still yields a clip with
+            // sound. Full System's clip track is already the exclude-host capture and needs none.
+            var recorder = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
+            var gameOnly = recorder.IndexOf(
+                "_source == RecordingAudioSource.GameOnly && gamePid.HasValue", StringComparison.Ordinal);
+            var fallback = recorder.IndexOf(
+                "_fallbackCapture = new ProcessLoopbackCapture(hostPid.Value, includeProcessTree: false, SurroundCaptureFormat)",
+                gameOnly, StringComparison.Ordinal);
+            var fullSystem = recorder.IndexOf("ClipTrack = ClipTrackKind.ExcludeSoundHost;", fallback, StringComparison.Ordinal);
+            Assert.IsTrue(gameOnly >= 0 && fallback > gameOnly && fullSystem > fallback);
+            StringAssert.Contains(recorder, "RecordingPaths.FallbackChunkFilePrefix");
+
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            StringAssert.Contains(service, "session.AudioRecorder?.HasFallbackTrack == true");
+        }
+
+        [TestMethod]
+        public void ChimeComposite_MixesTheResolvedFileExactlyOnce()
+        {
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            var reencodeStart = service.IndexOf(
+                "private async Task<string> ReencodeWithTrackAsync", StringComparison.Ordinal);
+            var reencodeEnd = service.IndexOf(
+                "private static string SaveClipToUniquePath", reencodeStart, StringComparison.Ordinal);
+            Assert.IsTrue(reencodeStart >= 0 && reencodeEnd > reencodeStart);
+            var reencode = service.Substring(reencodeStart, reencodeEnd - reencodeStart);
+            Assert.AreEqual(1, reencode.Split(new[] { "TryReadChimePcm(" },
+                StringSplitOptions.None).Length - 1);
+            Assert.AreEqual(1, reencode.Split(new[] { "reencoder.Export(" },
+                StringSplitOptions.None).Length - 1);
+            StringAssert.Contains(reencode, "request.UsedFallbackTrack");
+            StringAssert.Contains(reencode, "chimePcm, chimeStartSeconds");
+            // Placement prefers the host's measured audible onset; only without one is the live
+            // alignment delay subtracted from the launch-to-card stamp gap.
+            StringAssert.Contains(reencode, "_getSoundAudibleOnsetUtc?.Invoke(playbackId.Value)");
+            StringAssert.Contains(reencode, "(track.StartUtc - measuredOnset.Value).TotalSeconds");
+            StringAssert.Contains(reencode, "(alignmentMs ?? ChimeAlignmentFallbackMs) / 1000.0");
+        }
+
+        [TestMethod]
+        public void ChimeComposite_MixesTheFileAndGainTheHostPlayed()
+        {
+            // The composited chime is the exact file the sound host played, at the gain it played
+            // it; the toast service asks the in-house host, never UniPlaySong.
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            StringAssert.Contains(service, "OwnSoundFilePath");
+            StringAssert.Contains(service, "ChimeSoundFile.TryReadPcm(soundFilePath, MaxChimePlaybackSeconds, soundFileGain, _logger)");
+            StringAssert.Contains(service, "soundMatch.OwnSoundFileGain = e.SoundFileGain ?? 1.0;");
+
+            var toastPath = FindRepoFile("source", "Services", "UI", "ToastNotificationService.cs");
+            var toast = File.ReadAllText(toastPath);
+            StringAssert.Contains(toast, "_unlockSounds.Play(");
+            StringAssert.Contains(toast, "SoundAlignmentDelayMs");
+            Assert.IsFalse(toast.IndexOf("uniplaysong", StringComparison.OrdinalIgnoreCase) >= 0,
+                "Unlock sounds are in-house; nothing may route through UniPlaySong.");
+            Assert.IsFalse(toast.Contains("TryTriggerExternalEvent"));
+            Assert.IsFalse(
+                File.Exists(Path.Combine(Path.GetDirectoryName(toastPath), "UniPlaySongBridge.cs")),
+                "The UniPlaySong bridge was removed with the in-house sound host.");
+        }
+
+        [TestMethod]
+        public void ChimeComposite_IsBoundedByFileDurationCappedAtMaxPlayback()
+        {
+            // TryReadPcm stops at end of file, so the composite is exactly the file up to the
+            // toast-slot cap; no occurrence registry bounds it any more, and only a capped file is
+            // faded.
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+            var start = service.IndexOf("private byte[] TryReadChimePcm(", StringComparison.Ordinal);
+            var end = service.IndexOf("private double ResolveChimeLeadSeconds", StringComparison.Ordinal);
+            Assert.IsTrue(start >= 0);
+            var body = end > start ? service.Substring(start, end - start) : service.Substring(start);
+            StringAssert.Contains(body, "soundFilePath, MaxChimePlaybackSeconds, soundFileGain, _logger");
+            StringAssert.Contains(body, "PcmAudio.FadeOutTail(pcm, ChimeFadeOutSeconds)");
+            Assert.IsFalse(service.Contains("TryGetDurationSeconds"));
+
+            var chimeFile = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "ChimeSoundFile.cs"));
+            Assert.IsFalse(chimeFile.Contains("TryGetDurationSeconds"));
+        }
+
+        /// <summary>
+        /// The composited card plays its own recorded animation from its first frame, so the chime
+        /// has to lead that frame by the gap the two had live. Modelling it from the sound-align
+        /// delay plus the slide duration measured to the SETTLED card instead, which placed every
+        /// chime a slide-length early — and twice that on the fast path, whose align delay differs.
+        /// </summary>
+        [TestMethod]
+        public void ChimeLead_IsMeasuredFromLiveStampsRatherThanModelled()
+        {
+            var service = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "UnlockRecordingService.cs"));
+
+            StringAssert.Contains(service, "ResolveChimeLeadSeconds");
+            StringAssert.Contains(service, "(track.StartUtc - ownSound.Value).TotalSeconds");
+            StringAssert.Contains(service, "toastStartSeconds - chimeLeadSeconds");
+            Assert.IsFalse(
+                service.Contains("ChimeLeadBeforeToastSeconds"),
+                "The fixed sound-to-settled-card lead double-counted the slide-in; measure instead.");
         }
 
         [TestMethod]
@@ -110,7 +420,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
         {
             var recorder = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
-            StringAssert.Contains(recorder, "AttachTimestampedCancellationTracks");
+            StringAssert.Contains(recorder, "AttachFallbackTrack");
             StringAssert.Contains(recorder, "WriteStampedAuxiliaryPacket");
             Assert.IsFalse(recorder.Contains("ReferenceTeeSampleProvider"));
             StringAssert.Contains(recorder, "RecordingPaths.AudioFrameAt(");
@@ -118,7 +428,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
             var firstUtc = recorder.IndexOf(utcMarker, StringComparison.Ordinal);
             var secondUtc = recorder.IndexOf(utcMarker, firstUtc + utcMarker.Length, StringComparison.Ordinal);
             Assert.IsTrue(firstUtc >= 0 && secondUtc > firstUtc,
-                "Both sparse haptic chunks and pump-paced chunks must use the shared frame grid.");
+                "Both sparse auxiliary chunks and pump-paced chunks must use the shared frame grid.");
             Assert.IsFalse(recorder.Contains("AddSeconds(startFrame /"));
             Assert.IsFalse(recorder.Contains("_chunkStartWallClockSamples / (double)"));
 
@@ -130,6 +440,13 @@ namespace PlayniteAchievements.Services.Tests.Recording
             Assert.IsTrue(firstQpc >= 0 && secondQpc > firstQpc,
                 "Initial anchors and packet placement must use the same one-sample QPC projection.");
             Assert.IsFalse(capture.Contains("CaptureTimelineClock.UtcNow.AddTicks(-"));
+            StringAssert.Contains(capture, "AudioTimelineAnchorConsensus");
+            StringAssert.Contains(capture, "_timelineFramesDelivered + gapFrames");
+            StringAssert.Contains(recorder, "TryGetTimelineOrigin(");
+            StringAssert.Contains(recorder, "allowPartial: timedOut");
+            Assert.IsFalse(
+                recorder.Contains("stamped?.FirstPacketCaptureUtc"),
+                "The pump must not anchor already-buffered audio to one later packet stamp.");
 
             var paths = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "RecordingPaths.cs"));
@@ -137,27 +454,18 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void HapticRemoval_KeepsVerifiedWorkWhenAnotherReferenceFails()
+        public void ObsoleteHapticReferencePipeline_IsRemoved()
         {
-            var source = File.ReadAllText(FindRepoFile(
+            var recorder = File.ReadAllText(FindRepoFile(
+                "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
+            Assert.IsFalse(recorder.Contains("StartHapticReference"));
+            Assert.IsFalse(recorder.Contains("HapticEndpointCapture"));
+            Assert.IsFalse(recorder.Contains("WriteStampedHapticPacket"));
+
+            var service = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "UnlockRecordingService.cs"));
-            var start = source.IndexOf("private SegmentTimeline.ClipPlan TryRemoveHapticAudio", StringComparison.Ordinal);
-            var end = source.IndexOf("private void TryDeleteCleanedAudio", start, StringComparison.Ordinal);
-
-            Assert.IsTrue(start >= 0 && end > start);
-            var removal = source.Substring(start, end - start);
-            var uncertainty = removal.IndexOf(
-                "!PcmAudio.IsReferenceSafelyAbsentOrRemoved", StringComparison.Ordinal);
-            var nextOutcome = removal.IndexOf("removedAny |=", uncertainty, StringComparison.Ordinal);
-
-            Assert.IsTrue(uncertainty >= 0 && nextOutcome > uncertainty);
-            var uncertainBranch = removal.Substring(uncertainty, nextOutcome - uncertainty);
-            StringAssert.Contains(uncertainBranch, "continue;");
-            Assert.IsFalse(
-                uncertainBranch.Contains("return audioPlan;"),
-                "One bad controller reference must not discard another reference's verified cleanup.");
-            StringAssert.Contains(removal, "unremovedActiveReferences");
-            StringAssert.Contains(removal, "verified partial haptic cleanup");
+            Assert.IsFalse(service.Contains("TryRemoveHapticAudio"));
+            Assert.IsFalse(service.Contains("HapticReferenceChunkFilePrefix"));
         }
 
         [TestMethod]
@@ -171,12 +479,13 @@ namespace PlayniteAchievements.Services.Tests.Recording
             Assert.IsTrue(start >= 0 && end > start);
             var export = source.Substring(start, end - start);
             StringAssert.Contains(export, "var recordedAudioPlan = audioPlan;");
-            StringAssert.Contains(export, "selectedAudioPlan ?? recordedAudioPlan");
+            StringAssert.Contains(export, "selected.Plan ?? recordedAudioPlan");
             StringAssert.Contains(export, "cleanedAudioDirectory != null && recordedAudioPlan != null");
             StringAssert.Contains(export, "exporter.Export(");
             StringAssert.Contains(export, "plan, recordedAudioPlan, tempPath");
             StringAssert.Contains(export, "retrying with the");
-            StringAssert.Contains(export, "original recorded audio");
+            StringAssert.Contains(export, "recorded game-tree audio");
+            StringAssert.Contains(export, "request.UsedFallbackTrack = false;");
         }
 
         [TestMethod]
@@ -211,19 +520,44 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void HapticRecorder_PropagatesIncompleteAndUncapturableEndpointScans()
+        public void EndpointClassifier_IsUsedBeforeNativeControllerChannelSplitting()
         {
             var recorder = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "AudioLoopbackRecorder.cs"));
             var scan = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Recording", "RenderEndpointScan.cs"));
 
-            StringAssert.Contains(recorder, "out var scanComplete, out var hasDefaultHapticEndpoint");
-            StringAssert.Contains(recorder, "!scanComplete || hasDefaultHapticEndpoint");
-            StringAssert.Contains(scan, "out bool scanComplete");
-            StringAssert.Contains(scan, "out bool hasUncapturableDefaultHapticEndpoint");
-            StringAssert.Contains(scan, "scanComplete = false");
-            StringAssert.Contains(scan, "hasUncapturableDefaultHapticEndpoint |= keptAsOutput");
+            var classify = recorder.IndexOf("RenderEndpointScan.IsHapticEndpoint(speaker)", StringComparison.Ordinal);
+            var native = recorder.IndexOf("ProcessLoopbackCapture.ForEndpointNative(speaker.Id)", classify, StringComparison.Ordinal);
+            Assert.IsTrue(classify >= 0 && native > classify);
+            StringAssert.Contains(scan, "HapticEndpointClassifier.IsHapticEndpoint");
+        }
+
+        /// <summary>
+        /// NAudio declares its own managed coclass for the MMDeviceEnumerator CLSID, and the CLR's
+        /// CLSID-to-type map is process-wide and first-writer-wins. A second Playnite extension
+        /// shipping NAudio therefore makes every NAudio device-enumeration entry point throw
+        /// InvalidCastException, which once cost a reporting user the audio on every clip. Endpoint
+        /// discovery has to stay on AudioEndpointEnumerator, which activates from the CLSID and
+        /// casts only to interfaces.
+        /// </summary>
+        [TestMethod]
+        public void AudioCapture_NeverReachesEndpointsThroughNAudio()
+        {
+            foreach (var file in new[] { "AudioLoopbackRecorder", "MicrophoneSelector", "RenderEndpointScan" })
+            {
+                var text = File.ReadAllText(FindRepoFile("source", "Services", "Recording", file + ".cs"));
+                Assert.IsFalse(
+                    text.Contains("NAudio.CoreAudioApi"),
+                    file + " must not use NAudio's device enumeration; see AudioEndpointEnumerator.");
+                foreach (var banned in new[] { "new MMDeviceEnumerator(", "new WasapiLoopbackCapture(", "new WasapiCapture(" })
+                {
+                    Assert.IsFalse(
+                        text.Contains(banned),
+                        file + " must not construct " + banned + ": it activates NAudio's coclass for the " +
+                        "MMDeviceEnumerator CLSID and throws whenever a second NAudio is loaded.");
+                }
+            }
         }
 
         [TestMethod]

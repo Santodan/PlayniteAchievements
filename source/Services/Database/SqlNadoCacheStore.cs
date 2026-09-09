@@ -335,6 +335,8 @@ namespace PlayniteAchievements.Services.Database
             public string UnlockTimeUtc { get; set; }
             public long? Unlocked { get; set; }
             public long? MyUnlocked { get; set; }
+            public string MyUnlockTimeUtc { get; set; }
+            public long? MyHasGameData { get; set; }
             public int? ProgressNum { get; set; }
             public int? ProgressDenom { get; set; }
             public string IconPath { get; set; }
@@ -5027,7 +5029,8 @@ namespace PlayniteAchievements.Services.Database
                     SELECT
                         cg.PlayniteGameId AS PlayniteGameId,
                         cad.ApiName AS ApiName,
-                        MAX(cua.Unlocked) AS Unlocked
+                        MAX(cua.Unlocked) AS Unlocked,
+                        MAX(cua.UnlockTimeUtc) AS UnlockTimeUtc
                     FROM Users cu
                     INNER JOIN UserGameProgress cugp ON cugp.UserId = cu.Id
                     INNER JOIN Games cg ON cg.Id = cugp.GameId
@@ -5039,6 +5042,15 @@ namespace PlayniteAchievements.Services.Database
                       AND cad.ApiName IS NOT NULL
                       AND TRIM(cad.ApiName) <> ''
                     GROUP BY cg.PlayniteGameId, cad.ApiName
+                ),
+                CurrentUserGames AS (
+                    SELECT DISTINCT cg2.PlayniteGameId AS PlayniteGameId
+                    FROM Users cu2
+                    INNER JOIN UserGameProgress cugp2 ON cugp2.UserId = cu2.Id
+                    INNER JOIN Games cg2 ON cg2.Id = cugp2.GameId
+                    WHERE cu2.IsCurrentUser = 1
+                      AND cg2.PlayniteGameId IS NOT NULL
+                      AND TRIM(cg2.PlayniteGameId) <> ''
                 )
                 SELECT
                     g.ProviderKey AS ProviderKey,
@@ -5067,6 +5079,8 @@ namespace PlayniteAchievements.Services.Database
                     ua.UnlockTimeUtc AS UnlockTimeUtc,
                     COALESCE(ua.Unlocked, 0) AS Unlocked,
                     COALESCE(cu.Unlocked, 0) AS MyUnlocked,
+                    cu.UnlockTimeUtc AS MyUnlockTimeUtc,
+                    CASE WHEN cug.PlayniteGameId IS NULL THEN 0 ELSE 1 END AS MyHasGameData,
                     ua.ProgressNum AS ProgressNum,
                     ua.ProgressDenom AS ProgressDenom,
                     g.IconPath AS IconPath,
@@ -5080,6 +5094,7 @@ namespace PlayniteAchievements.Services.Database
                       AND ua.AchievementDefinitionId = ad.Id
                   LEFT JOIN CurrentUnlocks cu ON cu.PlayniteGameId = g.PlayniteGameId
                       AND cu.ApiName = ad.ApiName
+                  LEFT JOIN CurrentUserGames cug ON cug.PlayniteGameId = g.PlayniteGameId
                   WHERE " + ActiveFriendPredicateSql);
 
             if (unlockedOnly)
@@ -5232,6 +5247,8 @@ namespace PlayniteAchievements.Services.Database
                     UnlockTimeUtc = friendUnlockTimeUtc,
                     Unlocked = isUnlockedByFriend,
                     UnlockedBySelf = isUnlockedByMe,
+                    SelfUnlockTimeUtc = ParseUtc(row.MyUnlockTimeUtc),
+                    SelfHasGameData = row.MyHasGameData.GetValueOrDefault() != 0,
                     ProgressNum = detail.ProgressNum,
                     ProgressDenom = detail.ProgressDenom,
                     ProviderKey = row.ProviderKey,
@@ -5572,11 +5589,21 @@ namespace PlayniteAchievements.Services.Database
 
                         existingRows.Remove(definitionId);
 
+                        // Progress is monotonic and null-preserving, matching the in-game fast
+                        // writer (InGameProgressSqlWriter). Steam progress stats are increment-only,
+                        // and a refresh can legitimately carry no progress (a community page that has
+                        // not synced yet returns null or a stale-lower value). Overwriting raw let
+                        // the ~15s fallback refresh clobber the fast prong's fresh local value, so
+                        // the grid flickered and progress notifications misfired. The numerator is
+                        // never lowered; the denominator (a definition-level target) takes a fresh
+                        // value but is kept when the refresh supplies none.
+                        var resolvedProgressNum = MaxNullable(existing.ProgressNum, progressNum);
+                        var resolvedProgressDenom = progressDenom ?? existing.ProgressDenom;
                         var existingUnlockIso = NormalizeStoredIso(existing.UnlockTimeUtc);
                         var changed = existing.Unlocked != unlocked ||
                                       !NullableEquals(existingUnlockIso, unlockIso) ||
-                                      existing.ProgressNum != progressNum ||
-                                      existing.ProgressDenom != progressDenom;
+                                      existing.ProgressNum != resolvedProgressNum ||
+                                      existing.ProgressDenom != resolvedProgressDenom;
 
                         if (!changed)
                         {
@@ -5593,8 +5620,8 @@ namespace PlayniteAchievements.Services.Database
                               WHERE Id = ?;",
                             unlocked,
                             DbValue(unlockIso),
-                            DbParam(progressNum),
-                            DbParam(progressDenom),
+                            DbParam(resolvedProgressNum),
+                            DbParam(resolvedProgressDenom),
                             updatedIso,
                             existing.Id);
                     }
@@ -6622,7 +6649,10 @@ namespace PlayniteAchievements.Services.Database
 
                 var apiName = achievement.ApiName.Trim();
                 desiredApiNames.Add(apiName);
-                var incomingCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category);
+                // Canonicalize the path here so the stored label is the same form the change
+                // detection below compares against, and a provider that starts emitting a nested
+                // path does not read back as a change on every refresh.
+                var incomingCategory = CategoryPathHelper.NormalizePath(achievement.Category);
                 var incomingCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(achievement.CategoryType);
                 var incomingGlobalPercent = NormalizeStoredPercent(achievement.GlobalPercentUnlocked);
                 var incomingRarity = achievement.Rarity.ToString();
@@ -7152,6 +7182,19 @@ namespace PlayniteAchievements.Services.Database
         private static bool NullableEquals(string left, string right)
         {
             return string.Equals(left, right, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Returns the higher of two nullable progress values, keeping <paramref name="current"/>
+        /// when <paramref name="incoming"/> is null. Mirrors the in-game writer so both progress
+        /// write paths are monotonic and a refresh can never null out or lower stored progress.
+        /// </summary>
+        private static int? MaxNullable(int? current, int? incoming)
+        {
+            return incoming.HasValue &&
+                   (!current.HasValue || incoming.Value > current.Value)
+                ? incoming
+                : current;
         }
 
         private static long ClampPlaytime(ulong seconds)

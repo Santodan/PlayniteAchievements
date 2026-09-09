@@ -143,6 +143,41 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void PreserveCachedUnlocks_PayloadUnlockedWithoutATime_KeepsTheCachedTime()
+        {
+            // A tiered source dates only the tier the player currently holds, so the tiers below it
+            // come back unlocked with no moment. Taking the payload at face value would erase the
+            // date the plugin recorded when that tier was the current one.
+            var unlockTime = new DateTime(2026, 7, 4, 12, 0, 0, DateTimeKind.Utc);
+            var previous = Data(38, 20, unlockTime: unlockTime);
+            var incoming = Data(38, 20);
+
+            Assert.AreEqual(
+                0,
+                AchievementWriteGuard.PreserveCachedUnlocks(previous, incoming),
+                "Nothing was re-locked, so nothing counts as carried forward.");
+
+            Assert.AreEqual(unlockTime, incoming.Achievements[0].UnlockTimeUtc);
+            Assert.AreEqual(unlockTime, incoming.Achievements[19].UnlockTimeUtc);
+            Assert.IsNull(incoming.Achievements[20].UnlockTimeUtc, "A locked achievement gains no time.");
+        }
+
+        [TestMethod]
+        public void PreserveCachedUnlocks_PayloadCarriesItsOwnTime_DoesNotOverwriteIt()
+        {
+            var cachedTime = new DateTime(2026, 7, 4, 12, 0, 0, DateTimeKind.Utc);
+            var payloadTime = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc);
+            var incoming = Data(38, 20, unlockTime: payloadTime);
+
+            AchievementWriteGuard.PreserveCachedUnlocks(Data(38, 20, unlockTime: cachedTime), incoming);
+
+            Assert.AreEqual(
+                payloadTime,
+                incoming.Achievements[0].UnlockTimeUtc,
+                "The guard only fills a gap; it never second-guesses a time the payload supplies.");
+        }
+
+        [TestMethod]
         public void PreserveCachedUnlocks_AchievementAbsentFromCache_LeavesItLocked()
         {
             var previous = Data(5, 5);

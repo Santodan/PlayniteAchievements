@@ -112,13 +112,21 @@ namespace PlayniteAchievements.Providers.Ffxiv
             {
                 using (var client = new FfxivApiClient(Logger))
                 {
-                    var id = await client.ResolveCharacterIdAsync(
+                    var resolution = await client.ResolveCharacterIdAsync(
                         _ffxivSettings.CharacterName,
                         _ffxivSettings.World,
                         _ffxivSettings.Region,
                         CancellationToken.None).ConfigureAwait(true);
 
-                    if (!id.HasValue || id.Value <= 0)
+                    if (resolution.Outcome == FfxivResolveOutcome.LookupFailed)
+                    {
+                        // The search never ran, so the configured character is still unjudged.
+                        SetAuthStatusVisualState(pending: false, success: false);
+                        AuthStatus = ResourceProvider.GetString("LOCPlayAch_Settings_FFXIV_LodestoneUnavailable");
+                        return;
+                    }
+
+                    if (resolution.Outcome != FfxivResolveOutcome.Resolved)
                     {
                         _ffxivSettings.ResolvedCharacterId = 0;
                         SetAuthStatusVisualState(pending: false, success: false);
@@ -126,9 +134,11 @@ namespace PlayniteAchievements.Providers.Ffxiv
                         return;
                     }
 
-                    var character = await client.FetchCharacterAsync(id.Value, CancellationToken.None).ConfigureAwait(true);
+                    // Kept before the FFXIV Collect call so a character that resolves on the
+                    // Lodestone but is not indexed yet retains its id for the next check.
+                    _ffxivSettings.ResolvedCharacterId = resolution.CharacterId;
 
-                    _ffxivSettings.ResolvedCharacterId = id.Value;
+                    var character = await client.FetchCharacterAsync(resolution.CharacterId, CancellationToken.None).ConfigureAwait(true);
 
                     if (character?.Achievements?.Public == false)
                     {
@@ -144,6 +154,12 @@ namespace PlayniteAchievements.Providers.Ffxiv
                         ResourceProvider.GetString("LOCPlayAch_Auth_AuthenticatedAs"),
                         $"{displayName} ({displayServer})");
                 }
+            }
+            catch (FfxivCharacterNotIndexedException ex)
+            {
+                Logger.Warn($"FFXIV character {ex.LodestoneId} is not indexed on FFXIV Collect.");
+                SetAuthStatusVisualState(pending: false, success: false);
+                AuthStatus = ResourceProvider.GetString("LOCPlayAch_Settings_FFXIV_NotOnCollect");
             }
             catch (Exception ex)
             {

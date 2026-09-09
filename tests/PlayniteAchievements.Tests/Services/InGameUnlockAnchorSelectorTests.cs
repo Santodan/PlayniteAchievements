@@ -48,5 +48,44 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(Observed, selected.Utc);
             Assert.AreEqual(UnlockVideoAnchorSource.SourceObservation, selected.Source);
         }
+
+        [TestMethod]
+        public void ReportedBias_ShiftsProviderAnchorLater()
+        {
+            var selected = InGameUnlockAnchorSelector.Select(
+                InGameUnlockAnchorPolicy.ProviderReported,
+                Reported,
+                Observed,
+                TimeSpan.FromSeconds(2.5));
+
+            Assert.AreEqual(Reported.AddSeconds(2.5), selected.Utc);
+            Assert.AreEqual(UnlockVideoAnchorSource.ProviderReported, selected.Source);
+        }
+
+        [TestMethod]
+        public void ReportedBias_NeverPushesAnchorPastObservation()
+        {
+            var selected = InGameUnlockAnchorSelector.Select(
+                InGameUnlockAnchorPolicy.ProviderReported,
+                Observed.AddSeconds(-1),
+                Observed,
+                TimeSpan.FromSeconds(2.5));
+
+            Assert.AreEqual(Observed, selected.Utc);
+            Assert.AreEqual(UnlockVideoAnchorSource.ProviderReported, selected.Source);
+        }
+
+        [TestMethod]
+        public void ReportedBias_IgnoredUnderSourceObservation()
+        {
+            var selected = InGameUnlockAnchorSelector.Select(
+                InGameUnlockAnchorPolicy.SourceObservation,
+                Reported,
+                Observed,
+                TimeSpan.FromSeconds(2.5));
+
+            Assert.AreEqual(Observed, selected.Utc);
+            Assert.AreEqual(UnlockVideoAnchorSource.SourceObservation, selected.Source);
+        }
     }
 }

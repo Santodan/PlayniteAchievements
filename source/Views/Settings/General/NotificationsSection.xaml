@@ -52,9 +52,13 @@
                                   IsEnabled="{Binding Persisted.EnableNotifications}"/>
                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableFriendUnlockToasts}"
                                   IsChecked="{Binding Persisted.EnableFriendUnlockToasts}"
-                                  Margin="18,0,0,0"
+                                  Margin="18,0,0,10"
                                   IsEnabled="{Binding Persisted.EnableNotifications}"
                                   Visibility="{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}"/>
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableProgressToasts}"
+                                  IsChecked="{Binding Persisted.EnableProgressToasts}"
+                                  Margin="18,0,0,0"
+                                  IsEnabled="{Binding Persisted.EnableNotifications}"/>
                     </StackPanel>
                 </Border>
 
@@ -75,6 +79,8 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0"
@@ -88,23 +94,48 @@
                                      TextAlignment="Right"
                                      Margin="0,0,0,8"/>
 
+                            <!-- LostFocus keeps the two delay values un-normalized while they are being
+                                 typed, so any number can be entered without the setter rewriting it
+                                 mid-keystroke. -->
                             <TextBlock Grid.Row="1" Grid.Column="0"
-                                       Text="{DynamicResource LOCPlayAch_Settings_MaxConcurrentToasts}"
+                                       Text="{DynamicResource LOCPlayAch_Settings_NotificationDelaySeconds}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,8,8"/>
                             <TextBox Grid.Row="1" Grid.Column="1"
-                                     Text="{Binding Persisted.MaxConcurrentToasts, UpdateSourceTrigger=LostFocus}"
+                                     Text="{Binding Persisted.NotificationDelaySeconds, UpdateSourceTrigger=LostFocus}"
                                      Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
                                      TextAlignment="Right"
                                      Margin="0,0,0,8"/>
 
                             <TextBlock Grid.Row="2" Grid.Column="0"
+                                       Text="{DynamicResource LOCPlayAch_Settings_CaptureDelaySeconds}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,8"/>
+                            <TextBox Grid.Row="2" Grid.Column="1"
+                                     Text="{Binding Persisted.CaptureDelaySeconds, UpdateSourceTrigger=LostFocus}"
+                                     Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                     TextAlignment="Right"
+                                     Margin="0,0,0,8"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0"
+                                       Text="{DynamicResource LOCPlayAch_Settings_MaxConcurrentToasts}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,8"/>
+                            <TextBox Grid.Row="3" Grid.Column="1"
+                                     Text="{Binding Persisted.MaxConcurrentToasts, UpdateSourceTrigger=LostFocus}"
+                                     Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                     TextAlignment="Right"
+                                     Margin="0,0,0,8"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0"
                                        Text="{DynamicResource LOCPlayAch_Settings_ToastPosition}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,8,0"/>
-                            <ComboBox Grid.Row="2" Grid.Column="1"
+                            <ComboBox Grid.Row="4" Grid.Column="1"
                                       SelectedValue="{Binding Persisted.ToastPosition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       SelectedValuePath="Tag"
                                       MinWidth="140">
@@ -175,17 +206,143 @@
                                     Margin="0,8,8,0"/>
                         </Grid>
 
-                        <!-- Unlock sounds are fired as a URI that UniPlaySong handles; this plugin
-                             plays no audio itself and cannot tell whether a sound was heard. -->
-                        <!-- Full strength rather than the usual muted hint styling: this is the
-                             only place that says sounds come from a separate extension. -->
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UnlockSoundHint}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,14,0,6"/>
-                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseHiddenUnlockSound}"
-                                  IsChecked="{Binding Persisted.UseHiddenUnlockSound}"
-                                  Margin="0,0,0,4"/>
+                        <!-- Unlock sounds: played by the plugin's own sound host. Per tier, the
+                             user's file wins, then the active theme's, then the bundled default. -->
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableUnlockSounds}"
+                                  IsChecked="{Binding Persisted.EnableUnlockSounds}"
+                                  Margin="0,14,0,10"/>
+                        <StackPanel Margin="18,0,0,0"
+                                    IsEnabled="{Binding Persisted.EnableUnlockSounds}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_UnlockSoundVolume}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,8"/>
+                                <Slider Grid.Column="1"
+                                        Style="{StaticResource SettingsSliderStyle}"
+                                        Minimum="0" Maximum="100"
+                                        SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                                        Value="{Binding Persisted.UnlockSoundVolumePercent, Mode=TwoWay}"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,8,8"/>
+                                <TextBox Grid.Column="2"
+                                         Text="{Binding Persisted.UnlockSoundVolumePercent, UpdateSourceTrigger=LostFocus}"
+                                         Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                         TextAlignment="Right"
+                                         Margin="0,0,0,8"/>
+                            </Grid>
+                            <!-- Drops the theme step out of the per-tier chain, leaving the user's
+                                 own file and the bundled default. On by default so a theme that
+                                 ships sounds is heard without configuring anything. -->
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseThemeUnlockSounds}"
+                                      IsChecked="{Binding Persisted.AllowThemeUnlockSounds}"
+                                      Margin="0,0,0,8"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseHiddenUnlockSound}"
+                                      IsChecked="{Binding Persisted.UseHiddenUnlockSound}"
+                                      Margin="0,0,0,8"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UnlockSoundFilesHint}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,6"/>
+                            <!-- DataContext island (see UnlockSoundSettingsViewModel); one row per tier.
+                                 Button handlers read the row from the sender's DataContext. -->
+                            <ItemsControl x:Name="UnlockSoundRows"
+                                          ItemsSource="{Binding Rows}"
+                                          Grid.IsSharedSizeScope="True">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:UnlockSoundRowItem}">
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="UnlockSoundTier"/>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="UnlockSoundSource"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <!-- The tier's own badge, drawn from the user's rarity
+                                                 appearance, so the table reads as the notifications
+                                                 it configures. -->
+                                            <Image Grid.Column="0"
+                                                   Source="{Binding BadgeImage}"
+                                                   Width="20"
+                                                   Height="20"
+                                                   Stretch="Uniform"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding TierLabel}"
+                                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,10,0"/>
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding SourceLabel}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"
+                                                       ToolTip="{Binding ResolvedPath}"
+                                                       Margin="0,0,10,0"/>
+                                            <TextBox Grid.Column="3"
+                                                     Text="{Binding CustomPath, UpdateSourceTrigger=LostFocus}"
+                                                     ToolTip="{Binding ResolvedPath}"
+                                                     VerticalAlignment="Center"/>
+                                            <!-- Drawn over the empty box, not behind it, so the
+                                                 theme's TextBox background cannot hide it; clicks
+                                                 pass through to the box underneath. Names the file
+                                                 a blank tier will actually play, so an
+                                                 unconfigured row reads as its source rather than
+                                                 as nothing. -->
+                                            <TextBlock Grid.Column="3"
+                                                       Text="{Binding ResolvedFileName}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       IsHitTestVisible="False"
+                                                       Margin="5,0,4,0"
+                                                       Visibility="{Binding ShowResolvedFileName, Converter={StaticResource BoolToVis}}"/>
+                                            <Button Grid.Column="4"
+                                                    Click="UnlockSoundBrowse_Click"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                                    Margin="6,0,0,0"/>
+                                            <Button Grid.Column="5"
+                                                    Click="UnlockSoundClear_Click"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                                    IsEnabled="{Binding HasCustomPath}"
+                                                    Margin="6,0,0,0"/>
+                                            <Button Grid.Column="6"
+                                                    Click="UnlockSoundTest_Click"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Test}"
+                                                    Margin="6,0,0,0"/>
+                                            <!-- Plays what a theme ships for this tier, in either
+                                                 Playnite mode, whatever the chain currently
+                                                 resolves to. Disabled when neither theme provides
+                                                 the tier. -->
+                                            <Button Grid.Column="7"
+                                                    Click="UnlockSoundTheme_Click"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
+                                                    ToolTip="{DynamicResource LOCPlayAch_Settings_UnlockSoundTheme_Tooltip}"
+                                                    IsEnabled="{Binding HasThemeCandidates}"
+                                                    Margin="6,0,0,0">
+                                                <Button.ContextMenu>
+                                                    <!-- Plain action items, not the checkable ones
+                                                         the rarity selectors use: each entry plays
+                                                         a sound rather than toggling a value. -->
+                                                    <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                                 ItemContainerStyle="{StaticResource AchievementContextMenuItemStyle}"/>
+                                                </Button.ContextMenu>
+                                            </Button>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
@@ -643,6 +800,24 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ComboBox SelectedValue="{Binding FriendUnlockToasts, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      SelectedValuePath="Tag"
+                                                      MinWidth="86"
+                                                      VerticalAlignment="Center"
+                                                      Margin="4,2">
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static vm:OverrideState.Inherit}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_On}" Tag="{x:Static vm:OverrideState.On}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static vm:OverrideState.Off}"/>
+                                            </ComboBox>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_ProgressToasts}"
+                                                        Width="Auto"
+                                                        MinWidth="100">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ComboBox SelectedValue="{Binding ProgressToasts, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       SelectedValuePath="Tag"
                                                       MinWidth="86"
                                                       VerticalAlignment="Center"
