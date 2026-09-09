@@ -88,11 +88,13 @@ namespace PlayniteAchievements.Models.Settings
             target.OpenSettingsHotkey = source.OpenSettingsHotkey;
             target.CategoryModeHotkey = source.CategoryModeHotkey;
             target.TestUnlockHotkey = source.TestUnlockHotkey;
+            target.EnableCaptureTestFolder = source.EnableCaptureTestFolder;
 
             // Notification Settings
             target.EnableNotifications = source.EnableNotifications;
             target.EnableUnlockToasts = source.EnableUnlockToasts;
             target.EnableFriendUnlockToasts = source.EnableFriendUnlockToasts;
+            target.EnableProgressToasts = source.EnableProgressToasts;
             target.NotificationStyle = source.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault();
             target.ToastUseThemeStyling = source.ToastUseThemeStyling;
             target.FrameUseThemeStyling = source.FrameUseThemeStyling;
@@ -103,12 +105,19 @@ namespace PlayniteAchievements.Models.Settings
                     StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase);
             target.ToastDurationSeconds = source.ToastDurationSeconds;
+            target.NotificationDelaySeconds = source.NotificationDelaySeconds;
+            target.CaptureDelaySeconds = source.CaptureDelaySeconds;
             target.MaxConcurrentToasts = source.MaxConcurrentToasts;
             target.ToastPosition = source.ToastPosition;
             target.EnableControllerVibration = source.EnableControllerVibration;
             target.ControllerVibrationStrengthPercent = source.ControllerVibrationStrengthPercent;
             target.ControllerVibrationDurationMs = source.ControllerVibrationDurationMs;
             target.UseHiddenUnlockSound = source.UseHiddenUnlockSound;
+            target.EnableUnlockSounds = source.EnableUnlockSounds;
+            target.AllowThemeUnlockSounds = source.AllowThemeUnlockSounds;
+            target.UnlockSoundVolumePercent = source.UnlockSoundVolumePercent;
+            target.UnlockSounds = source.UnlockSounds?.Clone() ?? UnlockSoundSettings.CreateDefault();
+            target.UnlockSoundsSeededFromUniPlaySong = source.UnlockSoundsSeededFromUniPlaySong;
             target.EnableUnlockScreenshots = source.EnableUnlockScreenshots;
             target.UnlockScreenshotClean = source.UnlockScreenshotClean;
             target.UnlockScreenshotWithToast = source.UnlockScreenshotWithToast;
@@ -152,6 +161,8 @@ namespace PlayniteAchievements.Models.Settings
             target.SeparateLockedIconEnabledGameIds = source.SeparateLockedIconEnabledGameIds != null
                 ? new HashSet<Guid>(source.SeparateLockedIconEnabledGameIds)
                 : new HashSet<Guid>();
+            target.LockedFallbackIconPath = source.LockedFallbackIconPath;
+            target.HiddenFallbackIconPath = source.HiddenFallbackIconPath;
             target.ModernCompactListShowRarityGlow = source.ModernCompactListShowRarityGlow;
             target.ModernUnlockedListShowRarityGlow = source.ModernUnlockedListShowRarityGlow;
             target.AnimateRarityGlows = source.AnimateRarityGlows;

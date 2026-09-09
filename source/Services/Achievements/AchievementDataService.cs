@@ -50,7 +50,11 @@ namespace PlayniteAchievements.Services.Achievements
         private readonly GameDataHydrator _hydrator;
         private readonly ILogger _logger;
         private readonly GameCustomDataStore _gameCustomDataStore;
-        private readonly PersistedSettings _persistedSettings;
+        // The settings wrapper, not its PersistedSettings: CancelEdit replaces the
+        // Persisted instance, so a captured instance would keep serving the values the
+        // user reverted.
+        private readonly PlayniteAchievementsSettings _settings;
+        private PersistedSettingsSubscription _persistedSubscription;
         private readonly object _overviewProjectionCacheSync = new object();
         private readonly Dictionary<int, CachedSummaryData> _overviewSummaryCacheByLimit =
             new Dictionary<int, CachedSummaryData>();
@@ -58,6 +62,8 @@ namespace PlayniteAchievements.Services.Achievements
         // Bumped on every invalidation; a summary loaded before an invalidation must not be
         // memoized after it (it may have been built against since-replaced filter mirror rows).
         private int _overviewProjectionGeneration;
+
+        private PersistedSettings Persisted => _settings.Persisted;
 
         public AchievementDataService(
             ICacheManager cacheService,
@@ -72,10 +78,10 @@ namespace PlayniteAchievements.Services.Achievements
 
             _logger = logger;
             _gameCustomDataStore = gameCustomDataStore;
-            _persistedSettings = settings.Persisted;
+            _settings = settings;
             _cacheReadOptimizations = cacheService as ICacheReadOptimizations;
             _filterMirror = cacheService as IAchievementFilterMirror;
-            _hydrator = new GameDataHydrator(api, settings.Persisted, _gameCustomDataStore);
+            _hydrator = new GameDataHydrator(api, settings, _gameCustomDataStore);
             SubscribeOverviewProjectionInvalidation();
         }
 
@@ -441,7 +447,7 @@ namespace PlayniteAchievements.Services.Achievements
         {
             try
             {
-                return GameCustomDataLookup.GetExcludedSummaryGameIds(_persistedSettings, _gameCustomDataStore);
+                return GameCustomDataLookup.GetExcludedSummaryGameIds(Persisted, _gameCustomDataStore);
             }
             catch (Exception ex)
             {
@@ -452,8 +458,8 @@ namespace PlayniteAchievements.Services.Achievements
 
         private HashSet<Guid> BuildExcludedSummaryGameIdsFallback(IReadOnlyDictionary<Guid, GameCustomDataFile> customDataByGameId)
         {
-            var result = _persistedSettings?.ExcludedFromSummariesGameIds != null
-                ? new HashSet<Guid>(_persistedSettings.ExcludedFromSummariesGameIds)
+            var result = Persisted?.ExcludedFromSummariesGameIds != null
+                ? new HashSet<Guid>(Persisted.ExcludedFromSummariesGameIds)
                 : new HashSet<Guid>();
 
             if (customDataByGameId == null || customDataByGameId.Count == 0)
@@ -484,28 +490,28 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var hasCustomData = customData != null;
-            var useSeparateLockedIconsDefault = _persistedSettings?.UseSeparateLockedIconsWhenAvailable == true;
+            var useSeparateLockedIconsDefault = Persisted?.UseSeparateLockedIconsWhenAvailable == true;
             return new ResolvedGameCustomData
             {
                 ExcludedFromRefreshes = hasCustomData
                     ? customData.ExcludedFromRefreshes == true
-                    : _persistedSettings?.ExcludedGameIds?.Contains(gameId) == true,
+                    : Persisted?.ExcludedGameIds?.Contains(gameId) == true,
                 ExcludedFromSummaries = hasCustomData
                     ? customData.ExcludedFromSummaries == true
-                    : _persistedSettings?.ExcludedFromSummariesGameIds?.Contains(gameId) == true,
+                    : Persisted?.ExcludedFromSummariesGameIds?.Contains(gameId) == true,
                 UseSeparateLockedIcons = useSeparateLockedIconsDefault ||
                     (hasCustomData
                         ? customData.UseSeparateLockedIconsOverride == true
-                        : _persistedSettings?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true),
+                        : Persisted?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true),
                 ManualCapstoneApiName = hasCustomData
                     ? NormalizeText(customData.ManualCapstoneApiName)
                     : ResolveFallbackManualCapstone(gameId),
                 AchievementCategoryOverrides = hasCustomData
                     ? CloneStringMap(customData.AchievementCategoryOverrides)
-                    : ResolveFallbackOverrides(_persistedSettings?.AchievementCategoryOverrides, gameId),
+                    : ResolveFallbackOverrides(Persisted?.AchievementCategoryOverrides, gameId),
                 AchievementCategoryTypeOverrides = hasCustomData
                     ? CloneStringMap(customData.AchievementCategoryTypeOverrides)
-                    : ResolveFallbackOverrides(_persistedSettings?.AchievementCategoryTypeOverrides, gameId),
+                    : ResolveFallbackOverrides(Persisted?.AchievementCategoryTypeOverrides, gameId),
                 AchievementCategoryOrder = hasCustomData
                     ? CloneCategoryOrder(customData.AchievementCategoryOrder)
                     : new List<string>(),
@@ -520,8 +526,8 @@ namespace PlayniteAchievements.Services.Achievements
 
         private string ResolveFallbackManualCapstone(Guid gameId)
         {
-            if (_persistedSettings?.ManualCapstones == null ||
-                !_persistedSettings.ManualCapstones.TryGetValue(gameId, out var manualCapstoneApiName))
+            if (Persisted?.ManualCapstones == null ||
+                !Persisted.ManualCapstones.TryGetValue(gameId, out var manualCapstoneApiName))
             {
                 return null;
             }
@@ -779,7 +785,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            var defaultUseSeparateLockedIcons = _persistedSettings?.UseSeparateLockedIconsWhenAvailable == true;
+            var defaultUseSeparateLockedIcons = Persisted?.UseSeparateLockedIconsWhenAvailable == true;
             foreach (var recent in recentUnlocks)
             {
                 if (recent == null)
@@ -927,10 +933,13 @@ namespace PlayniteAchievements.Services.Achievements
                 _gameCustomDataStore.CustomDataChanged += OnCustomDataChangedForOverview;
             }
 
-            if (_persistedSettings != null)
-            {
-                _persistedSettings.PropertyChanged += OnPersistedSettingsChanged;
-            }
+            // Tracks the current Persisted instance so the invalidation keeps working
+            // after a settings cancel replaces it. The swap itself invalidates, since it
+            // can revert any of the projection-affecting settings in one step.
+            _persistedSubscription = new PersistedSettingsSubscription(
+                _settings,
+                OnPersistedSettingsChanged,
+                InvalidateOverviewProjectionCaches);
         }
 
         private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs e)

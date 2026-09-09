@@ -912,8 +912,16 @@ namespace PlayniteAchievements.Providers.Steam
                         var match = Regex.Match(text, @"^(\d+)\s*/\s*(\d+)$");
                         if (match.Success)
                         {
-                            progressNum = int.Parse(match.Groups[1].Value);
-                            progressDenom = int.Parse(match.Groups[2].Value);
+                            var parsedNum = int.Parse(match.Groups[1].Value);
+                            var parsedDenom = int.Parse(match.Groups[2].Value);
+
+                            // A single-step bar (0/1 or 1/1) restates the locked/unlocked state, so
+                            // it is not recorded as per-achievement progress.
+                            if (parsedDenom > 1)
+                            {
+                                progressNum = parsedNum;
+                                progressDenom = parsedDenom;
+                            }
                         }
                     }
                 }
@@ -1321,36 +1329,7 @@ namespace PlayniteAchievements.Providers.Steam
 
         public static bool HasOnlyHiddenAchievementRows(string html)
         {
-            if (string.IsNullOrWhiteSpace(html))
-            {
-                return false;
-            }
-
-            var doc = new HtmlDocument();
-            doc.LoadHtml(html);
-
-            var nodes = doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveRow')]") ??
-                        doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveTxtHolder')]") ??
-                        doc.DocumentNode.SelectNodes("//*[contains(@class,'achievement') and (.//h3 or .//div[contains(@class,'achieveUnlockTime')])]");
-
-            if (nodes == null || nodes.Count == 0)
-            {
-                return false;
-            }
-
-            var hasHiddenRow = false;
-            foreach (var row in nodes)
-            {
-                var isHidden = row.SelectSingleNode(".//div[contains(@class,'achieveHiddenBox')]") != null;
-                if (!isHidden)
-                {
-                    return false;
-                }
-
-                hasHiddenRow = true;
-            }
-
-            return hasHiddenRow;
+            return SteamStatsPageClassifier.HasOnlyHiddenAchievementRows(html);
         }
 
         public void ResetSteamDatetimeParseFailuresForScan()

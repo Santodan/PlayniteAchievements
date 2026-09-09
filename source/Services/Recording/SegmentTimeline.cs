@@ -8,9 +8,11 @@ namespace PlayniteAchievements.Services.Recording
 {
     /// <summary>
     /// Pure clip-window and buffer math over the rolling segment recording, all in UTC. The
-    /// invariant every window upholds: a clip contains the unlock moment (with its pre-roll)
-    /// plus a toast-duration slot after it — the toast itself is composited into the clip at
-    /// export, so the window never depends on when the toast actually displayed on screen.
+    /// invariant every window upholds: a clip contains its anchor moment (with the anchor's
+    /// pre-roll) plus a toast-duration slot after it — the toast itself is always composited into
+    /// the clip at export, never filmed. The anchor is the unlock by default, so the window does
+    /// not depend on when the toast displayed; a configured capture delay switches it to the
+    /// instant the capture was taken, so the clip and the screenshot show the same frame.
     /// Clamped only to recorded data. No filesystem access — fully unit-testable.
     /// </summary>
     internal static class SegmentTimeline
@@ -81,6 +83,13 @@ namespace PlayniteAchievements.Services.Recording
             public DateTime EndUtc { get; set; }
 
             public DateTime ToastAnchorUtc { get; set; }
+
+            /// <summary>
+            /// True when the anchor is the moment the capture was taken rather than the unlock —
+            /// the capture-delay path. Diagnostics only: it tells the timing log which of the
+            /// two rules produced this window, so a clip that looks late can be read at a glance.
+            /// </summary>
+            public bool AnchoredOnDisplay { get; set; }
         }
 
         /// <summary>
@@ -323,23 +332,32 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Computes the clip window in UTC. The clip is built around the moment the achievement was
-        /// earned — the real on-screen notification never moves the window, because the card is
-        /// composited into the clip at export, on the anchor.
+        /// Computes the clip window in UTC. By default the clip is built around the moment the
+        /// achievement was earned — the real on-screen notification does not move the window,
+        /// because the card is composited into the clip at export, on the anchor.
         ///
-        /// The anchor is the source-selected timestamp when it is reachable, else observation. Two
-        /// floors raise the start: it may not open earlier than one poll interval + pre-roll before
-        /// observation, nor earlier than recorded data. When a floor raises the start past the
-        /// timestamp itself, that timestamp is discarded and the window is recomputed around
-        /// observation.
+        /// <paramref name="displayAnchorUtc"/> overrides that. When the user configures a capture
+        /// delay, the clip is meant to show the same frame the screenshot does, so the recorder
+        /// passes the instant that wave's base capture is aimed at and the window is built around
+        /// that instead. It bypasses the <see cref="IsPreciseUnlockTime"/> heuristic deliberately:
+        /// that guard exists to reject provider timestamps from a foreign clock domain, whereas
+        /// this value is produced locally on the recorder's own clock and is always later than
+        /// observation, which the guard's lead check would reject outright.
         ///
-        /// That last rule prevents a stale or unreachable source timestamp from collapsing onto the
-        /// oldest buffered frame and showing unrelated footage. Local observation is the only
-        /// reachable fallback and still yields the full configured pre-roll.
+        /// Otherwise the anchor is the source-selected timestamp when it is reachable, else
+        /// observation. A source timestamp is discarded — and the window recomputed around
+        /// observation — when it is unreachable: older than recorded data, or more than one poll
+        /// interval plus the pre-roll before observation (a promptly observed unlock cannot be
+        /// that old; stale and foreign-clock timestamps land there, and would otherwise collapse
+        /// onto the oldest buffered frame and show unrelated footage).
         ///
-        /// End: the later of (a) the toast anchor plus the toast slot and tail and (b) the local
-        /// observation plus the tail. The second bound guarantees the event that caused detection
-        /// remains in the footage even when the two timestamps do not share a clock domain.
+        /// An accepted anchor keeps the full configured pre-roll, floored only by recorded data.
+        /// Provider propagation lag between the unlock and its observation must not eat into the
+        /// pre-roll: GOG has surfaced unlocks ~30s after their reported time, which under an
+        /// observation-relative start clamp left fractions of a second of pre-unlock footage.
+        ///
+        /// End: the toast anchor plus the toast slot and tail — the clip ends with the composited
+        /// notification, regardless of how much later the source observed the unlock.
         /// </summary>
         public static ClipWindow ComputeClipWindow(
             DateTime? preferredAnchorUtc,
@@ -349,7 +367,8 @@ namespace PlayniteAchievements.Services.Recording
             int pollIntervalSeconds,
             int preRollSeconds,
             double toastSlotSeconds,
-            double tailSeconds)
+            double tailSeconds,
+            DateTime? displayAnchorUtc = null)
         {
             var preRoll = Math.Max(0, preRollSeconds);
 
@@ -360,19 +379,50 @@ namespace PlayniteAchievements.Services.Recording
                 floor = oldestSegmentStartUtc.Value;
             }
 
+            if (displayAnchorUtc.HasValue)
+            {
+                // The card is pinned to when it actually appeared, so the pre-roll leads into the
+                // notification rather than into the unlock. Only the recorded-data floor applies:
+                // the observation floor guards against reaching back before a promptly-observed
+                // unlock, and this anchor is always later than observation, so it cannot.
+                var displayAnchor = displayAnchorUtc.Value;
+                var displayStart = displayAnchor.AddSeconds(-preRoll);
+                if (displayStart < floor)
+                {
+                    displayStart = floor;
+                }
+
+                if (displayAnchor < displayStart)
+                {
+                    displayAnchor = displayStart;
+                }
+
+                return new ClipWindow
+                {
+                    StartUtc = displayStart,
+                    EndUtc = displayAnchor.AddSeconds(Math.Max(0, toastSlotSeconds) + Math.Max(0, tailSeconds)),
+                    ToastAnchorUtc = displayAnchor,
+                    AnchoredOnDisplay = true,
+                };
+            }
+
             var anchor = IsPreciseUnlockTime(preferredAnchorUtc, captureStartUtc, observedUtc)
                 ? preferredAnchorUtc.Value
                 : observedUtc;
-            var start = ClampWindowStart(
-                anchor.AddSeconds(-preRoll), observedUtc, pollIntervalSeconds, preRoll, floor);
 
-            if (start > anchor)
+            // The timestamp is unreachable — older than the buffer, or than a promptly-observed
+            // unlock could be. Re-anchor on the local source observation.
+            var stalestAnchor = observedUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
+            if (anchor < stalestAnchor || anchor < floor)
             {
-                // The timestamp is unreachable — older than the buffer, or than a promptly-observed
-                // unlock could be. Re-anchor on the local source observation.
                 anchor = observedUtc;
-                start = ClampWindowStart(
-                    anchor.AddSeconds(-preRoll), observedUtc, pollIntervalSeconds, preRoll, floor);
+            }
+
+            // The accepted anchor keeps the full pre-roll; only recorded data floors it.
+            var start = anchor.AddSeconds(-preRoll);
+            if (start < floor)
+            {
+                start = floor;
             }
 
             // The toast begins at the clip start when the pre-roll got clamped away entirely (a
@@ -382,37 +432,9 @@ namespace PlayniteAchievements.Services.Recording
                 anchor = start;
             }
 
-            var tail = Math.Max(0, tailSeconds);
-            var end = anchor.AddSeconds(Math.Max(0, toastSlotSeconds) + tail);
-
-            // A provider/source anchor and the local observation can be in different clock domains,
-            // or a provider can persist before its state becomes observable. Never let that make the
-            // clip end before the source event that caused us to produce it. This is a guardrail even
-            // for providers that normally supply an authoritative historical anchor.
-            var observedEnd = observedUtc.AddSeconds(tail);
-            if (observedEnd > end)
-            {
-                end = observedEnd;
-            }
+            var end = anchor.AddSeconds(Math.Max(0, toastSlotSeconds) + Math.Max(0, tailSeconds));
 
             return new ClipWindow { StartUtc = start, EndUtc = end, ToastAnchorUtc = anchor };
-        }
-
-        /// <summary>
-        /// Raises a window start to the earliest moment it may open: no earlier than a promptly
-        /// observed unlock could have occurred (one poll interval plus the pre-roll before
-        /// observation), and no earlier than recorded data.
-        /// </summary>
-        private static DateTime ClampWindowStart(
-            DateTime start, DateTime observedUtc, int pollIntervalSeconds, int preRoll, DateTime floor)
-        {
-            var earliest = observedUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
-            if (start < earliest)
-            {
-                start = earliest;
-            }
-
-            return start < floor ? floor : start;
         }
 
         /// <summary>

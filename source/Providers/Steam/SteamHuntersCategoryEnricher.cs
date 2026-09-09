@@ -390,16 +390,19 @@ namespace PlayniteAchievements.Providers.Steam
             return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
         }
 
+        // A group carries two independent names: the DLC it belongs to and, for a post-launch
+        // update, the update's own name. Both are present together - the Binding of Isaac's
+        // "1.06.0059" is an Afterbirth update, and The Witcher 3's "Gwent" belongs to Hearts of
+        // Stone - so taking the update name alone left bare version strings sitting at the root
+        // with no sign of which DLC they came from, and updates to different DLC as siblings.
+        //
+        // A base-game update has no DlcAppName and stays a single segment, as before.
         private static string NormalizeGroupLabel(SteamHuntersAchievementGroup group, string gameName)
         {
-            var label = group?.Name;
-            if (string.IsNullOrWhiteSpace(label))
-            {
-                label = group?.DlcAppName;
-            }
+            var dlc = StripGameNamePrefix(group?.DlcAppName?.Trim(), gameName);
+            var update = StripGameNamePrefix(group?.Name?.Trim(), gameName);
 
-            label = label?.Trim();
-            return string.IsNullOrWhiteSpace(label) ? null : StripGameNamePrefix(label, gameName);
+            return CategoryPathHelper.JoinRaw(dlc, update);
         }
 
         // Steam store DLC names usually repeat the game name ("Cyberpunk 2077: Phantom

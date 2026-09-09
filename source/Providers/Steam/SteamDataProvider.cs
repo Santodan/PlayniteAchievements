@@ -61,6 +61,12 @@ namespace PlayniteAchievements.Providers.Steam
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _api;
 
+        // Per-game signature of the last local progress read, so a change in the local stat file's
+        // progress values is logged exactly once when it happens. This is the definitive probe for
+        // whether Steam is writing incremental progress to the local file live during play.
+        private readonly Dictionary<Guid, string> _lastProgressSignature =
+            new Dictionary<Guid, string>();
+
         public SteamDataProvider(
             ILogger logger,
             PlayniteAchievementsSettings settings,
@@ -395,10 +401,72 @@ namespace PlayniteAchievements.Providers.Steam
                         UnlockTimeUtc = pair.Value
                     })
                     .ToList();
+
+                // Diagnostic: log the local progress values the moment they change, so the log
+                // shows whether Steam updates the local stats file live during play (versus only
+                // committing on its own cadence / at exit). A steady stream of unchanged reads
+                // logs nothing; a real in-file advance logs one line.
+                LogProgressChange(gameId, context?.Game?.Name, read.ProgressByApiName);
+
+                // Locked achievements with a progress bar: report the current numerator/target so
+                // the monitor can surface an in-game progress notification without waiting for the
+                // provider-refresh prong to scrape the (often lagging) community page. The local
+                // reader excludes unlocked achievements, so these never conflict with an unlock.
+                foreach (var pair in read.ProgressByApiName)
+                {
+                    observations.Add(new AchievementProgressObservation
+                    {
+                        ApiName = pair.Key,
+                        Unlocked = false,
+                        ProgressNum = pair.Value.Num,
+                        ProgressDenom = pair.Value.Denom
+                    });
+                }
+
                 results.Add(InGameProgressQueryResult.Succeeded(gameId, observations));
             }
 
             return Task.FromResult<IReadOnlyList<InGameProgressQueryResult>>(results);
+        }
+
+        /// <summary>
+        /// Logs the local progress values whenever they change for a game, once per change. A quiet
+        /// log during active play means Steam is not writing incremental progress to the local stats
+        /// file live for that title (it commits on its own cadence, often only at focus-loss/exit),
+        /// which no local reader can work around.
+        /// </summary>
+        private void LogProgressChange(
+            Guid gameId,
+            string gameName,
+            IReadOnlyDictionary<string, Local.SteamLocalProgress> progress)
+        {
+            if (_logger == null || gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            var signature = progress == null || progress.Count == 0
+                ? string.Empty
+                : string.Join(
+                    ", ",
+                    progress
+                        .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                        .Select(pair => $"{pair.Key}={pair.Value.Num}/{pair.Value.Denom}"));
+
+            lock (_lastProgressSignature)
+            {
+                if (_lastProgressSignature.TryGetValue(gameId, out var previous) &&
+                    string.Equals(previous, signature, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _lastProgressSignature[gameId] = signature;
+            }
+
+            _logger.Debug(
+                $"[SteamLocal] Local progress changed for '{gameName}': " +
+                (signature.Length == 0 ? "(no locked progress bars)" : signature));
         }
 
         /// <inheritdoc />

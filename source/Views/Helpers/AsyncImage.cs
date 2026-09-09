@@ -151,6 +151,43 @@ namespace PlayniteAchievements.Views.Helpers
         private static void SetNativeGifAnimation(DependencyObject element, NativeGifAnimation value) =>
             element?.SetValue(NativeGifAnimationProperty, value);
 
+        /// <summary>
+        /// Pauses every native GIF decoder in <paramref name="root"/>'s visual tree for the
+        /// notification slide's span. Animated WebP is deliberately not paused: its frames are
+        /// discrete keyframe swaps of already-decoded frozen bitmaps, so it costs the slide
+        /// nothing, and re-stamping its animation would deep-copy every frame. UI thread only.
+        /// </summary>
+        public static void PauseGifAnimationsUnder(DependencyObject root)
+        {
+            ForEachNativeGifAnimation(root, animation => animation.Pause());
+        }
+
+        /// <summary>Resumes the decoders <see cref="PauseGifAnimationsUnder"/> paused.</summary>
+        public static void ResumeGifAnimationsUnder(DependencyObject root)
+        {
+            ForEachNativeGifAnimation(root, animation => animation.Resume());
+        }
+
+        private static void ForEachNativeGifAnimation(
+            DependencyObject root, Action<NativeGifAnimation> action)
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            if (GetNativeGifAnimation(root) is NativeGifAnimation animation)
+            {
+                action(animation);
+            }
+
+            var count = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < count; i++)
+            {
+                ForEachNativeGifAnimation(VisualTreeHelper.GetChild(root, i), action);
+            }
+        }
+
         private static void OnUriChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d == null)
@@ -432,10 +469,7 @@ namespace PlayniteAchievements.Views.Helpers
                 var applyGray = GetGray(d) || AnimatedImageHelper.HasGrayPrefix(uriString);
                 if (d is System.Windows.Controls.Image image)
                 {
-                    if (await TryStartNativeGifAsync(
-                        image,
-                        uriString,
-                        bmp,
+                    if (await TryStartNativeGifAsync(image, uriString, bmp,
                         applyGray,
                         cts.Token))
                     {

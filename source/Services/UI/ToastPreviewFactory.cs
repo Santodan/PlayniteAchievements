@@ -28,7 +28,7 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Returns preview args for the given sample kind: common / uncommon / rare /
-        /// ultrarare / capstone / complete / friend / mockup.
+        /// ultrarare / capstone / complete / friend / progress / mockup.
         /// </summary>
         public static AchievementUnlockedEventArgs BuildPreviewArgs(
             string kind,
@@ -49,9 +49,9 @@ namespace PlayniteAchievements.Services.UI
                 case "ultrarare":
                     return SampleUnlock("UltraRare", 1.8, false);
                 case "capstone":
-                    var capstone = SampleUnlock("UltraRare", 1.2, true);
-                    capstone.IsCompletionAchievement = true;
-                    return capstone;
+                    // A capstone unlock below 100%: IsCapstone alone carries the
+                    // completion-grade sound/capture treatment.
+                    return SampleUnlock("UltraRare", 1.2, true);
                 case "complete":
                     // The standalone completion notification (own wave after the unlock wave).
                     return new AchievementUnlockedEventArgs
@@ -72,6 +72,16 @@ namespace PlayniteAchievements.Services.UI
                     friend.FriendAvatarUrl =
                         "pack://application:,,,/PlayniteAchievements;component/Resources/UnlockedAchIcon.png";
                     return friend;
+                case "progress":
+                    // An incremental-progress notification: still locked, 3/10 -> 4/10. Fired
+                    // previews run the real wave path, so this also exercises the silent gate.
+                    var progress = SampleUnlock("Rare", 9.3, false);
+                    progress.IsProgressUpdate = true;
+                    progress.UnlockTimeUtc = null;
+                    progress.PreviousProgressNum = 3;
+                    progress.ProgressNum = 4;
+                    progress.ProgressDenom = 10;
+                    return progress;
                 case "mockup":
                 default:
                     return SampleUnlock("Rare", 9.3, false);

@@ -17,8 +17,10 @@ namespace PlayniteAchievements.Services.Tests
     public class AchievementSortHelperTests
     {
         [TestMethod]
-        public void UnlockTime_TieBreaksByRarityBeforeTrophyType()
+        public void UnlockTime_TieBreaksByRarity_WhenNoDefaultOrderIndex()
         {
+            // Items never stamped with a default-order index (friend rows, projections, mock data)
+            // sit at int.MaxValue and keep the rarity tie-break.
             var unlockTime = DateTime.SpecifyKind(new DateTime(2026, 3, 1, 12, 0, 0), DateTimeKind.Utc);
             var items = new List<AchievementDisplayItem>
             {
@@ -40,6 +42,66 @@ namespace PlayniteAchievements.Services.Tests
             Assert.IsTrue(handled);
             CollectionAssert.AreEqual(
                 new[] { "Bronze Rare", "Gold Common" },
+                items.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
+        public void UnlockTime_TieBreaksByDefaultOrderBeforeRarity_BothDirections()
+        {
+            var unlockTime = DateTime.SpecifyKind(new DateTime(2026, 3, 1, 12, 0, 0), DateTimeKind.Utc);
+
+            foreach (var direction in new[] { ListSortDirection.Descending, ListSortDirection.Ascending })
+            {
+                var items = new List<AchievementDisplayItem>
+                {
+                    CreateItem("Second In Order", unlockTime, raritySortValue: 8, trophyType: "gold", points: 90, defaultOrderIndex: 1),
+                    CreateItem("First In Order", unlockTime, raritySortValue: 80, trophyType: "bronze", points: 10, defaultOrderIndex: 0)
+                };
+
+                string sortPath = null;
+                ListSortDirection? sortDirection = null;
+
+                var handled = AchievementSortHelper.TrySortItems(
+                    items,
+                    "UnlockTime",
+                    direction,
+                    AchievementSortScope.GameAchievements,
+                    ref sortPath,
+                    ref sortDirection);
+
+                Assert.IsTrue(handled);
+                CollectionAssert.AreEqual(
+                    new[] { "First In Order", "Second In Order" },
+                    items.Select(item => item.DisplayName).ToArray(),
+                    $"Tie-break should stay default-order ascending when sorting {direction}.");
+            }
+        }
+
+        [TestMethod]
+        public void UnlockTime_LockedTailOrdersByDefaultOrderBeforeRarity()
+        {
+            var unlockTime = DateTime.SpecifyKind(new DateTime(2026, 3, 1, 12, 0, 0), DateTimeKind.Utc);
+            var items = new List<AchievementDisplayItem>
+            {
+                CreateItem("Locked Later Rare", null, raritySortValue: 5, trophyType: null, points: 10, unlocked: false, defaultOrderIndex: 1),
+                CreateItem("Locked Earlier Common", null, raritySortValue: 80, trophyType: null, points: 10, unlocked: false, defaultOrderIndex: 0),
+                CreateItem("Unlocked", unlockTime, raritySortValue: 50, trophyType: null, points: 10, defaultOrderIndex: 2)
+            };
+
+            string sortPath = null;
+            ListSortDirection? sortDirection = null;
+
+            var handled = AchievementSortHelper.TrySortItems(
+                items,
+                "UnlockTime",
+                ListSortDirection.Descending,
+                AchievementSortScope.GameAchievements,
+                ref sortPath,
+                ref sortDirection);
+
+            Assert.IsTrue(handled);
+            CollectionAssert.AreEqual(
+                new[] { "Unlocked", "Locked Earlier Common", "Locked Later Rare" },
                 items.Select(item => item.DisplayName).ToArray());
         }
 
@@ -271,6 +333,41 @@ namespace PlayniteAchievements.Services.Tests
 
             CollectionAssert.AreEqual(
                 new[] { "Unlocked Newer", "Unlocked Older", "Unlocked No Time", "Locked Rare" },
+                sorted.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
+        public void UnlockTime_DetailListTieBreaksByDefaultOrderBeforeRarity()
+        {
+            var unlockTime = DateTime.SpecifyKind(new DateTime(2026, 3, 1, 12, 0, 0), DateTimeKind.Utc);
+            var sorted = AchievementSortHelper.CreateSortedDetailList(
+                new List<AchievementDetail>
+                {
+                    CreateDetail("Second In Order", unlocked: true, unlockTimeUtc: unlockTime, globalPercentUnlocked: 5, defaultOrderIndex: 1),
+                    CreateDetail("First In Order", unlocked: true, unlockTimeUtc: unlockTime, globalPercentUnlocked: 80, defaultOrderIndex: 0)
+                },
+                nameof(AchievementDisplayItem.UnlockTime),
+                ListSortDirection.Descending);
+
+            CollectionAssert.AreEqual(
+                new[] { "First In Order", "Second In Order" },
+                sorted.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
+        public void DefaultDetailSort_LockedTailOrdersByDefaultOrderBeforeRarity()
+        {
+            // Guards the CreateDefaultSortProxy copy: a proxy that drops DefaultOrderIndex would
+            // fall back to rarity here.
+            var sorted = AchievementSortHelper.CreateDefaultSortedDetailList(new List<AchievementDetail>
+            {
+                CreateDetail("Locked Later Rare", unlocked: false, globalPercentUnlocked: 5, defaultOrderIndex: 1),
+                CreateDetail("Locked Earlier Common", unlocked: false, globalPercentUnlocked: 80, defaultOrderIndex: 0),
+                CreateDetail("Unlocked", unlocked: true, unlockTimeUtc: DateTime.SpecifyKind(new DateTime(2026, 3, 1, 10, 0, 0), DateTimeKind.Utc), defaultOrderIndex: 2)
+            });
+
+            CollectionAssert.AreEqual(
+                new[] { "Unlocked", "Locked Earlier Common", "Locked Later Rare" },
                 sorted.Select(item => item.DisplayName).ToArray());
         }
 
@@ -736,7 +833,8 @@ namespace PlayniteAchievements.Services.Tests
             string categoryLabel = null,
             int categoryOrderIndex = int.MaxValue,
             int? progressNum = null,
-            int? progressDenom = null)
+            int? progressDenom = null,
+            int defaultOrderIndex = int.MaxValue)
         {
             return new AchievementDisplayItem
             {
@@ -756,7 +854,8 @@ namespace PlayniteAchievements.Services.Tests
                 CategoryLabel = categoryLabel,
                 CategoryOrderIndex = categoryOrderIndex,
                 ProgressNum = progressNum,
-                ProgressDenom = progressDenom
+                ProgressDenom = progressDenom,
+                DefaultOrderIndex = defaultOrderIndex
             };
         }
 
@@ -781,7 +880,8 @@ namespace PlayniteAchievements.Services.Tests
             DateTime? unlockTimeUtc = null,
             double? globalPercentUnlocked = 50,
             string category = null,
-            int categoryOrderIndex = int.MaxValue)
+            int categoryOrderIndex = int.MaxValue,
+            int defaultOrderIndex = int.MaxValue)
         {
             return new AchievementDetail
             {
@@ -791,7 +891,8 @@ namespace PlayniteAchievements.Services.Tests
                 UnlockTimeUtc = unlockTimeUtc,
                 GlobalPercentUnlocked = globalPercentUnlocked,
                 Category = category,
-                CategoryOrderIndex = categoryOrderIndex
+                CategoryOrderIndex = categoryOrderIndex,
+                DefaultOrderIndex = defaultOrderIndex
             };
         }
     }

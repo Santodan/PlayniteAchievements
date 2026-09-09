@@ -427,6 +427,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _gameJoltGames = new BulkObservableCollection<GameAchievementSummary>();
         [DontSerialize]
+        private readonly BulkObservableCollection<GameAchievementSummary> _riotGames = new BulkObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _ffxivGames = new BulkObservableCollection<GameAchievementSummary>();
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _manualGames = new BulkObservableCollection<GameAchievementSummary>();
@@ -2010,6 +2012,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _gameJoltGames;
             set => ReplaceCollection(_gameJoltGames, value, nameof(GameJoltGames));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> RiotGames
+        {
+            get => _riotGames;
+            set => ReplaceCollection(_riotGames, value, nameof(RiotGames));
         }
 
         [DontSerialize]

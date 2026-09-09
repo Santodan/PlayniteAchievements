@@ -355,6 +355,50 @@ namespace PlayniteAchievements.Services.UI
                 .ToList();
         }
 
+        /// <summary>
+        /// The active theme's candidate directories for the current mode, most specific first
+        /// (memoized like every template lookup). Shared with <see cref="UnlockSoundResolver"/> so
+        /// theme-supplied sounds and theme-supplied templates agree on which theme is active.
+        /// </summary>
+        public IReadOnlyList<string> ResolveActiveThemeDirectories(ResourceDictionary applicationResources)
+        {
+            var modeName = GetThemeModeName();
+            return ResolveThemeDirectoriesCached(
+                applicationResources,
+                GetThemesRootPaths(),
+                modeName,
+                GetActiveThemeId(modeName));
+        }
+
+        /// <summary>
+        /// Which mode Playnite is running, as the name its Themes subfolder uses. Exposed so
+        /// callers that resolve both modes can say which one is live without repeating the mapping.
+        /// </summary>
+        public string ActiveThemeModeName => GetThemeModeName();
+
+        /// <summary>
+        /// The candidate directories of the theme configured for an explicitly named mode
+        /// ("Desktop" or "Fullscreen"), whichever mode Playnite is actually running. Playnite
+        /// reports both configured themes at all times, and the directory lookup is a disk probe,
+        /// so the mode that is not running resolves as readily as the one that is. The loaded
+        /// resource dictionaries only ever contribute the running mode's directories, which is why
+        /// the non-running mode resolves from <c>Themes\{mode}\{themeId}</c> alone.
+        /// </summary>
+        public IReadOnlyList<string> ResolveThemeDirectoriesForMode(
+            ResourceDictionary applicationResources,
+            string modeName)
+        {
+            var mode = string.Equals(modeName, "Fullscreen", StringComparison.OrdinalIgnoreCase)
+                ? "Fullscreen"
+                : "Desktop";
+
+            return ResolveThemeDirectoriesCached(
+                applicationResources,
+                GetThemesRootPaths(),
+                mode,
+                GetActiveThemeId(mode));
+        }
+
         public void LogActiveThemeOverrideDiagnostics(string context = null)
         {
             if (_logger == null)

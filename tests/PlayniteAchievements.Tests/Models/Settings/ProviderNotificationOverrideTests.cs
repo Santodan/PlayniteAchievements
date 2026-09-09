@@ -15,12 +15,14 @@ namespace PlayniteAchievements.Tests.Models.Settings
             bool? screenshotClean = null,
             bool? screenshotWithToast = null,
             bool? screenshotFramed = null,
-            bool? recordings = null)
+            bool? recordings = null,
+            bool? progressToasts = null)
         {
             return new ProviderNotificationOverride
             {
                 UnlockToasts = unlockToasts,
                 FriendUnlockToasts = friendUnlockToasts,
+                ProgressToasts = progressToasts,
                 ScreenshotClean = screenshotClean,
                 ScreenshotWithToast = screenshotWithToast,
                 ScreenshotFramed = screenshotFramed,
@@ -34,6 +36,7 @@ namespace PlayniteAchievements.Tests.Models.Settings
             Assert.IsTrue(new ProviderNotificationOverride().IsAllInherit);
             Assert.IsFalse(MakeOverride(unlockToasts: true).IsAllInherit);
             Assert.IsFalse(MakeOverride(friendUnlockToasts: false).IsAllInherit);
+            Assert.IsFalse(MakeOverride(progressToasts: false).IsAllInherit);
             Assert.IsFalse(MakeOverride(screenshotClean: true).IsAllInherit);
             Assert.IsFalse(MakeOverride(screenshotWithToast: false).IsAllInherit);
             Assert.IsFalse(MakeOverride(screenshotFramed: true).IsAllInherit);
@@ -174,7 +177,8 @@ namespace PlayniteAchievements.Tests.Models.Settings
             var value = MakeOverride(
                 unlockToasts: true,
                 friendUnlockToasts: false,
-                recordings: false);
+                recordings: false,
+                progressToasts: false);
 
             var json = JsonConvert.SerializeObject(value);
             Assert.IsFalse(json.Contains(nameof(ProviderNotificationOverride.IsAllInherit)));
@@ -182,6 +186,8 @@ namespace PlayniteAchievements.Tests.Models.Settings
             var roundTripped = JsonConvert.DeserializeObject<ProviderNotificationOverride>(json);
             Assert.AreEqual(true, roundTripped.UnlockToasts);
             Assert.AreEqual(false, roundTripped.FriendUnlockToasts);
+            Assert.AreEqual(false, roundTripped.ProgressToasts);
+            Assert.AreEqual(false, MakeOverride(progressToasts: false).Clone().ProgressToasts);
             Assert.IsNull(roundTripped.ScreenshotClean);
             Assert.IsNull(roundTripped.ScreenshotWithToast);
             Assert.IsNull(roundTripped.ScreenshotFramed);

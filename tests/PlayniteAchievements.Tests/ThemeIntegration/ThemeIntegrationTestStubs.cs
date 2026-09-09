@@ -23,6 +23,9 @@ namespace PlayniteAchievements
 
         public Services.Achievements.AchievementDataService AchievementDataService { get; set; }
 
+        // Mirrors the real plugin property RefreshRuntime reads for the category path repoint.
+        public Services.Achievements.AchievementOverridesService AchievementOverridesService { get; set; }
+
         public Services.GameCustomData.GameCustomDataStore GameCustomDataStore { get; set; }
 
         public Services.Images.DiskImageService DiskImageService { get; set; }
@@ -41,6 +44,23 @@ namespace PlayniteAchievements
         }
 
         public void OpenViewAchievementsWindow(Guid gameId, string focusAchievementId = null)
+        {
+        }
+    }
+}
+
+namespace PlayniteAchievements.Services.Achievements
+{
+    // Mirrors the members RefreshRuntime touches on the real overrides service, so the linked
+    // category-path repoint compiles against the plugin stub.
+    public class AchievementOverridesService
+    {
+        public void SetAchievementCategoryMetadata(
+            System.Guid gameId,
+            System.Collections.Generic.IReadOnlyList<string> categoryOrder,
+            System.Collections.Generic.IReadOnlyDictionary<string, Models.Settings.CategoryImageOverrideData> categoryImageOverrides,
+            Models.Settings.GameSummaryCategoryData gameSummaryCategory,
+            bool affectsSummaryData = true)
         {
         }
     }
@@ -133,6 +153,8 @@ namespace PlayniteAchievements.Models.Achievements
         public string CategoryArtPath { get; set; }
 
         public int CategoryOrderIndex { get; set; } = int.MaxValue;
+
+        public int DefaultOrderIndex { get; set; } = int.MaxValue;
 
         public string CleanCapturePath { get; set; }
 
@@ -348,6 +370,8 @@ namespace PlayniteAchievements.ViewModels
 
         public string CategoryArtPath { get; set; }
 
+        public System.Collections.Generic.IReadOnlyList<string> CategoryAncestorArtPaths { get; set; }
+
         public string CleanCapturePath { get; set; }
 
         public string NotificationCapturePath { get; set; }
@@ -373,6 +397,8 @@ namespace PlayniteAchievements.ViewModels
         public bool IsGoal { get; set; }
 
         public int GoalOrderIndex { get; set; } = int.MaxValue;
+
+        public int DefaultOrderIndex { get; set; } = int.MaxValue;
 
         public bool Hidden { get; set; }
 
@@ -568,6 +594,7 @@ namespace PlayniteAchievements.ViewModels
                 CategoryLabel = CategoryLabel,
                 CategoryOrderIndex = CategoryOrderIndex,
                 CategoryArtPath = CategoryArtPath,
+                CategoryAncestorArtPaths = CategoryAncestorArtPaths,
                 CleanCapturePath = CleanCapturePath,
                 NotificationCapturePath = NotificationCapturePath,
                 FramedCapturePath = FramedCapturePath,
@@ -578,6 +605,7 @@ namespace PlayniteAchievements.ViewModels
                 IsCapstone = IsCapstone,
                 IsGoal = IsGoal,
                 GoalOrderIndex = GoalOrderIndex,
+                DefaultOrderIndex = DefaultOrderIndex,
                 Unlocked = Unlocked,
                 UnlockTimeUtc = UnlockTimeUtc,
                 GlobalPercentUnlocked = GlobalPercentUnlocked,
@@ -633,6 +661,7 @@ namespace PlayniteAchievements.ViewModels
             IsCapstone = source?.IsCapstone == true;
             IsGoal = source?.IsGoal == true;
             GoalOrderIndex = source?.GoalOrderIndex ?? int.MaxValue;
+            DefaultOrderIndex = source?.DefaultOrderIndex ?? int.MaxValue;
             Unlocked = source?.Unlocked == true;
             UnlockTimeUtc = source?.UnlockTimeUtc;
             GlobalPercentUnlocked = source?.GlobalPercentUnlocked;

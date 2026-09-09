@@ -91,6 +91,14 @@ namespace PlayniteAchievements.Services.Capture
         private long _prepareTotalTicks;
         private long _prepareMaxTicks;
         private int _prepareSamples;
+        // Held-frame accounting, pump thread only. Repeats are the frames a tick writes beyond its
+        // first — the held frame re-encoded to cover a schedule stall. Stale frames are writes with
+        // no fresh WGC frame composed since the previous write — a static scene, or delivery
+        // falling behind under contention. Both play back as a held picture, and neither is visible
+        // in any other diagnostic; emitted with the segment diagnostics below.
+        private long _repeatFrames;
+        private long _staleFrames;
+        private bool _latestRefreshed;
         private DateTime _lastDebtLogUtc = DateTime.MinValue;
         private int _suppressedDebtLogs;
         private DateTime _lastRotationFailureUtc = DateTime.MinValue;
@@ -106,6 +114,11 @@ namespace PlayniteAchievements.Services.Capture
         // Segments are written out off the pump thread; see FinalizeSegment.
         private readonly object _finalizeGate = new object();
         private Task _finalizeChain = Task.CompletedTask;
+
+        // A clip export may ask for the segment covering its window end to close now instead of at
+        // its natural boundary; see FlushSegmentsThroughAsync. 0 = no request. Read/written with
+        // Interlocked: the process is 32-bit, where a bare long read can tear.
+        private long _flushThroughUtcTicks;
 
         // How large a gap between one segment's grid ending and the next opening we will carry as
         // repeated frames. Rotation costs on the order of 100 ms; past this it is a stall, and covering
@@ -459,7 +472,8 @@ namespace PlayniteAchievements.Services.Capture
                         // a one-time call before the loop — is what starts encoding.
                         if (_encoder == null ||
                             (encodeNow - _segmentStartUtc).TotalSeconds >= _segmentSeconds ||
-                            resynchronize)
+                            resynchronize ||
+                            FlushRotationDue(encodeNow))
                         {
                             if (resynchronize)
                             {
@@ -509,6 +523,16 @@ namespace PlayniteAchievements.Services.Capture
 
                                 if (missing > 0)
                                 {
+                                    if (missing > 1)
+                                    {
+                                        _repeatFrames += missing - 1;
+                                    }
+
+                                    if (!_latestRefreshed)
+                                    {
+                                        _staleFrames += missing;
+                                    }
+
                                     // Already cropped, tone-mapped and encoder-sized by the composer,
                                     // so a repeat is the same texture handed over again.
                                     var encodeFrame = _latest;
@@ -519,6 +543,8 @@ namespace PlayniteAchievements.Services.Capture
                                             encodeFrame, pts, PtsForFrame(_segmentFrameIndex + 1) - pts));
                                         _segmentFrameIndex++;
                                     }
+
+                                    _latestRefreshed = false;
                                 }
                             }
                             catch (Exception ex)
@@ -531,6 +557,8 @@ namespace PlayniteAchievements.Services.Capture
                             MaybePrepareNextSegment();
                         }
                     }
+
+                    SettleFlushRequest();
 
                     next += frameInterval;
                     var now = CaptureTimelineClock.UtcNow;
@@ -604,6 +632,7 @@ namespace PlayniteAchievements.Services.Capture
                     EnsureLatest(_encW, _encH);
                     _composer.Compose(
                         frameTexture, _latest, _cropX, _cropY, _cropW, _cropH, _hdr, _refWhite);
+                    _latestRefreshed = true;
                 }
             }
         }
@@ -707,7 +736,7 @@ namespace PlayniteAchievements.Services.Capture
                 _logger?.Debug(
                     $"[Recording] WGC-MF segment #{_segmentCount} started ({Path.GetFileName(path)}, {_encW}x{_encH}, " +
                     $"rotate={rotate.ElapsedMilliseconds}ms, prepared={reused}" +
-                    $"{TakeEncodeLatencySummary()}{TakePrepareLatencySummary()}).");
+                    $"{TakeEncodeLatencySummary()}{TakePrepareLatencySummary()}{TakeHeldFrameSummary()}).");
             }
         }
 
@@ -785,6 +814,21 @@ namespace PlayniteAchievements.Services.Capture
             _encodeTotalTicks = 0;
             _encodeMaxTicks = 0;
             _encodeOverBudget = 0;
+            return summary;
+        }
+
+        private string TakeHeldFrameSummary()
+        {
+            // Zero on both counters is the healthy case; keep the line unchanged for it so a
+            // repeats/stale field appearing at all marks the summary window as one with held frames.
+            if (_repeatFrames <= 0 && _staleFrames <= 0)
+            {
+                return string.Empty;
+            }
+
+            var summary = $", repeats={_repeatFrames}, stale={_staleFrames}";
+            _repeatFrames = 0;
+            _staleFrames = 0;
             return summary;
         }
 
@@ -982,8 +1026,9 @@ namespace PlayniteAchievements.Services.Capture
         /// and drains the hardware encoder — so doing it on the pump thread stopped capture for that
         /// long once every <c>_segmentSeconds</c>, losing frames the clip then holds still for.
         /// Finalizes are chained so only one runs at a time, and teardown waits for the chain. A clip
-        /// export cannot race this: it waits a segment length plus a margin past its window end
-        /// before it reads any segment.
+        /// export cannot race this: it calls <see cref="FlushSegmentsThroughAsync"/>, which completes
+        /// only after the covering segment has rotated out and this chain has drained, bounded by the
+        /// caller with the old fixed segment-length-plus-margin wait as its fallback.
         /// </para>
         /// </summary>
         private void FinalizeSegment()
@@ -1018,6 +1063,68 @@ namespace PlayniteAchievements.Services.Capture
             lock (_finalizeGate)
             {
                 return _finalizeChain;
+            }
+        }
+
+        /// <summary>
+        /// Asks the pump to close the segment covering <paramref name="utc"/> at its next
+        /// opportunity instead of waiting out the segment length, then completes once every closed
+        /// segment has finished writing (moov present). An idle or stopped pump completes as soon
+        /// as the finalize chain drains. Callers bound the wait; a request that outlives its caller
+        /// is harmless — the pump just rotates once, early.
+        /// </summary>
+        public async Task FlushSegmentsThroughAsync(DateTime utc)
+        {
+            // Keep the furthest-out request: a rotation past the maximum satisfies every earlier
+            // one, while letting a later request overwrite an earlier one would leave the earlier
+            // caller waiting on a rotation that never comes.
+            long requested = utc.Ticks, seen;
+            while ((seen = Interlocked.Read(ref _flushThroughUtcTicks)) < requested &&
+                Interlocked.CompareExchange(ref _flushThroughUtcTicks, requested, seen) != seen)
+            {
+            }
+
+            while (_running && Interlocked.Read(ref _flushThroughUtcTicks) != 0)
+            {
+                await Task.Delay(50).ConfigureAwait(false);
+            }
+
+            await GetFinalizerChain().ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// True when a flush request calls for closing the current segment now: the segment holds
+        /// the requested instant and the frames written so far already cover it. The encode block
+        /// runs after the rotation check each tick, so frames cover only the previous tick — hence
+        /// the two-frame margin past the request.
+        /// </summary>
+        private bool FlushRotationDue(DateTime now)
+        {
+            var requested = Interlocked.Read(ref _flushThroughUtcTicks);
+            if (requested == 0 || _encoder == null || _segmentStartUtc.Ticks > requested)
+            {
+                return false;
+            }
+
+            return now.Ticks - requested >= 2 * CaptureWorkloadPolicy.FrameInterval(_fps).Ticks;
+        }
+
+        /// <summary>
+        /// Clears a flush request the segment state already satisfies: no open segment, or the open
+        /// segment began after the requested instant (a rotation has closed the covering one). Runs
+        /// on the pump thread, which owns <see cref="_encoder"/> and <see cref="_segmentStartUtc"/>.
+        /// </summary>
+        private void SettleFlushRequest()
+        {
+            var requested = Interlocked.Read(ref _flushThroughUtcTicks);
+            if (requested == 0)
+            {
+                return;
+            }
+
+            if (_encoder == null || _segmentStartUtc.Ticks > requested)
+            {
+                Interlocked.CompareExchange(ref _flushThroughUtcTicks, 0, requested);
             }
         }
 

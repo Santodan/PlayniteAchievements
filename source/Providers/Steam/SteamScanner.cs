@@ -595,12 +595,26 @@ namespace PlayniteAchievements.Providers.Steam
             // A scrape that produced no usable rows without being transient means the stats could not
             // be read: an expired session, a private or missing profile, a redirect off the stats
             // page, or hidden-only rows. Reporting it as zero unlocks would relock every achievement,
-            // so fail the game instead. NoAchievements is the one confirmed-empty case (the API
-            // reported the game has none) and legitimately yields an empty set.
-            if (!scraped.SuccessWithRows && scraped.DetailCode != SteamScrapeDetail.NoAchievements)
+            // so fail the game instead. NoAchievements is the one API-confirmed empty case and
+            // legitimately yields an empty set. AllHidden is page-confirmed empty when the schema is
+            // itself all-hidden; see SteamStatsPageClassifier.ConfirmsAllHiddenZeroUnlocks.
+            var confirmedAllHiddenZeroUnlocks =
+                scraped.DetailCode == SteamScrapeDetail.AllHidden &&
+                SteamStatsPageClassifier.ConfirmsAllHiddenZeroUnlocks(schema, scraped.HiddenRemainingCount);
+
+            if (!scraped.SuccessWithRows &&
+                scraped.DetailCode != SteamScrapeDetail.NoAchievements &&
+                !confirmedAllHiddenZeroUnlocks)
             {
                 throw new SteamStatsUnavailableException(
                     $"[SteamAch] Stats unavailable for appId={appId}. detail={scraped.DetailCode}, status={scraped.StatusCode}");
+            }
+
+            if (confirmedAllHiddenZeroUnlocks)
+            {
+                _logger?.Info(
+                    $"[SteamAch] appId={appId}: all {schema.Achievements.Count} schema achievements " +
+                    "hidden and none unlocked; writing empty unlock set.");
             }
 
             var data = new UserUnlockedAchievements
@@ -945,6 +959,7 @@ namespace PlayniteAchievements.Providers.Steam
                 if (SteamHttpClient.HasOnlyHiddenAchievementRows(html))
                 {
                     res.TransientFailure = false;
+                    res.HiddenRemainingCount = SteamStatsPageClassifier.TryGetHiddenRemainingCount(html);
                     res.SetDetail(SteamScrapeDetail.AllHidden);
                     return res;
                 }

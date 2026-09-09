@@ -1,6 +1,8 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+                    xmlns:items="clr-namespace:PlayniteAchievements.ViewModels.Items"
+                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
                     xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
@@ -433,6 +435,57 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- Container for a category row that draws its own tree connectors, the drop-down counterpart
+         of PlayAch.TreeGuideDataGridCellStyle. Padding is zero so the guide reaches the row's top
+         and bottom edges: a lane is drawn by every row it passes through, and a padded container
+         would break each one. The padding moves onto the label in the item template instead.
+
+         The item's own DataContext supplies both setters, so every category drop-down gets the
+         hover path and the structural-row rule without repeating them. -->
+    <Style x:Key="PlayAch.CategoryTreeComboBoxItemStyle" TargetType="ComboBoxItem"
+           BasedOn="{StaticResource PlayAch.ComboBoxItem.BaseStyle}">
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        <Setter Property="ToolTip" Value="{Binding PathDisplay}"/>
+        <!-- A row synthesised to carry the tree is drawn, so the shape reads, but it is not a
+             category this picker offers. -->
+        <Setter Property="IsEnabled" Value="{Binding IsSelectable}"/>
+    </Style>
+
+    <!-- One drop-down row: the connectors that place it, then its leaf. Shared so every category
+         combo box draws the tree the same way and there is one place to change it. Expects a
+         CategoryPickerOption. -->
+    <DataTemplate x:Key="PlayAch.CategoryTreeComboBoxItemTemplate">
+        <DockPanel LastChildFill="True">
+            <controls:CategoryTreeGuide DockPanel.Dock="Left"
+                                        VerticalAlignment="Stretch"
+                                        Shape="{Binding TreeShape}"
+                                        LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                        NodeBrush="{DynamicResource PlayAch.Brush.Accent}">
+                <controls:CategoryTreeGuide.Style>
+                    <Style TargetType="controls:CategoryTreeGuide">
+                        <Style.Triggers>
+                            <!-- A non-editable combo box renders this same template in its closed
+                                 box, where there is no row to place and no ComboBoxItem to find.
+                                 The tree belongs to the list, so it is dropped there. -->
+                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type ComboBoxItem}}}"
+                                         Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </controls:CategoryTreeGuide.Style>
+            </controls:CategoryTreeGuide>
+            <!-- Padding lives here, not on the container: the guide beside it has to reach the row
+                 edges for its lanes to join up. -->
+            <TextBlock Text="{Binding LeafDisplay}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       TextWrapping="NoWrap"
+                       Margin="5"/>
+        </DockPanel>
+    </DataTemplate>
 
     <Style x:Key="PlayAch.ComboBox.BaseStyle" TargetType="ComboBox">
         <Setter Property="MinHeight" Value="{StaticResource PlayAch.Size.Control.Height}"/>
@@ -1034,5 +1087,73 @@
     <Style x:Key="PlayAch.ChartColumnSeriesStyle" TargetType="lvc:ColumnSeries">
         <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Accent}"/>
     </Style>
+
+    <!-- Category path shown in a host header above the achievement grid. Lives here because this
+         is the one dictionary every host reaches: the four scoped hosts pull it in through
+         PlayAchImplicitControlStyles, and the Modern theme host merges it directly. -->
+    <Style x:Key="PlayAch.CategoryPathLinkStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <TextBlock x:Name="PathText"
+                               Text="{TemplateBinding Content}"
+                               Foreground="{TemplateBinding Foreground}"
+                               FontSize="{TemplateBinding FontSize}"
+                               FontWeight="{TemplateBinding FontWeight}"
+                               TextDecorations="Underline"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"/>
+                    <ControlTemplate.Triggers>
+                        <!-- Only a navigable hop is underlined. The current level and the elided
+                             marker are both disabled, so this covers each of them. -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="PathText" Property="TextDecorations" Value="{x:Null}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <DataTemplate x:Key="PlayAch.CategoryPathSegmentTemplate" DataType="{x:Type items:CategoryPathSegment}">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Button Content="{Binding Content}"
+                    Command="{Binding NavigateCommand}"
+                    IsEnabled="{Binding IsNavigable}"
+                    ToolTip="{Binding ToolTip}">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource PlayAch.CategoryPathLinkStyle}">
+                        <!-- Matches the game-name hop the hosts render to the left: normal text
+                             colour, bold, underlined, hand cursor. -->
+                        <Setter Property="FontWeight" Value="Bold"/>
+                        <Style.Triggers>
+                            <!-- The elided marker is not a hop: it stands for levels above the one
+                                 being viewed, which the category list itself already reaches. -->
+                            <DataTrigger Binding="{Binding Depth}" Value="0">
+                                <Setter Property="FontWeight" Value="Normal"/>
+                                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Subtle}"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <TextBlock Text=" &gt; "
+                       FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding ShowSeparator, Converter={StaticResource BoolToVis}}"/>
+        </StackPanel>
+    </DataTemplate>
 
 </ResourceDictionary>

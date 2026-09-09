@@ -58,9 +58,17 @@
                                            DisableRowSelection="True"
                                            RowPreviewMouseLeftButtonDown="CategoryDrillHeader_RowPreviewMouseLeftButtonDown"/>
 
-        <Grid Grid.Row="1">
-            <!-- Category-summaries list (one row per category label). -->
+        <!-- The category tree or a category's achievements, never both: the row heights are set in
+             code so whichever pane is showing takes the whole area. -->
+        <Grid Grid.Row="1" x:Name="CategoryPaneHost">
+            <Grid.RowDefinitions>
+                <RowDefinition x:Name="CategoryPaneRow" Height="*"/>
+                <RowDefinition x:Name="AchievementPaneRow" Height="0"/>
+            </Grid.RowDefinitions>
+
+            <!-- Category-summaries list (one row per child category of the current level). -->
             <controls:GameSummariesGridControl x:Name="CategoryListGrid"
+                                               Grid.Row="0"
                                                Visibility="{Binding CategoryListVisible, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, Converter={StaticResource CategoryModeBoolToVis}}"
                                                ItemsSource="{Binding CategorySummaries, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
                                                ColumnSettingsKey="{Binding ResolvedCategoryColumnSettingsKey, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
@@ -78,6 +86,7 @@
                                                SelectionChanged="CategoryList_SelectionChanged"/>
 
     <DataGrid x:Name="AchievementsDataGrid"
+              Grid.Row="1"
               Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
               Visibility="{Binding AchievementGridVisible, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, Converter={StaticResource CategoryModeBoolToVis}}"
               ItemsSource="{Binding EffectiveAchievements, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
@@ -413,6 +422,12 @@
             </DataGridTemplateColumn>
 
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Label_Category}" SortMemberPath="CategoryLabel" helpers:ColumnVisibilityHelper.ColumnKey="CategoryLabel">
+                <DataGridTemplateColumn.CellStyle>
+                    <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
+                        <!-- The cell shows the leaf, so hovering reveals where it sits. -->
+                        <Setter Property="ToolTip" Value="{Binding CategoryLabelPathDisplay}"/>
+                    </Style>
+                </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding CategoryLabelDisplay}"
@@ -443,7 +458,7 @@
                     <Style TargetType="DataGridCell"
                         BasedOn="{StaticResource AchievementCellStyle}">
                         <Setter Property="Padding" Value="0"/>
-                        <Setter Property="ToolTip" Value="{Binding CategoryLabelDisplay}"/>
+                        <Setter Property="ToolTip" Value="{Binding CategoryLabelPathDisplay}"/>
                     </Style>
                 </DataGridTemplateColumn.CellStyle>
             </DataGridTemplateColumn>

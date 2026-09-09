@@ -254,6 +254,65 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CloneAndCopyFrom_PreserveAllowThemeUnlockSounds()
+        {
+            // Defaults true, so the off state is the one a lost copy would silently restore.
+            var source = new PersistedSettings
+            {
+                AllowThemeUnlockSounds = false
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.IsFalse(clone.AllowThemeUnlockSounds);
+            Assert.IsFalse(target.AllowThemeUnlockSounds);
+        }
+
+        [TestMethod]
+        public void Constructor_DefaultsUnlockSoundsOnAtHalfVolumeWithNoCustomFiles()
+        {
+            var settings = new PersistedSettings();
+
+            Assert.IsTrue(settings.EnableUnlockSounds);
+            Assert.IsTrue(settings.AllowThemeUnlockSounds);
+            Assert.AreEqual(50, settings.UnlockSoundVolumePercent);
+            Assert.IsFalse(settings.UnlockSoundsSeededFromUniPlaySong);
+            Assert.IsNotNull(settings.UnlockSounds);
+            foreach (var tier in UnlockSoundTierExtensions.All)
+            {
+                Assert.IsNull(settings.UnlockSounds.GetPath(tier), tier.ToString());
+            }
+        }
+
+        [TestMethod]
+        public void UnlockSoundVolumePercent_ClampsToPercentRange()
+        {
+            var settings = new PersistedSettings { UnlockSoundVolumePercent = 150 };
+            Assert.AreEqual(100, settings.UnlockSoundVolumePercent);
+
+            settings.UnlockSoundVolumePercent = -5;
+            Assert.AreEqual(0, settings.UnlockSoundVolumePercent);
+        }
+
+        [TestMethod]
+        public void UnlockSoundSettings_BlankPathsNormalizeToNullAndCloneIsIndependent()
+        {
+            var sounds = new UnlockSoundSettings();
+            sounds.SetPath(UnlockSoundTier.Rare, @"  C:\sounds\rare.wav  ");
+            sounds.SetPath(UnlockSoundTier.Hidden, "   ");
+
+            Assert.AreEqual(@"C:\sounds\rare.wav", sounds.Rare);
+            Assert.IsNull(sounds.Hidden);
+
+            var clone = sounds.Clone();
+            clone.Rare = null;
+            Assert.AreEqual(@"C:\sounds\rare.wav", sounds.GetPath(UnlockSoundTier.Rare));
+            Assert.IsNull(clone.GetPath(UnlockSoundTier.Rare));
+        }
+
+        [TestMethod]
         public void Constructor_DefaultsRoundRarityPercentagesOff()
         {
             var settings = new PersistedSettings();
@@ -328,6 +387,12 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void EnableProgressToasts_DefaultsOn()
+        {
+            Assert.IsTrue(new PersistedSettings().EnableProgressToasts);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveInGamePollingAndToastSettings()
         {
             var source = new PersistedSettings
@@ -339,6 +404,7 @@ namespace PlayniteAchievements.Models.Tests
                 InGameFriendBatchSize = 7,
                 EnableUnlockToasts = false,
                 EnableFriendUnlockToasts = false,
+                EnableProgressToasts = false,
                 NotificationStyle = new NotificationStyleSettings
                 {
                     Toast = new NotificationSurfaceStyle
@@ -354,6 +420,8 @@ namespace PlayniteAchievements.Models.Tests
                 ToastUseThemeStyling = false,
                 FrameUseThemeStyling = false,
                 ToastDurationSeconds = 8,
+                NotificationDelaySeconds = 0.4,
+                CaptureDelaySeconds = 0.7,
                 MaxConcurrentToasts = 4,
                 ToastPosition = ToastScreenCorner.TopLeft
             };
@@ -383,6 +451,37 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(0, settings.InGameFriendBatchSize);
             Assert.AreEqual(2, settings.ToastDurationSeconds);
             Assert.AreEqual(1, settings.MaxConcurrentToasts);
+        }
+
+        /// <summary>
+        /// Both delays are deliberately uncapped — a user may want to hold a notification or its
+        /// capture for as long as they like — so only negatives are rejected. Asserting a large
+        /// value survives keeps a ceiling from being reintroduced as an unnoticed "sanity clamp".
+        /// </summary>
+        [TestMethod]
+        public void NotificationDelay_FloorsNegativesAndKeepsLargeValues()
+        {
+            var settings = new PersistedSettings { NotificationDelaySeconds = -1.5 };
+            Assert.AreEqual(0, settings.NotificationDelaySeconds);
+
+            settings.NotificationDelaySeconds = 0.4;
+            Assert.AreEqual(0.4, settings.NotificationDelaySeconds);
+
+            settings.NotificationDelaySeconds = 120;
+            Assert.AreEqual(120, settings.NotificationDelaySeconds);
+        }
+
+        [TestMethod]
+        public void CaptureDelay_FloorsNegativesAndKeepsLargeValues()
+        {
+            var settings = new PersistedSettings { CaptureDelaySeconds = -1.5 };
+            Assert.AreEqual(0, settings.CaptureDelaySeconds);
+
+            settings.CaptureDelaySeconds = 0.4;
+            Assert.AreEqual(0.4, settings.CaptureDelaySeconds);
+
+            settings.CaptureDelaySeconds = 120;
+            Assert.AreEqual(120, settings.CaptureDelaySeconds);
         }
 
         [TestMethod]
@@ -545,6 +644,10 @@ namespace PlayniteAchievements.Models.Tests
             Assert.IsTrue(settings.EnableOpenSettingsHotkey);
             Assert.IsTrue(settings.EnableCategoryModeHotkey);
             Assert.IsTrue(settings.EnableTestUnlockHotkey);
+
+            // Off by default: a retrigger captures into the game's own folder, and the test folder
+            // is the opt-in that turns it into throwaway output instead.
+            Assert.IsFalse(settings.EnableCaptureTestFolder);
             Assert.AreEqual(PersistedSettings.DefaultViewAchievementsHotkey, settings.ViewAchievementsHotkey);
             Assert.AreEqual(PersistedSettings.DefaultManageAchievementsHotkey, settings.ManageAchievementsHotkey);
             Assert.AreEqual(PersistedSettings.DefaultOverviewHotkey, settings.OverviewHotkey);
@@ -962,6 +1065,7 @@ namespace PlayniteAchievements.Models.Tests
                 EnableOpenSettingsHotkey = false,
                 EnableCategoryModeHotkey = false,
                 EnableTestUnlockHotkey = false,
+                EnableCaptureTestFolder = true,
                 ViewAchievementsHotkey = "F8",
                 ManageAchievementsHotkey = "Shift+F9",
                 OverviewHotkey = "F10",
@@ -982,6 +1086,7 @@ namespace PlayniteAchievements.Models.Tests
             Assert.IsFalse(clone.EnableOpenSettingsHotkey);
             Assert.IsFalse(clone.EnableCategoryModeHotkey);
             Assert.IsFalse(clone.EnableTestUnlockHotkey);
+            Assert.IsTrue(clone.EnableCaptureTestFolder);
             Assert.AreEqual("F8", clone.ViewAchievementsHotkey);
             Assert.AreEqual("Shift+F9", clone.ManageAchievementsHotkey);
             Assert.AreEqual("F10", clone.OverviewHotkey);
@@ -997,6 +1102,7 @@ namespace PlayniteAchievements.Models.Tests
             Assert.IsFalse(target.EnableOpenSettingsHotkey);
             Assert.IsFalse(target.EnableCategoryModeHotkey);
             Assert.IsFalse(target.EnableTestUnlockHotkey);
+            Assert.IsTrue(target.EnableCaptureTestFolder);
             Assert.AreEqual("F8", target.ViewAchievementsHotkey);
             Assert.AreEqual("Shift+F9", target.ManageAchievementsHotkey);
             Assert.AreEqual("F10", target.OverviewHotkey);
@@ -1634,6 +1740,7 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(expected.InGameFriendBatchSize, actual.InGameFriendBatchSize);
             Assert.AreEqual(expected.EnableUnlockToasts, actual.EnableUnlockToasts);
             Assert.AreEqual(expected.EnableFriendUnlockToasts, actual.EnableFriendUnlockToasts);
+            Assert.AreEqual(expected.EnableProgressToasts, actual.EnableProgressToasts);
             Assert.AreEqual(expected.NotificationStyle.Toast.ShowRarityGlow, actual.NotificationStyle.Toast.ShowRarityGlow);
             Assert.AreEqual(expected.NotificationStyle.Toast.RarityColoredName, actual.NotificationStyle.Toast.RarityColoredName);
             Assert.AreEqual(expected.NotificationStyle.Toast.ShowRarityPercent, actual.NotificationStyle.Toast.ShowRarityPercent);
@@ -1644,6 +1751,8 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(expected.ToastUseThemeStyling, actual.ToastUseThemeStyling);
             Assert.AreEqual(expected.FrameUseThemeStyling, actual.FrameUseThemeStyling);
             Assert.AreEqual(expected.ToastDurationSeconds, actual.ToastDurationSeconds);
+            Assert.AreEqual(expected.NotificationDelaySeconds, actual.NotificationDelaySeconds);
+            Assert.AreEqual(expected.CaptureDelaySeconds, actual.CaptureDelaySeconds);
             Assert.AreEqual(expected.MaxConcurrentToasts, actual.MaxConcurrentToasts);
             Assert.AreEqual(expected.ToastPosition, actual.ToastPosition);
         }

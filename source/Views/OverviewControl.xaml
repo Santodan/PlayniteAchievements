@@ -715,13 +715,16 @@
                                         VerticalAlignment="Center"
                                         Visibility="{Binding IsSelectedGameDrilledIntoCategory, Converter={StaticResource BoolToVis}}"/>
 
-                                <TextBlock Text="{Binding SelectedGameDrilledCategory}"
-                                        FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                        FontWeight="Bold"
-                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                        TextTrimming="CharacterEllipsis"
+                                <ItemsControl ItemsSource="{Binding DrilledCategorySegments, ElementName=GameAchievementsGrid}"
+                                        ItemTemplate="{StaticResource PlayAch.CategoryPathSegmentTemplate}"
                                         VerticalAlignment="Center"
-                                        Visibility="{Binding IsSelectedGameDrilledIntoCategory, Converter={StaticResource BoolToVis}}"/>
+                                        Visibility="{Binding IsSelectedGameDrilledIntoCategory, Converter={StaticResource BoolToVis}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
 
                                 <TextBlock Text="{Binding SelectedGameHeaderText}"
                                         FontSize="{DynamicResource PlayAch.FontSize.Caption}"
@@ -803,7 +806,6 @@
                                                                  ColumnSettingsKey="OverviewRecentAchievements"
                                                                  ShowGameColumn="True"
                                                                  EnableCategoryMode="True"
-                                                                 HideBackButton="True"
                                                                  CategorySummarySource="{Binding SidebarAllAchievements}"
                                                                  UseCoverImages="{Binding UseCoverImagesRecentAchievements}"
                                                                  ShowRarityGlow="{Binding ShowRarityGlowRecentAchievements}"
@@ -848,7 +850,6 @@
                                                                  ColumnSettingsKey="OverviewSelectedGameAchievements"
                                                                  ShowGameColumn="True"
                                                                  EnableCategoryMode="True"
-                                                                 HideBackButton="True"
                                                                  HideCategorySummaryRow="{Binding OverviewSelectedGameAchievementsHideCategorySummaryRow}"
                                                                  CategoryUseCoverImages="{Binding OverviewSelectedGameCategorySummariesUseCoverImages}"
                                                                  CategoryShowCompletionGlow="{Binding OverviewSelectedGameCategorySummariesShowCompletionGlow}"
@@ -857,6 +858,7 @@
                                                                  CategoryColumnSettingsKey="OverviewSelectedGameCategorySummaries"
                                                                  CategorySummarySource="{Binding SelectedGameAllAchievements}"
                                                                  DrilledCategory="{Binding SelectedGameDrilledCategory, Mode=OneWayToSource}"
+                                                                 DrilledCategoryPath="{Binding SelectedGameDrilledCategoryPath, Mode=OneWayToSource}"
                                                                  DataGridMaxHeight="{x:Static sys:Double.NaN}"
                                                                  ShowRarityGlow="{Binding ShowRarityGlowSelectedGame}"
                                                                  ColorNamesByRarity="{Binding ColorNamesByRaritySelectedGame}"

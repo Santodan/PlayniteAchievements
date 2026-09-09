@@ -83,11 +83,15 @@
                        FontSize="{DynamicResource PlayAch.FontSize.Body}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
-            <TextBlock Text="{Binding SelectedCategoryName, RelativeSource={RelativeSource AncestorType=modern:AchievementDataGridControl}}"
-                       FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                       FontWeight="Bold"
-                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                       TextTrimming="CharacterEllipsis"/>
+            <ItemsControl ItemsSource="{Binding DrilledCategorySegments, ElementName=AchievementsGrid}"
+                          ItemTemplate="{StaticResource PlayAch.CategoryPathSegmentTemplate}"
+                          VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
         </StackPanel>
 
         <controls:AchievementDataGridControl x:Name="AchievementsGrid"
@@ -95,7 +99,6 @@
                                              ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=modern:AchievementDataGridControl}}"
                                              ColumnSettingsKey="DesktopTheme"
                                              EnableCategoryMode="True"
-                                             HideBackButton="True"
                                              HideCategorySummaryRow="{Binding DataContext.Persisted.DesktopThemeAchievementGridHideCategorySummaryRow, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                              DrilledCategory="{Binding SelectedCategoryName, Mode=OneWayToSource, RelativeSource={RelativeSource AncestorType=modern:AchievementDataGridControl}}"
                                              CategoryUseCoverImages="{Binding DataContext.Persisted.DesktopThemeCategorySummariesUseCoverImages, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"

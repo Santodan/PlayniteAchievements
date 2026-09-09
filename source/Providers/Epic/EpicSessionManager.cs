@@ -42,9 +42,13 @@ namespace PlayniteAchievements.Providers.Epic
         public string ProviderKey => "Epic";
 
         /// <summary>
-        /// Checks if currently authenticated based on token validity.
+        /// Snapshot of whether the persisted session is usable without user interaction: a valid
+        /// access token, or an expired one that a still-valid refresh token can renew.
+        /// ProbeAuthStateAsync remains the authoritative auth check. Access tokens are short-lived,
+        /// so gating on the access token alone dropped Epic out of in-game tracking whenever a game
+        /// launched with a stale token.
         /// </summary>
-        public bool IsAuthenticated => HasValidAccessToken();
+        public bool IsAuthenticated => HasValidAccessToken() || HasValidRefreshToken();
 
         public EpicSessionManager(
             IPlayniteAPI api,
@@ -326,15 +330,19 @@ namespace PlayniteAchievements.Providers.Epic
         private bool HasValidAccessToken()
         {
             var settings = GetEpicSettings();
-            return !string.IsNullOrWhiteSpace(settings.AccessToken) &&
-                   DateTime.UtcNow < settings.TokenExpiryUtc.AddMinutes(-TokenExpiryBufferMinutes);
+            return EpicSessionState.HasValidAccessToken(
+                settings.AccessToken,
+                settings.TokenExpiryUtc,
+                DateTime.UtcNow,
+                TimeSpan.FromMinutes(TokenExpiryBufferMinutes));
         }
 
         private bool HasValidRefreshToken()
         {
-            var refreshToken = GetRefreshToken();
-            var refreshExpiry = GetRefreshTokenExpiryUtc();
-            return !string.IsNullOrWhiteSpace(refreshToken) && DateTime.UtcNow < refreshExpiry;
+            return EpicSessionState.HasValidRefreshToken(
+                GetRefreshToken(),
+                GetRefreshTokenExpiryUtc(),
+                DateTime.UtcNow);
         }
 
         private string GetRefreshToken() => GetEpicSettings().RefreshToken;

@@ -275,6 +275,11 @@ namespace PlayniteAchievements.ViewModels.Items
         // toggle attaches to it as a segmented unit.
         public bool IsCategoryFilter { get; set; }
 
+        // When true, the options are category paths (CategoryPathHelper form) and the dropdown
+        // renders them as the tree they describe: one row per node showing its leaf name, with
+        // tree connectors standing in for the path, rather than one row per full path.
+        public bool RendersCategoryTree { get; set; }
+
         // When true, this dropdown renders as the left half of a segmented unit (flat right edge)
         // so an adjacent control on its right reads as one bordered group.
         public bool ConnectedRight

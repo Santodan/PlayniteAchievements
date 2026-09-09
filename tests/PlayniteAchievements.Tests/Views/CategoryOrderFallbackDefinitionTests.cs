@@ -102,8 +102,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ManageCategoriesTab_OrdersCategoryRowsFromDefinitionOrderedRows()
         {
-            var code = File.ReadAllText(FindRepoFile(
-                "source", "ViewModels", "ManageAchievements", "ManageAchievementsCategoryViewModel.cs"));
+            var code = ReadCategoryViewModelSources();
 
             AssertContainsAll(
                 code,
@@ -125,6 +124,22 @@ namespace PlayniteAchievements.Tests.Views
                 "canonicalAchievements = orderedAchievements;",
                 "canonicalAchievements = rawAchievements;",
                 "                    canonicalAchievements,");
+        }
+
+        /// <summary>
+        /// The category view model is split across partials, with its row types in a fourth file.
+        /// Assert against the whole set so relocating a member between them is a refactor rather
+        /// than a test failure.
+        /// </summary>
+        private static string ReadCategoryViewModelSources()
+        {
+            var anchor = FindRepoFile(
+                "source", "ViewModels", "ManageAchievements", "ManageAchievementsCategoryViewModel.cs");
+
+            return string.Concat(Directory
+                .EnumerateFiles(Path.GetDirectoryName(anchor), "ManageAchievementsCategory*.cs")
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .Select(File.ReadAllText));
         }
 
         private static void AssertContainsAll(string content, params string[] expected)

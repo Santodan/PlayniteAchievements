@@ -23,7 +23,7 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly ILogger Logger = LogManager.GetLogger();
         private DataGridColumnLayoutService _columnPersistence;
         private bool _isAttached;
-        private PersistedSettings _subscribedPersisted;
+        private PersistedSettingsSubscription _persistedSubscription;
         private const double DefaultCoverColumnWidth = 96;
         private const double DefaultPlatformColumnWidth = 44;
         private const double DefaultCapturesColumnWidth = 56;
@@ -74,11 +74,15 @@ namespace PlayniteAchievements.Views.Controls
         };
 
         // Columns with no per-category meaning; dropped entirely from category-summaries grids.
+        // Captures is among them: nothing marks HasCaptures on category rows and the viewer
+        // resolves by the row's game identity, which a category row does not carry - the column
+        // could only ever render empty there.
         private static readonly string[] CategoryExcludedColumnKeys =
         {
             "GameSummaryPlatform",
             "GameSummaryPlaytime",
-            "GameSummaryLastPlayed"
+            "GameSummaryLastPlayed",
+            "Captures"
         };
 
         private static readonly string[] MirroredAppearanceResourceKeys =
@@ -262,6 +266,25 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(FixedRowHeightProperty, value);
         }
 
+        /// <summary>
+        /// Opts the name column's tree guides into the category expand/collapse toggles. Only the
+        /// category-mode list turns this on; the drill header and every game-summary surface leave
+        /// it off, and the host also drops it while a name search or column sort suspends
+        /// collapsing so the glyphs revert to plain beads there.
+        /// </summary>
+        public static readonly DependencyProperty ShowCategoryCollapseTogglesProperty =
+            DependencyProperty.Register(
+                nameof(ShowCategoryCollapseToggles),
+                typeof(bool),
+                typeof(GameSummariesGridControl),
+                new PropertyMetadata(false));
+
+        public bool ShowCategoryCollapseToggles
+        {
+            get => (bool)GetValue(ShowCategoryCollapseTogglesProperty);
+            set => SetValue(ShowCategoryCollapseTogglesProperty, value);
+        }
+
         public static readonly DependencyProperty ShowMetadataPlatformProperty =
             DependencyProperty.Register(
                 nameof(ShowMetadataPlatform),
@@ -427,6 +450,22 @@ namespace PlayniteAchievements.Views.Controls
             private set => SetValue(ShowNameAboveProgressProperty, value);
         }
 
+        public static readonly DependencyProperty ShowRarityBadgesBelowProgressProperty =
+            DependencyProperty.Register(
+                nameof(ShowRarityBadgesBelowProgress),
+                typeof(bool),
+                typeof(GameSummariesGridControl),
+                new PropertyMetadata(true));
+
+        // Resolved per-surface toggle for the footer row below the progress bar (rarity/trophy
+        // badges and the completion badge); consumed by OverviewProgressFooterStyle in
+        // OverviewStyles.xaml.
+        public bool ShowRarityBadgesBelowProgress
+        {
+            get => (bool)GetValue(ShowRarityBadgesBelowProgressProperty);
+            private set => SetValue(ShowRarityBadgesBelowProgressProperty, value);
+        }
+
         public static readonly DependencyProperty ShowColumnHeadersProperty =
             DependencyProperty.Register(
                 nameof(ShowColumnHeaders),
@@ -581,10 +620,16 @@ namespace PlayniteAchievements.Views.Controls
             UpdateLastPlayedDateMode(settings);
             UpdateColorRarityColumnsByRarity(settings);
             UpdateShowNameAboveProgress(settings);
-            if (_subscribedPersisted == null)
+            UpdateShowRarityBadgesBelowProgress(settings);
+            // Tracks the current Persisted instance: CancelEdit replaces it, and a direct
+            // subscription would leave this grid on the orphan, keeping the reverted
+            // display modes for the rest of the session.
+            if (_persistedSubscription == null)
             {
-                _subscribedPersisted = settings.Persisted;
-                _subscribedPersisted.PropertyChanged += OnPersistedSettingsChanged;
+                _persistedSubscription = new PersistedSettingsSubscription(
+                    settings,
+                    OnPersistedSettingsChanged,
+                    () => OnPersistedSettingsChanged(this, new PropertyChangedEventArgs(null)));
             }
             RarityAppearanceHelper.AppearanceChanged -= RarityAppearanceHelper_AppearanceChanged;
             RarityAppearanceHelper.AppearanceChanged += RarityAppearanceHelper_AppearanceChanged;
@@ -919,7 +964,8 @@ namespace PlayniteAchievements.Views.Controls
                 },
                 GetLastPlayedDateMode = () => ResolveLastPlayedDateMode(persisted, surface),
                 GetColorRarityColumnsByRarity = () => ResolveColorRarityColumnsByRarity(persisted, surface),
-                GetShowNameAboveProgress = () => ResolveShowNameAboveProgress(persisted, surface)
+                GetShowNameAboveProgress = () => ResolveShowNameAboveProgress(persisted, surface),
+                GetShowRarityBadgesBelowProgress = () => ResolveShowRarityBadgesBelowProgress(persisted, surface)
             };
         }
 
@@ -1043,6 +1089,46 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        private static bool ResolveShowRarityBadgesBelowProgress(
+            PersistedSettings persisted,
+            GridSurface surface)
+        {
+            if (persisted == null)
+            {
+                return true;
+            }
+
+            switch (surface)
+            {
+                case GridSurface.StartPage:
+                    return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.StartPage).ShowRarityBadgesBelowProgress;
+                case GridSurface.ViewAchievements:
+                    return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.ViewAchievements).ShowRarityBadgesBelowProgress;
+                case GridSurface.FriendsOverview:
+                    return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.FriendsOverview).ShowRarityBadgesBelowProgress;
+                case GridSurface.FriendsOverviewSelectedFriend:
+                    return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.FriendsOverviewSelectedFriend).ShowRarityBadgesBelowProgress;
+                case GridSurface.ViewFriendsAchievements:
+                    return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.ViewFriendsAchievements).ShowRarityBadgesBelowProgress;
+                case GridSurface.ViewFriendsAchievementsSelectedFriend:
+                    return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.ViewFriendsAchievementsSelectedFriend).ShowRarityBadgesBelowProgress;
+                case GridSurface.ViewAchievementsCategory:
+                    return persisted.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.ViewAchievements).ShowRarityBadgesBelowProgress;
+                case GridSurface.OverviewSelectedGameCategory:
+                    return persisted.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.OverviewSelectedGame).ShowRarityBadgesBelowProgress;
+                case GridSurface.FriendsOverviewCategory:
+                    return persisted.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.FriendsOverview).ShowRarityBadgesBelowProgress;
+                case GridSurface.ViewFriendsAchievementsCategory:
+                    return persisted.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.ViewFriendsAchievements).ShowRarityBadgesBelowProgress;
+                case GridSurface.DesktopThemeCategory:
+                    return persisted.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.DesktopTheme).ShowRarityBadgesBelowProgress;
+                case GridSurface.DesktopTheme:
+                    return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.DesktopTheme).ShowRarityBadgesBelowProgress;
+                default:
+                    return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.Overview).ShowRarityBadgesBelowProgress;
+            }
+        }
+
         private static DateDisplayMode ResolveLastPlayedDateMode(
             PersistedSettings persisted,
             GridSurface surface)
@@ -1092,6 +1178,7 @@ namespace PlayniteAchievements.Views.Controls
             public Func<DateDisplayMode> GetLastPlayedDateMode { get; set; }
             public Func<bool> GetColorRarityColumnsByRarity { get; set; }
             public Func<bool> GetShowNameAboveProgress { get; set; }
+            public Func<bool> GetShowRarityBadgesBelowProgress { get; set; }
         }
 
         private enum GridSurface
@@ -1292,6 +1379,14 @@ namespace PlayniteAchievements.Views.Controls
             {
                 UpdateShowNameAboveProgress(PlayniteAchievementsPlugin.Instance?.Settings);
             }
+
+            // Matches the per-surface flat compatibility names for both the game-summary and
+            // category-summary variants of the option (they all share this suffix).
+            if (string.IsNullOrEmpty(e.PropertyName) ||
+                e.PropertyName.EndsWith(nameof(GameSummaryGridOptions.ShowRarityBadgesBelowProgress), StringComparison.Ordinal))
+            {
+                UpdateShowRarityBadgesBelowProgress(PlayniteAchievementsPlugin.Instance?.Settings);
+            }
         }
 
         private void UpdateLastPlayedDateMode(PlayniteAchievementsSettings settings)
@@ -1318,6 +1413,15 @@ namespace PlayniteAchievements.Views.Controls
             if (surfaceSettings != null)
             {
                 ShowNameAboveProgress = surfaceSettings.GetShowNameAboveProgress();
+            }
+        }
+
+        private void UpdateShowRarityBadgesBelowProgress(PlayniteAchievementsSettings settings)
+        {
+            var surfaceSettings = GetSurfaceSettings(settings);
+            if (surfaceSettings != null)
+            {
+                ShowRarityBadgesBelowProgress = surfaceSettings.GetShowRarityBadgesBelowProgress();
             }
         }
 
@@ -1532,6 +1636,38 @@ namespace PlayniteAchievements.Views.Controls
             return true;
         }
 
+        /// <summary>
+        /// Brings a row into view without selecting it. Hosts where selection is the navigation
+        /// gesture need the one without the other - returning to a list should restore the place
+        /// it was left at, not re-enter the row that was left.
+        /// </summary>
+        public void ScrollRowIntoView(GameSummaryItem item)
+        {
+            if (item != null)
+            {
+                GameSummariesGrid?.ScrollIntoView(item);
+            }
+        }
+
+        /// <summary>
+        /// The grid's current vertical scroll offset, or 0 before it has been realized. Paired with
+        /// <see cref="ScrollToVerticalOffset"/> so a caller can put the list back exactly where the
+        /// user left it.
+        /// </summary>
+        public double VerticalScrollOffset =>
+            VisualTreeHelpers.FindVisualChild<ScrollViewer>(GameSummariesGrid)?.VerticalOffset ?? 0d;
+
+        public void ScrollToVerticalOffset(double offset)
+        {
+            if (offset <= 0)
+            {
+                return;
+            }
+
+            var scrollViewer = VisualTreeHelpers.FindVisualChild<ScrollViewer>(GameSummariesGrid);
+            scrollViewer?.ScrollToVerticalOffset(offset);
+        }
+
         public void SetSortIndicator(string sortMemberPath, ListSortDirection? direction)
         {
             DataGridSortingHelper.SetSortIndicator(GameSummariesGrid, sortMemberPath, direction);
@@ -1543,6 +1679,7 @@ namespace PlayniteAchievements.Views.Controls
             UpdateLastPlayedDateMode(PlayniteAchievementsPlugin.Instance?.Settings);
             UpdateColorRarityColumnsByRarity(PlayniteAchievementsPlugin.Instance?.Settings);
             UpdateShowNameAboveProgress(PlayniteAchievementsPlugin.Instance?.Settings);
+            UpdateShowRarityBadgesBelowProgress(PlayniteAchievementsPlugin.Instance?.Settings);
             RefreshPlaytimeText();
         }
 
@@ -1572,11 +1709,8 @@ namespace PlayniteAchievements.Views.Controls
 
             _columnPersistence?.Dispose();
             _columnPersistence = null;
-            if (_subscribedPersisted != null)
-            {
-                _subscribedPersisted.PropertyChanged -= OnPersistedSettingsChanged;
-                _subscribedPersisted = null;
-            }
+            _persistedSubscription?.Dispose();
+            _persistedSubscription = null;
             RarityAppearanceHelper.AppearanceChanged -= RarityAppearanceHelper_AppearanceChanged;
             DataGridAlignmentBehavior.SetColumnCellAlignmentOverridesProvider(GameSummariesGrid, null);
             DataGridAlignmentBehavior.SetColumnCellVerticalAlignmentOverridesProvider(GameSummariesGrid, null);

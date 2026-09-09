@@ -175,10 +175,10 @@ namespace PlayniteAchievements.Services.Tests.Recording
 
             Assert.AreEqual(unlock.AddSeconds(-15), window.StartUtc);
             Assert.AreEqual(unlock, window.ToastAnchorUtc);
-            // The observation guard wins by two seconds, ensuring the locally observed event is
-            // present even when the provider anchor's notification slot ended first.
-            Assert.AreEqual(detection.AddSeconds(1), window.EndUtc);
-            Assert.AreEqual(26, (window.EndUtc - window.StartUtc).TotalSeconds, 0.001);
+            // The clip ends with the composited notification: anchor + toast slot + tail,
+            // regardless of how much later the source observed the unlock.
+            Assert.AreEqual(unlock.AddSeconds(9), window.EndUtc);
+            Assert.AreEqual(24, (window.EndUtc - window.StartUtc).TotalSeconds, 0.001);
         }
 
         [TestMethod]
@@ -279,6 +279,100 @@ namespace PlayniteAchievements.Services.Tests.Recording
             Assert.AreEqual(unlock, window.ToastAnchorUtc);
         }
 
+        // === Clip window anchored on the notification (the notification-delay path) ===
+
+        [TestMethod]
+        public void ComputeClipWindow_DisplayAnchor_BuildsWindowAroundTheNotification()
+        {
+            var captureStart = T0;
+            var unlock = T0.AddSeconds(60);
+            var detection = unlock.AddSeconds(10);
+            // The card reached the screen after detection, delay included.
+            var display = detection.AddSeconds(4);
+
+            var window = SegmentTimeline.ComputeClipWindow(
+                unlock, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1,
+                displayAnchorUtc: display);
+
+            Assert.AreEqual(display, window.ToastAnchorUtc);
+            Assert.AreEqual(display.AddSeconds(-15), window.StartUtc);
+            Assert.AreEqual(display.AddSeconds(9), window.EndUtc);
+            Assert.IsTrue(window.AnchoredOnDisplay);
+        }
+
+        /// <summary>
+        /// A display instant is always later than observation, which is exactly what
+        /// <see cref="SegmentTimeline.IsPreciseUnlockTime"/> rejects. Routing it through the
+        /// dedicated parameter has to bypass that guard, or every delayed clip would silently fall
+        /// back to detection anchoring.
+        /// </summary>
+        [TestMethod]
+        public void ComputeClipWindow_DisplayAnchor_SurvivesTheLeadGuardThatRejectsLateAnchors()
+        {
+            var captureStart = T0;
+            var detection = T0.AddSeconds(120);
+            var display = detection.AddSeconds(SegmentTimeline.PreciseLeadSeconds + 30);
+
+            Assert.IsFalse(
+                SegmentTimeline.IsPreciseUnlockTime(display, captureStart, detection),
+                "Guard precondition: a late display instant is not a 'precise unlock time'.");
+
+            var window = SegmentTimeline.ComputeClipWindow(
+                null, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1,
+                displayAnchorUtc: display);
+
+            Assert.AreEqual(display, window.ToastAnchorUtc);
+        }
+
+        [TestMethod]
+        public void ComputeClipWindow_DisplayAnchor_ClampsStartToRecordedData()
+        {
+            var captureStart = T0.AddSeconds(100);
+            var detection = T0.AddSeconds(105);
+            var display = T0.AddSeconds(108);
+
+            var window = SegmentTimeline.ComputeClipWindow(
+                null, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 30,
+                toastSlotSeconds: 8, tailSeconds: 1,
+                displayAnchorUtc: display);
+
+            Assert.AreEqual(captureStart, window.StartUtc);
+            Assert.AreEqual(display, window.ToastAnchorUtc);
+        }
+
+        /// <summary>
+        /// No display instant (no delay configured, an unrevealed wave, or the wait gave up) must
+        /// reproduce the unlock-anchored window exactly — the default path stays untouched.
+        /// </summary>
+        [TestMethod]
+        public void ComputeClipWindow_NoDisplayAnchor_MatchesTheUnlockAnchoredWindow()
+        {
+            var captureStart = T0;
+            var unlock = T0.AddSeconds(60);
+            var detection = unlock.AddSeconds(10);
+
+            var withoutArgument = SegmentTimeline.ComputeClipWindow(
+                unlock, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1);
+
+            var withNull = SegmentTimeline.ComputeClipWindow(
+                unlock, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1,
+                displayAnchorUtc: null);
+
+            Assert.AreEqual(withoutArgument.StartUtc, withNull.StartUtc);
+            Assert.AreEqual(withoutArgument.EndUtc, withNull.EndUtc);
+            Assert.AreEqual(withoutArgument.ToastAnchorUtc, withNull.ToastAnchorUtc);
+            Assert.IsFalse(withNull.AnchoredOnDisplay);
+        }
+
         [TestMethod]
         public void ComputeClipWindow_AnchorRaisedToStartWhenClampPassesIt()
         {
@@ -368,10 +462,11 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void ComputeClipWindow_EarlyAnchor_CannotCutOffObservedEvent()
+        public void ComputeClipWindow_EarlyAnchor_EndsWithTheCompositedNotification()
         {
-            // Bills Must Be Paid supplied a Steam epoch 8.1s before the Windows-clock file event.
-            // The old 7s toast+tail window ended before the purchase that triggered the unlock.
+            // A reported anchor a few seconds before the local observation (Bills Must Be Paid
+            // supplied a Steam epoch 8.1s before the Windows-clock file event). The clip ends
+            // with the composited notification on the anchor; observation does not extend it.
             var captureStart = T0;
             var reported = T0.AddSeconds(60);
             var observed = reported.AddSeconds(8.1);
@@ -382,9 +477,47 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 toastSlotSeconds: 5, tailSeconds: 2);
 
             Assert.AreEqual(reported, window.ToastAnchorUtc);
-            Assert.AreEqual(observed.AddSeconds(2), window.EndUtc);
-            Assert.IsTrue(window.StartUtc <= reported);
-            Assert.IsTrue(window.EndUtc > observed);
+            Assert.AreEqual(reported.AddSeconds(-15), window.StartUtc);
+            Assert.AreEqual(reported.AddSeconds(7), window.EndUtc);
+        }
+
+        [TestMethod]
+        public void ComputeClipWindow_LateObservation_TrustedAnchorKeepsFullPreRoll()
+        {
+            // The Moonscars/GOG case: the provider surfaced each unlock 21-30s after its reported
+            // time. The anchor survives the staleness bound (one poll interval + pre-roll), so it
+            // keeps the user's full pre-roll instead of having observation lag eat it down to a
+            // fraction of a second.
+            var captureStart = T0;
+            var unlock = T0.AddSeconds(600);
+            var detection = unlock.AddSeconds(29.9);
+
+            var window = SegmentTimeline.ComputeClipWindow(
+                unlock, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1);
+
+            Assert.AreEqual(unlock, window.ToastAnchorUtc);
+            Assert.AreEqual(unlock.AddSeconds(-15), window.StartUtc);
+            Assert.AreEqual(unlock.AddSeconds(9), window.EndUtc);
+        }
+
+        [TestMethod]
+        public void ComputeClipWindow_ObservationLagBeyondTheStalenessBound_ReAnchorsOnDetection()
+        {
+            // Just past one poll interval + pre-roll before observation the reported timestamp is
+            // no longer distinguishable from a stale one and is discarded.
+            var captureStart = T0;
+            var unlock = T0.AddSeconds(600);
+            var detection = unlock.AddSeconds(31);
+
+            var window = SegmentTimeline.ComputeClipWindow(
+                unlock, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1);
+
+            Assert.AreEqual(detection, window.ToastAnchorUtc);
+            Assert.AreEqual(detection.AddSeconds(-15), window.StartUtc);
         }
 
         // === Buffer budget ===
@@ -767,10 +900,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
             var prefixes = new[]
             {
                 RecordingPaths.AudioChunkFilePrefix,
-                RecordingPaths.ChimeChunkFilePrefix,
-                RecordingPaths.GameReferenceChunkFilePrefix,
-                RecordingPaths.HapticReferenceChunkFilePrefix(0),
-                RecordingPaths.HapticReferenceChunkFilePrefix(3),
+                RecordingPaths.FallbackChunkFilePrefix,
             };
 
             foreach (var prefix in prefixes)

@@ -34,12 +34,44 @@ namespace PlayniteAchievements.ViewModels.Items
         // Session-only: true when this game has any saved unlock captures on disk. Set by the
         // capture presence marker after the summaries are built; gates the Captures column button.
         private bool _hasCaptures;
+        private string _nameToolTip;
         [DontSerialize]
         [IgnoreDataMember]
         public bool HasCaptures { get => _hasCaptures; set => SetValue(ref _hasCaptures, value); }
 
+        /// <summary>
+        /// Hover text for the name cell, or null for none. A category row shows its leaf, so this
+        /// carries the full path - two leaves with the same name under different parents are
+        /// otherwise indistinguishable once a column sort breaks the tree order.
+        /// </summary>
+        public string NameToolTip
+        {
+            get => _nameToolTip ?? _gameName;
+            set => SetValue(ref _nameToolTip, value);
+        }
+
         private string _sortingName;
         public string SortingName { get => _sortingName; set => SetValue(ref _sortingName, value); }
+
+        // Session-only view state, and null on a game row: the connector geometry the name cell
+        // draws to place this row in the category tree. Held on the base rather than on
+        // CategorySummaryItem so the shared name-column template can bind it without a per-row
+        // binding failure on the game surfaces that use the same template.
+        private CategoryTreeShape _treeShape;
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public CategoryTreeShape TreeShape { get => _treeShape; set => SetValue(ref _treeShape, value); }
+
+        // Session-only view state, false on a game row: whether this category row's subtree is
+        // currently collapsed out of the visible list. Stamped by the category list on every filter
+        // pass. On the base for the same reason as TreeShape: the shared name-column template binds
+        // it, and a per-row binding failure on the game surfaces would be paid on every row.
+        private bool _isCollapsed;
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool IsCollapsed { get => _isCollapsed; set => SetValue(ref _isCollapsed, value); }
 
         public bool Owned => PlayniteGameId.HasValue;
 
@@ -204,18 +236,60 @@ namespace PlayniteAchievements.ViewModels.Items
         public int TotalRarePossible { get; set; }
         public int TotalUltraRarePossible { get; set; }
 
-        // Trophy counts for PlayStation games
+        // Trophy counts for PlayStation games. Each setter also raises HasTrophyTypes: a category
+        // row swapping between its own and subtree stat snapshots in place can flip whether the
+        // row has trophy data at all.
         private int _trophyPlatinumCount;
-        public int TrophyPlatinumCount { get => _trophyPlatinumCount; set => SetValue(ref _trophyPlatinumCount, value); }
+        public int TrophyPlatinumCount
+        {
+            get => _trophyPlatinumCount;
+            set
+            {
+                if (SetValueAndReturn(ref _trophyPlatinumCount, value))
+                {
+                    OnPropertyChanged(nameof(HasTrophyTypes));
+                }
+            }
+        }
 
         private int _trophyGoldCount;
-        public int TrophyGoldCount { get => _trophyGoldCount; set => SetValue(ref _trophyGoldCount, value); }
+        public int TrophyGoldCount
+        {
+            get => _trophyGoldCount;
+            set
+            {
+                if (SetValueAndReturn(ref _trophyGoldCount, value))
+                {
+                    OnPropertyChanged(nameof(HasTrophyTypes));
+                }
+            }
+        }
 
         private int _trophySilverCount;
-        public int TrophySilverCount { get => _trophySilverCount; set => SetValue(ref _trophySilverCount, value); }
+        public int TrophySilverCount
+        {
+            get => _trophySilverCount;
+            set
+            {
+                if (SetValueAndReturn(ref _trophySilverCount, value))
+                {
+                    OnPropertyChanged(nameof(HasTrophyTypes));
+                }
+            }
+        }
 
         private int _trophyBronzeCount;
-        public int TrophyBronzeCount { get => _trophyBronzeCount; set => SetValue(ref _trophyBronzeCount, value); }
+        public int TrophyBronzeCount
+        {
+            get => _trophyBronzeCount;
+            set
+            {
+                if (SetValueAndReturn(ref _trophyBronzeCount, value))
+                {
+                    OnPropertyChanged(nameof(HasTrophyTypes));
+                }
+            }
+        }
 
         public int TrophyPlatinumTotal { get; set; }
         public int TrophyGoldTotal { get; set; }

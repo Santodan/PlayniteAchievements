@@ -326,12 +326,15 @@
                         Foreground="{DynamicResource PlayAch.Brush.Text}"
                         Opacity="{StaticResource PlayAch.Opacity.Subtle}"
                         VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding SelectedCategoryName}"
-                        FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                        FontWeight="Bold"
-                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                        TextTrimming="CharacterEllipsis"
-                        VerticalAlignment="Center"/>
+                <ItemsControl ItemsSource="{Binding DrilledCategorySegments, ElementName=AchievementsDataGridControl}"
+                        ItemTemplate="{StaticResource PlayAch.CategoryPathSegmentTemplate}"
+                        VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
             </StackPanel>
 
             <controls:AchievementDataGridControl x:Name="AchievementsDataGridControl"
@@ -341,7 +344,6 @@
                                                  RevealCommand="{Binding RevealAchievementCommand}"
                                                  ColumnSettingsKey="SingleGame"
                                                  EnableCategoryMode="True"
-                                                 HideBackButton="True"
                                                  HideCategorySummaryRow="{Binding HideCategorySummaryRow}"
                                                  DrilledCategory="{Binding SelectedCategoryName, Mode=OneWayToSource}"
                                                  CategoryUseCoverImages="{Binding CategorySummariesUseCoverImages}"

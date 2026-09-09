@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
@@ -12,12 +14,16 @@ namespace PlayniteAchievements.Services.Hydration
     /// </summary>
     public class AchievementDetailHydrator
     {
-        private readonly PersistedSettings _settings;
+        // The settings wrapper, not its PersistedSettings: CancelEdit replaces the
+        // Persisted instance, and this hydrator outlives a settings dialog.
+        private readonly PlayniteAchievementsSettings _settingsHost;
 
-        public AchievementDetailHydrator(PersistedSettings settings)
+        public AchievementDetailHydrator(PlayniteAchievementsSettings settings)
         {
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _settingsHost = settings ?? throw new ArgumentNullException(nameof(settings));
         }
+
+        private PersistedSettings Persisted => _settingsHost.Persisted;
 
         /// <summary>
         /// Hydrates multiple AchievementDetail instances and applies manual capstone
@@ -34,7 +40,24 @@ namespace PlayniteAchievements.Services.Hydration
                 return;
             }
 
-            customData ??= GameCustomDataLookup.ResolveGameCustomData(playniteGameId, _settings);
+            var detailList = details as IList<AchievementDetail> ?? details.ToList();
+
+            customData ??= GameCustomDataLookup.ResolveGameCustomData(playniteGameId, Persisted);
+
+            // The incoming list is provider-ordered (cache reads sort by definition rowid), so its
+            // position under the custom-order overlay is the game's default order. Unlock-time
+            // sorts and toast emission tie-break on this index.
+            var orderedForIndex = AchievementOrderHelper.ApplyOrder(
+                detailList,
+                a => a?.ApiName,
+                customData.AchievementOrder);
+            for (var i = 0; i < orderedForIndex.Count; i++)
+            {
+                if (orderedForIndex[i] != null)
+                {
+                    orderedForIndex[i].DefaultOrderIndex = i;
+                }
+            }
 
             var manualCapstone = customData.ManualCapstoneApiName;
             var hasManualCapstone = !string.IsNullOrWhiteSpace(manualCapstone);
@@ -70,7 +93,7 @@ namespace PlayniteAchievements.Services.Hydration
                 }
             }
 
-            foreach (var detail in details)
+            foreach (var detail in detailList)
             {
                 if (detail == null)
                 {
@@ -114,7 +137,12 @@ namespace PlayniteAchievements.Services.Hydration
                     }
                 }
 
-                detail.Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(providerCategory);
+                // NormalizePath, not NormalizeCategoryOrDefault: a provider may now supply a nested
+                // path, and this is the one place every provider label passes through, so the depth
+                // cap and empty-segment rules apply to provider input as they do to user input.
+                // Blank still resolves to the Default label, so a provider that supplies nothing is
+                // unaffected.
+                detail.Category = CategoryPathHelper.NormalizePath(providerCategory);
                 detail.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(providerCategoryType);
                 detail.IsFiltered = !string.IsNullOrWhiteSpace(apiName) && filteredApiNames.Contains(apiName);
                 detail.IsFilteredFromSummaries = !string.IsNullOrWhiteSpace(apiName) &&

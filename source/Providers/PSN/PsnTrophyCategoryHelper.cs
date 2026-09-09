@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Providers.PSN
 {
@@ -38,10 +39,33 @@ namespace PlayniteAchievements.Providers.PSN
                 groupNameById.TryGetValue(key, out var name) &&
                 !string.IsNullOrWhiteSpace(name))
             {
-                return name.Trim();
+                return CategoryPathHelper.SanitizeSegment(name);
             }
 
             return null;
+        }
+
+        // Resolves the free-text category label for a trophy inside a multi-set collection.
+        // The base group takes the set title so each included game renders as its own category;
+        // a named DLC group nests under the set title as "{setTitle}::{groupName}"; an unnamed
+        // DLC group falls back to the set title.
+        internal static string ResolveCollectionCategory(
+            string trophyGroupId,
+            IReadOnlyDictionary<string, string> groupNameById,
+            string setTitle)
+        {
+            var title = CategoryPathHelper.SanitizeSegment(setTitle);
+            var categoryType = MapTrophyGroupToCategoryType(trophyGroupId);
+            if (string.Equals(categoryType, "DLC", StringComparison.OrdinalIgnoreCase))
+            {
+                var groupName = ResolveCategory(trophyGroupId, groupNameById);
+                if (!string.IsNullOrWhiteSpace(groupName))
+                {
+                    return CategoryPathHelper.JoinRaw(title, groupName);
+                }
+            }
+
+            return title;
         }
     }
 }

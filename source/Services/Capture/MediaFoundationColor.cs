@@ -16,9 +16,9 @@ namespace PlayniteAchievements.Services.Capture
     ///
     /// Screen capture produces full-range RGB, and the encoded output is tagged limited-range BT.709
     /// (the convention every MP4 player handles correctly). Declaring both ends lets MF's converter
-    /// perform the correct 0-255 -> 16-235 compression rather than an assumed one, and the pairing
-    /// round-trips: the overlay re-encode decodes a limited-range BT.709 clip back to full-range RGB
-    /// and re-tags the output the same way.
+    /// perform the correct 0-255 -> 16-235 compression rather than an assumed one. The overlay
+    /// re-encode stays in the decoder's limited-range NV12 and tags both its input and its output
+    /// the same way, so no conversion runs there at all.
     /// </summary>
     internal static class MediaFoundationColor
     {

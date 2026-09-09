@@ -6,6 +6,37 @@ using PlayniteAchievements.Models.Friends;
 
 namespace PlayniteAchievements.Services.Achievements
 {
+    /// <summary>
+    /// One still-locked achievement whose provider-reported progress advanced between two cache
+    /// snapshots, as produced by <see cref="AchievementUnlockDiffer.DiffProgressAdvances"/>.
+    /// </summary>
+    internal sealed class AchievementProgressAdvance
+    {
+        public AchievementProgressAdvance(
+            AchievementDetail achievement,
+            int? previous,
+            int current,
+            int denominator)
+        {
+            Achievement = achievement;
+            Previous = previous;
+            Current = current;
+            Denominator = denominator;
+        }
+
+        public AchievementDetail Achievement { get; }
+
+        public string ApiName => Achievement?.ApiName;
+
+        /// <summary>Numerator in the earlier snapshot; null when it carried none.</summary>
+        public int? Previous { get; }
+
+        /// <summary>Numerator in the later snapshot (always below <see cref="Denominator"/>).</summary>
+        public int Current { get; }
+
+        public int Denominator { get; }
+    }
+
     internal sealed class AchievementUnlockDiffer
     {
         public IReadOnlyList<AchievementDetail> DiffUserUnlocks(
@@ -38,11 +69,70 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
+            // Time ascending with the provider-ordered input as the stable tie. The sole caller
+            // projects this to a key set; InGameUnlockEmissionOrder owns the real user emission
+            // order, which this matches for unhydrated details.
             return result
                 .OrderBy(a => NormalizeUnlockTime(a.UnlockTimeUtc) ?? DateTime.MaxValue)
-                .ThenBy(a => a.Rarity)
-                .ThenBy(a => a.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
+        }
+
+        /// <summary>
+        /// Locked achievements whose provider-reported progress numerator rose between the two
+        /// snapshots, in the after-list (provider) order. Excluded on purpose: anything unlocked in
+        /// <paramref name="after"/>, anything at or past its denominator, and single-step
+        /// denominators — reaching the target is the provider's unlock to announce, never an
+        /// increment. A null previous numerator counts as an advance when the current one is
+        /// positive; the caller decides whether the session baseline allows announcing it.
+        /// </summary>
+        public IReadOnlyList<AchievementProgressAdvance> DiffProgressAdvances(
+            GameAchievementData before,
+            GameAchievementData after)
+        {
+            if (after?.Achievements == null || after.Achievements.Count == 0)
+            {
+                return Array.Empty<AchievementProgressAdvance>();
+            }
+
+            var beforeByKey = BuildUserLookup(before?.Achievements);
+            var result = new List<AchievementProgressAdvance>();
+            foreach (var current in after.Achievements)
+            {
+                // A hidden achievement is still a secret while locked, so its progress is never
+                // announced (the toast would print its name and description).
+                if (current == null ||
+                    current.Unlocked == true ||
+                    current.Hidden ||
+                    !current.ProgressNum.HasValue ||
+                    !current.ProgressDenom.HasValue)
+                {
+                    continue;
+                }
+
+                var numerator = current.ProgressNum.Value;
+                var denominator = current.ProgressDenom.Value;
+                if (denominator <= 1 || numerator <= 0 || numerator >= denominator)
+                {
+                    continue;
+                }
+
+                var key = GetAchievementKey(current.ApiName, current.DisplayName);
+                if (string.IsNullOrEmpty(key))
+                {
+                    continue;
+                }
+
+                beforeByKey.TryGetValue(key, out var previous);
+                var previousNumerator = previous?.ProgressNum;
+                if (previousNumerator.HasValue && previousNumerator.Value >= numerator)
+                {
+                    continue;
+                }
+
+                result.Add(new AchievementProgressAdvance(current, previousNumerator, numerator, denominator));
+            }
+
+            return result;
         }
 
         public IReadOnlyList<FriendAchievementRow> DiffFriendSessionUnlocks(
@@ -74,10 +164,14 @@ namespace PlayniteAchievements.Services.Achievements
                 alreadyToastedKeys?.Add(key);
             }
 
+            // Rows arrive provider-ordered (definition rowid), so the input index is provider
+            // order: same-timestamp friend unlocks notify in provider order, matching the user
+            // emission order. Friend rows cannot resolve the user's per-game custom order.
             return result
-                .OrderBy(row => NormalizeUnlockTime(row.UnlockTimeUtc) ?? DateTime.MaxValue)
-                .ThenBy(row => row.Rarity ?? RarityTier.Common)
-                .ThenBy(row => row.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                .Select((row, index) => (row, index))
+                .OrderBy(entry => NormalizeUnlockTime(entry.row.UnlockTimeUtc) ?? DateTime.MaxValue)
+                .ThenBy(entry => entry.index)
+                .Select(entry => entry.row)
                 .ToList();
         }
 
@@ -113,10 +207,9 @@ namespace PlayniteAchievements.Services.Achievements
                 alreadyToastedKeys?.Add(key);
             }
 
-            return result
-                .OrderBy(row => row.Rarity ?? RarityTier.Common)
-                .ThenBy(row => row.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-                .ToList();
+            // Baseline diffs carry no timestamps; rows arrive provider-ordered (definition rowid),
+            // so the input order is already the emission order.
+            return result;
         }
 
         public static string GetAchievementKey(string apiName, string displayName)

@@ -135,6 +135,7 @@ namespace PlayniteAchievements.Tests.StartPage
             source.StartPageGameSummariesGrid.ShowCompletionGlow = false;
             source.StartPageGameSummariesGrid.ColorRarityColumnsByRarity = true;
             source.StartPageGameSummariesGrid.ShowNameAboveProgress = true;
+            source.StartPageGameSummariesGrid.ShowRarityBadgesBelowProgress = false;
             source.StartPageGameSummariesGrid.ShowColumnHeaders = false;
             source.StartPageGameSummariesGrid.ShowControlBar = true;
             source.StartPageGameSummariesGrid.RowHeight = 72d;
@@ -178,6 +179,7 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.IsFalse(clone.StartPageGameSummariesGrid.ShowCompletionGlow);
             Assert.IsTrue(clone.StartPageGameSummariesGrid.ColorRarityColumnsByRarity);
             Assert.IsTrue(clone.StartPageGameSummariesGrid.ShowNameAboveProgress);
+            Assert.IsFalse(clone.StartPageGameSummariesGrid.ShowRarityBadgesBelowProgress);
             Assert.IsFalse(clone.StartPageGameSummariesGrid.ShowColumnHeaders);
             Assert.IsTrue(clone.StartPageGameSummariesGrid.ShowControlBar);
             Assert.AreEqual(72d, clone.StartPageGameSummariesGrid.RowHeight);
@@ -185,6 +187,7 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.AreEqual(GameSummariesSortMode.Alphabetical, clone.StartPageGameSummariesGrid.SortMode);
             Assert.IsFalse(clone.StartPageGameSummariesGrid.SortDescending);
             Assert.IsTrue(copy.StartPageGameSummariesGrid.ShowControlBar);
+            Assert.IsFalse(copy.StartPageGameSummariesGrid.ShowRarityBadgesBelowProgress);
 
             Assert.IsFalse(copy.StartPageRecentUnlocksGrid.UseCoverImages);
             Assert.IsTrue(copy.StartPageRecentUnlocksGrid.ColorNamesByRarity);

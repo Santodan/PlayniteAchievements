@@ -87,7 +87,10 @@ namespace PlayniteAchievements.ViewModels
                 var overviewMigratedJson = OverviewSettingsMigration.MigrateFromJson(migratedJson);
                 var gridOptionsMigratedJson = GridOptionsSettingsMigration.MigrateFromJson(overviewMigratedJson);
                 var appearanceMigratedJson = AppearanceSettingsMigration.MigrateFromJson(gridOptionsMigratedJson);
-                var notificationStyleMigratedJson = NotificationStyleSettingsMigration.MigrateFromJson(appearanceMigratedJson);
+                var unlockSoundMigratedJson = UnlockSoundSettingsMigration.MigrateFromJson(
+                    appearanceMigratedJson,
+                    UnlockSoundSettingsMigration.GetUniPlaySongConfigPath(_plugin.PlayniteApi?.Paths?.ExtensionsDataPath));
+                var notificationStyleMigratedJson = NotificationStyleSettingsMigration.MigrateFromJson(unlockSoundMigratedJson);
                 var fullyMigratedJson = GameCustomDataStore.MigrateLegacyConfig(notificationStyleMigratedJson);
 
                 // If migration changed the JSON, save the migrated version

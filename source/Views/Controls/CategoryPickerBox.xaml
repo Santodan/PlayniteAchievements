@@ -1,0 +1,41 @@
+<UserControl x:Class="PlayniteAchievements.Views.Controls.CategoryPickerBox"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="32"
+             d:DesignWidth="320">
+
+    <Grid>
+        <!-- Editable so the same control both picks an existing category and names a new one.
+             Items show the leaf, with the full path on hover: a list of paths sharing long
+             prefixes is hard to scan, but two leaves can share a name under different parents.
+             Depth is carried by the same tree connectors the category grid draws, so the list
+             places a leaf without spelling its path out.
+
+             TextSearch.TextPath rather than DisplayMemberPath: the latter cannot coexist with an
+             ItemTemplate, and on an editable box it is what fills the edit field on selection and
+             drives type-ahead. ResolveSelection reads that text. -->
+        <ComboBox x:Name="PickerComboBox"
+                  IsEditable="True"
+                  IsTextSearchEnabled="True"
+                  IsTextSearchCaseSensitive="False"
+                  StaysOpenOnEdit="True"
+                  TextSearch.TextPath="LeafDisplay"
+                  ItemContainerStyle="{StaticResource PlayAch.CategoryTreeComboBoxItemStyle}"
+                  ItemTemplate="{StaticResource PlayAch.CategoryTreeComboBoxItemTemplate}"
+                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                  VerticalContentAlignment="Center"
+                  PreviewKeyDown="PickerComboBox_PreviewKeyDown"/>
+
+        <TextBlock x:Name="PlaceholderText"
+                   Text="{Binding Placeholder, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                   VerticalAlignment="Center"
+                   Margin="9,0,0,0"
+                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                   Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                   IsHitTestVisible="False"
+                   Visibility="Collapsed"/>
+    </Grid>
+</UserControl>

@@ -73,16 +73,24 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableNotifications = true;
         private bool _enableUnlockToasts = true;
         private bool _enableFriendUnlockToasts = true;
+        private bool _enableProgressToasts = true;
         private NotificationStyleSettings _notificationStyle;
         private bool _toastUseThemeStyling = true;
         private bool _frameUseThemeStyling = true;
         private Dictionary<string, NotificationStyleSettings> _providerNotificationStyles;
         private int _toastDurationSeconds = 6;
+        private double _notificationDelaySeconds = 0;
+        private double _captureDelaySeconds = 0;
         private int _maxConcurrentToasts = 3;
         private bool _enableControllerVibration = false;
         private int _controllerVibrationStrengthPercent = 50;
         private int _controllerVibrationDurationMs = 650;
         private bool _useHiddenUnlockSound = false;
+        private bool _enableUnlockSounds = true;
+        private bool _allowThemeUnlockSounds = true;
+        private int _unlockSoundVolumePercent = 50;
+        private UnlockSoundSettings _unlockSounds = UnlockSoundSettings.CreateDefault();
+        private bool _unlockSoundsSeededFromUniPlaySong = false;
         private bool _enableUnlockScreenshots = false;
         private bool _unlockScreenshotClean = false;
         private bool _unlockScreenshotWithToast = true;
@@ -122,6 +130,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableOpenSettingsHotkey = true;
         private bool _enableCategoryModeHotkey = true;
         private bool _enableTestUnlockHotkey = true;
+        private bool _enableCaptureTestFolder = false;
         private string _viewAchievementsHotkey = DefaultViewAchievementsHotkey;
         private string _manageAchievementsHotkey = DefaultManageAchievementsHotkey;
         private string _overviewHotkey = DefaultOverviewHotkey;
@@ -135,6 +144,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showLockedIcon = true;
         private bool _useSeparateLockedIconsWhenAvailable = false;
         private HashSet<Guid> _separateLockedIconEnabledGameIds = new HashSet<Guid>();
+        private string _lockedFallbackIconPath = null;
+        private string _hiddenFallbackIconPath = null;
         private bool _modernCompactListShowRarityGlow = true;
         private bool _modernUnlockedListShowRarityGlow = true;
         private bool _animateRarityGlows = true;
@@ -969,13 +980,27 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Enables the shortcut that fires a notification for the running game's last-earned
+        /// Enables the shortcut that re-fires the notification for the running game's last-earned
         /// achievement. Gated by <see cref="EnableAchievementHotkeys"/>.
         /// </summary>
         public bool EnableTestUnlockHotkey
         {
             get => _enableTestUnlockHotkey;
             set => SetValue(ref _enableTestUnlockHotkey, value);
+        }
+
+        /// <summary>
+        /// Routes retriggered captures into the shared "Test" subfolder of the capture root instead of
+        /// the game's own folder. The capture library hides that subfolder, so retriggers become
+        /// throwaway test output rather than part of the game's collection.
+        ///
+        /// Also the only way to retrigger with no game running: without it the shortcut is inert
+        /// outside a game, because there is no game folder to write to.
+        /// </summary>
+        public bool EnableCaptureTestFolder
+        {
+            get => _enableCaptureTestFolder;
+            set => SetValue(ref _enableCaptureTestFolder, value);
         }
 
         /// <summary>
@@ -1060,6 +1085,17 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Show a silent, capture-free notification when a locked achievement's provider-reported
+        /// progress (e.g. 3/10) advances while its game is monitored. Per-provider overrides live
+        /// in <see cref="ProviderNotificationOverrides"/>.
+        /// </summary>
+        public bool EnableProgressToasts
+        {
+            get => _enableProgressToasts;
+            set => SetValue(ref _enableProgressToasts, value);
+        }
+
+        /// <summary>
         /// Global default appearance style for the toast and frame surfaces. Per-provider
         /// whole-style copies live in <see cref="ProviderNotificationStyles"/>. Lazily
         /// initialized; never null.
@@ -1095,6 +1131,44 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _toastDurationSeconds;
             set => SetValue(ref _toastDurationSeconds, Math.Max(2, value));
+        }
+
+        /// <summary>
+        /// Holds the entire unlock notification wave — toast card, chime, vibration, and the
+        /// windowless screenshot-only wave alike — until this many seconds after the unlock was
+        /// observed (falling back to the moment the notification was queued when no observation
+        /// stamp exists, e.g. friend unlocks). Pipeline latency and time spent held while the game
+        /// is minimized both count toward the delay: the wave shows when the last gate clears.
+        ///
+        /// Independent of <see cref="CaptureDelaySeconds"/>, which then runs from the (delayed)
+        /// wave start, so the capture lands at roughly unlock + notification delay + capture delay.
+        ///
+        /// Deliberately has no upper bound; only negatives are rejected. Never applies to previews
+        /// or test fires, which show the instant they are asked for.
+        /// </summary>
+        public double NotificationDelaySeconds
+        {
+            get => _notificationDelaySeconds;
+            set => SetValue(ref _notificationDelaySeconds, Math.Max(0, value));
+        }
+
+        /// <summary>
+        /// Delays the unlock CAPTURE this many seconds. The screenshot's base frame is grabbed
+        /// this long after the wave starts to show, and the clip is anchored there too, with the
+        /// composited card placed at that same instant. The capture therefore shows the game a
+        /// moment further on while still reading as the notification's own frame.
+        ///
+        /// Measured from the wave starting to show, not from the unlock: with a notification
+        /// delay configured the wave start is itself already held past the unlock, and a wave held
+        /// by the foreground gate captures relative to when it is finally shown.
+        ///
+        /// Deliberately has no upper bound; only negatives are rejected. Never applies to previews or
+        /// retriggers, which capture the instant they are asked for.
+        /// </summary>
+        public double CaptureDelaySeconds
+        {
+            get => _captureDelaySeconds;
+            set => SetValue(ref _captureDelaySeconds, Math.Max(0, value));
         }
 
         public int MaxConcurrentToasts
@@ -1137,15 +1211,64 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Request UniPlaySong's hidden-achievement sound instead of the rarity sound when a hidden
-        /// achievement unlocks. Off by default: UniPlaySong plays nothing for a sound it has no
-        /// audio assigned to, so enabling this before assigning one silences hidden unlocks rather
-        /// than falling back to the rarity sound.
+        /// Play the hidden-achievement sound slot instead of the rarity slot when a hidden
+        /// achievement unlocks. Off by default so hidden unlocks sound like their rarity unless the
+        /// user wants them distinct; the hidden slot resolves through the same custom, theme,
+        /// bundled chain as every other tier, so enabling it never silences an unlock.
         /// </summary>
         public bool UseHiddenUnlockSound
         {
             get => _useHiddenUnlockSound;
             set => SetValue(ref _useHiddenUnlockSound, value);
+        }
+
+        /// <summary>Master switch for the unlock sound played with a notification wave.</summary>
+        public bool EnableUnlockSounds
+        {
+            get => _enableUnlockSounds;
+            set => SetValue(ref _enableUnlockSounds, value);
+        }
+
+        /// <summary>
+        /// Whether a tier with no file of the user's own may take the active theme's sound. On by
+        /// default, so a theme that ships sounds is heard without the user configuring anything.
+        /// Turning it off drops the theme step out of the chain, leaving the user's own file and
+        /// the bundled default, which is how someone keeps the built-in pack while running a theme
+        /// whose sounds they do not want.
+        /// </summary>
+        public bool AllowThemeUnlockSounds
+        {
+            get => _allowThemeUnlockSounds;
+            set => SetValue(ref _allowThemeUnlockSounds, value);
+        }
+
+        /// <summary>
+        /// Linear playback volume for unlock sounds, 0-100. Also the gain at which the sound is
+        /// mixed into exported clips, so a clip's chime is as loud as the live one was.
+        /// </summary>
+        public int UnlockSoundVolumePercent
+        {
+            get => _unlockSoundVolumePercent;
+            set => SetValue(ref _unlockSoundVolumePercent, Math.Max(0, Math.Min(100, value)));
+        }
+
+        /// <summary>The user's own sound file per tier; blank slots fall back to theme, then bundled.</summary>
+        public UnlockSoundSettings UnlockSounds
+        {
+            get => _unlockSounds;
+            set => SetValue(ref _unlockSounds, value ?? UnlockSoundSettings.CreateDefault());
+        }
+
+        /// <summary>
+        /// One-time flag: whether the unlock sound settings were seeded from an installed
+        /// UniPlaySong configuration (volume, master switch, custom per-tier paths). Defaults
+        /// false; only <see cref="UnlockSoundSettingsMigration"/> sets it true, after which the
+        /// user's own values are never overwritten again.
+        /// </summary>
+        public bool UnlockSoundsSeededFromUniPlaySong
+        {
+            get => _unlockSoundsSeededFromUniPlaySong;
+            set => SetValue(ref _unlockSoundsSeededFromUniPlaySong, value);
         }
 
         /// <summary>
@@ -1601,6 +1724,29 @@ namespace PlayniteAchievements.Models.Settings
             return playniteGameId.HasValue &&
                    playniteGameId.Value != Guid.Empty &&
                    SeparateLockedIconEnabledGameIds?.Contains(playniteGameId.Value) == true;
+        }
+
+        /// <summary>
+        /// Absolute path to the user's image for locked achievements, or null for the built-in
+        /// placeholder. When set it replaces both the masked-locked placeholder and the
+        /// grayscaled-unlocked fallback, so a locked achievement shows either a provider-supplied
+        /// locked icon or this image.
+        /// </summary>
+        public string LockedFallbackIconPath
+        {
+            get => _lockedFallbackIconPath;
+            set => SetValue(ref _lockedFallbackIconPath, value);
+        }
+
+        /// <summary>
+        /// Absolute path to the user's image for hidden achievements whose icon is masked, or null
+        /// for the built-in placeholder. Takes precedence over <see cref="LockedFallbackIconPath"/>
+        /// when an achievement is both hidden and locked-masked.
+        /// </summary>
+        public string HiddenFallbackIconPath
+        {
+            get => _hiddenFallbackIconPath;
+            set => SetValue(ref _hiddenFallbackIconPath, value);
         }
 
         /// <summary>
@@ -2694,11 +2840,13 @@ namespace PlayniteAchievements.Models.Settings
                 OpenSettingsHotkey = this.OpenSettingsHotkey,
                 CategoryModeHotkey = this.CategoryModeHotkey,
                 TestUnlockHotkey = this.TestUnlockHotkey,
+                EnableCaptureTestFolder = this.EnableCaptureTestFolder,
 
                 // Notification Settings
                 EnableNotifications = this.EnableNotifications,
                 EnableUnlockToasts = this.EnableUnlockToasts,
                 EnableFriendUnlockToasts = this.EnableFriendUnlockToasts,
+                EnableProgressToasts = this.EnableProgressToasts,
                 NotificationStyle = this.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault(),
                 ToastUseThemeStyling = this.ToastUseThemeStyling,
                 FrameUseThemeStyling = this.FrameUseThemeStyling,
@@ -2709,12 +2857,19 @@ namespace PlayniteAchievements.Models.Settings
                         StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase),
                 ToastDurationSeconds = this.ToastDurationSeconds,
+                NotificationDelaySeconds = this.NotificationDelaySeconds,
+                CaptureDelaySeconds = this.CaptureDelaySeconds,
                 MaxConcurrentToasts = this.MaxConcurrentToasts,
                 ToastPosition = this.ToastPosition,
                 EnableControllerVibration = this.EnableControllerVibration,
                 ControllerVibrationStrengthPercent = this.ControllerVibrationStrengthPercent,
                 ControllerVibrationDurationMs = this.ControllerVibrationDurationMs,
                 UseHiddenUnlockSound = this.UseHiddenUnlockSound,
+                EnableUnlockSounds = this.EnableUnlockSounds,
+                AllowThemeUnlockSounds = this.AllowThemeUnlockSounds,
+                UnlockSoundVolumePercent = this.UnlockSoundVolumePercent,
+                UnlockSounds = this.UnlockSounds?.Clone() ?? UnlockSoundSettings.CreateDefault(),
+                UnlockSoundsSeededFromUniPlaySong = this.UnlockSoundsSeededFromUniPlaySong,
                 EnableUnlockScreenshots = this.EnableUnlockScreenshots,
                 UnlockScreenshotClean = this.UnlockScreenshotClean,
                 UnlockScreenshotWithToast = this.UnlockScreenshotWithToast,
@@ -2815,6 +2970,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShowHiddenSuffix = this.ShowHiddenSuffix,
                 ShowLockedIcon = this.ShowLockedIcon,
                 UseSeparateLockedIconsWhenAvailable = this.UseSeparateLockedIconsWhenAvailable,
+                LockedFallbackIconPath = this.LockedFallbackIconPath,
+                HiddenFallbackIconPath = this.HiddenFallbackIconPath,
                 ModernCompactListShowRarityGlow = this.ModernCompactListShowRarityGlow,
                 ModernUnlockedListShowRarityGlow = this.ModernUnlockedListShowRarityGlow,
                 AnimateRarityGlows = this.AnimateRarityGlows,
@@ -2975,6 +3132,8 @@ namespace PlayniteAchievements.Models.Settings
             ShowFriendSpoilers = defaults.ShowFriendSpoilers;
             UseSeparateLockedIconsWhenAvailable = defaults.UseSeparateLockedIconsWhenAvailable;
             SeparateLockedIconEnabledGameIds = new HashSet<Guid>();
+            LockedFallbackIconPath = defaults.LockedFallbackIconPath;
+            HiddenFallbackIconPath = defaults.HiddenFallbackIconPath;
             ModernCompactListShowRarityGlow = defaults.ModernCompactListShowRarityGlow;
             ModernUnlockedListShowRarityGlow = defaults.ModernUnlockedListShowRarityGlow;
             AnimateRarityGlows = defaults.AnimateRarityGlows;

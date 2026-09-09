@@ -13,6 +13,9 @@ namespace PlayniteAchievements.Models.Settings
 
         public bool? FriendUnlockToasts { get; set; }
 
+        /// <summary>Incremental-progress notifications (silent, capture-free).</summary>
+        public bool? ProgressToasts { get; set; }
+
         public bool? ScreenshotClean { get; set; }
 
         public bool? ScreenshotWithToast { get; set; }
@@ -25,6 +28,7 @@ namespace PlayniteAchievements.Models.Settings
         public bool IsAllInherit =>
             UnlockToasts == null &&
             FriendUnlockToasts == null &&
+            ProgressToasts == null &&
             ScreenshotClean == null &&
             ScreenshotWithToast == null &&
             ScreenshotFramed == null &&
@@ -36,6 +40,7 @@ namespace PlayniteAchievements.Models.Settings
             {
                 UnlockToasts = UnlockToasts,
                 FriendUnlockToasts = FriendUnlockToasts,
+                ProgressToasts = ProgressToasts,
                 ScreenshotClean = ScreenshotClean,
                 ScreenshotWithToast = ScreenshotWithToast,
                 ScreenshotFramed = ScreenshotFramed,

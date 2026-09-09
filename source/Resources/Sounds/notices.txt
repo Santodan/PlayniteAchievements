@@ -1,0 +1,16 @@
+Bundled unlock sounds (Resources/Sounds/*.mp3)
+----------------------------------------------
+Purpose:    Default per-tier achievement unlock sounds, played when neither the user nor the
+            active theme supplies a file for a tier.
+License:    Pixabay Content License (royalty-free).
+Source:     https://pixabay.com/sound-effects/
+Provenance: Copied from the UniPlaySong extension's "PA Starter Pack"
+            (Jingles/Achievements/PAStarterPack, MIT-licensed project), which assembled and
+            renamed them. Audio is unchanged.
+Tier -> original Pixabay filename:
+  common.mp3    <- lolo - Start.mp3
+  uncommon.mp3  <- lesiakower - level-up-enhancement.mp3
+  rare.mp3      <- mrstokes 302 - Success Videogame - SFX.mp3
+  ultrarare.mp3 <- lolo - Powered Up 3.mp3
+  hidden.mp3    <- Hidden Unlock.mp3
+  capstone.mp3  <- cartoon music game sfx - Cartoon Game Upgrade.mp3

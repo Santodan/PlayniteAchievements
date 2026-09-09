@@ -7,6 +7,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.Achievements;
@@ -29,6 +30,7 @@ namespace PlayniteAchievements.Services.Library
         private readonly ICacheManager _cacheManager;
         private readonly GameCustomDataStore _customDataStore;
         private readonly PlayniteAchievementsSettings _settings;
+        private PersistedSettingsSubscription _persistedSubscription;
         private readonly Func<bool> _isRefreshActive;
         private readonly ILogger _logger;
         private readonly Dictionary<string, LibraryProjectionSnapshot> _cache =
@@ -71,9 +73,15 @@ namespace PlayniteAchievements.Services.Library
                 _customDataStore.CustomDataChanged += OnCustomDataChangedForProjection;
             }
 
-            if (_settings?.Persisted != null)
+            if (_settings != null)
             {
-                _settings.Persisted.PropertyChanged += OnPersistedSettingsChanged;
+                // Tracks the current Persisted instance so projections keep invalidating
+                // after a settings cancel replaces it; the swap itself invalidates, since
+                // it can revert any projection-affecting setting in one step.
+                _persistedSubscription = new PersistedSettingsSubscription(
+                    _settings,
+                    OnPersistedSettingsChanged,
+                    Invalidate);
             }
         }
 
@@ -184,10 +192,8 @@ namespace PlayniteAchievements.Services.Library
                 _customDataStore.CustomDataChanged -= OnCustomDataChangedForProjection;
             }
 
-            if (_settings?.Persisted != null)
-            {
-                _settings.Persisted.PropertyChanged -= OnPersistedSettingsChanged;
-            }
+            _persistedSubscription?.Dispose();
+            _persistedSubscription = null;
         }
 
         private LibraryProjectionSnapshot GetOrBuild(

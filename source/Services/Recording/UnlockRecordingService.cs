@@ -30,10 +30,14 @@ namespace PlayniteAchievements.Services.Recording
     /// toast, at the unlock moment, regardless of how the on-screen wave stacked or queued, and
     /// whether or not that toast was ever shown: the toast pipeline renders an unrevealed wave for
     /// clip-worthy unlocks (see <see cref="WouldRequestClip"/>), and such clips carry no chime.
+    /// A configured capture delay moves that anchor to the moment the capture was taken instead,
+    /// so the clip and the screenshot depict the same frame; a configured notification delay
+    /// likewise moves it, since the wave itself (and so the capture) is held past the unlock.
     /// Subscribes to <see cref="PlayniteAchievementsPlugin.AchievementUnlocked"/> in parallel to
     /// the toast service, and to <see cref="ToastNotificationService.TracksCompleted"/> for the
-    /// overlay tracks (<see cref="ToastNotificationService.WaveDisplayed"/> is only a liveness
-    /// bump for the track wait). The toastless base clip always exists before the re-encode runs,
+    /// overlay tracks (<see cref="ToastNotificationService.WaveDisplayed"/> is a liveness bump for
+    /// the track wait, and carries the display instant the delayed path anchors to).
+    /// The toastless base clip always exists before the re-encode runs,
     /// so a re-encode failure degrades to a toastless clip, never a lost one. Per-unlock failures
     /// are silent-but-logged; configuration failures (low disk, repeated capture crashes) raise
     /// one notification per session.
@@ -42,72 +46,6 @@ namespace PlayniteAchievements.Services.Recording
     {
         /// <summary>Rolling capture segment length in seconds (K).</summary>
         internal const int SegmentSeconds = 5;
-
-        /// <summary>
-        /// Alignment search width for removing controller haptics, in 48 kHz frames (250 ms). Wide
-        /// because the reference comes from a separate endpoint client whose engine latency is
-        /// unrelated to the main capture's.
-        /// </summary>
-        private const int HapticCancellationMaxLagFrames = 12000;
-
-        /// <summary>
-        /// Amplitude ratios accepted between the clip's copy of the haptics and the endpoint
-        /// reference. Far wider than the chime's, because the two are tapped at different points in
-        /// the audio graph: the endpoint capture carries that endpoint's own volume and downmix
-        /// scaling, and a ratio of 3.35 has been measured on real hardware. The >= 10 dB suppression
-        /// verification still has to pass, so a wrong lock is rejected on evidence rather than on a
-        /// guess about plausible loudness.
-        /// </summary>
-        private const double HapticCancellationMinimumGain = 0.005;
-
-        private const double HapticCancellationMaximumGain = 20.0;
-
-        /// <summary>
-        /// How faint a block's copy of the haptics may be and still be subtracted. The chime's floor
-        /// of 0.05 exists so a block with nothing to remove is left alone; here it was leaving the
-        /// quiet stretches in — field logs showed only 27 and 31 of 48 blocks subtracted, the rest
-        /// skipped for a weak fit, which is precisely the "soft haptics in the background" that
-        /// survived. A faint copy is still worth removing, and subtracting a faint reference cannot
-        /// do much damage: the harm is bounded by the reference's own level.
-        /// </summary>
-        private const double HapticCancellationBlockGainFloor = 0.005;
-
-        /// <summary>
-        /// Haptic activity can occupy only one 50 ms block in a half-second global scoring window.
-        /// That dilutes an otherwise strong local copy to roughly 0.15-0.25 correlation (the latest
-        /// hap1 measured 0.219). This only calibrates the stamped slice's fixed lag and gain; every
-        /// reference-active block is then straight-subtracted and must clear a 10 dB proof.
-        /// </summary>
-        private const double HapticCancellationMinimumCorrelation = 0.15;
-
-        /// <summary>
-        /// How well a block has to clean up for its subtraction to be kept. A partly-cancelled
-        /// rumble is not
-        /// simply quieter — what is left is comb-filtered, and that can draw more attention than the
-        /// steady rumble it replaced even while measuring lower. Attempt every stamped active block,
-        /// keep only what demonstrably worked, and restore the rest exactly.
-        /// </summary>
-        private const double HapticCancellationKeepBlockDb = 10.0;
-
-        /// <summary>
-        /// Haptics arrive as short impulses. The generic half-second chime blocks diluted a 20-50 ms
-        /// rumble onset with unrelated game audio and left the whole block classified as weak. A
-        /// 50 ms block follows those transients while leaving a 5 ms click-free edge ramp.
-        /// </summary>
-        private const int HapticCancellationBlockFrames = 2400;
-
-        /// <summary>
-        /// Maximum correlation the cleaned clip may retain against an active reference: a sanity
-        /// check that the reference really described this audio, not the accept gate — held-out
-        /// block verification is, and it already guarantees no block was made worse.
-        /// <para>
-        /// Held at 0.05 this rejected whole passes that had done real work: a field clip went from
-        /// 0.939 correlated down to 0.126, 33.4 dB of suppression over 227 blocks, and was discarded
-        /// for missing the ceiling — which handed the user back the full buzz. Partial removal beats
-        /// none, so this only catches a reference that plainly is not this signal.
-        /// </para>
-        /// </summary>
-        private const double HapticCancellationMaximumResidualCorrelation = 0.35;
 
         private const string BufferRootFolderName = "RecordingBuffer";
         private const long MinFreeBytesToStart = 2L * 1024 * 1024 * 1024;
@@ -153,17 +91,28 @@ namespace PlayniteAchievements.Services.Recording
         private const double SlideAllowanceSeconds = 2.0;
         private const double ToastTailSeconds = 1.0;
         private const double PostFadeTailSeconds = 0.5;
-        // The chime mix: the sidecar read spans the toast display duration plus this tail — long
-        // chimes ring for as long as their toast shows — but is hard-capped at
-        // ChimeMaxSliceSeconds. The cap keeps the NEXT sequential wave's chime (which fires
-        // ~duration+1s after this one) out of the window with real margin, and shortens the span
-        // the cancellation's drift tracker must cover. ChimeLeadBeforeToastSeconds is how far the
-        // chime onset precedes the toast reveal in the clip (sound fires, then the 450ms
-        // sound-align delay plus ~300ms of slide-in precede the settled card).
-        private const double ChimeTailBeyondToastSeconds = 0.5;
-        private const double ChimeMaxSliceSeconds = 4.0;
+        // Longest composited sound: the file is read up to this, so a long sound cannot outrun
+        // the clip's toast slot. Only a file the cap truncated gets a fade; a shorter sound keeps
+        // its own tail.
+        private const double MaxChimePlaybackSeconds = MaxToastSlotAllowanceSeconds;
         private const double ChimeFadeOutSeconds = 0.15;
-        private const double ChimeLeadBeforeToastSeconds = 0.75;
+
+        // The chime placement's stamp gap: how far the sound LAUNCH preceded the card's first
+        // rendered frame live, measured per clip from those two stamps. The mixed file has no
+        // launch-to-audible latency, so the toast service's sound-alignment delay (its model of
+        // that latency, applied live so the audible onset lands on the reveal) is subtracted at
+        // the placement site.
+        //
+        // The fallback stands in when either stamp is missing; the max guards against a stamp
+        // from a different wave. The constant an earlier fix replaced was 0.75s, derived as the
+        // sound-align delay plus the slide-in duration, i.e. the distance to the SETTLED card —
+        // both themeable or version-dependent, so they are read rather than modelled.
+        private const double ChimeLeadFallbackSeconds = 0.45;
+        private const double ChimeLeadMaxSeconds = 2.0;
+        // Stands in for the toast service's applied sound-alignment delay when a file-mixed chime
+        // arrives without one; the same constant that service applies live.
+        private const int ChimeAlignmentFallbackMs = ToastNotificationService.SoundAlignmentDelayMs;
+
         private const int PruneIntervalSeconds = 30;
         private const int DrainTimeoutSeconds = 45;
         // Fallbacks matching the PersistedSettings defaults, used when settings are unavailable.
@@ -191,6 +140,13 @@ namespace PlayniteAchievements.Services.Recording
         private readonly object _gate = new object();
         // Requests whose overlay track hasn't arrived yet (guarded by _gate).
         private readonly List<ClipRequest> _awaitingTrack = new List<ClipRequest>();
+        // The sound host's pid, read at capture start so the recorder can exclude its process
+        // from the clip track, and read again at export so a host restarted since then is
+        // detected. Null while the host is down: those sessions keep the live unlock sound.
+        private readonly Func<int?> _getSoundHostProcessId;
+        // The measured audible onset of a played sound, by the host's play id: the composited
+        // chime is placed from it when available, from the modelled alignment otherwise.
+        private readonly Func<int, DateTime?> _getSoundAudibleOnsetUtc;
         private readonly HashSet<Task> _inFlightTasks = new HashSet<Task>();
         // One overlay re-encode at a time so a burst wave doesn't saturate the encoder while the
         // game is running.
@@ -237,13 +193,17 @@ namespace PlayniteAchievements.Services.Recording
             ToastNotificationService toastNotifications = null,
             Func<string, bool> isProviderRecordingEnabled = null,
             ActiveGameWindowTracker windowTracker = null,
-            Func<Playnite.SDK.Models.Game, bool> isAnyProviderCapable = null)
+            Func<Playnite.SDK.Models.Game, bool> isAnyProviderCapable = null,
+            Func<int?> getSoundHostProcessId = null,
+            Func<int, DateTime?> getSoundAudibleOnsetUtc = null)
         {
             _api = api;
             _settings = settings;
             _logger = logger;
             _pluginUserDataPath = pluginUserDataPath;
             _getGameProcessId = getGameProcessId;
+            _getSoundHostProcessId = getSoundHostProcessId;
+            _getSoundAudibleOnsetUtc = getSoundAudibleOnsetUtc;
             _toastNotifications = toastNotifications;
             _isProviderRecordingEnabled = isProviderRecordingEnabled;
             _isAnyProviderCapable = isAnyProviderCapable;
@@ -265,6 +225,7 @@ namespace PlayniteAchievements.Services.Recording
 
         private sealed class CaptureSession
         {
+            public readonly Guid SessionId = Guid.NewGuid();
             public string BufferDirectory;
             public Guid OwnerGameId;
             public string GameName;
@@ -282,10 +243,11 @@ namespace PlayniteAchievements.Services.Recording
             public long LastKnownBufferBytes;
             public bool BufferBudgetClampLogged;
             public AudioLoopbackRecorder AudioRecorder;
-            // The Playnite process-tree sidecar (chm_*.wav). For a Playnite-launched game this
-            // overlaps the game's audio, so the main recorder's tee (gam_*.wav), or the game-only
-            // main track itself, is cancelled from it before the per-clip chime mix.
-            public AudioLoopbackRecorder ChimeRecorder;
+            // What the audio recorder's clip track recorded, read once after Start(): the
+            // composite decision needs it even after the recorder has been disposed.
+            public bool AudioRecorded;
+            public ClipTrackKind ClipTrack;
+            public int? ExcludedSoundHostProcessId;
             public CancellationTokenSource Cts;
             public Timer PruneTimer;
             public volatile bool Stopping;
@@ -318,6 +280,64 @@ namespace PlayniteAchievements.Services.Recording
 
             /// <summary>When this request's own wave chime played — where the chime mix reads from.</summary>
             public DateTime? OwnSoundUtc;
+
+            /// <summary>
+            /// The exact sound file the wave played, snapshotted at fire time; the composited chime
+            /// is mixed from it. Null when the wave reported no file, which yields no composite.
+            /// </summary>
+            public string OwnSoundFilePath;
+
+            /// <summary>
+            /// The gain the file played at (0..1, the user's volume): the composited chime lands at
+            /// the level the live one was heard at, never at a full-scale decode.
+            /// </summary>
+            public double OwnSoundFileGain = 1.0;
+
+            /// <summary>
+            /// The sound-alignment delay the toast service applied for this wave's chime, in
+            /// milliseconds — its model of the launch-to-audible latency on the live playback
+            /// path. Subtracted from the launch-to-card gap when placing the mixed chime, which
+            /// has no such latency. Null when no sound fired.
+            /// </summary>
+            public int? OwnSoundAlignmentMs;
+
+            /// <summary>The sound host's play id for this wave's sound; resolves the measured onset at export.</summary>
+            public int? OwnSoundPlaybackId;
+
+            /// <summary>
+            /// Game Only only: set by clip-audio selection when the game tree carried no signal
+            /// over the window and the clip's audio came from the exclude-sound-host fallback track
+            /// instead. Feeds <see cref="ChimeCompositeDecision"/>.
+            /// </summary>
+            public bool UsedFallbackTrack;
+
+            /// <summary>
+            /// Notification delay snapshotted at unlock. Non-zero means the wave itself is held
+            /// this long past the unlock before it may show, so every toast/track wait extends its
+            /// silence budget by it — a long hold must not read as a stalled queue.
+            /// </summary>
+            public double NotificationDelaySeconds;
+
+            /// <summary>
+            /// Capture delay snapshotted at unlock. Non-zero means this clip anchors on the moment
+            /// its capture was taken rather than on the unlock, and that the clip's own window
+            /// extends that much further past the (possibly already delayed) wave start.
+            /// </summary>
+            public double CaptureDelaySeconds;
+
+            /// <summary>
+            /// Both delays together: how far past the unlock this request's display instant and
+            /// capture may legitimately sit, added to the toast/track wait budgets below.
+            /// </summary>
+            public double TotalDelaySeconds => NotificationDelaySeconds + CaptureDelaySeconds;
+
+            /// <summary>
+            /// Completed with the instant this request's wave captured its base surface, or null
+            /// when the wave never reached the screen or the wait gave up — either way the window
+            /// falls back to the unlock anchor. Only created when either delay is configured; null
+            /// otherwise, so the default path never waits on a toast before cutting its clip.
+            /// </summary>
+            public TaskCompletionSource<DateTime?> DisplayTcs;
 
             /// <summary>
             /// Completed with this achievement's overlay track when its wave finishes, or null
@@ -583,8 +603,10 @@ namespace PlayniteAchievements.Services.Recording
                                          (processId.HasValue && ProcessHasMainWindow(processId.Value));
                     // Give the started process a short grace to open its main window before
                     // falling back to the foreground window's monitor (usually the same monitor
-                    // the game is launching on). A later-appearing game window on a different
-                    // monitor is handled by the correction watcher below.
+                    // the game is launching on). A window that appears later — on another monitor,
+                    // or belonging to the game rather than the launcher that opened first — is
+                    // picked up by the per-tick resolve in WgcVideoRecorder.PumpLoop, which the
+                    // window tracker answers with a better candidate as one becomes available.
                     var stillLaunching = processId.HasValue &&
                                          !mainWindowResolved &&
                                          CaptureTimelineClock.UtcNow < graceDeadline;
@@ -643,33 +665,17 @@ namespace PlayniteAchievements.Services.Recording
                         persisted.RecordingAudioSource,
                         persisted.RecordingIncludeMicrophone,
                         () => _getGameProcessId?.Invoke(session.OwnerGameId),
-                        pid => _windowTracker?.IsInPlayniteProcessTree(pid));
+                        () => _getSoundHostProcessId?.Invoke());
                     if (recorder.Start())
                     {
                         session.AudioRecorder = recorder;
+                        session.AudioRecorded = true;
+                        session.ClipTrack = recorder.ClipTrack;
+                        session.ExcludedSoundHostProcessId = recorder.ExcludedSoundHostProcessId;
                     }
                     else
                     {
                         recorder.Dispose();
-                    }
-
-                    var chimeMode = session.AudioRecorder?.ChimeCaptureMode ?? PlayniteChimeCaptureMode.Unavailable;
-                    if (session.AudioRecorder != null &&
-                        chimeMode != PlayniteChimeCaptureMode.Unavailable &&
-                        AudioLoopbackRecorder.IsChimeCaptureSupported)
-                    {
-                        var chimeRecorder = new AudioLoopbackRecorder(
-                            session.BufferDirectory,
-                            _logger,
-                            capturePlayniteChimes: true);
-                        if (chimeRecorder.Start())
-                        {
-                            session.ChimeRecorder = chimeRecorder;
-                        }
-                        else
-                        {
-                            chimeRecorder.Dispose();
-                        }
                     }
                 }
 
@@ -744,7 +750,6 @@ namespace PlayniteAchievements.Services.Recording
 
                 // Close the current audio chunks before pending clips read the buffer.
                 session.AudioRecorder?.Stop();
-                session.ChimeRecorder?.Stop();
 
                 // An active wave can finish after the game exits. Keep its pending track alive
                 // while this session's clip tasks drain so a last-second unlock/test fire still
@@ -755,20 +760,38 @@ namespace PlayniteAchievements.Services.Recording
                     inFlight = _inFlightTasks.ToArray();
                 }
 
+                var all = Task.WhenAll(inFlight);
+                var drained = true;
                 if (inFlight.Length > 0)
                 {
-                    await Task.WhenAny(Task.WhenAll(inFlight), Task.Delay(TimeSpan.FromSeconds(DrainTimeoutSeconds)))
-                        .ConfigureAwait(false);
+                    var finished = await Task.WhenAny(
+                        all, Task.Delay(TimeSpan.FromSeconds(DrainTimeoutSeconds))).ConfigureAwait(false);
+                    drained = ReferenceEquals(finished, all);
                 }
 
                 session.WgcRecorder?.Dispose();
                 session.WgcRecorder = null;
                 session.AudioRecorder?.Dispose();
                 session.AudioRecorder = null;
-                session.ChimeRecorder?.Dispose();
-                session.ChimeRecorder = null;
 
-                TryDeleteDirectory(session.BufferDirectory);
+                // Only once nothing is still using it. An export that outran the drain writes its
+                // sink INTO this directory, so deleting on timeout pulled the path out from under
+                // it: field log, session stopped 18:03:03, export failed 18:04:03 with
+                // "CreateSinkWriterFromURL ... 0x80070003 The system cannot find the path
+                // specified", and that clip was lost. A directory left behind is swept by
+                // CleanupStaleBufferDirectories on the next session, so the cost of waiting is
+                // bounded disk, while the cost of deleting is the clip.
+                if (drained)
+                {
+                    TryDeleteDirectory(session.BufferDirectory);
+                }
+                else
+                {
+                    _logger?.Warn(
+                        "[Recording] Clip work outran the shutdown drain; leaving " +
+                        $"'{Path.GetFileName(session.BufferDirectory)}' for the next session's sweep " +
+                        "rather than deleting a directory an export is still writing into.");
+                }
             }
             catch (Exception ex)
             {
@@ -811,7 +834,7 @@ namespace PlayniteAchievements.Services.Recording
             AchievementUnlockedEventArgs e, out CaptureSession session)
         {
             session = null;
-            if (_disposed || e == null || e.IsPreview || e.IsFriendUnlock)
+            if (_disposed || e == null || e.IsPreview || e.IsFriendUnlock || e.IsProgressUpdate)
             {
                 return ClipEligibility.NotRecordable;
             }
@@ -871,6 +894,171 @@ namespace PlayniteAchievements.Services.Recording
         internal bool WouldRequestClip(AchievementUnlockedEventArgs e) =>
             EvaluateClipEligibility(e, out _) == ClipEligibility.Eligible;
 
+        /// <summary>
+        /// Decodes the frame at an unlock's video anchor out of the rolling buffer, so the unlock
+        /// screenshot can depict the true unlock moment instead of the (possibly much later)
+        /// instant the toast fired — a provider can surface an unlock tens of seconds after its
+        /// reported time. The anchor is validated through the same
+        /// <see cref="SegmentTimeline.ComputeClipWindow"/> rules the clip uses, so the screenshot
+        /// and the clip always agree on the instant. Returns null whenever the buffer cannot
+        /// answer — no active capture for this game, the covering segment is already pruned, or
+        /// the decode fails after its bounded close wait — and the caller falls back to the live
+        /// screen grab. A current segment is retried at the SAME anchor until its Media Foundation
+        /// header is finalized; substituting the later live screen merely because the right file
+        /// was still open made fast RetroAchievements unlocks look late. The clip's
+        /// rarity/provider gates deliberately do not apply: they decide whether a clip is produced,
+        /// not whether buffered footage of this game exists. Pool thread.
+        /// </summary>
+        internal System.Drawing.Bitmap TryCaptureAnchorFrame(AchievementUnlockedEventArgs e, int capHeight)
+        {
+            if (_disposed || e == null || e.IsPreview || e.IsTestFire || e.IsFriendUnlock || e.IsProgressUpdate)
+            {
+                return null;
+            }
+
+            CaptureSession session;
+            lock (_gate)
+            {
+                session = _session;
+            }
+
+            if (session == null || session.Stopping || session.WgcRecorder == null)
+            {
+                return null;
+            }
+
+            if (e.PlayniteGameId != Guid.Empty &&
+                session.OwnerGameId != Guid.Empty &&
+                e.PlayniteGameId != session.OwnerGameId)
+            {
+                return null;
+            }
+
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                var observedUtc = e.ObservedUtc == default(DateTime)
+                    ? CaptureTimelineClock.UtcNow
+                    : AsUtc(e.ObservedUtc);
+                var videoAnchorUtc = e.VideoAnchorUtc ?? e.UnlockTimeUtc;
+                if (videoAnchorUtc.HasValue)
+                {
+                    videoAnchorUtc = AsUtc(videoAnchorUtc.Value);
+                }
+
+                // Zero slot and tail: only the validated ToastAnchorUtc is wanted; the pre-roll
+                // and poll interval mirror the clip's call so the staleness bound is identical.
+                var anchorUtc = SegmentTimeline.ComputeClipWindow(
+                    videoAnchorUtc,
+                    observedUtc,
+                    session.CaptureStartUtc,
+                    oldestSegmentStartUtc: null,
+                    pollIntervalSeconds: Math.Max(10, persisted.InGamePollIntervalSeconds),
+                    preRollSeconds: persisted.RecordingClipSeconds,
+                    toastSlotSeconds: 0,
+                    tailSeconds: 0).ToastAnchorUtc;
+
+                // Suspend pruning back to the covering segment's earliest possible start while it
+                // is read; the same list/guard the base-clip extraction uses.
+                var guardUtc = anchorUtc.AddSeconds(-SegmentSeconds);
+                lock (_outstandingGate)
+                {
+                    _outstandingWindowStarts.Add(guardUtc);
+                }
+
+                try
+                {
+                    // Segment files can be created ahead of the one currently being finalized, so
+                    // "newest file" is not a reliable closed/open test. Attempt the actual covering
+                    // file and, only while its nominal close is still pending, retry it quietly.
+                    // The screenshot work already runs on the pool and the live toast does not await
+                    // it, so this improves the saved frame without delaying notification display.
+                    var retryCeilingUtc = CaptureTimelineClock.UtcNow.AddSeconds(SegmentSeconds + 2);
+                    while (true)
+                    {
+                        var segments = SegmentTimeline.ParseSegments(
+                            ListBufferFiles(
+                                session.BufferDirectory,
+                                RecordingPaths.SegmentFilePrefix,
+                                session.SegmentExtension),
+                            TimeZoneInfo.Local,
+                            RecordingPaths.SegmentFilePrefix,
+                            session.SegmentExtension);
+                        if (segments.Count == 0)
+                        {
+                            return null;
+                        }
+
+                        SegmentTimeline.SegmentInfo covering = null;
+                        foreach (var segment in segments)
+                        {
+                            if (segment.StartUtc <= anchorUtc)
+                            {
+                                covering = segment;
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+
+                        if (covering == null)
+                        {
+                            return null;
+                        }
+
+                        var offsetSeconds = (anchorUtc - covering.StartUtc).TotalSeconds;
+                        if (offsetSeconds < 0 || offsetSeconds > SegmentSeconds + 2)
+                        {
+                            // The anchor fell in a real capture gap. A later live grab is more
+                            // truthful than decoding an unrelated segment.
+                            return null;
+                        }
+
+                        var nowUtc = CaptureTimelineClock.UtcNow;
+                        var nominalCloseUtc = covering.StartUtc.AddSeconds(SegmentSeconds + 1);
+                        var canStillFinalize = !_disposed &&
+                            nowUtc < retryCeilingUtc && nowUtc < nominalCloseUtc;
+                        var frame = MediaFoundationFrameExtractor.ExtractFrame(
+                            covering.Path,
+                            offsetSeconds,
+                            canStillFinalize ? null : _logger);
+                        if (frame != null)
+                        {
+                            _logger?.Info(
+                                $"[Recording] Unlock screenshot for '{e.DisplayName}' uses the buffered frame at " +
+                                $"{anchorUtc:HH:mm:ss.f} ({offsetSeconds.ToString("F2", CultureInfo.InvariantCulture)}s into its segment).");
+                            return _screenshotService.ApplyResolutionCap(frame, capHeight);
+                        }
+
+                        if (!canStillFinalize)
+                        {
+                            return null;
+                        }
+
+                        Thread.Sleep(100);
+                    }
+                }
+                finally
+                {
+                    lock (_outstandingGate)
+                    {
+                        _outstandingWindowStarts.Remove(guardUtc);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[Recording] Buffered screenshot frame failed for '{e.DisplayName}'.");
+                return null;
+            }
+        }
+
         private void OnAchievementUnlocked(object sender, AchievementUnlockedEventArgs e)
         {
             switch (EvaluateClipEligibility(e, out var session))
@@ -915,6 +1103,15 @@ namespace PlayniteAchievements.Services.Recording
                     $"[Recording] Unlock '{e.DisplayName}' has a pre-session video anchor ({videoAnchorUtc.Value:u}); clip will anchor on observation time.");
             }
 
+            // A retrigger is never delayed, so it never waits on a display instant — its clip
+            // anchors on the retrigger moment, which observation already is.
+            var notificationDelaySeconds = e.IsTestFire
+                ? 0
+                : Math.Max(0, persisted.NotificationDelaySeconds);
+            var captureDelaySeconds = e.IsTestFire
+                ? 0
+                : Math.Max(0, persisted.CaptureDelaySeconds);
+
             var request = new ClipRequest
             {
                 Session = session,
@@ -935,8 +1132,13 @@ namespace PlayniteAchievements.Services.Recording
                 IsTestFire = e.IsTestFire,
                 EffectiveToastSeconds = _toastNotifications?.GetEffectiveToastDurationSecondsSafe()
                     ?? Math.Max(2, persisted.ToastDurationSeconds),
+                NotificationDelaySeconds = notificationDelaySeconds,
+                CaptureDelaySeconds = captureDelaySeconds,
                 TrackTcs = new TaskCompletionSource<ToastOverlayTrack>(
                     TaskCreationOptions.RunContinuationsAsynchronously),
+                DisplayTcs = notificationDelaySeconds + captureDelaySeconds > 0
+                    ? new TaskCompletionSource<DateTime?>(TaskCreationOptions.RunContinuationsAsynchronously)
+                    : null,
             };
 
             lock (_gate)
@@ -947,9 +1149,11 @@ namespace PlayniteAchievements.Services.Recording
             _logger?.Info(
                 $"[Recording] Queued unlock clip for '{request.AchievementName}' in '{request.GameName}'.");
 
-            // Production starts immediately: the clip window is unlock-anchored, so nothing about
-            // it depends on when (or whether) the toast displays. Only the overlay composite waits
-            // for the track, after the toastless base clip is already safe.
+            // Production starts immediately. With no delay configured the clip window is
+            // unlock-anchored, so nothing about it depends on when (or whether) the toast displays,
+            // and only the overlay composite waits for the track — after the toastless base clip is
+            // already safe. A delay makes the window itself depend on the display instant, so that
+            // path waits for it first and falls back to the unlock anchor if it never arrives.
             StartClipProduction(request);
         }
 
@@ -957,8 +1161,8 @@ namespace PlayniteAchievements.Services.Recording
         /// A wave settling proves the toast queue is draining; bump the activity clock so requests
         /// queued behind long waves keep waiting for their own track instead of timing out (track
         /// completions alone can be a full display duration apart). Also stamps the wave's chime
-        /// time on its still-waiting requests so the re-encode can read the chime from the sidecar
-        /// track — an unrevealed wave reports no chime time, so its clips are mixed without one.
+        /// time on its still-waiting requests so the re-encode can place the composited chime
+        /// — an unrevealed wave reports no chime time, so its clips are mixed without one.
         /// </summary>
         private void OnToastWaveDisplayed(object sender, ToastWaveDisplayedEventArgs e)
         {
@@ -970,18 +1174,36 @@ namespace PlayniteAchievements.Services.Recording
             lock (_gate)
             {
                 _lastToastActivityUtc = CaptureTimelineClock.UtcNow;
-                if (e.SoundPlayedUtc.HasValue)
+
+                var matchedRequests = new List<ClipRequest>();
+
+                foreach (var vm in e.Wave)
                 {
-                    foreach (var vm in e.Wave)
+                    if (e.SoundPlayedUtc.HasValue)
                     {
-                        var match = _awaitingTrack.FirstOrDefault(r =>
+                        var soundMatch = _awaitingTrack.FirstOrDefault(r =>
                             !r.OwnSoundUtc.HasValue &&
                             r.CaptureCorrelationId == vm.CaptureCorrelationId);
-                        if (match != null)
+                        if (soundMatch != null)
                         {
-                            match.OwnSoundUtc = e.SoundPlayedUtc;
+                            matchedRequests.Add(soundMatch);
+                            soundMatch.OwnSoundUtc = e.SoundPlayedUtc;
+                            soundMatch.OwnSoundFilePath = e.SoundFilePath;
+                            soundMatch.OwnSoundFileGain = e.SoundFileGain ?? 1.0;
+                            soundMatch.OwnSoundAlignmentMs = e.SoundAlignmentDelayMs;
+                            soundMatch.OwnSoundPlaybackId = e.SoundPlaybackId;
                         }
                     }
+
+                    // Release the delayed window computation. Completed even when the wave was
+                    // never revealed (null instant), so that path falls back to the unlock anchor
+                    // straight away instead of waiting out the silence budget for an instant that
+                    // is never coming.
+                    var displayMatch = _awaitingTrack.FirstOrDefault(r =>
+                        r.DisplayTcs != null &&
+                        !r.DisplayTcs.Task.IsCompleted &&
+                        r.CaptureCorrelationId == vm.CaptureCorrelationId);
+                    displayMatch?.DisplayTcs.TrySetResult(e.SurfaceCaptureUtc);
                 }
             }
         }
@@ -1048,11 +1270,15 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// The full per-request pipeline, base-first: compute the unlock-anchored window, extract
-        /// the toastless base clip from the buffer (after which the segments are prune-safe and
-        /// the clip can no longer be lost), then wait for this achievement's overlay track and
-        /// re-encode the toast in. Track missing or re-encode failed → the toastless base is
-        /// saved instead.
+        /// The full per-request pipeline, base-first: compute the window, extract the toastless
+        /// base clip from the buffer (after which the segments are prune-safe and the clip can no
+        /// longer be lost), then wait for this achievement's overlay track and re-encode the toast
+        /// in. Track missing or re-encode failed → the toastless base is saved instead.
+        ///
+        /// With a notification delay configured the window is anchored on the moment the card
+        /// appeared, so that instant has to be waited for before the window exists — the one thing
+        /// that runs ahead of the base extraction. It falls back to the unlock anchor rather than
+        /// blocking indefinitely, so base-first still holds for every outcome.
         /// </summary>
         private async Task ProduceClipAsync(ClipRequest request)
         {
@@ -1068,6 +1294,7 @@ namespace PlayniteAchievements.Services.Recording
 
                 var pollInterval = Math.Max(10, persisted.InGamePollIntervalSeconds);
                 var toastSlotSeconds = request.EffectiveToastSeconds + SlideAllowanceSeconds;
+                var displayAnchorUtc = await WaitForDisplayAsync(request).ConfigureAwait(false);
                 var window = SegmentTimeline.ComputeClipWindow(
                     request.VideoAnchorUtc,
                     request.ObservedUtc,
@@ -1076,7 +1303,8 @@ namespace PlayniteAchievements.Services.Recording
                     pollIntervalSeconds: pollInterval,
                     preRollSeconds: persisted.RecordingClipSeconds,
                     toastSlotSeconds: toastSlotSeconds,
-                    tailSeconds: ToastTailSeconds);
+                    tailSeconds: ToastTailSeconds,
+                    displayAnchorUtc: displayAnchorUtc);
 
                 if ((window.EndUtc - window.StartUtc).TotalSeconds < SegmentTimeline.MinimumWindowSeconds)
                 {
@@ -1144,6 +1372,7 @@ namespace PlayniteAchievements.Services.Recording
                         }
                     }
 
+                    var moveTimer = Stopwatch.StartNew();
                     var savedPath = SaveClipToUniquePath(finalPath, outputPath, copy: false);
                     if (savedPath == null)
                     {
@@ -1152,6 +1381,10 @@ namespace PlayniteAchievements.Services.Recording
                         return;
                     }
 
+                    // A cross-volume move degrades to a full byte copy of the clip, so its cost is
+                    // worth seeing per clip.
+                    _logger?.Debug(
+                        $"[RecordingTiming] Placing the clip took {moveTimer.ElapsedMilliseconds}ms.");
                     _logger?.Info($"[Recording] Saved unlock clip: {savedPath}");
                     // Drop the cached capture scan for this game. This also raises CapturesChanged,
                     // so grids that are already open re-stamp their rows for the new clip.
@@ -1170,8 +1403,9 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Removes the request from the track-wait list and resolves its waiter null, so an
-        /// abandoned production can't strand the wave matcher or a later WaitForTrackAsync.
+        /// Removes the request from the track-wait list and resolves both its waiters null, so an
+        /// abandoned production can't strand the wave matcher, a later WaitForTrackAsync, or a
+        /// delayed request still waiting on a display instant that will never be stamped.
         /// </summary>
         private void AbandonTrackWait(ClipRequest request)
         {
@@ -1186,13 +1420,72 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             request.TrackTcs?.TrySetResult(null);
+            request.DisplayTcs?.TrySetResult(null);
+        }
+
+        /// <summary>
+        /// Waits for the instant this achievement's wave aims its base capture at, so the clip can
+        /// be built around the frame the screenshot depicts. Null — anchor on the unlock instead —
+        /// when neither delay is configured, or when the wait gives up on the same silence
+        /// budget the track wait uses.
+        ///
+        /// The wave reports that instant when it settles, as a scheduled target rather than an
+        /// observation, so this does not wait for the capture itself — only for the wave to reach
+        /// the screen. Both configured delays extend the budget: the notification delay withholds
+        /// the wave itself, and the capture delay pushes the clip's own window that much further
+        /// out; without that an uncapped delay longer than <see cref="ToastWaitTimeoutSeconds"/>
+        /// could read as a stalled queue.
+        /// </summary>
+        private async Task<DateTime?> WaitForDisplayAsync(ClipRequest request)
+        {
+            if (request.DisplayTcs == null)
+            {
+                return null;
+            }
+
+            var silenceBudget = TimeSpan.FromSeconds(ToastWaitTimeoutSeconds + request.TotalDelaySeconds);
+            var overallBudget = TimeSpan.FromSeconds(MaxToastWaitSeconds + request.TotalDelaySeconds);
+
+            while (true)
+            {
+                var completed = await Task.WhenAny(
+                        request.DisplayTcs.Task,
+                        Task.Delay(TimeSpan.FromSeconds(ToastWaitPollSeconds)))
+                    .ConfigureAwait(false);
+                if (completed == request.DisplayTcs.Task)
+                {
+                    return await request.DisplayTcs.Task.ConfigureAwait(false);
+                }
+
+                DateTime lastActivity;
+                lock (_gate)
+                {
+                    lastActivity = _lastToastActivityUtc;
+                }
+
+                var now = CaptureTimelineClock.UtcNow;
+                var silenceAnchor = lastActivity > request.ObservedUtc ? lastActivity : request.ObservedUtc;
+                if (_disposed ||
+                    now - silenceAnchor >= silenceBudget ||
+                    now - request.ObservedUtc >= overallBudget)
+                {
+                    _logger?.Debug(
+                        $"[Recording] No notification display instant for '{request.AchievementName}' " +
+                        $"({(now - request.ObservedUtc).TotalSeconds:F0}s since observation); " +
+                        "anchoring the clip on the unlock instead.");
+                    request.DisplayTcs.TrySetResult(null);
+                    return await request.DisplayTcs.Task.ConfigureAwait(false);
+                }
+            }
         }
 
         /// <summary>
         /// Waits for this achievement's overlay track, giving up (null → toastless clip) only
         /// after <see cref="ToastWaitTimeoutSeconds"/> of toast SILENCE — measured from the last
         /// wave shown or track completed, not from detection — so a toast queued minutes behind
-        /// other waves still gets composited. Returns whatever won a give-up/late-track race.
+        /// other waves still gets composited. The configured notification and capture delays both
+        /// extend that budget, since the wave is deliberately withheld for that long before it can
+        /// display at all. Returns whatever won a give-up/late-track race.
         /// </summary>
         private async Task<ToastOverlayTrack> WaitForTrackAsync(ClipRequest request)
         {
@@ -1216,8 +1509,8 @@ namespace PlayniteAchievements.Services.Recording
                 var now = CaptureTimelineClock.UtcNow;
                 var silenceAnchor = lastActivity > request.ObservedUtc ? lastActivity : request.ObservedUtc;
                 if (_disposed ||
-                    now - silenceAnchor >= TimeSpan.FromSeconds(ToastWaitTimeoutSeconds) ||
-                    now - request.ObservedUtc >= TimeSpan.FromSeconds(MaxToastWaitSeconds))
+                    now - silenceAnchor >= TimeSpan.FromSeconds(ToastWaitTimeoutSeconds + request.TotalDelaySeconds) ||
+                    now - request.ObservedUtc >= TimeSpan.FromSeconds(MaxToastWaitSeconds + request.TotalDelaySeconds))
                 {
                     _logger?.Debug(
                         $"[Recording] No matching toast track for '{request.AchievementName}' " +
@@ -1247,36 +1540,114 @@ namespace PlayniteAchievements.Services.Recording
             // The two differ whenever the buffer could not reach back the full pre-roll, and measuring
             // from the window then put the card that much too early against the footage.
             //
-            // The card sits on the unlock itself, not on the moment the real notification reached the
-            // screen. Those are far apart: a provider poll takes seconds to notice an unlock, so the
-            // notification appeared 9.2s after the fact in one measured case. A clip is built around the
-            // unlock — the pre-roll leads up to it and the tail follows it — so that is where the card
-            // belongs, and placing it there means the clip shows the achievement popping at the instant it
-            // was earned.
+            // By default the card sits on the unlock itself, not on the moment the real notification
+            // reached the screen. Those are far apart: a provider poll takes seconds to notice an unlock,
+            // so the notification appeared 9.2s after the fact in one measured case. A clip is built
+            // around the unlock — the pre-roll leads up to it and the tail follows it — so that is where
+            // the card belongs, and placing it there means the clip shows the achievement popping at the
+            // instant it was earned.
             //
-            // The track's own first-rendered-frame stamp is deliberately not used for placement. It is
-            // still what the card's animation plays from, so the composited card slides in exactly as it
-            // did live; only its position in the clip comes from the unlock.
+            // A configured capture delay reverses that preference: the window is then built around the
+            // moment the capture was taken, so the card still lands on its own window's anchor and the
+            // clip shows the same frame the screenshot did.
+            //
+            // Either way the anchor comes from the window, never from the track's own
+            // first-rendered-frame stamp. That stamp is still what the card's animation plays from, so
+            // the composited card slides in exactly as it did live; only its position is the window's.
             var overlaySeconds = Math.Min(toastSlotSeconds, track.DurationSeconds) + PostFadeTailSeconds;
             var overlayStartUtc = window.ToastAnchorUtc;
 
             var clipOriginUtc = clipStartUtc == default(DateTime) ? window.StartUtc : clipStartUtc;
             var toastStartSeconds = videoLeadSeconds + (overlayStartUtc - clipOriginUtc).TotalSeconds;
             var endSeconds = toastStartSeconds + overlaySeconds;
+            var chimeLeadSeconds = ResolveChimeLeadSeconds(request, track);
 
-            // Where the card landed, and how far the real notification was from it — the gap is the
-            // provider's detection lag, and seeing it beside the placement makes an odd-looking clip
-            // readable without reasoning backwards from the window.
+            // The wave's own chime, mixed in ahead of the composited card. The stamp gap is
+            // launch-to-card. A file mix has no launch-to-audible latency — placed at the full
+            // gap, its onset lands early by exactly the latency the toast service's
+            // sound-alignment delay models — so that model is subtracted, putting the onset on
+            // the reveal, as heard live.
+            var chimePcm = TryReadChimePcm(request);
+            bool usedFallbackTrack;
+            int? alignmentMs;
+            int? playbackId;
+            lock (_gate)
+            {
+                usedFallbackTrack = request.UsedFallbackTrack;
+                alignmentMs = request.OwnSoundAlignmentMs;
+                playbackId = request.OwnSoundPlaybackId;
+            }
+
+            var chimePlacement = "none";
+            if (chimePcm != null)
+            {
+                // Exactly one chime per clip: the composited copy only when the clip track
+                // structurally excluded the sound host, the live one otherwise. The recorder's
+                // state is read live: a host restart re-binds the exclusion and records the gap.
+                var recorder = session.AudioRecorder;
+                var excludedHostPid = recorder?.ExcludedSoundHostProcessId ?? session.ExcludedSoundHostProcessId;
+                var exclusionCovered = recorder?.HostExclusionCovered(window.StartUtc, window.EndUtc) ?? true;
+                var verdict = ChimeCompositeDecision.Decide(
+                    session.AudioRecorded,
+                    session.ClipTrack,
+                    usedFallbackTrack,
+                    excludedHostPid,
+                    _getSoundHostProcessId?.Invoke(),
+                    exclusionCovered);
+                if (ChimeCompositeDecision.AllowsComposite(verdict))
+                {
+                    _logger?.Debug(
+                        $"[Recording] Composited chime: {verdict} (clipTrack={session.ClipTrack}" +
+                        $"{(usedFallbackTrack ? ", fallback track" : string.Empty)}).");
+                }
+                else
+                {
+                    _logger?.Info(
+                        $"[Recording] No composited chime: {verdict} (clipTrack={session.ClipTrack}); " +
+                        "the clip keeps the live unlock sound.");
+                    chimePcm = null;
+                }
+            }
+
+            if (chimePcm != null)
+            {
+                // Placement. Measured: the host reported when this sound's first samples reached
+                // the listener, so the chime goes exactly where it was heard against the card.
+                // Modelled: the launch-to-card gap minus the alignment delay the toast service
+                // applied, the file having no launch-to-audible latency of its own.
+                var measuredOnset = playbackId.HasValue ? _getSoundAudibleOnsetUtc?.Invoke(playbackId.Value) : null;
+                var measuredLead = measuredOnset.HasValue && track.StartUtc != default(DateTime)
+                    ? (track.StartUtc - measuredOnset.Value).TotalSeconds
+                    : (double?)null;
+                if (measuredLead.HasValue && measuredLead.Value >= 0 && measuredLead.Value <= ChimeLeadMaxSeconds)
+                {
+                    chimeLeadSeconds = measuredLead.Value;
+                    chimePlacement = "measured";
+                }
+                else
+                {
+                    chimeLeadSeconds = Math.Max(
+                        0,
+                        chimeLeadSeconds - (alignmentMs ?? ChimeAlignmentFallbackMs) / 1000.0);
+                    chimePlacement = measuredLead.HasValue ? "modelled-onset-implausible" : "modelled";
+                }
+            }
+
+            // Where the card landed, and how far the real notification was from it. Unlock-anchored,
+            // that gap is the provider's detection lag, and seeing it beside the placement makes an
+            // odd-looking clip readable without reasoning backwards from the window. Display-anchored,
+            // the gap should be near zero — a large one there means the card was placed away from the
+            // frame the screenshot captured.
             _logger?.Info(
                 $"[RecordingTiming] toast placed at {toastStartSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
-                $"on the unlock ({Stamp(window.ToastAnchorUtc)}); the notification itself appeared " +
+                $"on the {(window.AnchoredOnDisplay ? "notification" : "unlock")} ({Stamp(window.ToastAnchorUtc)}); " +
+                $"the notification itself appeared " +
                 $"{(track.StartUtc - window.ToastAnchorUtc).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}s later " +
                 $"({Stamp(track.StartUtc)}). lead={videoLeadSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
-                $"end={endSeconds.ToString("F2", CultureInfo.InvariantCulture)}s");
-            // The wave's own chime, read from the Playnite-only sidecar at its real time, mixed
-            // in slightly before the composited toast (matching the live sound-to-reveal lead).
-            var chimePcm = await TryReadChimePcmAsync(session, request).ConfigureAwait(false);
-            var chimeStartSeconds = toastStartSeconds - ChimeLeadBeforeToastSeconds;
+                $"end={endSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
+                $"chimeLead={chimeLeadSeconds.ToString("F3", CultureInfo.InvariantCulture)}s " +
+                $"chimeSource={(chimePcm == null ? "none" : "file")} chimePlacement={chimePlacement}");
+            var chimeStartSeconds = toastStartSeconds - chimeLeadSeconds;
             var tempPath = Path.Combine(session.BufferDirectory, $"clipovl_{Guid.NewGuid():N}.mp4");
             await _reencodeGate.WaitAsync().ConfigureAwait(false);
             try
@@ -1357,14 +1728,25 @@ namespace PlayniteAchievements.Services.Recording
             ClipRequest request,
             SegmentTimeline.ClipWindow window)
         {
-            // Wait until the segment covering the window end has closed (K + margin) so the
-            // concat never reads a half-written segment.
+            // Wait until the window has fully elapsed, then ask the recorders to close the segment
+            // and audio chunk covering its end instead of sleeping out their natural boundaries
+            // (previously a fixed K + margin here, ~7 s of mostly dead time per clip). The fixed
+            // wait's release instant remains as the bound, so a wedged or stopped pump can never
+            // make this slower than it used to be, and the concat still never reads a half-written
+            // segment: the flush completes only after the covering files are closed.
             var readyAtUtc = window.EndUtc.AddSeconds(SegmentSeconds + 2);
-            var wait = readyAtUtc - CaptureTimelineClock.UtcNow;
-            if (wait > TimeSpan.Zero)
+            var legacyWaitMs = Math.Max(0, (readyAtUtc - CaptureTimelineClock.UtcNow).TotalMilliseconds);
+            var readinessTimer = Stopwatch.StartNew();
+            var untilWindowEnd = window.EndUtc - CaptureTimelineClock.UtcNow;
+            if (untilWindowEnd > TimeSpan.Zero)
             {
-                await Task.Delay(wait).ConfigureAwait(false);
+                await Task.Delay(untilWindowEnd).ConfigureAwait(false);
             }
+
+            await WaitForCoveringFilesAsync(session, window.EndUtc, readyAtUtc).ConfigureAwait(false);
+            _logger?.Debug(
+                $"[RecordingTiming] Export readiness took {readinessTimer.ElapsedMilliseconds}ms " +
+                $"(the fixed wait would have been {legacyWaitMs:0}ms).");
 
             var segments = SegmentTimeline.ParseSegments(
                 ListBufferFiles(
@@ -1409,27 +1791,36 @@ namespace PlayniteAchievements.Services.Recording
                 audioPlan = SegmentTimeline.PlanClip(audioChunks, window.StartUtc, plan.EndUtc, SegmentSeconds);
             }
 
-            // Remove any controller haptic waveform the process-loopback capture swept up along with
-            // the game's audio. Replaces the plan with one over a single cleaned chunk, so the
-            // exporter's concatenation and A/V alignment are untouched either way.
+            // The clip track never carries the live unlock sound when the sound host was excluded
+            // at capture start (see AudioLoopbackRecorder), so nothing is subtracted here. Game
+            // Only records the game's process tree; a game that renders outside its tracked tree
+            // leaves that track silent, and the window is then exported from the exclude-host
+            // fallback track instead.
             var recordedAudioPlan = audioPlan;
             var cleanedAudioDirectory = (string)null;
-            if (audioPlan != null)
+            if (audioPlan != null && session.AudioRecorder?.HasFallbackTrack == true)
             {
-                var selectedAudioPlan = TryRemoveHapticAudio(
-                    session, recordedAudioPlan, out cleanedAudioDirectory);
-                // This is deliberately redundant with TryRemoveHapticAudio's own fallback. It keeps
-                // a future cleanup regression from ever turning an existing recorded plan into the
-                // exporter's "no audio" sentinel.
-                audioPlan = selectedAudioPlan ?? recordedAudioPlan;
-                if (selectedAudioPlan == null)
-                {
-                    TryDeleteCleanedAudio(cleanedAudioDirectory);
-                    cleanedAudioDirectory = null;
-                    _logger?.Warn(
-                        "[Recording] Haptic cleanup returned no usable plan; keeping the recorded " +
-                        "audio, which may still carry controller buzz.");
-                }
+                // The fallback track is written on packet arrival, and a chunk still being written
+                // carries placeholder RIFF sizes, which Media Foundation rejects outright
+                // (MF_E_UNSUPPORTED_BYTESTREAM_TYPE). A promptly shown toast puts the window's end
+                // inside the chunk being written right now, so flush it closed through the window
+                // end first, bounded by the old fixed-wait release instant.
+                var fallbackTimer = Stopwatch.StartNew();
+                await WaitForFlushesAsync(
+                        new List<Task> { session.AudioRecorder.FlushAuxiliaryChunksThroughAsync(audioPlan.EndUtc) },
+                        audioPlan.EndUtc.AddSeconds(SegmentSeconds + 2))
+                    .ConfigureAwait(false);
+                _logger?.Debug(
+                    $"[RecordingTiming] Fallback track readiness took {fallbackTimer.ElapsedMilliseconds}ms.");
+
+                var selectionTimer = Stopwatch.StartNew();
+                var selected = SelectClipAudio(session, request, recordedAudioPlan);
+                cleanedAudioDirectory = selected.CleanedDirectory;
+                _logger?.Debug(
+                    $"[RecordingTiming] Clip-audio selection took {selectionTimer.ElapsedMilliseconds}ms.");
+                // Deliberately redundant with the selection's own fallback: no selection regression
+                // may turn an existing plan into the no-audio sentinel.
+                audioPlan = selected.Plan ?? recordedAudioPlan;
             }
 
             LogRecordingTiming(session, request, window, plan.Segments.Count, audioPlan != null);
@@ -1443,18 +1834,24 @@ namespace PlayniteAchievements.Services.Recording
             double videoLeadSeconds = 0;
             bool ok;
             await _baseExportGate.WaitAsync().ConfigureAwait(false);
+            var exportTimer = Stopwatch.StartNew();
             try
             {
                 ok = await Task.Run(() => exporter.Export(plan, audioPlan, tempPath, out videoLeadSeconds))
                     .ConfigureAwait(false);
                 if (!ok && cleanedAudioDirectory != null && recordedAudioPlan != null)
                 {
-                    // A verified PCM cleanup can still fail later while its WAV is opened or muxed.
-                    // Retrying with the already-planned recording makes cleanup strictly optional:
-                    // its worst case is the original buzz, never a missing clip or audio track.
+                    // The fallback window is a WAV this process wrote; it can still fail to open
+                    // or mux. Retry the recorded game-tree plan, which never carried the live
+                    // unlock sound either, so the composite decision reverts with it.
+                    lock (_gate)
+                    {
+                        request.UsedFallbackTrack = false;
+                    }
+
                     _logger?.Warn(
-                        "[Recording] Export with cleaned haptic audio failed; retrying with the " +
-                        "original recorded audio, which may still carry controller buzz.");
+                        "[Recording] Export with the fallback clip audio failed; retrying with the " +
+                        "recorded game-tree audio.");
                     TryDeleteFile(tempPath);
                     videoLeadSeconds = 0;
                     ok = await Task.Run(() => exporter.Export(
@@ -1465,6 +1862,9 @@ namespace PlayniteAchievements.Services.Recording
             {
                 _baseExportGate.Release();
                 TryDeleteCleanedAudio(cleanedAudioDirectory);
+                _logger?.Debug(
+                    $"[RecordingTiming] Base clip export took {exportTimer.ElapsedMilliseconds}ms " +
+                    $"({plan.Segments.Count} segment(s)).");
             }
 
             if (!ok)
@@ -1492,19 +1892,91 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Reads this request's chime from the Playnite-tree sidecar chunks at the moment its wave
-        /// sound actually played. When the game is a Playnite descendant, its same-time game-only
-        /// reference is aligned and cancelled first; this is what prevents the sidecar from adding
-        /// a delayed second copy of emulator audio at the composited toast.
-        ///
-        /// Waits for the chunk covering the end of the chime window to close first, the same way
-        /// the base clip waits for its last video segment. A chunk still being written carries
-        /// placeholder RIFF sizes, and Media Foundation rejects that outright
-        /// (MF_E_UNSUPPORTED_BYTESTREAM_TYPE) — the chime window ends only a few seconds after the
-        /// toast fires, so without the wait the newest chunk is essentially always mid-write and
-        /// every clip silently lost its chime.
+        /// Asks the live recorders to close the segment and audio chunk covering
+        /// <paramref name="throughUtc"/> now and waits for them, bounded by
+        /// <paramref name="deadlineUtc"/> — the instant the old fixed wait would have released the
+        /// export anyway — so a wedged or stopped pump falls back to exactly the old behavior.
         /// </summary>
-        private async Task<byte[]> TryReadChimePcmAsync(CaptureSession session, ClipRequest request)
+        private async Task WaitForCoveringFilesAsync(
+            CaptureSession session, DateTime throughUtc, DateTime deadlineUtc)
+        {
+            var flushes = new List<Task>(4);
+            var recorder = session.WgcRecorder;
+            if (recorder != null)
+            {
+                flushes.Add(recorder.FlushSegmentsThroughAsync(throughUtc));
+            }
+
+            var audio = session.AudioRecorder;
+            if (audio != null)
+            {
+                flushes.Add(audio.FlushChunksThroughAsync(throughUtc));
+                // Clip-audio selection reads the fallback track over this same window, and a
+                // chunk still being written carries placeholder RIFF sizes, which Media
+                // Foundation rejects outright (MF_E_UNSUPPORTED_BYTESTREAM_TYPE). The old fixed
+                // wait covered that read implicitly; the flush has to cover it explicitly.
+                flushes.Add(audio.FlushAuxiliaryChunksThroughAsync(throughUtc));
+            }
+
+            await WaitForFlushesAsync(flushes, deadlineUtc).ConfigureAwait(false);
+        }
+
+        private async Task WaitForFlushesAsync(List<Task> flushes, DateTime deadlineUtc)
+        {
+            if (flushes.Count == 0)
+            {
+                return;
+            }
+
+            var all = Task.WhenAll(flushes);
+            var bound = deadlineUtc - CaptureTimelineClock.UtcNow;
+            if (bound <= TimeSpan.Zero)
+            {
+                // The old fixed wait would already have released this export (a backdated unlock
+                // whose window is long past): the covering files closed on their own schedule ages
+                // ago, so don't wait on the flush at all — just keep its late fault observed.
+                var pending = all.ContinueWith(
+                    t => { var _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+                return;
+            }
+
+            await Task.WhenAny(all, Task.Delay(bound)).ConfigureAwait(false);
+            if (all.IsCompleted)
+            {
+                try
+                {
+                    await all.ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(
+                        ex, "[Recording] Closing the covering capture files failed; exporting what is on disk.");
+                }
+
+                return;
+            }
+
+            _logger?.Debug(
+                "[Recording] Covering capture files did not close before the fixed-wait deadline; " +
+                "exporting what is on disk.");
+            // Observe a late fault so it never surfaces as an unobserved task exception.
+            var ignored = all.ContinueWith(
+                t => { var _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+        }
+
+        /// <summary>
+        /// The stamp gap between the wave sound's launch and the card's first rendered frame. The
+        /// card plays its recorded animation from that first frame, so this gap positions the
+        /// chime excerpt against the composited card; the placement site subtracts the live
+        /// playback path's modelled launch-to-audible latency when the excerpt is a latency-free
+        /// file mix.
+        /// <para>
+        /// Falls back to the sound-align delay's default when either stamp is missing, or when
+        /// their gap is not plausible — negative means the card beat its own sound, and a very
+        /// large one means the sound belongs to a different wave. Neither should place a chime.
+        /// </para>
+        /// </summary>
+        private double ResolveChimeLeadSeconds(ClipRequest request, ToastOverlayTrack track)
         {
             DateTime? ownSound;
             lock (_gate)
@@ -1512,66 +1984,61 @@ namespace PlayniteAchievements.Services.Recording
                 ownSound = request.OwnSoundUtc;
             }
 
-            if (!ownSound.HasValue || session.ChimeRecorder == null)
+            if (!ownSound.HasValue || track == null || track.StartUtc == default(DateTime))
+            {
+                return ChimeLeadFallbackSeconds;
+            }
+
+            var measured = (track.StartUtc - ownSound.Value).TotalSeconds;
+            if (measured < 0 || measured > ChimeLeadMaxSeconds)
+            {
+                _logger?.Debug(
+                    $"[Recording] Chime lead {measured.ToString("F3", CultureInfo.InvariantCulture)}s is " +
+                    "outside the plausible range; using the default sound-align lead.");
+                return ChimeLeadFallbackSeconds;
+            }
+
+            return measured;
+        }
+
+        /// <summary>
+        /// Decodes the exact sound file this request's wave played, at the gain it played at, for
+        /// compositing at the toast. Null when the wave played nothing or the file cannot be read.
+        /// </summary>
+        private byte[] TryReadChimePcm(ClipRequest request)
+        {
+            DateTime? ownSound;
+            string soundFilePath;
+            double soundFileGain;
+            lock (_gate)
+            {
+                ownSound = request.OwnSoundUtc;
+                soundFilePath = request.OwnSoundFilePath;
+                soundFileGain = request.OwnSoundFileGain;
+            }
+
+            // A wave that played no sound gets none.
+            if (!ownSound.HasValue)
             {
                 return null;
             }
 
-            var chimeWindowEndUtc = ownSound.Value.AddSeconds(
-                Math.Min(request.EffectiveToastSeconds, ChimeMaxSliceSeconds) + ChimeTailBeyondToastSeconds);
-            var wait = chimeWindowEndUtc.AddSeconds(SegmentSeconds + 2) - CaptureTimelineClock.UtcNow;
-            if (wait > TimeSpan.Zero)
+            if (soundFilePath == null)
             {
-                await Task.Delay(wait).ConfigureAwait(false);
+                _logger?.Debug("[Recording] The wave played a sound but reported no file; no composited chime.");
+                return null;
             }
 
-            var pcm = TryReadAudioWindow(
-                session.BufferDirectory,
-                RecordingPaths.ChimeChunkFilePrefix,
-                ownSound.Value,
-                chimeWindowEndUtc);
-            if (pcm != null &&
-                session.AudioRecorder?.ChimeCaptureMode == PlayniteChimeCaptureMode.CancelGameReference)
+            // The exact file the wave played, at the gain it played at, bounded by the toast slot.
+            var pcm = ChimeSoundFile.TryReadPcm(soundFilePath, MaxChimePlaybackSeconds, soundFileGain, _logger);
+            if (pcm == null)
             {
-                var referencePcm = TryReadAudioWindow(
-                    session.BufferDirectory,
-                    RecordingPaths.GameReferenceChunkFilePrefix,
-                    ownSound.Value,
-                    chimeWindowEndUtc);
-
-                if (referencePcm == null)
-                {
-                    _logger?.Warn(
-                        "[Recording] Chime sidecar could not be separated from the game reference; " +
-                        "the clip keeps its game audio without a re-timed chime.");
-                    return null;
-                }
-
-                var outcome = PcmAudio.CancelCorrelated(
-                    pcm,
-                    referencePcm,
-                    out var cancellation,
-                    preferEarlyAlignmentWindow: true,
-                    verificationLagRadiusFrames: 480);
-                if (outcome == PcmCancellationOutcome.Unseparable)
-                {
-                    _logger?.Warn(
-                        "[Recording] Chime sidecar could not be verifiably separated from the game " +
-                        $"reference (correlation={cancellation.Correlation:0.000} " +
-                        $"gain={cancellation.Gain:0.00} suppression={cancellation.SuppressionDb:0.0}dB); " +
-                        "the clip is mixed without a re-timed chime.");
-                    return null;
-                }
-
-                _logger?.Debug(
-                    $"[Recording] Chime game-audio cancellation: outcome={outcome} " +
-                    $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
-                    $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
-                    $"suppression={cancellation.SuppressionDb:0.0}dB " +
-                    $"fixedBlocks={cancellation.FixedFitBlocks} mutedBlocks={cancellation.MutedBlocks}.");
+                _logger?.Warn("[Recording] The unlock sound file could not be decoded; the clip is composited without a chime.");
+                return null;
             }
 
-            if (pcm != null)
+            var capBytes = (long)(MaxChimePlaybackSeconds * PcmAudio.BytesPerSecond);
+            if (pcm.Length >= capBytes - PcmAudio.BytesPerSecond / 100)
             {
                 PcmAudio.FadeOutTail(pcm, ChimeFadeOutSeconds);
             }
@@ -1580,179 +2047,74 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Removes a controller's haptic waveform from the clip's own audio, returning the plan the
-        /// exporter should use: one cleaned chunk after verified removal, or the recorded plan
-        /// unchanged in every other case.
-        /// <para>
-        /// A DualSense plays haptics as audio through its own render endpoint, and process loopback
-        /// mixes every endpoint the game renders to, so the buzz is inside <c>aud_</c>. The recorder
-        /// captures that endpoint into timestamped <c>hap_</c> chunks; cancelling the one
-        /// from the other is the only way to separate them, because Windows offers no way to scope a
-        /// process capture to a device.
-        /// </para>
-        /// <para>
-        /// Every uncertainty keeps the recorded audio: a doubtful reference window, an active
-        /// reference that cannot be verified, excessive residual correlation, an unreadable track or
-        /// an I/O failure all ship the clip's own sound. The worst outcome this pass may produce is
-        /// audio that still carries some buzz — never a clip without audio, which costs the user far
-        /// more than the artifact being guarded against. Within a verified pass, every 50 ms active
-        /// block that cannot prove improvement is restored exactly as recorded.
-        /// </para>
+        /// Game Only: picks the clip's audio between the game-tree clip track and the
+        /// exclude-sound-host fallback track. The game tree is the clip audio whenever it delivered
+        /// any packet over the window, quiet or not. A tree that delivered nothing has no render
+        /// stream at all, which means the game plays from a process outside its tracked tree (a
+        /// launcher or emulator child the tree does not reach), so the same window is exported
+        /// from the fallback track, which holds everything but the sound host. Neither
+        /// track ever held the live unlock sound; the fallback only adds the sound-host pid
+        /// stability check to the composite decision. Any failure keeps the recorded plan.
         /// </summary>
-        private SegmentTimeline.ClipPlan TryRemoveHapticAudio(
+        private (SegmentTimeline.ClipPlan Plan, string CleanedDirectory) SelectClipAudio(
             CaptureSession session,
-            SegmentTimeline.ClipPlan audioPlan,
-            out string cleanedDirectory)
+            ClipRequest request,
+            SegmentTimeline.ClipPlan audioPlan)
         {
-            cleanedDirectory = null;
             string candidateDirectory = null;
-            if (audioPlan?.Segments == null || audioPlan.Segments.Count == 0)
+            var recorder = session.AudioRecorder;
+            if (audioPlan?.Segments == null || audioPlan.Segments.Count == 0 ||
+                recorder == null || !recorder.HasFallbackTrack)
             {
-                return audioPlan;
+                return (audioPlan, null);
             }
 
             try
             {
                 var startUtc = audioPlan.StartUtc;
                 var endUtc = audioPlan.EndUtc;
-                if (session.AudioRecorder?.HasHapticHole(startUtc, endUtc) == true)
+                // The clip track's chunks are pump-paced and zero-fill, so they always cover the
+                // window; whether the game tree rendered here is read from the capture's own packet
+                // stamps instead. A tree with an open stream delivers packets even while quiet, so a
+                // quiet game stays a quiet clip rather than pulling in other applications.
+                if (recorder.ClipTrackDeliveredAudio(startUtc, endUtc))
                 {
-                    _logger?.Info(
-                        "[Recording] The haptic references have a coverage hole over this clip's " +
-                        "window; keeping the recorded audio rather than cleaning against a reference " +
-                        "that may not describe it.");
-                    return audioPlan;
-                }
-                var references = new List<byte[]>();
-                var referenceNames = new List<string>();
-                foreach (var prefix in RecordingPaths.HapticReferenceChunkFilePrefixes())
-                {
-                    var reference = TryReadAudioWindow(
-                        session.BufferDirectory, prefix, startUtc, endUtc, out var referenceCovered);
-                    if (referenceCovered && reference == null)
-                    {
-                        _logger?.Warn(
-                            $"[Recording] Haptic reference {prefix.TrimEnd('_')} covers this clip " +
-                            "but could not be decoded; keeping the recorded audio.");
-                        return audioPlan;
-                    }
-
-                    if (reference != null)
-                    {
-                        references.Add(reference);
-                        referenceNames.Add(prefix.TrimEnd('_'));
-                    }
+                    return (audioPlan, null);
                 }
 
-                if (references.Count == 0)
-                {
-                    // With a complete, uncompromised endpoint scan, no sparse chunk means no
-                    // controller waveform was rendered during this window.
-                    _logger?.Debug(
-                        "[Recording] No haptic reference track covers this clip's audio window; " +
-                        "the healthy controller reference was silent or no controller existed.");
-                    return audioPlan;
-                }
-
-                var mixture = TryReadAudioWindow(
-                    session.BufferDirectory,
-                    RecordingPaths.AudioChunkFilePrefix,
-                    startUtc,
-                    endUtc);
-                if (mixture == null)
+                if (recorder.FallbackFailed)
                 {
                     _logger?.Warn(
-                        "[Recording] Haptic references exist but the matching clip audio could not " +
-                        "be audited; keeping the recorded audio.");
-                    return audioPlan;
+                        "[Recording] The game tree delivered no audio over this clip and the fallback " +
+                        "track failed this session; the clip keeps the game-tree audio.");
+                    return (audioPlan, null);
                 }
 
-                // One pass per endpoint, each over what the previous pass left. Each endpoint needs
-                // its own fixed lag and scale, so a summed reference could not remove both reliably.
-                // A pass that cannot verify its own reference leaves its input untouched, which is
-                // exactly what the next pass should work on.
-                var removedAny = false;
-                var unremovedActiveReferences = new List<string>();
-                for (var i = 0; i < references.Count; i++)
+                var fallback = TryReadAudioWindow(
+                    session.BufferDirectory,
+                    RecordingPaths.FallbackChunkFilePrefix,
+                    startUtc,
+                    endUtc,
+                    out var fallbackCovered);
+                if (fallback == null)
                 {
-                    // A controller endpoint and a process-loopback client can sit much further apart
-                    // than the chime's two process clients do. Alignment is corrected at capture time
-                    // from each capture's own packet stamp; this width is the safety net for whatever
-                    // that could not model.
-                    var outcome = PcmAudio.CancelCorrelated(
-                        mixture,
-                        references[i],
-                        out var cancellation,
-                        // Restore, never mute. Silencing a block that could not be verified punches
-                        // a hole in the clip's own sound, and on a clip carrying rumble throughout
-                        // that is most of the audio — the loss the user actually notices. The chime
-                        // sidecar still mutes, because a hole there is inaudible.
-                        muteUnverifiedBlocks: false,
-                        maxLagFrames: HapticCancellationMaxLagFrames,
-                        minimumGain: HapticCancellationMinimumGain,
-                        maximumGain: HapticCancellationMaximumGain,
-                        blockGainFloor: HapticCancellationBlockGainFloor,
-                        keepBlockSuppressionDb: HapticCancellationKeepBlockDb,
-                        cancellationBlockFrames: HapticCancellationBlockFrames,
-                        maximumResidualCorrelation: HapticCancellationMaximumResidualCorrelation,
-                        commitVerifiedBlocksOnWeakPass: true,
-                        minimumCorrelation: HapticCancellationMinimumCorrelation,
-                        attemptVerifiedBlocksWhenGloballyClean: true,
-                        independentChannelGains: true,
-                        // The reference and its copy begin on the same stamped frame. Fading the
-                        // first 5 ms in left the audible onset of every short haptic burst behind.
-                        gainCrossfadeFrames: 0,
-                        // One fixed sub-sample calibration for the whole clip. This models the
-                        // physical phase between audio engines without bringing back block relocks.
-                        fractionalLagSteps: 32);
-                    _logger?.Info(
-                        $"[Recording] Haptic cancellation ({referenceNames[i]}): outcome={outcome} " +
-                        $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
-                        $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
-                        $"suppression={cancellation.SuppressionDb:0.0}dB " +
-                        $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
-                        $"fit=stereo/no-fade/fractional " +
-                        $"(quiet={cancellation.QuietBlocks}, fixed={cancellation.FixedFitBlocks}, " +
-                        $"gated={cancellation.MutedBlocks}, restored={cancellation.RestoredBlocks}) " +
-                        $"partial={cancellation.PartialCommit} " +
-                        $"weakestBlock={cancellation.WeakestBlockSuppressionDb:0.0}dB " +
-                        $"residual={cancellation.ResidualCorrelation:0.000} " +
-                        $"referenceRms={cancellation.ReferenceRms:0.0}.");
-                    if (!PcmAudio.IsReferenceSafelyAbsentOrRemoved(outcome, cancellation))
-                    {
-                        // The mixture is untouched by an unverified pass, so the recorded audio is
-                        // still valid. Keep any verified work from the other independent endpoints
-                        // and accept that this endpoint's buzz can remain.
-                        _logger?.Warn(
-                            $"[Recording] Active haptic reference {referenceNames[i]} was not " +
-                            "verifiably removed; continuing best-effort cleanup. Its buzz may remain.");
-                        unremovedActiveReferences.Add(referenceNames[i]);
-                        continue;
-                    }
-
-                    removedAny |= outcome == PcmCancellationOutcome.CancelledVerified;
+                    _logger?.Info(fallbackCovered
+                        ? "[Recording] The game tree delivered no audio over this clip and the fallback " +
+                          "track could not be decoded; the clip keeps the game-tree audio."
+                        : "[Recording] The game tree delivered no audio over this clip and nothing else " +
+                          "played either; the clip keeps the game-tree audio.");
+                    return (audioPlan, null);
                 }
 
-                if (!removedAny)
-                {
-                    return audioPlan;
-                }
-
-                if (unremovedActiveReferences.Count > 0)
-                {
-                    _logger?.Info(
-                        "[Recording] Exporting the verified partial haptic cleanup; unresolved " +
-                        "reference(s) remain in the audio: " +
-                        string.Join(", ", unremovedActiveReferences.ToArray()) + ".");
-                }
-
-                candidateDirectory = Path.Combine(session.BufferDirectory, $"clean_{Guid.NewGuid():N}");
+                candidateDirectory = Path.Combine(
+                    session.BufferDirectory,
+                    $"clean_{Guid.NewGuid():N}");
                 Directory.CreateDirectory(candidateDirectory);
                 var name = RecordingPaths.BuildAudioChunkFileName(
-                    RecordingPaths.AudioChunkFilePrefix, startUtc);
-                PcmAudio.WriteWav(Path.Combine(candidateDirectory, name), mixture);
-
-                var cleanedChunks = SegmentTimeline.ParseSegments(
+                    RecordingPaths.AudioChunkFilePrefix,
+                    startUtc);
+                PcmAudio.WriteWav(Path.Combine(candidateDirectory, name), fallback);
+                var fallbackChunks = SegmentTimeline.ParseSegments(
                     ListBufferFiles(
                         candidateDirectory,
                         RecordingPaths.AudioChunkFilePrefix,
@@ -1760,41 +2122,37 @@ namespace PlayniteAchievements.Services.Recording
                     TimeZoneInfo.Local,
                     RecordingPaths.AudioChunkFilePrefix,
                     RecordingPaths.AudioChunkFileExtension);
-
-                // The cleaned window is one chunk spanning the whole clip, so the implied chunk
-                // length has to cover it rather than the recorder's rotation interval.
-                var cleanedPlan = SegmentTimeline.PlanClip(
-                    cleanedChunks,
+                var fallbackPlan = SegmentTimeline.PlanClip(
+                    fallbackChunks,
                     startUtc,
                     endUtc,
                     Math.Max(SegmentSeconds, (int)Math.Ceiling(audioPlan.DurationSeconds) + 1));
-                if (cleanedPlan == null)
+                if (fallbackPlan == null)
                 {
                     TryDeleteCleanedAudio(candidateDirectory);
-                    candidateDirectory = null;
-                    return audioPlan;
+                    return (audioPlan, null);
                 }
 
-                if (session.AudioRecorder?.HasHapticHole(startUtc, endUtc) == true)
+                lock (_gate)
                 {
-                    TryDeleteCleanedAudio(candidateDirectory);
-                    candidateDirectory = null;
-                    _logger?.Info(
-                        "[Recording] A haptic coverage hole over this window appeared during " +
-                        "cleanup; keeping the recorded audio.");
-                    return audioPlan;
+                    request.UsedFallbackTrack = true;
                 }
 
-                cleanedDirectory = candidateDirectory;
-                return cleanedPlan;
+                _logger?.Info(
+                    "[Recording] The game tree delivered no audio over this clip; exporting the " +
+                    "exclude-sound-host fallback track for this window instead.");
+                return (fallbackPlan, candidateDirectory);
             }
             catch (Exception ex)
             {
                 TryDeleteCleanedAudio(candidateDirectory);
-                _logger?.Warn(
-                    ex,
-                    "[Recording] Haptic audio removal failed; keeping the recorded audio.");
-                return audioPlan;
+                lock (_gate)
+                {
+                    request.UsedFallbackTrack = false;
+                }
+
+                _logger?.Warn(ex, "[Recording] Clip-audio selection failed; keeping the recorded game-tree audio.");
+                return (audioPlan, null);
             }
         }
 
@@ -1947,9 +2305,11 @@ namespace PlayniteAchievements.Services.Recording
                     return null;
                 }
 
-                // A manual test fire lands in a separate "Test" subfolder, matching the screenshot
-                // planner, so test clips never mix with a game's genuine unlock captures.
-                if (request.IsTestFire)
+                // A retrigger normally captures into the game's own folder, exactly like a genuine
+                // unlock. Opting into the test folder diverts it to the shared "Test" subfolder
+                // instead, matching the screenshot planner so a retrigger's clip and screenshot
+                // never land in different places.
+                if (request.IsTestFire && persisted.EnableCaptureTestFolder)
                 {
                     baseDir = Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
                 }
@@ -2007,10 +2367,8 @@ namespace PlayniteAchievements.Services.Recording
                 var audioPrefixes = new List<string>
                 {
                     RecordingPaths.AudioChunkFilePrefix,
-                    RecordingPaths.ChimeChunkFilePrefix,
-                    RecordingPaths.GameReferenceChunkFilePrefix,
+                    RecordingPaths.FallbackChunkFilePrefix,
                 };
-                audioPrefixes.AddRange(RecordingPaths.HapticReferenceChunkFilePrefixes());
                 foreach (var prefix in audioPrefixes)
                 {
                     audioByPrefix[prefix] = SegmentTimeline.ParseSegments(
@@ -2453,6 +2811,7 @@ namespace PlayniteAchievements.Services.Recording
             foreach (var request in awaiting)
             {
                 request.TrackTcs?.TrySetResult(null);
+                request.DisplayTcs?.TrySetResult(null);
             }
 
             if (session != null)
@@ -2469,7 +2828,6 @@ namespace PlayniteAchievements.Services.Recording
                 session.PruneTimer?.Dispose();
                 session.WgcRecorder?.Dispose();
                 session.AudioRecorder?.Dispose();
-                session.ChimeRecorder?.Dispose();
             }
         }
     }

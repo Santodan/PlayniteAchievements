@@ -310,6 +310,10 @@ namespace PlayniteAchievements.Services.Achievements
             return pruned;
         }
 
+        // Membership: which achievement carries which category label and type. It moves nothing a
+        // library rollup reads - the game's counts, filters and summary art are all unchanged by
+        // it - so these writes are scoped out of the library-wide summary and projection passes.
+        // Callers repaint their own rows in place, which is what keeps the edit visible.
         public void SetAchievementCategoryOverrides(Guid gameId, IReadOnlyDictionary<string, string> categoryOverrides)
         {
             if (gameId == Guid.Empty)
@@ -317,10 +321,13 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            _gameCustomDataStore.Update(gameId, customData =>
-            {
-                customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
-            });
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
+                },
+                affectsSummaryData: false);
         }
 
         public void SetAchievementCategoryTypeOverrides(Guid gameId, IReadOnlyDictionary<string, string> categoryTypeOverrides)
@@ -330,10 +337,13 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            _gameCustomDataStore.Update(gameId, customData =>
-            {
-                customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
-            });
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
+                },
+                affectsSummaryData: false);
         }
 
         public void SetAchievementCategoryOverrides(
@@ -346,18 +356,62 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
+                    customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
+                },
+                affectsSummaryData: false);
+        }
+
+        /// <summary>
+        /// Writes a category rename's two halves - the ApiName-keyed membership and the label-keyed
+        /// order, art and summary selection - in one store update.
+        /// </summary>
+        /// <param name="affectsSummaryData">
+        /// False when the write cannot move any library-level rollup. Moving an achievement between
+        /// this game's categories does not change what it has unlocked, so the default true would
+        /// queue a library-wide overview recompute per click for nothing. Pass true only when the
+        /// game-summary category selection actually changed, since that does drive the game's row.
+        /// </param>
+        public void SetAchievementCategoryAssignmentAndMetadata(
+            Guid gameId,
+            IReadOnlyDictionary<string, string> categoryOverrides,
+            IReadOnlyDictionary<string, string> categoryTypeOverrides,
+            IReadOnlyList<string> categoryOrder,
+            IReadOnlyDictionary<string, CategoryImageOverrideData> categoryImageOverrides,
+            GameSummaryCategoryData gameSummaryCategory,
+            bool affectsSummaryData = true)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
             _gameCustomDataStore.Update(gameId, customData =>
             {
                 customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
                 customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
-            });
+                customData.AchievementCategoryOrder = CopyCategoryOrder(categoryOrder);
+                customData.AchievementCategoryImageOverrides = CopyCategoryImageOverrides(categoryImageOverrides);
+                customData.GameSummaryCategory = GameCustomDataNormalizer.NormalizeGameSummaryCategory(gameSummaryCategory);
+            },
+            affectsSummaryData);
         }
 
+        /// <param name="affectsSummaryData">
+        /// False when the write leaves the game's summary art where it was. Category order and art
+        /// on a category that is not the summary source are per-game display state, so the default
+        /// true would queue a library-wide overview pass per edit for nothing.
+        /// </param>
         public void SetAchievementCategoryMetadata(
             Guid gameId,
             IReadOnlyList<string> categoryOrder,
             IReadOnlyDictionary<string, CategoryImageOverrideData> categoryImageOverrides,
-            GameSummaryCategoryData gameSummaryCategory)
+            GameSummaryCategoryData gameSummaryCategory,
+            bool affectsSummaryData = true)
         {
             if (gameId == Guid.Empty)
             {
@@ -369,7 +423,8 @@ namespace PlayniteAchievements.Services.Achievements
                 customData.AchievementCategoryOrder = CopyCategoryOrder(categoryOrder);
                 customData.AchievementCategoryImageOverrides = CopyCategoryImageOverrides(categoryImageOverrides);
                 customData.GameSummaryCategory = GameCustomDataNormalizer.NormalizeGameSummaryCategory(gameSummaryCategory);
-            });
+            },
+            affectsSummaryData);
         }
 
         public void SetAchievementFilters(

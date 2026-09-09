@@ -191,6 +191,7 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Helper is its own exe project (see below); its sources must not compile into the plugin. -->
     <Content Include="packages\Microsoft.Web.WebView2.1.0.2592.51\runtimes\win-x86\native\WebView2Loader.dll">
       <Link>x86\WebView2Loader.dll</Link>
       <TargetPath>x86\WebView2Loader.dll</TargetPath>
@@ -201,7 +202,23 @@
       <TargetPath>x64\WebView2Loader.dll</TargetPath>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Compile Include="**\*.cs" Exclude="bin\**;obj\**;packages\**;**\*.g.cs;**\*.g.i.cs" />
+    <Compile Include="**\*.cs" Exclude="bin\**;obj\**;Helper\**;packages\**;**\*.g.cs;**\*.g.i.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Builds the unlock-sound host before this project (ReferenceOutputAssembly=false: the plugin
+         never references the exe) and ships only its exe as loose content beside the plugin dll, so
+         Toolbox packs it. No second NAudio.dll and no .pdb come along; the copy is tracked by
+         FileWrites so Clean removes it. -->
+    <ProjectReference Include="Helper\PlayniteAchievements.Helper.csproj">
+      <Project>{7A2E4C51-9B3D-4F6E-8C1A-2D5F7E9B0C43}</Project>
+      <Name>PlayniteAchievements.Helper</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+    <Content Include="Helper\bin\$(Configuration)\PlayniteAchievementsHelper.exe">
+      <Link>PlayniteAchievementsHelper.exe</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <Page Include="**\*.xaml" Exclude="bin\**;obj\**;Localization\**\*.xaml;Resources\DefaultTemplates\**\*.xaml">
@@ -280,6 +297,10 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Resources\Hoyoverse\**\*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- Bundled unlock sounds ship as loose files: the sound host process opens them by path. -->
+    <Content Include="Resources\Sounds\*.mp3;Resources\Sounds\notices.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

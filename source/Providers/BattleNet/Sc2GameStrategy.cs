@@ -7,6 +7,7 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.BattleNet.Models;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Providers.BattleNet
 {
@@ -162,14 +163,23 @@ namespace PlayniteAchievements.Providers.BattleNet
             if (string.IsNullOrEmpty(categoryId) || !names.TryGetValue(categoryId, out var name))
                 return null;
 
-            if (parents.TryGetValue(categoryId, out var parentId) &&
-                !string.IsNullOrEmpty(parentId) &&
-                names.TryGetValue(parentId, out var parentName))
+            // Walk to the root rather than taking a single hop, so a category nested deeper than
+            // one level keeps its whole ancestry. The visited set guards against a cycle in the
+            // upstream parent links; NormalizePath applies the depth cap.
+            var segments = new List<string> { name };
+            var visited = new HashSet<string>(StringComparer.Ordinal) { categoryId };
+            var currentId = categoryId;
+
+            while (parents.TryGetValue(currentId, out var parentId) &&
+                   !string.IsNullOrEmpty(parentId) &&
+                   visited.Add(parentId) &&
+                   names.TryGetValue(parentId, out var parentName))
             {
-                return $"{parentName} - {name}";
+                segments.Insert(0, parentName);
+                currentId = parentId;
             }
 
-            return name;
+            return CategoryPathHelper.JoinRaw(segments.ToArray());
         }
 
         private static int StableAppId(string id)

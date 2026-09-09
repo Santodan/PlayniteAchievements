@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 
 namespace PlayniteAchievements.Services.Recording
@@ -130,48 +129,12 @@ namespace PlayniteAchievements.Services.Recording
         public const string AudioChunkFilePrefix = "aud_";
 
         /// <summary>
-        /// Chime chunk filenames: chm_yyyyMMdd-HHmmssfffffffZ.wav — the Playnite process-tree
-        /// sidecar. When the game is also in that tree, its matching game-reference window is
-        /// cancelled from this track before the isolated chime is re-timed to the toast.
+        /// Fallback chunk filenames: alt_yyyyMMdd-HHmmssfffffffZ.wav. Game Only records the game's
+        /// process tree as its clip track and this exclude-sound-host track beside it; a clip whose
+        /// game-tree window is silent (the game renders outside its tracked tree) is exported from
+        /// this track instead, so it carries the game rather than nothing.
         /// </summary>
-        public const string ChimeChunkFilePrefix = "chm_";
-
-        /// <summary>
-        /// Game-reference chunk filenames: gam_yyyyMMdd-HHmmssfffffffZ.wav. Capture uses this only when
-        /// Playnite's process tree contains the game, providing the raw game-only signal that must
-        /// be removed from the overlapping chime sidecar.
-        /// </summary>
-        public const string GameReferenceChunkFilePrefix = "gam_";
-
-        /// <summary>
-        /// How many controller endpoints can be captured as separate references.
-        /// </summary>
-        public const int MaxHapticReferences = 4;
-
-        /// <summary>
-        /// Haptic-reference chunk filenames: hap0_yyyyMMdd-HHmmssfffffffZ.wav — everything rendered to
-        /// one controller's own audio endpoint. Process loopback mixes every endpoint the game
-        /// renders to, so this is the copy of its haptic waveform that the clip's audio is cleaned
-        /// against. Written only while such an endpoint exists.
-        /// <para>
-        /// One track per endpoint, never a mix of them: cancellation fits a separate fixed lag and
-        /// scale for each reference, so two endpoints summed into one track cannot both be removed. They are
-        /// subtracted one after another instead.
-        /// </para>
-        /// </summary>
-        public static string HapticReferenceChunkFilePrefix(int index)
-        {
-            return "hap" + index.ToString(CultureInfo.InvariantCulture) + "_";
-        }
-
-        /// <summary>Every haptic-reference prefix, for buffer maintenance.</summary>
-        public static IEnumerable<string> HapticReferenceChunkFilePrefixes()
-        {
-            for (var index = 0; index < MaxHapticReferences; index++)
-            {
-                yield return HapticReferenceChunkFilePrefix(index);
-            }
-        }
+        public const string FallbackChunkFilePrefix = "alt_";
 
         public const string AudioChunkFileExtension = ".wav";
     }

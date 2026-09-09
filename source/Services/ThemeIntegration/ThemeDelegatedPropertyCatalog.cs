@@ -74,6 +74,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.XeniaGames),
             nameof(PlayniteAchievementsSettings.ShadPS4Games),
             nameof(PlayniteAchievementsSettings.GameJoltGames),
+            nameof(PlayniteAchievementsSettings.RiotGames),
             nameof(PlayniteAchievementsSettings.FFXIVGames),
             nameof(PlayniteAchievementsSettings.ManualGames)
         };

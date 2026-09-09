@@ -33,7 +33,7 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly ILogger Logger = LogManager.GetLogger();
         private DataGridColumnLayoutService _columnPersistence;
         private bool _isAttached;
-        private PersistedSettings _subscribedPersisted;
+        private PersistedSettingsSubscription _persistedSubscription;
         private List<AchievementDisplayItem> _preSortItems;
         private const double DefaultStatusColumnWidth = 40;
         private const double DefaultIconColumnWidth = 72;
@@ -660,15 +660,61 @@ namespace PlayniteAchievements.Views.Controls
 
         // ---- Category-summaries mode -------------------------------------------------------
         // When EnableCategoryMode is set, a toggle is injected into the control bar (right of the
-        // category dropdowns). Toggling it swaps the flat achievement grid for a per-category
-        // summary grid; clicking a category drills into a filtered achievement list. All state is
-        // self-contained here so any surface hosting this control opts in with a single attribute.
+        // category dropdowns). Toggling it swaps the flat achievement grid for a summary grid
+        // holding every category in the tree, indented by depth; clicking any row, at any depth,
+        // replaces that list with the achievements of its whole subtree, and Back returns. One hop
+        // each way. All state is self-contained here so any surface hosting this control opts in
+        // with a single attribute.
 
         private bool _isCategoryMode;
-        private string _drilledCategory;
+        // Segments rather than the joined path: rendering a breadcrumb and jumping to an ancestor
+        // are the two things this state exists for, and both are trivial on segments.
+        private readonly List<string> _drillPath = new List<string>();
+
+        // Scroll position of the category list at the moment of drilling in, so stepping back out
+        // returns to the same place instead of the top.
+        private double _categoryListScrollOffset;
+
+        private bool IsDrilled => _drillPath.Count > 0;
+
+        // What the drilled achievement grid covers: the node's whole subtree, or only its direct
+        // achievements. Recorded at drill time from the clicked row's collapse state - a collapsed
+        // row's numbers absorbed its subtree, an expanded row's numbers were its own, and the drill
+        // opens exactly what the numbers described. Lives beside the path rather than in it: the
+        // path alone cannot carry scope.
+        private enum DrillScope
+        {
+            Subtree = 0,
+            Own = 1
+        }
+
+        private DrillScope _drillScope = DrillScope.Subtree;
+
+        private string DrilledPath => _drillPath.Count == 0 ? null : CategoryPathHelper.Join(_drillPath);
+
+        private void SetDrillPath(string path, DrillScope scope = DrillScope.Subtree)
+        {
+            _drillPath.Clear();
+            _drillScope = DrillScope.Subtree;
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                _drillPath.AddRange(CategoryPathHelper.Split(path));
+                _drillScope = scope;
+            }
+        }
+
+        private void ClearDrillSelection()
+        {
+            _drillPath.Clear();
+            _drillScope = DrillScope.Subtree;
+            SelectedCategorySummaryItems = null;
+            if (CategoryListGrid != null)
+            {
+                CategoryListGrid.SelectedItem = null;
+            }
+        }
         private GridModeToggle _modeToggle;
         private GridMultiSelectFilter _connectedCategoryFilter;
-        private GridActionButton _backButton;
         private GridControlBarViewModel _controlBarWithToggle;
         private INotifyCollectionChanged _observedItemsSource;
         private INotifyCollectionChanged _observedCategorySummarySource;
@@ -681,6 +727,24 @@ namespace PlayniteAchievements.Views.Controls
         private ListSortDirection? _categorySortDirection;
         private bool _startInCategoryModeApplied;
         private DataGridRow _pendingCategoryRightClickRow;
+
+        // Collapsed subtrees, keyed by CategoryPath. View-local for the control's lifetime and
+        // never cleared on drill, mode, or data changes: a key whose path is gone is inert, and
+        // keeping the rest means a drill round-trip or data delta preserves the user's collapses.
+        private readonly HashSet<string> _collapsedCategoryPaths =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Whether the full (unfiltered) tree has any nesting; gates the Expand/Collapse All buttons.
+        private bool _categoryTreeHasNesting;
+        private GridActionButton _expandAllButton;
+        private GridActionButton _collapseAllButton;
+
+        // The published category rows, kept as one live collection so a collapse/expand applies as
+        // row removals and insertions instead of an ItemsSource swap - the swap threw away every
+        // realized row container, which showed as the whole grid flickering on each toggle.
+        private BulkObservableCollection<GameSummaryItem> _visibleCategoryRows;
+        private List<GameSummaryItem> _visibleRowsMaster;
+        private bool _visibleRowsInMasterOrder;
 
         public static readonly DependencyProperty EnableCategoryModeProperty =
             DependencyProperty.Register(nameof(EnableCategoryMode), typeof(bool),
@@ -698,18 +762,6 @@ namespace PlayniteAchievements.Views.Controls
             {
                 control.SyncModeToggle();
             }
-        }
-
-        public static readonly DependencyProperty HideBackButtonProperty =
-            DependencyProperty.Register(nameof(HideBackButton), typeof(bool),
-                typeof(AchievementDataGridControl), new PropertyMetadata(false));
-
-        // When true, the in-grid Back button is never created, letting a host's own breadcrumb
-        // header (which calls ExitDrilledCategory()) be the only way back to the category list.
-        public bool HideBackButton
-        {
-            get => (bool)GetValue(HideBackButtonProperty);
-            set => SetValue(HideBackButtonProperty, value);
         }
 
         public static readonly DependencyProperty HideCategorySummaryRowProperty =
@@ -851,12 +903,38 @@ namespace PlayniteAchievements.Views.Controls
             DependencyProperty.Register(nameof(DrilledCategory), typeof(string),
                 typeof(AchievementDataGridControl), new PropertyMetadata(null));
 
-        // Reports the currently drilled-into category label (null when not drilled) so a host can
-        // scope its own header counts to the drilled category. Written by the control; bind OneWayToSource.
+        // Reports the currently drilled-into category in display form - "DLC > Season Pass", never
+        // the storage separator - so a host can title its header with it (null when not drilled).
+        // Written by the control; bind OneWayToSource. Not an identity: it is text for a person.
         public string DrilledCategory
         {
             get => (string)GetValue(DrilledCategoryProperty);
             set => SetValue(DrilledCategoryProperty, value);
+        }
+
+        public static readonly DependencyProperty DrilledCategorySegmentsProperty =
+            DependencyProperty.Register(nameof(DrilledCategorySegments), typeof(IReadOnlyList<CategoryPathSegment>),
+                typeof(AchievementDataGridControl), new PropertyMetadata(null));
+
+        // The same path as DrilledCategory, but as clickable hops so a host header can offer the
+        // ancestors instead of one dead string. Empty at the root. Written by the control.
+        public IReadOnlyList<CategoryPathSegment> DrilledCategorySegments
+        {
+            get => (IReadOnlyList<CategoryPathSegment>)GetValue(DrilledCategorySegmentsProperty);
+            set => SetValue(DrilledCategorySegmentsProperty, value);
+        }
+
+        public static readonly DependencyProperty DrilledCategoryPathProperty =
+            DependencyProperty.Register(nameof(DrilledCategoryPath), typeof(string),
+                typeof(AchievementDataGridControl), new PropertyMetadata(null));
+
+        // The drilled category in storage form ("DLC::Season Pass"), for a host that has to match
+        // it against achievement labels. DrilledCategory is the display form and is text for a
+        // person - comparing labels against that silently matches nothing.
+        public string DrilledCategoryPath
+        {
+            get => (string)GetValue(DrilledCategoryPathProperty);
+            set => SetValue(DrilledCategoryPathProperty, value);
         }
 
         public static readonly DependencyProperty AchievementGridVisibleProperty =
@@ -939,8 +1017,10 @@ namespace PlayniteAchievements.Views.Controls
             return true;
         }
 
-        // Mirrors the category dropdowns' auto-hide rule (>1 distinct label): the mode toggle is
-        // only meaningful when there is more than one category to group the achievements into.
+        // Mirrors the category dropdowns' auto-hide rule: the mode toggle is only meaningful when
+        // there is something to group into. More than one root qualifies, and so does a single root
+        // that has depth - a game whose only labels are "DLC::A" and "DLC::B" has one root but is
+        // exactly the case nesting exists for.
         private bool HasMultipleCategories()
         {
             var items = CategorySummarySource ?? ItemsSource;
@@ -949,7 +1029,7 @@ namespace PlayniteAchievements.Views.Controls
                 return false;
             }
 
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in items)
             {
                 if (item == null)
@@ -957,8 +1037,14 @@ namespace PlayniteAchievements.Views.Controls
                     continue;
                 }
 
-                seen.Add(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.CategoryLabel));
-                if (seen.Count > 1)
+                var path = CategoryPathHelper.NormalizePath(item.CategoryLabel);
+                if (CategoryPathHelper.GetDepth(path) > 1)
+                {
+                    return true;
+                }
+
+                roots.Add(path);
+                if (roots.Count > 1)
                 {
                     return true;
                 }
@@ -1073,12 +1159,16 @@ namespace PlayniteAchievements.Views.Controls
                     HasMultipleCategories);
             }
 
-            if (_backButton == null && !HideBackButton)
+            if (_expandAllButton == null)
             {
-                _backButton = new GridActionButton(
-                    CategoryModeText("LOCPlayAch_Common_Back", "Back"),
-                    CategoryBackToList,
-                    CategoryModeText("LOCPlayAch_Common_Back", "Back"));
+                _expandAllButton = new GridActionButton(
+                    CategoryModeText("LOCPlayAch_CategorySummaries_ExpandAll", "Expand All"),
+                    ExpandAllCategories,
+                    CategoryModeText("LOCPlayAch_CategorySummaries_ExpandAllToolTip", "Expand all categories"));
+                _collapseAllButton = new GridActionButton(
+                    CategoryModeText("LOCPlayAch_CategorySummaries_CollapseAll", "Collapse All"),
+                    CollapseAllCategories,
+                    CategoryModeText("LOCPlayAch_CategorySummaries_CollapseAllToolTip", "Collapse all categories"));
             }
 
             if (!ReferenceEquals(_controlBarWithToggle, ControlBar))
@@ -1090,6 +1180,14 @@ namespace PlayniteAchievements.Views.Controls
                     .OfType<GridMultiSelectFilter>()
                     .LastOrDefault(filter => filter.IsCategoryFilter);
                 _controlBarWithToggle = ControlBar;
+            }
+
+            // The leading zone is empty in the category list, so the pair reads beside the search
+            // box there; visibility is managed by UpdateCollapseControlBarButtons.
+            if (!_controlBarWithToggle.LeadingItems.Contains(_expandAllButton))
+            {
+                _controlBarWithToggle.LeadingItems.Add(_expandAllButton);
+                _controlBarWithToggle.LeadingItems.Add(_collapseAllButton);
             }
 
             // Recompute the toggle's auto-hide; ApplyControlBarModeState positions Back/toggle.
@@ -1158,18 +1256,6 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             PositionModeToggle(bar, grouping);
-
-            if (_isCategoryMode)
-            {
-                if (_backButton != null && !bar.LeadingItems.Contains(_backButton))
-                {
-                    bar.LeadingItems.Insert(0, _backButton);
-                }
-            }
-            else if (_backButton != null)
-            {
-                bar.LeadingItems.Remove(_backButton);
-            }
         }
 
         // Slots the toggle for the current mode. Moves rather than removes and re-inserts, so the
@@ -1234,9 +1320,9 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             bar.Items.Remove(_modeToggle);
-            bar.Items.Remove(_backButton);
             bar.LeadingItems.Remove(_modeToggle);
-            bar.LeadingItems.Remove(_backButton);
+            bar.LeadingItems.Remove(_expandAllButton);
+            bar.LeadingItems.Remove(_collapseAllButton);
             foreach (var item in bar.Items)
             {
                 if (item is GridMultiSelectFilter filter)
@@ -1274,7 +1360,7 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             var grouping = IsCategoryGroupingEffective();
-            var drilled = grouping && _drilledCategory != null;
+            var drilled = grouping && IsDrilled;
             var list = grouping && !drilled;
 
             // Reslot the mode toggle and move Back into or out of the leading zone for this mode.
@@ -1299,11 +1385,7 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             SyncSegmentedUnit();
-
-            if (_backButton != null)
-            {
-                _backButton.IsVisible = drilled;
-            }
+            UpdateCollapseControlBarButtons();
 
             if (list)
             {
@@ -1328,7 +1410,8 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             _isCategoryMode = enabled;
-            _drilledCategory = null;
+            _drillPath.Clear();
+            _drillScope = DrillScope.Subtree;
             SelectedCategorySummaryItems = null;
             if (CategoryListGrid != null)
             {
@@ -1367,9 +1450,31 @@ namespace PlayniteAchievements.Views.Controls
             // Build from the unfiltered source (when provided) so achievement filters applied while
             // drilled never change the category rollups; fall back to ItemsSource otherwise.
             var items = (CategorySummarySource ?? ItemsSource)?.ToList();
-            _allCategorySummaries = items == null || items.Count == 0
-                ? null
-                : CategorySummaryBuilder.Build(items, ResolveCategoryCompletionBadgeMode());
+            // Every node of the tree at once rather than one level per click: the list is the whole
+            // map, so any category is one click away and one click back.
+            //
+            // Rows are titled with their leaf name and placed by the connector guide the leftmost
+            // column draws (stamped in ApplyCategoryNameFilter). The name column sorts on what it
+            // shows, and retitling to full paths made sorting swap the whole column's text for long
+            // shared prefixes; a nested row's path stays on hover.
+            using (PerfScope.Start(Logger, "CategoryGrid.BuildTree", thresholdMs: 10,
+                context: $"items={items?.Count ?? 0}"))
+            {
+                _allCategorySummaries = items == null || items.Count == 0
+                    ? null
+                    : CategorySummaryBuilder.BuildTree(
+                        items,
+                        ResolveCategoryCompletionBadgeMode(),
+                        useLeafNames: true);
+            }
+
+            // From the full tree, not the visible rows: collapsing everything must not read as the
+            // tree having gone flat, or the buttons that undo it would hide themselves.
+            _categoryTreeHasNesting = _allCategorySummaries != null &&
+                _allCategorySummaries
+                    .OfType<CategorySummaryItem>()
+                    .Any(c => c.HasChildCategories);
+
             ApplyCategoryNameFilter();
         }
 
@@ -1384,17 +1489,33 @@ namespace PlayniteAchievements.Views.Controls
                 ?? CategoryCompletionBadgeMode.All;
         }
 
+
         private void ApplyCategoryNameFilter()
         {
             var all = _allCategorySummaries;
             if (all == null)
             {
+                _visibleCategoryRows = null;
+                _visibleRowsMaster = null;
                 CategorySummaries = null;
                 return;
             }
 
+            using (PerfScope.Start(Logger, "CategoryGrid.VisiblePass", thresholdMs: 10,
+                context: $"rows={all.Count}"))
+            {
+                ApplyCategoryNameFilterCore(all);
+            }
+        }
+
+        private void ApplyCategoryNameFilterCore(List<GameSummaryItem> all)
+        {
+
+            var searchActive = !string.IsNullOrWhiteSpace(_categorySearchText);
+            var sortActive = _categorySortDirection.HasValue && !string.IsNullOrWhiteSpace(_categorySortPath);
+
             var visible = all;
-            if (!string.IsNullOrWhiteSpace(_categorySearchText))
+            if (searchActive)
             {
                 var needle = _categorySearchText.Trim();
                 visible = all
@@ -1402,9 +1523,36 @@ namespace PlayniteAchievements.Views.Controls
                     .ToList();
             }
 
+            // Collapsing is suspended while a name search is active - a matching row must never be
+            // hidden by a collapsed ancestor - and while a column sort has destroyed the tree. The
+            // set itself is untouched either way, so clearing the search or sort restores the view.
+            var collapseActive = !searchActive && !sortActive && _collapsedCategoryPaths.Count > 0;
+            var removedAny = false;
+            if (collapseActive)
+            {
+                visible = CategoryCollapseFilter.Apply(visible, _collapsedCategoryPaths, out removedAny);
+            }
+
+            // Stamped fresh on every pass: rebuilds replace the row objects, and the flag must also
+            // clear whenever search or sort suspends collapsing so the glyphs revert to plain beads.
+            // The stat swap rides the same pass: a collapsed row absorbs its hidden subtree's
+            // numbers, an expanded one returns to its own. ApplyStats is a no-op when the row
+            // already holds the right snapshot, so a single toggle costs one real swap; rows hidden
+            // under a collapsed ancestor keep a stale scope harmlessly and are re-stamped here the
+            // moment they reappear.
+            foreach (var row in visible)
+            {
+                var category = row as CategorySummaryItem;
+                var collapsed = collapseActive &&
+                    category != null &&
+                    _collapsedCategoryPaths.Contains(category.CategoryPath ?? string.Empty);
+                row.IsCollapsed = collapsed;
+                category?.ApplyStats(collapsed ? CategoryStatsScope.Subtree : CategoryStatsScope.Own);
+            }
+
             // A manual column sort overlays the builder's default order (custom category order,
             // then provider order); sorting a copy keeps _allCategorySummaries as the reset target.
-            if (_categorySortDirection.HasValue && !string.IsNullOrWhiteSpace(_categorySortPath))
+            if (sortActive)
             {
                 var sortPath = string.Empty;
                 var sortDirection = ListSortDirection.Ascending;
@@ -1420,8 +1568,191 @@ namespace PlayniteAchievements.Views.Controls
                 }
             }
 
-            CategorySummaries = visible;
+            // Tree connectors describe the pre-order run the builder emitted, so they survive the
+            // name filter above (the surviving rows keep their order) but not a manual column sort,
+            // which reorders rows into something the lanes would misdescribe. A collapse that
+            // removed rows can leave only roots visible, so the stamp is told nesting exists - the
+            // "+" toggles that re-expand them live on the shapes it produces.
+            CategoryTreeShapeBuilder.Stamp(
+                visible,
+                enabled: !_categorySortDirection.HasValue,
+                assumeNesting: removedAny);
+
+            PublishCategorySummaries(visible, orderedByMaster: !sortActive);
             CategoryListGrid?.SetSortIndicator(_categorySortPath, _categorySortDirection);
+
+            if (CategoryListGrid != null)
+            {
+                CategoryListGrid.ShowCategoryCollapseToggles = !searchActive && !sortActive;
+            }
+
+            UpdateCollapseControlBarButtons();
+        }
+
+        /// <summary>
+        /// Collapses or re-expands the clicked row's subtree. The toggle's routed event bubbles up
+        /// from the tree guide in the name cell; the guide already swallowed the mouse event, so no
+        /// row selection - and therefore no drill - accompanies it.
+        /// </summary>
+        private void OnCategoryCollapseToggleClicked(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+
+            // A boundary glyph straddles two rows, so a click on its lower half arrives from the
+            // row beneath the toggled category; the args then carry the right path past the
+            // clicked row's DataContext.
+            var item = (e.OriginalSource as FrameworkElement)?.DataContext as CategorySummaryItem;
+            var path = (e as CollapseToggleClickedEventArgs)?.CategoryPathOverride ?? item?.CategoryPath;
+            if (string.IsNullOrEmpty(path))
+            {
+                return;
+            }
+
+            if (!_collapsedCategoryPaths.Remove(path))
+            {
+                _collapsedCategoryPaths.Add(path);
+            }
+
+            // Re-runs the visible-row pass without rebuilding the tree. The publish is
+            // incremental (same master, master order), so untouched rows keep their containers
+            // and the list neither flickers nor loses its scroll position.
+            ApplyCategoryNameFilter();
+        }
+
+        /// <summary>
+        /// Hands the visible rows to the list. Toggling a collapse must not swap the ItemsSource -
+        /// the swap discards every realized row container, which reads as the whole grid
+        /// flickering - so when the rows still come from the same build in the builder's order,
+        /// the published collection is edited in place and only the rows that actually appeared or
+        /// disappeared raise changes. A rebuild (new row instances) or a column sort (new order)
+        /// falls back to wholesale replacement, which is what those paths always did.
+        /// </summary>
+        private void PublishCategorySummaries(List<GameSummaryItem> visible, bool orderedByMaster)
+        {
+            var master = _allCategorySummaries;
+            var incremental = _visibleCategoryRows != null &&
+                ReferenceEquals(_visibleRowsMaster, master) &&
+                _visibleRowsInMasterOrder &&
+                orderedByMaster;
+
+            if (incremental)
+            {
+                SyncVisibleRows(_visibleCategoryRows, visible, master);
+            }
+            else
+            {
+                if (_visibleCategoryRows == null)
+                {
+                    _visibleCategoryRows = new BulkObservableCollection<GameSummaryItem>();
+                }
+
+                _visibleCategoryRows.ReplaceAll(visible);
+            }
+
+            _visibleRowsMaster = master;
+            _visibleRowsInMasterOrder = orderedByMaster;
+
+            if (!ReferenceEquals(CategorySummaries, _visibleCategoryRows))
+            {
+                CategorySummaries = _visibleCategoryRows;
+            }
+        }
+
+        /// <summary>
+        /// Edits <paramref name="rows"/> in place until it equals <paramref name="target"/>. Both
+        /// are subsequences of the same master run, so a two-pointer merge over the master's order
+        /// suffices: an existing row that sorts before the next wanted row was collapsed away, a
+        /// wanted row not at the cursor was just expanded back in.
+        /// </summary>
+        private static void SyncVisibleRows(
+            BulkObservableCollection<GameSummaryItem> rows,
+            List<GameSummaryItem> target,
+            List<GameSummaryItem> master)
+        {
+            var order = new Dictionary<GameSummaryItem, int>(master.Count);
+            for (var i = 0; i < master.Count; i++)
+            {
+                order[master[i]] = i;
+            }
+
+            var index = 0;
+            foreach (var item in target)
+            {
+                if (!order.TryGetValue(item, out var targetOrder))
+                {
+                    // Defensive: a row from outside the master cannot be ordered, so just insert.
+                    rows.Insert(index++, item);
+                    continue;
+                }
+
+                while (index < rows.Count &&
+                       (!order.TryGetValue(rows[index], out var existingOrder) || existingOrder < targetOrder))
+                {
+                    rows.RemoveAt(index);
+                }
+
+                if (index < rows.Count && ReferenceEquals(rows[index], item))
+                {
+                    index++;
+                }
+                else
+                {
+                    rows.Insert(index++, item);
+                }
+            }
+
+            while (rows.Count > index)
+            {
+                rows.RemoveAt(index);
+            }
+        }
+
+        /// <summary>Collapses every category that has child categories, from the full tree.</summary>
+        private void CollapseAllCategories()
+        {
+            _collapsedCategoryPaths.Clear();
+            foreach (var category in
+                (_allCategorySummaries ?? Enumerable.Empty<GameSummaryItem>()).OfType<CategorySummaryItem>())
+            {
+                // Every parent, not just the roots: expanding a root later shows its children
+                // still collapsed, so each node's state reads consistently on its own.
+                if (category.HasChildCategories &&
+                    !string.IsNullOrEmpty(category.CategoryPath))
+                {
+                    _collapsedCategoryPaths.Add(category.CategoryPath);
+                }
+            }
+
+            ApplyCategoryNameFilter();
+        }
+
+        private void ExpandAllCategories()
+        {
+            _collapsedCategoryPaths.Clear();
+            ApplyCategoryNameFilter();
+        }
+
+        /// <summary>
+        /// Expand/Collapse All accompany the category list only: not the flat grid, not a drilled
+        /// category, not a searched or column-sorted list (both suspend collapsing), and not a tree
+        /// with nothing to collapse.
+        /// </summary>
+        private void UpdateCollapseControlBarButtons()
+        {
+            var show = IsCategoryGroupingEffective() && !IsDrilled &&
+                string.IsNullOrWhiteSpace(_categorySearchText) &&
+                !_categorySortDirection.HasValue &&
+                _categoryTreeHasNesting;
+
+            if (_expandAllButton != null)
+            {
+                _expandAllButton.IsVisible = show;
+            }
+
+            if (_collapseAllButton != null)
+            {
+                _collapseAllButton.IsVisible = show;
+            }
         }
 
         private void DrillIntoCategory(CategorySummaryItem item)
@@ -1431,8 +1762,79 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            _drilledCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.CategoryLabel);
-            SelectedCategorySummaryItems = new[] { (GameSummaryItem)item };
+            // Remember where the list was before it is replaced, so coming back does not dump the
+            // user at the top of a long tree.
+            _categoryListScrollOffset = CategoryListGrid?.VerticalScrollOffset ?? 0d;
+
+            // Summary rows carry a fully qualified path, so set the drill rather than appending:
+            // the click is then idempotent however the row was reached. The scope matches the
+            // numbers displayed at click time: a collapsed row absorbed its subtree, an expanded
+            // one showed only its own - except an expanded pure container, whose own view would be
+            // empty and useless, so it opens the subtree.
+            var scope = item.IsCollapsed || item.DirectAchievementCount == 0
+                ? DrillScope.Subtree
+                : DrillScope.Own;
+            SetDrillPath(item.CategoryLabel, scope);
+            RefreshDrillState(rebuildSummaries: false);
+            ApplyCategoryViewState();
+            ApplyControlBarModeState();
+        }
+
+        /// <summary>
+        /// Returns to the category list, which holds every node: one click in, one click back, at
+        /// any depth. Ancestors remain individually reachable through the breadcrumb. Distinct from
+        /// <see cref="ExitDrilledCategory"/>, which host headers use to leave category mode.
+        /// </summary>
+        public void PopDrilledCategory()
+        {
+            if (!IsDrilled)
+            {
+                return;
+            }
+
+            DrillToPath(null);
+        }
+
+        /// <summary>
+        /// Puts the category list back where the user left it when they drilled in, so stepping in
+        /// and out of a category does not lose their place in a long list.
+        /// </summary>
+        private void RestoreCategoryListScroll()
+        {
+            if (CategoryListGrid == null || _categoryListScrollOffset <= 0)
+            {
+                return;
+            }
+
+            var offset = _categoryListScrollOffset;
+
+            // After the visibility flip the list has not laid out its rows yet.
+            CategoryListGrid.Dispatcher.BeginInvoke(
+                new Action(() => CategoryListGrid?.ScrollToVerticalOffset(offset)),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        /// <summary>
+        /// Path navigation: returns to the category list rather than drilling into the hop. The
+        /// list is the map and holds every node, so it is one click from there to anywhere - and
+        /// coming back lands on the same scroll position the user drilled in from.
+        /// </summary>
+        private void NavigateToAncestorInList(int depth)
+        {
+            DrillToPath(null);
+        }
+
+        /// <summary>Navigates to an ancestor of the current path, or to the root when null.</summary>
+        public void DrillToPath(string path)
+        {
+            SetDrillPath(path, ResolveDrillScope(path));
+            if (CategoryListGrid != null)
+            {
+                CategoryListGrid.SelectedItem = null;
+            }
+
+            RefreshDrillState(rebuildSummaries: false);
+            ResetAchievementFilters();
             ApplyCategoryViewState();
             ApplyControlBarModeState();
         }
@@ -1440,34 +1842,76 @@ namespace PlayniteAchievements.Views.Controls
         private void ApplyCategoryViewState()
         {
             var grouping = IsCategoryGroupingEffective();
-            if (!grouping && _drilledCategory != null)
+            if (!grouping && IsDrilled)
             {
-                _drilledCategory = null;
-                SelectedCategorySummaryItems = null;
-                if (CategoryListGrid != null)
-                {
-                    CategoryListGrid.SelectedItem = null;
-                }
+                ClearDrillSelection();
             }
 
-            var drill = grouping && _drilledCategory != null;
-            var list = grouping && !drill;
-            CategoryListVisible = list;
+            var drill = grouping && IsDrilled;
+
+            // The two panes replace each other rather than sharing the area: the category list is
+            // the whole tree, so once a row is picked its subtree of achievements is all there is
+            // left to show, and it gets the full height.
+            var hasCategoryRows = grouping && CategorySummaries != null && CategorySummaries.Any();
+
+            CategoryListVisible = hasCategoryRows && !drill;
+            AchievementGridVisible = !hasCategoryRows || drill;
             DrillHeaderVisible = drill && !HideCategorySummaryRow;
-            AchievementGridVisible = !list;
-            DrilledCategory = drill ? _drilledCategory : null;
+            // Display form: hosts bind this straight into a header TextBlock, and the storage
+            // separator is internal - never shown to a user.
+            DrilledCategory = drill ? CategoryPathHelper.ToDisplayPath(DrilledPath) : null;
+            DrilledCategoryPath = drill ? DrilledPath : null;
+            DrilledCategorySegments = drill
+                ? CategoryPathSegment.Build(_drillPath, NavigateToAncestorInList)
+                : null;
+
+            ApplyCategoryPaneLayout();
+
+            if (!drill && CategoryListVisible)
+            {
+                RestoreCategoryListScroll();
+            }
+
             RecomputeEffectiveAchievements();
+        }
+
+        /// <summary>
+        /// Gives the whole pane area to whichever grid is showing. The two are mutually exclusive,
+        /// so neither is ever capped to make room for the other.
+        /// </summary>
+        private void ApplyCategoryPaneLayout()
+        {
+            if (CategoryPaneRow == null || AchievementPaneRow == null)
+            {
+                return;
+            }
+
+            CategoryPaneRow.Height = CategoryListVisible
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(0);
+            AchievementPaneRow.Height = AchievementGridVisible
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(0);
+
+            if (CategoryListGrid != null)
+            {
+                CategoryListGrid.MaxHeight = double.PositiveInfinity;
+            }
         }
 
         private void RecomputeEffectiveAchievements()
         {
-            if (IsCategoryGroupingEffective() && _drilledCategory != null)
+            if (IsCategoryGroupingEffective() && IsDrilled)
             {
+                // The scope of the row that was clicked, so the grid always agrees with the numbers
+                // that led here: a collapsed row's numbers absorbed its whole subtree and the drill
+                // opens it; an expanded row's numbers were its own and the drill opens those.
+                var drilled = DrilledPath;
+                var selfOnly = _drillScope == DrillScope.Own;
                 var filtered = (ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
-                    .Where(i => string.Equals(
-                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(i?.CategoryLabel),
-                        _drilledCategory,
-                        StringComparison.OrdinalIgnoreCase))
+                    .Where(i => i != null && (selfOnly
+                        ? CategoryPathHelper.IsSame(i.CategoryLabel, drilled)
+                        : CategoryPathHelper.IsSelfOrDescendantOf(i.CategoryLabel, drilled)))
                     .ToList();
 
                 // Mutate a stable collection in place rather than reassigning a new list, so the grid
@@ -1506,7 +1950,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnItemsSourceCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
-            OnItemsSourceContentChanged();
+            RequestItemsSourceContentRefresh();
         }
 
         // Hosts feed CategorySummarySource from a stable collection mutated in place (ReplaceAll),
@@ -1532,64 +1976,211 @@ namespace PlayniteAchievements.Views.Controls
         {
             if (_isCategoryMode)
             {
-                OnItemsSourceContentChanged();
+                RequestItemsSourceContentRefresh();
             }
+        }
+
+        // A game or friend switch replaces ItemsSource and CategorySummarySource back to back
+        // (both mutated in place, so each raises its own Reset), and running the full category
+        // pipeline per Reset meant two tree builds and two wholesale republishes per click. One
+        // deferred pass at DataBind priority runs after every Reset in the frame has landed and
+        // still ahead of the render pass, so nothing stale ever paints.
+        private bool _itemsSourceContentRefreshQueued;
+
+        private void RequestItemsSourceContentRefresh()
+        {
+            if (_itemsSourceContentRefreshQueued)
+            {
+                return;
+            }
+
+            _itemsSourceContentRefreshQueued = true;
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    _itemsSourceContentRefreshQueued = false;
+                    OnItemsSourceContentChanged();
+                }),
+                System.Windows.Threading.DispatcherPriority.DataBind);
         }
 
         private void OnItemsSourceContentChanged()
         {
-            RecomputeHasAnyFavorites();
-
-            // Re-evaluate toggle availability first: a game switch or a newly loaded multi-game feed
-            // may add or remove the category toggle (and drop us out of category mode) before the
-            // rest of this method reads _isCategoryMode.
-            SyncModeToggle();
-
-            if (!_isCategoryMode)
+            using (PerfScope.Start(Logger, "CategoryGrid.SourceContentChanged", thresholdMs: 25,
+                context: $"categoryMode={_isCategoryMode} items={ItemsSource?.Count() ?? 0}"))
             {
-                RecomputeEffectiveAchievements();
+                RecomputeHasAnyFavorites();
+
+                // Re-evaluate toggle availability first: a game switch or a newly loaded multi-game feed
+                // may add or remove the category toggle (and drop us out of category mode) before the
+                // rest of this method reads _isCategoryMode.
+                SyncModeToggle();
+
+                if (!_isCategoryMode)
+                {
+                    RecomputeEffectiveAchievements();
+                    return;
+                }
+
+                // Reconcile the drill before rebuilding: the summaries are the children of wherever the
+                // drill now points, so a stale path would build the wrong level.
+                if (!HasMultipleCategories())
+                {
+                    ClearDrillSelection();
+                }
+                else if (IsDrilled)
+                {
+                    ReconcileDrillPath();
+                }
+
+                RefreshDrillState();
+                ApplyCategoryViewState();
+                ApplyControlBarModeState();
+            }
+        }
+
+        /// <summary>
+        /// Truncates the drill to the deepest level that still exists. A delta that removes one
+        /// leaf should step up a level, not eject the user all the way to the root.
+        /// </summary>
+        private void ReconcileDrillPath()
+        {
+            var labels = (CategorySummarySource ?? ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
+                .Where(i => i != null)
+                .Select(i => i.CategoryLabel)
+                .ToList();
+
+            while (IsDrilled)
+            {
+                var candidate = DrilledPath;
+                if (labels.Any(label => CategoryPathHelper.IsSelfOrDescendantOf(label, candidate)))
+                {
+                    return;
+                }
+
+                _drillPath.RemoveAt(_drillPath.Count - 1);
+                // The scope belonged to the level that just fell away, not to the ancestor being
+                // stepped up to; the ancestor's own scope resolves below once the path settles.
+                _drillScope = DrillScope.Subtree;
+            }
+
+            if (IsDrilled)
+            {
+                _drillScope = ResolveDrillScope(DrilledPath);
                 return;
             }
 
-            RebuildCategorySummaries();
+            ClearDrillSelection();
+        }
 
-            if (!HasMultipleCategories())
+        /// <summary>
+        /// The scope a drill on <paramref name="path"/> would open, resolved the same way a click
+        /// resolves it: the subtree when the row is collapsed (never while search or sort suspends
+        /// collapsing and the rows display their own numbers), and the node's own achievements
+        /// otherwise - except a pure container, whose own view would be empty, so it opens the
+        /// subtree. Used where a drill is entered without a clicked row: breadcrumb hops and
+        /// post-delta reconciliation.
+        /// </summary>
+        private DrillScope ResolveDrillScope(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
             {
-                _drilledCategory = null;
-                SelectedCategorySummaryItems = null;
-                if (CategoryListGrid != null)
-                {
-                    CategoryListGrid.SelectedItem = null;
-                }
+                return DrillScope.Subtree;
             }
-            else if (_drilledCategory != null)
+
+            var searchActive = !string.IsNullOrWhiteSpace(_categorySearchText);
+            var collapsed = !searchActive && !_categorySortDirection.HasValue &&
+                _collapsedCategoryPaths.Contains(path);
+
+            var row = _allCategorySummaries?
+                .OfType<CategorySummaryItem>()
+                .FirstOrDefault(c => CategoryPathHelper.IsSame(c.CategoryPath, path));
+
+            return collapsed || row == null || row.DirectAchievementCount == 0
+                ? DrillScope.Subtree
+                : DrillScope.Own;
+        }
+
+        /// <summary>
+        /// Rebuilds the category rows (when the source content changed) and the header row
+        /// describing the row the drill was entered through, so the header always restates the
+        /// numbers that were clicked - the subtree rollup when the row was collapsed, the direct
+        /// achievements when it was expanded.
+        ///
+        /// Drill navigation passes <paramref name="rebuildSummaries"/> false: the click changes
+        /// nothing about the achievements, so <see cref="_allCategorySummaries"/> is still
+        /// current, and a rebuild would republish all-new row instances - throwing away the
+        /// list's realized containers and the incremental-publish master for no data change.
+        /// </summary>
+        private void RefreshDrillState(bool rebuildSummaries = true)
+        {
+            if (rebuildSummaries || _allCategorySummaries == null)
             {
-                var match = CategorySummaries?
+                RebuildCategorySummaries();
+            }
+
+            var drilled = DrilledPath;
+            if (drilled == null)
+            {
+                SelectedCategorySummaryItems = null;
+                return;
+            }
+
+            // Fresh rows rather than the list's own instances: those carry stamped tree
+            // connectors, and the header row must not draw an indent. Leaf names, because the
+            // header path above the grid already carries the ancestry. Built from just the
+            // drilled subtree's achievements rather than the whole source - the header row's
+            // counts, art, and type all resolve from its own subtree, so the scoped build
+            // produces the same row without a second whole-tree pass.
+            var items = (CategorySummarySource ?? ItemsSource)?
+                .Where(i => i != null && CategoryPathHelper.IsSelfOrDescendantOf(i.CategoryLabel, drilled))
+                .ToList();
+            CategorySummaryItem match = null;
+            if (items != null && items.Count > 0)
+            {
+                match = CategorySummaryBuilder
+                    .BuildTree(items, ResolveCategoryCompletionBadgeMode(), useLeafNames: true)
                     .OfType<CategorySummaryItem>()
-                    .FirstOrDefault(c => string.Equals(c.CategoryLabel, _drilledCategory, StringComparison.OrdinalIgnoreCase));
-                if (match == null)
+                    .FirstOrDefault(c => CategoryPathHelper.IsSame(c.CategoryPath, drilled));
+
+                if (match != null)
                 {
-                    // The drilled category vanished (e.g. game switched); fall back to the list.
-                    _drilledCategory = null;
-                    SelectedCategorySummaryItems = null;
-                    if (CategoryListGrid != null)
+                    // A delta can dissolve an own-scoped drill - the last direct achievement
+                    // recategorized away - which would leave the grid empty under a live header.
+                    // The subtree scope always has something to show here (items was non-empty).
+                    if (_drillScope == DrillScope.Own && match.DirectAchievementCount == 0)
                     {
-                        CategoryListGrid.SelectedItem = null;
+                        _drillScope = DrillScope.Subtree;
+                    }
+
+                    // The header restates the numbers that were clicked: the subtree rollup for a
+                    // subtree drill, the row's own achievements for an own drill. The fresh row
+                    // left the builder holding its own reading.
+                    match.ApplyStats(_drillScope == DrillScope.Subtree
+                        ? CategoryStatsScope.Subtree
+                        : CategoryStatsScope.Own);
+
+                    // Badge permission is positional in the configured order of the whole list
+                    // (First allows only the first category overall), which the scoped build
+                    // cannot know - its drilled node always comes out first. The list's own row
+                    // carries the stamped answer.
+                    var listRow = _allCategorySummaries?
+                        .OfType<CategorySummaryItem>()
+                        .FirstOrDefault(c => CategoryPathHelper.IsSame(c.CategoryPath, drilled));
+                    if (listRow != null)
+                    {
+                        match.AllowCompletionBadge = listRow.AllowCompletionBadge;
                     }
                 }
-                else
-                {
-                    SelectedCategorySummaryItems = new[] { (GameSummaryItem)match };
-                }
             }
 
-            ApplyCategoryViewState();
-            ApplyControlBarModeState();
+            SelectedCategorySummaryItems = match == null ? null : new[] { (GameSummaryItem)match };
         }
 
         private void CategoryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (!IsCategoryGroupingEffective() || _drilledCategory != null)
+            // The list stays live at depth, so this must not bail out merely because we are drilled.
+            if (!IsCategoryGroupingEffective() || !CategoryListVisible)
             {
                 return;
             }
@@ -1628,7 +2219,9 @@ namespace PlayniteAchievements.Views.Controls
                 _categorySortDirection = sortAction.Direction;
             }
 
-            ApplyCategoryNameFilter();
+            // Rebuild rather than re-filter: a sorted list no longer reads as a tree, so the rows
+            // have to retitle themselves with their full paths.
+            RebuildCategorySummaries();
         }
 
         private void CategoryList_RowPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -1710,7 +2303,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private void CategoryDrillHeader_RowPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (IsCategoryGroupingEffective() && _drilledCategory != null)
+            if (IsCategoryGroupingEffective() && IsDrilled)
             {
                 CategoryBackToList();
                 if (e != null)
@@ -1763,8 +2356,8 @@ namespace PlayniteAchievements.Views.Controls
             _drillItems.ReplaceAll(items);
         }
 
-        // Public entry point for a host's own breadcrumb header to navigate back to the category
-        // summary list, for surfaces where HideBackButton suppresses the in-grid Back button.
+        // Public entry point for a host header to navigate back to the category summary list; the
+        // path segments above the grid are the only way back.
         public void ExitDrilledCategory() => CategoryBackToList();
 
         /// <summary>
@@ -1781,21 +2374,12 @@ namespace PlayniteAchievements.Views.Controls
 
             if (IsCategoryGroupingEffective())
             {
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.CategoryLabel);
-                if (!string.Equals(_drilledCategory, label, StringComparison.OrdinalIgnoreCase))
+                // Drill straight to the achievement's own path rather than matching a summary row:
+                // at depth the intermediate levels are not materialized in the current level's rows.
+                var label = CategoryPathHelper.NormalizePath(item.CategoryLabel);
+                if (!CategoryPathHelper.IsSame(DrilledPath, label))
                 {
-                    var match = CategorySummaries?
-                        .OfType<CategorySummaryItem>()
-                        .FirstOrDefault(c => string.Equals(
-                            AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(c.CategoryLabel),
-                            label,
-                            StringComparison.OrdinalIgnoreCase));
-                    if (match == null)
-                    {
-                        return;
-                    }
-
-                    DrillIntoCategory(match);
+                    DrillToPath(label);
                 }
             }
 
@@ -1822,20 +2406,12 @@ namespace PlayniteAchievements.Views.Controls
                 System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
 
+        // Back always lands on the category list, whatever the depth: the list holds every node, so
+        // unwinding a path level by level would be steps through views the user never chose.
+        // ResetAchievementFilters runs inside PopDrilledCategory, so the next drill starts clean.
         private void CategoryBackToList()
         {
-            _drilledCategory = null;
-            SelectedCategorySummaryItems = null;
-            if (CategoryListGrid != null)
-            {
-                CategoryListGrid.SelectedItem = null;
-            }
-
-            ApplyCategoryViewState();
-            ApplyControlBarModeState();
-
-            // Returning to the list starts the next drill clean; summaries stay full regardless.
-            ResetAchievementFilters();
+            PopDrilledCategory();
         }
 
         // Resets the Unlocked/Locked/Hidden toggles to their default (all on). Each IsChecked setter
@@ -1917,6 +2493,9 @@ namespace PlayniteAchievements.Views.Controls
             RarityAppearanceHelper.BindShowHardcoreBorder(this, ShowHardcoreBorderProperty);
             DataContextChanged += OnDataContextChanged;
             Unloaded += OnUnloaded;
+            AddHandler(
+                CategoryTreeGuide.CollapseToggleClickedEvent,
+                new RoutedEventHandler(OnCategoryCollapseToggleClicked));
             UpdateColumnHeadersVisibility();
         }
 
@@ -2126,11 +2705,16 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
-            if (persisted != null)
+            // Tracks the current Persisted instance: CancelEdit replaces it, and a direct
+            // subscription would leave this grid on the orphan, keeping the reverted
+            // unlock-date mode for the rest of the session.
+            var settings = PlayniteAchievementsPlugin.Instance?.Settings;
+            if (settings?.Persisted != null)
             {
-                _subscribedPersisted = persisted;
-                _subscribedPersisted.PropertyChanged += OnPersistedSettingsChanged;
+                _persistedSubscription = new PersistedSettingsSubscription(
+                    settings,
+                    OnPersistedSettingsChanged,
+                    () => OnPersistedSettingsChanged(this, new PropertyChangedEventArgs(null)));
             }
 
             AttachColumnPersistence();
@@ -2146,14 +2730,22 @@ namespace PlayniteAchievements.Views.Controls
                 UpdateUnlockDateMode();
             }
 
-            // Rebuilding re-stamps AllowCompletionBadge and reassigns CategorySummaries, so the
-            // category rows repaint without reopening the window. Grids not currently in category
-            // mode pick the new mode up from the rebuild that entering category mode already does.
-            if (_isCategoryMode &&
-                (string.IsNullOrEmpty(e.PropertyName) ||
-                 e.PropertyName == nameof(PersistedSettings.CategoryCompletionBadgeMode)))
+            // Category rows repaint without reopening the window. Grids not currently in category
+            // mode pick new modes up from the rebuild that entering category mode already does.
+            if (_isCategoryMode)
             {
-                RebuildCategorySummaries();
+                if (string.IsNullOrEmpty(e.PropertyName))
+                {
+                    // A blank name means the whole Persisted instance changed (CancelEdit swaps
+                    // it), so the drill re-resolves against freshly built rows.
+                    RefreshDrillState();
+                    ApplyCategoryViewState();
+                }
+                else if (e.PropertyName == nameof(PersistedSettings.CategoryCompletionBadgeMode))
+                {
+                    // Rebuilding re-stamps AllowCompletionBadge and reassigns CategorySummaries.
+                    RebuildCategorySummaries();
+                }
             }
         }
 
@@ -2658,7 +3250,7 @@ namespace PlayniteAchievements.Views.Controls
             // While drilled into a category the grid shows a self-contained filtered subset, so sort
             // it in-memory regardless of the surface's external-sorting setting (the external handler
             // sorts the full collection, which would not reorder the visible subset).
-            if (IsCategoryGroupingEffective() && _drilledCategory != null)
+            if (IsCategoryGroupingEffective() && IsDrilled)
             {
                 SortDrilledAchievements(e);
                 return;
@@ -3016,11 +3608,8 @@ namespace PlayniteAchievements.Views.Controls
 
             _columnPersistence?.Dispose();
             _columnPersistence = null;
-            if (_subscribedPersisted != null)
-            {
-                _subscribedPersisted.PropertyChanged -= OnPersistedSettingsChanged;
-                _subscribedPersisted = null;
-            }
+            _persistedSubscription?.Dispose();
+            _persistedSubscription = null;
 
             if (_observedItemsSource != null)
             {

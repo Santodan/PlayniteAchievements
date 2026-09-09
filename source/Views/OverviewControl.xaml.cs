@@ -55,6 +55,7 @@ namespace PlayniteAchievements.Views
         private readonly OverviewViewModel _viewModel;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
+        private PersistedSettingsSubscription _persistedSubscription;
         private readonly RefreshRuntime _refreshService;
         private readonly ICacheManager _cacheManager;
         private readonly IFriendCacheManager _friendCache;
@@ -133,9 +134,14 @@ namespace PlayniteAchievements.Views
                 : _lastSelectedSubView;
             ApplyActiveSubView();
             PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
-            if (_settings?.Persisted != null)
+            if (_settings != null)
             {
-                _settings.Persisted.PropertyChanged += Persisted_PropertyChanged;
+                // Tracks the current Persisted instance: CancelEdit replaces it, and a
+                // direct subscription would be left on the orphan.
+                _persistedSubscription = new PersistedSettingsSubscription(
+                    _settings,
+                    Persisted_PropertyChanged,
+                    LeaveFriendsSubViewIfDisabled);
             }
         }
 
@@ -232,9 +238,18 @@ namespace PlayniteAchievements.Views
 
         private void Persisted_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (e?.PropertyName == nameof(PersistedSettings.EnableFriendsFeatures)
-                && !_settings.Persisted.EnableFriendsFeatures
-                && ActiveSubView == OverviewSubView.Friends)
+            if (e?.PropertyName == nameof(PersistedSettings.EnableFriendsFeatures))
+            {
+                LeaveFriendsSubViewIfDisabled();
+            }
+        }
+
+        // The subview switch is hidden when friends features are off, so staying on the
+        // friends subview would trap the user there.
+        private void LeaveFriendsSubViewIfDisabled()
+        {
+            if (_settings?.Persisted?.EnableFriendsFeatures == false &&
+                ActiveSubView == OverviewSubView.Friends)
             {
                 ActiveSubView = OverviewSubView.Overview;
             }
@@ -321,10 +336,8 @@ namespace PlayniteAchievements.Views
                     _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
                 }
                 PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
-                if (_settings?.Persisted != null)
-                {
-                    _settings.Persisted.PropertyChanged -= Persisted_PropertyChanged;
-                }
+                _persistedSubscription?.Dispose();
+                _persistedSubscription = null;
                 if (_friendsOverview?.ViewModel != null)
                 {
                     _friendsOverview.ViewModel.PropertyChanged -= FriendsViewModel_PropertyChanged;
@@ -361,14 +374,9 @@ namespace PlayniteAchievements.Views
             ResetRecentAchievementsSortDirection();
             ResetSidebarAllAchievementsSortDirection();
 
-            // The Persisted_PropertyChanged subscription targets the Persisted instance from
-            // construction time, which settings edits can replace (CopyPersistedFrom); this
-            // save-time check leaves the friends view even when that subscription went stale.
-            if (_settings?.Persisted?.EnableFriendsFeatures == false &&
-                ActiveSubView == OverviewSubView.Friends)
-            {
-                ActiveSubView = OverviewSubView.Overview;
-            }
+            // Belt and braces alongside the persisted-settings subscription, which already
+            // covers both a property change and the instance being replaced.
+            LeaveFriendsSubViewIfDisabled();
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
