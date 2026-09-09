@@ -86,3 +86,9 @@ docs/
 
 # Local build output, packaged extensions, and crash artifacts
 artifacts/
+
+# MSBuild WPF temporary projects
+*_wpftmp.csproj
+
+# Local reference clones
+external/
