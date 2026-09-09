@@ -3,7 +3,7 @@ Packages:
 
   - Version: 3.2.0
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-08-31
+    ReleaseDate: 2026-09-08
     PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v3.2.0/PlayniteAchievements_3_2_0.pext
     Changelog:
     - "[New] Subcategories! Categories can now contain other categories. Platforms that group their achievements (Steam DLC, PlayStation collections, World of Warcraft, StarCraft II, Final Fantasy XIV, and more) show their real structure, and category lists draw the tree."
