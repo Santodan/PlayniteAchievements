@@ -4998,6 +4998,52 @@ index 984b247924fb6e87561b5b40a8bbbaa98b946997..a999a23585d38e6bbc859c38df027d1a
          /// Probed once by building and tearing down a tiny encoder; cached for the process.
          /// </summary>
          public static bool IsAvailable()
+diff --git a/source/Services/Capture/ToastOverlayExportMath.cs b/source/Services/Capture/ToastOverlayExportMath.cs
+index 1439eb3a81a297bd471be7c59cf4411496ffc21e..0aaf935bf8528631ad3fc813784b365a2d7627fb 100644
+--- a/source/Services/Capture/ToastOverlayExportMath.cs
++++ b/source/Services/Capture/ToastOverlayExportMath.cs
+@@ -157,10 +157,23 @@ public static Rectangle ComputeDestRect(
+                 return Rectangle.Empty;
+             }
+ 
+-            ToastWindowPlacer.ComputeCorner(
+-                new Rectangle(0, 0, sample.ClientW, sample.ClientH), sample.CardWPhys, sample.CardHPhys,
+-                track.MonitorScale, track.AlignRight, track.AlignBottom, track.GapDip,
+-                out var cornerX, out var cornerY);
++            int cornerX;
++            int cornerY;
++            if (track.AlignCenterHorizontally)
++            {
++                var gap = (int)Math.Round(track.GapDip * Math.Max(0.1, track.MonitorScale));
++                cornerX = (sample.ClientW - sample.CardWPhys) / 2;
++                cornerY = track.AlignBottom
++                    ? sample.ClientH - sample.CardHPhys - gap
++                    : gap;
++            }
++            else
++            {
++                ToastWindowPlacer.ComputeCorner(
++                    new Rectangle(0, 0, sample.ClientW, sample.ClientH), sample.CardWPhys, sample.CardHPhys,
++                    track.MonitorScale, track.AlignRight, track.AlignBottom, track.GapDip,
++                    out cornerX, out cornerY);
++            }
+             GetSlideOffset(track, sampleIndex, secondsIntoTrack, out var slideX, out var slideY);
+             return OverlayBlitMath.ScaleRect(
+                 cornerX + slideX, cornerY + slideY, sample.CardWPhys, sample.CardHPhys,
+diff --git a/source/Services/Capture/ToastOverlayTrack.cs b/source/Services/Capture/ToastOverlayTrack.cs
+index e5193afd4f9e99a938fe81d3b9dc750643ebff34..c3d46be3b4cc1ab7a1f327f841a37096378eb9ed 100644
+--- a/source/Services/Capture/ToastOverlayTrack.cs
++++ b/source/Services/Capture/ToastOverlayTrack.cs
+@@ -38,6 +38,9 @@ internal sealed class ToastOverlayTrack
+         /// <summary>Whether the toast corner is on the client rect's right edge.</summary>
+         public bool AlignRight { get; set; }
+ 
++        /// <summary>Whether the toast is horizontally centered in the client rect.</summary>
++        public bool AlignCenterHorizontally { get; set; }
++
+         /// <summary>Whether the toast corner is on the client rect's bottom edge.</summary>
+         public bool AlignBottom { get; set; }
+ 
 diff --git a/source/Services/Captures/CaptureModels.cs b/source/Services/Captures/CaptureModels.cs
 index 4e9f71b25f5c8f2bff060cffbc08a5804ea46895..90aeeb3050bbc37fa3cef99ad631a4b10d8a3901 100644
 --- a/source/Services/Captures/CaptureModels.cs
@@ -15892,7 +15938,7 @@ index ce98f2573c8577dbe0170b4385b0da04446a35d2..179a687b98802cc0d7fbd665fe60990d
          {
              try
 diff --git a/source/Services/UI/ToastNotificationService.cs b/source/Services/UI/ToastNotificationService.cs
-index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c7a6bd7f2 100644
+index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a390c6b05f 100644
 --- a/source/Services/UI/ToastNotificationService.cs
 +++ b/source/Services/UI/ToastNotificationService.cs
 @@ -1,6 +1,7 @@
@@ -16486,7 +16532,36 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
              var slideHost = ToastSurfaceFactory.BuildSlideHost(items, out var slideTransform);
              _activeCardSurface = items;
              _activeSlideHost = slideHost;
-@@ -2786,6 +3125,23 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2554,7 +2893,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+                     $"systemScale={systemScale:0.###}, perMonitorWindow={needsPerMonitorWindow}, " +
+                     $"isGame={_activeIsGame}, revealed={visible}, mode={wavePlan.Mode}, " +
+                     $"testFire={waveIsTestFire}, preview={previewSource.HasValue}, cards={cardItems.Count}, " +
+-                    $"shots={plan != null}, recordings={_settings?.Persisted?.EnableUnlockRecordings ?? false}");
++                    $"shots={plan != null}, recordings={cardItems.Any(vm => vm.NeedsOverlayTrack)}");
+                 if (needsPerMonitorWindow)
+                 {
+                     using (Common.DpiAwarenessScope.PerMonitorV2())
+@@ -2636,13 +2975,16 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+                 // presented before the next begins and the slide starts against a drained
+                 // composition queue, at the price of two composed frames of extra latency. Game
+                 // anchor only — a test fire out of game has no video — and only with recordings
+-                // enabled, since nothing else consumes a track.
++                // requested for at least one item. Use the recording service's per-unlock decision
++                // instead of rereading the upstream master switch: Memories can independently own
++                // recording while that switch is off.
+                 if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero &&
+-                    (_settings?.Persisted?.EnableUnlockRecordings ?? false))
++                    cardItems.Any(vm => vm.NeedsOverlayTrack))
+                 {
+                     trackRecorder = new ToastOverlayTrackRecorder(
+                         _logger, TrackSampleIntervalMs(),
+-                        AlignRight(), AlignBottom(), EffectiveGapDip(), _activeMonitorScale);
++                        AlignRight(), _activeCenterHorizontally, AlignBottom(),
++                        EffectiveGapDip(), _activeMonitorScale);
+                     _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
+                     trackSampleCount = 0;
+                     _waveShadowCaptureCount = 0;
+@@ -2786,6 +3128,23 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                          plan, window, waveIsTestFire, baseCaptureTask, anchorFramesTask);
                  }
  
@@ -16510,7 +16585,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
                  if (plan != null)
                  {
                      _ = SaveWaveScreenshotsAsync(plan, baseCaptureTask, anchorFramesTask, toastCompositeTask);
-@@ -2828,7 +3184,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2828,7 +3187,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                      CompositionTarget.Rendering += onRendering;
                  }
  
@@ -16519,7 +16594,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
                  var remainingMs = Math.Max(0, durationMs - captureDelayMs);
                  try
                  {
-@@ -2936,6 +3292,10 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2936,6 +3295,10 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                  _activeIsGame = false;
                  _activeSuppressZOrder = false;
                  _activeMonitorScale = 1.0;
@@ -16530,7 +16605,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
  
                  try
                  {
-@@ -3055,12 +3415,22 @@ private sealed class WaveScreenshotPlan
+@@ -3055,12 +3418,22 @@ private sealed class WaveScreenshotPlan
  
              public string FramedSuffix { get; set; }
  
@@ -16557,7 +16632,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
              public bool NeedsFrame => Items.Any(i =>
                  (i.Variants & ScreenshotVariants.Framed) != 0);
          }
-@@ -3085,8 +3455,23 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3085,8 +3458,23 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              }
  
              var persisted = _settings?.Persisted;
@@ -16583,7 +16658,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
              {
                  return null;
              }
-@@ -3095,7 +3480,8 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3095,7 +3483,8 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              // unlock — re-capturing a moment is the point of the shortcut. Opting into the test
              // folder diverts it to a shared "Test" subfolder the capture library hides, which is
              // what makes the shortcut usable for throwaway testing instead.
@@ -16593,7 +16668,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
              {
                  baseDir = System.IO.Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
              }
-@@ -3103,20 +3489,22 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3103,20 +3492,22 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              var plan = new WaveScreenshotPlan
              {
                  BaseDirectory = baseDir,
@@ -16624,7 +16699,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
  
                  if (variants != ScreenshotVariants.None)
                  {
-@@ -3127,6 +3515,39 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3127,6 +3518,39 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              return plan.Items.Count > 0 ? plan : null;
          }
  
@@ -16664,7 +16739,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
          /// <summary>
          /// Trims a configured screenshot filename suffix; blank collapses to null so the path
          /// builder emits no suffix at all.
-@@ -3172,6 +3593,10 @@ private async Task SaveWaveScreenshotsAsync(
+@@ -3172,6 +3596,10 @@ private async Task SaveWaveScreenshotsAsync(
                  anchorFrames = anchorFramesTask != null
                      ? await anchorFramesTask.ConfigureAwait(true)
                      : null;
@@ -16675,7 +16750,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
  
                  var framedByVm = new Dictionary<AchievementToastViewModel, System.Windows.Media.Imaging.BitmapSource>();
                  if (plan.NeedsFrame && (baseBitmap != null || anchorFrames != null))
-@@ -3265,27 +3690,65 @@ private async Task SaveWaveScreenshotsAsync(
+@@ -3265,27 +3693,65 @@ private async Task SaveWaveScreenshotsAsync(
                                  : clean;
                              if ((item.Variants & ScreenshotVariants.Clean) != 0 && itemClean != null)
                              {
@@ -16753,7 +16828,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
                              }
                          }
  
-@@ -3521,7 +3984,43 @@ private bool AlignBottom()
+@@ -3521,7 +3987,43 @@ private bool AlignBottom()
          // margin, so the body sits a constant distance from the corner whether or not the glow is on.
          private double EffectiveGapDip()
          {
@@ -16798,7 +16873,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
          }
  
          /// <summary>
-@@ -3566,11 +4065,23 @@ private bool TryPlacePhysical(Window window, bool measure, out ToastWindowPlacer
+@@ -3566,11 +4068,23 @@ private bool TryPlacePhysical(Window window, bool measure, out ToastWindowPlacer
              }
  
              var renderScale = ToastWindowPlacer.RenderScale(window);
@@ -16827,7 +16902,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
  
              // Keep the toast directly above the game window in the z-order (not owned, so the game is
              // never raised). Re-asserted every placement/follow frame so it stays interleaved as the
-@@ -4853,6 +5364,18 @@ private int EffectiveDurationSeconds()
+@@ -4853,6 +5367,18 @@ private int EffectiveDurationSeconds()
              return setting;
          }
  
@@ -16846,6 +16921,42 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..c25ef1f7f3eb0fe4dbdac5a13991861c
          /// <summary>
          /// Animates every countdown bar in the wave (one per toast) from full to empty over the
          /// display duration, so it reads as an auto-dismiss timer. The animation's shape (from/to,
+diff --git a/source/Services/UI/ToastOverlayTrackRecorder.cs b/source/Services/UI/ToastOverlayTrackRecorder.cs
+index 60345252e84a0037e3e8a13c85a6babee87e8f0c..798bdbf771f31cbdbd55dd87027e63a14a9c7fa2 100644
+--- a/source/Services/UI/ToastOverlayTrackRecorder.cs
++++ b/source/Services/UI/ToastOverlayTrackRecorder.cs
+@@ -100,6 +100,7 @@ private sealed class SampleJob
+         private readonly ILogger _logger;
+         private readonly double _sampleIntervalMs;
+         private readonly bool _alignRight;
++        private readonly bool _alignCenterHorizontally;
+         private readonly bool _alignBottom;
+         private readonly double _gapDip;
+         private readonly double _monitorScale;
+@@ -140,12 +141,14 @@ private sealed class SampleJob
+         /// each frame's size would sit. Resolved once per wave, like the live placement.</param>
+         public ToastOverlayTrackRecorder(
+             ILogger logger, double sampleIntervalMs,
+-            bool alignRight, bool alignBottom, double gapDip, double monitorScale)
++            bool alignRight, bool alignCenterHorizontally, bool alignBottom,
++            double gapDip, double monitorScale)
+         {
+             _logger = logger;
+             _sampleIntervalMs = sampleIntervalMs > 0 ? sampleIntervalMs : 1;
+             _maxQueuedPixelJobs = Math.Max(16, (int)Math.Round(1000.0 / _sampleIntervalMs / 2.0));
+             _alignRight = alignRight;
++            _alignCenterHorizontally = alignCenterHorizontally;
+             _alignBottom = alignBottom;
+             _gapDip = gapDip;
+             _monitorScale = monitorScale > 0 ? monitorScale : 1.0;
+@@ -432,6 +435,7 @@ private ItemState GetOrCreateState(AchievementToastViewModel vm)
+                         AchievementName = vm.AchievementName,
+                         StartUtc = CaptureTimelineClock.UtcNow,
+                         AlignRight = _alignRight,
++                        AlignCenterHorizontally = _alignCenterHorizontally,
+                         AlignBottom = _alignBottom,
+                         GapDip = _gapDip,
+                         MonitorScale = _monitorScale,
 diff --git a/source/Services/UI/UnlockScreenshotService.cs b/source/Services/UI/UnlockScreenshotService.cs
 index 37efe8e887a6a0864db1d32417676f9a5a548487..70980266250685db60f8952837c6cb74e2d0ea3b 100644
 --- a/source/Services/UI/UnlockScreenshotService.cs
@@ -22069,6 +22180,31 @@ index 02af08bf0f67ea500ceef3e2518228ab7ba2d90d..66c9ea0186be7d58bdd94f2c0b65b34a
          }
  
          private static void AssertAlternates(OverlaySplicePlan plan)
+diff --git a/tests/PlayniteAchievements.Tests/Services/Capture/ToastOverlayExportMathTests.cs b/tests/PlayniteAchievements.Tests/Services/Capture/ToastOverlayExportMathTests.cs
+index 3d4ba4c5dd67d32c9d0e88d1620650022420ef38..e19ec8d0d727ac7561f31a1a675f7968c3900e00 100644
+--- a/tests/PlayniteAchievements.Tests/Services/Capture/ToastOverlayExportMathTests.cs
++++ b/tests/PlayniteAchievements.Tests/Services/Capture/ToastOverlayExportMathTests.cs
+@@ -124,6 +124,20 @@ public void ComputeDestRect_BottomRightAtRest_MatchesHandCornerMath()
+             Assert.AreEqual(CardH, rect.Height);
+         }
+ 
++        [TestMethod]
++        public void ComputeDestRect_BottomCenterAtRest_PreservesCustomPosition()
++        {
++            var track = BottomRightTrack();
++            track.AlignCenterHorizontally = true;
++            AddSample(track, 0);
++
++            var rect = ToastOverlayExportMath.ComputeDestRect(
++                track, 0, 0.0, ClientW, ClientH);
++
++            Assert.AreEqual((ClientW - CardW) / 2, rect.X);
++            Assert.AreEqual(ClientH - CardH - 24, rect.Y);
++        }
++
+         [TestMethod]
+         public void ComputeDestRect_HoldPhase_IsIdenticalForEveryInstant()
+         {
 diff --git a/tests/PlayniteAchievements.Tests/Services/GameCustomDataNormalizerTests.cs b/tests/PlayniteAchievements.Tests/Services/GameCustomDataNormalizerTests.cs
 index 004fb700334c9bb2945fb687f180edca4e03e4c6..8a1699219588f34ebf9b5644b329d338cece0c22 100644
 --- a/tests/PlayniteAchievements.Tests/Services/GameCustomDataNormalizerTests.cs

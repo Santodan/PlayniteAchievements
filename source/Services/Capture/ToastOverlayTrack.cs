@@ -38,6 +38,9 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>Whether the toast corner is on the client rect's right edge.</summary>
         public bool AlignRight { get; set; }
 
+        /// <summary>Whether the toast is horizontally centered in the client rect.</summary>
+        public bool AlignCenterHorizontally { get; set; }
+
         /// <summary>Whether the toast corner is on the client rect's bottom edge.</summary>
         public bool AlignBottom { get; set; }
 

@@ -125,6 +125,20 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
+        public void ComputeDestRect_BottomCenterAtRest_PreservesCustomPosition()
+        {
+            var track = BottomRightTrack();
+            track.AlignCenterHorizontally = true;
+            AddSample(track, 0);
+
+            var rect = ToastOverlayExportMath.ComputeDestRect(
+                track, 0, 0.0, ClientW, ClientH);
+
+            Assert.AreEqual((ClientW - CardW) / 2, rect.X);
+            Assert.AreEqual(ClientH - CardH - 24, rect.Y);
+        }
+
+        [TestMethod]
         public void ComputeDestRect_HoldPhase_IsIdenticalForEveryInstant()
         {
             // The defect this pins down: the card must not move during the hold. With constant

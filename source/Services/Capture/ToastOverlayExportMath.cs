@@ -157,10 +157,23 @@ namespace PlayniteAchievements.Services.Capture
                 return Rectangle.Empty;
             }
 
-            ToastWindowPlacer.ComputeCorner(
-                new Rectangle(0, 0, sample.ClientW, sample.ClientH), sample.CardWPhys, sample.CardHPhys,
-                track.MonitorScale, track.AlignRight, track.AlignBottom, track.GapDip,
-                out var cornerX, out var cornerY);
+            int cornerX;
+            int cornerY;
+            if (track.AlignCenterHorizontally)
+            {
+                var gap = (int)Math.Round(track.GapDip * Math.Max(0.1, track.MonitorScale));
+                cornerX = (sample.ClientW - sample.CardWPhys) / 2;
+                cornerY = track.AlignBottom
+                    ? sample.ClientH - sample.CardHPhys - gap
+                    : gap;
+            }
+            else
+            {
+                ToastWindowPlacer.ComputeCorner(
+                    new Rectangle(0, 0, sample.ClientW, sample.ClientH), sample.CardWPhys, sample.CardHPhys,
+                    track.MonitorScale, track.AlignRight, track.AlignBottom, track.GapDip,
+                    out cornerX, out cornerY);
+            }
             GetSlideOffset(track, sampleIndex, secondsIntoTrack, out var slideX, out var slideY);
             return OverlayBlitMath.ScaleRect(
                 cornerX + slideX, cornerY + slideY, sample.CardWPhys, sample.CardHPhys,

@@ -2893,7 +2893,7 @@ namespace PlayniteAchievements.Services.UI
                     $"systemScale={systemScale:0.###}, perMonitorWindow={needsPerMonitorWindow}, " +
                     $"isGame={_activeIsGame}, revealed={visible}, mode={wavePlan.Mode}, " +
                     $"testFire={waveIsTestFire}, preview={previewSource.HasValue}, cards={cardItems.Count}, " +
-                    $"shots={plan != null}, recordings={_settings?.Persisted?.EnableUnlockRecordings ?? false}");
+                    $"shots={plan != null}, recordings={cardItems.Any(vm => vm.NeedsOverlayTrack)}");
                 if (needsPerMonitorWindow)
                 {
                     using (Common.DpiAwarenessScope.PerMonitorV2())
@@ -2975,13 +2975,16 @@ namespace PlayniteAchievements.Services.UI
                 // presented before the next begins and the slide starts against a drained
                 // composition queue, at the price of two composed frames of extra latency. Game
                 // anchor only — a test fire out of game has no video — and only with recordings
-                // enabled, since nothing else consumes a track.
+                // requested for at least one item. Use the recording service's per-unlock decision
+                // instead of rereading the upstream master switch: Memories can independently own
+                // recording while that switch is off.
                 if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero &&
-                    (_settings?.Persisted?.EnableUnlockRecordings ?? false))
+                    cardItems.Any(vm => vm.NeedsOverlayTrack))
                 {
                     trackRecorder = new ToastOverlayTrackRecorder(
                         _logger, TrackSampleIntervalMs(),
-                        AlignRight(), AlignBottom(), EffectiveGapDip(), _activeMonitorScale);
+                        AlignRight(), _activeCenterHorizontally, AlignBottom(),
+                        EffectiveGapDip(), _activeMonitorScale);
                     _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
                     trackSampleCount = 0;
                     _waveShadowCaptureCount = 0;

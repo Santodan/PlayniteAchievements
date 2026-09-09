@@ -100,6 +100,7 @@ namespace PlayniteAchievements.Services.UI
         private readonly ILogger _logger;
         private readonly double _sampleIntervalMs;
         private readonly bool _alignRight;
+        private readonly bool _alignCenterHorizontally;
         private readonly bool _alignBottom;
         private readonly double _gapDip;
         private readonly double _monitorScale;
@@ -140,12 +141,14 @@ namespace PlayniteAchievements.Services.UI
         /// each frame's size would sit. Resolved once per wave, like the live placement.</param>
         public ToastOverlayTrackRecorder(
             ILogger logger, double sampleIntervalMs,
-            bool alignRight, bool alignBottom, double gapDip, double monitorScale)
+            bool alignRight, bool alignCenterHorizontally, bool alignBottom,
+            double gapDip, double monitorScale)
         {
             _logger = logger;
             _sampleIntervalMs = sampleIntervalMs > 0 ? sampleIntervalMs : 1;
             _maxQueuedPixelJobs = Math.Max(16, (int)Math.Round(1000.0 / _sampleIntervalMs / 2.0));
             _alignRight = alignRight;
+            _alignCenterHorizontally = alignCenterHorizontally;
             _alignBottom = alignBottom;
             _gapDip = gapDip;
             _monitorScale = monitorScale > 0 ? monitorScale : 1.0;
@@ -432,6 +435,7 @@ namespace PlayniteAchievements.Services.UI
                         AchievementName = vm.AchievementName,
                         StartUtc = CaptureTimelineClock.UtcNow,
                         AlignRight = _alignRight,
+                        AlignCenterHorizontally = _alignCenterHorizontally,
                         AlignBottom = _alignBottom,
                         GapDip = _gapDip,
                         MonitorScale = _monitorScale,
