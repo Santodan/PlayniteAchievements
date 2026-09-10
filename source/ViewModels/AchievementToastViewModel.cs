@@ -603,7 +603,14 @@ namespace PlayniteAchievements.ViewModels
 
         private bool IsTitleMasked => IsSpoilerSensitive && !_settings.ShowHiddenTitle;
 
-        private bool IsDescriptionMasked => IsSpoilerSensitive && !_settings.ShowHiddenDescription;
+        internal bool IsDescriptionMasked => IsSpoilerSensitive && !_settings.ShowHiddenDescription;
+
+        // A masked description renders as a blank line rather than nothing, so a hidden
+        // achievement's card keeps the spacing of an ordinary one. The text is a non-breaking
+        // space because an empty TextBlock measures no height at all: this gives the row its
+        // full line box in every template, including a theme's own, without the template
+        // needing to reserve the space itself.
+        private const string MaskedDescription = " ";
 
         // Raw friend identity for template composition (e.g. the friend completion header). The
         // completion texts themselves live in the templates as LOC resources, not here.
@@ -612,9 +619,9 @@ namespace PlayniteAchievements.ViewModels
             : _args.FriendDisplayName;
 
         // Blank when masked rather than the grid's "Click to reveal": a notification cannot be
-        // clicked, and the description line collapses on empty text, which gives the progress bar
-        // the row back.
-        public string Description => IsDescriptionMasked ? string.Empty : _args.Description;
+        // clicked. The line is kept (see MaskedDescription) so the card's rows sit where they
+        // would for any other achievement.
+        public string Description => IsDescriptionMasked ? MaskedDescription : _args.Description;
         public string Category => _args.Category;
         public string GameName => _args.GameName;
 
