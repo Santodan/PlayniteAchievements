@@ -1084,11 +1084,14 @@ namespace PlayniteAchievements.Tests.ViewModels
                     });
 
                 Assert.AreEqual("Hidden Achievement", masked.TitleText);
-                Assert.AreEqual(string.Empty, masked.Description);
                 Assert.AreEqual(
-                    Visibility.Collapsed,
+                    " ",
+                    masked.Description,
+                    "A masked description prints nothing readable, not a reveal prompt.");
+                Assert.AreEqual(
+                    Visibility.Visible,
                     masked.DescriptionLine.LineVisibility,
-                    "A masked description collapses its row instead of printing a reveal prompt.");
+                    "The blank line is kept so a hidden card is spaced like every other one.");
                 Assert.AreEqual(
                     AchievementIconResolver.GetHiddenFallbackIcon(),
                     masked.IconDisplaySource,
