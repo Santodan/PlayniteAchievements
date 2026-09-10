@@ -98,11 +98,12 @@ namespace PlayniteAchievements.Services.Achievements
             var result = new List<AchievementProgressAdvance>();
             foreach (var current in after.Achievements)
             {
-                // A hidden achievement is still a secret while locked, so its progress is never
-                // announced (the toast would print its name and description).
+                // Hidden achievements do advance here. Their secrecy is the notification's job:
+                // the toast view model masks a hidden achievement's name, description, and icon
+                // according to the achievement visibility settings, so the card reports the
+                // progress without giving away what the achievement is.
                 if (current == null ||
                     current.Unlocked == true ||
-                    current.Hidden ||
                     !current.ProgressNum.HasValue ||
                     !current.ProgressDenom.HasValue)
                 {
