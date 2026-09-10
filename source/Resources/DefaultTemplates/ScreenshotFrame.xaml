@@ -29,7 +29,9 @@
 
         Images must load synchronously: use plain Image Source bindings, NOT
         helpers:AsyncImage.Uri (async-loaded images render blank in the offscreen
-        RenderTargetBitmap pass). Text is drawn over a fixed dark bar, so light literal
+        RenderTargetBitmap pass). The achievement artwork comes in as IconImage, an already
+        decoded bitmap the view model resolves before this template is rendered; IconPath is the
+        same artwork as a plain string, for the ray burst's silhouette. Text is drawn over a fixed dark bar, so light literal
         foregrounds are used deliberately instead of theme text brushes.
     -->
     <DataTemplate x:Key="PlayAch.Template.ScreenshotFrame"
@@ -105,7 +107,7 @@
                                    RenderOptions.BitmapScalingMode="HighQuality">
                                 <Image.Style>
                                     <Style TargetType="Image">
-                                        <Setter Property="Source" Value="{Binding IconPath}"/>
+                                        <Setter Property="Source" Value="{Binding IconImage}"/>
                                         <Setter Property="Effect" Value="{Binding FrameRarityGlowEffect}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
@@ -123,7 +125,7 @@
                                    RenderOptions.BitmapScalingMode="HighQuality">
                                 <Image.Style>
                                     <Style TargetType="Image">
-                                        <Setter Property="Source" Value="{Binding IconPath}"/>
+                                        <Setter Property="Source" Value="{Binding IconImage}"/>
                                         <Setter Property="Effect" Value="{Binding FrameRarityEdgeEffect}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
