@@ -75,8 +75,13 @@ namespace PlayniteAchievements.Services.UI
                 case "progress":
                     // An incremental-progress notification: still locked, 3/10 -> 4/10. Fired
                     // previews run the real wave path, so this also exercises the silent gate.
+                    // Hidden on purpose: the achievement is still locked, so this is the one
+                    // sample whose card answers to the achievement visibility settings, and a
+                    // hidden one shows every masking the settings can apply (title, description,
+                    // icon cover) rather than only the locked-icon half.
                     var progress = SampleUnlock("Rare", 9.3, false);
                     progress.IsProgressUpdate = true;
+                    progress.IsHidden = true;
                     progress.UnlockTimeUtc = null;
                     progress.PreviousProgressNum = 3;
                     progress.ProgressNum = 4;
