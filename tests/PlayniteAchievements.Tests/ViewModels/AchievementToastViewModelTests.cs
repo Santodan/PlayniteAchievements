@@ -1008,6 +1008,194 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void ProgressNotification_PublishesAPlainIconPath()
+        {
+            WithTempIcon(iconFile =>
+            {
+                var args = ProgressArgs();
+                args.IconPath = iconFile;
+
+                var viewModel = new AchievementToastViewModel(args, new PersistedSettings());
+
+                // The display source carries the decoration the image cache understands; the
+                // published path is what a template can hand straight to Image.Source.
+                StringAssert.Contains(viewModel.IconDisplaySource, "gray:");
+                Assert.AreEqual(iconFile, viewModel.IconPath);
+            });
+        }
+
+        [TestMethod]
+        public void ProgressNotification_ClampsTheDescriptionToOneLineForTheBar()
+        {
+            var style = new NotificationSurfaceStyle
+            {
+                ShowHeader = true,
+                ShowName = true,
+                ShowDescription = true,
+                ShowGameName = false,
+                ShowCategory = false
+            };
+
+            var unlock = BuildLineToast(style);
+            var progress = new AchievementToastViewModel(
+                ProgressArgs(),
+                new PersistedSettings
+                {
+                    NotificationStyle = new NotificationStyleSettings
+                    {
+                        Toast = style,
+                        // The frame carries the same visible lines, so the only thing that can
+                        // explain a different budget below is the progress bar.
+                        Frame = new NotificationSurfaceStyle
+                        {
+                            ShowHeader = true,
+                            ShowName = true,
+                            ShowDescription = true,
+                            ShowGameName = false,
+                            ShowCategory = false
+                        }
+                    }
+                });
+
+            Assert.AreEqual(2, unlock.DescriptionLine.MaxLines, "An unlock toast with no game line keeps both lines.");
+            Assert.AreEqual(1, progress.DescriptionLine.MaxLines, "The progress bar takes the second line.");
+            Assert.AreEqual(
+                2,
+                progress.FrameDescriptionLine.MaxLines,
+                "The frame draws no progress bar, so its description keeps both lines.");
+        }
+
+        [TestMethod]
+        public void ProgressNotification_MasksHiddenAchievementsPerTheVisibilitySettings()
+        {
+            WithTempIcon(iconFile =>
+            {
+                var args = ProgressArgs();
+                args.IsHidden = true;
+                args.IconPath = iconFile;
+
+                var masked = new AchievementToastViewModel(
+                    args,
+                    new PersistedSettings
+                    {
+                        ShowHiddenTitle = false,
+                        ShowHiddenDescription = false,
+                        ShowHiddenIcon = false
+                    });
+
+                Assert.AreEqual("Hidden Achievement", masked.TitleText);
+                Assert.AreEqual(string.Empty, masked.Description);
+                Assert.AreEqual(
+                    Visibility.Collapsed,
+                    masked.DescriptionLine.LineVisibility,
+                    "A masked description collapses its row instead of printing a reveal prompt.");
+                Assert.AreEqual(
+                    AchievementIconResolver.GetHiddenFallbackIcon(),
+                    masked.IconDisplaySource,
+                    "A hidden achievement's own art never reaches a notification.");
+                Assert.AreEqual(
+                    AchievementIconResolver.GetHiddenFallbackIcon(),
+                    masked.IconPath);
+            });
+        }
+
+        [TestMethod]
+        public void ProgressNotification_ShowsRealDetailsWhenTheSettingsAllowIt()
+        {
+            var args = ProgressArgs();
+            args.IsHidden = true;
+
+            var revealed = new AchievementToastViewModel(
+                args,
+                new PersistedSettings
+                {
+                    ShowHiddenTitle = true,
+                    ShowHiddenDescription = true,
+                    ShowHiddenIcon = true,
+                    ShowLockedIcon = true,
+                    ShowHiddenSuffix = false
+                });
+
+            Assert.AreEqual("Headhunter", revealed.TitleText);
+            Assert.AreEqual("Kill 10 enemies with headshots.", revealed.Description);
+        }
+
+        [TestMethod]
+        public void ProgressNotification_CoversTheIconWhenLockedIconsAreHidden()
+        {
+            WithTempIcon(iconFile =>
+            {
+                var args = ProgressArgs();
+                args.IconPath = iconFile;
+
+                var covered = new AchievementToastViewModel(
+                    args, new PersistedSettings { ShowLockedIcon = false });
+                var shown = new AchievementToastViewModel(
+                    args, new PersistedSettings { ShowLockedIcon = true });
+
+                Assert.AreEqual(
+                    AchievementIconResolver.GetLockedFallbackIcon(),
+                    covered.IconDisplaySource);
+                StringAssert.Contains(
+                    shown.IconDisplaySource,
+                    iconFile,
+                    "With locked icons shown, the real art comes through (grayscaled).");
+            });
+        }
+
+        // A rooted file the icon resolver will accept: it cache-busts from the file's own write
+        // time and length, so the source has to exist on disk for the decorated form to appear.
+        private static void WithTempIcon(Action<string> test)
+        {
+            var iconFile = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".png");
+            File.WriteAllBytes(iconFile, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+            try
+            {
+                test(iconFile);
+            }
+            finally
+            {
+                File.Delete(iconFile);
+            }
+        }
+
+        [TestMethod]
+        public void UnlockNotification_IsNeverMasked()
+        {
+            var viewModel = new AchievementToastViewModel(
+                new AchievementUnlockedEventArgs
+                {
+                    DisplayName = "Deep Diver",
+                    Description = "Reach the deepest point of the map.",
+                    IsHidden = true
+                },
+                new PersistedSettings
+                {
+                    ShowHiddenTitle = false,
+                    ShowHiddenDescription = false,
+                    ShowHiddenIcon = false,
+                    ShowLockedIcon = false
+                });
+
+            Assert.AreEqual("Deep Diver", viewModel.TitleText, "Unlocking reveals the achievement.");
+            Assert.AreEqual("Reach the deepest point of the map.", viewModel.Description);
+        }
+
+        [TestMethod]
+        public void FriendAvatar_IsTheCachedPathAndNeverARemoteUrl()
+        {
+            var viewModel = new AchievementToastViewModel(
+                new AchievementUnlockedEventArgs
+                {
+                    IsFriendUnlock = true,
+                    FriendAvatarUrl = "https://example.invalid/avatar.png"
+                },
+                new PersistedSettings());
+
+            Assert.IsNull(viewModel.FriendAvatar, "Notifications never fetch over the network.");
+        }
+
+        [TestMethod]
         public void ScaleVignetteStopAlpha_OutOfRangeStrengthClamps()
         {
             const double baseAlpha = 0x73 / 255.0;

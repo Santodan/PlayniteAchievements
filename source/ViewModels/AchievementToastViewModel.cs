@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -12,6 +13,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.UI;
+using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.ViewModels
 {
@@ -58,6 +60,9 @@ namespace PlayniteAchievements.ViewModels
         private ImageSource _toastBackgroundRenderSourceOverride;
         private readonly bool _useToastBackgroundRenderSourceOverride;
         private readonly RarityTier _rarity;
+        private string _iconDisplaySource;
+        private ImageSource _iconImage;
+        private Task _iconLoad;
         private IReadOnlyList<ToastLineDescriptor> _toastLines;
         private IReadOnlyList<ToastLineDescriptor> _frameLines;
         private ToastRarityTextLine _toastRarityText;
@@ -569,9 +574,36 @@ namespace PlayniteAchievements.ViewModels
             return string.Format(format, FriendDisplayName);
         }
 
-        public string TitleText => string.IsNullOrWhiteSpace(_args.DisplayName)
-            ? ResourceProvider.GetString("LOCPlayAch_Text_UnknownAchievement")
-            : _args.DisplayName;
+        public string TitleText
+        {
+            get
+            {
+                if (IsTitleMasked)
+                {
+                    return ResourceProvider.GetString("LOCPlayAch_Achievements_HiddenTitle");
+                }
+
+                var name = string.IsNullOrWhiteSpace(_args.DisplayName)
+                    ? ResourceProvider.GetString("LOCPlayAch_Text_UnknownAchievement")
+                    : _args.DisplayName;
+
+                return IsSpoilerSensitive && _settings.ShowHiddenSuffix
+                    ? name + ResourceProvider.GetString("LOCPlayAch_Achievements_HiddenTitle_WithParens")
+                    : name;
+            }
+        }
+
+        /// <summary>
+        /// The achievement this notification describes is still locked and flagged hidden, so the
+        /// achievement visibility settings apply to it. Only a progress notification can be in
+        /// that state: every other kind reports something already unlocked, which is no longer a
+        /// spoiler.
+        /// </summary>
+        private bool IsSpoilerSensitive => IsProgressUpdate && _args.IsHidden;
+
+        private bool IsTitleMasked => IsSpoilerSensitive && !_settings.ShowHiddenTitle;
+
+        private bool IsDescriptionMasked => IsSpoilerSensitive && !_settings.ShowHiddenDescription;
 
         // Raw friend identity for template composition (e.g. the friend completion header). The
         // completion texts themselves live in the templates as LOC resources, not here.
@@ -579,7 +611,10 @@ namespace PlayniteAchievements.ViewModels
             ? "Friend"
             : _args.FriendDisplayName;
 
-        public string Description => _args.Description;
+        // Blank when masked rather than the grid's "Click to reveal": a notification cannot be
+        // clicked, and the description line collapses on empty text, which gives the progress bar
+        // the row back.
+        public string Description => IsDescriptionMasked ? string.Empty : _args.Description;
         public string Category => _args.Category;
         public string GameName => _args.GameName;
 
@@ -587,10 +622,47 @@ namespace PlayniteAchievements.ViewModels
         // none (e.g. previews). Local files, so frame templates may bind Image.Source directly.
         public string GameIconPath => _args.GameIconPath;
         public string GameCoverPath => _args.GameCoverPath;
-        public string IconPath => string.IsNullOrWhiteSpace(_args.IconPath) ? DefaultIcon : _args.IconPath;
-        public string FriendAvatar => !string.IsNullOrWhiteSpace(_args.FriendAvatarPath)
-            ? _args.FriendAvatarPath
-            : _args.FriendAvatarUrl;
+
+        /// <summary>
+        /// The decoded achievement icon: the artwork this notification actually shows, with the
+        /// locked/hidden decision and the grayscale already applied. Templates bind
+        /// <c>Image.Source</c> to this and need to know nothing about how it was sourced.
+        /// Null until <see cref="PrepareImagesAsync"/> has run (or its background load lands, at
+        /// which point this raises a change notification).
+        /// </summary>
+        public ImageSource IconImage
+        {
+            get
+            {
+                EnsureIconLoadStarted();
+                return _iconImage;
+            }
+        }
+
+        /// <summary>
+        /// The same artwork as a plain path or pack URI -- no grayscale or cache-bust decoration,
+        /// so it is safe to bind directly or hand to a component that wants a string key (the
+        /// rarity ray burst traces its silhouette from this). A template binding this instead of
+        /// <see cref="IconImage"/> gets the color artwork, since grayscale cannot be expressed in
+        /// a path.
+        /// </summary>
+        public string IconPath => AnimatedImageHelper.NormalizeSourceUri(IconDisplaySource) ?? DefaultIcon;
+
+        /// <summary>
+        /// The decorated form the image cache decodes: the same artwork carrying its grayscale
+        /// marker and cache-bust token. Internal, and the single key for this notification's icon
+        /// -- the wave prime requests it too, so both warm one cache entry.
+        /// </summary>
+        internal string IconDisplaySource =>
+            _iconDisplaySource ?? (_iconDisplaySource =
+                ToastImageResolver.ResolveIconDisplaySource(_args, _settings));
+
+        /// <summary>
+        /// The friend's cached avatar. Path only: notifications fire during gameplay and never
+        /// fetch over the network, so an avatar the refresh has not downloaded yet simply does
+        /// not render.
+        /// </summary>
+        public string FriendAvatar => _args.FriendAvatarPath;
 
         public string PercentText => _args.GlobalPercent.HasValue
             ? AchievementRarityResolver.FormatPercent(_args.GlobalPercent.Value)
@@ -995,6 +1067,62 @@ namespace PlayniteAchievements.ViewModels
             ? (object)_toastBackgroundRenderSourceOverride
             : ToastBackgroundImagePath;
 
+        /// <summary>
+        /// Completes this notification's image loads. Surfaces that render synchronously have to
+        /// await this first: the screenshot frame is measured and drawn straight into a
+        /// RenderTargetBitmap, so an image still in flight is simply absent from the saved file.
+        /// The toast path awaits it too, before its template is built, so the card is laid out
+        /// once at its final size instead of resizing under the slide animation.
+        /// </summary>
+        public Task PrepareImagesAsync()
+        {
+            EnsureIconLoadStarted();
+            return _iconLoad;
+        }
+
+        private void EnsureIconLoadStarted()
+        {
+            if (_iconLoad != null)
+            {
+                return;
+            }
+
+            _iconLoad = LoadIconAsync();
+        }
+
+        private async Task LoadIconAsync()
+        {
+            var image = await ToastImageResolver.LoadAsync(IconDisplaySource);
+            if (image == null || ReferenceEquals(_iconImage, image))
+            {
+                return;
+            }
+
+            _iconImage = image;
+            OnPropertyChanged(nameof(IconImage));
+        }
+
+        // The bitmaps are frozen, so a load can complete off the UI thread; bindings still have
+        // to hear about it there.
+        private void OnPropertyChanged(string propertyName)
+        {
+            var handler = PropertyChanged;
+            if (handler == null)
+            {
+                return;
+            }
+
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+            {
+                handler(this, new PropertyChangedEventArgs(propertyName));
+                return;
+            }
+
+            dispatcher.BeginInvoke(
+                new Action(() => handler(this, new PropertyChangedEventArgs(propertyName))));
+        }
+
         internal void SetToastBackgroundRenderSourceOverride(ImageSource source)
         {
             if (!_useToastBackgroundRenderSourceOverride ||
@@ -1253,9 +1381,12 @@ namespace PlayniteAchievements.ViewModels
 
             var showGameName = isFrame ? FrameShowGameName : ShowGameName;
             var showCategory = isFrame ? FrameShowCategory : ShowCategory;
-            // The description gives up its second line when a game/category line follows it, so the
-            // two rows together stay within the card instead of overflowing.
-            var descriptionMaxLines = (showGameName || showCategory) ? 1 : 2;
+            // The description gives up its second line when another row follows it, so the rows
+            // together stay within the card instead of overflowing. The progress bar counts as
+            // such a row; the frame never draws one (see the LineProgress case below), so its
+            // description keeps both lines.
+            var descriptionMaxLines =
+                (showGameName || showCategory || (!isFrame && IsProgressUpdate)) ? 1 : 2;
 
             // Name-line offset: a positive value indents the title line to the right; a negative
             // value indents every other line instead, so the title line (with its inline badge)
