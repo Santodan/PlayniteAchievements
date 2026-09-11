@@ -282,7 +282,7 @@ namespace PlayniteAchievements.Services.Achievements
                 gameId,
                 customData =>
                 {
-                    customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
+                    ReplaceOverrideField(customData, categoryOverrides, (entry, value) => entry.Category = value);
                 },
                 affectsSummaryData: false);
         }
@@ -298,7 +298,7 @@ namespace PlayniteAchievements.Services.Achievements
                 gameId,
                 customData =>
                 {
-                    customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
+                    ReplaceOverrideField(customData, categoryTypeOverrides, (entry, value) => entry.CategoryType = value);
                 },
                 affectsSummaryData: false);
         }
@@ -317,8 +317,8 @@ namespace PlayniteAchievements.Services.Achievements
                 gameId,
                 customData =>
                 {
-                    customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
-                    customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
+                    ReplaceOverrideField(customData, categoryOverrides, (entry, value) => entry.Category = value);
+                    ReplaceOverrideField(customData, categoryTypeOverrides, (entry, value) => entry.CategoryType = value);
                 },
                 affectsSummaryData: false);
         }
@@ -349,8 +349,8 @@ namespace PlayniteAchievements.Services.Achievements
 
             _gameCustomDataStore.Update(gameId, customData =>
             {
-                customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
-                customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
+                ReplaceOverrideField(customData, categoryOverrides, (entry, value) => entry.Category = value);
+                ReplaceOverrideField(customData, categoryTypeOverrides, (entry, value) => entry.CategoryType = value);
                 customData.AchievementCategoryOrder = CopyCategoryOrder(categoryOrder);
                 customData.AchievementCategoryImageOverrides = CopyCategoryImageOverrides(categoryImageOverrides);
                 customData.GameSummaryCategory = GameCustomDataNormalizer.NormalizeGameSummaryCategory(gameSummaryCategory);
@@ -401,6 +401,102 @@ namespace PlayniteAchievements.Services.Achievements
             });
         }
 
+        private static Dictionary<string, AchievementOverride> CloneOverrides(GameCustomDataFile customData)
+        {
+            var clone = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            if (customData.AchievementOverrides == null)
+            {
+                return clone;
+            }
+
+            foreach (var pair in customData.AchievementOverrides)
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
+                {
+                    clone[pair.Key] = pair.Value.Clone();
+                }
+            }
+
+            return clone;
+        }
+
+        private static void StoreOverrides(
+            GameCustomDataFile customData,
+            Dictionary<string, AchievementOverride> overrides)
+        {
+            var pruned = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in overrides)
+            {
+                if (pair.Value != null && !pair.Value.IsEmpty)
+                {
+                    pruned[pair.Key] = pair.Value;
+                }
+            }
+
+            customData.AchievementOverrides = pruned.Count > 0 ? pruned : null;
+        }
+
+        /// <summary>
+        /// Applies a change to one achievement's override record, pruning the row when nothing is
+        /// left on it. The record is authoritative: normalization republishes the legacy mirror
+        /// maps from it, so writing only a mirror map would have the change discarded.
+        /// </summary>
+        private static void MutateOverride(
+            GameCustomDataFile customData,
+            string apiName,
+            Action<AchievementOverride> apply)
+        {
+            var overrides = CloneOverrides(customData);
+            if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
+            {
+                entry = new AchievementOverride();
+            }
+
+            apply(entry);
+            overrides[apiName] = entry;
+            StoreOverrides(customData, overrides);
+        }
+
+        /// <summary>
+        /// Replaces one field across every override record from a whole-map write. The field is
+        /// cleared on rows absent from <paramref name="values"/>, matching the replace semantics the
+        /// legacy map writes had.
+        /// </summary>
+        private static void ReplaceOverrideField(
+            GameCustomDataFile customData,
+            IReadOnlyDictionary<string, string> values,
+            Action<AchievementOverride, string> apply)
+        {
+            var overrides = CloneOverrides(customData);
+            foreach (var entry in overrides.Values)
+            {
+                apply(entry, null);
+            }
+
+            if (values != null)
+            {
+                foreach (var pair in values)
+                {
+                    var apiName = (pair.Key ?? string.Empty).Trim();
+                    var value = (pair.Value ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(value))
+                    {
+                        continue;
+                    }
+
+                    if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
+                    {
+                        entry = new AchievementOverride();
+                        overrides[apiName] = entry;
+                    }
+
+                    apply(entry, value);
+                }
+            }
+
+            StoreOverrides(customData, overrides);
+        }
+
         public void SetAchievementNote(Guid gameId, string achievementApiName, string note)
         {
             if (gameId == Guid.Empty)
@@ -418,23 +514,7 @@ namespace PlayniteAchievements.Services.Achievements
             var normalizedNote = AchievementNoteHelper.NormalizeNote(note);
             _gameCustomDataStore.Update(
                 gameId,
-                customData =>
-                {
-                    var notes = customData.AchievementNotes != null
-                        ? new Dictionary<string, string>(customData.AchievementNotes, StringComparer.OrdinalIgnoreCase)
-                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-                    if (string.IsNullOrWhiteSpace(normalizedNote))
-                    {
-                        notes.Remove(apiName);
-                    }
-                    else
-                    {
-                        notes[apiName] = normalizedNote;
-                    }
-
-                    customData.AchievementNotes = notes.Count > 0 ? notes : null;
-                },
+                customData => MutateOverride(customData, apiName, entry => entry.Note = normalizedNote),
                 affectsSummaryData: false);
         }
 
@@ -468,8 +548,8 @@ namespace PlayniteAchievements.Services.Achievements
             IReadOnlyDictionary<string, string> unlockedIconOverrides,
             IReadOnlyDictionary<string, string> lockedIconOverrides)
         {
-            customData.AchievementUnlockedIconOverrides = CopyStringOverrides(unlockedIconOverrides);
-            customData.AchievementLockedIconOverrides = CopyStringOverrides(lockedIconOverrides);
+            ReplaceOverrideField(customData, unlockedIconOverrides, (entry, value) => entry.UnlockedIconPath = value);
+            ReplaceOverrideField(customData, lockedIconOverrides, (entry, value) => entry.LockedIconPath = value);
         }
 
         private static void ApplyCustomAchievementIcons(
@@ -762,6 +842,9 @@ namespace PlayniteAchievements.Services.Achievements
             customData.AchievementUnlockedIconOverrides = MigrateApiNameMap(customData.AchievementUnlockedIconOverrides, renamedApiNames);
             customData.AchievementLockedIconOverrides = MigrateApiNameMap(customData.AchievementLockedIconOverrides, renamedApiNames);
             customData.AchievementNotes = MigrateApiNameMap(customData.AchievementNotes, renamedApiNames);
+            // The record is authoritative, so its keys must follow the rename or the customization
+            // is orphaned and normalization republishes the old keys into the mirror maps.
+            customData.AchievementOverrides = MigrateApiNameMap(customData.AchievementOverrides, renamedApiNames);
         }
 
         private static string MigrateApiName(
@@ -803,8 +886,8 @@ namespace PlayniteAchievements.Services.Achievements
             return result.Count > 0 ? result : null;
         }
 
-        private static Dictionary<string, string> MigrateApiNameMap(
-            IReadOnlyDictionary<string, string> source,
+        private static Dictionary<string, TValue> MigrateApiNameMap<TValue>(
+            IReadOnlyDictionary<string, TValue> source,
             IReadOnlyDictionary<string, string> renamedApiNames)
         {
             if (source == null)
@@ -812,7 +895,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return null;
             }
 
-            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var result = new Dictionary<string, TValue>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in source)
             {
                 var migratedKey = MigrateApiName(pair.Key, renamedApiNames);
