@@ -1609,7 +1609,7 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        private void SetSource(AchievementDetail source, bool notifyChanges)
+        protected void SetSource(AchievementDetail source, bool notifyChanges)
         {
             if (ReferenceEquals(_source, source) && !notifyChanges)
             {
