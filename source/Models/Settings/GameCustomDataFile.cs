@@ -99,8 +99,10 @@ namespace PlayniteAchievements.Models.Settings
 
         public List<string> AchievementOrder { get; set; }
 
+        /// <inheritdoc cref="AchievementUnlockedIconOverrides"/>
         public Dictionary<string, string> AchievementCategoryOverrides { get; set; }
 
+        /// <inheritdoc cref="AchievementUnlockedIconOverrides"/>
         public Dictionary<string, string> AchievementCategoryTypeOverrides { get; set; }
 
         public List<string> AchievementCategoryOrder { get; set; }
@@ -119,10 +121,22 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public List<string> GoalAchievementApiNames { get; set; }
 
+        /// <summary>
+        /// Per-achievement user customization, keyed by ApiName. Schema 8 onward; the legacy
+        /// scalar maps below are folded into this on migration and then cleared.
+        /// </summary>
+        public Dictionary<string, AchievementOverride> AchievementOverrides { get; set; }
+
+        /// <summary>
+        /// Legacy (schema 7 and earlier). Migrated into <see cref="AchievementOverrides"/>.
+        /// Retained so existing records still deserialize; do not read these outside migration.
+        /// </summary>
         public Dictionary<string, string> AchievementUnlockedIconOverrides { get; set; }
 
+        /// <inheritdoc cref="AchievementUnlockedIconOverrides"/>
         public Dictionary<string, string> AchievementLockedIconOverrides { get; set; }
 
+        /// <inheritdoc cref="AchievementUnlockedIconOverrides"/>
         public Dictionary<string, string> AchievementNotes { get; set; }
 
         public int? RetroAchievementsGameIdOverride { get; set; }
@@ -198,6 +212,7 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementNotes = AchievementNotes != null
                     ? new Dictionary<string, string>(AchievementNotes, StringComparer.OrdinalIgnoreCase)
                     : null,
+                AchievementOverrides = CloneAchievementOverrideMap(AchievementOverrides),
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
                 XeniaTitleIdOverride = XeniaTitleIdOverride,
                 ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,
@@ -254,6 +269,7 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementNotes = AchievementNotes != null
                     ? new Dictionary<string, string>(AchievementNotes, StringComparer.OrdinalIgnoreCase)
                     : null,
+                AchievementOverrides = CloneAchievementOverrideMap(AchievementOverrides),
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
                 XeniaTitleIdOverride = XeniaTitleIdOverride,
                 ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,
@@ -318,6 +334,7 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementNotes = portable?.AchievementNotes != null
                     ? new Dictionary<string, string>(portable.AchievementNotes, StringComparer.OrdinalIgnoreCase)
                     : null,
+                AchievementOverrides = CloneAchievementOverrideMap(portable?.AchievementOverrides),
                 RetroAchievementsGameIdOverride = portable?.RetroAchievementsGameIdOverride,
                 XeniaTitleIdOverride = portable?.XeniaTitleIdOverride,
                 ShadPS4MatchIdOverride = portable?.ShadPS4MatchIdOverride,
@@ -346,6 +363,28 @@ namespace PlayniteAchievements.Models.Settings
             foreach (var pair in source)
             {
                 if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null)
+                {
+                    continue;
+                }
+
+                clone[pair.Key] = pair.Value.Clone();
+            }
+
+            return clone.Count > 0 ? clone : null;
+        }
+
+        internal static Dictionary<string, AchievementOverride> CloneAchievementOverrideMap(
+            IReadOnlyDictionary<string, AchievementOverride> source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var clone = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in source)
+            {
+                if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null || pair.Value.IsEmpty)
                 {
                     continue;
                 }
