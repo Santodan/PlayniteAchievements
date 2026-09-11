@@ -9,7 +9,7 @@ namespace PlayniteAchievements.SqlNado.Tests
 {
     /// <summary>
     /// Guards the filter-aware summary queries: current-user summary aggregates, timeline, and
-    /// recent unlocks must exclude achievements present in the AchievementFilters mirror table,
+    /// recent unlocks must exclude achievements flagged filtered in the AchievementOverrides mirror,
     /// recompute headline counts from the filtered join, and fail open for games without a
     /// PlayniteGameId. The SQL here mirrors SummaryCacheReader (not linkable into the test
     /// project); the source-text tether test keeps the two in sync.
@@ -107,27 +107,36 @@ namespace PlayniteAchievements.SqlNado.Tests
         {
             WithSeededDb(db =>
             {
-                // Duplicate insert is absorbed by the UNIQUE constraint (INSERT OR IGNORE).
+                // Duplicate insert is absorbed by the UNIQUE constraint (INSERT OR IGNORE). The
+                // constraint is now per (game, apiName): one row carries every flag, so a second
+                // insert for the same achievement cannot add a row.
                 db.ExecuteNonQuery(
-                    "INSERT OR IGNORE INTO AchievementFilters (PlayniteGameId, ApiName, Kind, CreatedUtc) VALUES (?, ?, ?, ?);",
-                    GameAId, "a3", "Filtered", "2026-07-20T00:00:00Z");
+                    @"INSERT OR IGNORE INTO AchievementOverrides
+                          (PlayniteGameId, ApiName, IsFiltered, IsSummaryFiltered, UpdatedUtc)
+                      VALUES (?, ?, ?, ?, ?);",
+                    GameAId, "a3", 0, 1, "2026-07-20T00:00:00Z");
                 var countA = db.ExecuteScalar<long>(
-                    "SELECT COUNT(*) FROM AchievementFilters WHERE PlayniteGameId = ?;", GameAId);
+                    "SELECT COUNT(*) FROM AchievementOverrides WHERE PlayniteGameId = ?;", GameAId);
                 Assert.AreEqual(2L, countA);
 
                 // Replace: delete-then-insert swaps the game's set wholesale.
-                db.ExecuteNonQuery("DELETE FROM AchievementFilters WHERE PlayniteGameId = ?;", GameAId);
+                db.ExecuteNonQuery("DELETE FROM AchievementOverrides WHERE PlayniteGameId = ?;", GameAId);
                 db.ExecuteNonQuery(
-                    "INSERT OR IGNORE INTO AchievementFilters (PlayniteGameId, ApiName, Kind, CreatedUtc) VALUES (?, ?, ?, ?);",
-                    GameAId, "a1", "SummaryFiltered", "2026-07-20T00:00:00Z");
+                    @"INSERT OR IGNORE INTO AchievementOverrides
+                          (PlayniteGameId, ApiName, IsFiltered, IsSummaryFiltered, UpdatedUtc)
+                      VALUES (?, ?, ?, ?, ?);",
+                    GameAId, "a1", 0, 1, "2026-07-20T00:00:00Z");
 
                 var remaining = db.Load<FilterTestRow>(
-                        "SELECT ApiName, Kind FROM AchievementFilters WHERE PlayniteGameId = ? ORDER BY ApiName;",
+                        @"SELECT ApiName, IsFiltered, IsSummaryFiltered
+                          FROM AchievementOverrides
+                          WHERE PlayniteGameId = ? ORDER BY ApiName;",
                         GameAId)
                     .ToList();
                 Assert.AreEqual(1, remaining.Count);
                 Assert.AreEqual("a1", remaining[0].ApiName);
-                Assert.AreEqual("SummaryFiltered", remaining[0].Kind);
+                Assert.AreEqual(0L, remaining[0].IsFiltered);
+                Assert.AreEqual(1L, remaining[0].IsSummaryFiltered);
 
                 // The swap is visible to the aggregates: a3/a4 count again, a1 no longer does.
                 var gameA = db.Load<GameSummaryTestRow>(GameSummarySql)
@@ -138,6 +147,47 @@ namespace PlayniteAchievements.SqlNado.Tests
             });
         }
 
+        [TestMethod]
+        public void OverrideRowWithoutFilterFlags_DoesNotRemoveTheAchievement()
+        {
+            WithSeededDb(db =>
+            {
+                // The mirror now also carries rows that only customize points or trophy type.
+                // Testing a row's presence instead of its flags would silently drop a2 from every
+                // summary the moment a user edited its points.
+                db.ExecuteNonQuery(
+                    @"INSERT OR IGNORE INTO AchievementOverrides
+                          (PlayniteGameId, ApiName, Points, TrophyType, IsFiltered, IsSummaryFiltered, UpdatedUtc)
+                      VALUES (?, ?, ?, ?, 0, 0, ?);",
+                    GameAId, "a2", 25, "gold", "2026-07-20T00:00:00Z");
+
+                var gameA = db.Load<GameSummaryTestRow>(GameSummarySql)
+                    .Single(r => r.PlayniteGameId == GameAId);
+
+                Assert.AreEqual(2, gameA.TotalAchievements, "A points/trophy override must not filter the achievement.");
+                Assert.AreEqual(1, gameA.TrophyGoldTotal, "The trophy count must resolve the override first.");
+            });
+        }
+
+        [TestMethod]
+        public void PointsOverride_IsSummedInsteadOfTheProviderValue()
+        {
+            WithSeededDb(db =>
+            {
+                db.ExecuteNonQuery("UPDATE AchievementDefinitions SET Points = 10 WHERE ApiName = 'a1';");
+                db.ExecuteNonQuery(
+                    @"INSERT OR IGNORE INTO AchievementOverrides
+                          (PlayniteGameId, ApiName, Points, IsFiltered, IsSummaryFiltered, UpdatedUtc)
+                      VALUES (?, ?, ?, 0, 0, ?);",
+                    GameAId, "a1", 99, "2026-07-20T00:00:00Z");
+
+                var row = db.Load<ScoreTestRow>(BuildScoreTotalsSql(unlockedOnly: true))
+                    .Single(r => r.CacheKey == GameAId);
+
+                Assert.AreEqual(99, row.Points);
+            });
+        }
+
         // Tethers the duplicated SQL above to the production reader and schema: if the
         // production predicate or DDL changes shape, this fails and the copies here must be
         // updated together with it.
@@ -145,16 +195,32 @@ namespace PlayniteAchievements.SqlNado.Tests
         public void ProductionReaderAndSchema_ContainFilterAwarePredicates()
         {
             var reader = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SummaryCacheReader.cs"));
-            var predicateCount = CountOccurrences(reader, "NOT EXISTS (SELECT 1 FROM AchievementFilters af");
-            Assert.AreEqual(4, predicateCount, "All four summary queries must carry the AchievementFilters anti-join.");
+            var predicateCount = CountOccurrences(reader, "NOT EXISTS (SELECT 1 FROM AchievementOverrides ao");
+            Assert.AreEqual(4, predicateCount, "All four summary queries must carry the AchievementOverrides anti-join.");
+            // The mirror now also holds rows that only carry points or trophy type. Without the
+            // flag test those rows would silently drop an achievement from every summary.
+            Assert.AreEqual(
+                4,
+                CountOccurrences(reader, "AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1))"),
+                "Each anti-join must test the filter flags, not merely the row's presence.");
+            // The user-editable fields aggregates read must resolve the override first.
+            StringAssert.Contains(reader, "COALESCE(aov.Points, ad.Points) AS Points");
+            StringAssert.Contains(reader, "LOWER(COALESCE(aov.TrophyType, ad.TrophyType, ''))");
+            // Rarity stays provider-owned; an override must never reach it.
+            Assert.AreEqual(
+                0,
+                CountOccurrences(reader, "aov.Rarity"),
+                "Rarity is provider-owned and must not be resolved from the override mirror.");
             StringAssert.Contains(reader, "MAX(CASE WHEN ua.Unlocked = 1 THEN ua.UnlockTimeUtc END) AS LastUnlockUtc");
             StringAssert.Contains(reader, "COUNT(ad.Id) AS TotalAchievements");
             StringAssert.Contains(reader, "SUM(CASE WHEN ua.Unlocked = 1 THEN 1 ELSE 0 END) AS AchievementsUnlocked");
 
             var schema = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoSchemaManager.cs"));
-            StringAssert.Contains(schema, "CREATE TABLE IF NOT EXISTS AchievementFilters");
-            StringAssert.Contains(schema, "UNIQUE (PlayniteGameId, ApiName, Kind)");
-            StringAssert.Contains(schema, "SchemaVersion = 17");
+            StringAssert.Contains(schema, "CREATE TABLE IF NOT EXISTS AchievementOverrides");
+            StringAssert.Contains(schema, "UNIQUE (PlayniteGameId, ApiName)");
+            // The narrower predecessor is dropped rather than left to drift.
+            StringAssert.Contains(schema, "DROP TABLE IF EXISTS AchievementFilters;");
+            StringAssert.Contains(schema, "SchemaVersion = 18");
         }
 
         private static void WithSeededDb(Action<SQLiteDatabase> action)
@@ -232,14 +298,17 @@ namespace PlayniteAchievements.SqlNado.Tests
                 ProgressNum INTEGER NULL,
                 ProgressDenom INTEGER NULL);");
 
-            // The real DDL from SqlNadoSchemaManager.EnsureAchievementFiltersTable.
-            db.ExecuteNonQuery(@"CREATE TABLE IF NOT EXISTS AchievementFilters (
+            // The real DDL from SqlNadoSchemaManager.EnsureAchievementOverridesTable.
+            db.ExecuteNonQuery(@"CREATE TABLE IF NOT EXISTS AchievementOverrides (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
                 ApiName TEXT NOT NULL COLLATE NOCASE,
-                Kind TEXT NOT NULL COLLATE NOCASE,
-                CreatedUtc TEXT NOT NULL,
-                UNIQUE (PlayniteGameId, ApiName, Kind)
+                Points INTEGER NULL,
+                TrophyType TEXT NULL COLLATE NOCASE,
+                IsFiltered INTEGER NOT NULL DEFAULT 0,
+                IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
+                UpdatedUtc TEXT NOT NULL,
+                UNIQUE (PlayniteGameId, ApiName)
             );");
         }
 
@@ -258,8 +327,8 @@ namespace PlayniteAchievements.SqlNado.Tests
             Exec(db, "INSERT INTO UserAchievements (Id, UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc) VALUES (2, 1100, 2, 0, NULL);");
             Exec(db, "INSERT INTO UserAchievements (Id, UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc) VALUES (3, 1100, 3, 1, '2026-06-01T10:00:00Z');");
             Exec(db, "INSERT INTO UserAchievements (Id, UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc) VALUES (4, 1100, 4, 1, '2026-04-01T10:00:00Z');");
-            Exec(db, $"INSERT INTO AchievementFilters (PlayniteGameId, ApiName, Kind, CreatedUtc) VALUES ('{GameAId}', 'a3', 'Filtered', '2026-07-01T00:00:00Z');");
-            Exec(db, $"INSERT INTO AchievementFilters (PlayniteGameId, ApiName, Kind, CreatedUtc) VALUES ('{GameAId}', 'a4', 'SummaryFiltered', '2026-07-01T00:00:00Z');");
+            Exec(db, $"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, IsFiltered, IsSummaryFiltered, UpdatedUtc) VALUES ('{GameAId}', 'a3', 1, 0, '2026-07-01T00:00:00Z');");
+            Exec(db, $"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, IsFiltered, IsSummaryFiltered, UpdatedUtc) VALUES ('{GameAId}', 'a4', 0, 1, '2026-07-01T00:00:00Z');");
 
             // Game B: provider-only (no PlayniteGameId); the decoy filter row targets a
             // different game id with a matching ApiName and must not apply.
@@ -267,14 +336,14 @@ namespace PlayniteAchievements.SqlNado.Tests
             Exec(db, "INSERT INTO UserGameProgress (Id, UserId, GameId, CacheKey, HasAchievements, LastUpdatedUtc) VALUES (1200, 1, 200, 'app:200', 1, '2026-07-02T00:00:00Z');");
             Exec(db, "INSERT INTO AchievementDefinitions (Id, GameId, ApiName, Rarity) VALUES (5, 200, 'b1', 'common');");
             Exec(db, "INSERT INTO UserAchievements (Id, UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc) VALUES (5, 1200, 5, 1, '2026-05-20T10:00:00Z');");
-            Exec(db, $"INSERT INTO AchievementFilters (PlayniteGameId, ApiName, Kind, CreatedUtc) VALUES ('{DecoyGameId}', 'b1', 'Filtered', '2026-07-01T00:00:00Z');");
+            Exec(db, $"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, IsFiltered, IsSummaryFiltered, UpdatedUtc) VALUES ('{DecoyGameId}', 'b1', 1, 0, '2026-07-01T00:00:00Z');");
 
             // Game C: every achievement filtered.
             Exec(db, $"INSERT INTO Games (Id, ProviderKey, PlayniteGameId, GameName) VALUES (300, 'Steam', '{GameCId}', 'Game C');");
             Exec(db, $"INSERT INTO UserGameProgress (Id, UserId, GameId, CacheKey, HasAchievements, LastUpdatedUtc) VALUES (1300, 1, 300, '{GameCId}', 1, '2026-07-03T00:00:00Z');");
             Exec(db, "INSERT INTO AchievementDefinitions (Id, GameId, ApiName, Rarity) VALUES (6, 300, 'c1', 'rare');");
             Exec(db, "INSERT INTO UserAchievements (Id, UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc) VALUES (6, 1300, 6, 1, '2026-06-15T10:00:00Z');");
-            Exec(db, $"INSERT INTO AchievementFilters (PlayniteGameId, ApiName, Kind, CreatedUtc) VALUES ('{GameCId}', 'c1', 'Filtered', '2026-07-01T00:00:00Z');");
+            Exec(db, $"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, IsFiltered, IsSummaryFiltered, UpdatedUtc) VALUES ('{GameCId}', 'c1', 1, 0, '2026-07-01T00:00:00Z');");
         }
 
         private static void Exec(SQLiteDatabase db, string sql) => db.ExecuteNonQuery(sql);
@@ -344,16 +413,21 @@ namespace PlayniteAchievements.SqlNado.Tests
                 SUM(CASE WHEN LOWER(COALESCE(ad.Rarity, '')) = 'rare' AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS RareCount,
                 SUM(CASE WHEN LOWER(COALESCE(ad.Rarity, '')) = 'common' THEN 1 ELSE 0 END) AS TotalCommonPossible,
                 SUM(CASE WHEN LOWER(COALESCE(ad.Rarity, '')) = 'rare' THEN 1 ELSE 0 END) AS TotalRarePossible,
+                SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'gold' THEN 1 ELSE 0 END) AS TrophyGoldTotal,
                 MAX(CASE WHEN ad.IsCapstone = 1 AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS HasUnlockedCapstone
             FROM LatestProgress lp
             LEFT JOIN AchievementDefinitions ad
                 ON ad.GameId = lp.GameId
-               AND NOT EXISTS (SELECT 1 FROM AchievementFilters af
-                               WHERE af.PlayniteGameId = lp.PlayniteGameId
-                                 AND af.ApiName = ad.ApiName)
+               AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
+                               WHERE ao.PlayniteGameId = lp.PlayniteGameId
+                                 AND ao.ApiName = ad.ApiName
+                                     AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1))
             LEFT JOIN UserAchievements ua
                 ON ua.AchievementDefinitionId = ad.Id
                AND ua.UserGameProgressId = lp.UserGameProgressId
+            LEFT JOIN AchievementOverrides aov
+                ON aov.PlayniteGameId = lp.PlayniteGameId
+               AND aov.ApiName = ad.ApiName
             WHERE lp.RowNum = 1
             GROUP BY
                 lp.CacheKey,
@@ -392,9 +466,10 @@ namespace PlayniteAchievements.SqlNado.Tests
                AND ua.UnlockTimeUtc IS NOT NULL
             INNER JOIN AchievementDefinitions ad ON ad.Id = ua.AchievementDefinitionId
             WHERE lp.RowNum = 1
-              AND NOT EXISTS (SELECT 1 FROM AchievementFilters af
-                              WHERE af.PlayniteGameId = lp.PlayniteGameId
-                                AND af.ApiName = ad.ApiName)
+              AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
+                              WHERE ao.PlayniteGameId = lp.PlayniteGameId
+                                AND ao.ApiName = ad.ApiName
+                                     AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1))
             GROUP BY
                 lp.CacheKey,
                 lp.PlayniteGameId,
@@ -431,9 +506,10 @@ namespace PlayniteAchievements.SqlNado.Tests
                AND ua.UnlockTimeUtc IS NOT NULL
             INNER JOIN AchievementDefinitions ad ON ad.Id = ua.AchievementDefinitionId
             WHERE lp.RowNum = 1
-              AND NOT EXISTS (SELECT 1 FROM AchievementFilters af
-                              WHERE af.PlayniteGameId = lp.PlayniteGameId
-                                AND af.ApiName = ad.ApiName)
+              AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
+                              WHERE ao.PlayniteGameId = lp.PlayniteGameId
+                                AND ao.ApiName = ad.ApiName
+                                     AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1))
             ORDER BY ua.UnlockTimeUtc DESC, lp.CacheKey, ad.Id LIMIT ?;";
 
         // Mirrors SummaryCacheReader.LoadCachedScoreTotals.
@@ -466,14 +542,18 @@ namespace PlayniteAchievements.SqlNado.Tests
                 SELECT
                     lp.CacheKey AS CacheKey,
                     ad.Rarity AS Rarity,
-                    ad.Points AS Points
+                    COALESCE(aov.Points, ad.Points) AS Points
                 FROM LatestProgress lp
                 INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
+                LEFT JOIN AchievementOverrides aov
+                    ON aov.PlayniteGameId = lp.PlayniteGameId
+                   AND aov.ApiName = ad.ApiName
                 " + userAchievementJoin + @"
                 WHERE lp.RowNum = 1
-                  AND NOT EXISTS (SELECT 1 FROM AchievementFilters af
-                                  WHERE af.PlayniteGameId = lp.PlayniteGameId
-                                    AND af.ApiName = ad.ApiName)
+                  AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
+                                  WHERE ao.PlayniteGameId = lp.PlayniteGameId
+                                    AND ao.ApiName = ad.ApiName
+                                     AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1))
                 ORDER BY lp.CacheKey;";
         }
 
@@ -490,6 +570,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             public long RareCount { get; set; }
             public long TotalCommonPossible { get; set; }
             public long TotalRarePossible { get; set; }
+            public long TrophyGoldTotal { get; set; }
             public long HasUnlockedCapstone { get; set; }
         }
 
@@ -519,7 +600,8 @@ namespace PlayniteAchievements.SqlNado.Tests
         private sealed class FilterTestRow
         {
             public string ApiName { get; set; }
-            public string Kind { get; set; }
+            public long IsFiltered { get; set; }
+            public long IsSummaryFiltered { get; set; }
         }
     }
 }
