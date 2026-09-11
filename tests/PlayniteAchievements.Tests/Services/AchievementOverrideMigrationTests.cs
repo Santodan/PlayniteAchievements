@@ -192,6 +192,77 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void Normalize_UnlockTimeOverride_IsCoercedToUtc()
+        {
+            var local = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Local);
+            var result = Normalize(new GameCustomDataFile
+            {
+                SchemaVersion = 8,
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["ach_one"] = new AchievementOverride { UnlockTimeUtc = local }
+                }
+            });
+
+            var stored = result.AchievementOverrides["ach_one"].UnlockTimeUtc;
+            Assert.IsTrue(stored.HasValue);
+            Assert.AreEqual(DateTimeKind.Utc, stored.Value.Kind);
+            Assert.AreEqual(local.ToUniversalTime(), stored.Value);
+        }
+
+        [TestMethod]
+        public void Normalize_UnspecifiedUnlockTimeKind_IsTreatedAsUtc()
+        {
+            var unspecified = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Unspecified);
+            var result = Normalize(new GameCustomDataFile
+            {
+                SchemaVersion = 8,
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["ach_one"] = new AchievementOverride { UnlockTimeUtc = unspecified }
+                }
+            });
+
+            var stored = result.AchievementOverrides["ach_one"].UnlockTimeUtc;
+            Assert.AreEqual(DateTimeKind.Utc, stored.Value.Kind);
+            Assert.AreEqual(unspecified.Ticks, stored.Value.Ticks);
+        }
+
+        [TestMethod]
+        public void Normalize_UnlockTimeOnlyOverride_CountsAsCustomization()
+        {
+            var data = new GameCustomDataFile
+            {
+                SchemaVersion = 8,
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["ach_one"] = new AchievementOverride
+                    {
+                        UnlockTimeUtc = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)
+                    }
+                }
+            };
+
+            Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(data));
+            Assert.IsNotNull(Normalize(data).AchievementOverrides);
+        }
+
+        [TestMethod]
+        public void Normalize_DefaultUnlockTime_IsDropped()
+        {
+            var result = Normalize(new GameCustomDataFile
+            {
+                SchemaVersion = 8,
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["ach_one"] = new AchievementOverride { UnlockTimeUtc = DateTime.MinValue }
+                }
+            });
+
+            Assert.IsNull(result.AchievementOverrides);
+        }
+
+        [TestMethod]
         public void Normalize_InvalidTrophyTypeAndNegativePoints_AreDropped()
         {
             var result = Normalize(new GameCustomDataFile
@@ -291,6 +362,7 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.AreEqual(pair.Value.Description, second.Description);
                 Assert.AreEqual(pair.Value.Points, second.Points);
                 Assert.AreEqual(pair.Value.TrophyType, second.TrophyType);
+                Assert.AreEqual(pair.Value.UnlockTimeUtc, second.UnlockTimeUtc);
                 Assert.AreEqual(pair.Value.UnlockedIconPath, second.UnlockedIconPath);
                 Assert.AreEqual(pair.Value.LockedIconPath, second.LockedIconPath);
             }
@@ -371,6 +443,7 @@ namespace PlayniteAchievements.Services.Tests
                         Description = "Rewritten",
                         Points = 7,
                         TrophyType = "silver",
+                        UnlockTimeUtc = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc),
                         Category = "Story",
                         Note = "note",
                         UnlockedIconPath = "unlocked.png",
@@ -390,6 +463,7 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual("Rewritten", entry.Description);
             Assert.AreEqual(7, entry.Points);
             Assert.AreEqual("silver", entry.TrophyType);
+            Assert.AreEqual(new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc), entry.UnlockTimeUtc);
             Assert.AreEqual("Story", entry.Category);
             Assert.AreEqual("note", entry.Note);
             Assert.AreEqual("unlocked.png", entry.UnlockedIconPath);
