@@ -119,6 +119,13 @@
                                      Style="{StaticResource NavTabRadioStyle}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Custom}" />
 
+                        <!-- Not gated on HasAchievementData: it folds in the Custom tab, which must
+                             stay reachable for a game with no cached achievements. -->
+                        <RadioButton x:Name="EditorTabButton"
+                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Editor}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Editor}" />
+
                         <TextBlock x:Name="AchievementsSectionHeader"
                                    Text="{DynamicResource LOCPlayAch_Achievements}"
                                    Style="{StaticResource NavSectionHeaderStyle}"
@@ -252,6 +259,20 @@
                         </Style>
                     </Grid.Style>
                     <ContentControl x:Name="CustomHost" />
+                </Grid>
+
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTab}" Value="Editor">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <ContentControl x:Name="EditorHost" />
                 </Grid>
 
                 <Grid>

@@ -34,6 +34,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ManageAchievementsTab.Overview,
             ManageAchievementsTab.ManualTracking,
             ManageAchievementsTab.Custom,
+            ManageAchievementsTab.Editor,
             ManageAchievementsTab.Category,
             ManageAchievementsTab.Filters,
             ManageAchievementsTab.AchievementOrder,
@@ -59,6 +60,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private ManageAchievementsCapstonesTab _capstoneControl;
         private ManageAchievementsManualTrackingTab _manualControl;
+        private ManageAchievementsEditorTab _editorControl;
         private ManageAchievementsCustomTab _customControl;
         private ManageAchievementsAchievementOrderTab _achievementOrderControl;
         private ManageAchievementsGoalsTab _goalsControl;
@@ -70,6 +72,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private System.Windows.Threading.DispatcherTimer _iconOverridesChangedDebounce;
         private readonly HashSet<string> _pendingIconOverrideApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private ManualAchievementsViewModel _manualViewModel;
+        private ManageAchievementsEditorViewModel _editorViewModel;
         private ManageAchievementsCustomViewModel _customViewModel;
         private ManageAchievementsAchievementOrderViewModel _achievementOrderViewModel;
         private ManageAchievementsGoalsViewModel _goalsViewModel;
@@ -79,6 +82,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private ManageAchievementsAchievementIconsViewModel _achievementIconsViewModel;
         private bool _manualStartAtEditing;
         private bool _manualRefreshPending;
+        private bool _editorRefreshPending;
         private bool _customRefreshPending;
         private bool _capstoneRefreshPending;
         private bool _achievementOrderRefreshPending;
@@ -192,6 +196,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             CleanupCapstone();
             CleanupManual();
+            CleanupEditor();
             CleanupCustom();
             CleanupAchievementOrder();
             CleanupGoals();
@@ -282,6 +287,20 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     // and throws away the wizard stage plus any unsaved unlock edits.
                     _manualViewModel?.RefreshAchievementIcons();
                     _manualRefreshPending = false;
+                }
+            }
+            else if (_viewModel.SelectedTab == ManageAchievementsTab.Editor)
+            {
+                var hadEditorControl = _editorControl != null;
+                EnsureEditorControl(forceRecreate: false);
+                if (_editorRefreshPending)
+                {
+                    if (hadEditorControl)
+                    {
+                        _editorControl?.RefreshData();
+                    }
+
+                    _editorRefreshPending = false;
                 }
             }
             else if (_viewModel.SelectedTab == ManageAchievementsTab.Custom)
@@ -554,6 +573,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     OverviewTabButton,
                     ManualTrackingTabButton,
                     CustomTabButton,
+                    EditorTabButton,
                     CategoryTabButton,
                     FiltersTabButton,
                     AchievementOrderTabButton,
@@ -604,6 +624,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     return _manualControl?.GetControllerElements() ?? new List<UIElement>();
                 case ManageAchievementsTab.Custom:
                     return _customControl?.GetControllerElements() ?? new List<UIElement>();
+                case ManageAchievementsTab.Editor:
+                    return _editorControl?.GetControllerElements() ?? new List<UIElement>();
                 case ManageAchievementsTab.Capstones:
                     return _capstoneControl?.GetControllerElements() ?? new List<UIElement>();
                 case ManageAchievementsTab.Category:
@@ -669,6 +691,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     return _manualControl?.HandleFullscreenControllerInput(input) == true;
                 case ManageAchievementsTab.Custom:
                     return _customControl?.HandleFullscreenControllerInput(input) == true;
+                case ManageAchievementsTab.Editor:
+                    return _editorControl?.HandleFullscreenControllerInput(input) == true;
                 case ManageAchievementsTab.Category:
                     return _categoryControl?.HandleFullscreenControllerInput(input) == true;
                 case ManageAchievementsTab.Filters:
@@ -868,6 +892,51 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _manualControl = new ManageAchievementsManualTrackingTab(_manualViewModel);
             _manualControl.UnlinkCommand = _viewModel.UnlinkManualTrackingCommand;
             ManualHost.Content = _manualControl;
+        }
+
+        private void EnsureEditorControl(bool forceRecreate)
+        {
+            if (_editorControl != null && !forceRecreate)
+            {
+                return;
+            }
+
+            CleanupEditor();
+
+            _editorViewModel = new ManageAchievementsEditorViewModel(
+                _viewModel.GameId,
+                _achievementOverridesService,
+                _gameDataSnapshotProvider,
+                _settings,
+                _logger);
+            _editorViewModel.CustomizationPersisted += EditorViewModel_CustomizationPersisted;
+            _editorControl = new ManageAchievementsEditorTab(_editorViewModel);
+            EditorHost.Content = _editorControl;
+        }
+
+        // An edit here changes the same data the per-facet tabs show, so it propagates exactly as
+        // a Category tab edit does. The editor already shows its own change, so it is not marked
+        // for refresh and keeps its rows and selection.
+        private void EditorViewModel_CustomizationPersisted(object sender, EventArgs e)
+        {
+            CategoryViewModel_DeferredLibraryRefreshRequired(sender, e);
+            _editorRefreshPending = false;
+        }
+
+        private void CleanupEditor()
+        {
+            if (_editorViewModel != null)
+            {
+                _editorViewModel.CustomizationPersisted -= EditorViewModel_CustomizationPersisted;
+            }
+
+            _editorControl = null;
+            _editorViewModel = null;
+
+            if (EditorHost != null)
+            {
+                EditorHost.Content = null;
+            }
         }
 
         private void EnsureCustomControl(bool forceRecreate)
