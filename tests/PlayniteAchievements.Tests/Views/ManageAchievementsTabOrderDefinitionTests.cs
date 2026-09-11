@@ -24,9 +24,9 @@ namespace PlayniteAchievements.Tests.Views
             var focusOrder = ReadFocusButtonOrder();
 
             Assert.AreEqual(
-                12,
+                13,
                 xamlOrder.Count,
-                "Expected 12 tabs in the nav rail; update this test if a tab was added or removed.");
+                "Expected 13 tabs in the nav rail; update this test if a tab was added or removed.");
 
             CollectionAssert.AreEqual(
                 xamlOrder,
