@@ -355,6 +355,35 @@
                     </StackPanel>
                 </ScrollViewer>
             </Border>
+
+            <!-- Drag chrome for the reorder behavior, which requires both: the insert line marks
+                 the drop position and the popup shows how many rows are moving. -->
+            <Border x:Name="DropInsertLine"
+                    Grid.Column="0"
+                    Height="2"
+                    VerticalAlignment="Top"
+                    HorizontalAlignment="Stretch"
+                    Background="{DynamicResource PlayAch.Brush.Accent}"
+                    Visibility="Collapsed"
+                    IsHitTestVisible="False"
+                    Panel.ZIndex="10" />
+
+            <Popup x:Name="DragCountPopup"
+                   Placement="AbsolutePoint"
+                   AllowsTransparency="True"
+                   StaysOpen="True"
+                   IsHitTestVisible="False">
+                <Border Background="{StaticResource PlayAch.Brush.DialogBackdrop}"
+                        BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
+                        BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                        CornerRadius="10"
+                        Padding="8,3">
+                    <TextBlock x:Name="DragCountText"
+                               Foreground="White"
+                               FontWeight="SemiBold"
+                               FontSize="{DynamicResource PlayAch.FontSize.Caption}" />
+                </Border>
+            </Popup>
         </Grid>
     </Grid>
 </UserControl>

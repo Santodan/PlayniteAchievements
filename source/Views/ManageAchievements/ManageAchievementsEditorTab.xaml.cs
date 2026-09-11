@@ -31,6 +31,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
             DataGridRowReorderBehavior.SetOptions(AchievementsGrid, new DataGridRowReorderOptions
             {
                 DragDataFormat = DragDataFormat,
+                DropIndicator = DropInsertLine,
+                DragCountPopup = DragCountPopup,
+                DragCountText = DragCountText,
                 IsReorderableItem = item => item is AchievementEditorRow,
                 ExtractDragKeys = items => AchievementOrderHelper.NormalizeApiNames(
                     items.OfType<AchievementEditorRow>().Select(item => item.ApiName)),
