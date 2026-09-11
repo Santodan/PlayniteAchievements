@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using PlayniteAchievements.Services.Database.Rows;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
@@ -21,16 +22,18 @@ namespace PlayniteAchievements.Services.Cache
         CachedSummaryData LoadCachedSummaryDataFast(int recentAchievementDetailLimit = 0);
     }
 
-    // Write access to the AchievementFilters mirror table — the summary queries' SQL-side view
-    // of the per-game achievement filter lists that live in the separate custom-data database.
-    internal interface IAchievementFilterMirror
+    // Write access to the AchievementOverrides mirror table — the summary queries' SQL-side view
+    // of the per-achievement override records that live in the separate custom-data database.
+    // Carries the filter flags plus the user-editable points and trophy type, which aggregates
+    // read directly; fields no query aggregates stay in the blob.
+    internal interface IAchievementOverrideMirror
     {
-        void ReplaceAchievementFilters(Guid playniteGameId, IReadOnlyList<(string ApiName, string Kind)> entries);
+        void ReplaceAchievementOverrides(Guid playniteGameId, IReadOnlyList<AchievementOverrideMirrorEntry> entries);
 
-        void ResyncAllAchievementFilters(IReadOnlyDictionary<Guid, IReadOnlyList<(string ApiName, string Kind)>> entriesByGameId);
+        void ResyncAllAchievementOverrides(IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId);
     }
 
-    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementFilterMirror, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
+    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementOverrideMirror, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
     {
         private const int MaxInMemoryGames = 256;
 
@@ -167,13 +170,13 @@ namespace PlayniteAchievements.Services.Cache
 
         // Mirror writes never throw: when the store failed to initialize, summaries are
         // unavailable anyway and the summary reader fails open (empty table = unfiltered).
-        void IAchievementFilterMirror.ReplaceAchievementFilters(
+        void IAchievementOverrideMirror.ReplaceAchievementOverrides(
             Guid playniteGameId,
-            IReadOnlyList<(string ApiName, string Kind)> entries)
+            IReadOnlyList<AchievementOverrideMirrorEntry> entries)
         {
             try
             {
-                _store.ReplaceAchievementFilters(playniteGameId, entries);
+                _store.ReplaceAchievementOverrides(playniteGameId, entries);
             }
             catch (Exception ex)
             {
@@ -181,12 +184,12 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
-        void IAchievementFilterMirror.ResyncAllAchievementFilters(
-            IReadOnlyDictionary<Guid, IReadOnlyList<(string ApiName, string Kind)>> entriesByGameId)
+        void IAchievementOverrideMirror.ResyncAllAchievementOverrides(
+            IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId)
         {
             try
             {
-                var changedGames = _store.ResyncAllAchievementFilters(entriesByGameId);
+                var changedGames = _store.ResyncAllAchievementOverrides(entriesByGameId);
                 _logger?.Debug(changedGames > 0
                     ? $"[Filters] Achievement filter mirror resynced for {changedGames} game(s)."
                     : "[Filters] Achievement filter mirror unchanged.");
