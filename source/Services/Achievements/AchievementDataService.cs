@@ -859,24 +859,52 @@ namespace PlayniteAchievements.Services.Achievements
                     achievement.IsCapstone = string.Equals(apiName, manualCapstoneApiName, StringComparison.OrdinalIgnoreCase);
                 }
 
-                if (resolved.AchievementCategoryOverrides != null &&
-                    resolved.AchievementCategoryOverrides.TryGetValue(apiName, out var categoryOverride) &&
-                    !string.IsNullOrWhiteSpace(categoryOverride))
+                // Summary rows come straight from SQL, so the per-achievement record is applied
+                // here the way the hydrator applies it to the achievement list. Without this the
+                // overview's recent-unlock entries would show the provider's title and points
+                // while the list showed the user's.
+                var userOverride = ResolveSummaryOverride(resolved, apiName);
+                if (userOverride != null)
                 {
-                    achievement.Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryOverride);
+                    if (!string.IsNullOrWhiteSpace(userOverride.Category))
+                    {
+                        achievement.Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(userOverride.Category);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(userOverride.CategoryType))
+                    {
+                        achievement.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(userOverride.CategoryType);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(userOverride.DisplayName))
+                    {
+                        achievement.DisplayName = userOverride.DisplayName;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(userOverride.Description))
+                    {
+                        achievement.Description = userOverride.Description;
+                    }
+
+                    if (userOverride.Points.HasValue)
+                    {
+                        achievement.Points = userOverride.Points;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(userOverride.TrophyType))
+                    {
+                        achievement.TrophyType = userOverride.TrophyType;
+                    }
+
+                    // Only a correction to an achievement that is already unlocked; unlock status
+                    // itself stays provider-owned.
+                    if (userOverride.UnlockTimeUtc.HasValue && achievement.Unlocked)
+                    {
+                        achievement.UnlockTimeUtc = userOverride.UnlockTimeUtc;
+                    }
                 }
 
-                if (resolved.AchievementCategoryTypeOverrides != null &&
-                    resolved.AchievementCategoryTypeOverrides.TryGetValue(apiName, out var categoryTypeOverride) &&
-                    !string.IsNullOrWhiteSpace(categoryTypeOverride))
-                {
-                    achievement.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(categoryTypeOverride);
-                }
-
-                achievement.AchievementNote = resolved.AchievementNotes != null &&
-                                         resolved.AchievementNotes.TryGetValue(apiName, out var note)
-                    ? note
-                    : null;
+                achievement.AchievementNote = userOverride?.Note;
 
                 var unlockedOverride = AchievementIconOverrideHelper.GetOverrideValue(customization.UnlockedIconOverrides, apiName);
                 if (!string.IsNullOrWhiteSpace(unlockedOverride))
@@ -894,6 +922,21 @@ namespace PlayniteAchievements.Services.Achievements
                         achievement.PlayniteGameId.Value);
                 }
             }
+        }
+
+        /// <summary>
+        /// The per-achievement override record for a summary row, resolving through the legacy
+        /// mirror maps when the resolved data predates the record.
+        /// </summary>
+        private static AchievementOverride ResolveSummaryOverride(ResolvedGameCustomData resolved, string apiName)
+        {
+            var overrides = resolved?.ResolveAchievementOverrides();
+            if (overrides == null || overrides.Count == 0)
+            {
+                return null;
+            }
+
+            return overrides.TryGetValue(apiName, out var entry) ? entry : null;
         }
 
         private bool IsManualCapstoneUnlocked(Guid playniteGameId, string manualCapstoneApiName)
