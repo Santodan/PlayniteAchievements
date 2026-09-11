@@ -244,14 +244,19 @@
                 <ColumnDefinition Width="340" />
             </Grid.ColumnDefinitions>
 
-            <!-- The grid sizes to its rows so the add button follows the last one; the outer
-                 scroll viewer takes over scrolling, which is fine at custom-achievement counts. -->
-            <ScrollViewer Grid.Column="0"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled">
-            <StackPanel>
+            <!-- The grid owns its own scrolling. Nested in a ScrollViewer it was measured with
+                 unbounded height, which defeats row virtualization entirely and realizes every
+                 row: fine for a handful of authored achievements, but this editor now lists a
+                 whole library. The add button therefore sits below the grid rather than trailing
+                 the last row. -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
             <DataGrid x:Name="CustomAchievementsGrid"
+                      Grid.Row="0"
                       ItemsSource="{Binding AchievementRows}"
                       SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
                       AutoGenerateColumns="False"
@@ -274,7 +279,7 @@
                       VirtualizingStackPanel.VirtualizationMode="Recycling"
                       VirtualizingStackPanel.ScrollUnit="Pixel"
                       ScrollViewer.CanContentScroll="True"
-                      ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       ColumnHeaderStyle="{StaticResource ManageAchievementsColumnHeaderStyle}"
                       helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
@@ -439,8 +444,9 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-                <!-- A second Add right under the last row, where the new row will appear. -->
+                <!-- A second Add directly beneath the grid, pinned rather than scrolling away. -->
                 <Button x:Name="AddRowFooterButton"
+                        Grid.Row="1"
                         Content="&#x2B;"
                         FontSize="16"
                         FontWeight="SemiBold"
@@ -450,8 +456,7 @@
                         MinHeight="26"
                         Padding="0"
                         Margin="0,6,0,0" />
-            </StackPanel>
-            </ScrollViewer>
+            </Grid>
 
             <Border Grid.Column="2"
                     Style="{StaticResource CardBorderStyle}">
