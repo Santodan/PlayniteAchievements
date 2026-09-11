@@ -272,6 +272,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             changed |= RenameDictionaryKeys(data.AchievementUnlockedIconOverrides, renamedApiNames);
             changed |= RenameDictionaryKeys(data.AchievementLockedIconOverrides, renamedApiNames);
             changed |= RenameDictionaryKeys(data.AchievementNotes, renamedApiNames);
+            changed |= RenameDictionaryKeys(data.AchievementOverrides, renamedApiNames);
 
             return changed;
         }
@@ -320,8 +321,68 @@ namespace PlayniteAchievements.Services.GameCustomData
             return changed;
         }
 
-        private static bool RenameDictionaryKeys(
-            IDictionary<string, string> map,
+        /// <summary>
+        /// Republishes the icon paths from the legacy mirror maps onto the per-achievement record.
+        /// Existing record paths are cleared first, so an icon dropped from the package (its source
+        /// file was missing) does not survive as a stale absolute path.
+        /// </summary>
+        private static void SyncPortableOverrideIconsFromLegacyMaps(GameCustomDataPortableFile portable)
+        {
+            if (portable.AchievementOverrides != null)
+            {
+                foreach (var entry in portable.AchievementOverrides.Values)
+                {
+                    if (entry != null)
+                    {
+                        entry.UnlockedIconPath = null;
+                        entry.LockedIconPath = null;
+                    }
+                }
+            }
+
+            if (portable.AchievementUnlockedIconOverrides != null)
+            {
+                foreach (var pair in portable.AchievementUnlockedIconOverrides)
+                {
+                    ResolvePortableOverride(portable, pair.Key).UnlockedIconPath = pair.Value;
+                }
+            }
+
+            if (portable.AchievementLockedIconOverrides != null)
+            {
+                foreach (var pair in portable.AchievementLockedIconOverrides)
+                {
+                    ResolvePortableOverride(portable, pair.Key).LockedIconPath = pair.Value;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or creates the per-achievement override record on a portable package. The record is
+        /// the authoritative shape, so a writer that only updated the legacy mirror map would have
+        /// its value overwritten when normalization re-projects the record.
+        /// </summary>
+        private static AchievementOverride ResolvePortableOverride(
+            GameCustomDataPortableFile portable,
+            string apiName)
+        {
+            if (portable.AchievementOverrides == null)
+            {
+                portable.AchievementOverrides =
+                    new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (!portable.AchievementOverrides.TryGetValue(apiName, out var entry) || entry == null)
+            {
+                entry = new AchievementOverride();
+                portable.AchievementOverrides[apiName] = entry;
+            }
+
+            return entry;
+        }
+
+        private static bool RenameDictionaryKeys<TValue>(
+            IDictionary<string, TValue> map,
             IReadOnlyDictionary<string, string> renamedApiNames)
         {
             if (map == null || map.Count == 0)
@@ -469,6 +530,10 @@ namespace PlayniteAchievements.Services.GameCustomData
                 playniteGameId,
                 portable.NotificationAppearanceOverride?.Style,
                 imageSources);
+            // The rewrites above retarget the legacy mirror maps at package-relative paths. Mirror
+            // them back onto the record, or the manifest ships two disagreeing copies and the
+            // record's absolute local paths win when the package is normalized on import.
+            SyncPortableOverrideIconsFromLegacyMaps(portable);
 
             EnsureDestinationDirectory(destinationPath);
             if (File.Exists(destinationPath))
@@ -662,6 +727,14 @@ namespace PlayniteAchievements.Services.GameCustomData
 
                     RewritePackageImageOverrides(playniteGameId, entriesByName, portable?.AchievementUnlockedIconOverrides, AchievementIconVariant.Unlocked);
                     RewritePackageImageOverrides(playniteGameId, entriesByName, portable?.AchievementLockedIconOverrides, AchievementIconVariant.Locked);
+                    if (portable != null)
+                    {
+                        // The rewrites above only see the legacy mirror maps. Republish them onto
+                        // the record, which normalization treats as authoritative, so the imported
+                        // icons point at the extracted files rather than the exporter's paths.
+                        SyncPortableOverrideIconsFromLegacyMaps(portable);
+                    }
+
                     RewritePackageCustomAchievementImages(playniteGameId, entriesByName, portable?.CustomAchievements);
                     RewritePackageCategoryImageOverrides(playniteGameId, entriesByName, portable?.AchievementCategoryImageOverrides);
                     RewritePackageNotificationImages(
@@ -724,6 +797,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     }
 
                     portable.AchievementLockedIconOverrides[apiName] = managedPath;
+                    ResolvePortableOverride(portable, apiName).LockedIconPath = managedPath;
                 }
                 else
                 {
@@ -733,6 +807,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     }
 
                     portable.AchievementUnlockedIconOverrides[apiName] = managedPath;
+                    ResolvePortableOverride(portable, apiName).UnlockedIconPath = managedPath;
                 }
             }
 
