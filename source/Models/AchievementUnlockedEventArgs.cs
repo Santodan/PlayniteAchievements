@@ -26,7 +26,22 @@ namespace PlayniteAchievements.Models
         public string DisplayName { get; set; }
         public string Description { get; set; }
         public string Category { get; set; }
+        /// <summary>
+        /// The achievement's unlocked artwork as a plain, directly bindable source: an absolute
+        /// local path, a pack URI, or null. Never carries a display decoration (no "gray:" or
+        /// "cachebust:" prefix) -- the toast view model owns that decision and exposes both the
+        /// plain path and the resolved bitmap.
+        /// </summary>
         public string IconPath { get; set; }
+
+        /// <summary>
+        /// The achievement's locked artwork when the provider ships a distinct one, in the same
+        /// plain form as <see cref="IconPath"/>. The view model picks between the two, so a
+        /// notification for a still-locked achievement (a progress update) can show the locked art
+        /// without the producer having to know how it will be rendered.
+        /// </summary>
+        public string LockedIconPath { get; set; }
+
         public double? GlobalPercent { get; set; }
         public string RarityTier { get; set; }
         public string TrophyType { get; set; }

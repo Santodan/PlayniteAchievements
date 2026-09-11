@@ -327,8 +327,12 @@ namespace PlayniteAchievements.ViewModels
         public double MaxTextHeight => (LineBoxHeight * MaxLines) + DescenderSlack + 0.5;
 
         // Collapses when the description is hidden or the achievement has no description text.
+        // A masked description is the exception: it holds its line so a hidden achievement's card
+        // is spaced exactly like every other one, rather than closing the gap and moving the rows
+        // under it up.
         public override Visibility LineVisibility =>
-            (ShowDescription && !string.IsNullOrWhiteSpace(Parent.Description))
+            (ShowDescription &&
+             (Parent.IsDescriptionMasked || !string.IsNullOrWhiteSpace(Parent.Description)))
                 ? Visibility.Visible
                 : Visibility.Collapsed;
     }

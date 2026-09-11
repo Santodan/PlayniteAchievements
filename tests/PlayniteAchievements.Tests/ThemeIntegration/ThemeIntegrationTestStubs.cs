@@ -30,6 +30,10 @@ namespace PlayniteAchievements
 
         public Services.Images.DiskImageService DiskImageService { get; set; }
 
+        // Mirrors the real plugin property ToastImageResolver reads when decoding notification
+        // artwork. Left null in tests, which is the "no image service yet" path.
+        public Services.Images.MemoryImageService ImageService { get; set; }
+
         public Services.ThemeIntegration.ThemeIntegrationService ThemeIntegrationService { get; set; }
 
         public IPlayniteAPI PlayniteApi { get; set; }
@@ -262,6 +266,14 @@ namespace PlayniteAchievements.Services
         public static string GetLocalizedName(string providerKey)
         {
             return providerKey ?? string.Empty;
+        }
+
+        // Mirrors the real registry's last-resort visuals for a provider key, which the linked
+        // summary and overview builders call. The stub has no provider metadata, so it always
+        // takes the by-convention icon key and the neutral gray.
+        public static (string iconKey, string colorHex) ResolveProviderVisualsOrFallback(string providerKey)
+        {
+            return ("ProviderIcon" + providerKey, "#808080");
         }
 
         public virtual Task PrimeEnabledProvidersAsync()

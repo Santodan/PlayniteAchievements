@@ -2669,6 +2669,21 @@ namespace PlayniteAchievements.Services.UI
             var previewSource = cardItems
                 .Select(vm => vm.PreviewTemplateSource)
                 .FirstOrDefault(source => source.HasValue);
+            // Resolve every card's artwork before the template is built, so the bindings evaluate
+            // once against a ready bitmap. Late artwork would resize a SizeToContent window while
+            // the slide is already moving it with SWP_NOSIZE, landing the card short. Bounded:
+            // a stalled decode costs the wave a little latency, never the notification.
+            await Task.WhenAny(
+                    Task.WhenAll(cardItems.Select(vm => vm.PrepareImagesAsync())),
+                    Task.Delay(BaseCaptureGraceMs))
+                .ConfigureAwait(true);
+            if (_disposed)
+            {
+                DisposeCaptureTask(baseCaptureTask);
+                DisposeAnchorFramesTask(anchorFramesTask);
+                return;
+            }
+
             DataTemplate template = null;
             ItemsControl items = null;
             _activeCardItems = null;
@@ -3660,6 +3675,17 @@ namespace PlayniteAchievements.Services.UI
                         // seam in this path that can await, and cap the wait so a slow fetch costs
                         // the burst its silhouette rather than costing the capture its frame.
                         await WarmRayTrackAsync(item.Vm.IconPath);
+                        if (_disposed)
+                        {
+                            break;
+                        }
+
+                        // The artwork itself is the same story with no graceful degradation: a
+                        // missing ray track leaves the burst a rounded rectangle, while a missing
+                        // icon leaves a hole in the saved screenshot. So this one is uncapped.
+                        // It is also the only thing that resolves the icon for a windowless wave,
+                        // which saves screenshots without ever priming a visual.
+                        await item.Vm.PrepareImagesAsync();
                         if (_disposed)
                         {
                             break;
@@ -4986,7 +5012,10 @@ namespace PlayniteAchievements.Services.UI
                     iconPaths.Add(vm.IconPath);
                 }
 
-                AddPrimeRequest(requests, seenRequests, vm.IconPath, PrimeIconDecodePixel);
+                // The decorated source, not the plain path: the image cache keys on the exact
+                // string it is given, and the icon the templates bind is resolved from the
+                // decorated one. Priming the plain path would warm an entry nobody asks for.
+                AddPrimeRequest(requests, seenRequests, vm.IconDisplaySource, PrimeIconDecodePixel);
                 if (vm.ShowRightBadge)
                 {
                     AddPrimeRequest(

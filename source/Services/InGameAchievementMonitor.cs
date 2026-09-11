@@ -1731,6 +1731,39 @@ namespace PlayniteAchievements.Services
         }
 
         /// <summary>
+        /// The first friend-achievement icon candidate that is already a cached local file.
+        /// Friend rows loaded from the store carry absolute paths to the images the refresh
+        /// downloaded (the "...IconUrl" field names are historical), but a row whose art has not
+        /// been cached yet still holds the remote URL. Notifications never fetch over the network
+        /// -- they fire during gameplay -- so an uncached icon yields null here and the toast
+        /// falls back to the built-in placeholder until a refresh caches the real art.
+        /// </summary>
+        private static string ResolveCachedFriendIcon(params string[] candidates)
+        {
+            foreach (var candidate in candidates)
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                {
+                    continue;
+                }
+
+                var trimmed = candidate.Trim();
+                try
+                {
+                    if (System.IO.Path.IsPathRooted(trimmed) && System.IO.File.Exists(trimmed))
+                    {
+                        return trimmed;
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Resolves a Playnite database art reference (game icon/cover) to an absolute local
         /// file path for template bindings; null when the game has no art.
         /// </summary>
@@ -1909,9 +1942,11 @@ namespace PlayniteAchievements.Services
                 DisplayName = achievement?.DisplayName,
                 Description = achievement?.Description,
                 Category = achievement?.Category,
-                // Still locked, so the locked art is the honest picture (falls back to the
-                // unlocked art when the provider ships none).
-                IconPath = achievement?.LockedIconDisplay,
+                // Still locked, so both halves travel: the view model picks the locked art when
+                // the provider ships a distinct one, grays the unlocked art when it does not, and
+                // covers either when the visibility settings say the achievement is a spoiler.
+                IconPath = achievement?.UnlockedIconPath,
+                LockedIconPath = achievement?.LockedIconPath,
                 GlobalPercent = achievement?.GlobalPercentUnlocked,
                 RarityTier = achievement?.Rarity.ToString(),
                 TrophyType = achievement?.TrophyType,
@@ -1978,7 +2013,7 @@ namespace PlayniteAchievements.Services
                 DisplayName = row?.DisplayName,
                 Description = row?.Description,
                 Category = row?.Category,
-                IconPath = row?.UnlockedIconUrl ?? row?.IconUrl,
+                IconPath = ResolveCachedFriendIcon(row?.UnlockedIconUrl, row?.IconUrl),
                 GlobalPercent = row?.GlobalPercentUnlocked,
                 RarityTier = row?.Rarity?.ToString(),
                 TrophyType = row?.TrophyType,

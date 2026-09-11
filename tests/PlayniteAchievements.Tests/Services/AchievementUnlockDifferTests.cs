@@ -260,7 +260,7 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void DiffProgressAdvances_SkipsHiddenAchievements()
+        public void DiffProgressAdvances_IncludesHiddenAchievements()
         {
             var differ = new AchievementUnlockDiffer();
             var hidden = Progress("secret", 4, 10);
@@ -268,7 +268,11 @@ namespace PlayniteAchievements.Tests.Services
 
             var result = differ.DiffProgressAdvances(Data(Progress("secret", 3, 10)), Data(hidden));
 
-            Assert.AreEqual(0, result.Count, "A locked hidden achievement stays a secret; its progress is never announced.");
+            Assert.AreEqual(
+                1,
+                result.Count,
+                "A hidden achievement's progress is announced; the notification masks what it is.");
+            Assert.AreEqual(4, result[0].Current);
         }
 
         [TestMethod]

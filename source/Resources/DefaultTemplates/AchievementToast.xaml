@@ -266,7 +266,7 @@
                                IsHitTestVisible="False">
                             <Image.Style>
                                 <Style TargetType="Image">
-                                    <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconPath}"/>
+                                    <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconImage}"/>
                                     <Setter Property="helpers:AsyncImage.PhaseLock" Value="{Binding IsPreview}"/>
                                     <Setter Property="Effect" Value="{Binding RarityGlowEffect}"/>
                                     <Style.Triggers>
@@ -291,7 +291,7 @@
                                IsHitTestVisible="False">
                             <Image.Style>
                                 <Style TargetType="Image">
-                                    <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconPath}"/>
+                                    <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconImage}"/>
                                     <Setter Property="helpers:AsyncImage.PhaseLock" Value="{Binding IsPreview}"/>
                                     <Setter Property="Effect" Value="{Binding RarityEdgeEffect}"/>
                                     <Style.Triggers>
@@ -311,7 +311,7 @@
                                helpers:AsyncImage.DecodePixel="160">
                             <Image.Style>
                                 <Style TargetType="Image">
-                                    <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconPath}"/>
+                                    <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconImage}"/>
                                     <Setter Property="helpers:AsyncImage.PhaseLock" Value="{Binding IsPreview}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
