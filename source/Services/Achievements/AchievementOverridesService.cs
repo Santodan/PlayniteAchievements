@@ -497,6 +497,66 @@ namespace PlayniteAchievements.Services.Achievements
             StoreOverrides(customData, overrides);
         }
 
+        /// <summary>
+        /// Sets or clears one achievement's user-editable provider fields. A null value clears that
+        /// override, so the achievement falls back to the provider's own value rather than to blank.
+        /// </summary>
+        /// <remarks>
+        /// Unlock status is absent by design: it stays provider-owned so an edit cannot move
+        /// unlocked counts or completion. <paramref name="unlockTimeUtc"/> only corrects the
+        /// timestamp of an achievement that is already unlocked. Rarity is absent for provider
+        /// achievements; a custom achievement carries its own on its definition.
+        /// </remarks>
+        public void SetAchievementFieldOverride(
+            Guid gameId,
+            string achievementApiName,
+            AchievementEditableField field,
+            object value)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            var apiName = AchievementNoteHelper.NormalizeApiName(achievementApiName);
+            if (string.IsNullOrWhiteSpace(apiName))
+            {
+                return;
+            }
+
+            // Points, trophy type and unlock time feed summary aggregates (score totals, trophy
+            // counts, last unlock); a title or description does not.
+            var affectsSummaryData =
+                field == AchievementEditableField.Points ||
+                field == AchievementEditableField.TrophyType ||
+                field == AchievementEditableField.UnlockTimeUtc;
+
+            _gameCustomDataStore.Update(
+                gameId,
+                customData => MutateOverride(customData, apiName, entry =>
+                {
+                    switch (field)
+                    {
+                        case AchievementEditableField.DisplayName:
+                            entry.DisplayName = NormalizeText(value as string);
+                            break;
+                        case AchievementEditableField.Description:
+                            entry.Description = NormalizeText(value as string);
+                            break;
+                        case AchievementEditableField.Points:
+                            entry.Points = value as int?;
+                            break;
+                        case AchievementEditableField.TrophyType:
+                            entry.TrophyType = NormalizeText(value as string);
+                            break;
+                        case AchievementEditableField.UnlockTimeUtc:
+                            entry.UnlockTimeUtc = value as DateTime?;
+                            break;
+                    }
+                }),
+                affectsSummaryData);
+        }
+
         public void SetAchievementNote(Guid gameId, string achievementApiName, string note)
         {
             if (gameId == Guid.Empty)
