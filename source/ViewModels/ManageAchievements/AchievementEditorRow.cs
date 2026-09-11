@@ -1,5 +1,3 @@
-using PlayniteAchievements.Models.Achievements;
-using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels.Items;
 using System;
 using System.Globalization;
@@ -57,22 +55,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _editIsCapstone;
         private string _validationMessage;
 
-        public AchievementEditorRow(AchievementDetail source, bool isCustomRow)
-        {
-            if (source == null)
-            {
-                throw new ArgumentNullException(nameof(source));
-            }
-
-            SetSource(source, notifyChanges: false);
-            IsCustomRow = isCustomRow;
-            LoadFromSource();
-        }
-
         /// <summary>Raised once an edit is complete and should be persisted.</summary>
         public event EventHandler<AchievementEditorField> FieldEdited;
 
-        public bool IsCustomRow { get; }
+        /// <summary>
+        /// True for an achievement the user authored. Set during construction alongside the
+        /// display fields, matching how the other manage rows are built.
+        /// </summary>
+        public bool IsCustomRow { get; set; }
 
         /// <summary>
         /// Rarity is user input only for achievements the user authored; for provider achievements
@@ -80,13 +70,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public bool CanEditRarity => AchievementEditorFieldRules.CanEditRarity(IsCustomRow);
 
-        public string ApiName => Source?.ApiName;
-
         /// <summary>
         /// Whether a corrected unlock timestamp applies at all. A locked achievement has no unlock
         /// time to correct, and inventing one would read as unlocked downstream.
         /// </summary>
-        public bool CanEditUnlockTime => AchievementEditorFieldRules.CanEditUnlockTime(Source?.Unlocked == true);
+        public bool CanEditUnlockTime => AchievementEditorFieldRules.CanEditUnlockTime(Unlocked);
 
         public string ValidationMessage
         {
@@ -196,6 +184,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool TryGetUnlockTimeUtc(out DateTime? unlockTimeUtc) =>
             AchievementEditorFieldRules.TryParseUnlockTimeUtc(EditUnlockTimeText, out unlockTimeUtc);
 
+        /// <summary>
+        /// Applies a change without raising <see cref="FieldEdited"/>. Used when the editor itself
+        /// adjusts a row to keep an invariant — clearing the previous capstone, say — so the
+        /// correction does not come back as another edit to persist.
+        /// </summary>
+        public void SuppressFieldEdits(Action apply)
+        {
+            if (apply == null)
+            {
+                return;
+            }
+
+            var previous = _isLoading;
+            _isLoading = true;
+            try
+            {
+                apply();
+            }
+            finally
+            {
+                _isLoading = previous;
+            }
+        }
+
         public void SetValidationMessage(string message)
         {
             ValidationMessage = string.IsNullOrWhiteSpace(message) ? null : message;
@@ -203,28 +215,36 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Rereads every editable field from the underlying achievement without raising edit
-        /// notifications, so a reload cannot be mistaken for user input and re-persisted.
+        /// Seeds every editable field from the row's already-projected display values, without
+        /// raising edit notifications, so a load or reload cannot be mistaken for user input and
+        /// persisted straight back.
         /// </summary>
-        public void LoadFromSource()
+        /// <remarks>
+        /// Call after the display properties have been set. The display values come from hydrated
+        /// data, so any existing override is already applied and the editor shows the effective
+        /// value rather than the provider's original.
+        /// </remarks>
+        /// <param name="isFiltered">Hidden from views and counts. Not carried on the display item.</param>
+        /// <param name="isSummaryFiltered">Hidden from summaries only. Not carried on the display item.</param>
+        public void LoadEditableFields(bool isFiltered, bool isSummaryFiltered)
         {
             _isLoading = true;
             try
             {
-                var detail = Source;
-                EditDisplayName = detail?.DisplayName;
-                EditDescription = detail?.Description;
-                EditPointsText = detail?.Points?.ToString(CultureInfo.CurrentCulture);
-                EditTrophyType = detail?.TrophyType;
-                EditUnlockTimeText = AchievementEditorFieldRules.FormatUnlockTimeForEditing(detail?.UnlockTimeUtc);
-                EditCategory = detail?.Category;
-                EditCategoryType = detail?.CategoryType;
-                EditNote = detail?.AchievementNote;
-                EditRarity = detail?.RarityText;
-                EditIsFiltered = detail?.IsFiltered == true;
-                EditIsSummaryFiltered = detail?.IsFilteredFromSummaries == true;
-                EditIsGoal = detail?.IsGoal == true;
-                EditIsCapstone = detail?.IsCapstone == true;
+                EditDisplayName = DisplayName;
+                EditDescription = Description;
+                EditPointsText = PointsValue?.ToString(CultureInfo.CurrentCulture);
+                EditTrophyType = TrophyType;
+                EditUnlockTimeText = AchievementEditorFieldRules.FormatUnlockTimeForEditing(UnlockTimeUtc);
+                EditCategory = CategoryLabel;
+                EditCategoryType = CategoryType;
+                EditNote = AchievementNote;
+                // Rarity is shown as its tier name; only a custom row can change it.
+                EditRarity = Rarity.ToString();
+                EditIsFiltered = isFiltered;
+                EditIsSummaryFiltered = isSummaryFiltered;
+                EditIsGoal = IsGoal;
+                EditIsCapstone = IsCapstone;
                 ValidationMessage = null;
             }
             finally
