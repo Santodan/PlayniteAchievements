@@ -62,21 +62,16 @@ namespace PlayniteAchievements.Services.Hydration
             var manualCapstone = customData.ManualCapstoneApiName;
             var hasManualCapstone = !string.IsNullOrWhiteSpace(manualCapstone);
 
-            var categoryOverrides = customData.AchievementCategoryOverrides ??
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var hasCategoryOverrides = categoryOverrides.Count > 0;
-
-            var categoryTypeOverrides = customData.AchievementCategoryTypeOverrides ??
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var hasCategoryTypeOverrides = categoryTypeOverrides.Count > 0;
+            // One record per achievement carries category, category type, note, the icon paths and
+            // the user-editable provider fields, so a row needs a single lookup rather than one per
+            // facet.
+            var overridesByApiName = customData.ResolveAchievementOverrides();
+            var hasOverrides = overridesByApiName != null && overridesByApiName.Count > 0;
 
             var filteredApiNames = customData.FilteredAchievementApiNames ??
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var summaryFilteredApiNames = customData.SummaryFilteredAchievementApiNames ??
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            var achievementNotes = customData.AchievementNotes ??
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             // Goal position is resolved once per game rather than scanning the list per row.
             var goalOrderByApiName = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -117,24 +112,25 @@ namespace PlayniteAchievements.Services.Hydration
                         StringComparison.OrdinalIgnoreCase);
                 }
 
-                if (hasCategoryOverrides)
+                AchievementOverride userOverride = null;
+                if (hasOverrides && !string.IsNullOrWhiteSpace(apiName))
                 {
-                    if (!string.IsNullOrWhiteSpace(apiName) &&
-                        categoryOverrides.TryGetValue(apiName, out var overrideCategory) &&
-                        !string.IsNullOrWhiteSpace(overrideCategory))
-                    {
-                        providerCategory = NormalizeCategory(overrideCategory);
-                    }
+                    overridesByApiName.TryGetValue(apiName, out userOverride);
                 }
 
-                if (hasCategoryTypeOverrides)
+                if (userOverride != null)
                 {
-                    if (!string.IsNullOrWhiteSpace(apiName) &&
-                        categoryTypeOverrides.TryGetValue(apiName, out var overrideCategoryType) &&
-                        !string.IsNullOrWhiteSpace(overrideCategoryType))
+                    if (!string.IsNullOrWhiteSpace(userOverride.Category))
                     {
-                        providerCategoryType = AchievementCategoryTypeHelper.Normalize(overrideCategoryType);
+                        providerCategory = NormalizeCategory(userOverride.Category);
                     }
+
+                    if (!string.IsNullOrWhiteSpace(userOverride.CategoryType))
+                    {
+                        providerCategoryType = AchievementCategoryTypeHelper.Normalize(userOverride.CategoryType);
+                    }
+
+                    ApplyUserFieldOverrides(detail, userOverride);
                 }
 
                 // NormalizePath, not NormalizeCategoryOrDefault: a provider may now supply a nested
@@ -147,10 +143,7 @@ namespace PlayniteAchievements.Services.Hydration
                 detail.IsFiltered = !string.IsNullOrWhiteSpace(apiName) && filteredApiNames.Contains(apiName);
                 detail.IsFilteredFromSummaries = !string.IsNullOrWhiteSpace(apiName) &&
                                                  summaryFilteredApiNames.Contains(apiName);
-                detail.AchievementNote = !string.IsNullOrWhiteSpace(apiName) &&
-                                         achievementNotes.TryGetValue(apiName, out var note)
-                    ? note
-                    : null;
+                detail.AchievementNote = userOverride?.Note;
 
                 // An unlocked achievement is never an effective goal, so display stays correct
                 // even before the stored list is pruned.
@@ -164,6 +157,46 @@ namespace PlayniteAchievements.Services.Hydration
 
                 detail.IsGoal = goalOrderIndex != int.MaxValue;
                 detail.GoalOrderIndex = goalOrderIndex;
+            }
+        }
+
+        /// <summary>
+        /// Applies the user-editable provider fields onto a row. Each is applied only when the
+        /// override carries a value, so clearing one falls back to the provider's own value rather
+        /// than to blank.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately absent: unlock status and rarity. <see cref="AchievementDetail.Unlocked"/>
+        /// stays provider-owned so an edit cannot change unlocked counts, completion, or look like
+        /// a real unlock to the in-game monitor; the unlock timestamp is therefore only corrected on
+        /// a row that is already unlocked. Rarity stays provider-owned because the stored-rarity
+        /// guard cannot tell a deliberate Common from "never filled in".
+        /// </remarks>
+        private static void ApplyUserFieldOverrides(AchievementDetail detail, AchievementOverride userOverride)
+        {
+            if (!string.IsNullOrWhiteSpace(userOverride.DisplayName))
+            {
+                detail.DisplayName = userOverride.DisplayName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(userOverride.Description))
+            {
+                detail.Description = userOverride.Description;
+            }
+
+            if (userOverride.Points.HasValue)
+            {
+                detail.Points = userOverride.Points;
+            }
+
+            if (!string.IsNullOrWhiteSpace(userOverride.TrophyType))
+            {
+                detail.TrophyType = userOverride.TrophyType;
+            }
+
+            if (userOverride.UnlockTimeUtc.HasValue && detail.Unlocked)
+            {
+                detail.UnlockTimeUtc = userOverride.UnlockTimeUtc;
             }
         }
 

@@ -57,8 +57,63 @@ namespace PlayniteAchievements.Services.GameCustomData
         public Dictionary<string, string> AchievementNotes { get; set; } =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>
+        /// Per-achievement customization, keyed by ApiName. This is the authoritative shape; the
+        /// category, category type and note maps above are legacy mirrors of the same values.
+        /// </summary>
+        public Dictionary<string, AchievementOverride> AchievementOverrides { get; set; } =
+            new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+
         public List<CustomAchievementDefinition> CustomAchievements { get; set; } =
             new List<CustomAchievementDefinition>();
+
+        /// <summary>
+        /// Returns the per-achievement records to read from. When the record map is empty but the
+        /// legacy mirrors are not, it is synthesized from them, so a caller that populated only the
+        /// legacy maps still resolves its customization.
+        /// </summary>
+        public Dictionary<string, AchievementOverride> ResolveAchievementOverrides()
+        {
+            if (AchievementOverrides != null && AchievementOverrides.Count > 0)
+            {
+                return AchievementOverrides;
+            }
+
+            var map = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            AddLegacyValues(map, AchievementCategoryOverrides, (entry, value) => entry.Category = value);
+            AddLegacyValues(map, AchievementCategoryTypeOverrides, (entry, value) => entry.CategoryType = value);
+            AddLegacyValues(map, AchievementNotes, (entry, value) => entry.Note = value);
+            return map;
+        }
+
+        private static void AddLegacyValues(
+            Dictionary<string, AchievementOverride> target,
+            IReadOnlyDictionary<string, string> source,
+            Action<AchievementOverride, string> apply)
+        {
+            if (source == null)
+            {
+                return;
+            }
+
+            foreach (var pair in source)
+            {
+                var key = (pair.Key ?? string.Empty).Trim();
+                var value = (pair.Value ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                if (!target.TryGetValue(key, out var entry) || entry == null)
+                {
+                    entry = new AchievementOverride();
+                    target[key] = entry;
+                }
+
+                apply(entry, value);
+            }
+        }
     }
 
     internal sealed class ResolvedOverviewGameCustomData
@@ -158,6 +213,12 @@ namespace PlayniteAchievements.Services.GameCustomData
                     ? CloneCustomAchievements(customData?.CustomAchievements)
                     : new List<CustomAchievementDefinition>()
             };
+
+            // A pre-custom-data game resolves its customization from settings, which only ever held
+            // the legacy maps, so the record is synthesized from what resolved above.
+            resolved.AchievementOverrides = hasCustomData && customData?.AchievementOverrides != null
+                ? CloneOverrideMap(customData.AchievementOverrides)
+                : resolved.ResolveAchievementOverrides();
 
             return resolved;
         }
@@ -855,6 +916,29 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             return set;
+        }
+
+        private static Dictionary<string, AchievementOverride> CloneOverrideMap(
+            IReadOnlyDictionary<string, AchievementOverride> source)
+        {
+            var map = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            if (source == null)
+            {
+                return map;
+            }
+
+            foreach (var pair in source)
+            {
+                var key = NormalizeValue(pair.Key);
+                if (string.IsNullOrWhiteSpace(key) || pair.Value == null || pair.Value.IsEmpty)
+                {
+                    continue;
+                }
+
+                map[key] = pair.Value.Clone();
+            }
+
+            return map;
         }
 
         private static Dictionary<string, string> CloneNoteMap(IReadOnlyDictionary<string, string> source)

@@ -557,7 +557,11 @@ namespace PlayniteAchievements.Services.Achievements
                     : new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase),
                 AchievementNotes = hasCustomData
                     ? CloneNoteMap(customData.AchievementNotes)
-                    : EmptyStringMap
+                    : EmptyStringMap,
+                AchievementOverrides = hasCustomData
+                    ? GameCustomDataFile.CloneAchievementOverrideMap(customData.AchievementOverrides) ??
+                        new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
             };
         }
 
