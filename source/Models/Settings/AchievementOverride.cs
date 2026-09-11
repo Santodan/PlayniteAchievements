@@ -24,6 +24,13 @@ namespace PlayniteAchievements.Models.Settings
 
         public string TrophyType { get; set; }
 
+        /// <summary>
+        /// Corrected unlock timestamp for an achievement that is already unlocked. This does not
+        /// change whether the achievement counts as unlocked: the lock state stays provider-owned,
+        /// so an override here cannot alter unlocked counts, completion, or fire a notification.
+        /// </summary>
+        public DateTime? UnlockTimeUtc { get; set; }
+
         public string Category { get; set; }
 
         public string CategoryType { get; set; }
@@ -44,6 +51,7 @@ namespace PlayniteAchievements.Models.Settings
             string.IsNullOrWhiteSpace(Description) &&
             !Points.HasValue &&
             string.IsNullOrWhiteSpace(TrophyType) &&
+            !UnlockTimeUtc.HasValue &&
             string.IsNullOrWhiteSpace(Category) &&
             string.IsNullOrWhiteSpace(CategoryType) &&
             string.IsNullOrWhiteSpace(Note) &&
@@ -58,6 +66,7 @@ namespace PlayniteAchievements.Models.Settings
                 Description = Description,
                 Points = Points,
                 TrophyType = TrophyType,
+                UnlockTimeUtc = UnlockTimeUtc,
                 Category = Category,
                 CategoryType = CategoryType,
                 Note = Note,

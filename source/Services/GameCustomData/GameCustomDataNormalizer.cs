@@ -945,6 +945,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                         ? pair.Value.Points
                         : null,
                     TrophyType = NormalizeTrophyType(pair.Value.TrophyType),
+                    UnlockTimeUtc = NormalizeUtc(pair.Value.UnlockTimeUtc),
                     Category = !string.IsNullOrWhiteSpace(category)
                         ? CategoryPathHelper.NormalizePath(category)
                         : null,
