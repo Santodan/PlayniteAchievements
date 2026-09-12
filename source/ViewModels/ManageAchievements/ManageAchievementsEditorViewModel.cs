@@ -73,7 +73,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isManuallyTrackedGame;
         private bool _canLinkManualTracking;
         private string _filterText;
-        private string _rowCountSummary;
+        private EditorFilterOption _selectedCategoryFilter;
+        private EditorFilterOption _selectedTypeFilter;
         private SearchQuery _filterQuery;
         private readonly SearchTextIndex<AchievementEditorRow> _searchIndex =
             new SearchTextIndex<AchievementEditorRow>(row => SearchTextBuilder.ForManualEdit(
@@ -568,6 +569,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 RefreshCustomProviderState();
                 ApplyManualTrackingToRows();
                 RebuildSearchIndex();
+                RebuildFilterOptions();
                 SeedOverrideWriteCache();
                 SetStatus(null, false);
                 RefreshComputedState();
@@ -1803,7 +1805,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // The index caches each row's searchable text, so an edited row would keep matching
                 // its old name until the next reload.
                 _searchIndex.Invalidate(renamedRow);
-                RefreshRowCounts();
             }
 
             if (e.PropertyName == nameof(AchievementEditorRow.ValidationMessage) ||
@@ -1849,7 +1850,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void RefreshComputedState()
         {
-            RefreshRowCounts();
             HasRows = AchievementRows.Count > 0;
             var errors = new List<string>();
             _ = BuildValidatedDefinitions(out _, out errors);
@@ -2583,21 +2583,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _filterText, value))
                 {
                     _filterQuery = SearchQuery.From(value);
-                    OnPropertyChanged(nameof(IsFiltering));
-                    FilterChanged?.Invoke(this, EventArgs.Empty);
-                    RefreshRowCounts();
+                    NotifyFilterChanged();
                 }
             }
         }
 
         /// <summary>True while the grid shows a subset of the achievements.</summary>
-        public bool IsFiltering => _filterQuery.HasValue;
+        public bool IsFiltering =>
+            _filterQuery.HasValue ||
+            !string.IsNullOrWhiteSpace(SelectedCategoryFilter?.Value) ||
+            !string.IsNullOrWhiteSpace(SelectedTypeFilter?.Value);
 
         /// <summary>Raised when the filter text changed and the collection view needs refreshing.</summary>
         public event EventHandler FilterChanged;
-
-        /// <summary>Visible over total, shown beside the filter box.</summary>
-        public string RowCountSummary => _rowCountSummary;
 
         /// <summary>
         /// Whether a row passes the current filter. Matching is by display name, description and
@@ -2610,26 +2608,132 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            return !_filterQuery.HasValue || _searchIndex.Matches(row, _filterQuery);
+            if (_filterQuery.HasValue && !_searchIndex.Matches(row, _filterQuery))
+            {
+                return false;
+            }
+
+            var category = SelectedCategoryFilter?.Value;
+            if (!string.IsNullOrWhiteSpace(category) &&
+                !string.Equals(NormalizeText(row.CategoryLabel), category, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var categoryType = SelectedTypeFilter?.Value;
+            if (!string.IsNullOrWhiteSpace(categoryType) &&
+                !string.Equals(NormalizeText(row.CategoryTypeValue), categoryType, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return true;
         }
 
         private void RebuildSearchIndex()
         {
             _searchIndex.Rebuild(AchievementRows);
-            RefreshRowCounts();
         }
 
-        private void RefreshRowCounts()
-        {
-            var total = AchievementRows.Count;
-            var visible = _filterQuery.HasValue
-                ? AchievementRows.Count(MatchesFilter)
-                : total;
 
-            _rowCountSummary = _filterQuery.HasValue
-                ? visible.ToString("N0", FormattingCulture.Current) + " / " + total.ToString("N0", FormattingCulture.Current)
-                : total.ToString("N0", FormattingCulture.Current);
-            OnPropertyChanged(nameof(RowCountSummary));
+        /// <summary>
+        /// Restricts the grid to one category. Null shows every category.
+        /// </summary>
+        public EditorFilterOption SelectedCategoryFilter
+        {
+            get => _selectedCategoryFilter;
+            set
+            {
+                if (SetValueAndReturn(ref _selectedCategoryFilter, value))
+                {
+                    NotifyFilterChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Restricts the grid to one category type. Null shows every type.
+        /// </summary>
+        public EditorFilterOption SelectedTypeFilter
+        {
+            get => _selectedTypeFilter;
+            set
+            {
+                if (SetValueAndReturn(ref _selectedTypeFilter, value))
+                {
+                    NotifyFilterChanged();
+                }
+            }
+        }
+
+        /// <summary>Categories present on this game's achievements, plus an "all" entry.</summary>
+        public ObservableCollection<EditorFilterOption> CategoryFilterOptions { get; } =
+            new ObservableCollection<EditorFilterOption>();
+
+        /// <summary>Every assignable category type, plus an "all" entry.</summary>
+        public ObservableCollection<EditorFilterOption> TypeFilterOptions { get; } =
+            new ObservableCollection<EditorFilterOption>();
+
+        private void NotifyFilterChanged()
+        {
+            OnPropertyChanged(nameof(IsFiltering));
+            FilterChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Rebuilds the category choices from the rows, so the list offers what this game actually
+        /// uses rather than every category in the library. Ordered to match the category tree, with
+        /// anything unknown to it falling in alphabetically after.
+        /// </summary>
+        private void RebuildFilterOptions()
+        {
+            var previousCategory = SelectedCategoryFilter?.Value;
+            var previousType = SelectedTypeFilter?.Value;
+
+            var treeOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < AssignableCategoryOptions.Count; i++)
+            {
+                var label = AssignableCategoryOptions[i];
+                if (!string.IsNullOrWhiteSpace(label) && !treeOrder.ContainsKey(label))
+                {
+                    treeOrder[label] = i;
+                }
+            }
+
+            var present = AchievementRows
+                .Select(row => NormalizeText(row?.CategoryLabel))
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(label => treeOrder.TryGetValue(label, out var index) ? index : int.MaxValue)
+                .ThenBy(label => label, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            CategoryFilterOptions.Clear();
+            CategoryFilterOptions.Add(new EditorFilterOption(null, L("LOCPlayAch_Common_All", "All")));
+            foreach (var label in present)
+            {
+                CategoryFilterOptions.Add(new EditorFilterOption(label, label));
+            }
+
+            if (TypeFilterOptions.Count == 0)
+            {
+                TypeFilterOptions.Add(new EditorFilterOption(null, L("LOCPlayAch_Common_All", "All")));
+                foreach (var type in AchievementCategoryTypeHelper.AssignableCategoryTypes)
+                {
+                    TypeFilterOptions.Add(new EditorFilterOption(
+                        type,
+                        ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(type)));
+                }
+            }
+
+            // A filter whose category disappeared falls back to showing everything, rather than
+            // leaving the grid mysteriously empty.
+            SelectedCategoryFilter = CategoryFilterOptions.FirstOrDefault(option =>
+                                         string.Equals(option.Value, previousCategory, StringComparison.OrdinalIgnoreCase))
+                                     ?? CategoryFilterOptions.FirstOrDefault();
+            SelectedTypeFilter = TypeFilterOptions.FirstOrDefault(option =>
+                                     string.Equals(option.Value, previousType, StringComparison.OrdinalIgnoreCase))
+                                 ?? TypeFilterOptions.FirstOrDefault();
         }
 
         private void RaiseAssignmentsChanged()
@@ -2794,6 +2898,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var value = ResourceProvider.GetString(key);
             return string.IsNullOrWhiteSpace(value) ? fallback : value;
         }
+    }
+
+    /// <summary>
+    /// One choice in the editor's control-bar filters, pairing the stored value with its label.
+    /// A null <see cref="Value"/> is the "all" entry and applies no restriction.
+    /// </summary>
+    public sealed class EditorFilterOption
+    {
+        public EditorFilterOption(string value, string displayName)
+        {
+            Value = value;
+            DisplayName = displayName;
+        }
+
+        public string Value { get; }
+
+        public string DisplayName { get; }
     }
 
     /// <summary>
