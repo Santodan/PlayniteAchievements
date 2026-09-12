@@ -46,13 +46,15 @@ namespace PlayniteAchievements.Services.GameCustomData
         /// copy as the only one.
         /// </summary>
         /// <param name="onDiskSchemaVersion">
-        /// The version read from the payload, before normalization rewrites it. Zero or the current
-        /// version means there is nothing to migrate.
+        /// The version read from the payload, before normalization rewrites it. The current
+        /// version means there is nothing to migrate; zero means a record from before the version
+        /// was stamped, which normalization still folds.
         /// </param>
         private void EnsureSchemaMigrationBackup(int onDiskSchemaVersion)
         {
-            if (onDiskSchemaVersion <= 0 ||
-                onDiskSchemaVersion >= GameCustomDataNormalizer.CurrentSchemaVersion)
+            // Zero means a record written before the version was stamped. Normalization folds
+            // those exactly as it folds a numbered one, so they need the backup most, not least.
+            if (onDiskSchemaVersion >= GameCustomDataNormalizer.CurrentSchemaVersion)
             {
                 return;
             }
