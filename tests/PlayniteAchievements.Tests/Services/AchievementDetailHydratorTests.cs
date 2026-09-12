@@ -117,6 +117,39 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void HydrateAll_ClearUnlockTime_RemovesTheProviderTimestampWithoutRelocking()
+        {
+            // Unchecking the unlock-time box stores a cleared state rather than an empty record:
+            // an empty record falls back to the provider's own timestamp, which made the box
+            // reappear after every edit.
+            var details = Details("alpha");
+            details[0].Unlocked = true;
+            details[0].UnlockTimeUtc = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            Hydrate(details, WithOverride("alpha", new AchievementOverride { ClearUnlockTime = true }));
+
+            Assert.IsNull(details[0].UnlockTimeUtc);
+            Assert.IsTrue(details[0].Unlocked, "Clearing the timestamp must not relock the achievement.");
+        }
+
+        [TestMethod]
+        public void HydrateAll_ClearUnlockTime_LosesToAnExplicitTimestamp()
+        {
+            var overrideTime = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var details = Details("alpha");
+            details[0].Unlocked = true;
+            details[0].UnlockTimeUtc = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            Hydrate(details, WithOverride("alpha", new AchievementOverride
+            {
+                ClearUnlockTime = true,
+                UnlockTimeUtc = overrideTime
+            }));
+
+            Assert.AreEqual(overrideTime, details[0].UnlockTimeUtc);
+        }
+
+        [TestMethod]
         public void HydrateAll_Overrides_NeverChangeUnlockStatusOrRarity()
         {
             // Unlock status and rarity are provider-owned: an override must not be able to move

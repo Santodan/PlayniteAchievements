@@ -471,6 +471,42 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void Normalize_ClearUnlockTime_SurvivesOnItsOwn()
+        {
+            // A cleared timestamp is the record's only content, so the pruning predicate has to
+            // count it or unchecking the box would be discarded on the next load.
+            var result = Normalize(new GameCustomDataFile
+            {
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["ach_one"] = new AchievementOverride { ClearUnlockTime = true }
+                }
+            });
+
+            Assert.IsTrue(result.AchievementOverrides["ach_one"].ClearUnlockTime);
+        }
+
+        [TestMethod]
+        public void Normalize_ClearUnlockTimeWithATimestamp_KeepsOnlyTheTimestamp()
+        {
+            var result = Normalize(new GameCustomDataFile
+            {
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["ach_one"] = new AchievementOverride
+                    {
+                        ClearUnlockTime = true,
+                        UnlockTimeUtc = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)
+                    }
+                }
+            });
+
+            var entry = result.AchievementOverrides["ach_one"];
+            Assert.IsFalse(entry.ClearUnlockTime);
+            Assert.AreEqual(new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc), entry.UnlockTimeUtc);
+        }
+
+        [TestMethod]
         public void NormalizePortable_FoldsLegacySchemaSevenPackage()
         {
             var portable = new GameCustomDataPortableFile
