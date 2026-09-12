@@ -16,7 +16,12 @@
 
     <!-- Achievement Status Template: Checkmark, padlock, or capstone badge -->
     <DataTemplate x:Key="AchievementStatusTemplate">
-        <!-- Sized natively like the image columns: the Uniform Viewbox is bounded by the cell's
+        <!-- The filter conditions below fall back to False on purpose: only the merged editor's
+             rows carry these flags, because every other grid projects filtered achievements out
+             before they reach a row. Without the fallback the binding resolves to unset there,
+             never equals False, and every glyph silently stays collapsed.
+
+             Sized natively like the image columns: the Uniform Viewbox is bounded by the cell's
              content box, so it respects cell padding and grows with the column instead of being
              given computed dimensions that ignore both. -->
         <Viewbox Stretch="Uniform"
@@ -40,8 +45,8 @@
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding IsFiltered}" Value="False"/>
-                                        <Condition Binding="{Binding IsFilteredFromSummaries}" Value="False"/>
+                                        <Condition Binding="{Binding IsFiltered, FallbackValue=False}" Value="False"/>
+                                        <Condition Binding="{Binding IsFilteredFromSummaries, FallbackValue=False}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="True"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="False"/>
                                     </MultiDataTrigger.Conditions>
@@ -62,8 +67,8 @@
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding IsFiltered}" Value="False"/>
-                                        <Condition Binding="{Binding IsFilteredFromSummaries}" Value="False"/>
+                                        <Condition Binding="{Binding IsFiltered, FallbackValue=False}" Value="False"/>
+                                        <Condition Binding="{Binding IsFilteredFromSummaries, FallbackValue=False}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="True"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
@@ -86,8 +91,8 @@
                                 <!-- A goal shows its pin instead, so the two never both render. -->
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding IsFiltered}" Value="False"/>
-                                        <Condition Binding="{Binding IsFilteredFromSummaries}" Value="False"/>
+                                        <Condition Binding="{Binding IsFiltered, FallbackValue=False}" Value="False"/>
+                                        <Condition Binding="{Binding IsFilteredFromSummaries, FallbackValue=False}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="True"/>
                                         <Condition Binding="{Binding IsGoal}" Value="False"/>
@@ -142,8 +147,8 @@
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding IsFiltered}" Value="False"/>
-                                        <Condition Binding="{Binding IsFilteredFromSummaries}" Value="False"/>
+                                        <Condition Binding="{Binding IsFiltered, FallbackValue=False}" Value="False"/>
+                                        <Condition Binding="{Binding IsFilteredFromSummaries, FallbackValue=False}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="False"/>
                                         <Condition Binding="{Binding IsGoal}" Value="False"/>
@@ -170,8 +175,8 @@
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding IsFiltered}" Value="False"/>
-                                        <Condition Binding="{Binding IsFilteredFromSummaries}" Value="False"/>
+                                        <Condition Binding="{Binding IsFiltered, FallbackValue=False}" Value="False"/>
+                                        <Condition Binding="{Binding IsFilteredFromSummaries, FallbackValue=False}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsGoal}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
