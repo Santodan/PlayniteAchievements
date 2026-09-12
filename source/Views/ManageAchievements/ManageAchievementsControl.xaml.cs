@@ -1000,7 +1000,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 editor => CustomProviderEditorDialog.Show(Window.GetWindow(this), editor),
                 includeProviderAchievements: true,
                 manualLinkApplier: ApplyManualLinkToCache,
-                showManualLinkDialog: ShowManualLinkDialog);
+                showManualLinkDialog: ShowManualLinkDialog,
+                unlinkManualTracking: () => _viewModel.UnlinkManualTrackingCommand?.Execute(null));
             _editorViewModel.CustomAchievementsSaved += CustomViewModel_CustomAchievementsSaved;
             _editorViewModel.AssignmentsChanged += EditorViewModel_CustomizationPersisted;
             _editorViewModel.CapstoneChanged += CustomViewModel_CapstoneChanged;

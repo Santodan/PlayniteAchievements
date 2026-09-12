@@ -131,23 +131,47 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Editor}"
-                               Foreground="{DynamicResource TextBrush}"
-                               FontWeight="SemiBold" />
+                    <!-- The heading names where the achievements come from: the manual link, the
+                         custom bucket, or the provider. The rail already says which tab this is. -->
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding SourceHeading}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                        <!-- One button: it links an unlinked game and relinks a linked one. -->
+                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_ManualTracking}"
+                                Command="{Binding ManualLinkCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="12,0,0,0"
+                                Visibility="{Binding CanLinkManualTracking, Converter={StaticResource BoolToVis}}" />
+                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Manual_Unlink}"
+                                Command="{Binding UnlinkManualTrackingCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="0"
+                                Visibility="{Binding IsManuallyTrackedGame, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
                     <TextBlock Text="{Binding StatusText}"
                                Style="{StaticResource StatusTextStyle}"
                                Margin="0,6,0,0"
                                Visibility="{Binding HasStatusText, Converter={StaticResource BoolToVis}}" />
 
-                    <!-- Where this game's achievements come from. A manually linked game and a
-                         custom-only one are mutually exclusive, so the two share this slot. -->
+                    <!-- "Shows as" for a manually tracked game: which registered provider it
+                         attributes to. The custom-only row below answers the same question with the
+                         user's own providers, so only one of the two is ever shown. -->
                     <StackPanel Orientation="Horizontal"
                                 Margin="0,10,0,0"
-                                Visibility="{Binding CanLinkManualTracking, Converter={StaticResource BoolToVis}}">
-                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_ManualTracking}"
-                                Command="{Binding ManualLinkCommand}"
-                                Style="{StaticResource ToolbarButtonStyle}"
-                                Margin="0" />
+                                Visibility="{Binding IsManuallyTrackedGame, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_Provider}"
+                                   Style="{StaticResource FieldLabelStyle}"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding DisplayPlatformOptions}"
+                                  SelectedItem="{Binding SelectedDisplayPlatform, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName"
+                                  Width="240"
+                                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                                  VerticalContentAlignment="Center" />
                     </StackPanel>
 
                     <!-- Custom-only games pick the platform they display as; the selected custom

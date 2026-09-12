@@ -8,6 +8,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Manual;
+using PlayniteAchievements.Providers.Overrides;
 using PlayniteAchievements.Services.Search;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.CustomProviders;
@@ -53,6 +54,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         // growing that whole dependency set.
         private readonly Action<Guid> _manualLinkApplier;
         private readonly Func<bool> _showManualLinkDialog;
+        private readonly Action _unlinkManualTracking;
         private bool _isRefreshingAssignments;
         private bool _isCommittingRows;
         private bool _isSyncingTypeOptions;
@@ -73,6 +75,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isManuallyTrackedGame;
         private bool _canLinkManualTracking;
         private string _filterText;
+        private string _sourceHeading;
+        private ProviderOverrideChoice _selectedDisplayPlatform;
+        private bool _isSyncingDisplayPlatform;
         private CategoryPickerOption _selectedCategoryFilter;
         private EditorFilterOption _selectedTypeFilter;
         private SearchQuery _filterQuery;
@@ -105,7 +110,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             Func<CustomProviderEditorViewModel, CustomProviderEditorResult> showEditor = null,
             bool includeProviderAchievements = false,
             Action<Guid> manualLinkApplier = null,
-            Func<bool> showManualLinkDialog = null)
+            Func<bool> showManualLinkDialog = null,
+            Action unlinkManualTracking = null)
         {
             _includeProviderAchievements = includeProviderAchievements;
             _gameId = gameId;
@@ -121,6 +127,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _showEditor = showEditor;
             _manualLinkApplier = manualLinkApplier;
             _showManualLinkDialog = showManualLinkDialog;
+            _unlinkManualTracking = unlinkManualTracking;
             if (_customProviderStore != null)
             {
                 _customProviderStore.Changed += CustomProviderStore_Changed;
@@ -152,6 +159,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _ => RevertSelected(),
                 _ => HasSelection && !IsSaving);
             ManualLinkCommand = new RelayCommand(_ => OpenManualLinkDialog(), _ => CanLinkManualTracking && !IsSaving);
+            UnlinkManualTrackingCommand = new RelayCommand(
+                _ => UnlinkManualTracking(),
+                _ => IsManuallyTrackedGame && _unlinkManualTracking != null && !IsSaving);
             ImportFileCommand = new RelayCommand(_ => ImportFile(), _ => !IsSaving);
             ExportTemplateCommand = new RelayCommand(_ => ExportTemplate(), _ => !IsSaving);
             ExportAchievementsCommand = new RelayCommand(_ => ExportAchievements(), _ => HasRows && !IsSaving);
@@ -2528,7 +2538,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // ProviderKey, not ProviderPlatformKey: a link with a display-platform override reports
             // the platform it stands in for (say PSN) while the provider stays Manual, so testing
             // the platform key would miss every overridden link.
-            var hasLink = _gameCustomDataStore.LoadOrDefault(_gameId)?.ManualLink != null;
+            var link = _gameCustomDataStore.LoadOrDefault(_gameId)?.ManualLink;
+            var hasLink = link != null;
             IsManuallyTrackedGame =
                 hasLink &&
                 rawData != null &&
@@ -2547,6 +2558,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 GameCustomDataLookup.IsExcludedFromRefreshes(_gameId, _settings?.Persisted, _gameCustomDataStore),
                 hasCachedAchievements,
                 hasNonManualProviderData);
+
+            RefreshSourceHeading(rawData, link);
+            UnlinkManualTrackingCommand.RaiseCanExecuteChanged();
         }
 
         /// <summary>
@@ -2734,6 +2748,97 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             SelectedTypeFilter = TypeFilterOptions.FirstOrDefault(option =>
                                      string.Equals(option.Value, previousType, StringComparison.OrdinalIgnoreCase))
                                  ?? TypeFilterOptions.FirstOrDefault();
+        }
+
+        /// <summary>
+        /// What this game's achievements come from, shown as the editor's heading: the manual link,
+        /// the custom-provider bucket, or the provider that supplied them.
+        /// </summary>
+        public string SourceHeading
+        {
+            get => _sourceHeading;
+            private set => SetValue(ref _sourceHeading, value);
+        }
+
+        /// <summary>Display-platform choices for a manually tracked game.</summary>
+        public IReadOnlyList<ProviderOverrideChoice> DisplayPlatformOptions { get; } =
+            ManualDisplayPlatformResolver.BuildDisplayPlatformOptions();
+
+        /// <summary>
+        /// The provider key a manually tracked game presents as. Persists on change, then re-projects
+        /// the link so the game re-attributes without waiting for a refresh.
+        /// </summary>
+        public ProviderOverrideChoice SelectedDisplayPlatform
+        {
+            get => _selectedDisplayPlatform;
+            set
+            {
+                if (!SetValueAndReturn(ref _selectedDisplayPlatform, value) || _isSyncingDisplayPlatform)
+                {
+                    return;
+                }
+
+                try
+                {
+                    if (_achievementOverridesService.SetManualDisplayPlatform(_gameId, value?.Value))
+                    {
+                        _manualLinkApplier?.Invoke(_gameId);
+                        RaiseAssignmentsChanged();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"Failed setting the manual display platform for gameId={_gameId}.");
+                    SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+                }
+            }
+        }
+
+        /// <summary>Drops the manual link, returning the game to whatever provider supplies it.</summary>
+        public RelayCommand UnlinkManualTrackingCommand { get; }
+
+        private void RefreshSourceHeading(GameAchievementData rawData, ManualAchievementLink link)
+        {
+            if (link != null)
+            {
+                SourceHeading = ManualAchievementsProvider.GetManageAchievementsLinkSummary(link);
+            }
+            else if (IsCustomOnlyGame)
+            {
+                SourceHeading = ProviderRegistry.GetLocalizedName(CustomProviderKeys.BaseKey);
+            }
+            else
+            {
+                var providerKey = NormalizeText(rawData?.ProviderKey);
+                SourceHeading = string.IsNullOrWhiteSpace(providerKey)
+                    ? L("LOCPlayAch_ManageAchievements_Tab_Editor", "Editor")
+                    : ProviderRegistry.GetLocalizedName(providerKey);
+            }
+
+            _isSyncingDisplayPlatform = true;
+            try
+            {
+                var stored = ManualDisplayPlatformResolver.NormalizeOverride(link?.DisplayPlatformKeyOverride)
+                             ?? string.Empty;
+                SelectedDisplayPlatform = DisplayPlatformOptions.FirstOrDefault(option =>
+                                              string.Equals(option.Value, stored, StringComparison.OrdinalIgnoreCase))
+                                          ?? DisplayPlatformOptions.FirstOrDefault();
+            }
+            finally
+            {
+                _isSyncingDisplayPlatform = false;
+            }
+        }
+
+        private void UnlinkManualTracking()
+        {
+            // Any staged unlock would otherwise be written back against the link just removed,
+            // resurrecting it.
+            _manualUnlocksPending = false;
+            _manualUnlockDebounce?.Stop();
+            _unlinkManualTracking?.Invoke();
+            ReloadData();
+            RaiseAssignmentsChanged();
         }
 
         private void RaiseAssignmentsChanged()
