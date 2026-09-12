@@ -715,8 +715,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var hasNonManualProviderData = ShouldWarnAboutManualTrackingOverride(out _);
                 ManualAchievementLink manualLink;
                 var hasManualLink = ManualAchievementsProvider.TryGetManualLink(_gameId, out manualLink);
-                ShowManualTrackingTab = hasManualLink || allowManualOverride ||
-                    (!isExcluded && (!_cachedHasAchievements || !hasNonManualProviderData));
+                ShowManualTrackingTab = ManualTrackingAvailability.CanLink(
+                    hasManualLink,
+                    allowManualOverride,
+                    isExcluded,
+                    _cachedHasAchievements,
+                    hasNonManualProviderData);
                 ProviderName = ResolveProviderDisplayName(gameData);
                 LibrarySourceName = ResolveLibrarySourceDisplayName(game, gameData?.LibrarySourceName);
 
