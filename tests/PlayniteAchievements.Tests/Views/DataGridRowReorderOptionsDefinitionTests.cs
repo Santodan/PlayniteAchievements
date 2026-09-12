@@ -129,6 +129,62 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void DropIndicator_SharesItsDataGridRow()
+        {
+            // The behavior computes the indicator's offset in the DataGrid's coordinate space and
+            // applies it as a top margin. Parked in a different row -- especially an Auto one -- that
+            // margin stretches the row instead of marking a drop position, distorting the whole
+            // panel mid-drag rather than failing visibly.
+            foreach (var file in FindCallSiteFiles())
+            {
+                var xamlPath = file.Substring(0, file.Length - 3);
+                if (!File.Exists(xamlPath))
+                {
+                    continue;
+                }
+
+                var xaml = File.ReadAllText(xamlPath);
+                var indicatorIndex = xaml.IndexOf("x:Name=\"DropInsertLine\"", StringComparison.Ordinal);
+                if (indicatorIndex < 0)
+                {
+                    continue;
+                }
+
+                var gridIndex = xaml.IndexOf("<DataGrid ", StringComparison.Ordinal);
+                Assert.IsTrue(
+                    gridIndex >= 0,
+                    Path.GetFileName(xamlPath) + " declares a drop indicator but no DataGrid.");
+
+                Assert.AreEqual(
+                    ReadGridRow(xaml, gridIndex),
+                    ReadGridRow(xaml, indicatorIndex),
+                    Path.GetFileName(xamlPath) + "'s drop indicator must sit in the same Grid.Row as "
+                        + "the DataGrid it marks, or its offset stretches another row.");
+            }
+        }
+
+        /// <summary>
+        /// The Grid.Row an element declares, read from the attributes that follow it. Absent means
+        /// row 0, as WPF treats it.
+        /// </summary>
+        private static string ReadGridRow(string xaml, int elementIndex)
+        {
+            var elementEnd = xaml.IndexOf('>', elementIndex);
+            Assert.IsTrue(elementEnd > elementIndex, "Unterminated element in " + xaml.Length + " chars.");
+
+            var marker = "Grid.Row=\"";
+            var rowIndex = xaml.IndexOf(marker, elementIndex, StringComparison.Ordinal);
+            if (rowIndex < 0 || rowIndex > elementEnd)
+            {
+                return "0";
+            }
+
+            var valueStart = rowIndex + marker.Length;
+            var valueEnd = xaml.IndexOf('"', valueStart);
+            return xaml.Substring(valueStart, valueEnd - valueStart);
+        }
+
+        [TestMethod]
         public void RequiredMemberList_MatchesTheBehaviorValidation()
         {
             var behavior = File.ReadAllText(
