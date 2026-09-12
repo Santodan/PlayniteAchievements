@@ -833,6 +833,73 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
+        /// <summary>
+        /// Replaces the manual link's recorded unlocks for a game in one store update. The map holds
+        /// only unlocked achievements, keyed by ApiName, with the unlock time or null when it is
+        /// unknown.
+        /// </summary>
+        /// <remarks>
+        /// Written as a whole map rather than one achievement at a time, matching the other
+        /// collection-shaped facets, so ticking a whole selection costs one write rather than one per
+        /// row. Locked achievements are simply absent: <c>ManualUnlockResolver</c> treats an absent
+        /// key and a stored <c>false</c> identically, so storing the false entries would only grow
+        /// the blob that every write has to serialize.
+        /// <para>
+        /// <paramref name="affectsSummaryData"/> is false on purpose. Unlocked counts and completion
+        /// are read from the cache, not from this blob, and the caller re-applies the link to the
+        /// cache itself, which raises its own invalidation. Marking this as summary-affecting would
+        /// run that cascade a second time for identical numbers.
+        /// </para>
+        /// </remarks>
+        public bool SetManualUnlockStates(
+            Guid playniteGameId,
+            IReadOnlyDictionary<string, DateTime?> unlockedApiNames)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var states = new Dictionary<string, bool>();
+            var times = new Dictionary<string, DateTime?>();
+            if (unlockedApiNames != null)
+            {
+                foreach (var pair in unlockedApiNames)
+                {
+                    var apiName = (pair.Key ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(apiName))
+                    {
+                        continue;
+                    }
+
+                    states[apiName] = true;
+                    if (pair.Value.HasValue)
+                    {
+                        times[apiName] = pair.Value;
+                    }
+                }
+            }
+
+            var wrote = false;
+            _gameCustomDataStore.Update(
+                playniteGameId,
+                customData =>
+                {
+                    if (customData.ManualLink == null)
+                    {
+                        return;
+                    }
+
+                    customData.ManualLink.UnlockStates = states;
+                    customData.ManualLink.UnlockTimes = times;
+                    customData.ManualLink.LastModifiedUtc = DateTime.UtcNow;
+                    wrote = true;
+                },
+                affectsSummaryData: false);
+
+            return wrote;
+        }
+
         private bool RemoveManualTrackingLink(Guid playniteGameId, string gameName)
         {
             var removedFromStore = false;
