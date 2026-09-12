@@ -46,20 +46,31 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void NavRail_AchievementDataGatedTabs_MatchRequireAchievementDataSet()
         {
-            var gatedInXaml = ReadXamlAchievementDataGatedTabs();
-            var gatedInCode = ReadListedTabs(
-                File.ReadAllText(FindRepoFile(
-                    "source", "ViewModels", "ManageAchievements", "ManageAchievementsTab.cs")),
-                "RequireAchievementData =",
-                "};");
+            // The merged editor replaced every achievement-data tab, so those buttons gate on
+            // ShowReplacedTabs now. Whichever flag a button binds, it must agree with the set that
+            // names it, or a tab silently becomes unreachable or reappears.
+            var tabsFile = File.ReadAllText(FindRepoFile(
+                "source", "ViewModels", "ManageAchievements", "ManageAchievementsTab.cs"));
+
+            var replacedInXaml = ReadXamlTabsGatedOn("ShowReplacedTabs");
+            var replacedInCode = ReadListedTabs(tabsFile, "Replaced =", "};");
 
             CollectionAssert.AreEquivalent(
-                gatedInCode,
+                replacedInCode,
+                replacedInXaml,
+                "Every tab whose nav button binds visibility to ShowReplacedTabs must be listed in "
+                    + "ManageAchievementsTabs.Replaced, and vice versa. "
+                    + "XAML: " + string.Join(", ", replacedInXaml)
+                    + " | Replaced: " + string.Join(", ", replacedInCode));
+
+            var gatedInXaml = ReadXamlTabsGatedOn("HasAchievementData");
+            var requireInCode = ReadListedTabs(tabsFile, "RequireAchievementData =", "};");
+
+            CollectionAssert.IsSubsetOf(
                 gatedInXaml,
-                "Every tab whose nav button binds visibility to HasAchievementData must be listed in "
-                    + "ManageAchievementsTabs.RequireAchievementData, and vice versa. "
-                    + "XAML: " + string.Join(", ", gatedInXaml)
-                    + " | RequireAchievementData: " + string.Join(", ", gatedInCode));
+                requireInCode,
+                "A tab gated on HasAchievementData must be listed in RequireAchievementData. "
+                    + "XAML: " + string.Join(", ", gatedInXaml));
         }
 
         [TestMethod]
@@ -88,12 +99,12 @@ namespace PlayniteAchievements.Tests.Views
                     "Group header key " + key + " must already exist in en_US.xaml.");
             }
 
-            // The Achievements group collapses with its tabs, so its header is gated too.
+            // The Achievements group collapses with its tabs, so its header shares their gate.
             Assert.IsTrue(
                 Regex.IsMatch(
                     xaml,
-                    "LOCPlayAch_Achievements\\}\"[\\s\\S]{0,400}?Binding HasAchievementData"),
-                "The Achievements group header must bind visibility to HasAchievementData so it "
+                    "LOCPlayAch_Achievements\\}\"[\\s\\S]{0,400}?Binding ShowReplacedTabs"),
+                "The Achievements group header must bind visibility to ShowReplacedTabs so it "
                     + "collapses with the tabs it labels.");
         }
 
@@ -125,13 +136,13 @@ namespace PlayniteAchievements.Tests.Views
                 .ToList();
         }
 
-        private static List<string> ReadXamlAchievementDataGatedTabs()
+        private static List<string> ReadXamlTabsGatedOn(string flagName)
         {
             // Each RadioButton is a self-closing element; capture the block to test it for the gate.
             return Regex.Matches(ReadControlXaml(), "<RadioButton\\s[\\s\\S]*?/>")
                 .Cast<Match>()
                 .Select(match => match.Value)
-                .Where(block => block.Contains("Binding HasAchievementData"))
+                .Where(block => block.Contains("Binding " + flagName))
                 .Select(block => Regex.Match(block, "x:Name=\"(\\w+)TabButton\"").Groups[1].Value)
                 .ToList();
         }
