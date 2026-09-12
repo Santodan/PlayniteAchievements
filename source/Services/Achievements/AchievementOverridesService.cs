@@ -900,6 +900,43 @@ namespace PlayniteAchievements.Services.Achievements
             return wrote;
         }
 
+        /// <summary>
+        /// Sets the provider key a manually tracked game presents as. Null or empty restores the
+        /// platform derived from the source game id.
+        /// </summary>
+        /// <remarks>
+        /// Only the stored override moves here. The cached game's effective platform is resolved
+        /// from it by <c>ManualDisplayPlatformResolver</c> when the link is re-applied, so the
+        /// caller re-projects rather than this writing two places.
+        /// </remarks>
+        public bool SetManualDisplayPlatform(Guid playniteGameId, string providerKey)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var normalized = ManualDisplayPlatformResolver.NormalizeOverride(providerKey);
+            var wrote = false;
+            _gameCustomDataStore.Update(
+                playniteGameId,
+                customData =>
+                {
+                    if (customData.ManualLink == null)
+                    {
+                        return;
+                    }
+
+                    customData.ManualLink.DisplayPlatformKeyOverride = normalized;
+                    customData.ManualLink.LastModifiedUtc = DateTime.UtcNow;
+                    wrote = true;
+                },
+                // The platform a game attributes to moves library rollups, so summaries rebuild.
+                affectsSummaryData: true);
+
+            return wrote;
+        }
+
         private bool RemoveManualTrackingLink(Guid playniteGameId, string gameName)
         {
             var removedFromStore = false;
