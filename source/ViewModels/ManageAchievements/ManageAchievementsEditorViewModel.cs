@@ -26,9 +26,9 @@ using AsyncCommand = PlayniteAchievements.Common.AsyncCommand;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
-namespace PlayniteAchievements.ViewModels
+namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
-    public sealed class ManageAchievementsCustomViewModel : ObservableObject
+    public sealed class ManageAchievementsEditorViewModel : ObservableObject
     {
         // The merged editor lists provider achievements alongside authored ones; the Custom tab
         // lists only authored ones. Everything else about the two surfaces is identical, so they
@@ -53,7 +53,7 @@ namespace PlayniteAchievements.ViewModels
         private CustomProviderOption _selectedCustomProviderOption;
         private CustomProviderDefinition _selectedCustomProvider;
 
-        private CustomAchievementEditItem _selectedRow;
+        private AchievementEditorRow _selectedRow;
         private bool _hasChanges;
         private bool _hasRows;
         private bool _hasValidationErrors;
@@ -62,7 +62,7 @@ namespace PlayniteAchievements.ViewModels
         private bool _statusIsError;
         private string _baselineCollectionSignature;
 
-        public ManageAchievementsCustomViewModel(
+        public ManageAchievementsEditorViewModel(
             Guid gameId,
             AchievementOverridesService achievementOverridesService,
             GameCustomDataStore gameCustomDataStore,
@@ -96,7 +96,7 @@ namespace PlayniteAchievements.ViewModels
             AddCustomProviderCommand = new RelayCommand(_ => AddCustomProvider(), _ => IsCustomOnlyGame && _customProviderStore != null && !IsSaving);
             EditCustomProviderCommand = new RelayCommand(_ => EditCustomProvider(), _ => HasSelectedCustomProvider && _showEditor != null && !IsSaving);
 
-            AchievementRows = new ObservableCollection<CustomAchievementEditItem>();
+            AchievementRows = new ObservableCollection<AchievementEditorRow>();
             AssignableCategoryOptions = new ObservableCollection<string>();
             TypeSelectionOptions = new ObservableCollection<CategoryTypeSelectionOption>(
                 AchievementCategoryTypeHelper.AssignableCategoryTypes.Select(type =>
@@ -125,7 +125,7 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>Raised after the game's manual capstone was changed from this tab.</summary>
         public event EventHandler<CapstoneChangedEventArgs> CapstoneChanged;
 
-        public ObservableCollection<CustomAchievementEditItem> AchievementRows { get; }
+        public ObservableCollection<AchievementEditorRow> AchievementRows { get; }
 
         /// <summary>Every category the Category tab shows, in tree order, for the details picker.</summary>
         public ObservableCollection<string> AssignableCategoryOptions { get; }
@@ -193,7 +193,7 @@ namespace PlayniteAchievements.ViewModels
 
         public bool HasSelectedCustomProvider => _selectedCustomProvider != null;
 
-        public CustomAchievementEditItem SelectedRow
+        public AchievementEditorRow SelectedRow
         {
             get => _selectedRow;
             set
@@ -312,13 +312,13 @@ namespace PlayniteAchievements.ViewModels
                     var hydrated = _gameDataSnapshotProvider?.GetHydratedGameData();
                     ReplaceRows((hydrated?.Achievements ?? new List<AchievementDetail>())
                         .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
-                        .Select(CustomAchievementEditItem.FromAchievementDetail)
+                        .Select(AchievementEditorRow.FromAchievementDetail)
                         .Where(row => row != null));
                 }
                 else
                 {
                     ReplaceRows((data?.CustomAchievements ?? new List<CustomAchievementDefinition>())
-                        .Select(CustomAchievementEditItem.FromDefinition));
+                        .Select(AchievementEditorRow.FromDefinition));
                 }
                 CaptureCollectionBaseline();
                 RefreshAssignmentState();
@@ -329,7 +329,7 @@ namespace PlayniteAchievements.ViewModels
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed loading custom achievements for gameId={_gameId}.");
-                ReplaceRows(Array.Empty<CustomAchievementEditItem>());
+                ReplaceRows(Array.Empty<AchievementEditorRow>());
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
             }
         }
@@ -558,7 +558,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void AddRow()
         {
-            var row = CustomAchievementEditItem.CreateNew(AchievementRows.Count + 1);
+            var row = AchievementEditorRow.CreateNew(AchievementRows.Count + 1);
             AssignStableId(row);
             AttachRow(row);
             AchievementRows.Add(row);
@@ -573,7 +573,7 @@ namespace PlayniteAchievements.ViewModels
         /// against the other rows, and then stays fixed so every ApiName-keyed customization the
         /// other tabs write (category, capstone, notes, order) survives later renames.
         /// </summary>
-        private void AssignStableId(CustomAchievementEditItem row)
+        private void AssignStableId(AchievementEditorRow row)
         {
             if (row == null || !string.IsNullOrWhiteSpace(row.NormalizedId))
             {
@@ -678,7 +678,7 @@ namespace PlayniteAchievements.ViewModels
                     continue;
                 }
 
-                var row = CustomAchievementEditItem.FromDefinition(definition);
+                var row = AchievementEditorRow.FromDefinition(definition);
                 row.MarkAsNewImport();
                 AttachRow(row);
                 AchievementRows.Add(row);
@@ -1013,7 +1013,7 @@ namespace PlayniteAchievements.ViewModels
             RefreshAssignmentState();
         }
 
-        private void ReplaceRows(IEnumerable<CustomAchievementEditItem> rows)
+        private void ReplaceRows(IEnumerable<AchievementEditorRow> rows)
         {
             var previousSelectedId = SelectedRow?.NormalizedId;
             foreach (var row in AchievementRows)
@@ -1022,7 +1022,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             AchievementRows.Clear();
-            foreach (var row in rows ?? Enumerable.Empty<CustomAchievementEditItem>())
+            foreach (var row in rows ?? Enumerable.Empty<AchievementEditorRow>())
             {
                 AttachRow(row);
                 AchievementRows.Add(row);
@@ -1169,7 +1169,7 @@ namespace PlayniteAchievements.ViewModels
         /// Assigns a category label to a saved row, or clears its override when the text is
         /// blank. Persists immediately, like the Category tab.
         /// </summary>
-        public bool ApplyCategoryToRow(CustomAchievementEditItem row, string categoryText)
+        public bool ApplyCategoryToRow(AchievementEditorRow row, string categoryText)
         {
             var apiName = NormalizeText(row?.OriginalApiName);
             if (string.IsNullOrWhiteSpace(apiName))
@@ -1197,7 +1197,7 @@ namespace PlayniteAchievements.ViewModels
             return true;
         }
 
-        private void SetCategoryTypeForRow(CustomAchievementEditItem row, string categoryType, bool isSelected)
+        private void SetCategoryTypeForRow(AchievementEditorRow row, string categoryType, bool isSelected)
         {
             var apiName = NormalizeText(row?.OriginalApiName);
             var normalizedType = AchievementCategoryTypeHelper.Normalize(categoryType);
@@ -1244,7 +1244,7 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void SetCapstoneForRow(CustomAchievementEditItem row, bool isCapstone)
+        private void SetCapstoneForRow(AchievementEditorRow row, bool isCapstone)
         {
             var apiName = NormalizeText(row?.OriginalApiName);
             if (string.IsNullOrWhiteSpace(apiName))
@@ -1307,7 +1307,7 @@ namespace PlayniteAchievements.ViewModels
             return normalized;
         }
 
-        private void AttachRow(CustomAchievementEditItem row)
+        private void AttachRow(AchievementEditorRow row)
         {
             if (row == null)
             {
@@ -1342,9 +1342,9 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            if (e.PropertyName == nameof(CustomAchievementEditItem.IsCapstone))
+            if (e.PropertyName == nameof(AchievementEditorRow.IsCapstone))
             {
-                if (!_isRefreshingAssignments && sender is CustomAchievementEditItem capstoneRow)
+                if (!_isRefreshingAssignments && sender is AchievementEditorRow capstoneRow)
                 {
                     SetCapstoneForRow(capstoneRow, capstoneRow.IsCapstone);
                 }
@@ -1352,22 +1352,22 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            if (e.PropertyName == nameof(CustomAchievementEditItem.ValidationMessage) ||
-                e.PropertyName == nameof(CustomAchievementEditItem.IsRevealed) ||
-                e.PropertyName == nameof(CustomAchievementEditItem.IsIconHidden) ||
-                e.PropertyName == nameof(CustomAchievementEditItem.IsLockedIconHidden) ||
-                e.PropertyName == nameof(CustomAchievementEditItem.CanReveal) ||
-                e.PropertyName == nameof(CustomAchievementEditItem.DisplayIcon) ||
-                e.PropertyName == nameof(CustomAchievementEditItem.CategoryLabel) ||
-                e.PropertyName == nameof(CustomAchievementEditItem.CategoryTypeValue) ||
-                e.PropertyName == nameof(CustomAchievementEditItem.CategoryTypeDisplayText))
+            if (e.PropertyName == nameof(AchievementEditorRow.ValidationMessage) ||
+                e.PropertyName == nameof(AchievementEditorRow.IsRevealed) ||
+                e.PropertyName == nameof(AchievementEditorRow.IsIconHidden) ||
+                e.PropertyName == nameof(AchievementEditorRow.IsLockedIconHidden) ||
+                e.PropertyName == nameof(AchievementEditorRow.CanReveal) ||
+                e.PropertyName == nameof(AchievementEditorRow.DisplayIcon) ||
+                e.PropertyName == nameof(AchievementEditorRow.CategoryLabel) ||
+                e.PropertyName == nameof(AchievementEditorRow.CategoryTypeValue) ||
+                e.PropertyName == nameof(AchievementEditorRow.CategoryTypeDisplayText))
             {
                 return;
             }
 
             SetStatus(null, false);
 
-            if (sender is CustomAchievementEditItem editedRow)
+            if (sender is AchievementEditorRow editedRow)
             {
                 // Notes, goals and filters are ApiName-keyed for every achievement, authored or
                 // not, so they persist the same way for both row kinds. Routing them by row kind
@@ -1421,7 +1421,7 @@ namespace PlayniteAchievements.ViewModels
         /// supplied, because they key off the ApiName rather than living on a provider payload or
         /// a custom definition. Returns true when the edit was handled here.
         /// </summary>
-        private bool PersistSharedFacet(CustomAchievementEditItem row, string propertyName)
+        private bool PersistSharedFacet(AchievementEditorRow row, string propertyName)
         {
             var apiName = row.OriginalApiName;
             if (string.IsNullOrWhiteSpace(apiName))
@@ -1433,18 +1433,18 @@ namespace PlayniteAchievements.ViewModels
             {
                 switch (propertyName)
                 {
-                    case nameof(CustomAchievementEditItem.AchievementNote):
+                    case nameof(AchievementEditorRow.AchievementNote):
                         _achievementOverridesService.SetAchievementNote(_gameId, apiName, row.AchievementNote);
                         RaiseAssignmentsChanged();
                         return true;
 
-                    case nameof(CustomAchievementEditItem.IsGoal):
+                    case nameof(AchievementEditorRow.IsGoal):
                         _achievementOverridesService.SetAchievementGoal(_gameId, apiName, row.IsGoal);
                         RaiseAssignmentsChanged();
                         return true;
 
-                    case nameof(CustomAchievementEditItem.IsFiltered):
-                    case nameof(CustomAchievementEditItem.IsSummaryFiltered):
+                    case nameof(AchievementEditorRow.IsFiltered):
+                    case nameof(AchievementEditorRow.IsSummaryFiltered):
                         PersistFiltersFromRows();
                         return true;
 
@@ -1468,7 +1468,7 @@ namespace PlayniteAchievements.ViewModels
         /// disables their editors. The unlock timestamp is only a correction to an achievement that
         /// is already unlocked.
         /// </remarks>
-        private void PersistProviderRowField(CustomAchievementEditItem row, string propertyName)
+        private void PersistProviderRowField(AchievementEditorRow row, string propertyName)
         {
             var apiName = row.OriginalApiName;
             if (string.IsNullOrWhiteSpace(apiName))
@@ -1480,15 +1480,15 @@ namespace PlayniteAchievements.ViewModels
             {
                 switch (propertyName)
                 {
-                    case nameof(CustomAchievementEditItem.DisplayName):
+                    case nameof(AchievementEditorRow.DisplayName):
                         WriteProviderField(apiName, AchievementEditableField.DisplayName, NormalizeText(row.DisplayName));
                         break;
 
-                    case nameof(CustomAchievementEditItem.Description):
+                    case nameof(AchievementEditorRow.Description):
                         WriteProviderField(apiName, AchievementEditableField.Description, NormalizeText(row.Description));
                         break;
 
-                    case nameof(CustomAchievementEditItem.PointsText):
+                    case nameof(AchievementEditorRow.PointsText):
                         if (!AchievementEditorFieldRules.TryParsePoints(row.PointsText, out var points))
                         {
                             row.ValidationMessage = ResourceProvider.GetString(
@@ -1500,15 +1500,15 @@ namespace PlayniteAchievements.ViewModels
                         WriteProviderField(apiName, AchievementEditableField.Points, points);
                         break;
 
-                    case nameof(CustomAchievementEditItem.TrophyType):
+                    case nameof(AchievementEditorRow.TrophyType):
                         WriteProviderField(apiName, AchievementEditableField.TrophyType, NormalizeText(row.TrophyType));
                         break;
 
-                    case nameof(CustomAchievementEditItem.UnlockTime):
-                    case nameof(CustomAchievementEditItem.HasUnlockTime):
-                    case nameof(CustomAchievementEditItem.UnlockDate):
-                    case nameof(CustomAchievementEditItem.TimeText):
-                    case nameof(CustomAchievementEditItem.SelectedTimeModeText):
+                    case nameof(AchievementEditorRow.UnlockTime):
+                    case nameof(AchievementEditorRow.HasUnlockTime):
+                    case nameof(AchievementEditorRow.UnlockDate):
+                    case nameof(AchievementEditorRow.TimeText):
+                    case nameof(AchievementEditorRow.SelectedTimeModeText):
                         if (!row.Unlocked)
                         {
                             return;
@@ -1632,7 +1632,7 @@ namespace PlayniteAchievements.ViewModels
         public override string ToString() => DisplayName;
     }
 
-    public sealed class CustomAchievementEditItem : ObservableObject
+    public sealed class AchievementEditorRow : ObservableObject
     {
         private string _id;
         private string _displayName;
@@ -2330,9 +2330,9 @@ namespace PlayniteAchievements.ViewModels
 
         public string StateSignature => BuildSignature();
 
-        public static CustomAchievementEditItem CreateNew(int index)
+        public static AchievementEditorRow CreateNew(int index)
         {
-            var row = new CustomAchievementEditItem
+            var row = new AchievementEditorRow
             {
                 DisplayName = "New Achievement " + Math.Max(1, index).ToString(CultureInfo.InvariantCulture),
                 IsNew = true
@@ -2352,14 +2352,14 @@ namespace PlayniteAchievements.ViewModels
         /// The values come from hydrated data, so any existing override is already applied and the
         /// row shows the effective value rather than the provider's original.
         /// </remarks>
-        public static CustomAchievementEditItem FromAchievementDetail(AchievementDetail achievement)
+        public static AchievementEditorRow FromAchievementDetail(AchievementDetail achievement)
         {
             if (achievement == null)
             {
                 return null;
             }
 
-            var row = new CustomAchievementEditItem();
+            var row = new AchievementEditorRow();
             row.SuppressNotifications = true;
             row.IsProviderRow = !achievement.IsCustom;
             row.Id = achievement.IsCustom &&
@@ -2396,9 +2396,9 @@ namespace PlayniteAchievements.ViewModels
             return row;
         }
 
-        public static CustomAchievementEditItem FromDefinition(CustomAchievementDefinition definition)
+        public static AchievementEditorRow FromDefinition(CustomAchievementDefinition definition)
         {
-            var row = new CustomAchievementEditItem();
+            var row = new AchievementEditorRow();
             row.ApplyDefinition(definition, preserveOriginalId: false);
             row.OriginalApiName = CustomAchievementProjectionService.BuildApiName(definition?.Id);
             row.IsNew = false;
@@ -2468,7 +2468,7 @@ namespace PlayniteAchievements.ViewModels
             CaptureBaseline();
         }
 
-        public CustomAchievementEditItem CloneForDuplicate()
+        public AchievementEditorRow CloneForDuplicate()
         {
             var definition = ToDefinition(new HashSet<string>(StringComparer.OrdinalIgnoreCase), out _);
             definition.Id = null;

@@ -1,16 +1,16 @@
-<UserControl x:Class="PlayniteAchievements.Views.ManageAchievementsCustomTab"
+<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsEditorTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
+             xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.ManageAchievements"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              mc:Ignorable="d"
              d:DesignHeight="620"
              d:DesignWidth="980"
-             d:DataContext="{d:DesignInstance vm:ManageAchievementsCustomViewModel}">
+             d:DataContext="{d:DesignInstance vm:ManageAchievementsEditorViewModel}">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -131,7 +131,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Custom}"
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Editor}"
                                Foreground="{DynamicResource TextBrush}"
                                FontWeight="SemiBold" />
                     <TextBlock Text="{Binding StatusText}"
@@ -814,7 +814,7 @@
                                         Style="{StaticResource DropdownButtonStyle}"
                                         Click="ContextMenuButton_Click">
                                     <Button.ContextMenu>
-                                        <ContextMenu ItemsSource="{x:Static vm:ManageAchievementsCustomViewModel.RarityOptions}"
+                                        <ContextMenu ItemsSource="{x:Static vm:ManageAchievementsEditorViewModel.RarityOptions}"
                                                      MenuItem.Click="RarityMenuItem_Click">
                                             <ContextMenu.ItemTemplate>
                                                 <DataTemplate>

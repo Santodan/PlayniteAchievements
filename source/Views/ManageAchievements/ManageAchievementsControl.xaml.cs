@@ -59,7 +59,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private ManageAchievementsCapstonesTab _capstoneControl;
         private ManageAchievementsManualTrackingTab _manualControl;
-        private ManageAchievementsCustomTab _editorControl;
+        private ManageAchievementsEditorTab _editorControl;
         private ManageAchievementsAchievementOrderTab _achievementOrderControl;
         private ManageAchievementsGoalsTab _goalsControl;
         private ManageAchievementsCategoryTab _categoryControl;
@@ -70,7 +70,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private System.Windows.Threading.DispatcherTimer _iconOverridesChangedDebounce;
         private readonly HashSet<string> _pendingIconOverrideApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private ManualAchievementsViewModel _manualViewModel;
-        private ManageAchievementsCustomViewModel _editorViewModel;
+        private ManageAchievementsEditorViewModel _editorViewModel;
         private ManageAchievementsAchievementOrderViewModel _achievementOrderViewModel;
         private ManageAchievementsGoalsViewModel _goalsViewModel;
         private ManageAchievementsCategoryViewModel _categoryViewModel;
@@ -883,7 +883,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // Same view model and view as the Custom tab, told to include provider achievements:
             // the merged editor is that editor pointed at every achievement rather than only the
             // authored ones, so it inherits the icon, date, rarity and category editing wholesale.
-            _editorViewModel = new ManageAchievementsCustomViewModel(
+            _editorViewModel = new ManageAchievementsEditorViewModel(
                 _viewModel.GameId,
                 _achievementOverridesService,
                 PlayniteAchievementsPlugin.Instance?.GameCustomDataStore,
@@ -898,7 +898,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _editorViewModel.CustomAchievementsSaved += CustomViewModel_CustomAchievementsSaved;
             _editorViewModel.AssignmentsChanged += EditorViewModel_CustomizationPersisted;
             _editorViewModel.CapstoneChanged += CustomViewModel_CapstoneChanged;
-            _editorControl = new ManageAchievementsCustomTab(_editorViewModel);
+            _editorControl = new ManageAchievementsEditorTab(_editorViewModel);
             EditorHost.Content = _editorControl;
         }
 

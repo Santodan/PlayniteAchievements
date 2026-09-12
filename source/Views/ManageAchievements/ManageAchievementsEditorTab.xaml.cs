@@ -5,6 +5,7 @@ using Playnite.SDK.Events;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.ManageAchievements;
 using PlayniteAchievements.Views.Helpers;
 using System;
 using System.Collections.Generic;
@@ -18,9 +19,9 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 
-namespace PlayniteAchievements.Views
+namespace PlayniteAchievements.Views.ManageAchievements
 {
-    public partial class ManageAchievementsCustomTab : UserControl, IFullscreenControllerNavigable
+    public partial class ManageAchievementsEditorTab : UserControl, IFullscreenControllerNavigable
     {
         private static readonly Regex HttpUrlRegex = new Regex(@"https?://[^\s""'<>]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly string[] SupportedImageExtensions =
@@ -34,9 +35,9 @@ namespace PlayniteAchievements.Views
             ".tiff"
         };
 
-        private CustomAchievementEditItem _categoryPickerRow;
+        private AchievementEditorRow _categoryPickerRow;
 
-        public ManageAchievementsCustomTab(ManageAchievementsCustomViewModel viewModel)
+        public ManageAchievementsEditorTab(ManageAchievementsEditorViewModel viewModel)
         {
             InitializeComponent();
             DataContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
@@ -56,11 +57,11 @@ namespace PlayniteAchievements.Views
             SeedCategoryPicker();
         }
 
-        private ManageAchievementsCustomViewModel ViewModel => DataContext as ManageAchievementsCustomViewModel;
+        private ManageAchievementsEditorViewModel ViewModel => DataContext as ManageAchievementsEditorViewModel;
 
         private void ViewModel_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (e?.PropertyName == nameof(ManageAchievementsCustomViewModel.SelectedRow))
+            if (e?.PropertyName == nameof(ManageAchievementsEditorViewModel.SelectedRow))
             {
                 SeedCategoryPicker();
             }
@@ -89,7 +90,7 @@ namespace PlayniteAchievements.Views
         /// </summary>
         private void EditNoteButton_Click(object sender, RoutedEventArgs e)
         {
-            if (!((sender as FrameworkElement)?.DataContext is CustomAchievementEditItem row))
+            if (!((sender as FrameworkElement)?.DataContext is AchievementEditorRow row))
             {
                 return;
             }
@@ -173,7 +174,7 @@ namespace PlayniteAchievements.Views
 
         private void IconImage_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (!((sender as FrameworkElement)?.DataContext is CustomAchievementEditItem row) || !row.CanReveal)
+            if (!((sender as FrameworkElement)?.DataContext is AchievementEditorRow row) || !row.CanReveal)
             {
                 return;
             }
@@ -191,7 +192,7 @@ namespace PlayniteAchievements.Views
             }
 
             var menu = ItemsControl.ItemsControlFromItemContainer(menuItem) as ContextMenu;
-            if ((menu?.PlacementTarget as FrameworkElement)?.DataContext is CustomAchievementEditItem row)
+            if ((menu?.PlacementTarget as FrameworkElement)?.DataContext is AchievementEditorRow row)
             {
                 row.RarityInput = option.DisplayName;
             }
@@ -329,10 +330,10 @@ namespace PlayniteAchievements.Views
 
         private static bool TryResolveRowAndVariant(
             FrameworkElement element,
-            out CustomAchievementEditItem row,
+            out AchievementEditorRow row,
             out AchievementIconVariant variant)
         {
-            row = element?.DataContext as CustomAchievementEditItem;
+            row = element?.DataContext as AchievementEditorRow;
             variant = AchievementIconVariant.Unlocked;
             if (row == null)
             {
@@ -354,7 +355,7 @@ namespace PlayniteAchievements.Views
         }
 
         private static void SetIconPath(
-            CustomAchievementEditItem row,
+            AchievementEditorRow row,
             AchievementIconVariant variant,
             string value)
         {
