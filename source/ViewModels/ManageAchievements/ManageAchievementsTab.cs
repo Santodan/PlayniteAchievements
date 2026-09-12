@@ -6,10 +6,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     {
         Overview,
         ManualTracking,
-        Custom,
-        // The merged editor: every achievement in one list, with the facets that the Category,
-        // Filters, Capstones, Goals, Notes, Order and Icons tabs each own a slice of. Those tabs
-        // are still present while it is verified against them.
+        // The merged editor: every achievement in one list, authored and provider-supplied alike.
+        // It replaced the Custom tab outright — it is that same editor widened to every
+        // achievement — and folds in the facets the Category, Filters, Capstones, Goals, Notes,
+        // Order and Icons tabs each own a slice of. Those tabs remain while it is verified
+        // against them.
         Editor,
         Category,
         Filters,
