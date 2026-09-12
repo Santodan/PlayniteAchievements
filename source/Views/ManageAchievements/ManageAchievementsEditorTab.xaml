@@ -267,12 +267,57 @@
                  the last row. -->
             <Grid Grid.Column="0">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
+                <!-- Narrowing the list and acting on a selection, above the grid they apply to.
+                     The filter drives the collection view only: the rows behind it stay whole, so
+                     every write still sees every achievement. -->
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0">
+                        <TextBox x:Name="FilterTextBox"
+                                 Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged, Delay=150, Mode=TwoWay}"
+                                 Style="{StaticResource ManageAchievementsSearchTextBoxStyle}" />
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_FilterAchievementsPlaceholder}"
+                                   Tag="{Binding Text, ElementName=FilterTextBox}"
+                                   Style="{StaticResource ManageAchievementsEditSearchPlaceholderTextStyle}" />
+                        <Button x:Name="ClearFilterButton"
+                                Tag="{Binding Text, ElementName=FilterTextBox}"
+                                Click="ClearFilterButton_Click"
+                                Style="{StaticResource ClearSearchButtonStyle}" />
+                    </Grid>
+
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding RowCountSummary}"
+                               VerticalAlignment="Center"
+                               Margin="10,0,10,0"
+                               Opacity="0.7"
+                               Foreground="{DynamicResource TextBrush}" />
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button x:Name="SelectAllButton"
+                                Content="{DynamicResource LOCPlayAch_Common_SelectAll}"
+                                Click="SelectAllButton_Click"
+                                Style="{StaticResource ToolbarButtonStyle}" />
+                        <Button x:Name="DeselectAllButton"
+                                Content="{DynamicResource LOCPlayAch_Common_DeselectAll}"
+                                Click="DeselectAllButton_Click"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="6,0,0,0" />
+                    </StackPanel>
+                </Grid>
+
+
             <DataGrid x:Name="CustomAchievementsGrid"
-                      Grid.Row="0"
+                      Grid.Row="1"
                       ItemsSource="{Binding AchievementRows}"
                       SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
                       SelectionChanged="AchievementsGrid_SelectionChanged"
@@ -334,11 +379,14 @@
                                 <!-- The transparent stretched Border is what makes the whole cell
                                      draggable: a bare glyph only hit-tests on its own pixels, so
                                      the press falls through to the row and no drag starts. -->
+                                <!-- Hidden while the grid is narrowed: ordering is one list over
+                                     every achievement, so it cannot be edited from a subset. -->
                                 <Border Tag="DragHandle"
                                         Background="Transparent"
                                         HorizontalAlignment="Stretch"
                                         VerticalAlignment="Stretch"
                                         Cursor="SizeAll"
+                                        Visibility="{Binding DataContext.IsFiltering, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}"
                                         ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}">
                                     <TextBlock Tag="DragHandle"
                                                Text="&#x2630;"
@@ -512,7 +560,7 @@
 
                 <!-- A second Add directly beneath the grid, pinned rather than scrolling away. -->
                 <Button x:Name="AddRowFooterButton"
-                        Grid.Row="1"
+                        Grid.Row="2"
                         Content="&#x2B;"
                         FontSize="16"
                         FontWeight="SemiBold"

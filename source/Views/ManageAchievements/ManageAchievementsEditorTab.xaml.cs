@@ -16,6 +16,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
@@ -50,6 +51,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // The picker resolves on demand (Enter or focus loss); it is seeded for the row that
             // was selected when editing began, so a click onto another row commits to the right one.
             viewModel.PropertyChanged += ViewModel_PropertyChanged;
+            viewModel.FilterChanged += ViewModel_FilterChanged;
+            AttachFilter();
             viewModel.AssignmentsChanged += (_, __) => SeedCategoryPicker();
             CategoryPicker.Committed += (_, __) => ApplyCategoryFromPicker();
             CategoryPicker.IsKeyboardFocusWithinChanged += (_, e) =>
@@ -90,6 +93,52 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// Reselects rows after a reorder rebuilds the collection, so a multi-row drag does not
         /// clear the user's selection.
         /// </summary>
+        /// <summary>
+        /// Points the grid's collection view at the view model's filter predicate, so narrowing the
+        /// list never touches the rows behind it.
+        /// </summary>
+        /// <remarks>
+        /// The filter lives on the view rather than on a second, filtered collection: every persist
+        /// path in the view model walks <c>AchievementRows</c> as the game's complete, ordered list,
+        /// and would write a truncated one if the filter removed rows from it.
+        /// </remarks>
+        private void AttachFilter()
+        {
+            var view = CollectionViewSource.GetDefaultView(ViewModel?.AchievementRows);
+            if (view == null)
+            {
+                return;
+            }
+
+            view.Filter = candidate => ViewModel?.MatchesFilter(candidate as AchievementEditorRow) != false;
+        }
+
+        private void ViewModel_FilterChanged(object sender, EventArgs e)
+        {
+            CollectionViewSource.GetDefaultView(ViewModel?.AchievementRows)?.Refresh();
+        }
+
+        private void ClearFilterButton_Click(object sender, RoutedEventArgs e)
+        {
+            FilterTextBox.Clear();
+            FilterTextBox.Focus();
+        }
+
+        /// <summary>
+        /// Selects every achievement the grid is currently showing. With a filter active that is the
+        /// matching subset, which is what makes a bulk edit over a search possible.
+        /// </summary>
+        private void SelectAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            CustomAchievementsGrid.SelectAll();
+            CustomAchievementsGrid.Focus();
+        }
+
+        private void DeselectAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            CustomAchievementsGrid.UnselectAll();
+        }
+
         private void RestoreSelectionByApiNames(IReadOnlyList<string> apiNames)
         {
             if (apiNames == null || apiNames.Count == 0)
