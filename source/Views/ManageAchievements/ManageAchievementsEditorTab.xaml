@@ -259,6 +259,7 @@
                       Grid.Row="0"
                       ItemsSource="{Binding AchievementRows}"
                       SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                      SelectionChanged="AchievementsGrid_SelectionChanged"
                       AutoGenerateColumns="False"
                       IsReadOnly="False"
                       SelectionMode="Extended"
@@ -511,21 +512,36 @@
                     <StackPanel>
                         <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Custom_Details}"
                                    Foreground="{DynamicResource TextBrush}"
-                                   FontWeight="SemiBold" />
+                                   FontWeight="SemiBold"
+                                   Visibility="{Binding IsBulkEditing, Converter={StaticResource InverseBoolToVis}}" />
+
+                        <!-- While several rows are selected the pane edits all of them, so it says
+                             so and explains what a blank field means. -->
+                        <StackPanel Visibility="{Binding IsBulkEditing, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding BulkEditHeader}"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Editor_BulkHint}"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Opacity="0.72"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0" />
+                        </StackPanel>
 
                         <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Custom_NoSelection}"
                                    Foreground="{DynamicResource TextBrush}"
                                    Opacity="0.72"
                                    TextWrapping="Wrap"
                                    Margin="0,10,0,0"
-                                   Visibility="{Binding HasSelectedRow, Converter={StaticResource InverseBoolToVis}}" />
+                                   Visibility="{Binding HasEditTarget, Converter={StaticResource InverseBoolToVis}}" />
 
                         <Border Margin="0,14,0,0"
                                 Padding="0,12,0,0"
                                 BorderBrush="{DynamicResource NormalBorderBrush}"
                                 BorderThickness="0,1,0,0"
-                                Visibility="{Binding HasSelectedRow, Converter={StaticResource BoolToVis}}">
-                            <StackPanel DataContext="{Binding SelectedRow}">
+                                Visibility="{Binding HasEditTarget, Converter={StaticResource BoolToVis}}">
+                            <StackPanel DataContext="{Binding EditTarget}">
                                 <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_CustomIcons}"
                                            Foreground="{DynamicResource TextBrush}"
                                            FontWeight="SemiBold"
@@ -641,9 +657,9 @@
                             </StackPanel>
                         </Border>
 
-                        <StackPanel DataContext="{Binding SelectedRow}"
+                        <StackPanel DataContext="{Binding EditTarget}"
                                     Margin="0,14,0,0"
-                                    Visibility="{Binding DataContext.HasSelectedRow, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                                    Visibility="{Binding DataContext.HasEditTarget, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
                             <!-- Capstone, category, and type are ApiName-keyed custom data shared with
                                  the Capstones and Category tabs; they persist immediately. A row gets
                                  its ApiName and first save when it is created, so they are live at once. -->

@@ -102,6 +102,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private ManageAchievementsEditorViewModel ViewModel => DataContext as ManageAchievementsEditorViewModel;
 
+        /// <summary>
+        /// Hands the grid's selection to the view model so the details pane can edit several rows
+        /// at once. WPF exposes SelectedItems only on the control, so it cannot be bound.
+        /// </summary>
+        private void AchievementsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            ViewModel?.SetSelectedRows(CustomAchievementsGrid.SelectedItems.OfType<AchievementEditorRow>());
+        }
+
         private void ViewModel_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             if (e?.PropertyName == nameof(ManageAchievementsEditorViewModel.SelectedRow))

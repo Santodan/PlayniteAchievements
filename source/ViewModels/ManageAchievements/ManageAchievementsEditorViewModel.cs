@@ -54,6 +54,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private CustomProviderDefinition _selectedCustomProvider;
 
         private AchievementEditorRow _selectedRow;
+        private AchievementEditorRow _bulkRow;
+        private readonly List<AchievementEditorRow> _selectedRows = new List<AchievementEditorRow>();
+        private bool _isApplyingBulk;
         private bool _hasChanges;
         private bool _hasRows;
         private bool _hasValidationErrors;
@@ -201,6 +204,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _selectedRow, value))
                 {
                     OnPropertyChanged(nameof(HasSelectedRow));
+                    OnPropertyChanged(nameof(HasEditTarget));
+                    OnPropertyChanged(nameof(EditTarget));
                     SyncTypeOptionsToSelectedRow();
                     RaiseCommandStates();
                 }
@@ -208,6 +213,123 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         public bool HasSelectedRow => SelectedRow != null;
+
+        /// <summary>
+        /// The row the details pane edits: the single selected row, or the bulk proxy when several
+        /// are selected.
+        /// </summary>
+        public AchievementEditorRow EditTarget => IsBulkEditing ? BulkRow : SelectedRow;
+
+        /// <summary>
+        /// A stand-in row the details pane binds to while several achievements are selected. Fields
+        /// the selection agrees on show that value; fields it disagrees on are blank, and editing
+        /// one applies it to every selected row.
+        /// </summary>
+        public AchievementEditorRow BulkRow
+        {
+            get => _bulkRow;
+            private set => SetValue(ref _bulkRow, value);
+        }
+
+        public bool IsBulkEditing => _selectedRows.Count > 1;
+
+        public int BulkSelectionCount => _selectedRows.Count;
+
+        public bool HasEditTarget => EditTarget != null;
+
+        /// <summary>
+        /// Heading for the details pane while several achievements are selected, so it is obvious
+        /// an edit lands on all of them rather than on one.
+        /// </summary>
+        public string BulkEditHeader => string.Format(
+            L("LOCPlayAch_ManageAchievements_Editor_BulkHeader", "Editing {0} achievements"),
+            BulkSelectionCount);
+
+        /// <summary>
+        /// Tracks the grid's selection. A blank field on the bulk proxy means "these rows disagree",
+        /// not "clear this", so only fields the user actually edits are applied.
+        /// </summary>
+        public void SetSelectedRows(IEnumerable<AchievementEditorRow> rows)
+        {
+            _selectedRows.Clear();
+            foreach (var row in rows ?? Enumerable.Empty<AchievementEditorRow>())
+            {
+                if (row != null)
+                {
+                    _selectedRows.Add(row);
+                }
+            }
+
+            RebuildBulkRow();
+            OnPropertyChanged(nameof(IsBulkEditing));
+            OnPropertyChanged(nameof(BulkSelectionCount));
+            OnPropertyChanged(nameof(BulkEditHeader));
+            OnPropertyChanged(nameof(EditTarget));
+            OnPropertyChanged(nameof(HasEditTarget));
+        }
+
+        /// <summary>
+        /// Seeds the bulk proxy from the selection: a field every selected row agrees on is shown,
+        /// anything they disagree on is left blank so it reads as "mixed" rather than as a value
+        /// that would be applied.
+        /// </summary>
+        private void RebuildBulkRow()
+        {
+            if (_bulkRow != null)
+            {
+                _bulkRow.PropertyChanged -= BulkRow_PropertyChanged;
+            }
+
+            if (_selectedRows.Count <= 1)
+            {
+                BulkRow = null;
+                return;
+            }
+
+            var row = new AchievementEditorRow
+            {
+                SuppressNotifications = true
+            };
+
+            // Only a selection that is entirely authored may edit the authored-only fields; one
+            // provider row in the selection locks rarity, unlock status and progress for all of it.
+            row.IsProviderRow = _selectedRows.Any(r => r.IsProviderRow);
+            row.DisplayName = SharedValue(r => r.DisplayName);
+            row.Description = SharedValue(r => r.Description);
+            row.PointsText = SharedValue(r => r.PointsText);
+            row.TrophyType = SharedValue(r => r.TrophyType);
+            row.CategoryLabel = SharedValue(r => r.CategoryLabel);
+            row.CategoryTypeValue = SharedValue(r => r.CategoryTypeValue);
+            row.AchievementNote = SharedValue(r => r.AchievementNote);
+            row.RarityInput = SharedValue(r => r.RarityInput);
+            row.IsGoal = SharedFlag(r => r.IsGoal);
+            row.Hidden = SharedFlag(r => r.Hidden);
+            row.SetFilterScopeFromSource(SharedScope());
+            row.SuppressNotifications = false;
+
+            row.PropertyChanged += BulkRow_PropertyChanged;
+            BulkRow = row;
+        }
+
+        private string SharedValue(Func<AchievementEditorRow, string> selector)
+        {
+            var first = selector(_selectedRows[0]);
+            return _selectedRows.All(r => string.Equals(selector(r), first, StringComparison.Ordinal))
+                ? first
+                : null;
+        }
+
+        private bool SharedFlag(Func<AchievementEditorRow, bool> selector)
+        {
+            var first = selector(_selectedRows[0]);
+            return _selectedRows.All(r => selector(r) == first) && first;
+        }
+
+        private AchievementFilterScope SharedScope()
+        {
+            var first = _selectedRows[0].FilterScope;
+            return _selectedRows.All(r => r.FilterScope == first) ? first : AchievementFilterScope.None;
+        }
 
         public bool HasRows
         {
@@ -1569,7 +1691,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     (item?.OriginalApiName ?? string.Empty).Trim(),
                     targetApiName.Trim(),
                     StringComparison.OrdinalIgnoreCase));
-            return TryMoveItems(source, ResolveSelectedIndexes(source, draggedApiNames), targetIndex, insertAfterTarget);
+            var selectedIndexes = ResolveSelectedIndexes(source, draggedApiNames);
+            var moved = TryMoveItems(source, selectedIndexes, targetIndex, insertAfterTarget);
+            if (!moved)
+            {
+                // A drop that resolves to nothing is silent by design, which makes a wiring mistake
+                // look like the drag simply not working. Log which guard rejected it.
+                _logger?.Debug(
+                    $"[Editor] Reorder drop rejected: dragged={draggedApiNames.Count} " +
+                    $"resolvedIndexes={selectedIndexes.Count} target='{targetApiName}' " +
+                    $"targetIndex={targetIndex} rows={source.Count} after={insertAfterTarget}.");
+            }
+
+            return moved;
         }
 
         public bool MoveItemsToEndByApiName(IReadOnlyList<string> draggedApiNames)
@@ -1661,6 +1795,170 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _logger?.Error(ex, $"Failed saving achievement order for gameId={_gameId}.");
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
             }
+        }
+
+        /// <summary>
+        /// Applies one edited field from the bulk proxy to every selected row.
+        /// </summary>
+        /// <remarks>
+        /// Only the field the user actually edited is applied, so the blank "mixed" fields are left
+        /// alone rather than clearing values the rows disagreed on. Facets stored as one collection
+        /// (categories, filters, goals) are staged across the rows and written once, because each
+        /// of their setters rewrites the game's whole map or list.
+        /// </remarks>
+        private void BulkRow_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (_isApplyingBulk || !(sender is AchievementEditorRow bulk) || _selectedRows.Count == 0)
+            {
+                return;
+            }
+
+            var property = e?.PropertyName;
+            if (string.IsNullOrEmpty(property))
+            {
+                return;
+            }
+
+            _isApplyingBulk = true;
+            try
+            {
+                switch (property)
+                {
+                    case nameof(AchievementEditorRow.CategoryLabel):
+                        StageAcrossSelection(row => row.CategoryLabel = bulk.CategoryLabel);
+                        PersistCategoryAssignmentsFromRows();
+                        return;
+
+                    case nameof(AchievementEditorRow.CategoryTypeValue):
+                        StageAcrossSelection(row => row.CategoryTypeValue = bulk.CategoryTypeValue);
+                        PersistCategoryAssignmentsFromRows();
+                        return;
+
+                    case nameof(AchievementEditorRow.FilterScope):
+                        StageAcrossSelection(row => row.SetFilterScopeFromSource(bulk.FilterScope));
+                        PersistFiltersFromRows();
+                        return;
+
+                    case nameof(AchievementEditorRow.IsGoal):
+                        StageAcrossSelection(row => row.IsGoal = bulk.IsGoal);
+                        PersistGoalsFromRows();
+                        return;
+
+                    // Per-achievement fields: each row persists on its own, because they are stored
+                    // per achievement rather than as one collection.
+                    case nameof(AchievementEditorRow.DisplayName):
+                        ApplyPerRow(row => row.DisplayName = bulk.DisplayName, property);
+                        return;
+
+                    case nameof(AchievementEditorRow.Description):
+                        ApplyPerRow(row => row.Description = bulk.Description, property);
+                        return;
+
+                    case nameof(AchievementEditorRow.PointsText):
+                        ApplyPerRow(row => row.PointsText = bulk.PointsText, property);
+                        return;
+
+                    case nameof(AchievementEditorRow.TrophyType):
+                        ApplyPerRow(row => row.TrophyType = bulk.TrophyType, property);
+                        return;
+
+                    case nameof(AchievementEditorRow.AchievementNote):
+                        ApplyPerRow(row => row.AchievementNote = bulk.AchievementNote, property);
+                        return;
+
+                    case nameof(AchievementEditorRow.Hidden):
+                        ApplyPerRow(row => row.Hidden = bulk.Hidden, property);
+                        return;
+
+                    case nameof(AchievementEditorRow.RarityInput):
+                        // Refused on provider rows by the row itself; a mixed selection is marked
+                        // as provider-backed, so this only reaches an all-authored selection.
+                        ApplyPerRow(row => row.RarityInput = bulk.RarityInput, property);
+                        return;
+                }
+            }
+            finally
+            {
+                _isApplyingBulk = false;
+            }
+        }
+
+        /// <summary>Sets a value on every selected row without each one persisting separately.</summary>
+        private void StageAcrossSelection(Action<AchievementEditorRow> apply)
+        {
+            foreach (var row in _selectedRows)
+            {
+                row.SuppressNotifications = true;
+                try
+                {
+                    apply(row);
+                }
+                finally
+                {
+                    row.SuppressNotifications = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Sets a value on every selected row and lets each persist itself, for fields stored per
+        /// achievement rather than as one collection.
+        /// </summary>
+        private void ApplyPerRow(Action<AchievementEditorRow> apply, string propertyName)
+        {
+            foreach (var row in _selectedRows)
+            {
+                apply(row);
+                if (PersistSharedFacet(row, propertyName))
+                {
+                    continue;
+                }
+
+                if (row.IsProviderRow)
+                {
+                    PersistProviderRowField(row, propertyName);
+                }
+            }
+
+            // Authored rows are stored as one definition list, so a single save covers all of them.
+            if (_selectedRows.Any(row => !row.IsProviderRow))
+            {
+                RefreshComputedState();
+                _ = SaveAsync();
+            }
+        }
+
+        private void PersistCategoryAssignmentsFromRows()
+        {
+            PersistAssignmentMaps(
+                BuildRowMap(row => row.CategoryLabel),
+                BuildRowMap(row => row.CategoryTypeValue));
+        }
+
+        private void PersistGoalsFromRows()
+        {
+            var goals = AchievementRows
+                .Where(row => row != null && row.IsGoal && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .Select(row => row.OriginalApiName)
+                .ToList();
+            _achievementOverridesService.SetGoalAchievements(_gameId, goals);
+            RaiseAssignmentsChanged();
+        }
+
+        private Dictionary<string, string> BuildRowMap(Func<AchievementEditorRow, string> selector)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in AchievementRows)
+            {
+                var apiName = row?.OriginalApiName;
+                var value = selector(row);
+                if (!string.IsNullOrWhiteSpace(apiName) && !string.IsNullOrWhiteSpace(value))
+                {
+                    map[apiName] = value;
+                }
+            }
+
+            return map;
         }
 
         /// <summary>
@@ -2092,6 +2390,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     NotifyRevealStateChanged();
                 }
             }
+        }
+
+        /// <summary>
+        /// Sets the filter scope without raising the change that persists it, for seeding a row
+        /// from stored data or staging a bulk edit that is written once afterwards.
+        /// </summary>
+        internal void SetFilterScopeFromSource(AchievementFilterScope scope)
+        {
+            _isFiltered = scope == AchievementFilterScope.All;
+            _isSummaryFiltered = scope == AchievementFilterScope.Summary;
+            OnPropertyChanged(nameof(IsFiltered));
+            OnPropertyChanged(nameof(IsSummaryFiltered));
+            OnPropertyChanged(nameof(FilterScope));
         }
 
         /// <summary>
