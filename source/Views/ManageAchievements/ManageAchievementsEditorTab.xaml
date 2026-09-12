@@ -619,7 +619,7 @@
                 <!-- Drag chrome the reorder behavior requires: the insert line marks the drop
                      position and the popup shows how many rows are moving. -->
                 <Border x:Name="DropInsertLine"
-                        Grid.Row="0"
+                        Grid.Row="1"
                         Height="2"
                         VerticalAlignment="Top"
                         HorizontalAlignment="Stretch"
