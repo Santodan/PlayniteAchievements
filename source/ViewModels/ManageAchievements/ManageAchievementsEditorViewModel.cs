@@ -8,6 +8,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Manual;
+using PlayniteAchievements.Services.Search;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.CustomProviders;
 using PlayniteAchievements.Services.GameCustomData;
@@ -71,6 +72,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private DateTime _manualUnlockFirstPendingUtc;
         private bool _isManuallyTrackedGame;
         private bool _canLinkManualTracking;
+        private string _filterText;
+        private string _rowCountSummary;
+        private SearchQuery _filterQuery;
+        private readonly SearchTextIndex<AchievementEditorRow> _searchIndex =
+            new SearchTextIndex<AchievementEditorRow>(row => SearchTextBuilder.ForManualEdit(
+                row?.DisplayName,
+                row?.Description,
+                row?.OriginalApiName));
         private static readonly TimeSpan ManualUnlockMaxStaleness = TimeSpan.FromSeconds(2);
         private readonly Dictionary<string, object> _lastWrittenOverrides =
             new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
@@ -558,6 +567,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 RefreshAssignmentState();
                 RefreshCustomProviderState();
                 ApplyManualTrackingToRows();
+                RebuildSearchIndex();
                 SeedOverrideWriteCache();
                 SetStatus(null, false);
                 RefreshComputedState();
@@ -1786,6 +1796,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            if (sender is AchievementEditorRow renamedRow &&
+                (e.PropertyName == nameof(AchievementEditorRow.DisplayName) ||
+                 e.PropertyName == nameof(AchievementEditorRow.Description)))
+            {
+                // The index caches each row's searchable text, so an edited row would keep matching
+                // its old name until the next reload.
+                _searchIndex.Invalidate(renamedRow);
+                RefreshRowCounts();
+            }
+
             if (e.PropertyName == nameof(AchievementEditorRow.ValidationMessage) ||
                 e.PropertyName == nameof(AchievementEditorRow.IsRevealed) ||
                 e.PropertyName == nameof(AchievementEditorRow.IsIconHidden) ||
@@ -1829,6 +1849,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void RefreshComputedState()
         {
+            RefreshRowCounts();
             HasRows = AchievementRows.Count > 0;
             var errors = new List<string>();
             _ = BuildValidatedDefinitions(out _, out errors);
@@ -1998,6 +2019,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _logger?.Debug(
                 $"[Editor] Reorder drop onto target: dragged={draggedApiNames?.Count ?? 0} " +
                 $"target='{targetApiName}' after={insertAfterTarget}.");
+            // Position is stored as one list over every achievement, so a drop while the grid is
+            // narrowed would move the row next to a neighbour the user cannot see. Refused rather
+            // than guessed at.
+            if (IsFiltering)
+            {
+                return false;
+            }
+
             if (draggedApiNames == null || draggedApiNames.Count == 0 || string.IsNullOrWhiteSpace(targetApiName))
             {
                 return false;
@@ -2030,6 +2059,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // that misses the rows is indistinguishable from one that never arrived.
             _logger?.Debug(
                 $"[Editor] Reorder drop to end: dragged={draggedApiNames?.Count ?? 0} rows={AchievementRows.Count}.");
+            // Position is stored as one list over every achievement, so a drop while the grid is
+            // narrowed would move the row next to a neighbour the user cannot see. Refused rather
+            // than guessed at.
+            if (IsFiltering)
+            {
+                return false;
+            }
+
             if (draggedApiNames == null || draggedApiNames.Count == 0 || AchievementRows.Count == 0)
             {
                 return false;
@@ -2532,6 +2569,67 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 ReloadData();
                 RaiseAssignmentsChanged();
             }
+        }
+
+        /// <summary>
+        /// Narrows the grid to achievements matching this text. The rows themselves are untouched:
+        /// this drives the collection view, so every persist path still sees the whole ordered list.
+        /// </summary>
+        public string FilterText
+        {
+            get => _filterText;
+            set
+            {
+                if (SetValueAndReturn(ref _filterText, value))
+                {
+                    _filterQuery = SearchQuery.From(value);
+                    OnPropertyChanged(nameof(IsFiltering));
+                    FilterChanged?.Invoke(this, EventArgs.Empty);
+                    RefreshRowCounts();
+                }
+            }
+        }
+
+        /// <summary>True while the grid shows a subset of the achievements.</summary>
+        public bool IsFiltering => _filterQuery.HasValue;
+
+        /// <summary>Raised when the filter text changed and the collection view needs refreshing.</summary>
+        public event EventHandler FilterChanged;
+
+        /// <summary>Visible over total, shown beside the filter box.</summary>
+        public string RowCountSummary => _rowCountSummary;
+
+        /// <summary>
+        /// Whether a row passes the current filter. Matching is by display name, description and
+        /// ApiName, through the same index the other achievement lists search with.
+        /// </summary>
+        public bool MatchesFilter(AchievementEditorRow row)
+        {
+            if (row == null)
+            {
+                return false;
+            }
+
+            return !_filterQuery.HasValue || _searchIndex.Matches(row, _filterQuery);
+        }
+
+        private void RebuildSearchIndex()
+        {
+            _searchIndex.Rebuild(AchievementRows);
+            RefreshRowCounts();
+        }
+
+        private void RefreshRowCounts()
+        {
+            var total = AchievementRows.Count;
+            var visible = _filterQuery.HasValue
+                ? AchievementRows.Count(MatchesFilter)
+                : total;
+
+            _rowCountSummary = _filterQuery.HasValue
+                ? visible.ToString("N0", FormattingCulture.Current) + " / " + total.ToString("N0", FormattingCulture.Current)
+                : total.ToString("N0", FormattingCulture.Current);
+            OnPropertyChanged(nameof(RowCountSummary));
         }
 
         private void RaiseAssignmentsChanged()
