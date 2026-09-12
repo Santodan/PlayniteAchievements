@@ -41,6 +41,7 @@
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding IsFiltered}" Value="False"/>
+                                        <Condition Binding="{Binding IsFilteredFromSummaries}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="True"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="False"/>
                                     </MultiDataTrigger.Conditions>
@@ -62,6 +63,7 @@
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding IsFiltered}" Value="False"/>
+                                        <Condition Binding="{Binding IsFilteredFromSummaries}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="True"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
@@ -85,6 +87,7 @@
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding IsFiltered}" Value="False"/>
+                                        <Condition Binding="{Binding IsFilteredFromSummaries}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="True"/>
                                         <Condition Binding="{Binding IsGoal}" Value="False"/>
@@ -140,6 +143,7 @@
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding IsFiltered}" Value="False"/>
+                                        <Condition Binding="{Binding IsFilteredFromSummaries}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="False"/>
                                         <Condition Binding="{Binding IsGoal}" Value="False"/>
@@ -167,6 +171,7 @@
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding IsFiltered}" Value="False"/>
+                                        <Condition Binding="{Binding IsFilteredFromSummaries}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsGoal}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
@@ -184,7 +189,9 @@
                 <!-- Sized and placed like the padlock: an explicit 18x18 box with Stretch None, so
                      the geometry's own coordinates position it. Centring on alignment instead would
                      centre the ink bounds, which is not the same thing once a stroke widens them.
-                     Spans 3..15 like the check, so the two carry the same visual weight. -->
+                     Spans 3..15 with the check's stroke, so the two carry the same weight. No
+                     pixel snapping: that suits the padlock's filled edges, but it thins a stroked
+                     diagonal, which is why the check does not ask for it either. -->
                 <Path Data="M 3,3 L 15,15 M 15,3 L 3,15"
                       Stretch="None"
                       Width="18"
@@ -194,8 +201,6 @@
                       StrokeStartLineCap="Round"
                       StrokeEndLineCap="Round"
                       StrokeLineJoin="Round"
-                      UseLayoutRounding="True"
-                      SnapsToDevicePixels="True"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center">
                     <Path.Style>
