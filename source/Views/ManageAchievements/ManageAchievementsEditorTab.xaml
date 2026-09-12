@@ -737,7 +737,8 @@
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Text="{DynamicResource LOCPlayAch_Column_Trophy}"
                                                Style="{StaticResource FieldLabelStyle}" />
-                                    <ComboBox ItemsSource="{Binding DataContext.TrophyTypeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    <ComboBox x:Name="TrophyTypeComboBox"
+                                              ItemsSource="{Binding DataContext.TrophyTypeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                               SelectedValue="{Binding TrophyType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               SelectedValuePath="Value"
                                               MinHeight="26"
@@ -780,7 +781,8 @@
                                                Style="{StaticResource FieldLabelStyle}" />
                                     <TextBox Text="{Binding PointsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                              Style="{StaticResource GridEditorTextBoxStyle}"
-                                             MinHeight="26"
+                                             MinHeight="{Binding ActualHeight, ElementName=TrophyTypeComboBox}"
+                                             VerticalContentAlignment="Center"
                                              KeyDown="EditorTextBox_KeyDown"
                                              Tag="NonNegativeInt"
                                              PreviewTextInput="NumericTextBox_PreviewTextInput"
