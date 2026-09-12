@@ -295,12 +295,24 @@
                                 Style="{StaticResource ClearSearchButtonStyle}" />
                     </Grid>
 
-                    <TextBlock Grid.Column="1"
-                               Text="{Binding RowCountSummary}"
-                               VerticalAlignment="Center"
-                               Margin="10,0,10,0"
-                               Opacity="0.7"
-                               Foreground="{DynamicResource TextBrush}" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                        <ComboBox ItemsSource="{Binding CategoryFilterOptions}"
+                                  SelectedItem="{Binding SelectedCategoryFilter, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName"
+                                  ToolTip="{DynamicResource LOCPlayAch_Common_Label_Category}"
+                                  MinWidth="130"
+                                  MinHeight="26"
+                                  Margin="0,0,6,0"
+                                  VerticalContentAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding TypeFilterOptions}"
+                                  SelectedItem="{Binding SelectedTypeFilter, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName"
+                                  ToolTip="{DynamicResource LOCPlayAch_Common_Label_Type}"
+                                  MinWidth="130"
+                                  MinHeight="26"
+                                  Margin="0,0,10,0"
+                                  VerticalContentAlignment="Center" />
+                    </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal">
                         <Button x:Name="SelectAllButton"
@@ -310,8 +322,7 @@
                         <Button x:Name="DeselectAllButton"
                                 Content="{DynamicResource LOCPlayAch_Common_DeselectAll}"
                                 Click="DeselectAllButton_Click"
-                                Style="{StaticResource ToolbarButtonStyle}"
-                                Margin="6,0,0,0" />
+                                Style="{StaticResource ToolbarButtonStyle}" />
                     </StackPanel>
                 </Grid>
 
