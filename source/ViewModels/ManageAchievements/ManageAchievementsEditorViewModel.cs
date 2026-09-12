@@ -115,15 +115,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             AddCommand = new RelayCommand(_ => AddRow(), _ => !IsSaving);
-            DuplicateCommand = new RelayCommand(_ => DuplicateSelected(), _ => SelectedRow != null && !IsSaving);
+            DuplicateCommand = new RelayCommand(_ => DuplicateSelected(), _ => HasSelection && !IsSaving);
             // Only an authored achievement can be deleted: a provider one would come straight back
-            // on the next refresh, so removing it from the list would be a lie.
+            // on the next refresh, so removing it from the list would be a lie. A mixed selection
+            // therefore disables delete rather than silently skipping the provider rows.
             DeleteCommand = new RelayCommand(
                 _ => DeleteSelected(),
-                _ => SelectedRow != null && !SelectedRow.IsProviderRow && !IsSaving);
+                _ => HasSelection && ResolveSelectionTargets().All(row => !row.IsProviderRow) && !IsSaving);
             RevertCommand = new RelayCommand(
                 _ => RevertSelected(),
-                _ => SelectedRow != null && !IsSaving);
+                _ => HasSelection && !IsSaving);
             ImportFileCommand = new RelayCommand(_ => ImportFile(), _ => !IsSaving);
             ExportTemplateCommand = new RelayCommand(_ => ExportTemplate(), _ => !IsSaving);
             ExportAchievementsCommand = new RelayCommand(_ => ExportAchievements(), _ => HasRows && !IsSaving);
@@ -223,6 +224,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _selectedRow, value))
                 {
                     OnPropertyChanged(nameof(HasSelectedRow));
+                    OnPropertyChanged(nameof(HasSelection));
                     OnPropertyChanged(nameof(HasEditTarget));
                     OnPropertyChanged(nameof(EditTarget));
                     SyncTypeOptionsToSelectedRow();
@@ -232,6 +234,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         public bool HasSelectedRow => SelectedRow != null;
+
+        /// <summary>
+        /// True when at least one achievement is selected, by either the multi-selection or the
+        /// single current row. Duplicate, revert and delete all act on that selection, so they stay
+        /// disabled until there is one.
+        /// </summary>
+        public bool HasSelection => _selectedRows.Count > 0 || SelectedRow != null;
+
+        /// <summary>
+        /// The rows the row-level commands act on: the whole multi-selection when there is one,
+        /// otherwise the single current row.
+        /// </summary>
+        private List<AchievementEditorRow> ResolveSelectionTargets()
+        {
+            var targets = _selectedRows.Count > 0
+                ? _selectedRows.ToList()
+                : new List<AchievementEditorRow> { SelectedRow };
+            return targets.Where(row => row != null).ToList();
+        }
 
         /// <summary>
         /// The row the details pane edits: the single selected row, or the bulk proxy when several
@@ -280,6 +301,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             RebuildBulkRow();
+            RaiseCommandStates();
+            OnPropertyChanged(nameof(HasSelection));
             OnPropertyChanged(nameof(IsBulkEditing));
             OnPropertyChanged(nameof(BulkSelectionCount));
             OnPropertyChanged(nameof(BulkEditHeader));
@@ -475,13 +498,32 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     var achievements = (hydrated?.Achievements ?? new List<AchievementDetail>())
                         .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
                         .ToList();
+                    // Captured before the overlay is applied: AchievementDetail.DefaultOrderIndex
+                    // is the position under the user's order, so the provider's own position is
+                    // only available here, and reverting a row's order needs it.
+                    var providerPositions = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    for (var i = 0; i < achievements.Count; i++)
+                    {
+                        providerPositions[achievements[i].ApiName] = i;
+                    }
+
                     var ordered = AchievementOrderHelper.ApplyOrder(
                         achievements,
                         a => a.ApiName,
                         hydrated?.AchievementOrder);
 
                     ReplaceRows(ordered
-                        .Select(AchievementEditorRow.FromAchievementDetail)
+                        .Select(achievement =>
+                        {
+                            var row = AchievementEditorRow.FromAchievementDetail(achievement);
+                            if (row != null &&
+                                providerPositions.TryGetValue(achievement.ApiName, out var position))
+                            {
+                                row.ProviderOrderIndex = position;
+                            }
+
+                            return row;
+                        })
                         .Where(row => row != null));
                 }
                 else
@@ -760,19 +802,36 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.Id = CustomAchievementProjectionService.GenerateId(row.DisplayName, usedIds);
         }
 
+        /// <summary>
+        /// Copies every selected achievement as a new authored one. A provider row duplicates into
+        /// an authored copy, which is how a provider achievement becomes a starting point for a
+        /// custom one.
+        /// </summary>
         private void DuplicateSelected()
         {
-            if (SelectedRow == null)
+            var targets = ResolveSelectionTargets();
+            if (targets.Count == 0)
             {
                 return;
             }
 
-            var row = SelectedRow.CloneForDuplicate();
-            AssignStableId(row);
-            AttachRow(row);
-            var insertIndex = Math.Max(0, AchievementRows.IndexOf(SelectedRow) + 1);
-            AchievementRows.Insert(insertIndex, row);
-            SelectedRow = row;
+            // Each copy lands immediately after the last of the originals, so a multi-row duplicate
+            // keeps the selection's own order rather than interleaving copies with sources.
+            var insertIndex = targets.Max(row => AchievementRows.IndexOf(row)) + 1;
+            insertIndex = Math.Max(0, insertIndex);
+
+            AchievementEditorRow lastCopy = null;
+            foreach (var source in targets.OrderBy(row => AchievementRows.IndexOf(row)))
+            {
+                var row = source.CloneForDuplicate();
+                AssignStableId(row);
+                AttachRow(row);
+                AchievementRows.Insert(Math.Min(insertIndex, AchievementRows.Count), row);
+                insertIndex++;
+                lastCopy = row;
+            }
+
+            SelectedRow = lastCopy;
             SetStatus(null, false);
             RefreshComputedState();
             _ = SaveAsync();
@@ -790,11 +849,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void RevertSelected()
         {
-            var targets = _selectedRows.Count > 0
-                ? _selectedRows.ToList()
-                : new List<AchievementEditorRow> { SelectedRow };
-            targets = targets
-                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+            var targets = ResolveSelectionTargets()
+                .Where(row => !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .ToList();
             if (targets.Count == 0)
             {
@@ -823,15 +879,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     targets.Select(row => row.OriginalApiName),
                     StringComparer.OrdinalIgnoreCase);
 
-                foreach (var apiName in apiNames)
-                {
-                    foreach (AchievementEditableField field in Enum.GetValues(typeof(AchievementEditableField)))
-                    {
-                        _achievementOverridesService.SetAchievementFieldOverride(_gameId, apiName, field, null);
-                    }
-
-                    _achievementOverridesService.SetAchievementNote(_gameId, apiName, null);
-                }
+                // One store update drops the whole record for every target: the editable fields,
+                // the note and the icon overrides together. Clearing field by field would leave
+                // the unlock timestamp cleared rather than reverted, because "no timestamp" is
+                // itself a stored state.
+                _achievementOverridesService.ClearAchievementOverrides(_gameId, apiNames);
 
                 // Whole-collection facets: staged across the rows, then written once each.
                 foreach (var row in targets)
@@ -859,6 +911,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     _achievementOverridesService.SetCapstone(_gameId, null);
                 }
 
+                RevertOrderForRows(targets);
+
                 ReloadData();
                 SetStatus(null, false);
             }
@@ -869,16 +923,57 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private void DeleteSelected()
+        /// <summary>
+        /// Puts the reverted achievements back where the provider had them, then rewrites the
+        /// stored order without them.
+        /// </summary>
+        /// <remarks>
+        /// The order is one positional list for the whole game, so a single achievement cannot be
+        /// dropped from it without deciding where it lands: an absent entry sorts to the end, which
+        /// is not what reverting means. Each target is therefore re-seated against the remaining
+        /// rows by the provider's own index. When the result is already the provider's order the
+        /// list is cleared outright, so reverting the last customized row leaves no order override
+        /// behind.
+        /// </remarks>
+        private void RevertOrderForRows(IReadOnlyList<AchievementEditorRow> targets)
         {
-            if (SelectedRow == null)
+            var stored = ResolveCurrentCustomData()?.AchievementOrder;
+            if (stored == null || stored.Count == 0)
             {
                 return;
             }
 
-            var row = SelectedRow;
-            row.PropertyChanged -= Row_PropertyChanged;
-            AchievementRows.Remove(row);
+            var current = AchievementRows
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .Select(row => new KeyValuePair<string, int>(row.OriginalApiName, row.ProviderOrderIndex))
+                .ToList();
+            var restored = AchievementOrderHelper.RestoreDefaultPositions(
+                current,
+                targets.Select(row => row.OriginalApiName));
+            _achievementOverridesService.SetAchievementOrderOverride(_gameId, restored);
+        }
+
+        /// <summary>
+        /// Removes every selected authored achievement. Provider rows are skipped: the command is
+        /// already disabled for a selection that contains one, and a deleted provider achievement
+        /// would return on the next refresh.
+        /// </summary>
+        private void DeleteSelected()
+        {
+            var targets = ResolveSelectionTargets()
+                .Where(row => !row.IsProviderRow)
+                .ToList();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var row in targets)
+            {
+                row.PropertyChanged -= Row_PropertyChanged;
+                AchievementRows.Remove(row);
+            }
+
             SelectedRow = AchievementRows.FirstOrDefault();
             SetStatus(null, false);
             RefreshComputedState();
@@ -2151,8 +2246,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             _assignmentsChangedPending = false;
+            // The cache-changed cascade this sets off comes back as a refresh request. The editor
+            // already shows its own edit, so it must not rebuild every row in response to it.
+            SuppressExternalRefresh = true;
             AssignmentsChanged?.Invoke(this, EventArgs.Empty);
         }
+
+        /// <summary>
+        /// Set while the editor's own write is still rippling through the cache, so the host can
+        /// tell a refresh caused by this editor from one caused by anything else. Reloading the
+        /// grid for its own edit both costs a full rebuild and visibly reverts the control the user
+        /// just changed, because the reload re-reads the value before the write has settled.
+        /// </summary>
+        public bool SuppressExternalRefresh { get; set; }
 
         /// <summary>
         /// Writes one override, skipping the store entirely when the value already matches what is
@@ -2233,6 +2339,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             AddCommand.RaiseCanExecuteChanged();
             DuplicateCommand.RaiseCanExecuteChanged();
             DeleteCommand.RaiseCanExecuteChanged();
+            RevertCommand.RaiseCanExecuteChanged();
             ImportFileCommand.RaiseCanExecuteChanged();
             ExportTemplateCommand.RaiseCanExecuteChanged();
             ExportAchievementsCommand.RaiseCanExecuteChanged();
@@ -2420,6 +2527,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// so they are only editable once the row has been saved and has an ApiName.
         /// </summary>
         public bool CanEditAssignments => !string.IsNullOrWhiteSpace(OriginalApiName);
+
+        /// <summary>
+        /// The achievement's position in the provider's own order, stamped by the loader before
+        /// the user's order is applied so reverting a row can put it back where the provider had
+        /// it rather than at the end.
+        /// </summary>
+        public int ProviderOrderIndex { get; set; } = int.MaxValue;
 
         /// <summary>
         /// True when this row stands for a provider-supplied achievement rather than one the user
