@@ -2615,7 +2615,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var category = SelectedCategoryFilter?.Label;
             if (!string.IsNullOrWhiteSpace(category) &&
-                !string.Equals(NormalizeText(row.CategoryLabel), category, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(row.EffectiveCategoryLabel, category, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -2696,8 +2696,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // Built through the shared picker resolver, so this drop-down draws the same tree the
             // category grid and the assignment pickers do. Synthesised ancestors are not selectable
             // here: a filter on a category that holds no achievements of its own matches nothing.
+            // Every category the game has, in tree order -- the same list the assignment pickers
+            // offer. Built from what the rows currently carry, it would have offered only the
+            // categories somebody had already overridden, which is not what a filter is for.
             var options = CategoryPickerResolver.BuildOptions(
-                AchievementRows.Select(row => NormalizeText(row?.CategoryLabel)),
+                AssignableCategoryOptions.ToList(),
                 AssignableCategoryOptions.ToList(),
                 synthesizedAreSelectable: false);
 
@@ -3060,6 +3063,29 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// so they are only editable once the row has been saved and has an ApiName.
         /// </summary>
         public bool CanEditAssignments => !string.IsNullOrWhiteSpace(OriginalApiName);
+
+        /// <summary>
+        /// The category the provider gave this achievement, kept because <see cref="CategoryLabel"/>
+        /// holds the user's override and reads as the Default bucket when there is none. Filtering
+        /// needs the effective value, not the override.
+        /// </summary>
+        public string ProviderCategoryLabel { get; set; }
+
+        /// <summary>
+        /// The category this achievement actually sits in: the user's override when they set one,
+        /// otherwise the provider's own.
+        /// </summary>
+        public string EffectiveCategoryLabel
+        {
+            get
+            {
+                var assigned = (CategoryLabel ?? string.Empty).Trim();
+                return !string.IsNullOrWhiteSpace(assigned) &&
+                       !string.Equals(assigned, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
+                    ? assigned
+                    : AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel);
+            }
+        }
 
         /// <summary>
         /// The achievement's position in the provider's own order, stamped by the loader before
@@ -3826,6 +3852,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.SuppressNotifications = false;
 
             row.OriginalApiName = achievement.ApiName;
+            // Captured before RefreshAssignmentState replaces CategoryLabel with the user override.
+            row.ProviderCategoryLabel = achievement.Category;
             row.IsNew = false;
             row.CaptureBaseline();
             return row;
