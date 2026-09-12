@@ -57,6 +57,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private AchievementEditorRow _bulkRow;
         private readonly List<AchievementEditorRow> _selectedRows = new List<AchievementEditorRow>();
         private bool _isApplyingBulk;
+        private readonly Dictionary<string, object> _lastWrittenOverrides =
+            new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         private bool _hasChanges;
         private bool _hasRows;
         private bool _hasValidationErrors;
@@ -477,6 +479,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 CaptureCollectionBaseline();
                 RefreshAssignmentState();
                 RefreshCustomProviderState();
+                SeedOverrideWriteCache();
                 SetStatus(null, false);
                 RefreshComputedState();
             }
@@ -1785,6 +1788,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             string targetApiName,
             bool insertAfterTarget)
         {
+            _logger?.Debug(
+                $"[Editor] Reorder drop onto target: dragged={draggedApiNames?.Count ?? 0} " +
+                $"target='{targetApiName}' after={insertAfterTarget}.");
             if (draggedApiNames == null || draggedApiNames.Count == 0 || string.IsNullOrWhiteSpace(targetApiName))
             {
                 return false;
@@ -1813,6 +1819,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool MoveItemsToEndByApiName(IReadOnlyList<string> draggedApiNames)
         {
+            // Reached when the drop lands outside any row, so it is logged too: without it a drop
+            // that misses the rows is indistinguishable from one that never arrived.
+            _logger?.Debug(
+                $"[Editor] Reorder drop to end: dragged={draggedApiNames?.Count ?? 0} rows={AchievementRows.Count}.");
             if (draggedApiNames == null || draggedApiNames.Count == 0 || AchievementRows.Count == 0)
             {
                 return false;
@@ -2074,10 +2084,59 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             AssignmentsChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// Writes one override, skipping the store entirely when the value already matches what is
+        /// in effect.
+        /// </summary>
+        /// <remarks>
+        /// Points, trophy type and unlock time mark summaries dirty, so every write costs an
+        /// overview rebuild. One interaction can raise several changes for the same stored value --
+        /// ticking the unlock-time box raises both HasUnlockTime and UnlockTime, and editing a
+        /// timestamp raises the date, the time and the meridiem -- so without this each click paid
+        /// for that rebuild more than once.
+        /// </remarks>
         private void WriteProviderField(string apiName, AchievementEditableField field, object value)
         {
+            var key = apiName + " " + field;
+            if (_lastWrittenOverrides.TryGetValue(key, out var previous) && Equals(previous, value))
+            {
+                return;
+            }
+
+            _lastWrittenOverrides[key] = value;
             _achievementOverridesService.SetAchievementFieldOverride(_gameId, apiName, field, value);
             RaiseAssignmentsChanged();
+        }
+
+        /// <summary>
+        /// Seeds the write cache from the values the rows loaded with, so setting a field to what
+        /// it already shows writes nothing. The loaded values are the effective ones, so matching
+        /// them needs no override stored at all.
+        /// </summary>
+        private void SeedOverrideWriteCache()
+        {
+            _lastWrittenOverrides.Clear();
+            foreach (var row in AchievementRows)
+            {
+                var apiName = row?.OriginalApiName;
+                if (string.IsNullOrWhiteSpace(apiName) || !row.IsProviderRow)
+                {
+                    continue;
+                }
+
+                _lastWrittenOverrides[apiName + " " + AchievementEditableField.DisplayName] =
+                    NormalizeText(row.DisplayName);
+                _lastWrittenOverrides[apiName + " " + AchievementEditableField.Description] =
+                    NormalizeText(row.Description);
+                _lastWrittenOverrides[apiName + " " + AchievementEditableField.TrophyType] =
+                    NormalizeText(row.TrophyType);
+                _lastWrittenOverrides[apiName + " " + AchievementEditableField.UnlockTimeUtc] =
+                    row.UnlockTime;
+                if (AchievementEditorFieldRules.TryParsePoints(row.PointsText, out var points))
+                {
+                    _lastWrittenOverrides[apiName + " " + AchievementEditableField.Points] = points;
+                }
+            }
         }
 
         /// <summary>

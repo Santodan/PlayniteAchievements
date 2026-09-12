@@ -76,6 +76,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 MoveItemsToEnd = apiNames => ViewModel?.MoveItemsToEndByApiName(apiNames) == true,
                 RestoreSelection = RestoreSelectionByApiNames
             });
+
+            // Confirms the behavior attached at all: if no reorder line ever appears in the log,
+            // this says whether the wiring ran or the drop is being lost before it reaches us.
+            LogManager.GetLogger().Debug(
+                $"[Editor] Row reorder behavior attached to the achievements grid. " +
+                $"columns={CustomAchievementsGrid.Columns.Count}.");
         }
 
         /// <summary>
