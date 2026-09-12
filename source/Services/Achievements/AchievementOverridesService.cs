@@ -937,6 +937,121 @@ namespace PlayniteAchievements.Services.Achievements
             return wrote;
         }
 
+        /// <summary>
+        /// Marks one user-owned achievement unlocked. Returns false when the achievement is not one
+        /// the user owns, so a provider row can never be unlocked by mistake.
+        /// </summary>
+        /// <remarks>
+        /// Two kinds qualify and each stores unlock state in its own place: an authored achievement
+        /// carries it on its definition, and every achievement of a manually tracked game carries it
+        /// in the link. A real provider's achievement is refused here rather than at the call site,
+        /// so no caller can route around the rule.
+        /// </remarks>
+        public ManualUnlockWriteResult TryUnlockUserOwnedAchievement(
+            Guid playniteGameId,
+            string achievementApiName,
+            DateTime? unlockTimeUtc = null)
+        {
+            var apiName = AchievementNoteHelper.NormalizeApiName(achievementApiName);
+            if (playniteGameId == Guid.Empty || string.IsNullOrWhiteSpace(apiName))
+            {
+                return ManualUnlockWriteResult.NotApplicable;
+            }
+
+            if (!_gameCustomDataStore.TryLoad(playniteGameId, out var probe) || probe == null)
+            {
+                return ManualUnlockWriteResult.NotApplicable;
+            }
+
+            var stamp = unlockTimeUtc ?? DateTime.UtcNow;
+
+            if (CustomAchievementProjectionService.IsCustomApiName(apiName))
+            {
+                var definitions = probe.CustomAchievements;
+                if (definitions == null)
+                {
+                    return ManualUnlockWriteResult.NotApplicable;
+                }
+
+                var updated = new List<CustomAchievementDefinition>();
+                var matched = false;
+                foreach (var definition in definitions)
+                {
+                    var clone = definition?.Clone();
+                    if (clone == null)
+                    {
+                        continue;
+                    }
+
+                    if (string.Equals(
+                            CustomAchievementProjectionService.BuildApiName(clone.Id),
+                            apiName,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        matched = true;
+                        if (clone.Unlocked)
+                        {
+                            return ManualUnlockWriteResult.AlreadyUnlocked;
+                        }
+
+                        clone.Unlocked = true;
+                        clone.UnlockTimeUtc = stamp;
+                    }
+
+                    updated.Add(clone);
+                }
+
+                if (!matched)
+                {
+                    return ManualUnlockWriteResult.NotApplicable;
+                }
+
+                SetCustomAchievements(playniteGameId, updated);
+                return ManualUnlockWriteResult.Custom;
+            }
+
+            if (probe.ManualLink == null)
+            {
+                return ManualUnlockWriteResult.NotApplicable;
+            }
+
+            if (probe.ManualLink.UnlockStates != null &&
+                probe.ManualLink.UnlockStates.TryGetValue(apiName, out var already) &&
+                already)
+            {
+                return ManualUnlockWriteResult.AlreadyUnlocked;
+            }
+
+            _gameCustomDataStore.Update(
+                playniteGameId,
+                customData =>
+                {
+                    if (customData.ManualLink == null)
+                    {
+                        return;
+                    }
+
+                    if (customData.ManualLink.UnlockStates == null)
+                    {
+                        customData.ManualLink.UnlockStates = new Dictionary<string, bool>();
+                    }
+
+                    if (customData.ManualLink.UnlockTimes == null)
+                    {
+                        customData.ManualLink.UnlockTimes = new Dictionary<string, DateTime?>();
+                    }
+
+                    customData.ManualLink.UnlockStates[apiName] = true;
+                    customData.ManualLink.UnlockTimes[apiName] = stamp;
+                    customData.ManualLink.LastModifiedUtc = DateTime.UtcNow;
+                },
+                // Counts and completion move, but the caller re-projects the link onto the cache and
+                // that raises its own invalidation, so this write does not need to fire the cascade.
+                affectsSummaryData: false);
+
+            return ManualUnlockWriteResult.Manual;
+        }
+
         private bool RemoveManualTrackingLink(Guid playniteGameId, string gameName)
         {
             var removedFromStore = false;
