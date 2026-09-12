@@ -215,7 +215,12 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             var data = LoadOrDefault(playniteGameId);
-            var previous = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
+            GameCustomDataFile previous;
+            using (PerfScope.Start(_logger, "GameCustomData.Update.NormalizePrevious", thresholdMs: 10))
+            {
+                previous = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
+            }
+
             mutate(data);
             Save(playniteGameId, data, previous, affectsSummaryData);
         }
@@ -422,10 +427,20 @@ namespace PlayniteAchievements.Services.GameCustomData
             GameCustomDataFile previousData,
             bool affectsSummaryData = true)
         {
-            using (PerfScope.Start(_logger, "GameCustomData.Save", thresholdMs: 50))
+            using (PerfScope.Start(_logger, "GameCustomData.Save", thresholdMs: 10))
             {
-                var normalized = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
-                var persisted = _repository.Save(playniteGameId, normalized);
+                GameCustomDataFile normalized;
+                using (PerfScope.Start(_logger, "GameCustomData.Save.Normalize", thresholdMs: 10))
+                {
+                    normalized = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
+                }
+
+                GameCustomDataFile persisted;
+                using (PerfScope.Start(_logger, "GameCustomData.Save.Repository", thresholdMs: 10))
+                {
+                    persisted = _repository.Save(playniteGameId, normalized);
+                }
+
                 SetCachedEntry(playniteGameId, persisted);
                 if (ShouldSyncManagedCustomIconCache(previousData, normalized))
                 {
@@ -435,7 +450,10 @@ namespace PlayniteAchievements.Services.GameCustomData
                 _notificationImageStore?.PruneGameImages(
                     playniteGameId,
                     normalized.NotificationAppearanceOverride?.Style);
-                RaiseCustomDataChanged(playniteGameId, affectsSummaryData);
+                using (PerfScope.Start(_logger, "GameCustomData.Save.RaiseChanged", thresholdMs: 10))
+                {
+                    RaiseCustomDataChanged(playniteGameId, affectsSummaryData);
+                }
             }
         }
 

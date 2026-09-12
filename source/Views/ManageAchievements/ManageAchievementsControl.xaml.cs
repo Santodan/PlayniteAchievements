@@ -1211,8 +1211,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void HandleStateChanged(bool refreshCapstone, bool refreshCustom = true)
         {
-            _gameDataSnapshotProvider?.Invalidate();
-            _viewModel.Reload();
+            using (PlayniteAchievements.Common.PerfScope.Start(_logger, "Manage.HandleStateChanged.Invalidate", thresholdMs: 10))
+            {
+                _gameDataSnapshotProvider?.Invalidate();
+            }
+
+            using (PlayniteAchievements.Common.PerfScope.Start(_logger, "Manage.HandleStateChanged.ShellReload", thresholdMs: 10))
+            {
+                _viewModel.Reload();
+            }
 
             _manualRefreshPending = true;
             // Not for the editor's own write: it already shows the change, and reloading
@@ -1231,7 +1238,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _capstoneRefreshPending = true;
             }
 
-            EnsureSelectedTabContent();
+            using (PlayniteAchievements.Common.PerfScope.Start(_logger, "Manage.HandleStateChanged.EnsureTabContent", thresholdMs: 10))
+            {
+                EnsureSelectedTabContent();
+            }
         }
 
         private void HandleCustomDataRevisionChanged()

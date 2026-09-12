@@ -2287,7 +2287,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // The cache-changed cascade this sets off comes back as a refresh request. The editor
             // already shows its own edit, so it must not rebuild every row in response to it.
             SuppressExternalRefresh = true;
-            AssignmentsChanged?.Invoke(this, EventArgs.Empty);
+            using (Common.PerfScope.Start(_logger, "Editor.FlushAssignmentsChanged", thresholdMs: 10))
+            {
+                AssignmentsChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
 
         /// <summary>
