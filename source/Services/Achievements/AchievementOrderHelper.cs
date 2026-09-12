@@ -40,6 +40,76 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// Re-seats reverted achievements at the position the provider gave them, leaving the rest
+        /// of the stored order untouched. Returns null when the result is the provider's own order,
+        /// so the caller can drop the override rather than store a list that changes nothing.
+        /// </summary>
+        /// <remarks>
+        /// The order is one positional list for the whole game, so an achievement cannot simply be
+        /// dropped from it: an absent entry sorts to the end, which is not what reverting one row
+        /// means. Each reverted entry is therefore placed before the first remaining entry the
+        /// provider ranked after it.
+        /// </remarks>
+        /// <param name="current">
+        /// The achievements in their current stored order, each paired with the provider's own
+        /// index for it.
+        /// </param>
+        /// <param name="restoredApiNames">The achievements being returned to the provider's order.</param>
+        public static List<string> RestoreDefaultPositions(
+            IReadOnlyList<KeyValuePair<string, int>> current,
+            IEnumerable<string> restoredApiNames)
+        {
+            if (current == null || current.Count == 0)
+            {
+                return null;
+            }
+
+            var restored = new HashSet<string>(
+                NormalizeApiNames(restoredApiNames),
+                StringComparer.OrdinalIgnoreCase);
+            var remaining = new List<KeyValuePair<string, int>>();
+            var moving = new List<KeyValuePair<string, int>>();
+            foreach (var entry in current)
+            {
+                var apiName = (entry.Key ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                if (restored.Contains(apiName))
+                {
+                    moving.Add(new KeyValuePair<string, int>(apiName, entry.Value));
+                }
+                else
+                {
+                    remaining.Add(new KeyValuePair<string, int>(apiName, entry.Value));
+                }
+            }
+
+            foreach (var entry in moving.OrderBy(item => item.Value))
+            {
+                var index = remaining.FindIndex(other => other.Value > entry.Value);
+                if (index < 0)
+                {
+                    remaining.Add(entry);
+                }
+                else
+                {
+                    remaining.Insert(index, entry);
+                }
+            }
+
+            var isDefaultOrder = true;
+            for (var i = 1; i < remaining.Count && isDefaultOrder; i++)
+            {
+                isDefaultOrder = remaining[i - 1].Value <= remaining[i].Value;
+            }
+
+            return isDefaultOrder ? null : remaining.Select(entry => entry.Key).ToList();
+        }
+
+        /// <summary>
         /// Applies a saved order to a source list and appends unmatched items at the end.
         /// </summary>
         public static List<T> ApplyOrder<T>(

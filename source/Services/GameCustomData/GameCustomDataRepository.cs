@@ -28,6 +28,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         private readonly ILogger _logger;
         private readonly JsonSerializerSettings _writeSettings;
         private bool _schemaInitialized;
+        private bool _migrationBackupAttempted;
 
         public GameCustomDataRepository(string databasePath, JsonSerializerSettings writeSettings, ILogger logger = null)
         {
@@ -37,6 +38,61 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         public string DatabasePath => _databasePath;
+
+        /// <summary>
+        /// Copies the custom-data database aside once per session, before the first record written
+        /// by an older schema is upgraded. Unlike the achievement cache, this database holds
+        /// authorship that cannot be re-fetched, so a migration defect must not leave the migrated
+        /// copy as the only one.
+        /// </summary>
+        /// <param name="onDiskSchemaVersion">
+        /// The version read from the payload, before normalization rewrites it. The current
+        /// version means there is nothing to migrate; zero means a record from before the version
+        /// was stamped, which normalization still folds.
+        /// </param>
+        private void EnsureSchemaMigrationBackup(int onDiskSchemaVersion)
+        {
+            // Zero means a record written before the version was stamped. Normalization folds
+            // those exactly as it folds a numbered one, so they need the backup most, not least.
+            if (onDiskSchemaVersion >= GameCustomDataNormalizer.CurrentSchemaVersion)
+            {
+                return;
+            }
+
+            lock (_syncRoot)
+            {
+                if (_migrationBackupAttempted)
+                {
+                    return;
+                }
+
+                // Set before the attempt so a failing backup is not retried on every record.
+                _migrationBackupAttempted = true;
+            }
+
+            try
+            {
+                var root = Path.GetDirectoryName(_databasePath);
+                var backupPath = BackupHelper.CreateBackup(
+                    root,
+                    string.Format(
+                        CultureInfo.InvariantCulture,
+                        "customdata-schema{0}",
+                        GameCustomDataNormalizer.CurrentSchemaVersion),
+                    _databasePath,
+                    _databasePath + "-wal",
+                    _databasePath + "-shm");
+                _logger?.Info(
+                    $"[GameCustomData] Schema {onDiskSchemaVersion} -> " +
+                    $"{GameCustomDataNormalizer.CurrentSchemaVersion} migration backup created: {backupPath}");
+            }
+            catch (Exception ex)
+            {
+                // Reads must keep working: refusing to load would strand the user's data rather
+                // than protect it. The failure is logged so a lost backup is diagnosable.
+                _logger?.Error(ex, "[GameCustomData] Failed to create schema migration backup.");
+            }
+        }
 
         public bool TryLoad(Guid playniteGameId, out GameCustomDataFile data)
         {
@@ -255,6 +311,9 @@ namespace PlayniteAchievements.Services.GameCustomData
             try
             {
                 var parsed = JsonConvert.DeserializeObject<GameCustomDataFile>(payloadJson);
+                // Normalization upgrades the record in place, so this is the last point where the
+                // on-disk schema version is still visible.
+                EnsureSchemaMigrationBackup(parsed?.SchemaVersion ?? 0);
                 var normalized = GameCustomDataNormalizer.NormalizeInternal(parsed, playniteGameId);
                 if (!GameCustomDataNormalizer.HasInternalData(normalized))
                 {

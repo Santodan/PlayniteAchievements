@@ -15,7 +15,11 @@ namespace PlayniteAchievements.Services.GameCustomData
     {
         // v7: notification badge images and header texts moved onto each surface style, and
         // portable files became zip-only under the bare .pa extension.
-        internal const int CurrentSchemaVersion = 7;
+        // v8: the per-achievement parallel maps (category, category type, note, both icon
+        // overrides) fold into one AchievementOverride record per ApiName, which also carries the
+        // newly editable title, description, points and trophy type. The legacy maps are still
+        // written as a mirror until every consumer reads the record.
+        internal const int CurrentSchemaVersion = 8;
 
         private sealed class LegacyFilterExtractionResult
         {
@@ -74,6 +78,20 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.AchievementUnlockedIconOverrides = NormalizeIconOverrides(normalized.AchievementUnlockedIconOverrides);
             normalized.AchievementLockedIconOverrides = NormalizeIconOverrides(normalized.AchievementLockedIconOverrides);
             normalized.AchievementNotes = AchievementNoteHelper.NormalizeNoteMap(normalized.AchievementNotes);
+            // Schema 8 fold: the parallel maps above become one record per achievement. Both
+            // shapes are then kept in sync, so a writer targeting either is still correct.
+            normalized.AchievementOverrides = NormalizeAchievementOverrides(MergeLegacyAchievementMaps(
+                NormalizeAchievementOverrides(normalized.AchievementOverrides),
+                normalized.AchievementCategoryOverrides,
+                normalized.AchievementCategoryTypeOverrides,
+                normalized.AchievementNotes,
+                normalized.AchievementUnlockedIconOverrides,
+                normalized.AchievementLockedIconOverrides));
+            normalized.AchievementCategoryOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.Category);
+            normalized.AchievementCategoryTypeOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.CategoryType);
+            normalized.AchievementNotes = ProjectOverrideField(normalized.AchievementOverrides, o => o.Note);
+            normalized.AchievementUnlockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.UnlockedIconPath);
+            normalized.AchievementLockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.LockedIconPath);
             normalized.NotificationAppearanceOverride =
                 NormalizeNotificationAppearanceOverride(normalized.NotificationAppearanceOverride);
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
@@ -114,6 +132,20 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.AchievementUnlockedIconOverrides = NormalizeIconOverrides(normalized.AchievementUnlockedIconOverrides);
             normalized.AchievementLockedIconOverrides = NormalizeIconOverrides(normalized.AchievementLockedIconOverrides);
             normalized.AchievementNotes = AchievementNoteHelper.NormalizeNoteMap(normalized.AchievementNotes);
+            // Schema 8 fold, matching NormalizeInternal, so an imported schema-7 package lands on
+            // the record and an exported package carries both shapes.
+            normalized.AchievementOverrides = NormalizeAchievementOverrides(MergeLegacyAchievementMaps(
+                NormalizeAchievementOverrides(normalized.AchievementOverrides),
+                normalized.AchievementCategoryOverrides,
+                normalized.AchievementCategoryTypeOverrides,
+                normalized.AchievementNotes,
+                normalized.AchievementUnlockedIconOverrides,
+                normalized.AchievementLockedIconOverrides));
+            normalized.AchievementCategoryOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.Category);
+            normalized.AchievementCategoryTypeOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.CategoryType);
+            normalized.AchievementNotes = ProjectOverrideField(normalized.AchievementOverrides, o => o.Note);
+            normalized.AchievementUnlockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.UnlockedIconPath);
+            normalized.AchievementLockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.LockedIconPath);
             normalized.NotificationAppearanceOverride =
                 NormalizeNotificationAppearanceOverride(normalized.NotificationAppearanceOverride);
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
@@ -146,6 +178,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementUnlockedIconOverrides != null && data.AchievementUnlockedIconOverrides.Count > 0) ||
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
+                   (data.AchievementOverrides != null && data.AchievementOverrides.Count > 0) ||
                    data.ProviderOverride != null ||
                    !string.IsNullOrWhiteSpace(data.ExophaseEnrichmentSlugOverride) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
@@ -185,6 +218,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementUnlockedIconOverrides != null && data.AchievementUnlockedIconOverrides.Count > 0) ||
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
+                   (data.AchievementOverrides != null && data.AchievementOverrides.Count > 0) ||
                    data.ProviderOverride != null ||
                    !string.IsNullOrWhiteSpace(data.ExophaseEnrichmentSlugOverride) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
@@ -219,6 +253,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementUnlockedIconOverrides != null && data.AchievementUnlockedIconOverrides.Count > 0) ||
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
+                   (data.AchievementOverrides != null && data.AchievementOverrides.Count > 0) ||
                    data.ProviderOverride != null ||
                    !string.IsNullOrWhiteSpace(data.ExophaseEnrichmentSlugOverride) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
@@ -309,6 +344,11 @@ namespace PlayniteAchievements.Services.GameCustomData
                     ? new Dictionary<string, string>(existing.AchievementNotes, StringComparer.OrdinalIgnoreCase)
                     : legacy.AchievementNotes != null && legacy.AchievementNotes.Count > 0
                         ? new Dictionary<string, string>(legacy.AchievementNotes, StringComparer.OrdinalIgnoreCase)
+                        : null,
+                AchievementOverrides = existing.AchievementOverrides != null && existing.AchievementOverrides.Count > 0
+                    ? GameCustomDataFile.CloneAchievementOverrideMap(existing.AchievementOverrides)
+                    : legacy.AchievementOverrides != null && legacy.AchievementOverrides.Count > 0
+                        ? GameCustomDataFile.CloneAchievementOverrideMap(legacy.AchievementOverrides)
                         : null,
                 NotificationAppearanceOverride =
                     NormalizeNotificationAppearanceOverride(existing.NotificationAppearanceOverride) ??
@@ -871,6 +911,185 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             return normalized.Count > 0 ? normalized : null;
+        }
+
+        /// <summary>
+        /// Canonicalizes the per-achievement override map the same way the legacy parallel maps
+        /// are canonicalized, and drops rows that carry nothing so the "is this game customized"
+        /// predicates stay accurate.
+        /// </summary>
+        private static Dictionary<string, AchievementOverride> NormalizeAchievementOverrides(
+            Dictionary<string, AchievementOverride> values)
+        {
+            if (values == null)
+            {
+                return null;
+            }
+
+            var normalized = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in values)
+            {
+                var apiName = NormalizeString(pair.Key);
+                if (string.IsNullOrWhiteSpace(apiName) || pair.Value == null)
+                {
+                    continue;
+                }
+
+                var category = AchievementCategoryTypeHelper.NormalizeCategory(pair.Value.Category);
+                var entry = new AchievementOverride
+                {
+                    DisplayName = NormalizeString(pair.Value.DisplayName),
+                    Description = NormalizeString(pair.Value.Description),
+                    // A negative override is meaningless for a score total; drop rather than store.
+                    Points = pair.Value.Points.HasValue && pair.Value.Points.Value >= 0
+                        ? pair.Value.Points
+                        : null,
+                    TrophyType = NormalizeTrophyType(pair.Value.TrophyType),
+                    UnlockTimeUtc = NormalizeUtc(pair.Value.UnlockTimeUtc),
+                    // A stored timestamp and a clear flag are mutually exclusive; the timestamp wins.
+                    ClearUnlockTime = pair.Value.ClearUnlockTime && !pair.Value.UnlockTimeUtc.HasValue,
+                    Category = !string.IsNullOrWhiteSpace(category)
+                        ? CategoryPathHelper.NormalizePath(category)
+                        : null,
+                    CategoryType = AchievementCategoryTypeHelper.Normalize(pair.Value.CategoryType),
+                    Note = AchievementNoteHelper.NormalizeNote(pair.Value.Note),
+                    UnlockedIconPath = NormalizeString(pair.Value.UnlockedIconPath),
+                    LockedIconPath = NormalizeString(pair.Value.LockedIconPath)
+                };
+
+                if (!entry.IsEmpty)
+                {
+                    normalized[apiName] = entry;
+                }
+            }
+
+            return normalized.Count > 0 ? normalized : null;
+        }
+
+        /// <summary>
+        /// Folds the schema-7 parallel maps into the per-achievement record. A legacy value fills
+        /// a field only where the record has nothing, so a record written directly is never
+        /// clobbered by a stale mirror.
+        /// </summary>
+        private static Dictionary<string, AchievementOverride> MergeLegacyAchievementMaps(
+            Dictionary<string, AchievementOverride> existing,
+            Dictionary<string, string> categories,
+            Dictionary<string, string> categoryTypes,
+            Dictionary<string, string> notes,
+            Dictionary<string, string> unlockedIcons,
+            Dictionary<string, string> lockedIcons)
+        {
+            var merged = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            if (existing != null)
+            {
+                foreach (var pair in existing)
+                {
+                    if (!string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
+                    {
+                        merged[pair.Key] = pair.Value.Clone();
+                    }
+                }
+            }
+
+            ApplyLegacyAchievementField(merged, categories, (entry, value) =>
+            {
+                if (string.IsNullOrWhiteSpace(entry.Category))
+                {
+                    entry.Category = value;
+                }
+            });
+            ApplyLegacyAchievementField(merged, categoryTypes, (entry, value) =>
+            {
+                if (string.IsNullOrWhiteSpace(entry.CategoryType))
+                {
+                    entry.CategoryType = value;
+                }
+            });
+            ApplyLegacyAchievementField(merged, notes, (entry, value) =>
+            {
+                if (string.IsNullOrWhiteSpace(entry.Note))
+                {
+                    entry.Note = value;
+                }
+            });
+            ApplyLegacyAchievementField(merged, unlockedIcons, (entry, value) =>
+            {
+                if (string.IsNullOrWhiteSpace(entry.UnlockedIconPath))
+                {
+                    entry.UnlockedIconPath = value;
+                }
+            });
+            ApplyLegacyAchievementField(merged, lockedIcons, (entry, value) =>
+            {
+                if (string.IsNullOrWhiteSpace(entry.LockedIconPath))
+                {
+                    entry.LockedIconPath = value;
+                }
+            });
+
+            return merged.Count > 0 ? merged : null;
+        }
+
+        private static void ApplyLegacyAchievementField(
+            Dictionary<string, AchievementOverride> target,
+            Dictionary<string, string> source,
+            Action<AchievementOverride, string> apply)
+        {
+            if (source == null)
+            {
+                return;
+            }
+
+            foreach (var pair in source)
+            {
+                var apiName = NormalizeString(pair.Key);
+                var value = NormalizeString(pair.Value);
+                if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                if (!target.TryGetValue(apiName, out var entry) || entry == null)
+                {
+                    entry = new AchievementOverride();
+                    target[apiName] = entry;
+                }
+
+                apply(entry, value);
+            }
+        }
+
+        /// <summary>
+        /// Projects one field of the per-achievement record back into its schema-7 map shape, so
+        /// consumers that have not been repointed to the record keep seeing current values.
+        /// </summary>
+        private static Dictionary<string, string> ProjectOverrideField(
+            Dictionary<string, AchievementOverride> overrides,
+            Func<AchievementOverride, string> selector)
+        {
+            if (overrides == null)
+            {
+                return null;
+            }
+
+            var projected = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in overrides)
+            {
+                if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null)
+                {
+                    continue;
+                }
+
+                var value = NormalizeString(selector(pair.Value));
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                projected[pair.Key] = value;
+            }
+
+            return projected.Count > 0 ? projected : null;
         }
 
         private static Dictionary<string, CategoryImageOverrideData> NormalizeCategoryImageOverrides(

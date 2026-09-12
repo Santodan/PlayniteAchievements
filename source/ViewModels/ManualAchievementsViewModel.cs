@@ -89,7 +89,7 @@ namespace PlayniteAchievements.ViewModels
         private string _saveStatusMessage = string.Empty;
         private string _displayPlatformKeyOverride;
         private readonly IReadOnlyList<ProviderOverrideChoice> _availableDisplayPlatforms =
-            BuildDisplayPlatformOptions();
+            ManualDisplayPlatformResolver.BuildDisplayPlatformOptions();
         private readonly SearchTextIndex<ManualAchievementEditItem> _editSearchIndex =
             new SearchTextIndex<ManualAchievementEditItem>(item =>
                 SearchTextBuilder.ForManualEdit(item?.DisplayName, item?.Description, item?.ApiName));
@@ -1475,22 +1475,6 @@ namespace PlayniteAchievements.ViewModels
         /// Builds the display platform options: the default first, then every registered provider
         /// by localized name, so each choice resolves to a known icon and color.
         /// </summary>
-        private static IReadOnlyList<ProviderOverrideChoice> BuildDisplayPlatformOptions()
-        {
-            var options = new List<ProviderOverrideChoice>
-            {
-                new ProviderOverrideChoice(
-                    string.Empty,
-                    ResourceProvider.GetString("LOCPlayAch_Common_Default"))
-            };
-
-            options.AddRange(ManualDisplayPlatformResolver
-                .GetSelectablePlatformKeys()
-                .Select(key => new ProviderOverrideChoice(key, ProviderRegistry.GetLocalizedName(key)))
-                .OrderBy(choice => choice.DisplayName, StringComparer.CurrentCultureIgnoreCase));
-
-            return options;
-        }
 
         private ManualAchievementLink BuildLink()
         {
@@ -1545,44 +1529,11 @@ namespace PlayniteAchievements.ViewModels
                 var link = BuildLink();
                 SaveLink(link);
 
-                var cachedData = _achievementDataService.GetRawGameAchievementData(_playniteGame.Id);
-                if (cachedData?.Achievements != null)
-                {
-                    var nowUtc = DateTime.UtcNow;
-
-                    // Keep the display platform in sync so the game attributes to its real platform
-                    // (e.g. Steam/PSN) instead of "Manual" right after a window edit, without waiting
-                    // for a full provider refresh. Resolves through the same helper the provider uses,
-                    // so a user override applies here too.
-                    cachedData.ProviderPlatformKey = ManualDisplayPlatformResolver.Resolve(_source, link);
-
-                    // Reset then re-apply through the shared resolver, so the cached unlocked set
-                    // exactly reflects the just-saved link (and never carries stale unlocks).
-                    foreach (var achievement in cachedData.Achievements)
-                    {
-                        if (achievement == null)
-                        {
-                            continue;
-                        }
-
-                        achievement.Unlocked = false;
-                        achievement.UnlockTimeUtc = null;
-                    }
-
-                    new ManualUnlockResolver(link).ApplyUnlockState(cachedData.Achievements);
-
-                    // Force a new snapshot version so theme update coalescing does not skip this save.
-                    cachedData.LastUpdatedUtc = nowUtc;
-
-                    _cacheManager.SaveGameData(_playniteGame.Id.ToString(), cachedData);
-                    _cacheManager.NotifyCacheInvalidated(new[] { _playniteGame.Id });
-
-                    // Ensure immediate theme refresh for this game after manual edits.
-                    if (_settings?.SelectedGame?.Id == _playniteGame.Id)
-                    {
-                        PlayniteAchievementsPlugin.Instance?.ThemeUpdateService?.RequestUpdate(_playniteGame.Id);
-                    }
-                }
+                new ManualLinkCacheApplier(
+                    _achievementDataService,
+                    _cacheManager,
+                    _settings,
+                    _logger).Apply(_playniteGame.Id, link, _source);
 
                 _logger?.Info($"Saved manual achievement link for '{_playniteGame.Name}' (source={link.SourceKey}, gameId={link.SourceGameId})");
 
@@ -1602,7 +1553,10 @@ namespace PlayniteAchievements.ViewModels
 
         private void SaveLink(ManualAchievementLink link)
         {
-            SetLinkInMemory(GameCustomDataStore != null ? link : CompactLinkForPersistence(link));
+            // Compacted on both paths: the durable store used to keep every locked entry as a
+            // stored false, which only grew the blob each write has to serialize. An absent key and
+            // a stored false read identically through ManualUnlockResolver.
+            SetLinkInMemory(CompactLinkForPersistence(link));
             _saveSettings(_settings);
         }
 

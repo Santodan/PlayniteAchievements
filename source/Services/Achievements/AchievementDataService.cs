@@ -1,4 +1,5 @@
 using Playnite.SDK;
+using PlayniteAchievements.Services.Database.Rows;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
@@ -46,7 +47,7 @@ namespace PlayniteAchievements.Services.Achievements
 
         private readonly ICacheManager _cacheService;
         private readonly ICacheReadOptimizations _cacheReadOptimizations;
-        private readonly IAchievementFilterMirror _filterMirror;
+        private readonly IAchievementOverrideMirror _overrideMirror;
         private readonly GameDataHydrator _hydrator;
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _api;
@@ -82,7 +83,7 @@ namespace PlayniteAchievements.Services.Achievements
             _gameCustomDataStore = gameCustomDataStore;
             _settings = settings;
             _cacheReadOptimizations = cacheService as ICacheReadOptimizations;
-            _filterMirror = cacheService as IAchievementFilterMirror;
+            _overrideMirror = cacheService as IAchievementOverrideMirror;
             _hydrator = new GameDataHydrator(api, settings, _gameCustomDataStore);
             SubscribeOverviewProjectionInvalidation();
         }
@@ -557,7 +558,11 @@ namespace PlayniteAchievements.Services.Achievements
                     : new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase),
                 AchievementNotes = hasCustomData
                     ? CloneNoteMap(customData.AchievementNotes)
-                    : EmptyStringMap
+                    : EmptyStringMap,
+                AchievementOverrides = hasCustomData
+                    ? GameCustomDataFile.CloneAchievementOverrideMap(customData.AchievementOverrides) ??
+                        new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
             };
         }
 
@@ -854,24 +859,52 @@ namespace PlayniteAchievements.Services.Achievements
                     achievement.IsCapstone = string.Equals(apiName, manualCapstoneApiName, StringComparison.OrdinalIgnoreCase);
                 }
 
-                if (resolved.AchievementCategoryOverrides != null &&
-                    resolved.AchievementCategoryOverrides.TryGetValue(apiName, out var categoryOverride) &&
-                    !string.IsNullOrWhiteSpace(categoryOverride))
+                // Summary rows come straight from SQL, so the per-achievement record is applied
+                // here the way the hydrator applies it to the achievement list. Without this the
+                // overview's recent-unlock entries would show the provider's title and points
+                // while the list showed the user's.
+                var userOverride = ResolveSummaryOverride(resolved, apiName);
+                if (userOverride != null)
                 {
-                    achievement.Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryOverride);
+                    if (!string.IsNullOrWhiteSpace(userOverride.Category))
+                    {
+                        achievement.Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(userOverride.Category);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(userOverride.CategoryType))
+                    {
+                        achievement.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(userOverride.CategoryType);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(userOverride.DisplayName))
+                    {
+                        achievement.DisplayName = userOverride.DisplayName;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(userOverride.Description))
+                    {
+                        achievement.Description = userOverride.Description;
+                    }
+
+                    if (userOverride.Points.HasValue)
+                    {
+                        achievement.Points = userOverride.Points;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(userOverride.TrophyType))
+                    {
+                        achievement.TrophyType = userOverride.TrophyType;
+                    }
+
+                    // Only a correction to an achievement that is already unlocked; unlock status
+                    // itself stays provider-owned.
+                    if (userOverride.UnlockTimeUtc.HasValue && achievement.Unlocked)
+                    {
+                        achievement.UnlockTimeUtc = userOverride.UnlockTimeUtc;
+                    }
                 }
 
-                if (resolved.AchievementCategoryTypeOverrides != null &&
-                    resolved.AchievementCategoryTypeOverrides.TryGetValue(apiName, out var categoryTypeOverride) &&
-                    !string.IsNullOrWhiteSpace(categoryTypeOverride))
-                {
-                    achievement.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(categoryTypeOverride);
-                }
-
-                achievement.AchievementNote = resolved.AchievementNotes != null &&
-                                         resolved.AchievementNotes.TryGetValue(apiName, out var note)
-                    ? note
-                    : null;
+                achievement.AchievementNote = userOverride?.Note;
 
                 var unlockedOverride = AchievementIconOverrideHelper.GetOverrideValue(customization.UnlockedIconOverrides, apiName);
                 if (!string.IsNullOrWhiteSpace(unlockedOverride))
@@ -889,6 +922,21 @@ namespace PlayniteAchievements.Services.Achievements
                         achievement.PlayniteGameId.Value);
                 }
             }
+        }
+
+        /// <summary>
+        /// The per-achievement override record for a summary row, resolving through the legacy
+        /// mirror maps when the resolved data predates the record.
+        /// </summary>
+        private static AchievementOverride ResolveSummaryOverride(ResolvedGameCustomData resolved, string apiName)
+        {
+            var overrides = resolved?.ResolveAchievementOverrides();
+            if (overrides == null || overrides.Count == 0)
+            {
+                return null;
+            }
+
+            return overrides.TryGetValue(apiName, out var entry) ? entry : null;
         }
 
         private bool IsManualCapstoneUnlocked(Guid playniteGameId, string manualCapstoneApiName)
@@ -1029,7 +1077,7 @@ namespace PlayniteAchievements.Services.Achievements
 
         private void SyncAchievementFiltersForGame(Guid playniteGameId)
         {
-            if (playniteGameId == Guid.Empty || _filterMirror == null || _gameCustomDataStore == null)
+            if (playniteGameId == Guid.Empty || _overrideMirror == null || _gameCustomDataStore == null)
             {
                 return;
             }
@@ -1037,7 +1085,7 @@ namespace PlayniteAchievements.Services.Achievements
             // A missing custom-data row (deleted) maps to an empty entry list, which removes
             // the game's mirror rows.
             _gameCustomDataStore.TryLoad(playniteGameId, out var customData);
-            _filterMirror.ReplaceAchievementFilters(playniteGameId, BuildFilterEntries(customData));
+            _overrideMirror.ReplaceAchievementOverrides(playniteGameId, BuildOverrideMirrorEntries(customData));
         }
 
         /// <summary>
@@ -1047,47 +1095,85 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         internal void SyncAllAchievementFiltersFromCustomData()
         {
-            if (_filterMirror == null)
+            if (_overrideMirror == null)
             {
                 return;
             }
 
-            var entriesByGameId = new Dictionary<Guid, IReadOnlyList<(string ApiName, string Kind)>>();
+            var entriesByGameId = new Dictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>>();
             foreach (var pair in LoadCustomDataByGameId())
             {
-                var entries = BuildFilterEntries(pair.Value);
+                var entries = BuildOverrideMirrorEntries(pair.Value);
                 if (entries.Count > 0)
                 {
                     entriesByGameId[pair.Key] = entries;
                 }
             }
 
-            _filterMirror.ResyncAllAchievementFilters(entriesByGameId);
+            _overrideMirror.ResyncAllAchievementOverrides(entriesByGameId);
             InvalidateOverviewProjectionCaches();
         }
 
-        private static List<(string ApiName, string Kind)> BuildFilterEntries(GameCustomDataFile customData)
+        /// <summary>
+        /// Builds a game's desired mirror rows from its custom data: the two filter flags plus the
+        /// user-editable fields summary aggregates resolve in a join.
+        /// </summary>
+        private static List<AchievementOverrideMirrorEntry> BuildOverrideMirrorEntries(GameCustomDataFile customData)
         {
-            var entries = new List<(string ApiName, string Kind)>();
-            AppendFilterEntries(entries, customData?.FilteredAchievementApiNames, SqlNadoCacheStore.AchievementFilterKinds.Filtered);
-            AppendFilterEntries(entries, customData?.SummaryFilteredAchievementApiNames, SqlNadoCacheStore.AchievementFilterKinds.SummaryFiltered);
-            return entries;
+            var entries = new Dictionary<string, AchievementOverrideMirrorEntry>(StringComparer.OrdinalIgnoreCase);
+            MarkFilterEntries(entries, customData?.FilteredAchievementApiNames, (entry) => entry.IsFiltered = true);
+            MarkFilterEntries(entries, customData?.SummaryFilteredAchievementApiNames, (entry) => entry.IsSummaryFiltered = true);
+
+            // The user-editable fields aggregates read. Everything else on the record is applied
+            // during hydration and deliberately not mirrored.
+            foreach (var pair in customData?.AchievementOverrides ??
+                new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase))
+            {
+                var apiName = NormalizeText(pair.Key);
+                if (apiName == null || pair.Value == null)
+                {
+                    continue;
+                }
+
+                if (!pair.Value.Points.HasValue && string.IsNullOrWhiteSpace(pair.Value.TrophyType))
+                {
+                    continue;
+                }
+
+                var entry = ResolveMirrorEntry(entries, apiName);
+                entry.Points = pair.Value.Points;
+                entry.TrophyType = NormalizeText(pair.Value.TrophyType);
+            }
+
+            return entries.Values.Where(entry => !entry.IsEmpty).ToList();
         }
 
-        private static void AppendFilterEntries(
-            List<(string ApiName, string Kind)> entries,
+        private static void MarkFilterEntries(
+            Dictionary<string, AchievementOverrideMirrorEntry> entries,
             IEnumerable<string> apiNames,
-            string kind)
+            Action<AchievementOverrideMirrorEntry> mark)
         {
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var apiName in apiNames ?? Enumerable.Empty<string>())
             {
                 var normalized = NormalizeText(apiName);
-                if (normalized != null && seen.Add(normalized))
+                if (normalized != null)
                 {
-                    entries.Add((normalized, kind));
+                    mark(ResolveMirrorEntry(entries, normalized));
                 }
             }
+        }
+
+        private static AchievementOverrideMirrorEntry ResolveMirrorEntry(
+            Dictionary<string, AchievementOverrideMirrorEntry> entries,
+            string apiName)
+        {
+            if (!entries.TryGetValue(apiName, out var entry) || entry == null)
+            {
+                entry = new AchievementOverrideMirrorEntry { ApiName = apiName };
+                entries[apiName] = entry;
+            }
+
+            return entry;
         }
 
         private void InvalidateOverviewProjectionCaches()

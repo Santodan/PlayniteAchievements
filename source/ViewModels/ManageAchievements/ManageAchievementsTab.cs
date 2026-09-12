@@ -6,7 +6,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     {
         Overview,
         ManualTracking,
-        Custom,
+        // The merged editor: every achievement in one list, authored and provider-supplied alike.
+        // It replaced the Custom tab outright — it is that same editor widened to every
+        // achievement — and folds in the facets the Category, Filters, Capstones, Goals, Notes,
+        // Order and Icons tabs each own a slice of. Those tabs remain while it is verified
+        // against them.
+        Editor,
         Category,
         Filters,
         AchievementOrder,
@@ -26,6 +31,28 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// and the guards cannot drift apart.
         /// </summary>
         public static readonly HashSet<ManageAchievementsTab> RequireAchievementData =
+            new HashSet<ManageAchievementsTab>
+            {
+                // Editor is deliberately absent: like the Custom tab it folds in, it must stay
+                // reachable for a game with no cached achievements so custom ones can be authored.
+                ManageAchievementsTab.Category,
+                ManageAchievementsTab.Filters,
+                ManageAchievementsTab.AchievementOrder,
+                ManageAchievementsTab.Capstones,
+                ManageAchievementsTab.Goals,
+                ManageAchievementsTab.Notes,
+                ManageAchievementsTab.CustomIcons
+            };
+
+        /// <summary>
+        /// Tabs the merged editor replaced. Kept in the enum, the rail markup and the content host so
+        /// nothing is deleted while the editor is being proven against them, but hidden from the
+        /// rail and refused by the selection guards.
+        /// </summary>
+        /// <remarks>
+        /// Flip <c>ManageAchievementsViewModel.ShowReplacedTabs</c> to true to bring them back.
+        /// </remarks>
+        public static readonly HashSet<ManageAchievementsTab> Replaced =
             new HashSet<ManageAchievementsTab>
             {
                 ManageAchievementsTab.Category,

@@ -5792,39 +5792,62 @@ namespace PlayniteAchievements.Services.Database
             });
         }
 
-        internal static class AchievementFilterKinds
-        {
-            public const string Filtered = "Filtered";
-            public const string SummaryFiltered = "SummaryFiltered";
-        }
-
-        private sealed class AchievementFilterRow
+        private sealed class AchievementOverrideRow
         {
             public string PlayniteGameId { get; set; }
             public string ApiName { get; set; }
-            public string Kind { get; set; }
-        }
+            public long? Points { get; set; }
+            public string TrophyType { get; set; }
+            public long IsFiltered { get; set; }
+            public long IsSummaryFiltered { get; set; }
 
-        private static string AchievementFilterEntryKey(string apiName, string kind)
-        {
-            return (apiName ?? string.Empty).Trim() + "\n" + (kind ?? string.Empty).Trim();
-        }
-
-        private static HashSet<string> BuildAchievementFilterEntryKeys(
-            IReadOnlyList<(string ApiName, string Kind)> entries)
-        {
-            var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in entries ?? Array.Empty<(string, string)>())
+            public AchievementOverrideMirrorEntry ToEntry()
             {
-                if (string.IsNullOrWhiteSpace(entry.ApiName) || string.IsNullOrWhiteSpace(entry.Kind))
+                return new AchievementOverrideMirrorEntry
+                {
+                    ApiName = ApiName,
+                    Points = Points.HasValue ? (int)Points.Value : (int?)null,
+                    TrophyType = TrophyType,
+                    IsFiltered = IsFiltered != 0,
+                    IsSummaryFiltered = IsSummaryFiltered != 0
+                };
+            }
+        }
+
+        /// <summary>
+        /// Normalizes a game's desired mirror rows, dropping blank api names and rows that carry
+        /// nothing a query reads. Keyed by ApiName, so one achievement can only produce one row.
+        /// </summary>
+        private static Dictionary<string, AchievementOverrideMirrorEntry> BuildAchievementOverrideEntries(
+            IReadOnlyList<AchievementOverrideMirrorEntry> entries)
+        {
+            var byApiName = new Dictionary<string, AchievementOverrideMirrorEntry>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in entries ?? Array.Empty<AchievementOverrideMirrorEntry>())
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.ApiName) || entry.IsEmpty)
                 {
                     continue;
                 }
 
-                keys.Add(AchievementFilterEntryKey(entry.ApiName, entry.Kind));
+                byApiName[entry.ApiName.Trim()] = entry;
             }
 
-            return keys;
+            return byApiName;
+        }
+
+        private static HashSet<string> BuildAchievementOverrideSignatures(
+            IEnumerable<AchievementOverrideMirrorEntry> entries)
+        {
+            var signatures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in entries ?? Array.Empty<AchievementOverrideMirrorEntry>())
+            {
+                if (entry != null)
+                {
+                    signatures.Add(entry.ToSignature());
+                }
+            }
+
+            return signatures;
         }
 
         /// <summary>
@@ -5833,9 +5856,9 @@ namespace PlayniteAchievements.Services.Database
         /// directly). Compares before writing so unchanged saves stay WAL-silent. Returns true
         /// when rows changed.
         /// </summary>
-        public bool ReplaceAchievementFilters(
+        public bool ReplaceAchievementOverrides(
             Guid playniteGameId,
-            IReadOnlyList<(string ApiName, string Kind)> entries)
+            IReadOnlyList<AchievementOverrideMirrorEntry> entries)
         {
             if (playniteGameId == Guid.Empty)
             {
@@ -5843,15 +5866,16 @@ namespace PlayniteAchievements.Services.Database
             }
 
             var gameIdText = playniteGameId.ToString();
-            var desired = BuildAchievementFilterEntryKeys(entries);
+            var desiredByApiName = BuildAchievementOverrideEntries(entries);
+            var desired = BuildAchievementOverrideSignatures(desiredByApiName.Values);
             return WithDb(db =>
             {
-                var existing = db.Load<AchievementFilterRow>(
-                        @"SELECT PlayniteGameId, ApiName, Kind
-                          FROM AchievementFilters
+                var existing = db.Load<AchievementOverrideRow>(
+                        @"SELECT PlayniteGameId, ApiName, Points, TrophyType, IsFiltered, IsSummaryFiltered
+                          FROM AchievementOverrides
                           WHERE PlayniteGameId = ?;",
                         gameIdText)
-                    .Select(row => AchievementFilterEntryKey(row.ApiName, row.Kind))
+                    .Select(row => row.ToEntry().ToSignature())
                     .ToList();
 
                 if (existing.Count == desired.Count && desired.SetEquals(existing))
@@ -5863,9 +5887,9 @@ namespace PlayniteAchievements.Services.Database
                 db.RunTransaction(() =>
                 {
                     db.ExecuteNonQuery(
-                        "DELETE FROM AchievementFilters WHERE PlayniteGameId = ?;",
+                        "DELETE FROM AchievementOverrides WHERE PlayniteGameId = ?;",
                         gameIdText);
-                    InsertAchievementFilterKeys(db, gameIdText, desired, nowIso);
+                    InsertAchievementOverrideRows(db, gameIdText, desiredByApiName.Values, nowIso);
                 });
 
                 return true;
@@ -5877,33 +5901,37 @@ namespace PlayniteAchievements.Services.Database
         /// sets (games absent from the map lose their rows). Diffs first and returns the number
         /// of changed games; 0 means no write at all.
         /// </summary>
-        public int ResyncAllAchievementFilters(
-            IReadOnlyDictionary<Guid, IReadOnlyList<(string ApiName, string Kind)>> entriesByGameId)
+        public int ResyncAllAchievementOverrides(
+            IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId)
         {
             var desiredByGame = new Dictionary<Guid, HashSet<string>>();
-            foreach (var pair in entriesByGameId ?? new Dictionary<Guid, IReadOnlyList<(string, string)>>())
+            var desiredRowsByGame = new Dictionary<Guid, ICollection<AchievementOverrideMirrorEntry>>();
+            foreach (var pair in entriesByGameId ??
+                new Dictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>>())
             {
                 if (pair.Key == Guid.Empty)
                 {
                     continue;
                 }
 
-                var keys = BuildAchievementFilterEntryKeys(pair.Value);
-                if (keys.Count > 0)
+                var byApiName = BuildAchievementOverrideEntries(pair.Value);
+                if (byApiName.Count > 0)
                 {
-                    desiredByGame[pair.Key] = keys;
+                    desiredByGame[pair.Key] = BuildAchievementOverrideSignatures(byApiName.Values);
+                    desiredRowsByGame[pair.Key] = byApiName.Values;
                 }
             }
 
             return WithDb(db =>
             {
-                var existingByGameText = db.Load<AchievementFilterRow>(
-                        "SELECT PlayniteGameId, ApiName, Kind FROM AchievementFilters;")
+                var existingByGameText = db.Load<AchievementOverrideRow>(
+                        @"SELECT PlayniteGameId, ApiName, Points, TrophyType, IsFiltered, IsSummaryFiltered
+                          FROM AchievementOverrides;")
                     .GroupBy(row => row.PlayniteGameId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(
                         group => group.Key,
                         group => new HashSet<string>(
-                            group.Select(row => AchievementFilterEntryKey(row.ApiName, row.Kind)),
+                            group.Select(row => row.ToEntry().ToSignature()),
                             StringComparer.OrdinalIgnoreCase),
                         StringComparer.OrdinalIgnoreCase);
 
@@ -5941,7 +5969,7 @@ namespace PlayniteAchievements.Services.Database
                     foreach (var gameIdText in textsToDelete)
                     {
                         db.ExecuteNonQuery(
-                            "DELETE FROM AchievementFilters WHERE PlayniteGameId = ?;",
+                            "DELETE FROM AchievementOverrides WHERE PlayniteGameId = ?;",
                             gameIdText);
                     }
 
@@ -5949,9 +5977,9 @@ namespace PlayniteAchievements.Services.Database
                     {
                         var gameIdText = gameId.ToString();
                         db.ExecuteNonQuery(
-                            "DELETE FROM AchievementFilters WHERE PlayniteGameId = ?;",
+                            "DELETE FROM AchievementOverrides WHERE PlayniteGameId = ?;",
                             gameIdText);
-                        InsertAchievementFilterKeys(db, gameIdText, desiredByGame[gameId], nowIso);
+                        InsertAchievementOverrideRows(db, gameIdText, desiredRowsByGame[gameId], nowIso);
                     }
                 });
 
@@ -5965,26 +5993,29 @@ namespace PlayniteAchievements.Services.Database
             });
         }
 
-        private static void InsertAchievementFilterKeys(
+        private static void InsertAchievementOverrideRows(
             SQLiteDatabase db,
             string gameIdText,
-            IEnumerable<string> entryKeys,
+            IEnumerable<AchievementOverrideMirrorEntry> entries,
             string nowIso)
         {
-            foreach (var key in entryKeys)
+            foreach (var entry in entries)
             {
-                var separator = key.IndexOf('\n');
-                if (separator <= 0 || separator >= key.Length - 1)
+                if (entry == null || string.IsNullOrWhiteSpace(entry.ApiName))
                 {
                     continue;
                 }
 
                 db.ExecuteNonQuery(
-                    @"INSERT OR IGNORE INTO AchievementFilters (PlayniteGameId, ApiName, Kind, CreatedUtc)
-                      VALUES (?, ?, ?, ?);",
+                    @"INSERT OR IGNORE INTO AchievementOverrides
+                          (PlayniteGameId, ApiName, Points, TrophyType, IsFiltered, IsSummaryFiltered, UpdatedUtc)
+                      VALUES (?, ?, ?, ?, ?, ?, ?);",
                     gameIdText,
-                    key.Substring(0, separator),
-                    key.Substring(separator + 1),
+                    entry.ApiName.Trim(),
+                    entry.Points.HasValue ? (object)entry.Points.Value : null,
+                    string.IsNullOrWhiteSpace(entry.TrophyType) ? null : entry.TrophyType.Trim(),
+                    entry.IsFiltered ? 1 : 0,
+                    entry.IsSummaryFiltered ? 1 : 0,
                     nowIso);
             }
         }

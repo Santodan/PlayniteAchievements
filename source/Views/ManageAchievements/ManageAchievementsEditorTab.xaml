@@ -1,16 +1,16 @@
-<UserControl x:Class="PlayniteAchievements.Views.ManageAchievementsCustomTab"
+<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsEditorTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
+             xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.ManageAchievements"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              mc:Ignorable="d"
              d:DesignHeight="620"
              d:DesignWidth="980"
-             d:DataContext="{d:DesignInstance vm:ManageAchievementsCustomViewModel}">
+             d:DataContext="{d:DesignInstance vm:ManageAchievementsEditorViewModel}">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -131,13 +131,48 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Custom}"
-                               Foreground="{DynamicResource TextBrush}"
-                               FontWeight="SemiBold" />
+                    <!-- The heading names where the achievements come from: the manual link, the
+                         custom bucket, or the provider. The rail already says which tab this is. -->
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding SourceHeading}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                        <!-- One button: it links an unlinked game and relinks a linked one. -->
+                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_ManualTracking}"
+                                Command="{Binding ManualLinkCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="12,0,0,0"
+                                Visibility="{Binding CanLinkManualTracking, Converter={StaticResource BoolToVis}}" />
+                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Manual_Unlink}"
+                                Command="{Binding UnlinkManualTrackingCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="0"
+                                Visibility="{Binding IsManuallyTrackedGame, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
                     <TextBlock Text="{Binding StatusText}"
                                Style="{StaticResource StatusTextStyle}"
                                Margin="0,6,0,0"
                                Visibility="{Binding HasStatusText, Converter={StaticResource BoolToVis}}" />
+
+                    <!-- "Shows as" for a manually tracked game: which registered provider it
+                         attributes to. The custom-only row below answers the same question with the
+                         user's own providers, so only one of the two is ever shown. -->
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0,10,0,0"
+                                Visibility="{Binding IsManuallyTrackedGame, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_Provider}"
+                                   Style="{StaticResource FieldLabelStyle}"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding DisplayPlatformOptions}"
+                                  SelectedItem="{Binding SelectedDisplayPlatform, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName"
+                                  Width="240"
+                                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                                  VerticalContentAlignment="Center" />
+                    </StackPanel>
 
                     <!-- Custom-only games pick the platform they display as; the selected custom
                          platform is edited inline and those edits apply to every game using it. -->
@@ -204,6 +239,11 @@
                                 Content="{DynamicResource LOCPlayAch_Common_Duplicate}"
                                 Command="{Binding DuplicateCommand}"
                                 Style="{StaticResource ToolbarButtonStyle}" />
+                        <Button x:Name="RevertButton"
+                                Content="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Revert}"
+                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Editor_RevertHint}"
+                                Command="{Binding RevertCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}" />
                         <Button x:Name="DeleteButton"
                                 Content="{DynamicResource LOCPlayAch_Common_Delete}"
                                 Command="{Binding DeleteCommand}"
@@ -244,20 +284,93 @@
                 <ColumnDefinition Width="340" />
             </Grid.ColumnDefinitions>
 
-            <!-- The grid sizes to its rows so the add button follows the last one; the outer
-                 scroll viewer takes over scrolling, which is fine at custom-achievement counts. -->
-            <ScrollViewer Grid.Column="0"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled">
-            <StackPanel>
+            <!-- The grid owns its own scrolling. Nested in a ScrollViewer it was measured with
+                 unbounded height, which defeats row virtualization entirely and realizes every
+                 row: fine for a handful of authored achievements, but this editor now lists a
+                 whole library. The add button therefore sits below the grid rather than trailing
+                 the last row. -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Narrowing the list and acting on a selection, above the grid they apply to.
+                     The filter drives the collection view only: the rows behind it stay whole, so
+                     every write still sees every achievement. -->
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0">
+                        <TextBox x:Name="FilterTextBox"
+                                 Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged, Delay=150, Mode=TwoWay}"
+                                 Style="{StaticResource ManageAchievementsSearchTextBoxStyle}" />
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_FilterAchievementsPlaceholder}"
+                                   Tag="{Binding Text, ElementName=FilterTextBox}"
+                                   Style="{StaticResource ManageAchievementsEditSearchPlaceholderTextStyle}" />
+                        <Button x:Name="ClearFilterButton"
+                                Tag="{Binding Text, ElementName=FilterTextBox}"
+                                Click="ClearFilterButton_Click"
+                                Style="{StaticResource ClearSearchButtonStyle}" />
+                    </Grid>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                        <!-- The shared category tree drop-down, so a nested category is placed by
+                             the same connectors the category grid and the assignment pickers draw. -->
+                        <ComboBox ItemsSource="{Binding CategoryFilterOptions}"
+                                  SelectedItem="{Binding SelectedCategoryFilter, Mode=TwoWay}"
+                                  ItemContainerStyle="{StaticResource PlayAch.CategoryTreeComboBoxItemStyle}"
+                                  ItemTemplate="{StaticResource PlayAch.CategoryTreeComboBoxItemTemplate}"
+                                  ToolTip="{DynamicResource LOCPlayAch_Common_Label_Category}"
+                                  MinWidth="140"
+                                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                                  Margin="0,0,6,0"
+                                  VerticalContentAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding TypeFilterOptions}"
+                                  SelectedItem="{Binding SelectedTypeFilter, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName"
+                                  ToolTip="{DynamicResource LOCPlayAch_Common_Label_Type}"
+                                  MinWidth="140"
+                                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                                  Margin="0,0,10,0"
+                                  VerticalContentAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Same shape the Category and Filters tabs give this pair, rather than the
+                         toolbar look: these act on the grid, not on the achievement being edited. -->
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <Button x:Name="SelectAllButton"
+                                Content="{DynamicResource LOCPlayAch_Common_SelectAll}"
+                                Click="SelectAllButton_Click"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Padding="10,2"
+                                Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
+                        <Button x:Name="DeselectAllButton"
+                                Content="{DynamicResource LOCPlayAch_Common_DeselectAll}"
+                                Click="DeselectAllButton_Click"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Padding="10,2" />
+                    </StackPanel>
+                </Grid>
+
 
             <DataGrid x:Name="CustomAchievementsGrid"
+                      Grid.Row="1"
                       ItemsSource="{Binding AchievementRows}"
                       SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                      SelectionChanged="AchievementsGrid_SelectionChanged"
                       AutoGenerateColumns="False"
                       IsReadOnly="False"
-                      SelectionMode="Single"
+                      SelectionMode="Extended"
                       SelectionUnit="FullRow"
+                      AllowDrop="True"
                       HeadersVisibility="Column"
                       GridLinesVisibility="None"
                       RowBackground="Transparent"
@@ -268,13 +381,13 @@
                       CanUserResizeRows="False"
                       CanUserResizeColumns="True"
                       CanUserReorderColumns="False"
-                      CanUserSortColumns="True"
+                      CanUserSortColumns="False"
                       EnableRowVirtualization="True"
                       EnableColumnVirtualization="True"
                       VirtualizingStackPanel.VirtualizationMode="Recycling"
                       VirtualizingStackPanel.ScrollUnit="Pixel"
                       ScrollViewer.CanContentScroll="True"
-                      ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       ColumnHeaderStyle="{StaticResource ManageAchievementsColumnHeaderStyle}"
                       helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
@@ -289,17 +402,68 @@
                     <Style TargetType="DataGridRow" BasedOn="{StaticResource ManageAchievementsDataGridRowStyle}">
                         <Setter Property="MinHeight" Value="34" />
                         <Setter Property="ClipToBounds" Value="True" />
+                        <!-- Right-click is handled on the row rather than through a declared
+                             ContextMenu so the menu can reflect the whole selection. -->
+                        <EventSetter Event="PreviewMouseRightButtonDown" Handler="AchievementRow_PreviewMouseRightButtonDown" />
+                        <EventSetter Event="PreviewMouseRightButtonUp" Handler="AchievementRow_PreviewMouseRightButtonUp" />
                     </Style>
                 </DataGrid.RowStyle>
 
                 <DataGrid.Columns>
+                    <!-- Row order is the achievement order, so the list is dragged directly.
+                         Custom achievements take part like any other row, which is what lets an
+                         authored one sit between two provider ones. -->
+                    <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
+                                <Setter Property="Cursor" Value="SizeAll" />
+                            </Style>
+                        </DataGridTemplateColumn.CellStyle>
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <!-- The transparent stretched Border is what makes the whole cell
+                                     draggable: a bare glyph only hit-tests on its own pixels, so
+                                     the press falls through to the row and no drag starts. -->
+                                <!-- Hidden while the grid is narrowed: ordering is one list over
+                                     every achievement, so it cannot be edited from a subset. -->
+                                <Border Tag="DragHandle"
+                                        Background="Transparent"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        Cursor="SizeAll"
+                                        Visibility="{Binding DataContext.IsFiltering, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}"
+                                        ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}">
+                                    <TextBlock Tag="DragHandle"
+                                               Text="&#x2630;"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               Opacity="0.65" />
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- The same status glyphs the other achievement grids use: unlocked, capstone
+                         and goal at a glance, rather than reading three separate controls. -->
+                    <DataGridTemplateColumn Width="36"
+                                            MinWidth="36"
+                                            MaxWidth="36"
+                                            CanUserResize="False"
+                                            IsReadOnly="True"
+                                            CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
+                                            CellTemplate="{StaticResource AchievementStatusTemplate}" />
+
                     <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Unlocked}"
                                             Width="78"
                                             SortMemberPath="Unlocked"
                                             CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
+                                <!-- Disabled on a provider row: unlock status is provider-owned, so
+                                     only an authored achievement defines its own. -->
                                 <CheckBox IsChecked="{Binding Unlocked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEnabled="{Binding CanEditUnlocked}"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
                                           Focusable="False"
@@ -439,8 +603,9 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-                <!-- A second Add right under the last row, where the new row will appear. -->
+                <!-- A second Add directly beneath the grid, pinned rather than scrolling away. -->
                 <Button x:Name="AddRowFooterButton"
+                        Grid.Row="2"
                         Content="&#x2B;"
                         FontSize="16"
                         FontWeight="SemiBold"
@@ -450,8 +615,19 @@
                         MinHeight="26"
                         Padding="0"
                         Margin="0,6,0,0" />
-            </StackPanel>
-            </ScrollViewer>
+
+                <!-- Drag chrome the reorder behavior requires: the insert line marks the drop
+                     position and the popup shows how many rows are moving. -->
+                <Border x:Name="DropInsertLine"
+                        Grid.Row="0"
+                        Height="2"
+                        VerticalAlignment="Top"
+                        HorizontalAlignment="Stretch"
+                        Background="{DynamicResource PlayAch.Brush.Accent}"
+                        Visibility="Collapsed"
+                        IsHitTestVisible="False"
+                        Panel.ZIndex="10" />
+            </Grid>
 
             <Border Grid.Column="2"
                     Style="{StaticResource CardBorderStyle}">
@@ -459,21 +635,106 @@
                     <StackPanel>
                         <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Custom_Details}"
                                    Foreground="{DynamicResource TextBrush}"
-                                   FontWeight="SemiBold" />
+                                   FontWeight="SemiBold"
+                                   Visibility="{Binding IsBulkEditing, Converter={StaticResource InverseBoolToVis}}" />
+
+                        <!-- While several rows are selected the pane edits all of them, so it says
+                             so and explains what a blank field means. -->
+                        <StackPanel Visibility="{Binding IsBulkEditing, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding BulkEditHeader}"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Editor_BulkHint}"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Opacity="0.72"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0" />
+                        </StackPanel>
 
                         <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Custom_NoSelection}"
                                    Foreground="{DynamicResource TextBrush}"
                                    Opacity="0.72"
                                    TextWrapping="Wrap"
                                    Margin="0,10,0,0"
-                                   Visibility="{Binding HasSelectedRow, Converter={StaticResource InverseBoolToVis}}" />
+                                   Visibility="{Binding HasEditTarget, Converter={StaticResource InverseBoolToVis}}" />
+
+                        <!-- The per-achievement flags, kept at the top of the pane: they apply to a
+                             whole selection, so they should be reachable without scrolling past the
+                             icon editors. Wraps rather than clips when the pane is narrow. -->
+                        <Border Margin="0,14,0,0"
+                                Padding="0,12,0,0"
+                                BorderBrush="{DynamicResource NormalBorderBrush}"
+                                BorderThickness="0,1,0,0"
+                                Visibility="{Binding HasEditTarget, Converter={StaticResource BoolToVis}}">
+                            <StackPanel DataContext="{Binding EditTarget}">
+                                <!-- Unlock state and visibility: what the achievement is. -->
+                                <WrapPanel Orientation="Horizontal">
+                                    <Path Data="{StaticResource GeoCheck}"
+                                          Stroke="{DynamicResource PlayAch.Brush.Glyph}"
+                                          StrokeThickness="2"
+                                          Width="14"
+                                          Height="14"
+                                          Stretch="Uniform"
+                                          Margin="0,0,4,0"
+                                          VerticalAlignment="Center" />
+                                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Unlocked}"
+                                              IsChecked="{Binding Unlocked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsEnabled="{Binding CanEditUnlocked}"
+                                              MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                                              Margin="0,0,18,2"
+                                              VerticalContentAlignment="Center" />
+                                    <Image Width="14"
+                                           Height="14"
+                                           Stretch="Uniform"
+                                           Margin="0,0,4,0"
+                                           VerticalAlignment="Center"
+                                           helpers:AsyncImage.Uri="{Binding DataContext.HiddenCoverIcon, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           helpers:AsyncImage.DecodePixel="28" />
+                                    <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Custom_Hidden}"
+                                              IsChecked="{Binding Hidden, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                                              Margin="0,0,0,2"
+                                              VerticalContentAlignment="Center" />
+                                </WrapPanel>
+
+                                <!-- What the user has singled the achievement out as. -->
+                                <WrapPanel Orientation="Horizontal">
+                                    <Image Source="{DynamicResource BadgeCompletedGame}"
+                                           Style="{StaticResource RarityIcon}"
+                                           Width="14"
+                                           Height="14"
+                                           Margin="0,0,4,0"
+                                           VerticalAlignment="Center" />
+                                    <CheckBox x:Name="CapstoneCheckBox"
+                                              Content="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
+                                              IsChecked="{Binding IsCapstone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsEnabled="{Binding CanEditAssignments}"
+                                              MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                                              Margin="0,0,18,2"
+                                              VerticalContentAlignment="Center" />
+                                    <TextBlock Text="&#xf003;"
+                                               FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                               FontSize="13"
+                                               Foreground="{DynamicResource PlayAch.Brush.Glyph}"
+                                               Margin="0,0,4,0"
+                                               VerticalAlignment="Center" />
+                                    <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}"
+                                              IsChecked="{Binding IsGoal, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsEnabled="{Binding CanEditAssignments}"
+                                              MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                                              Margin="0,0,0,2"
+                                              VerticalContentAlignment="Center" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
 
                         <Border Margin="0,14,0,0"
                                 Padding="0,12,0,0"
                                 BorderBrush="{DynamicResource NormalBorderBrush}"
                                 BorderThickness="0,1,0,0"
-                                Visibility="{Binding HasSelectedRow, Converter={StaticResource BoolToVis}}">
-                            <StackPanel DataContext="{Binding SelectedRow}">
+                                Visibility="{Binding HasEditTarget, Converter={StaticResource BoolToVis}}">
+                            <StackPanel DataContext="{Binding EditTarget}">
                                 <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_CustomIcons}"
                                            Foreground="{DynamicResource TextBrush}"
                                            FontWeight="SemiBold"
@@ -589,93 +850,9 @@
                             </StackPanel>
                         </Border>
 
-                        <StackPanel DataContext="{Binding SelectedRow}"
+                        <StackPanel DataContext="{Binding EditTarget}"
                                     Margin="0,14,0,0"
-                                    Visibility="{Binding DataContext.HasSelectedRow, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
-                            <!-- Capstone, category, and type are ApiName-keyed custom data shared with
-                                 the Capstones and Category tabs; they persist immediately. A row gets
-                                 its ApiName and first save when it is created, so they are live at once. -->
-                            <StackPanel Orientation="Horizontal">
-                                <Image Source="{DynamicResource BadgeCompletedGame}"
-                                       Style="{StaticResource RarityIcon}"
-                                       Width="16"
-                                       Height="16"
-                                       Margin="0,0,6,0"
-                                       VerticalAlignment="Center" />
-                                <CheckBox x:Name="CapstoneCheckBox"
-                                          Content="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
-                                          IsChecked="{Binding IsCapstone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          IsEnabled="{Binding CanEditAssignments}"
-                                          VerticalAlignment="Center" />
-                                <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Custom_Hidden}"
-                                          IsChecked="{Binding Hidden, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          Margin="18,0,0,0"
-                                          VerticalAlignment="Center" />
-                            </StackPanel>
-
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_Category}"
-                                       Style="{StaticResource FieldLabelStyle}" />
-                            <controls:CategoryPickerBox x:Name="CategoryPicker"
-                                                        Categories="{Binding DataContext.AssignableCategoryOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        Placeholder="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
-                                                        IsEnabled="{Binding CanEditAssignments}" />
-
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_Type}"
-                                       Style="{StaticResource FieldLabelStyle}" />
-                            <Button x:Name="TypeSelectionButton"
-                                    Style="{StaticResource AchievementSelectorButtonStyle}"
-                                    Content="{Binding CategoryTypeDisplayText}"
-                                    IsEnabled="{Binding CanEditAssignments}"
-                                    Click="TypeSelectionButton_Click"
-                                    MinHeight="26"
-                                    HorizontalAlignment="Stretch">
-                                <Button.ContextMenu>
-                                    <ContextMenu x:Name="TypeSelectionContextMenu"
-                                                 Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                                 ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
-                                </Button.ContextMenu>
-                            </Button>
-
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Column_Trophy}"
-                                       Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox ItemsSource="{Binding DataContext.TrophyTypeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                      SelectedValue="{Binding TrophyType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      SelectedValuePath="Value"
-                                      MinHeight="26"
-                                      VerticalContentAlignment="Center">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Image Width="16"
-                                                   Height="16"
-                                                   Margin="0,0,6,0"
-                                                   VerticalAlignment="Center">
-                                                <Image.Style>
-                                                    <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Value}" Value="platinum">
-                                                                <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Value}" Value="gold">
-                                                                <Setter Property="Source" Value="{DynamicResource TrophyGold}" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Value}" Value="silver">
-                                                                <Setter Property="Source" Value="{DynamicResource TrophySilver}" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Value}" Value="bronze">
-                                                                <Setter Property="Source" Value="{DynamicResource TrophyBronze}" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Image.Style>
-                                            </Image>
-                                            <TextBlock Text="{Binding DisplayName}"
-                                                       VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-
+                                    Visibility="{Binding DataContext.HasEditTarget, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="{DynamicResource LOCPlayAch_Column_Rarity}"
                                        Style="{StaticResource FieldLabelStyle}" />
                             <!-- One editor for both rarity inputs: type an unlock percent, or pick a tier
@@ -721,6 +898,7 @@
                                          Grid.Column="1"
                                          Text="{Binding RarityInput, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                          Style="{StaticResource GridEditorTextBoxStyle}"
+                                         IsEnabled="{Binding CanEditRarity}"
                                          KeyDown="EditorTextBox_KeyDown" />
                                 <TextBlock Grid.Column="1"
                                            Text="100%"
@@ -743,9 +921,10 @@
                                 <Button Grid.Column="2"
                                         Content="&#x25BE;"
                                         Style="{StaticResource DropdownButtonStyle}"
+                                        IsEnabled="{Binding CanEditRarity}"
                                         Click="ContextMenuButton_Click">
                                     <Button.ContextMenu>
-                                        <ContextMenu ItemsSource="{x:Static vm:ManageAchievementsCustomViewModel.RarityOptions}"
+                                        <ContextMenu ItemsSource="{x:Static vm:ManageAchievementsEditorViewModel.RarityOptions}"
                                                      MenuItem.Click="RarityMenuItem_Click">
                                             <ContextMenu.ItemTemplate>
                                                 <DataTemplate>
@@ -783,14 +962,67 @@
                                 </Button>
                             </Grid>
 
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Column_Points}"
-                                       Style="{StaticResource FieldLabelStyle}" />
-                            <TextBox Text="{Binding PointsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                     Style="{StaticResource GridEditorTextBoxStyle}"
-                                     KeyDown="EditorTextBox_KeyDown"
-                                     Tag="NonNegativeInt"
-                                     PreviewTextInput="NumericTextBox_PreviewTextInput"
-                                     DataObject.Pasting="NumericTextBox_Pasting" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Column_Trophy}"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <ComboBox x:Name="TrophyTypeComboBox"
+                                              ItemsSource="{Binding DataContext.TrophyTypeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                              SelectedValue="{Binding TrophyType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Value"
+                                              MinHeight="26"
+                                              VerticalContentAlignment="Center">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Image Width="16"
+                                                           Height="16"
+                                                           Margin="0,0,6,0"
+                                                           VerticalAlignment="Center">
+                                                        <Image.Style>
+                                                            <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Value}" Value="platinum">
+                                                                        <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Value}" Value="gold">
+                                                                        <Setter Property="Source" Value="{DynamicResource TrophyGold}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Value}" Value="silver">
+                                                                        <Setter Property="Source" Value="{DynamicResource TrophySilver}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Value}" Value="bronze">
+                                                                        <Setter Property="Source" Value="{DynamicResource TrophyBronze}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Image.Style>
+                                                    </Image>
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Column_Points}"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox Text="{Binding PointsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             Style="{StaticResource GridEditorTextBoxStyle}"
+                                             MinHeight="{Binding ActualHeight, ElementName=TrophyTypeComboBox}"
+                                             VerticalContentAlignment="Center"
+                                             KeyDown="EditorTextBox_KeyDown"
+                                             Tag="NonNegativeInt"
+                                             PreviewTextInput="NumericTextBox_PreviewTextInput"
+                                             DataObject.Pasting="NumericTextBox_Pasting" />
+                                </StackPanel>
+                            </Grid>
 
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
@@ -803,6 +1035,7 @@
                                                Style="{StaticResource FieldLabelStyle}" />
                                     <TextBox Text="{Binding ProgressNumText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                              Style="{StaticResource GridEditorTextBoxStyle}"
+                                             IsEnabled="{Binding CanEditProgress}"
                                              KeyDown="EditorTextBox_KeyDown"
                                              Tag="NonNegativeInt"
                                              PreviewTextInput="NumericTextBox_PreviewTextInput"
@@ -813,11 +1046,74 @@
                                                Style="{StaticResource FieldLabelStyle}" />
                                     <TextBox Text="{Binding ProgressDenomText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                              Style="{StaticResource GridEditorTextBoxStyle}"
+                                             IsEnabled="{Binding CanEditProgress}"
                                              KeyDown="EditorTextBox_KeyDown"
                                              Tag="PositiveInt"
                                              PreviewTextInput="NumericTextBox_PreviewTextInput"
                                              DataObject.Pasting="NumericTextBox_Pasting" />
                                 </StackPanel>
+                            </Grid>
+
+                            <!-- Category and type are ApiName-keyed custom data shared with the
+                                 Category tab; they persist immediately. A row gets its ApiName and
+                                 first save when it is created, so they are live at once. -->
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_Category}"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <controls:CategoryPickerBox x:Name="CategoryPicker"
+                                                        Categories="{Binding DataContext.AssignableCategoryOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        Placeholder="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
+                                                        IsEnabled="{Binding CanEditAssignments}" />
+
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_Type}"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <Button x:Name="TypeSelectionButton"
+                                    Style="{StaticResource AchievementSelectorButtonStyle}"
+                                    Content="{Binding CategoryTypeDisplayText}"
+                                    IsEnabled="{Binding CanEditAssignments}"
+                                    Click="TypeSelectionButton_Click"
+                                    MinHeight="26"
+                                    HorizontalAlignment="Stretch">
+                                <Button.ContextMenu>
+                                    <ContextMenu x:Name="TypeSelectionContextMenu"
+                                                 Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                 ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
+                                </Button.ContextMenu>
+                            </Button>
+
+                            <!-- Facets that used to each own a tab. They key off the ApiName, so
+                                 they apply to authored and provider achievements alike. -->
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Menu_Filters}"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox SelectedValue="{Binding FilterScope, Mode=TwoWay}"
+                                      SelectedValuePath="Value"
+                                      ItemsSource="{Binding DataContext.FilterScopeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                      DisplayMemberPath="DisplayName"
+                                      IsEnabled="{Binding CanEditAssignments}"
+                                      MinHeight="26"
+                                      VerticalContentAlignment="Center" />
+
+                            <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Notes_Note}"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding NotePreview}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="Wrap"
+                                           MaxHeight="52"
+                                           VerticalAlignment="Center"
+                                           Opacity="0.8"
+                                           Foreground="{DynamicResource TextBrush}" />
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Common_Edit}"
+                                        Padding="8,2"
+                                        MinHeight="26"
+                                        Margin="8,0,0,0"
+                                        IsEnabled="{Binding CanEditAssignments}"
+                                        Click="EditNoteButton_Click" />
                             </Grid>
 
                             <TextBlock Text="{Binding ValidationMessage}"
@@ -830,5 +1126,22 @@
                 </ScrollViewer>
             </Border>
         </Grid>
+
+        <Popup x:Name="DragCountPopup"
+               Placement="AbsolutePoint"
+               AllowsTransparency="True"
+               StaysOpen="True"
+               IsHitTestVisible="False">
+            <Border Background="{StaticResource PlayAch.Brush.DialogBackdrop}"
+                    BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
+                    BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                    CornerRadius="10"
+                    Padding="8,3">
+                <TextBlock x:Name="DragCountText"
+                           Foreground="White"
+                           FontWeight="SemiBold"
+                           FontSize="{DynamicResource PlayAch.FontSize.Caption}" />
+            </Border>
+        </Popup>
     </Grid>
 </UserControl>

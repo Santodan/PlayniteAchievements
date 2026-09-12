@@ -185,6 +185,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
+                if (!ShowReplacedTabs && ManageAchievementsTabs.Replaced.Contains(value))
+                {
+                    return;
+                }
+
                 if (value == ManageAchievementsTab.ManualTracking &&
                     ShouldWarnAboutManualTrackingOverride(out var existingProviderKey) &&
                     !string.Equals(_manualTrackingWarningAcceptedForProvider, existingProviderKey, StringComparison.OrdinalIgnoreCase))
@@ -212,9 +217,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// Whether the tabs the merged editor replaced are still offered. False while the editor is
+        /// proven against them; their views and view models are untouched, so setting this true
+        /// brings them straight back.
+        /// </summary>
+        public bool ShowReplacedTabs => false;
+
+        /// <summary>
+        /// Whether the Manual Tracking tab is offered. The merged editor replaced it too -- linking
+        /// runs from its header and unlocks are recorded in its grid -- so it is held behind the
+        /// same flag as the other replaced tabs and returns with them. The availability rule below
+        /// still applies on top, so re-enabling does not offer it where it never belonged.
+        /// </summary>
         public bool ShowManualTrackingTab
         {
-            get => _showManualTrackingTab;
+            get => _showManualTrackingTab && ShowReplacedTabs;
             private set => SetValue(ref _showManualTrackingTab, value);
         }
 
@@ -715,8 +733,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var hasNonManualProviderData = ShouldWarnAboutManualTrackingOverride(out _);
                 ManualAchievementLink manualLink;
                 var hasManualLink = ManualAchievementsProvider.TryGetManualLink(_gameId, out manualLink);
-                ShowManualTrackingTab = hasManualLink || allowManualOverride ||
-                    (!isExcluded && (!_cachedHasAchievements || !hasNonManualProviderData));
+                ShowManualTrackingTab = ManualTrackingAvailability.CanLink(
+                    hasManualLink,
+                    allowManualOverride,
+                    isExcluded,
+                    _cachedHasAchievements,
+                    hasNonManualProviderData);
                 ProviderName = ResolveProviderDisplayName(gameData);
                 LibrarySourceName = ResolveLibrarySourceDisplayName(game, gameData?.LibrarySourceName);
 
@@ -764,6 +786,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 RefreshCustomDataState();
 
                 if (!ShowManualTrackingTab && SelectedTab == ManageAchievementsTab.ManualTracking)
+                {
+                    SelectedTab = ManageAchievementsTab.Overview;
+                }
+
+                if (!ShowReplacedTabs && ManageAchievementsTabs.Replaced.Contains(SelectedTab))
                 {
                     SelectedTab = ManageAchievementsTab.Overview;
                 }

@@ -41,6 +41,12 @@ namespace PlayniteAchievements.Models.Settings
 
         public Dictionary<string, string> AchievementNotes { get; set; }
 
+        /// <summary>
+        /// Per-achievement user customization, keyed by ApiName. Schema 8 onward; the legacy
+        /// scalar maps above carry schema-7 exports and are folded in on import.
+        /// </summary>
+        public Dictionary<string, AchievementOverride> AchievementOverrides { get; set; }
+
         public int? RetroAchievementsGameIdOverride { get; set; }
 
         public string XeniaTitleIdOverride { get; set; }
@@ -110,6 +116,7 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementNotes = AchievementNotes != null
                     ? new Dictionary<string, string>(AchievementNotes, StringComparer.OrdinalIgnoreCase)
                     : null,
+                AchievementOverrides = GameCustomDataFile.CloneAchievementOverrideMap(AchievementOverrides),
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
                 XeniaTitleIdOverride = XeniaTitleIdOverride,
                 ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,

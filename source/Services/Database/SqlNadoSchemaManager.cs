@@ -11,7 +11,9 @@ namespace PlayniteAchievements.Services.Database
 {
     internal sealed class SqlNadoSchemaManager
     {
-        public const int SchemaVersion = 17;
+        // v18: AchievementFilters became the general AchievementOverrides mirror, adding the
+        // user-editable points and trophy type alongside the two filter flags.
+        public const int SchemaVersion = 18;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -151,7 +153,7 @@ namespace PlayniteAchievements.Services.Database
 
             EnsureFriendOwnershipTable(db);
             EnsureProviderGameDefinitionStateTable(db);
-            EnsureAchievementFiltersTable(db);
+            EnsureAchievementOverridesTable(db);
 
             var storedVersion = GetStoredSchemaVersion(db);
             var verification = VerifyRequiredColumns(db);
@@ -331,7 +333,7 @@ namespace PlayniteAchievements.Services.Database
             EnsureFriendOwnershipIndexes(db);
             EnsureProviderGameDefinitionStateTable(db);
             EnsureProviderGameDefinitionStateIndexes(db);
-            EnsureAchievementFiltersTable(db);
+            EnsureAchievementOverridesTable(db);
         }
 
         private void EnsureFriendOwnershipTable(SQLiteDatabase db)
@@ -372,16 +374,31 @@ namespace PlayniteAchievements.Services.Database
         // custom data at startup and on every CustomDataChanged; refresh saves never touch it.
         // The UNIQUE index prefix-covers the summary queries' (PlayniteGameId, ApiName)
         // anti-join probe.
-        private void EnsureAchievementFiltersTable(SQLiteDatabase db)
+        /// <summary>
+        /// The per-achievement override mirror: the SQL-side view of the custom-data store's
+        /// per-achievement records, so summary aggregates can resolve user customization in a join
+        /// instead of a hydration pass.
+        /// </summary>
+        /// <remarks>
+        /// This supersedes the narrower AchievementFilters table, which carried only the two filter
+        /// kinds as (game, apiName, kind) rows. The old table is dropped rather than migrated: the
+        /// mirror is derived state, fully rebuilt from the blob by the startup resync, so copying
+        /// rows would only duplicate what the resync writes anyway.
+        /// </remarks>
+        private void EnsureAchievementOverridesTable(SQLiteDatabase db)
         {
-            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS AchievementFilters (
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS AchievementOverrides (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
                 ApiName TEXT NOT NULL COLLATE NOCASE,
-                Kind TEXT NOT NULL COLLATE NOCASE,
-                CreatedUtc TEXT NOT NULL,
-                UNIQUE (PlayniteGameId, ApiName, Kind)
+                Points INTEGER NULL,
+                TrophyType TEXT NULL COLLATE NOCASE,
+                IsFiltered INTEGER NOT NULL DEFAULT 0,
+                IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
+                UpdatedUtc TEXT NOT NULL,
+                UNIQUE (PlayniteGameId, ApiName)
             );");
+            ExecuteSafe(db, "DROP TABLE IF EXISTS AchievementFilters;");
         }
 
         private void EnsureProviderGameDefinitionStateTable(SQLiteDatabase db)
@@ -693,7 +710,7 @@ namespace PlayniteAchievements.Services.Database
             ReconcileProviderGameDefinitionStateTable(db, ref backupPath);
             EnsureProviderGameDefinitionStateTable(db);
             EnsureProviderGameDefinitionStateIndexes(db);
-            EnsureAchievementFiltersTable(db);
+            EnsureAchievementOverridesTable(db);
 
             return backupPath;
         }
@@ -940,11 +957,14 @@ namespace PlayniteAchievements.Services.Database
             EnsureRequiredColumn(friendOwnershipColumns, "CreatedUtc", "FriendOwnership", missing);
             EnsureRequiredColumn(friendOwnershipColumns, "UpdatedUtc", "FriendOwnership", missing);
 
-            var achievementFilterColumns = GetColumnNames(db, "AchievementFilters");
-            EnsureRequiredColumn(achievementFilterColumns, "PlayniteGameId", "AchievementFilters", missing);
-            EnsureRequiredColumn(achievementFilterColumns, "ApiName", "AchievementFilters", missing);
-            EnsureRequiredColumn(achievementFilterColumns, "Kind", "AchievementFilters", missing);
-            EnsureRequiredColumn(achievementFilterColumns, "CreatedUtc", "AchievementFilters", missing);
+            var achievementOverrideColumns = GetColumnNames(db, "AchievementOverrides");
+            EnsureRequiredColumn(achievementOverrideColumns, "PlayniteGameId", "AchievementOverrides", missing);
+            EnsureRequiredColumn(achievementOverrideColumns, "ApiName", "AchievementOverrides", missing);
+            EnsureRequiredColumn(achievementOverrideColumns, "Points", "AchievementOverrides", missing);
+            EnsureRequiredColumn(achievementOverrideColumns, "TrophyType", "AchievementOverrides", missing);
+            EnsureRequiredColumn(achievementOverrideColumns, "IsFiltered", "AchievementOverrides", missing);
+            EnsureRequiredColumn(achievementOverrideColumns, "IsSummaryFiltered", "AchievementOverrides", missing);
+            EnsureRequiredColumn(achievementOverrideColumns, "UpdatedUtc", "AchievementOverrides", missing);
 
             var providerGameDefinitionStateColumns = GetColumnNames(db, "ProviderGameDefinitionState");
             EnsureRequiredColumn(providerGameDefinitionStateColumns, "ProviderKey", "ProviderGameDefinitionState", missing);
