@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Showcase;
@@ -74,6 +75,11 @@ namespace PlayniteAchievements.Views.Helpers
             // collections, so gate here rather than relying on the caller.
             if (!(data is FriendAchievementDisplayItem))
             {
+                if (CanUserUnlock(context))
+                {
+                    menu.Items.Add(CreateUnlockItem(context, resourceOwner, onChanged));
+                }
+
                 menu.Items.Add(CreateSetGoalItem(context, resourceOwner, onChanged, onGoalChanged));
                 menu.Items.Add(CreateSetCapstoneItem(context, resourceOwner, onChanged, onCapstoneChanged));
             }
@@ -112,6 +118,74 @@ namespace PlayniteAchievements.Views.Helpers
                 apiName,
                 gameName,
                 achievementName);
+        }
+
+        /// <summary>
+        /// "Unlock", offered only for a locked achievement whose unlock state the user owns: one
+        /// they authored, or any achievement of a manually tracked game.
+        /// </summary>
+        /// <remarks>
+        /// The item is built only when the write would be accepted, and the service refuses a
+        /// provider achievement regardless, so a real provider's unlock counts can never be moved
+        /// from a context menu. An authored achievement re-projects through the custom-data change;
+        /// a manual one needs its link applied onto the cached game, which is what the applier does.
+        /// </remarks>
+        private static MenuItem CreateUnlockItem(
+            AchievementRowContext context,
+            FrameworkElement resourceOwner,
+            Action onChanged)
+        {
+            var item = new MenuItem
+            {
+                Header = L(resourceOwner, "LOCPlayAch_Common_Unlocked")
+            };
+
+            item.Click += (_, __) =>
+            {
+                var plugin = PlayniteAchievementsPlugin.Instance;
+                var overrides = plugin?.AchievementOverridesService;
+                if (overrides == null)
+                {
+                    return;
+                }
+
+                var result = overrides.TryUnlockUserOwnedAchievement(context.GameId, context.ApiName);
+                if (result == ManualUnlockWriteResult.Manual &&
+                    ManualAchievementsProvider.TryGetManualLink(context.GameId, out var link) &&
+                    link != null)
+                {
+                    // No manual source to hand here; the applier keeps the platform the cache
+                    // already resolved rather than blanking it, and still re-applies the unlock.
+                    new ManualLinkCacheApplier(
+                        plugin.AchievementDataService,
+                        plugin.CacheManager,
+                        plugin.Settings).Apply(context.GameId, link, source: null);
+                }
+
+                if (result == ManualUnlockWriteResult.Custom || result == ManualUnlockWriteResult.Manual)
+                {
+                    onChanged?.Invoke();
+                }
+            };
+
+            return item;
+        }
+
+        /// <summary>
+        /// Whether this row's unlock state is the user's to set: a locked achievement they authored,
+        /// or a locked one on a manually tracked game.
+        /// </summary>
+        private static bool CanUserUnlock(AchievementRowContext context)
+        {
+            if (context == null)
+            {
+                return false;
+            }
+
+            return UserOwnedUnlockRules.CanUserUnlock(
+                context.Unlocked,
+                CustomAchievementProjectionService.IsCustomApiName(context.ApiName),
+                ManualAchievementsProvider.TryGetManualLink(context.GameId, out var link) && link != null);
         }
 
         private static MenuItem CreateSetGoalItem(
