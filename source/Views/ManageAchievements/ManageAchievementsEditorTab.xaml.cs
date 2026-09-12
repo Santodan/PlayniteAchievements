@@ -2,6 +2,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Views.Dialogs;
 using Microsoft.Win32;
 using Playnite.SDK.Events;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
@@ -35,6 +36,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ".tiff"
         };
 
+        private const string DragDataFormat = "PlayniteAchievements.ManageAchievementsEditorRows";
+
         private AchievementEditorRow _categoryPickerRow;
 
         public ManageAchievementsEditorTab(ManageAchievementsEditorViewModel viewModel)
@@ -55,6 +58,46 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 }
             };
             SeedCategoryPicker();
+
+            // Same behavior that drove the Order and Goals grids, including its ctrl/shift-
+            // preserving press handling, so a multi-row drag behaves the way it did there.
+            DataGridRowReorderBehavior.SetOptions(CustomAchievementsGrid, new DataGridRowReorderOptions
+            {
+                DragDataFormat = DragDataFormat,
+                DropIndicator = DropInsertLine,
+                DragCountPopup = DragCountPopup,
+                DragCountText = DragCountText,
+                IsReorderableItem = item => item is AchievementEditorRow,
+                ExtractDragKeys = items => AchievementOrderHelper.NormalizeApiNames(
+                    items.OfType<AchievementEditorRow>().Select(item => item.OriginalApiName)),
+                MoveItemsRelativeToTarget = (apiNames, target, insertAfter) =>
+                    target is AchievementEditorRow targetRow &&
+                    ViewModel?.MoveItemsByApiName(apiNames, targetRow.OriginalApiName, insertAfter) == true,
+                MoveItemsToEnd = apiNames => ViewModel?.MoveItemsToEndByApiName(apiNames) == true,
+                RestoreSelection = RestoreSelectionByApiNames
+            });
+        }
+
+        /// <summary>
+        /// Reselects rows after a reorder rebuilds the collection, so a multi-row drag does not
+        /// clear the user's selection.
+        /// </summary>
+        private void RestoreSelectionByApiNames(IReadOnlyList<string> apiNames)
+        {
+            if (apiNames == null || apiNames.Count == 0)
+            {
+                return;
+            }
+
+            var wanted = new HashSet<string>(apiNames, StringComparer.OrdinalIgnoreCase);
+            CustomAchievementsGrid.SelectedItems.Clear();
+            foreach (var row in CustomAchievementsGrid.Items.OfType<AchievementEditorRow>())
+            {
+                if (!string.IsNullOrWhiteSpace(row.OriginalApiName) && wanted.Contains(row.OriginalApiName))
+                {
+                    CustomAchievementsGrid.SelectedItems.Add(row);
+                }
+            }
         }
 
         private ManageAchievementsEditorViewModel ViewModel => DataContext as ManageAchievementsEditorViewModel;

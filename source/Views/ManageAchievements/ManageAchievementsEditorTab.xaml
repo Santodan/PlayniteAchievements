@@ -261,8 +261,9 @@
                       SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
                       AutoGenerateColumns="False"
                       IsReadOnly="False"
-                      SelectionMode="Single"
+                      SelectionMode="Extended"
                       SelectionUnit="FullRow"
+                      AllowDrop="True"
                       HeadersVisibility="Column"
                       GridLinesVisibility="None"
                       RowBackground="Transparent"
@@ -273,7 +274,7 @@
                       CanUserResizeRows="False"
                       CanUserResizeColumns="True"
                       CanUserReorderColumns="False"
-                      CanUserSortColumns="True"
+                      CanUserSortColumns="False"
                       EnableRowVirtualization="True"
                       EnableColumnVirtualization="True"
                       VirtualizingStackPanel.VirtualizationMode="Recycling"
@@ -298,13 +299,34 @@
                 </DataGrid.RowStyle>
 
                 <DataGrid.Columns>
+                    <!-- Row order is the achievement order, so the list is dragged directly.
+                         Custom achievements take part like any other row, which is what lets an
+                         authored one sit between two provider ones. -->
+                    <DataGridTemplateColumn Header="" Width="26" MinWidth="26" MaxWidth="26" CanUserResize="False" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="&#x2807;"
+                                           FontSize="14"
+                                           Opacity="0.5"
+                                           Cursor="SizeNS"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
                     <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Unlocked}"
                                             Width="78"
                                             SortMemberPath="Unlocked"
                                             CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
+                                <!-- Disabled on a provider row: unlock status is provider-owned, so
+                                     only an authored achievement defines its own. -->
                                 <CheckBox IsChecked="{Binding Unlocked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEnabled="{Binding CanEditUnlocked}"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
                                           Focusable="False"
@@ -441,70 +463,6 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <!-- Facets that used to each own a tab. They key off the ApiName, so they apply
-                         to authored and provider achievements alike. -->
-                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Notes_Note}"
-                                            Width="140">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Grid VerticalAlignment="Center" Margin="4,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               Text="{Binding NotePreview}"
-                                               TextTrimming="CharacterEllipsis"
-                                               VerticalAlignment="Center"
-                                               Opacity="0.8"
-                                               Foreground="{DynamicResource TextBrush}" />
-                                    <Button Grid.Column="1"
-                                            Content="{DynamicResource LOCPlayAch_Common_Edit}"
-                                            Padding="6,2"
-                                            MinHeight="24"
-                                            Margin="6,0,0,0"
-                                            Click="EditNoteButton_Click" />
-                                </Grid>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-
-                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Goals}"
-                                            Width="60"
-                                            CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <CheckBox IsChecked="{Binding IsGoal, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-
-                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Filters_FilterOut}"
-                                            Width="70"
-                                            CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <CheckBox IsChecked="{Binding IsFiltered, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-
-                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries}"
-                                            Width="70"
-                                            CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <CheckBox IsChecked="{Binding IsSummaryFiltered, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-
                 </DataGrid.Columns>
             </DataGrid>
 
@@ -520,6 +478,18 @@
                         MinHeight="26"
                         Padding="0"
                         Margin="0,6,0,0" />
+
+                <!-- Drag chrome the reorder behavior requires: the insert line marks the drop
+                     position and the popup shows how many rows are moving. -->
+                <Border x:Name="DropInsertLine"
+                        Grid.Row="0"
+                        Height="2"
+                        VerticalAlignment="Top"
+                        HorizontalAlignment="Stretch"
+                        Background="{DynamicResource PlayAch.Brush.Accent}"
+                        Visibility="Collapsed"
+                        IsHitTestVisible="False"
+                        Panel.ZIndex="10" />
             </Grid>
 
             <Border Grid.Column="2"
@@ -889,6 +859,49 @@
                                 </StackPanel>
                             </Grid>
 
+                            <!-- Facets that used to each own a tab. They key off the ApiName, so
+                                 they apply to authored and provider achievements alike. -->
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Menu_Filters}"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox SelectedValue="{Binding FilterScope, Mode=TwoWay}"
+                                      SelectedValuePath="Value"
+                                      ItemsSource="{Binding DataContext.FilterScopeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                      DisplayMemberPath="DisplayName"
+                                      IsEnabled="{Binding CanEditAssignments}"
+                                      MinHeight="26"
+                                      VerticalContentAlignment="Center" />
+
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Goals}"
+                                          IsChecked="{Binding IsGoal, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEnabled="{Binding CanEditAssignments}"
+                                          VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Notes_Note}"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding NotePreview}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="Wrap"
+                                           MaxHeight="52"
+                                           VerticalAlignment="Center"
+                                           Opacity="0.8"
+                                           Foreground="{DynamicResource TextBrush}" />
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Common_Edit}"
+                                        Padding="8,2"
+                                        MinHeight="26"
+                                        Margin="8,0,0,0"
+                                        IsEnabled="{Binding CanEditAssignments}"
+                                        Click="EditNoteButton_Click" />
+                            </Grid>
+
                             <TextBlock Text="{Binding ValidationMessage}"
                                        Foreground="#FFE07070"
                                        TextWrapping="Wrap"
@@ -899,5 +912,22 @@
                 </ScrollViewer>
             </Border>
         </Grid>
+
+        <Popup x:Name="DragCountPopup"
+               Placement="AbsolutePoint"
+               AllowsTransparency="True"
+               StaysOpen="True"
+               IsHitTestVisible="False">
+            <Border Background="{StaticResource PlayAch.Brush.DialogBackdrop}"
+                    BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
+                    BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                    CornerRadius="10"
+                    Padding="8,3">
+                <TextBlock x:Name="DragCountText"
+                           Foreground="White"
+                           FontWeight="SemiBold"
+                           FontSize="{DynamicResource PlayAch.FontSize.Caption}" />
+            </Border>
+        </Popup>
     </Grid>
 </UserControl>

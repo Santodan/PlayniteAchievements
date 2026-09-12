@@ -280,6 +280,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 new CustomAchievementSelectionOption("platinum", L("LOCPlayAch_Trophy_Platinum", "Platinum"))
             };
 
+        /// <summary>
+        /// The filter scale as three choices. Reuses the Filters tab's own wording so the option
+        /// names match what that tab called the two flags.
+        /// </summary>
+        public IReadOnlyList<AchievementFilterScopeOption> FilterScopeOptions { get; } =
+            new[]
+            {
+                new AchievementFilterScopeOption(
+                    AchievementFilterScope.None,
+                    L("LOCPlayAch_Common_None", "None")),
+                new AchievementFilterScopeOption(
+                    AchievementFilterScope.Summary,
+                    L("LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries", "Summaries")),
+                new AchievementFilterScopeOption(
+                    AchievementFilterScope.All,
+                    L("LOCPlayAch_ManageAchievements_Filters_FilterOut", "All"))
+            };
+
         public string StatusText
         {
             get => _statusText;
@@ -1443,9 +1461,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         RaiseAssignmentsChanged();
                         return true;
 
+                    // FilterScope sets both flags at once and raises this after them, so persisting
+                    // on the scope alone writes the game's filter lists once per change.
+                    case nameof(AchievementEditorRow.FilterScope):
+                        PersistFiltersFromRows();
+                        return true;
+
                     case nameof(AchievementEditorRow.IsFiltered):
                     case nameof(AchievementEditorRow.IsSummaryFiltered):
-                        PersistFiltersFromRows();
                         return true;
 
                     default:
@@ -1521,6 +1544,121 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed persisting {propertyName} for achievement {apiName}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+        }
+
+        /// <summary>
+        /// Moves the dragged achievements relative to a target row, then persists the new order.
+        /// Custom and provider rows are the same kind here, which is what lets an authored
+        /// achievement be positioned between two provider ones.
+        /// </summary>
+        public bool MoveItemsByApiName(
+            IReadOnlyList<string> draggedApiNames,
+            string targetApiName,
+            bool insertAfterTarget)
+        {
+            if (draggedApiNames == null || draggedApiNames.Count == 0 || string.IsNullOrWhiteSpace(targetApiName))
+            {
+                return false;
+            }
+
+            var source = AchievementRows.ToList();
+            var targetIndex = source.FindIndex(item =>
+                string.Equals(
+                    (item?.OriginalApiName ?? string.Empty).Trim(),
+                    targetApiName.Trim(),
+                    StringComparison.OrdinalIgnoreCase));
+            return TryMoveItems(source, ResolveSelectedIndexes(source, draggedApiNames), targetIndex, insertAfterTarget);
+        }
+
+        public bool MoveItemsToEndByApiName(IReadOnlyList<string> draggedApiNames)
+        {
+            if (draggedApiNames == null || draggedApiNames.Count == 0 || AchievementRows.Count == 0)
+            {
+                return false;
+            }
+
+            var source = AchievementRows.ToList();
+            return TryMoveItems(
+                source,
+                ResolveSelectedIndexes(source, draggedApiNames),
+                source.Count - 1,
+                insertAfterTarget: true);
+        }
+
+        private bool TryMoveItems(
+            List<AchievementEditorRow> source,
+            IReadOnlyList<int> selectedIndexes,
+            int targetIndex,
+            bool insertAfterTarget)
+        {
+            if (source == null ||
+                source.Count == 0 ||
+                selectedIndexes == null ||
+                selectedIndexes.Count == 0 ||
+                targetIndex < 0)
+            {
+                return false;
+            }
+
+            if (!AchievementOrderHelper.TryReorder(
+                source,
+                selectedIndexes,
+                targetIndex,
+                insertAfterTarget,
+                out var reordered))
+            {
+                return false;
+            }
+
+            CollectionHelper.SynchronizeCollection(AchievementRows, reordered);
+            PersistCurrentOrder();
+            return true;
+        }
+
+        private static List<int> ResolveSelectedIndexes(
+            IReadOnlyList<AchievementEditorRow> source,
+            IReadOnlyList<string> draggedApiNames)
+        {
+            var normalized = AchievementOrderHelper.NormalizeApiNames(draggedApiNames);
+            if (normalized.Count == 0)
+            {
+                return new List<int>();
+            }
+
+            var wanted = new HashSet<string>(normalized, StringComparer.OrdinalIgnoreCase);
+            var indexes = new List<int>();
+            for (var i = 0; i < source.Count; i++)
+            {
+                var apiName = (source[i]?.OriginalApiName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(apiName) && wanted.Contains(apiName))
+                {
+                    indexes.Add(i);
+                }
+            }
+
+            return indexes;
+        }
+
+        /// <summary>
+        /// Persists the current row order. Called after a drag, so the list already reflects the
+        /// user's intent.
+        /// </summary>
+        private void PersistCurrentOrder()
+        {
+            try
+            {
+                var ordered = AchievementRows
+                    .Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                    .Select(row => row.OriginalApiName)
+                    .ToList();
+                _achievementOverridesService.SetAchievementOrderOverride(_gameId, ordered);
+                RaiseAssignmentsChanged();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed saving achievement order for gameId={_gameId}.");
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
             }
         }
@@ -1813,13 +1951,66 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool IsFiltered
         {
             get => _isFiltered;
-            set => SetValue(ref _isFiltered, value);
+            set
+            {
+                if (SetValueAndReturn(ref _isFiltered, value))
+                {
+                    OnPropertyChanged(nameof(FilterScope));
+                }
+            }
         }
 
         public bool IsSummaryFiltered
         {
             get => _isSummaryFiltered;
-            set => SetValue(ref _isSummaryFiltered, value);
+            set
+            {
+                if (SetValueAndReturn(ref _isSummaryFiltered, value))
+                {
+                    OnPropertyChanged(nameof(FilterScope));
+                }
+            }
+        }
+
+        /// <summary>
+        /// The two filter flags as one choice, because they are a scale rather than independent
+        /// toggles: hidden nowhere, hidden from summaries only, or hidden everywhere.
+        /// </summary>
+        /// <remarks>
+        /// Hiding an achievement everywhere already hides it from summaries, so the "all" case
+        /// sets only <see cref="IsFiltered"/>; storing both would be redundant state that could
+        /// disagree with itself.
+        /// </remarks>
+        public AchievementFilterScope FilterScope
+        {
+            get
+            {
+                if (IsFiltered)
+                {
+                    return AchievementFilterScope.All;
+                }
+
+                return IsSummaryFiltered ? AchievementFilterScope.Summary : AchievementFilterScope.None;
+            }
+
+            set
+            {
+                if (value == FilterScope)
+                {
+                    return;
+                }
+
+                // Set the pair together, then raise once: the two flags persist as whole lists, so
+                // letting each raise separately would write the game's filters twice per change.
+                SuppressNotifications = true;
+                IsFiltered = value == AchievementFilterScope.All;
+                IsSummaryFiltered = value == AchievementFilterScope.Summary;
+                SuppressNotifications = false;
+
+                OnPropertyChanged(nameof(IsFiltered));
+                OnPropertyChanged(nameof(IsSummaryFiltered));
+                OnPropertyChanged(nameof(FilterScope));
+            }
         }
 
         public string CategoryLabel
@@ -1881,6 +2072,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             get => _unlocked;
             set
             {
+                // Provider-owned on a provider row: changing it would move unlocked counts and
+                // completion, and read as a real unlock to the in-game monitor. Refused here as
+                // well as disabled in the view, so no binding or code path can set it.
+                if (!CanEditUnlocked && value != _unlocked)
+                {
+                    OnPropertyChanged(nameof(Unlocked));
+                    return;
+                }
+
                 if (SetValueAndReturn(ref _unlocked, value))
                 {
                     if (!value)
@@ -1892,6 +2092,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     NotifyRevealStateChanged();
                 }
             }
+        }
+
+        /// <summary>
+        /// Seeds the unlock state from the achievement being loaded, bypassing the provider-row
+        /// guard on the public setter. Only the loader may call this.
+        /// </summary>
+        internal void SetUnlockedFromSource(bool unlocked)
+        {
+            _unlocked = unlocked;
+            OnPropertyChanged(nameof(Unlocked));
+            OnPropertyChanged(nameof(CanEditUnlockTime));
+            NotifyRevealStateChanged();
         }
 
         public DateTime? UnlockTime
@@ -2368,7 +2580,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 : null;
             row.DisplayName = achievement.DisplayName;
             row.Description = achievement.Description;
-            row.Unlocked = achievement.Unlocked;
+            // Written straight to the field: the public setter refuses provider rows, which is the
+            // point, but loading the provider's own value must not be refused.
+            row.SetUnlockedFromSource(achievement.Unlocked);
             row.UnlockTime = achievement.UnlockTimeUtc;
             row.UnlockedIconPath = achievement.UnlockedIconPath;
             row.LockedIconPath = achievement.LockedIconPath;
