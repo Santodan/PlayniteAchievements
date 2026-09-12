@@ -301,6 +301,10 @@
                     <Style TargetType="DataGridRow" BasedOn="{StaticResource ManageAchievementsDataGridRowStyle}">
                         <Setter Property="MinHeight" Value="34" />
                         <Setter Property="ClipToBounds" Value="True" />
+                        <!-- Right-click is handled on the row rather than through a declared
+                             ContextMenu so the menu can reflect the whole selection. -->
+                        <EventSetter Event="PreviewMouseRightButtonDown" Handler="AchievementRow_PreviewMouseRightButtonDown" />
+                        <EventSetter Event="PreviewMouseRightButtonUp" Handler="AchievementRow_PreviewMouseRightButtonUp" />
                     </Style>
                 </DataGrid.RowStyle>
 
@@ -694,6 +698,11 @@
                                           IsChecked="{Binding Hidden, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           Margin="18,0,0,0"
                                           VerticalAlignment="Center" />
+                                <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}"
+                                          IsChecked="{Binding IsGoal, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEnabled="{Binding CanEditAssignments}"
+                                          Margin="18,0,0,0"
+                                          VerticalAlignment="Center" />
                             </StackPanel>
 
                             <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_Category}"
@@ -719,45 +728,65 @@
                                 </Button.ContextMenu>
                             </Button>
 
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Column_Trophy}"
-                                       Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox ItemsSource="{Binding DataContext.TrophyTypeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                      SelectedValue="{Binding TrophyType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      SelectedValuePath="Value"
-                                      MinHeight="26"
-                                      VerticalContentAlignment="Center">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Image Width="16"
-                                                   Height="16"
-                                                   Margin="0,0,6,0"
-                                                   VerticalAlignment="Center">
-                                                <Image.Style>
-                                                    <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Value}" Value="platinum">
-                                                                <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Value}" Value="gold">
-                                                                <Setter Property="Source" Value="{DynamicResource TrophyGold}" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Value}" Value="silver">
-                                                                <Setter Property="Source" Value="{DynamicResource TrophySilver}" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Value}" Value="bronze">
-                                                                <Setter Property="Source" Value="{DynamicResource TrophyBronze}" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Image.Style>
-                                            </Image>
-                                            <TextBlock Text="{Binding DisplayName}"
-                                                       VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Column_Trophy}"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <ComboBox ItemsSource="{Binding DataContext.TrophyTypeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                              SelectedValue="{Binding TrophyType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Value"
+                                              MinHeight="26"
+                                              VerticalContentAlignment="Center">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Image Width="16"
+                                                           Height="16"
+                                                           Margin="0,0,6,0"
+                                                           VerticalAlignment="Center">
+                                                        <Image.Style>
+                                                            <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Value}" Value="platinum">
+                                                                        <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Value}" Value="gold">
+                                                                        <Setter Property="Source" Value="{DynamicResource TrophyGold}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Value}" Value="silver">
+                                                                        <Setter Property="Source" Value="{DynamicResource TrophySilver}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Value}" Value="bronze">
+                                                                        <Setter Property="Source" Value="{DynamicResource TrophyBronze}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Image.Style>
+                                                    </Image>
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Column_Points}"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox Text="{Binding PointsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             Style="{StaticResource GridEditorTextBoxStyle}"
+                                             MinHeight="26"
+                                             KeyDown="EditorTextBox_KeyDown"
+                                             Tag="NonNegativeInt"
+                                             PreviewTextInput="NumericTextBox_PreviewTextInput"
+                                             DataObject.Pasting="NumericTextBox_Pasting" />
+                                </StackPanel>
+                            </Grid>
 
                             <TextBlock Text="{DynamicResource LOCPlayAch_Column_Rarity}"
                                        Style="{StaticResource FieldLabelStyle}" />
@@ -868,15 +897,6 @@
                                 </Button>
                             </Grid>
 
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Column_Points}"
-                                       Style="{StaticResource FieldLabelStyle}" />
-                            <TextBox Text="{Binding PointsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                     Style="{StaticResource GridEditorTextBoxStyle}"
-                                     KeyDown="EditorTextBox_KeyDown"
-                                     Tag="NonNegativeInt"
-                                     PreviewTextInput="NumericTextBox_PreviewTextInput"
-                                     DataObject.Pasting="NumericTextBox_Pasting" />
-
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -918,13 +938,6 @@
                                       IsEnabled="{Binding CanEditAssignments}"
                                       MinHeight="26"
                                       VerticalContentAlignment="Center" />
-
-                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}"
-                                          IsChecked="{Binding IsGoal, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          IsEnabled="{Binding CanEditAssignments}"
-                                          VerticalAlignment="Center" />
-                            </StackPanel>
 
                             <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Notes_Note}"
                                        Style="{StaticResource FieldLabelStyle}" />
