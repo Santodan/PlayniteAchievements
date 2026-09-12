@@ -1194,13 +1194,30 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _ = Dispatcher.BeginInvoke(new Action(() => HandleStateChanged(refreshCapstone)));
         }
 
+        /// <summary>
+        /// Whether the refresh being handled was caused by the editor's own write, clearing the
+        /// marker as it reads it so only the first refresh after that write is skipped.
+        /// </summary>
+        private bool ConsumeEditorSelfWrite()
+        {
+            if (_editorViewModel?.SuppressExternalRefresh != true)
+            {
+                return false;
+            }
+
+            _editorViewModel.SuppressExternalRefresh = false;
+            return true;
+        }
+
         private void HandleStateChanged(bool refreshCapstone, bool refreshCustom = true)
         {
             _gameDataSnapshotProvider?.Invalidate();
             _viewModel.Reload();
 
             _manualRefreshPending = true;
-            _editorRefreshPending = refreshCustom;
+            // Not for the editor's own write: it already shows the change, and reloading
+            // would rebuild every row and revert the control the user just touched.
+            _editorRefreshPending = refreshCustom && !ConsumeEditorSelfWrite();
             _achievementOrderRefreshPending = true;
             _goalsRefreshPending = true;
             _categoryRefreshPending = true;
@@ -1221,7 +1238,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             _gameDataSnapshotProvider?.Invalidate();
             _manualRefreshPending = true;
-            _editorRefreshPending = true;
+            _editorRefreshPending = !ConsumeEditorSelfWrite();
             _capstoneRefreshPending = true;
             _achievementOrderRefreshPending = true;
             _goalsRefreshPending = true;
