@@ -302,17 +302,30 @@
                     <!-- Row order is the achievement order, so the list is dragged directly.
                          Custom achievements take part like any other row, which is what lets an
                          authored one sit between two provider ones. -->
-                    <DataGridTemplateColumn Header="" Width="26" MinWidth="26" MaxWidth="26" CanUserResize="False" IsReadOnly="True">
+                    <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
+                                <Setter Property="Cursor" Value="SizeAll" />
+                            </Style>
+                        </DataGridTemplateColumn.CellStyle>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBlock Text="&#x2807;"
-                                           FontSize="14"
-                                           Opacity="0.5"
-                                           Cursor="SizeNS"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextBrush}"
-                                           ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}" />
+                                <!-- The transparent stretched Border is what makes the whole cell
+                                     draggable: a bare glyph only hit-tests on its own pixels, so
+                                     the press falls through to the row and no drag starts. -->
+                                <Border Tag="DragHandle"
+                                        Background="Transparent"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        Cursor="SizeAll"
+                                        ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}">
+                                    <TextBlock Tag="DragHandle"
+                                               Text="&#x2630;"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               Opacity="0.65" />
+                                </Border>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>

@@ -91,6 +91,44 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void EveryReorderableGrid_HasAHitTestableDragHandle()
+        {
+            // The behavior only starts a drag from the first column's cell. A bare glyph hit-tests
+            // on its own pixels only, so the press falls through to the row, no DataGridCell is
+            // found, and the drag silently never starts -- it looks like reordering is broken
+            // rather than like a markup mistake. A stretched transparent Border fills the cell.
+            foreach (var file in FindCallSiteFiles())
+            {
+                var xamlPath = file.Substring(0, file.Length - 3);
+                if (!File.Exists(xamlPath))
+                {
+                    continue;
+                }
+
+                var xaml = File.ReadAllText(xamlPath);
+                StringAssert.Contains(
+                    xaml,
+                    "Tag=\"DragHandle\"",
+                    $"{Path.GetFileName(xamlPath)} must mark its drag handle so the grip is identifiable.");
+
+                var handleIndex = xaml.IndexOf("Tag=\"DragHandle\"", StringComparison.Ordinal);
+                var handleBlock = xaml.Substring(
+                    Math.Max(0, handleIndex - 200),
+                    Math.Min(400, xaml.Length - Math.Max(0, handleIndex - 200)));
+
+                StringAssert.Contains(
+                    handleBlock,
+                    "Background=\"Transparent\"",
+                    $"{Path.GetFileName(xamlPath)}'s drag handle needs a transparent background to "
+                        + "be hit-testable across the whole cell.");
+                StringAssert.Contains(
+                    handleBlock,
+                    "HorizontalAlignment=\"Stretch\"",
+                    $"{Path.GetFileName(xamlPath)}'s drag handle must stretch to fill the cell.");
+            }
+        }
+
+        [TestMethod]
         public void RequiredMemberList_MatchesTheBehaviorValidation()
         {
             var behavior = File.ReadAllText(
