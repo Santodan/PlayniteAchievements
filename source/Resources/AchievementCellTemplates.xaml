@@ -181,11 +181,14 @@
                      rather than as its unlock state. Every glyph above yields to this, so the cell
                      shows one thing. Other grids project filtered rows out, so this surfaces where
                      they are still listed: the editor. -->
-                <Path Data="M 4,4 L 14,14 M 14,4 L 4,14"
+                <!-- Drawn symmetrically about the 18x18 cell centre, with the check glyph's stroke
+                     treatment, so the two read as one family and sit in the same place. -->
+                <Path Data="M 5,5 L 13,13 M 13,5 L 5,13"
                       Stroke="{DynamicResource PlayAch.Brush.Glyph}"
-                      StrokeThickness="2"
+                      StrokeThickness="2.3"
                       StrokeStartLineCap="Round"
                       StrokeEndLineCap="Round"
+                      StrokeLineJoin="Round"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center">
                     <Path.Style>
