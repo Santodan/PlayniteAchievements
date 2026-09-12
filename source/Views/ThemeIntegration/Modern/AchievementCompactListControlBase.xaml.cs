@@ -252,6 +252,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             // control is reached and the wheel silently does nothing here. Registering this way is
             // what lets the list scroll its own viewport regardless of what sits above it.
             AddHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel), true);
+            AddHandler(MouseWheelEvent, new MouseWheelEventHandler(OnMouseWheel), true);
             if (Common.PerfScope.PerfTracingEnabled)
             {
                 LogManager.GetLogger()?.Debug("[CompactWheel] handler attached.");
@@ -262,6 +263,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             _isLoaded = false;
             RemoveHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel));
+            RemoveHandler(MouseWheelEvent, new MouseWheelEventHandler(OnMouseWheel));
         }
 
         /// <summary>
@@ -488,6 +490,46 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// <summary>
         /// Handles mouse wheel scrolling, preferring horizontal movement for compact list hosts.
         /// </summary>
+        /// <summary>
+        /// Stops the wheel continuing to the page once this list has consumed it.
+        /// </summary>
+        /// <remarks>
+        /// Marking the tunnelling event handled is not enough: something above already claims it,
+        /// which is why this control has to ask for handled events at all, and that claim is what
+        /// scrolls the page. The bubbling pass starts at the item under the cursor and reaches this
+        /// control before any outer scroller, so claiming it here is what keeps the page still while
+        /// the list moves. Released at the ends, so a list with nothing left to scroll hands the
+        /// wheel back rather than trapping it.
+        /// </remarks>
+        private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (e.Delta == 0)
+            {
+                return;
+            }
+
+            var scrollViewer = FindScrollViewer(this);
+            if (scrollViewer == null)
+            {
+                return;
+            }
+
+            if (scrollViewer.ScrollableWidth > 0)
+            {
+                var atStart = scrollViewer.HorizontalOffset <= 0;
+                var atEnd = scrollViewer.HorizontalOffset >= scrollViewer.ScrollableWidth;
+                e.Handled = !((e.Delta > 0 && atStart) || (e.Delta < 0 && atEnd));
+                return;
+            }
+
+            if (scrollViewer.ScrollableHeight > 0)
+            {
+                var atTop = scrollViewer.VerticalOffset <= 0;
+                var atBottom = scrollViewer.VerticalOffset >= scrollViewer.ScrollableHeight;
+                e.Handled = !((e.Delta > 0 && atTop) || (e.Delta < 0 && atBottom));
+            }
+        }
+
         private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (e.Delta == 0)
