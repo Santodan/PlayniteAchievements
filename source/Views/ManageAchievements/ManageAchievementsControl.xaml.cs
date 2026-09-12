@@ -871,6 +871,110 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ManualHost.Content = _manualControl;
         }
 
+        /// <summary>
+        /// Re-projects the game's manual link onto its cached achievement data after the editor
+        /// records unlocks, so counts, summaries and themes see them without a provider refresh.
+        /// </summary>
+        private void ApplyManualLinkToCache(Guid gameId)
+        {
+            if (!ManualAchievementsProvider.TryGetManualLink(gameId, out var link) || link == null)
+            {
+                return;
+            }
+
+            var source = _manualSourceRegistry?.GetSourceByKey(link.SourceKey);
+            new ManualLinkCacheApplier(
+                _achievementDataService,
+                _cacheManager,
+                _settings,
+                _logger).Apply(gameId, link, source);
+        }
+
+        /// <summary>
+        /// Runs the manual-link wizard in a window. Returns true when a link was committed.
+        /// </summary>
+        /// <remarks>
+        /// The wizard persists the link as soon as the refresh confirms usable schema data, which is
+        /// the moment it leaves the search and refresh stages — so that transition is what closes
+        /// the window. Unlock editing then happens in the editor grid rather than in the wizard.
+        /// </remarks>
+        private bool ShowManualLinkDialog()
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_viewModel.GameId);
+            if (game == null)
+            {
+                return false;
+            }
+
+            var availableSources = _manualSourceRegistry?.GetAllSources()?.ToList();
+            if (availableSources == null || availableSources.Count == 0)
+            {
+                return false;
+            }
+
+            var initialSource = ManualAchievementsProvider.TryGetManualLink(_viewModel.GameId, out var existingLink)
+                ? _manualSourceRegistry.GetSourceByKey(existingLink?.SourceKey) ?? _manualSourceRegistry.GetDefaultSource()
+                : _manualSourceRegistry.GetDefaultSource();
+
+            var viewModel = new ManualAchievementsViewModel(
+                game,
+                _refreshService,
+                _cacheManager,
+                _achievementDataService,
+                availableSources,
+                initialSource,
+                _settings,
+                SaveSettings,
+                _logger,
+                _playniteApi);
+
+            var control = new ManageAchievementsManualTrackingTab(viewModel);
+            control.UnlinkCommand = _viewModel.UnlinkManualTrackingCommand;
+
+            var window = PlayniteUiProvider.CreateExtensionWindow(
+                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_ManualTracking"),
+                control,
+                new WindowOptions
+                {
+                    ShowMinimizeButton = false,
+                    ShowMaximizeButton = false,
+                    ShowCloseButton = true,
+                    CanBeResizable = true,
+                    Width = 900,
+                    Height = 700
+                });
+
+            var linked = false;
+            PropertyChangedEventHandler onStageChanged = (_, args) =>
+            {
+                if (args?.PropertyName != nameof(ManualAchievementsViewModel.CurrentStage))
+                {
+                    return;
+                }
+
+                if (viewModel.CurrentStage == WizardStage.Editing ||
+                    viewModel.CurrentStage == WizardStage.Completed)
+                {
+                    linked = true;
+                    window.Close();
+                }
+            };
+
+            viewModel.PropertyChanged += onStageChanged;
+            WindowPlacementPersistenceService.Attach(window, "ManualAchievementLink");
+            try
+            {
+                window.ShowDialog();
+            }
+            finally
+            {
+                viewModel.PropertyChanged -= onStageChanged;
+                viewModel.Cleanup();
+            }
+
+            return linked;
+        }
+
         private void EnsureEditorControl(bool forceRecreate)
         {
             if (_editorControl != null && !forceRecreate)
@@ -894,7 +998,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 PlayniteAchievementsPlugin.Instance?.CustomProviderStore,
                 currentValue => PlayniteAchievementsPlugin.Instance?.PickColor(Window.GetWindow(this), currentValue),
                 editor => CustomProviderEditorDialog.Show(Window.GetWindow(this), editor),
-                includeProviderAchievements: true);
+                includeProviderAchievements: true,
+                manualLinkApplier: ApplyManualLinkToCache,
+                showManualLinkDialog: ShowManualLinkDialog);
             _editorViewModel.CustomAchievementsSaved += CustomViewModel_CustomAchievementsSaved;
             _editorViewModel.AssignmentsChanged += EditorViewModel_CustomizationPersisted;
             _editorViewModel.CapstoneChanged += CustomViewModel_CapstoneChanged;

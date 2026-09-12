@@ -139,6 +139,17 @@
                                Margin="0,6,0,0"
                                Visibility="{Binding HasStatusText, Converter={StaticResource BoolToVis}}" />
 
+                    <!-- Where this game's achievements come from. A manually linked game and a
+                         custom-only one are mutually exclusive, so the two share this slot. -->
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0,10,0,0"
+                                Visibility="{Binding CanLinkManualTracking, Converter={StaticResource BoolToVis}}">
+                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_ManualTracking}"
+                                Command="{Binding ManualLinkCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="0" />
+                    </StackPanel>
+
                     <!-- Custom-only games pick the platform they display as; the selected custom
                          platform is edited inline and those edits apply to every game using it. -->
                     <StackPanel Margin="0,10,0,0"
