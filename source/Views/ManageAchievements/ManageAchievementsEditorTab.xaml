@@ -338,8 +338,7 @@
 
                     <!-- The same status glyphs the other achievement grids use: unlocked, capstone
                          and goal at a glance, rather than reading three separate controls. -->
-                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Status}"
-                                            Width="36"
+                    <DataGridTemplateColumn Width="36"
                                             MinWidth="36"
                                             MaxWidth="36"
                                             CanUserResize="False"
