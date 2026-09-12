@@ -5,6 +5,8 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
@@ -481,39 +483,139 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// </summary>
         private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (e.Delta != 0)
+            if (e.Delta == 0)
             {
-                var scrollViewer = FindScrollViewer(this);
-                if (scrollViewer != null)
-                {
-                    if (scrollViewer.ScrollableWidth > 0)
-                    {
-                        e.Handled = true;
-                        scrollViewer.ScrollToHorizontalOffset(scrollViewer.HorizontalOffset - (e.Delta / 3.0));
-                    }
-                    else if (scrollViewer.ScrollableHeight > 0)
-                    {
-                        e.Handled = true;
-                        scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - (e.Delta / 3.0));
-                    }
-                }
+                return;
             }
+
+            var scrollViewer = FindScrollViewer(this);
+            if (scrollViewer == null)
+            {
+                LogWheelDiagnostics(null);
+                return;
+            }
+
+            LogWheelDiagnostics(scrollViewer);
+
+            if (scrollViewer.ScrollableWidth > 0)
+            {
+                e.Handled = true;
+                scrollViewer.ScrollToHorizontalOffset(scrollViewer.HorizontalOffset - (e.Delta / 3.0));
+                return;
+            }
+
+            if (scrollViewer.ScrollableHeight > 0)
+            {
+                e.Handled = true;
+                scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - (e.Delta / 3.0));
+            }
+
+            // Neither axis can move: left unhandled on purpose so the wheel still reaches whatever
+            // the control is hosted in, rather than being swallowed here.
         }
 
+        /// <summary>
+        /// Reports what the wheel handler found, so a list that will not scroll can be told apart
+        /// from one whose viewport already fits its content. Silent unless perf tracing is on.
+        /// </summary>
+        private void LogWheelDiagnostics(ScrollViewer scrollViewer)
+        {
+            if (!Common.PerfScope.PerfTracingEnabled)
+            {
+                return;
+            }
+
+            var logger = LogManager.GetLogger();
+            if (scrollViewer == null)
+            {
+                logger?.Debug("[CompactWheel] no ScrollViewer found beneath the compact list.");
+                return;
+            }
+
+            logger?.Debug(
+                $"[CompactWheel] extent={scrollViewer.ExtentWidth:F0}x{scrollViewer.ExtentHeight:F0} " +
+                $"viewport={scrollViewer.ViewportWidth:F0}x{scrollViewer.ViewportHeight:F0} " +
+                $"scrollable={scrollViewer.ScrollableWidth:F0}x{scrollViewer.ScrollableHeight:F0} " +
+                $"canContentScroll={scrollViewer.CanContentScroll}");
+        }
+
+        /// <summary>
+        /// The ScrollViewer this control's own items sit in. Taken from the items host upward rather
+        /// than by searching downward: a depth-first walk returns whichever ScrollViewer appears
+        /// first in the tree, which need not be the one that scrolls these items.
+        /// </summary>
         private static ScrollViewer FindScrollViewer(DependencyObject parent)
         {
-            if (parent == null) return null;
-
-            for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+            if (parent == null)
             {
-                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+                return null;
+            }
+
+            var itemsHost = FindItemsHost(parent);
+            if (itemsHost != null)
+            {
+                var ancestor = VisualTreeHelper.GetParent(itemsHost);
+                while (ancestor != null)
+                {
+                    if (ancestor is ScrollViewer hostScroller)
+                    {
+                        return hostScroller;
+                    }
+
+                    ancestor = VisualTreeHelper.GetParent(ancestor);
+                }
+            }
+
+            return FindFirstScrollViewer(parent);
+        }
+
+        private static Panel FindItemsHost(DependencyObject parent)
+        {
+            if (parent == null)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is Panel panel && panel.IsItemsHost)
+                {
+                    return panel;
+                }
+
+                var result = FindItemsHost(child);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+
+            return null;
+        }
+
+        private static ScrollViewer FindFirstScrollViewer(DependencyObject parent)
+        {
+            if (parent == null)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
                 if (child is ScrollViewer scrollViewer)
                 {
                     return scrollViewer;
                 }
-                var result = FindScrollViewer(child);
-                if (result != null) return result;
+
+                var result = FindFirstScrollViewer(child);
+                if (result != null)
+                {
+                    return result;
+                }
             }
+
             return null;
         }
 
