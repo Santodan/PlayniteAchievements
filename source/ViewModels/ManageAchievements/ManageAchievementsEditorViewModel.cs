@@ -376,6 +376,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // Only a selection that is entirely authored may edit the authored-only fields; one
             // provider row in the selection locks rarity, unlock status and progress for all of it.
             row.IsProviderRow = _selectedRows.Any(r => r.IsProviderRow);
+            row.IsBulkRow = true;
+            // Rebuilt on every selection change, so the game-level flag has to be stamped here too;
+            // without it the proxy refuses unlock edits on a manually tracked game.
+            row.IsManuallyTrackedGame = IsManuallyTrackedGame;
+            row.SetUnlockedFromSource(SharedFlag(r => r.Unlocked));
             row.DisplayName = SharedValue(r => r.DisplayName);
             row.Description = SharedValue(r => r.Description);
             row.PointsText = SharedValue(r => r.PointsText);
@@ -885,6 +890,71 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             SetStatus(null, false);
             RefreshComputedState();
             _ = SaveAsync();
+        }
+
+        /// <summary>
+        /// Assigns a category to every selected achievement, written as one map because categories
+        /// are stored per game rather than per achievement. A null label clears the assignment.
+        /// </summary>
+        public void SetCategoryForSelection(string categoryLabel)
+        {
+            var targets = ResolveSelectionTargets()
+                .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .ToList();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            var normalized = AchievementCategoryTypeHelper.NormalizeCategory(categoryLabel);
+            StageAcross(targets, row => row.CategoryLabel = normalized);
+            PersistCategoryAssignmentsFromRows();
+        }
+
+        /// <summary>
+        /// Adds or removes one category type across the selection. A row may carry several types, so
+        /// this toggles the one named rather than replacing the set.
+        /// </summary>
+        public void SetCategoryTypeForSelection(string categoryType, bool isSelected)
+        {
+            var targets = ResolveSelectionTargets()
+                .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .ToList();
+            var normalizedType = AchievementCategoryTypeHelper.Normalize(categoryType);
+            if (targets.Count == 0 || string.IsNullOrWhiteSpace(normalizedType))
+            {
+                return;
+            }
+
+            StageAcross(targets, row => row.CategoryTypeValue = AchievementCategoryTypeHelper.WithCategoryType(
+                AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryTypeValue),
+                normalizedType,
+                isSelected));
+            PersistCategoryAssignmentsFromRows();
+        }
+
+        /// <summary>
+        /// Makes one achievement the game's capstone, or clears it.
+        /// </summary>
+        /// <remarks>
+        /// Single-selection only: the capstone is one string per game, so a multi-row set has no
+        /// meaning and the menu offers it only when exactly one row is selected.
+        /// </remarks>
+        public void SetCapstoneForSelection(bool isCapstone)
+        {
+            var targets = ResolveSelectionTargets();
+            if (targets.Count == 1)
+            {
+                SetCapstoneForRow(targets[0], isCapstone);
+            }
+        }
+
+        /// <summary>Whether the selection is one row that is currently the game's capstone.</summary>
+        public bool IsSingleCapstoneSelection(out bool isCapstone)
+        {
+            var targets = ResolveSelectionTargets();
+            isCapstone = targets.Count == 1 && targets[0].IsCapstone;
+            return targets.Count == 1 && targets[0].CanEditAssignments;
         }
 
         /// <summary>
@@ -2447,6 +2517,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _manualUnlocksPending = false;
             _manualUnlockFirstPendingUtc = DateTime.MinValue;
 
+            // The write replaces the link's whole unlock map from the rows, so writing it while the
+            // grid holds none would erase every recorded unlock. Rows are empty when a load failed,
+            // never because the user locked everything -- that is rows present and none unlocked.
+            // Manual unlock state is the one thing here with no provider to re-fetch it from.
+            if (AchievementRows.Count == 0)
+            {
+                return;
+            }
+
             try
             {
                 var unlocked = new Dictionary<string, DateTime?>(StringComparer.OrdinalIgnoreCase);
@@ -3164,10 +3243,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isCapstone;
 
         /// <summary>
-        /// Category, type, and capstone are ApiName-keyed custom data shared with the other tabs,
-        /// so they are only editable once the row has been saved and has an ApiName.
+        /// True for the stand-in row the details pane binds to while several achievements are
+        /// selected. It has no ApiName of its own, so the checks that gate on one must not read it
+        /// as an unsaved row.
         /// </summary>
-        public bool CanEditAssignments => !string.IsNullOrWhiteSpace(OriginalApiName);
+        public bool IsBulkRow { get; set; }
+
+        /// <summary>
+        /// Category, type, and capstone are ApiName-keyed custom data shared with the other tabs, so
+        /// they are only editable once the row has been saved and has an ApiName. The bulk proxy has
+        /// none of its own but every row it stands for does, so it qualifies.
+        /// </summary>
+        public bool CanEditAssignments => IsBulkRow || !string.IsNullOrWhiteSpace(OriginalApiName);
 
         /// <summary>
         /// The category the provider gave this achievement, kept because <see cref="CategoryLabel"/>
