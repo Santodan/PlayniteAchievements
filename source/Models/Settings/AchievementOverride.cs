@@ -31,6 +31,15 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public DateTime? UnlockTimeUtc { get; set; }
 
+        /// <summary>
+        /// True when the user cleared the unlock timestamp outright. A null
+        /// <see cref="UnlockTimeUtc"/> alone means "not customized" and falls back to the
+        /// provider's timestamp, so an explicit flag is what lets the timestamp be removed and
+        /// stay removed. Reverting the achievement drops the whole record and the provider's
+        /// timestamp returns.
+        /// </summary>
+        public bool ClearUnlockTime { get; set; }
+
         public string Category { get; set; }
 
         public string CategoryType { get; set; }
@@ -52,6 +61,7 @@ namespace PlayniteAchievements.Models.Settings
             !Points.HasValue &&
             string.IsNullOrWhiteSpace(TrophyType) &&
             !UnlockTimeUtc.HasValue &&
+            !ClearUnlockTime &&
             string.IsNullOrWhiteSpace(Category) &&
             string.IsNullOrWhiteSpace(CategoryType) &&
             string.IsNullOrWhiteSpace(Note) &&
@@ -67,6 +77,7 @@ namespace PlayniteAchievements.Models.Settings
                 Points = Points,
                 TrophyType = TrophyType,
                 UnlockTimeUtc = UnlockTimeUtc,
+                ClearUnlockTime = ClearUnlockTime,
                 Category = Category,
                 CategoryType = CategoryType,
                 Note = Note,

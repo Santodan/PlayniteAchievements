@@ -554,11 +554,67 @@ namespace PlayniteAchievements.Services.Achievements
                             entry.TrophyType = NormalizeText(value as string);
                             break;
                         case AchievementEditableField.UnlockTimeUtc:
-                            entry.UnlockTimeUtc = value as DateTime?;
+                            // A null timestamp is an explicit clear, not "no customization":
+                            // leaving the record empty would fall straight back to the provider's
+                            // own time, which is what made an unchecked box reappear. The
+                            // provider value is still untouched, so Revert restores it.
+                            var unlockTime = value as DateTime?;
+                            entry.UnlockTimeUtc = unlockTime;
+                            entry.ClearUnlockTime = !unlockTime.HasValue;
                             break;
                     }
                 }),
                 affectsSummaryData);
+        }
+
+        /// <summary>
+        /// Drops every user override for the given achievements in one store update, so they show
+        /// exactly what the provider supplies again.
+        /// </summary>
+        /// <remarks>
+        /// Deleting the record is what makes revert structural: the provider's own values were
+        /// never overwritten, so removing the overlay is all that is needed. Clearing field by
+        /// field would not work for the unlock timestamp, where a cleared value is itself a stored
+        /// state. Icon paths on the record are dropped with it; the files they point at are
+        /// managed elsewhere.
+        /// </remarks>
+        public void ClearAchievementOverrides(Guid gameId, IEnumerable<string> achievementApiNames)
+        {
+            if (gameId == Guid.Empty || achievementApiNames == null)
+            {
+                return;
+            }
+
+            var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in achievementApiNames)
+            {
+                var apiName = AchievementNoteHelper.NormalizeApiName(name);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    targets.Add(apiName);
+                }
+            }
+
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            // A dropped record may have carried a points or trophy-type override, both of which
+            // the summary SQL resolves through the mirror, so the rebuild is warranted.
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    var overrides = CloneOverrides(customData);
+                    foreach (var apiName in targets)
+                    {
+                        overrides.Remove(apiName);
+                    }
+
+                    StoreOverrides(customData, overrides);
+                },
+                affectsSummaryData: true);
         }
 
         public void SetAchievementNote(Guid gameId, string achievementApiName, string note)

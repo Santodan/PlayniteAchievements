@@ -946,6 +946,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                         : null,
                     TrophyType = NormalizeTrophyType(pair.Value.TrophyType),
                     UnlockTimeUtc = NormalizeUtc(pair.Value.UnlockTimeUtc),
+                    // A stored timestamp and a clear flag are mutually exclusive; the timestamp wins.
+                    ClearUnlockTime = pair.Value.ClearUnlockTime && !pair.Value.UnlockTimeUtc.HasValue,
                     Category = !string.IsNullOrWhiteSpace(category)
                         ? CategoryPathHelper.NormalizePath(category)
                         : null,

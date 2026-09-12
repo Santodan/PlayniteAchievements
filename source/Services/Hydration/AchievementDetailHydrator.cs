@@ -194,9 +194,18 @@ namespace PlayniteAchievements.Services.Hydration
                 detail.TrophyType = userOverride.TrophyType;
             }
 
-            if (userOverride.UnlockTimeUtc.HasValue && detail.Unlocked)
+            if (detail.Unlocked)
             {
-                detail.UnlockTimeUtc = userOverride.UnlockTimeUtc;
+                // A stored timestamp and a cleared state are mutually exclusive, and normalization
+                // resolves the pair the same way: the timestamp wins.
+                if (userOverride.UnlockTimeUtc.HasValue)
+                {
+                    detail.UnlockTimeUtc = userOverride.UnlockTimeUtc;
+                }
+                else if (userOverride.ClearUnlockTime)
+                {
+                    detail.UnlockTimeUtc = null;
+                }
             }
         }
 
