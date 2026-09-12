@@ -524,12 +524,16 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            // Points, trophy type and unlock time feed summary aggregates (score totals, trophy
-            // counts, last unlock); a title or description does not.
+            // Only the fields a summary aggregate actually reads are worth a rebuild. Points and
+            // trophy type are mirrored into AchievementOverrides and resolved by the score and
+            // trophy SQL, so they are. An unlock-time override is not: the summary's last-unlock
+            // comes from the real recorded time in UserAchievements and the mirror does not carry
+            // the override, so rebuilding would recompute identical numbers. The overview's
+            // per-achievement rows still pick it up on their next read, where it is applied in
+            // code rather than in SQL.
             var affectsSummaryData =
                 field == AchievementEditableField.Points ||
-                field == AchievementEditableField.TrophyType ||
-                field == AchievementEditableField.UnlockTimeUtc;
+                field == AchievementEditableField.TrophyType;
 
             _gameCustomDataStore.Update(
                 gameId,

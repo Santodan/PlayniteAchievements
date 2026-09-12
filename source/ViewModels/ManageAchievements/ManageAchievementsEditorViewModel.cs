@@ -22,6 +22,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using AsyncCommand = PlayniteAchievements.Common.AsyncCommand;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
@@ -57,6 +58,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private AchievementEditorRow _bulkRow;
         private readonly List<AchievementEditorRow> _selectedRows = new List<AchievementEditorRow>();
         private bool _isApplyingBulk;
+        private DispatcherTimer _assignmentsChangedDebounce;
+        private bool _assignmentsChangedPending;
         private readonly Dictionary<string, object> _lastWrittenOverrides =
             new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         private bool _hasChanges;
@@ -463,11 +466,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var data = _gameCustomDataStore.LoadOrDefault(_gameId);
                 if (_includeProviderAchievements)
                 {
-                    // Hydrated data already merges custom achievements in and applies the user's
-                    // order, so the rows arrive interleaved exactly as they should be shown.
+                    // Hydration merges custom achievements in but only stamps each row's order
+                    // index; it leaves the collection in provider order. The order has to be
+                    // applied here or a saved reorder would persist and then be ignored on reload.
+                    // Custom and provider achievements sort together, which is what lets an
+                    // authored achievement sit between two provider ones.
                     var hydrated = _gameDataSnapshotProvider?.GetHydratedGameData();
-                    ReplaceRows((hydrated?.Achievements ?? new List<AchievementDetail>())
+                    var achievements = (hydrated?.Achievements ?? new List<AchievementDetail>())
                         .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
+                        .ToList();
+                    var ordered = AchievementOrderHelper.ApplyOrder(
+                        achievements,
+                        a => a.ApiName,
+                        hydrated?.AchievementOrder);
+
+                    ReplaceRows(ordered
                         .Select(AchievementEditorRow.FromAchievementDetail)
                         .Where(row => row != null));
                 }
@@ -508,6 +521,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void Detach()
         {
+            // A pending notification must not be lost when the tab closes.
+            FlushAssignmentsChanged();
             if (_customProviderStore != null)
             {
                 _customProviderStore.Changed -= CustomProviderStore_Changed;
@@ -1294,9 +1309,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _isRefreshingAssignments = true;
             try
             {
-                var categoryOverrides = GetCurrentCategoryOverrideMap();
-                var categoryTypeOverrides = GetCurrentCategoryTypeOverrideMap();
-                var capstoneApiName = NormalizeText(GameCustomDataLookup.GetManualCapstone(_gameId, _settings?.Persisted));
+                // One resolve for all three: this runs after every save, and each lookup helper
+                // would otherwise clone the game's whole record again.
+                var resolved = ResolveCurrentCustomData();
+                var categoryOverrides = GetCurrentCategoryOverrideMap(resolved);
+                var categoryTypeOverrides = GetCurrentCategoryTypeOverrideMap(resolved);
+                var capstoneApiName = NormalizeText(resolved?.ManualCapstoneApiName);
 
                 foreach (var row in AchievementRows)
                 {
@@ -1523,10 +1541,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private Dictionary<string, string> GetCurrentCategoryOverrideMap()
+        /// <summary>
+        /// Reads the game's customization once. Each <c>GameCustomDataLookup.Get*</c> helper
+        /// resolves and clones the whole record, so a caller that needs several of them resolves
+        /// once here instead of paying for it per value.
+        /// </summary>
+        private ResolvedGameCustomData ResolveCurrentCustomData() =>
+            GameCustomDataLookup.ResolveGameCustomData(_gameId, _settings?.Persisted);
+
+        private Dictionary<string, string> GetCurrentCategoryOverrideMap(ResolvedGameCustomData resolved = null)
         {
+            var source = (resolved ?? ResolveCurrentCustomData())?.AchievementCategoryOverrides
+                ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in GameCustomDataLookup.GetAchievementCategoryOverrides(_gameId, _settings?.Persisted))
+            foreach (var pair in source)
             {
                 var apiName = NormalizeText(pair.Key);
                 var category = AchievementCategoryTypeHelper.NormalizeCategory(pair.Value);
@@ -1539,10 +1567,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             return normalized;
         }
 
-        private Dictionary<string, string> GetCurrentCategoryTypeOverrideMap()
+        private Dictionary<string, string> GetCurrentCategoryTypeOverrideMap(ResolvedGameCustomData resolved = null)
         {
+            var source = (resolved ?? ResolveCurrentCustomData())?.AchievementCategoryTypeOverrides
+                ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in GameCustomDataLookup.GetAchievementCategoryTypeOverrides(_gameId, _settings?.Persisted))
+            foreach (var pair in source)
             {
                 var apiName = NormalizeText(pair.Key);
                 var categoryType = AchievementCategoryTypeHelper.Normalize(pair.Value);
@@ -1656,10 +1686,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _baselineCollectionSignature = BuildCollectionSignature();
         }
 
+        /// <summary>
+        /// A fingerprint of the authored definitions, used to tell whether they need saving.
+        /// </summary>
+        /// <remarks>
+        /// Provider rows are excluded deliberately, and not only because they have no definition to
+        /// save: the merged editor lists a game's whole achievement set, so serializing every row
+        /// made each edit cost a JSON pass over hundreds of rows to decide whether a handful of
+        /// authored ones had changed.
+        /// </remarks>
         private string BuildCollectionSignature()
         {
             return JsonConvert.SerializeObject(AchievementRows
-                .Where(row => row != null)
+                .Where(row => row != null && !row.IsProviderRow)
                 .Select(row => row.StateSignature)
                 .ToList());
         }
@@ -2079,8 +2118,39 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>
         /// Tells the host that data other surfaces display has changed, so their snapshots reload.
         /// </summary>
+        /// <remarks>
+        /// Coalesced: the host responds by invalidating its snapshot and rebuilding the library-wide
+        /// theme lists, which is far more expensive than the write that triggered it. Editing is
+        /// bursty -- a timestamp raises the date, the time and the meridiem, and a bulk edit raises
+        /// once per selected row -- so the notification is delayed briefly and collapsed into one.
+        /// Flushed on <see cref="Detach"/> so a pending notification cannot be lost when the tab
+        /// closes.
+        /// </remarks>
         private void RaiseAssignmentsChanged()
         {
+            if (_assignmentsChangedDebounce == null)
+            {
+                _assignmentsChangedDebounce = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(250)
+                };
+                _assignmentsChangedDebounce.Tick += (_, __) => FlushAssignmentsChanged();
+            }
+
+            _assignmentsChangedPending = true;
+            _assignmentsChangedDebounce.Stop();
+            _assignmentsChangedDebounce.Start();
+        }
+
+        private void FlushAssignmentsChanged()
+        {
+            _assignmentsChangedDebounce?.Stop();
+            if (!_assignmentsChangedPending)
+            {
+                return;
+            }
+
+            _assignmentsChangedPending = false;
             AssignmentsChanged?.Invoke(this, EventArgs.Empty);
         }
 
