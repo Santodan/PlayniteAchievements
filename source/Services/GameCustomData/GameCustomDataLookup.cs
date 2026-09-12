@@ -79,12 +79,23 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return AchievementOverrides;
             }
 
+            // Memoized: callers resolve per achievement while walking a game's rows, so rebuilding
+            // the synthesized map on each call made summary loads cost achievements x customized
+            // entries per game.
+            if (_synthesizedOverrides != null)
+            {
+                return _synthesizedOverrides;
+            }
+
             var map = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
             AddLegacyValues(map, AchievementCategoryOverrides, (entry, value) => entry.Category = value);
             AddLegacyValues(map, AchievementCategoryTypeOverrides, (entry, value) => entry.CategoryType = value);
             AddLegacyValues(map, AchievementNotes, (entry, value) => entry.Note = value);
+            _synthesizedOverrides = map;
             return map;
         }
+
+        private Dictionary<string, AchievementOverride> _synthesizedOverrides;
 
         private static void AddLegacyValues(
             Dictionary<string, AchievementOverride> target,
