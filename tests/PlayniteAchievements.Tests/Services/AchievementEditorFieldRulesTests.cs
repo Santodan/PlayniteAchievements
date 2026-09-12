@@ -123,5 +123,30 @@ namespace PlayniteAchievements.Services.Tests
         {
             Assert.IsNull(AchievementEditorFieldRules.FormatUnlockTimeForEditing(null));
         }
+
+        [TestMethod]
+        public void PrefersTwentyFourHourClock_FollowsTheCulturesOwnTimePattern()
+        {
+            // en-US writes 1:30 PM, de-DE and ja-JP write 13:30.
+            Assert.IsFalse(AchievementEditorFieldRules.PrefersTwentyFourHourClock(new CultureInfo("en-US")));
+            Assert.IsTrue(AchievementEditorFieldRules.PrefersTwentyFourHourClock(new CultureInfo("de-DE")));
+            Assert.IsTrue(AchievementEditorFieldRules.PrefersTwentyFourHourClock(new CultureInfo("ja-JP")));
+        }
+
+        [TestMethod]
+        public void PrefersTwentyFourHourClock_IgnoresAQuotedLiteralHour()
+        {
+            // A pattern whose separator is a quoted 'h' must not read as the 12-hour specifier.
+            var culture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+            culture.DateTimeFormat.ShortTimePattern = "HH'h'mm";
+
+            Assert.IsTrue(AchievementEditorFieldRules.PrefersTwentyFourHourClock(culture));
+        }
+
+        [TestMethod]
+        public void PrefersTwentyFourHourClock_UnknownCulture_FallsBackToTwelveHour()
+        {
+            Assert.IsFalse(AchievementEditorFieldRules.PrefersTwentyFourHourClock(null));
+        }
     }
 }
