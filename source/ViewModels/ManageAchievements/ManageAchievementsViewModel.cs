@@ -185,6 +185,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
+                if (!ShowReplacedTabs && ManageAchievementsTabs.Replaced.Contains(value))
+                {
+                    return;
+                }
+
                 if (value == ManageAchievementsTab.ManualTracking &&
                     ShouldWarnAboutManualTrackingOverride(out var existingProviderKey) &&
                     !string.Equals(_manualTrackingWarningAcceptedForProvider, existingProviderKey, StringComparison.OrdinalIgnoreCase))
@@ -211,6 +216,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 SetValue(ref _selectedTab, value);
             }
         }
+
+        /// <summary>
+        /// Whether the tabs the merged editor replaced are still offered. False while the editor is
+        /// proven against them; their views and view models are untouched, so setting this true
+        /// brings them straight back.
+        /// </summary>
+        public bool ShowReplacedTabs => false;
 
         public bool ShowManualTrackingTab
         {
@@ -768,6 +780,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 RefreshCustomDataState();
 
                 if (!ShowManualTrackingTab && SelectedTab == ManageAchievementsTab.ManualTracking)
+                {
+                    SelectedTab = ManageAchievementsTab.Overview;
+                }
+
+                if (!ShowReplacedTabs && ManageAchievementsTabs.Replaced.Contains(SelectedTab))
                 {
                     SelectedTab = ManageAchievementsTab.Overview;
                 }

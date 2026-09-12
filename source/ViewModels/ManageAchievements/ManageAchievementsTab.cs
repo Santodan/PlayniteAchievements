@@ -43,5 +43,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 ManageAchievementsTab.Notes,
                 ManageAchievementsTab.CustomIcons
             };
+
+        /// <summary>
+        /// Tabs the merged editor replaced. Kept in the enum, the rail markup and the content host so
+        /// nothing is deleted while the editor is being proven against them, but hidden from the
+        /// rail and refused by the selection guards.
+        /// </summary>
+        /// <remarks>
+        /// Flip <c>ManageAchievementsViewModel.ShowReplacedTabs</c> to true to bring them back.
+        /// </remarks>
+        public static readonly HashSet<ManageAchievementsTab> Replaced =
+            new HashSet<ManageAchievementsTab>
+            {
+                ManageAchievementsTab.Category,
+                ManageAchievementsTab.Filters,
+                ManageAchievementsTab.AchievementOrder,
+                ManageAchievementsTab.Capstones,
+                ManageAchievementsTab.Goals,
+                ManageAchievementsTab.Notes,
+                ManageAchievementsTab.CustomIcons
+            };
     }
 }

@@ -125,36 +125,36 @@
                         <TextBlock x:Name="AchievementsSectionHeader"
                                    Text="{DynamicResource LOCPlayAch_Achievements}"
                                    Style="{StaticResource NavSectionHeaderStyle}"
-                                   Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}" />
+                                   Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}" />
                         <RadioButton x:Name="CategoryTabButton"
                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Category}"
                                      Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
+                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
                         <RadioButton x:Name="FiltersTabButton"
                                      Content="{DynamicResource LOCPlayAch_Menu_Filters}"
                                      Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
+                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Filters}" />
                         <RadioButton x:Name="AchievementOrderTabButton"
                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_AchievementOrder}"
                                      Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
+                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=AchievementOrder}" />
                         <RadioButton x:Name="CapstonesTabButton"
                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Capstones}"
                                      Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
+                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Capstones}" />
                         <RadioButton x:Name="GoalsTabButton"
                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Goals}"
                                      Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
+                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Goals}" />
                         <RadioButton x:Name="NotesTabButton"
                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Notes}"
                                      Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
+                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Notes}" />
 
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance}"
@@ -162,7 +162,7 @@
                         <RadioButton x:Name="CustomIconsTabButton"
                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_CustomIcons}"
                                      Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
+                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=CustomIcons}" />
                         <RadioButton x:Name="NotificationsTabButton"
                                      Content="{DynamicResource LOCPlayAch_Settings_TabNotifications}"

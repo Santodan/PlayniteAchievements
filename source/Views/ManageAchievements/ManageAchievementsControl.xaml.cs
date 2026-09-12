@@ -701,6 +701,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return _viewModel.ShowManualTrackingTab;
             }
 
+            if (!_viewModel.ShowReplacedTabs && ManageAchievementsTabs.Replaced.Contains(tab))
+            {
+                return false;
+            }
+
             if (ManageAchievementsTabs.RequireAchievementData.Contains(tab))
             {
                 return _viewModel.HasAchievementData;
