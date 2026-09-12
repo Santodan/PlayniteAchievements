@@ -24,6 +24,57 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public static bool CanEditUnlockTime(bool unlocked) => unlocked;
 
         /// <summary>
+        /// Whether a culture writes the time of day on a 24-hour clock, used to pick the unlock-time
+        /// editor's default mode so a user whose language has no AM/PM is not handed one.
+        /// </summary>
+        /// <remarks>
+        /// Read from the culture's own short time pattern rather than a language list: "H" is the
+        /// 24-hour hour specifier and "h" the 12-hour one, and quoted literals in the pattern are
+        /// skipped so a separator such as 'h' in the French pattern is not mistaken for a specifier.
+        /// The editor's mode dropdown still lets the user pick the other one.
+        /// </remarks>
+        public static bool PrefersTwentyFourHourClock(CultureInfo culture)
+        {
+            var pattern = culture?.DateTimeFormat?.ShortTimePattern;
+            if (string.IsNullOrEmpty(pattern))
+            {
+                return false;
+            }
+
+            var quote = '\0';
+            foreach (var character in pattern)
+            {
+                if (quote != '\0')
+                {
+                    if (character == quote)
+                    {
+                        quote = '\0';
+                    }
+
+                    continue;
+                }
+
+                if (character == '\'' || character == '"')
+                {
+                    quote = character;
+                    continue;
+                }
+
+                if (character == 'h')
+                {
+                    return false;
+                }
+
+                if (character == 'H')
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Unlock status is provider-owned in every case. Present as an explicit rule so the
         /// intent is stated in one place rather than implied by the absence of a setter.
         /// </summary>

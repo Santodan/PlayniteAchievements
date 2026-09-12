@@ -838,6 +838,37 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
+        /// Sets the goal flag on every selected achievement, written as one list because goals are
+        /// stored as a single ordered collection per game.
+        /// </summary>
+        public void SetGoalForSelection(bool isGoal)
+        {
+            var targets = ResolveSelectionTargets();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            StageAcross(targets, row => row.IsGoal = isGoal);
+            PersistGoalsFromRows();
+        }
+
+        /// <summary>
+        /// Sets the filter scope on every selected achievement, written as one pair of sets.
+        /// </summary>
+        public void SetFilterScopeForSelection(AchievementFilterScope scope)
+        {
+            var targets = ResolveSelectionTargets();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            StageAcross(targets, row => row.SetFilterScopeFromSource(scope));
+            PersistFiltersFromRows();
+        }
+
+        /// <summary>
         /// Clears the user's customization for every selected achievement so it shows the
         /// provider's own values again, then reloads so the rows display what was restored.
         /// </summary>
@@ -2133,9 +2164,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>Sets a value on every selected row without each one persisting separately.</summary>
-        private void StageAcrossSelection(Action<AchievementEditorRow> apply)
+        private void StageAcrossSelection(Action<AchievementEditorRow> apply) =>
+            StageAcross(_selectedRows, apply);
+
+        /// <summary>
+        /// Applies a staged edit to each row without raising the per-row persist, for facets that
+        /// are written once for the whole collection afterwards.
+        /// </summary>
+        private static void StageAcross(IEnumerable<AchievementEditorRow> rows, Action<AchievementEditorRow> apply)
         {
-            foreach (var row in _selectedRows)
+            foreach (var row in rows)
             {
                 row.SuppressNotifications = true;
                 try
@@ -3604,19 +3642,36 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// Seeds the time editor from the stored timestamp. The clock mode follows the formatting
+        /// culture, so a user whose language writes 18:00 is not handed an AM/PM picker; the mode
+        /// dropdown still switches it per row.
+        /// </summary>
         private void InitializeTimePickerFromUnlockTime()
         {
+            var prefers24Hour = AchievementEditorFieldRules.PrefersTwentyFourHourClock(
+                Common.FormattingCulture.Current);
+
             if (UnlockTimeLocal.HasValue)
             {
                 var time = UnlockTimeLocal.Value.TimeOfDay;
-                Convert24To12Hour(time.Hours, out _selectedHour, out _selectedTimeMode);
+                if (prefers24Hour)
+                {
+                    _selectedHour = time.Hours;
+                    _selectedTimeMode = TimeMode.TwentyFourHour;
+                }
+                else
+                {
+                    Convert24To12Hour(time.Hours, out _selectedHour, out _selectedTimeMode);
+                }
+
                 _selectedMinute = time.Minutes;
             }
             else
             {
                 _selectedHour = 12;
                 _selectedMinute = 0;
-                _selectedTimeMode = TimeMode.PM;
+                _selectedTimeMode = prefers24Hour ? TimeMode.TwentyFourHour : TimeMode.PM;
             }
 
             SetTimeTextFromSelection();
