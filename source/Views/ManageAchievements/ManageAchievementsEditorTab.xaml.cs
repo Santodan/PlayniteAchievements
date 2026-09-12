@@ -486,6 +486,20 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var menu = new ContextMenu();
 
+            // Capstone first, matching the Capstones tab's single-per-game rule: it is a property of
+            // the game, not of a selection, so it is offered only for one row.
+            if (viewModel.IsSingleCapstoneSelection(out var isCapstone))
+            {
+                var capstoneItem = new MenuItem
+                {
+                    Header = ResourceProvider.GetString("LOCPlayAch_Dynamic_Capstone"),
+                    IsCheckable = true,
+                    IsChecked = isCapstone
+                };
+                capstoneItem.Click += (_, __) => viewModel.SetCapstoneForSelection(capstoneItem.IsChecked);
+                menu.Items.Add(capstoneItem);
+            }
+
             var goalItem = new MenuItem
             {
                 Header = ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Editor_Goal"),
@@ -515,6 +529,65 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             menu.Items.Add(filterMenu);
+
+            // Category and type, the same two the Category tab's row menu offers.
+            var categoryMenu = new MenuItem
+            {
+                Header = ResourceProvider.GetString("LOCPlayAch_Common_Label_Category"),
+                IsEnabled = selection.All(row => row.CanEditAssignments)
+            };
+            foreach (var option in viewModel.CategoryFilterOptions.Where(option => option.IsSelectable))
+            {
+                var label = option.Label;
+                if (string.IsNullOrWhiteSpace(label))
+                {
+                    continue;
+                }
+
+                var categoryItem = new MenuItem
+                {
+                    Header = option.LeafDisplay,
+                    ToolTip = option.PathDisplay,
+                    IsCheckable = true,
+                    IsChecked = selection.All(row =>
+                        string.Equals(row.EffectiveCategoryLabel, label, StringComparison.OrdinalIgnoreCase))
+                };
+                categoryItem.Click += (_, __) => viewModel.SetCategoryForSelection(label);
+                categoryMenu.Items.Add(categoryItem);
+            }
+
+            if (categoryMenu.Items.Count > 0)
+            {
+                categoryMenu.Items.Add(new Separator());
+            }
+
+            categoryMenu.Items.Add(CreateMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_Button_Clear"),
+                () => viewModel.SetCategoryForSelection(null)));
+            menu.Items.Add(categoryMenu);
+
+            var typeMenu = new MenuItem
+            {
+                Header = ResourceProvider.GetString("LOCPlayAch_Common_Label_Type"),
+                IsEnabled = selection.All(row => row.CanEditAssignments)
+            };
+            foreach (var categoryType in AchievementCategoryTypeHelper.AssignableCategoryTypes)
+            {
+                var captured = categoryType;
+                var typeItem = new MenuItem
+                {
+                    Header = ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(captured),
+                    IsCheckable = true,
+                    StaysOpenOnClick = true,
+                    IsChecked = selection.All(row =>
+                        AchievementCategoryTypeHelper.ParseValues(row.CategoryTypeValue)
+                            .Any(value => string.Equals(value, captured, StringComparison.OrdinalIgnoreCase)))
+                };
+                typeItem.Click += (_, __) => viewModel.SetCategoryTypeForSelection(captured, typeItem.IsChecked);
+                typeMenu.Items.Add(typeItem);
+            }
+
+            menu.Items.Add(typeMenu);
 
             menu.Items.Add(CreateMenuItem(
                 ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Notes_Note"),
