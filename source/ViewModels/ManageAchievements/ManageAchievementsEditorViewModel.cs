@@ -2839,6 +2839,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             private set => SetValue(ref _sourceHeading, value);
         }
 
+        /// <summary>
+        /// The cover the plugin draws over a hidden achievement, so the sidebar's Hidden toggle is
+        /// marked with the same image the user configured for hiding them everywhere else.
+        /// </summary>
+        public string HiddenCoverIcon => AchievementIconResolver.GetHiddenFallbackIcon();
+
         /// <summary>Display-platform choices for a manually tracked game.</summary>
         public IReadOnlyList<ProviderOverrideChoice> DisplayPlatformOptions { get; } =
             ManualDisplayPlatformResolver.BuildDisplayPlatformOptions();
@@ -3425,6 +3431,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 OnPropertyChanged(nameof(IsFiltered));
                 OnPropertyChanged(nameof(IsSummaryFiltered));
+            OnPropertyChanged(nameof(IsFilteredFromSummaries));
                 OnPropertyChanged(nameof(FilterScope));
             }
         }
@@ -3514,12 +3521,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// Sets the filter scope without raising the change that persists it, for seeding a row
         /// from stored data or staging a bulk edit that is written once afterwards.
         /// </summary>
+        /// <summary>
+        /// Alias matching the name the shared achievement templates bind, so an editor row and a
+        /// display item can be rendered by the same status glyphs.
+        /// </summary>
+        public bool IsFilteredFromSummaries => IsSummaryFiltered;
+
         internal void SetFilterScopeFromSource(AchievementFilterScope scope)
         {
             _isFiltered = scope == AchievementFilterScope.All;
             _isSummaryFiltered = scope == AchievementFilterScope.Summary;
             OnPropertyChanged(nameof(IsFiltered));
             OnPropertyChanged(nameof(IsSummaryFiltered));
+            OnPropertyChanged(nameof(IsFilteredFromSummaries));
             OnPropertyChanged(nameof(FilterScope));
         }
 

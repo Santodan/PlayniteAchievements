@@ -40,6 +40,7 @@
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsFiltered}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="True"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="False"/>
                                     </MultiDataTrigger.Conditions>
@@ -60,6 +61,7 @@
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsFiltered}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="True"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
@@ -82,6 +84,7 @@
                                 <!-- A goal shows its pin instead, so the two never both render. -->
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsFiltered}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="True"/>
                                         <Condition Binding="{Binding IsGoal}" Value="False"/>
@@ -136,6 +139,7 @@
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsFiltered}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="False"/>
                                         <Condition Binding="{Binding IsGoal}" Value="False"/>
@@ -162,6 +166,7 @@
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsFiltered}" Value="False"/>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsGoal}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
@@ -171,6 +176,32 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
+
+                <!-- A filtered achievement is excluded from views and counts, so it reads as an X
+                     rather than as its unlock state. Every glyph above yields to this, so the cell
+                     shows one thing. Other grids project filtered rows out, so this surfaces where
+                     they are still listed: the editor. -->
+                <Path Data="M 4,4 L 14,14 M 14,4 L 4,14"
+                      Stroke="{DynamicResource PlayAch.Brush.Glyph}"
+                      StrokeThickness="2"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
+                    <Path.Style>
+                        <Style TargetType="Path">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsFiltered}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsFilteredFromSummaries}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Path.Style>
+                </Path>
             </Grid>
         </Viewbox>
     </DataTemplate>
