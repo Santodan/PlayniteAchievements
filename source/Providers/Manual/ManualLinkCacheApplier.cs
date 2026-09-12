@@ -59,7 +59,15 @@ namespace PlayniteAchievements.Providers.Manual
                 // (e.g. Steam/PSN) instead of "Manual" right after an edit, without waiting for a
                 // full provider refresh. Resolves through the same helper the provider uses, so a
                 // user override applies here too.
-                cachedData.ProviderPlatformKey = ManualDisplayPlatformResolver.Resolve(source, link);
+                // Only when it resolves to something: with no override and no source to derive
+                // from, the resolver returns null, and assigning that would downgrade a platform the
+                // cache already knows to nothing. Callers without a source still get the unlock
+                // state re-applied, which is what they came for.
+                var platformKey = ManualDisplayPlatformResolver.Resolve(source, link);
+                if (!string.IsNullOrWhiteSpace(platformKey))
+                {
+                    cachedData.ProviderPlatformKey = platformKey;
+                }
 
                 // Reset then re-apply through the shared resolver, so the cached unlocked set
                 // exactly reflects the just-saved link (and never carries stale unlocks).
