@@ -204,6 +204,11 @@
                                 Content="{DynamicResource LOCPlayAch_Common_Duplicate}"
                                 Command="{Binding DuplicateCommand}"
                                 Style="{StaticResource ToolbarButtonStyle}" />
+                        <Button x:Name="RevertButton"
+                                Content="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Revert}"
+                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Editor_RevertHint}"
+                                Command="{Binding RevertCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}" />
                         <Button x:Name="DeleteButton"
                                 Content="{DynamicResource LOCPlayAch_Common_Delete}"
                                 Command="{Binding DeleteCommand}"
@@ -330,6 +335,17 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
+
+                    <!-- The same status glyphs the other achievement grids use: unlocked, capstone
+                         and goal at a glance, rather than reading three separate controls. -->
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Status}"
+                                            Width="36"
+                                            MinWidth="36"
+                                            MaxWidth="36"
+                                            CanUserResize="False"
+                                            IsReadOnly="True"
+                                            CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
+                                            CellTemplate="{StaticResource AchievementStatusTemplate}" />
 
                     <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Unlocked}"
                                             Width="78"
@@ -789,6 +805,7 @@
                                          Grid.Column="1"
                                          Text="{Binding RarityInput, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                          Style="{StaticResource GridEditorTextBoxStyle}"
+                                         IsEnabled="{Binding CanEditRarity}"
                                          KeyDown="EditorTextBox_KeyDown" />
                                 <TextBlock Grid.Column="1"
                                            Text="100%"
@@ -811,6 +828,7 @@
                                 <Button Grid.Column="2"
                                         Content="&#x25BE;"
                                         Style="{StaticResource DropdownButtonStyle}"
+                                        IsEnabled="{Binding CanEditRarity}"
                                         Click="ContextMenuButton_Click">
                                     <Button.ContextMenu>
                                         <ContextMenu ItemsSource="{x:Static vm:ManageAchievementsEditorViewModel.RarityOptions}"
@@ -871,6 +889,7 @@
                                                Style="{StaticResource FieldLabelStyle}" />
                                     <TextBox Text="{Binding ProgressNumText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                              Style="{StaticResource GridEditorTextBoxStyle}"
+                                             IsEnabled="{Binding CanEditProgress}"
                                              KeyDown="EditorTextBox_KeyDown"
                                              Tag="NonNegativeInt"
                                              PreviewTextInput="NumericTextBox_PreviewTextInput"
@@ -881,6 +900,7 @@
                                                Style="{StaticResource FieldLabelStyle}" />
                                     <TextBox Text="{Binding ProgressDenomText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                              Style="{StaticResource GridEditorTextBoxStyle}"
+                                             IsEnabled="{Binding CanEditProgress}"
                                              KeyDown="EditorTextBox_KeyDown"
                                              Tag="PositiveInt"
                                              PreviewTextInput="NumericTextBox_PreviewTextInput"
@@ -901,7 +921,7 @@
                                       VerticalContentAlignment="Center" />
 
                             <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Goals}"
+                                <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}"
                                           IsChecked="{Binding IsGoal, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           IsEnabled="{Binding CanEditAssignments}"
                                           VerticalAlignment="Center" />

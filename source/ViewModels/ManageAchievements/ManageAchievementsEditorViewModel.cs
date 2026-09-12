@@ -111,7 +111,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             AddCommand = new RelayCommand(_ => AddRow(), _ => !IsSaving);
             DuplicateCommand = new RelayCommand(_ => DuplicateSelected(), _ => SelectedRow != null && !IsSaving);
-            DeleteCommand = new RelayCommand(_ => DeleteSelected(), _ => SelectedRow != null && !IsSaving);
+            // Only an authored achievement can be deleted: a provider one would come straight back
+            // on the next refresh, so removing it from the list would be a lie.
+            DeleteCommand = new RelayCommand(
+                _ => DeleteSelected(),
+                _ => SelectedRow != null && !SelectedRow.IsProviderRow && !IsSaving);
+            RevertCommand = new RelayCommand(
+                _ => RevertSelected(),
+                _ => SelectedRow != null && !IsSaving);
             ImportFileCommand = new RelayCommand(_ => ImportFile(), _ => !IsSaving);
             ExportTemplateCommand = new RelayCommand(_ => ExportTemplate(), _ => !IsSaving);
             ExportAchievementsCommand = new RelayCommand(_ => ExportAchievements(), _ => HasRows && !IsSaving);
@@ -141,6 +148,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public RelayCommand DuplicateCommand { get; }
 
         public RelayCommand DeleteCommand { get; }
+
+        /// <summary>
+        /// Drops the user's customization for the selected achievements, returning them to what the
+        /// provider supplies. An authored achievement has no provider value to fall back to, so
+        /// this clears the facets it shares with provider rows and leaves the definition alone.
+        /// </summary>
+        public RelayCommand RevertCommand { get; }
 
         public RelayCommand ImportFileCommand { get; }
 
@@ -744,6 +758,97 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             SetStatus(null, false);
             RefreshComputedState();
             _ = SaveAsync();
+        }
+
+        /// <summary>
+        /// Clears the user's customization for every selected achievement so it shows the
+        /// provider's own values again, then reloads so the rows display what was restored.
+        /// </summary>
+        /// <remarks>
+        /// Each facet is cleared through the setter that owns it, so the stored shapes stay
+        /// consistent: the per-achievement record for the editable fields, and the whole-collection
+        /// writes for categories, filters and goals. A capstone is cleared only when one of the
+        /// reverted achievements currently holds it.
+        /// </remarks>
+        private void RevertSelected()
+        {
+            var targets = _selectedRows.Count > 0
+                ? _selectedRows.ToList()
+                : new List<AchievementEditorRow> { SelectedRow };
+            targets = targets
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .ToList();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            var message = targets.Count == 1
+                ? string.Format(
+                    L("LOCPlayAch_ManageAchievements_Editor_RevertConfirmSingle", "Revert \"{0}\" to the provider's values?"),
+                    targets[0].DisplayName)
+                : string.Format(
+                    L("LOCPlayAch_ManageAchievements_Editor_RevertConfirmSelected", "Revert {0} achievements to the provider's values?"),
+                    targets.Count);
+            if (ShowConfirmation(
+                    message,
+                    L("LOCPlayAch_ManageAchievements_Editor_Revert", "Revert"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                var apiNames = new HashSet<string>(
+                    targets.Select(row => row.OriginalApiName),
+                    StringComparer.OrdinalIgnoreCase);
+
+                foreach (var apiName in apiNames)
+                {
+                    foreach (AchievementEditableField field in Enum.GetValues(typeof(AchievementEditableField)))
+                    {
+                        _achievementOverridesService.SetAchievementFieldOverride(_gameId, apiName, field, null);
+                    }
+
+                    _achievementOverridesService.SetAchievementNote(_gameId, apiName, null);
+                }
+
+                // Whole-collection facets: staged across the rows, then written once each.
+                foreach (var row in targets)
+                {
+                    row.SuppressNotifications = true;
+                    try
+                    {
+                        row.CategoryLabel = null;
+                        row.CategoryTypeValue = null;
+                        row.IsGoal = false;
+                        row.SetFilterScopeFromSource(AchievementFilterScope.None);
+                    }
+                    finally
+                    {
+                        row.SuppressNotifications = false;
+                    }
+                }
+
+                PersistCategoryAssignmentsFromRows();
+                PersistFiltersFromRows();
+                PersistGoalsFromRows();
+
+                if (targets.Any(row => row.IsCapstone))
+                {
+                    _achievementOverridesService.SetCapstone(_gameId, null);
+                }
+
+                ReloadData();
+                SetStatus(null, false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed reverting achievements for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
         }
 
         private void DeleteSelected()
@@ -2570,6 +2675,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             get => _rarityInput;
             set
             {
+                // Provider-owned: rarity and its unlock percentage are derived from what the
+                // provider reports, and the stored-rarity guard cannot tell a deliberate Common
+                // from "never filled in". Refused here as well as disabled in the view, so no
+                // binding or code path can set it on a provider row.
+                if (!CanEditRarity && !string.Equals(_rarityInput, value, StringComparison.Ordinal))
+                {
+                    OnPropertyChanged(nameof(RarityInput));
+                    return;
+                }
+
                 if (SetValueAndReturn(ref _rarityInput, value))
                 {
                     ApplyRarityInput(value);
