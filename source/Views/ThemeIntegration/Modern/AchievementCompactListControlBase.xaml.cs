@@ -247,14 +247,21 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             _isLoaded = true;
             LoadData();
-            // Attach mouse wheel handler for horizontal scrolling
-            PreviewMouseWheel += OnPreviewMouseWheel;
+            // handledEventsToo: PreviewMouseWheel tunnels from the root, so an ancestor that marks
+            // it handled -- a host ScrollViewer, or the theme's own chrome -- stops it before this
+            // control is reached and the wheel silently does nothing here. Registering this way is
+            // what lets the list scroll its own viewport regardless of what sits above it.
+            AddHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel), true);
+            if (Common.PerfScope.PerfTracingEnabled)
+            {
+                LogManager.GetLogger()?.Debug("[CompactWheel] handler attached.");
+            }
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             _isLoaded = false;
-            PreviewMouseWheel -= OnPreviewMouseWheel;
+            RemoveHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel));
         }
 
         /// <summary>
