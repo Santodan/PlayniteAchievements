@@ -40,6 +40,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private AchievementEditorRow _categoryPickerRow;
 
+        private DataGridRow _pendingRightClickRow;
+
         public ManageAchievementsEditorTab(ManageAchievementsEditorViewModel viewModel)
         {
             InitializeComponent();
@@ -148,11 +150,23 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// </summary>
         private void EditNoteButton_Click(object sender, RoutedEventArgs e)
         {
-            if (!((sender as FrameworkElement)?.DataContext is AchievementEditorRow row))
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
             {
-                return;
+                EditNote(row);
             }
+        }
 
+        private void EditNoteForSelectedRow()
+        {
+            var row = CustomAchievementsGrid.SelectedItems.OfType<AchievementEditorRow>().FirstOrDefault();
+            if (row != null)
+            {
+                EditNote(row);
+            }
+        }
+
+        private void EditNote(AchievementEditorRow row)
+        {
             var dialog = new AchievementNoteDialog(
                 row.DisplayName,
                 row.OriginalApiName,
@@ -341,6 +355,158 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// A right-click that lands outside the current selection moves the selection to that row
+        /// first, so the menu always acts on what the user sees highlighted.
+        /// </summary>
+        private void AchievementRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!(sender is DataGridRow row))
+            {
+                return;
+            }
+
+            e.Handled = true;
+            _pendingRightClickRow = row;
+            if (!CustomAchievementsGrid.SelectedItems.Contains(row.Item))
+            {
+                CustomAchievementsGrid.SelectedItems.Clear();
+                CustomAchievementsGrid.SelectedItem = row.Item;
+            }
+        }
+
+        private void AchievementRow_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!(sender is DataGridRow row))
+            {
+                return;
+            }
+
+            e.Handled = true;
+            var targetRow = _pendingRightClickRow ?? row;
+            _pendingRightClickRow = null;
+            OpenContextMenuForRow(targetRow);
+        }
+
+        private bool OpenContextMenuForRow(DataGridRow row, bool useControllerPlacement = false)
+        {
+            if (!(row?.DataContext is AchievementEditorRow))
+            {
+                return false;
+            }
+
+            var menu = BuildRowContextMenu();
+            if (menu == null || menu.Items.Count == 0)
+            {
+                return false;
+            }
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
+            row.ContextMenu = menu;
+            if (useControllerPlacement)
+            {
+                return FullscreenControllerNavigationService.OpenContextMenu(row, menu);
+            }
+
+            menu.PlacementTarget = row;
+            menu.IsOpen = true;
+            return true;
+        }
+
+        /// <summary>
+        /// Builds the row menu from the current selection, so every entry applies to all selected
+        /// achievements rather than to the row that was clicked.
+        /// </summary>
+        /// <remarks>
+        /// A check mark means every selected row already carries that value; a mixed selection
+        /// shows none, and picking the entry applies it to all of them.
+        /// </remarks>
+        private ContextMenu BuildRowContextMenu()
+        {
+            var viewModel = ViewModel;
+            if (viewModel == null)
+            {
+                return null;
+            }
+
+            var selection = CustomAchievementsGrid.SelectedItems.OfType<AchievementEditorRow>().ToList();
+            if (selection.Count == 0)
+            {
+                return null;
+            }
+
+            var menu = new ContextMenu();
+
+            var goalItem = new MenuItem
+            {
+                Header = ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Editor_Goal"),
+                IsCheckable = true,
+                IsChecked = selection.All(row => row.IsGoal),
+                IsEnabled = selection.All(row => row.CanEditAssignments)
+            };
+            goalItem.Click += (_, __) => viewModel.SetGoalForSelection(goalItem.IsChecked);
+            menu.Items.Add(goalItem);
+
+            var filterMenu = new MenuItem
+            {
+                Header = ResourceProvider.GetString("LOCPlayAch_Menu_Filters"),
+                IsEnabled = selection.All(row => row.CanEditAssignments)
+            };
+            foreach (var option in viewModel.FilterScopeOptions)
+            {
+                var scope = option.Value;
+                var scopeItem = new MenuItem
+                {
+                    Header = option.DisplayName,
+                    IsCheckable = true,
+                    IsChecked = selection.All(row => row.FilterScope == scope)
+                };
+                scopeItem.Click += (_, __) => viewModel.SetFilterScopeForSelection(scope);
+                filterMenu.Items.Add(scopeItem);
+            }
+
+            menu.Items.Add(filterMenu);
+
+            menu.Items.Add(CreateMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Notes_Note"),
+                () => EditNoteForSelectedRow(),
+                selection.Count == 1 && selection[0].CanEditAssignments));
+
+            menu.Items.Add(new Separator());
+
+            menu.Items.Add(CreateCommandMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_Common_Duplicate"),
+                viewModel.DuplicateCommand));
+            menu.Items.Add(CreateCommandMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Editor_Revert"),
+                viewModel.RevertCommand));
+            menu.Items.Add(CreateCommandMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_Button_Delete"),
+                viewModel.DeleteCommand));
+
+            return menu;
+        }
+
+        private static MenuItem CreateMenuItem(string header, Action onClick, bool isEnabled = true)
+        {
+            var item = new MenuItem { Header = header, IsEnabled = isEnabled };
+            item.Click += (_, __) => onClick?.Invoke();
+            return item;
+        }
+
+        // Command is not bound: the menu is rebuilt per right-click, so the enabled state is read
+        // once here rather than tracked.
+        private static MenuItem CreateCommandMenuItem(string header, Common.RelayCommand command)
+        {
+            var item = new MenuItem
+            {
+                Header = header,
+                IsEnabled = command?.CanExecute(null) == true
+            };
+            item.Click += (_, __) => command?.Execute(null);
+            return item;
+        }
+
         public bool HandleFullscreenControllerInput(ControllerInput input)
         {
             if (CustomAchievementsGrid?.IsKeyboardFocusWithin != true)
@@ -354,9 +520,29 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 {
                     return FullscreenControllerNavigationService.ActivateFocusedDataGridColumnHeader(CustomAchievementsGrid);
                 }
+
+                return false;
+            }
+
+            // The same row menu the mouse opens, so a controller is not left without the actions.
+            if (FullscreenControllerNavigationService.IsSecondaryClickInput(input))
+            {
+                return TryOpenSelectedRowContextMenu();
             }
 
             return false;
+        }
+
+        private bool TryOpenSelectedRowContextMenu()
+        {
+            var item = CustomAchievementsGrid?.SelectedItem ?? CustomAchievementsGrid?.CurrentItem;
+            if (item == null)
+            {
+                return false;
+            }
+
+            var row = CustomAchievementsGrid.ItemContainerGenerator.ContainerFromItem(item) as DataGridRow;
+            return row != null && OpenContextMenuForRow(row, useControllerPlacement: true);
         }
 
         public IList<UIElement> GetControllerElements()
