@@ -73,7 +73,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isManuallyTrackedGame;
         private bool _canLinkManualTracking;
         private string _filterText;
-        private EditorFilterOption _selectedCategoryFilter;
+        private CategoryPickerOption _selectedCategoryFilter;
         private EditorFilterOption _selectedTypeFilter;
         private SearchQuery _filterQuery;
         private readonly SearchTextIndex<AchievementEditorRow> _searchIndex =
@@ -2591,7 +2591,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>True while the grid shows a subset of the achievements.</summary>
         public bool IsFiltering =>
             _filterQuery.HasValue ||
-            !string.IsNullOrWhiteSpace(SelectedCategoryFilter?.Value) ||
+            !string.IsNullOrWhiteSpace(SelectedCategoryFilter?.Label) ||
             !string.IsNullOrWhiteSpace(SelectedTypeFilter?.Value);
 
         /// <summary>Raised when the filter text changed and the collection view needs refreshing.</summary>
@@ -2613,7 +2613,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            var category = SelectedCategoryFilter?.Value;
+            var category = SelectedCategoryFilter?.Label;
             if (!string.IsNullOrWhiteSpace(category) &&
                 !string.Equals(NormalizeText(row.CategoryLabel), category, StringComparison.OrdinalIgnoreCase))
             {
@@ -2639,7 +2639,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>
         /// Restricts the grid to one category. Null shows every category.
         /// </summary>
-        public EditorFilterOption SelectedCategoryFilter
+        public CategoryPickerOption SelectedCategoryFilter
         {
             get => _selectedCategoryFilter;
             set
@@ -2666,9 +2666,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        /// <summary>Categories present on this game's achievements, plus an "all" entry.</summary>
-        public ObservableCollection<EditorFilterOption> CategoryFilterOptions { get; } =
-            new ObservableCollection<EditorFilterOption>();
+        /// <summary>
+        /// Categories present on this game's achievements, plus an "all" entry, arranged as the tree
+        /// they describe so the drop-down places a nested category rather than spelling out its path.
+        /// </summary>
+        public ObservableCollection<CategoryPickerOption> CategoryFilterOptions { get; } =
+            new ObservableCollection<CategoryPickerOption>();
 
         /// <summary>Every assignable category type, plus an "all" entry.</summary>
         public ObservableCollection<EditorFilterOption> TypeFilterOptions { get; } =
@@ -2687,32 +2690,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void RebuildFilterOptions()
         {
-            var previousCategory = SelectedCategoryFilter?.Value;
+            var previousCategory = SelectedCategoryFilter?.Label;
             var previousType = SelectedTypeFilter?.Value;
 
-            var treeOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            for (var i = 0; i < AssignableCategoryOptions.Count; i++)
-            {
-                var label = AssignableCategoryOptions[i];
-                if (!string.IsNullOrWhiteSpace(label) && !treeOrder.ContainsKey(label))
-                {
-                    treeOrder[label] = i;
-                }
-            }
-
-            var present = AchievementRows
-                .Select(row => NormalizeText(row?.CategoryLabel))
-                .Where(label => !string.IsNullOrWhiteSpace(label))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(label => treeOrder.TryGetValue(label, out var index) ? index : int.MaxValue)
-                .ThenBy(label => label, StringComparer.CurrentCultureIgnoreCase)
-                .ToList();
+            // Built through the shared picker resolver, so this drop-down draws the same tree the
+            // category grid and the assignment pickers do. Synthesised ancestors are not selectable
+            // here: a filter on a category that holds no achievements of its own matches nothing.
+            var options = CategoryPickerResolver.BuildOptions(
+                AchievementRows.Select(row => NormalizeText(row?.CategoryLabel)),
+                AssignableCategoryOptions.ToList(),
+                synthesizedAreSelectable: false);
 
             CategoryFilterOptions.Clear();
-            CategoryFilterOptions.Add(new EditorFilterOption(null, L("LOCPlayAch_Common_All", "All")));
-            foreach (var label in present)
+            CategoryFilterOptions.Add(new CategoryPickerOption(
+                null,
+                L("LOCPlayAch_Common_All", "All"),
+                L("LOCPlayAch_Common_All", "All")));
+            foreach (var option in options)
             {
-                CategoryFilterOptions.Add(new EditorFilterOption(label, label));
+                CategoryFilterOptions.Add(option);
             }
 
             if (TypeFilterOptions.Count == 0)
@@ -2729,7 +2725,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // A filter whose category disappeared falls back to showing everything, rather than
             // leaving the grid mysteriously empty.
             SelectedCategoryFilter = CategoryFilterOptions.FirstOrDefault(option =>
-                                         string.Equals(option.Value, previousCategory, StringComparison.OrdinalIgnoreCase))
+                                         option.IsSelectable &&
+                                         string.Equals(option.Label, previousCategory, StringComparison.OrdinalIgnoreCase))
                                      ?? CategoryFilterOptions.FirstOrDefault();
             SelectedTypeFilter = TypeFilterOptions.FirstOrDefault(option =>
                                      string.Equals(option.Value, previousType, StringComparison.OrdinalIgnoreCase))
