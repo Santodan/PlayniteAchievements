@@ -130,7 +130,7 @@ namespace PlayniteAchievements.Services.Hydration
                         providerCategoryType = AchievementCategoryTypeHelper.Normalize(userOverride.CategoryType);
                     }
 
-                    ApplyUserFieldOverrides(detail, userOverride);
+                    ApplyUserFieldOverrides(detail, userOverride, customData.HasManualLink);
                 }
 
                 // NormalizePath, not NormalizeCategoryOrDefault: a provider may now supply a nested
@@ -172,7 +172,10 @@ namespace PlayniteAchievements.Services.Hydration
         /// a row that is already unlocked. Rarity stays provider-owned because the stored-rarity
         /// guard cannot tell a deliberate Common from "never filled in".
         /// </remarks>
-        private static void ApplyUserFieldOverrides(AchievementDetail detail, AchievementOverride userOverride)
+        private static void ApplyUserFieldOverrides(
+            AchievementDetail detail,
+            AchievementOverride userOverride,
+            bool hasManualLink)
         {
             if (!string.IsNullOrWhiteSpace(userOverride.DisplayName))
             {
@@ -194,7 +197,11 @@ namespace PlayniteAchievements.Services.Hydration
                 detail.TrophyType = userOverride.TrophyType;
             }
 
-            if (detail.Unlocked)
+            // A manually tracked game records unlock state and time in its link, which reaches the
+            // row through the cache. Layering an override on top would show one timestamp in the
+            // editor while every count, summary and theme surface kept the link's, with nothing on
+            // screen to explain the disagreement.
+            if (detail.Unlocked && !hasManualLink)
             {
                 // A stored timestamp and a cleared state are mutually exclusive, and normalization
                 // resolves the pair the same way: the timestamp wins.

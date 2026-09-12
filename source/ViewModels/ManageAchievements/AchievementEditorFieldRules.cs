@@ -75,10 +75,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Unlock status is provider-owned in every case. Present as an explicit rule so the
-        /// intent is stated in one place rather than implied by the absence of a setter.
+        /// Whether the user may change whether an achievement is unlocked.
         /// </summary>
-        public static bool CanEditUnlockStatus() => false;
+        /// <remarks>
+        /// Provider-owned by default: editing it would move unlocked counts and completion, and read
+        /// as a real unlock to the in-game monitor. Two cases are not provider-owned. An authored
+        /// achievement has no provider behind it at all. And on a manually tracked game the user is
+        /// the source of unlock state by definition -- that is the whole feature -- so the rule does
+        /// not apply to its rows either.
+        /// </remarks>
+        public static bool CanEditUnlockStatus(bool isCustomRow, bool isManuallyTrackedGame) =>
+            isCustomRow || isManuallyTrackedGame;
 
         /// <summary>
         /// Parses a points override. Blank clears the override and yields null. Returns false when

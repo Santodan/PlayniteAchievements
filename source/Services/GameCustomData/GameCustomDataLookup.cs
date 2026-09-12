@@ -27,6 +27,12 @@ namespace PlayniteAchievements.Services.GameCustomData
 
         public string ManualCapstoneApiName { get; set; }
 
+        /// <summary>
+        /// True when the game's achievements come from a manual link. Such a game records its own
+        /// unlock state, so the per-achievement unlock-time override does not apply to it.
+        /// </summary>
+        public bool HasManualLink { get; set; }
+
         public List<string> AchievementOrder { get; set; } = new List<string>();
 
         public Dictionary<string, string> AchievementCategoryOverrides { get; set; } =
@@ -175,6 +181,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     (hasCustomData
                         ? customData?.UseSeparateLockedIconsOverride == true
                         : fallbackSettings?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true),
+                HasManualLink = hasCustomData && customData?.ManualLink != null,
                 ManualCapstoneApiName = hasCustomData
                     ? customData?.ManualCapstoneApiName
                                         : fallbackSettings?.ManualCapstones != null &&
