@@ -89,7 +89,7 @@ namespace PlayniteAchievements.ViewModels
         private string _saveStatusMessage = string.Empty;
         private string _displayPlatformKeyOverride;
         private readonly IReadOnlyList<ProviderOverrideChoice> _availableDisplayPlatforms =
-            BuildDisplayPlatformOptions();
+            ManualDisplayPlatformResolver.BuildDisplayPlatformOptions();
         private readonly SearchTextIndex<ManualAchievementEditItem> _editSearchIndex =
             new SearchTextIndex<ManualAchievementEditItem>(item =>
                 SearchTextBuilder.ForManualEdit(item?.DisplayName, item?.Description, item?.ApiName));
@@ -1475,22 +1475,6 @@ namespace PlayniteAchievements.ViewModels
         /// Builds the display platform options: the default first, then every registered provider
         /// by localized name, so each choice resolves to a known icon and color.
         /// </summary>
-        private static IReadOnlyList<ProviderOverrideChoice> BuildDisplayPlatformOptions()
-        {
-            var options = new List<ProviderOverrideChoice>
-            {
-                new ProviderOverrideChoice(
-                    string.Empty,
-                    ResourceProvider.GetString("LOCPlayAch_Common_Default"))
-            };
-
-            options.AddRange(ManualDisplayPlatformResolver
-                .GetSelectablePlatformKeys()
-                .Select(key => new ProviderOverrideChoice(key, ProviderRegistry.GetLocalizedName(key)))
-                .OrderBy(choice => choice.DisplayName, StringComparer.CurrentCultureIgnoreCase));
-
-            return options;
-        }
 
         private ManualAchievementLink BuildLink()
         {
