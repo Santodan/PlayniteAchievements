@@ -296,33 +296,43 @@
                     </Grid>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                        <!-- The shared category tree drop-down, so a nested category is placed by
+                             the same connectors the category grid and the assignment pickers draw. -->
                         <ComboBox ItemsSource="{Binding CategoryFilterOptions}"
                                   SelectedItem="{Binding SelectedCategoryFilter, Mode=TwoWay}"
-                                  DisplayMemberPath="DisplayName"
+                                  ItemContainerStyle="{StaticResource PlayAch.CategoryTreeComboBoxItemStyle}"
+                                  ItemTemplate="{StaticResource PlayAch.CategoryTreeComboBoxItemTemplate}"
                                   ToolTip="{DynamicResource LOCPlayAch_Common_Label_Category}"
-                                  MinWidth="130"
-                                  MinHeight="26"
+                                  MinWidth="140"
+                                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                   Margin="0,0,6,0"
                                   VerticalContentAlignment="Center" />
                         <ComboBox ItemsSource="{Binding TypeFilterOptions}"
                                   SelectedItem="{Binding SelectedTypeFilter, Mode=TwoWay}"
                                   DisplayMemberPath="DisplayName"
                                   ToolTip="{DynamicResource LOCPlayAch_Common_Label_Type}"
-                                  MinWidth="130"
-                                  MinHeight="26"
+                                  MinWidth="140"
+                                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                   Margin="0,0,10,0"
                                   VerticalContentAlignment="Center" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <!-- Same shape the Category and Filters tabs give this pair, rather than the
+                         toolbar look: these act on the grid, not on the achievement being edited. -->
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
                         <Button x:Name="SelectAllButton"
                                 Content="{DynamicResource LOCPlayAch_Common_SelectAll}"
                                 Click="SelectAllButton_Click"
-                                Style="{StaticResource ToolbarButtonStyle}" />
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Padding="10,2"
+                                Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
                         <Button x:Name="DeselectAllButton"
                                 Content="{DynamicResource LOCPlayAch_Common_DeselectAll}"
                                 Click="DeselectAllButton_Click"
-                                Style="{StaticResource ToolbarButtonStyle}" />
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Padding="10,2" />
                     </StackPanel>
                 </Grid>
 
