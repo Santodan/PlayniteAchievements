@@ -97,6 +97,7 @@
     <Compile Include="..\..\source\Services\Achievements\CustomAchievementSummaryMerger.cs" Link="Source\Services\Achievements\CustomAchievementSummaryMerger.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataLookup.cs" Link="Source\Services\GameCustomData\GameCustomDataLookup.cs" />
     <Compile Include="..\..\source\Services\CustomAchievementProjectionService.cs" Link="Source\Services\CustomAchievementProjectionService.cs" />
+    <Compile Include="..\..\source\Services\Achievements\UserOwnedUnlockRules.cs" Link="Source\Services\Achievements\UserOwnedUnlockRules.cs" />
     <Compile Include="..\..\source\Services\CustomAchievementTextImportService.cs" Link="Source\Services\CustomAchievementTextImportService.cs" />
     <Compile Include="..\..\source\Services\Notifications\NotificationStylePortableStore.cs" Link="Source\Services\Notifications\NotificationStylePortableStore.cs" />
     <Compile Include="..\..\source\Services\Notifications\NotificationStylePresetStore.cs" Link="Source\Services\Notifications\NotificationStylePresetStore.cs" />
