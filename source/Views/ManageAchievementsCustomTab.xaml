@@ -441,6 +441,70 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
+                    <!-- Facets that used to each own a tab. They key off the ApiName, so they apply
+                         to authored and provider achievements alike. -->
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Notes_Note}"
+                                            Width="140">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid VerticalAlignment="Center" Margin="4,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding NotePreview}"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center"
+                                               Opacity="0.8"
+                                               Foreground="{DynamicResource TextBrush}" />
+                                    <Button Grid.Column="1"
+                                            Content="{DynamicResource LOCPlayAch_Common_Edit}"
+                                            Padding="6,2"
+                                            MinHeight="24"
+                                            Margin="6,0,0,0"
+                                            Click="EditNoteButton_Click" />
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Goals}"
+                                            Width="60"
+                                            CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsGoal, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Filters_FilterOut}"
+                                            Width="70"
+                                            CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsFiltered, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries}"
+                                            Width="70"
+                                            CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsSummaryFiltered, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
                 </DataGrid.Columns>
             </DataGrid>
 

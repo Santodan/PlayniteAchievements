@@ -30,6 +30,10 @@ namespace PlayniteAchievements.ViewModels
 {
     public sealed class ManageAchievementsCustomViewModel : ObservableObject
     {
+        // The merged editor lists provider achievements alongside authored ones; the Custom tab
+        // lists only authored ones. Everything else about the two surfaces is identical, so they
+        // share this view model rather than duplicating its editing affordances.
+        private readonly bool _includeProviderAchievements;
         private readonly Guid _gameId;
         private readonly string _gameIdText;
         private readonly AchievementOverridesService _achievementOverridesService;
@@ -68,8 +72,10 @@ namespace PlayniteAchievements.ViewModels
             ILogger logger,
             CustomProviderStore customProviderStore = null,
             Func<string, string> pickColor = null,
-            Func<CustomProviderEditorViewModel, CustomProviderEditorResult> showEditor = null)
+            Func<CustomProviderEditorViewModel, CustomProviderEditorResult> showEditor = null,
+            bool includeProviderAchievements = false)
         {
+            _includeProviderAchievements = includeProviderAchievements;
             _gameId = gameId;
             _gameIdText = gameId.ToString("D");
             _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
@@ -299,8 +305,21 @@ namespace PlayniteAchievements.ViewModels
             try
             {
                 var data = _gameCustomDataStore.LoadOrDefault(_gameId);
-                ReplaceRows((data?.CustomAchievements ?? new List<CustomAchievementDefinition>())
-                    .Select(CustomAchievementEditItem.FromDefinition));
+                if (_includeProviderAchievements)
+                {
+                    // Hydrated data already merges custom achievements in and applies the user's
+                    // order, so the rows arrive interleaved exactly as they should be shown.
+                    var hydrated = _gameDataSnapshotProvider?.GetHydratedGameData();
+                    ReplaceRows((hydrated?.Achievements ?? new List<AchievementDetail>())
+                        .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
+                        .Select(CustomAchievementEditItem.FromAchievementDetail)
+                        .Where(row => row != null));
+                }
+                else
+                {
+                    ReplaceRows((data?.CustomAchievements ?? new List<CustomAchievementDefinition>())
+                        .Select(CustomAchievementEditItem.FromDefinition));
+                }
                 CaptureCollectionBaseline();
                 RefreshAssignmentState();
                 RefreshCustomProviderState();
@@ -823,7 +842,10 @@ namespace PlayniteAchievements.ViewModels
             for (var i = 0; i < AchievementRows.Count; i++)
             {
                 var row = AchievementRows[i];
-                if (row == null || row.IsBlank)
+                // A provider row has no authored definition behind it; its edits are stored as
+                // overrides, so emitting one here would turn a provider achievement into a custom
+                // one and duplicate it in the list.
+                if (row == null || row.IsBlank || row.IsProviderRow)
                 {
                     continue;
                 }
@@ -966,7 +988,10 @@ namespace PlayniteAchievements.ViewModels
                 var next = 0;
                 foreach (var row in AchievementRows)
                 {
-                    if (row == null || row.IsBlank)
+                    // Must skip exactly what BuildValidatedDefinitions skipped: the two walk
+                    // together, so including a provider row here would shift every later row onto
+                    // the wrong definition.
+                    if (row == null || row.IsBlank || row.IsProviderRow)
                     {
                         continue;
                     }
@@ -1341,6 +1366,26 @@ namespace PlayniteAchievements.ViewModels
             }
 
             SetStatus(null, false);
+
+            if (sender is CustomAchievementEditItem editedRow)
+            {
+                // Notes, goals and filters are ApiName-keyed for every achievement, authored or
+                // not, so they persist the same way for both row kinds. Routing them by row kind
+                // would silently drop a note taken on a custom achievement.
+                if (PersistSharedFacet(editedRow, e.PropertyName))
+                {
+                    return;
+                }
+
+                // A provider row has no authored definition to rewrite: the rest of its edits are
+                // stored as per-field overrides, so it never reaches the custom-definition save.
+                if (editedRow.IsProviderRow)
+                {
+                    PersistProviderRowField(editedRow, e.PropertyName);
+                    return;
+                }
+            }
+
             RefreshComputedState();
             // Like the other Manage tabs, a completed edit persists at once: text boxes commit on
             // focus loss or Enter, toggles and pickers on the click. The commit updates rows in
@@ -1369,6 +1414,148 @@ namespace PlayniteAchievements.ViewModels
                 .Where(row => row != null)
                 .Select(row => row.StateSignature)
                 .ToList());
+        }
+
+        /// <summary>
+        /// Persists the facets stored the same way for every achievement, authored or provider
+        /// supplied, because they key off the ApiName rather than living on a provider payload or
+        /// a custom definition. Returns true when the edit was handled here.
+        /// </summary>
+        private bool PersistSharedFacet(CustomAchievementEditItem row, string propertyName)
+        {
+            var apiName = row.OriginalApiName;
+            if (string.IsNullOrWhiteSpace(apiName))
+            {
+                return false;
+            }
+
+            try
+            {
+                switch (propertyName)
+                {
+                    case nameof(CustomAchievementEditItem.AchievementNote):
+                        _achievementOverridesService.SetAchievementNote(_gameId, apiName, row.AchievementNote);
+                        RaiseAssignmentsChanged();
+                        return true;
+
+                    case nameof(CustomAchievementEditItem.IsGoal):
+                        _achievementOverridesService.SetAchievementGoal(_gameId, apiName, row.IsGoal);
+                        RaiseAssignmentsChanged();
+                        return true;
+
+                    case nameof(CustomAchievementEditItem.IsFiltered):
+                    case nameof(CustomAchievementEditItem.IsSummaryFiltered):
+                        PersistFiltersFromRows();
+                        return true;
+
+                    default:
+                        return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed persisting {propertyName} for achievement {apiName}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Persists one completed edit on a provider-backed row as a per-achievement override.
+        /// </summary>
+        /// <remarks>
+        /// Unlock status and rarity are absent by design: both stay provider-owned, and the row
+        /// disables their editors. The unlock timestamp is only a correction to an achievement that
+        /// is already unlocked.
+        /// </remarks>
+        private void PersistProviderRowField(CustomAchievementEditItem row, string propertyName)
+        {
+            var apiName = row.OriginalApiName;
+            if (string.IsNullOrWhiteSpace(apiName))
+            {
+                return;
+            }
+
+            try
+            {
+                switch (propertyName)
+                {
+                    case nameof(CustomAchievementEditItem.DisplayName):
+                        WriteProviderField(apiName, AchievementEditableField.DisplayName, NormalizeText(row.DisplayName));
+                        break;
+
+                    case nameof(CustomAchievementEditItem.Description):
+                        WriteProviderField(apiName, AchievementEditableField.Description, NormalizeText(row.Description));
+                        break;
+
+                    case nameof(CustomAchievementEditItem.PointsText):
+                        if (!AchievementEditorFieldRules.TryParsePoints(row.PointsText, out var points))
+                        {
+                            row.ValidationMessage = ResourceProvider.GetString(
+                                "LOCPlayAch_Common_Validation_NonNegativeInteger");
+                            return;
+                        }
+
+                        row.ValidationMessage = null;
+                        WriteProviderField(apiName, AchievementEditableField.Points, points);
+                        break;
+
+                    case nameof(CustomAchievementEditItem.TrophyType):
+                        WriteProviderField(apiName, AchievementEditableField.TrophyType, NormalizeText(row.TrophyType));
+                        break;
+
+                    case nameof(CustomAchievementEditItem.UnlockTime):
+                    case nameof(CustomAchievementEditItem.HasUnlockTime):
+                    case nameof(CustomAchievementEditItem.UnlockDate):
+                    case nameof(CustomAchievementEditItem.TimeText):
+                    case nameof(CustomAchievementEditItem.SelectedTimeModeText):
+                        if (!row.Unlocked)
+                        {
+                            return;
+                        }
+
+                        WriteProviderField(apiName, AchievementEditableField.UnlockTimeUtc, row.UnlockTime);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed persisting {propertyName} for achievement {apiName}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+        }
+
+        /// <summary>
+        /// Tells the host that data other surfaces display has changed, so their snapshots reload.
+        /// </summary>
+        private void RaiseAssignmentsChanged()
+        {
+            AssignmentsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void WriteProviderField(string apiName, AchievementEditableField field, object value)
+        {
+            _achievementOverridesService.SetAchievementFieldOverride(_gameId, apiName, field, value);
+            RaiseAssignmentsChanged();
+        }
+
+        /// <summary>
+        /// Both filter lists are stored as whole sets, so one checkbox rewrites them from the
+        /// current row state rather than patching a single entry.
+        /// </summary>
+        private void PersistFiltersFromRows()
+        {
+            var filtered = AchievementRows
+                .Where(row => row != null && row.IsFiltered && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .Select(row => row.OriginalApiName)
+                .ToList();
+            var summaryFiltered = AchievementRows
+                .Where(row => row != null && row.IsSummaryFiltered && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .Select(row => row.OriginalApiName)
+                .ToList();
+
+            _achievementOverridesService.SetAchievementFilters(_gameId, filtered, summaryFiltered);
+            RaiseAssignmentsChanged();
         }
 
         private void RaiseCommandStates()
@@ -1465,6 +1652,11 @@ namespace PlayniteAchievements.ViewModels
         private string _progressDenomText;
         private string _validationMessage;
         private string _baselineSignature;
+        private bool _isProviderRow;
+        private string _achievementNote;
+        private bool _isGoal;
+        private bool _isFiltered;
+        private bool _isSummaryFiltered;
         private TimeMode _selectedTimeMode;
         private int _selectedHour;
         private int _selectedMinute;
@@ -1558,6 +1750,77 @@ namespace PlayniteAchievements.ViewModels
         /// so they are only editable once the row has been saved and has an ApiName.
         /// </summary>
         public bool CanEditAssignments => !string.IsNullOrWhiteSpace(OriginalApiName);
+
+        /// <summary>
+        /// True when this row stands for a provider-supplied achievement rather than one the user
+        /// authored. Set by the merged editor, which lists both kinds in one grid.
+        /// </summary>
+        public bool IsProviderRow
+        {
+            get => _isProviderRow;
+            set
+            {
+                if (SetValueAndReturn(ref _isProviderRow, value))
+                {
+                    OnPropertyChanged(nameof(CanEditRarity));
+                    OnPropertyChanged(nameof(CanEditUnlocked));
+                    OnPropertyChanged(nameof(CanEditProgress));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Rarity is user input only for an authored achievement. A provider achievement's rarity is
+        /// derived from the unlock percentages the provider reports.
+        /// </summary>
+        public bool CanEditRarity =>
+            ManageAchievements.AchievementEditorFieldRules.CanEditRarity(isCustomRow: !IsProviderRow);
+
+        /// <summary>
+        /// Unlock status is authored data on a custom achievement, but provider-owned on a provider
+        /// one: editing it there would move unlocked counts and completion, and read as a real
+        /// unlock to the in-game monitor. Only the timestamp of an already-unlocked provider
+        /// achievement can be corrected.
+        /// </summary>
+        public bool CanEditUnlocked => !IsProviderRow;
+
+        /// <summary>Progress totals are provider-reported; only an authored row defines its own.</summary>
+        public bool CanEditProgress => !IsProviderRow;
+
+        public string AchievementNote
+        {
+            get => _achievementNote;
+            set
+            {
+                if (SetValueAndReturn(ref _achievementNote, value))
+                {
+                    OnPropertyChanged(nameof(HasAchievementNote));
+                    OnPropertyChanged(nameof(NotePreview));
+                }
+            }
+        }
+
+        public bool HasAchievementNote => !string.IsNullOrWhiteSpace(AchievementNote);
+
+        public string NotePreview => AchievementNoteHelper.GetPreviewText(AchievementNote);
+
+        public bool IsGoal
+        {
+            get => _isGoal;
+            set => SetValue(ref _isGoal, value);
+        }
+
+        public bool IsFiltered
+        {
+            get => _isFiltered;
+            set => SetValue(ref _isFiltered, value);
+        }
+
+        public bool IsSummaryFiltered
+        {
+            get => _isSummaryFiltered;
+            set => SetValue(ref _isSummaryFiltered, value);
+        }
 
         public string CategoryLabel
         {
@@ -2075,6 +2338,60 @@ namespace PlayniteAchievements.ViewModels
                 IsNew = true
             };
             row.SyncRarityInputFromState();
+            row.CaptureBaseline();
+            return row;
+        }
+
+        /// <summary>
+        /// Builds an editor row from a hydrated achievement, provider-supplied or custom. The
+        /// merged editor lists both kinds in one grid, so they must be the same row type; the
+        /// difference is carried by <see cref="IsProviderRow"/>, which gates the fields a provider
+        /// achievement does not own.
+        /// </summary>
+        /// <remarks>
+        /// The values come from hydrated data, so any existing override is already applied and the
+        /// row shows the effective value rather than the provider's original.
+        /// </remarks>
+        public static CustomAchievementEditItem FromAchievementDetail(AchievementDetail achievement)
+        {
+            if (achievement == null)
+            {
+                return null;
+            }
+
+            var row = new CustomAchievementEditItem();
+            row.SuppressNotifications = true;
+            row.IsProviderRow = !achievement.IsCustom;
+            row.Id = achievement.IsCustom &&
+                     CustomAchievementProjectionService.TryGetCustomId(achievement.ApiName, out var customId)
+                ? customId
+                : null;
+            row.DisplayName = achievement.DisplayName;
+            row.Description = achievement.Description;
+            row.Unlocked = achievement.Unlocked;
+            row.UnlockTime = achievement.UnlockTimeUtc;
+            row.UnlockedIconPath = achievement.UnlockedIconPath;
+            row.LockedIconPath = achievement.LockedIconPath;
+            row.PointsText = FormatInt(achievement.Points);
+            row.TrophyType = achievement.TrophyType;
+            row.Hidden = achievement.Hidden;
+            row.Rarity = achievement.Rarity.ToString();
+            row.GlobalPercentUnlockedText = FormatDouble(achievement.GlobalPercentUnlocked);
+            row.SyncRarityInputFromState();
+            row.ProgressNumText = FormatInt(achievement.ProgressNum);
+            row.ProgressDenomText = FormatInt(achievement.ProgressDenom);
+            row.CategoryLabel = achievement.Category;
+            row.CategoryTypeValue = achievement.CategoryType;
+            row.IsCapstone = achievement.IsCapstone;
+            row.AchievementNote = achievement.AchievementNote;
+            row.IsGoal = achievement.IsGoal;
+            row.IsFiltered = achievement.IsFiltered;
+            row.IsSummaryFiltered = achievement.IsFilteredFromSummaries;
+            row.ValidationMessage = null;
+            row.SuppressNotifications = false;
+
+            row.OriginalApiName = achievement.ApiName;
+            row.IsNew = false;
             row.CaptureBaseline();
             return row;
         }

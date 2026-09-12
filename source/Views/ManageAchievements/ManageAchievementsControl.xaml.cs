@@ -60,7 +60,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private ManageAchievementsCapstonesTab _capstoneControl;
         private ManageAchievementsManualTrackingTab _manualControl;
-        private ManageAchievementsEditorTab _editorControl;
+        private ManageAchievementsCustomTab _editorControl;
         private ManageAchievementsCustomTab _customControl;
         private ManageAchievementsAchievementOrderTab _achievementOrderControl;
         private ManageAchievementsGoalsTab _goalsControl;
@@ -72,7 +72,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private System.Windows.Threading.DispatcherTimer _iconOverridesChangedDebounce;
         private readonly HashSet<string> _pendingIconOverrideApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private ManualAchievementsViewModel _manualViewModel;
-        private ManageAchievementsEditorViewModel _editorViewModel;
+        private ManageAchievementsCustomViewModel _editorViewModel;
         private ManageAchievementsCustomViewModel _customViewModel;
         private ManageAchievementsAchievementOrderViewModel _achievementOrderViewModel;
         private ManageAchievementsGoalsViewModel _goalsViewModel;
@@ -903,14 +903,25 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             CleanupEditor();
 
-            _editorViewModel = new ManageAchievementsEditorViewModel(
+            // Same view model and view as the Custom tab, told to include provider achievements:
+            // the merged editor is that editor pointed at every achievement rather than only the
+            // authored ones, so it inherits the icon, date, rarity and category editing wholesale.
+            _editorViewModel = new ManageAchievementsCustomViewModel(
                 _viewModel.GameId,
                 _achievementOverridesService,
+                PlayniteAchievementsPlugin.Instance?.GameCustomDataStore,
+                PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService,
                 _gameDataSnapshotProvider,
                 _settings,
-                _logger);
-            _editorViewModel.CustomizationPersisted += EditorViewModel_CustomizationPersisted;
-            _editorControl = new ManageAchievementsEditorTab(_editorViewModel);
+                _logger,
+                PlayniteAchievementsPlugin.Instance?.CustomProviderStore,
+                currentValue => PlayniteAchievementsPlugin.Instance?.PickColor(Window.GetWindow(this), currentValue),
+                editor => CustomProviderEditorDialog.Show(Window.GetWindow(this), editor),
+                includeProviderAchievements: true);
+            _editorViewModel.CustomAchievementsSaved += CustomViewModel_CustomAchievementsSaved;
+            _editorViewModel.AssignmentsChanged += EditorViewModel_CustomizationPersisted;
+            _editorViewModel.CapstoneChanged += CustomViewModel_CapstoneChanged;
+            _editorControl = new ManageAchievementsCustomTab(_editorViewModel);
             EditorHost.Content = _editorControl;
         }
 
@@ -927,7 +938,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             if (_editorViewModel != null)
             {
-                _editorViewModel.CustomizationPersisted -= EditorViewModel_CustomizationPersisted;
+                _editorViewModel.CustomAchievementsSaved -= CustomViewModel_CustomAchievementsSaved;
+                _editorViewModel.AssignmentsChanged -= EditorViewModel_CustomizationPersisted;
+                _editorViewModel.CapstoneChanged -= CustomViewModel_CapstoneChanged;
+                _editorViewModel.Detach();
             }
 
             _editorControl = null;

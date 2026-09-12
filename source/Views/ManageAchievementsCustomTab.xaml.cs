@@ -1,3 +1,5 @@
+using Playnite.SDK;
+using PlayniteAchievements.Views.Dialogs;
 using Microsoft.Win32;
 using Playnite.SDK.Events;
 using PlayniteAchievements.Services.Images;
@@ -79,6 +81,49 @@ namespace PlayniteAchievements.Views
             }
 
             ViewModel.ApplyCategoryToRow(row, CategoryPicker.ResolveSelection());
+        }
+
+        /// <summary>
+        /// Opens the same note editor the Notes tab uses, so a note written here is written the
+        /// same way and gets the markdown-capable editor rather than a bare cell.
+        /// </summary>
+        private void EditNoteButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!((sender as FrameworkElement)?.DataContext is CustomAchievementEditItem row))
+            {
+                return;
+            }
+
+            var dialog = new AchievementNoteDialog(
+                row.DisplayName,
+                row.OriginalApiName,
+                row.AchievementNote,
+                isReadOnly: false,
+                achievementIconSource: row.DisplayIcon);
+
+            var window = PlayniteUiProvider.CreateExtensionWindow(
+                ResourceProvider.GetString("LOCPlayAch_NotesDialog_EditTitle"),
+                dialog,
+                new WindowOptions
+                {
+                    ShowMinimizeButton = false,
+                    ShowMaximizeButton = false,
+                    ShowCloseButton = true,
+                    CanBeResizable = true,
+                    Width = 640,
+                    Height = 560
+                });
+
+            WindowPlacementPersistenceService.Attach(window, "AchievementNoteEdit");
+            dialog.RequestClose += (s, args) => window.Close();
+            window.ShowDialog();
+
+            if (dialog.DialogResult == true)
+            {
+                // Assigning the row's note raises the change that persists it, the same path a
+                // checkbox or committed text box takes.
+                row.AchievementNote = dialog.SavedNote;
+            }
         }
 
         /// <summary>
