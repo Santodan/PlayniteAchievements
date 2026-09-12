@@ -14,11 +14,31 @@ namespace PlayniteAchievements.Services.Tests
     public class AchievementEditorFieldRulesTests
     {
         [TestMethod]
-        public void UnlockStatus_IsNeverEditable()
+        public void UnlockStatus_StaysProviderOwnedOnAProviderRow()
         {
-            // Unlock status stays provider-owned: editing it would move unlocked counts and
-            // completion, and look like a real unlock to the in-game monitor.
-            Assert.IsFalse(AchievementEditorFieldRules.CanEditUnlockStatus());
+            // Editing it would move unlocked counts and completion, and look like a real unlock to
+            // the in-game monitor.
+            Assert.IsFalse(AchievementEditorFieldRules.CanEditUnlockStatus(
+                isCustomRow: false,
+                isManuallyTrackedGame: false));
+        }
+
+        [TestMethod]
+        public void UnlockStatus_IsEditableOnAnAuthoredAchievement()
+        {
+            Assert.IsTrue(AchievementEditorFieldRules.CanEditUnlockStatus(
+                isCustomRow: true,
+                isManuallyTrackedGame: false));
+        }
+
+        [TestMethod]
+        public void UnlockStatus_IsEditableOnEveryRowOfAManuallyTrackedGame()
+        {
+            // Recording unlocks by hand is the whole of manual tracking, so the provider-owned rule
+            // does not apply: there is no provider behind those rows to disagree with.
+            Assert.IsTrue(AchievementEditorFieldRules.CanEditUnlockStatus(
+                isCustomRow: false,
+                isManuallyTrackedGame: true));
         }
 
         [TestMethod]
