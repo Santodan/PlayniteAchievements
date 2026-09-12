@@ -7,6 +7,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.CustomProviders;
 using PlayniteAchievements.Services.GameCustomData;
@@ -46,6 +47,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly CustomProviderStore _customProviderStore;
         private readonly Func<string, string> _pickColor;
         private readonly Func<CustomProviderEditorViewModel, CustomProviderEditorResult> _showEditor;
+        // The host owns the manual-tracking plumbing (refresh runtime, cache, sources); the editor
+        // only needs to ask for the projection and the dialog, so it takes delegates rather than
+        // growing that whole dependency set.
+        private readonly Action<Guid> _manualLinkApplier;
+        private readonly Func<bool> _showManualLinkDialog;
         private bool _isRefreshingAssignments;
         private bool _isCommittingRows;
         private bool _isSyncingTypeOptions;
@@ -60,6 +66,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isApplyingBulk;
         private DispatcherTimer _assignmentsChangedDebounce;
         private bool _assignmentsChangedPending;
+        private DispatcherTimer _manualUnlockDebounce;
+        private bool _manualUnlocksPending;
+        private DateTime _manualUnlockFirstPendingUtc;
+        private bool _isManuallyTrackedGame;
+        private bool _canLinkManualTracking;
+        private static readonly TimeSpan ManualUnlockMaxStaleness = TimeSpan.FromSeconds(2);
         private readonly Dictionary<string, object> _lastWrittenOverrides =
             new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         private bool _hasChanges;
@@ -81,7 +93,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             CustomProviderStore customProviderStore = null,
             Func<string, string> pickColor = null,
             Func<CustomProviderEditorViewModel, CustomProviderEditorResult> showEditor = null,
-            bool includeProviderAchievements = false)
+            bool includeProviderAchievements = false,
+            Action<Guid> manualLinkApplier = null,
+            Func<bool> showManualLinkDialog = null)
         {
             _includeProviderAchievements = includeProviderAchievements;
             _gameId = gameId;
@@ -95,6 +109,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _customProviderStore = customProviderStore;
             _pickColor = pickColor;
             _showEditor = showEditor;
+            _manualLinkApplier = manualLinkApplier;
+            _showManualLinkDialog = showManualLinkDialog;
             if (_customProviderStore != null)
             {
                 _customProviderStore.Changed += CustomProviderStore_Changed;
@@ -125,6 +141,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             RevertCommand = new RelayCommand(
                 _ => RevertSelected(),
                 _ => HasSelection && !IsSaving);
+            ManualLinkCommand = new RelayCommand(_ => OpenManualLinkDialog(), _ => CanLinkManualTracking && !IsSaving);
             ImportFileCommand = new RelayCommand(_ => ImportFile(), _ => !IsSaving);
             ExportTemplateCommand = new RelayCommand(_ => ExportTemplate(), _ => !IsSaving);
             ExportAchievementsCommand = new RelayCommand(_ => ExportAchievements(), _ => HasRows && !IsSaving);
@@ -161,6 +178,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// this clears the facets it shares with provider rows and leaves the definition alone.
         /// </summary>
         public RelayCommand RevertCommand { get; }
+
+        /// <summary>Opens the manual-link dialog for this game.</summary>
+        public RelayCommand ManualLinkCommand { get; }
 
         public RelayCommand ImportFileCommand { get; }
 
@@ -484,6 +504,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public void ReloadData()
         {
+            // The reload re-reads the cache, so a staged unlock has to be written first or the
+            // checkbox the user just ticked visibly reverts.
+            FlushManualUnlocks();
             try
             {
                 var data = _gameCustomDataStore.LoadOrDefault(_gameId);
@@ -534,6 +557,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 CaptureCollectionBaseline();
                 RefreshAssignmentState();
                 RefreshCustomProviderState();
+                ApplyManualTrackingToRows();
                 SeedOverrideWriteCache();
                 SetStatus(null, false);
                 RefreshComputedState();
@@ -563,6 +587,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void Detach()
         {
+            // Before the notification flush, which it ends by raising itself.
+            FlushManualUnlocks();
             // A pending notification must not be lost when the tab closes.
             FlushAssignmentsChanged();
             if (_customProviderStore != null)
@@ -579,6 +605,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             IsCustomOnlyGame = _customProviderStore != null &&
                                rawData != null &&
                                CustomProviderKeys.IsBaseKey(rawData.ProviderKey);
+
+            RefreshManualTrackingState(rawData);
             RebuildCustomProviderOptions();
         }
 
@@ -1672,6 +1700,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// resolves and clones the whole record, so a caller that needs several of them resolves
         /// once here instead of paying for it per value.
         /// </summary>
+        private const string ManualProviderKey = "Manual";
+
         private ResolvedGameCustomData ResolveCurrentCustomData() =>
             GameCustomDataLookup.ResolveGameCustomData(_gameId, _settings?.Persisted);
 
@@ -1922,12 +1952,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         WriteProviderField(apiName, AchievementEditableField.TrophyType, NormalizeText(row.TrophyType));
                         break;
 
+                    case nameof(AchievementEditorRow.Unlocked):
                     case nameof(AchievementEditorRow.UnlockTime):
                     case nameof(AchievementEditorRow.HasUnlockTime):
                     case nameof(AchievementEditorRow.UnlockDate):
                     case nameof(AchievementEditorRow.TimeText):
                     case nameof(AchievementEditorRow.SelectedTimeModeText):
-                        if (!row.Unlocked)
+                        // On a manually tracked game the link is the sole home for both unlock
+                        // state and unlock time. Writing the per-achievement override instead would
+                        // mask the link in the grid while the cache -- and so every count, summary
+                        // and theme surface -- kept the link value, with nothing on screen to explain
+                        // the disagreement.
+                        if (IsManuallyTrackedGame)
+                        {
+                            StageManualUnlocks();
+                            break;
+                        }
+
+                        if (propertyName == nameof(AchievementEditorRow.Unlocked) || !row.Unlocked)
                         {
                             return;
                         }
@@ -2124,6 +2166,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         PersistGoalsFromRows();
                         return;
 
+                    // Unlock state is stored per collection for both row kinds it applies to: the
+                    // link for a manually tracked game, the authored definitions otherwise. Staged
+                    // and written once, rather than per row.
+                    case nameof(AchievementEditorRow.Unlocked):
+                        StageAcrossSelection(row =>
+                        {
+                            if (row.CanEditUnlocked)
+                            {
+                                row.SetUnlockedFromSource(bulk.Unlocked);
+                                if (!bulk.Unlocked)
+                                {
+                                    row.UnlockTime = null;
+                                }
+                            }
+                        });
+                        PersistUnlockStateFromRows();
+                        return;
+
                     // Per-achievement fields: each row persists on its own, because they are stored
                     // per achievement rather than as one collection.
                     case nameof(AchievementEditorRow.DisplayName):
@@ -2259,6 +2319,221 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// Flushed on <see cref="Detach"/> so a pending notification cannot be lost when the tab
         /// closes.
         /// </remarks>
+        /// <summary>
+        /// True when this game's achievements come from a manual link rather than a real provider.
+        /// Its rows then own their unlock state, which no other provider row does.
+        /// </summary>
+        public bool IsManuallyTrackedGame
+        {
+            get => _isManuallyTrackedGame;
+            private set
+            {
+                if (SetValueAndReturn(ref _isManuallyTrackedGame, value))
+                {
+                    OnPropertyChanged(nameof(CanLinkManualTracking));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Records the unlock state of every manually tracked row into the in-memory link and
+        /// schedules the write, rather than writing per tick.
+        /// </summary>
+        /// <remarks>
+        /// Both stores this touches are expensive: the link write serializes the game's whole custom
+        /// data blob, and re-projecting the link onto the cache rewrites every achievement row for
+        /// the game and runs the cache-changed handlers synchronously. Staging into memory keeps a
+        /// tick free, and the pair is then written together so the two can never disagree.
+        /// </remarks>
+        private void StageManualUnlocks()
+        {
+            if (!IsManuallyTrackedGame)
+            {
+                return;
+            }
+
+            _manualUnlocksPending = true;
+            if (_manualUnlockFirstPendingUtc == DateTime.MinValue)
+            {
+                _manualUnlockFirstPendingUtc = DateTime.UtcNow;
+            }
+            else if (DateTime.UtcNow - _manualUnlockFirstPendingUtc > ManualUnlockMaxStaleness)
+            {
+                // A trailing debounce alone never fires while the user keeps ticking, so a long run
+                // of edits would sit unwritten. The cap bounds how much is ever in memory only.
+                FlushManualUnlocks();
+                return;
+            }
+
+            if (_manualUnlockDebounce == null)
+            {
+                _manualUnlockDebounce = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(250)
+                };
+                _manualUnlockDebounce.Tick += (_, __) => FlushManualUnlocks();
+            }
+
+            _manualUnlockDebounce.Stop();
+            _manualUnlockDebounce.Start();
+        }
+
+        /// <summary>
+        /// Writes the staged unlock state: the link first, then the cache projected from it.
+        /// </summary>
+        /// <remarks>
+        /// The order is load-bearing. The link is the only copy of this data that cannot be
+        /// re-fetched, so it is committed first; the cache write is a projection a refresh can
+        /// rebuild. Reversed, a failed link write would leave a cache the next refresh silently
+        /// reverts. The cache is re-read here rather than captured when the edit was staged, so a
+        /// provider refresh that landed in between contributes its definitions while the user's
+        /// unlock state still wins.
+        /// </remarks>
+        private void FlushManualUnlocks()
+        {
+            _manualUnlockDebounce?.Stop();
+            if (!_manualUnlocksPending)
+            {
+                return;
+            }
+
+            _manualUnlocksPending = false;
+            _manualUnlockFirstPendingUtc = DateTime.MinValue;
+
+            try
+            {
+                var unlocked = new Dictionary<string, DateTime?>(StringComparer.OrdinalIgnoreCase);
+                foreach (var row in AchievementRows)
+                {
+                    // Authored achievements carry their own unlock state on their definition and are
+                    // not part of the link, even on a game that also has one.
+                    if (row == null ||
+                        !row.IsProviderRow ||
+                        !row.Unlocked ||
+                        string.IsNullOrWhiteSpace(row.OriginalApiName))
+                    {
+                        continue;
+                    }
+
+                    unlocked[row.OriginalApiName] = row.UnlockTime;
+                }
+
+                if (!_achievementOverridesService.SetManualUnlockStates(_gameId, unlocked))
+                {
+                    return;
+                }
+
+                _manualLinkApplier?.Invoke(_gameId);
+                RaiseAssignmentsChanged();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed saving manual unlock state for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+        }
+
+        /// <summary>
+        /// Stamps the game-level manual-tracking flag onto every row, so each row can answer whether
+        /// its unlock state is editable without reaching back to the game.
+        /// </summary>
+        private void ApplyManualTrackingToRows()
+        {
+            foreach (var row in AchievementRows)
+            {
+                if (row != null)
+                {
+                    row.IsManuallyTrackedGame = IsManuallyTrackedGame;
+                }
+            }
+
+            if (_bulkRow != null)
+            {
+                _bulkRow.IsManuallyTrackedGame = IsManuallyTrackedGame;
+            }
+        }
+
+        /// <summary>
+        /// Persists unlock state after a bulk edit, routed by where that game stores it: the manual
+        /// link, or the authored achievement definitions.
+        /// </summary>
+        private void PersistUnlockStateFromRows()
+        {
+            if (IsManuallyTrackedGame)
+            {
+                StageManualUnlocks();
+                return;
+            }
+
+            RefreshComputedState();
+            _ = SaveAsync();
+        }
+
+        /// <summary>
+        /// Whether the header offers manual linking for this game. Same rule as the Manage window's
+        /// nav rail, through the shared helper, so the two surfaces cannot disagree about when
+        /// manual tracking is on offer.
+        /// </summary>
+        public bool CanLinkManualTracking
+        {
+            get => _canLinkManualTracking;
+            private set
+            {
+                if (SetValueAndReturn(ref _canLinkManualTracking, value))
+                {
+                    ManualLinkCommand.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        private void RefreshManualTrackingState(GameAchievementData rawData)
+        {
+            // ProviderKey, not ProviderPlatformKey: a link with a display-platform override reports
+            // the platform it stands in for (say PSN) while the provider stays Manual, so testing
+            // the platform key would miss every overridden link.
+            var hasLink = _gameCustomDataStore.LoadOrDefault(_gameId)?.ManualLink != null;
+            IsManuallyTrackedGame =
+                hasLink &&
+                rawData != null &&
+                string.Equals(rawData.ProviderKey, ManualProviderKey, StringComparison.OrdinalIgnoreCase);
+
+            var cachedProviderKey = (rawData?.ProviderKey ?? string.Empty).Trim();
+            var hasCachedAchievements = rawData?.Achievements?.Count > 0;
+            var hasNonManualProviderData =
+                hasCachedAchievements &&
+                !string.IsNullOrWhiteSpace(cachedProviderKey) &&
+                !string.Equals(cachedProviderKey, ManualProviderKey, StringComparison.OrdinalIgnoreCase);
+
+            CanLinkManualTracking = _showManualLinkDialog != null && ManualTrackingAvailability.CanLink(
+                hasLink,
+                ManualAchievementsProvider.IsTrackingOverrideEnabled(),
+                GameCustomDataLookup.IsExcludedFromRefreshes(_gameId, _settings?.Persisted, _gameCustomDataStore),
+                hasCachedAchievements,
+                hasNonManualProviderData);
+        }
+
+        /// <summary>
+        /// Opens the manual-link dialog, then reloads so a new link's achievements appear as rows.
+        /// </summary>
+        /// <remarks>
+        /// Any pending unlock edits are flushed first: linking rewrites the link wholesale, so a
+        /// staged edit written afterwards would be applied against a link the user just replaced.
+        /// </remarks>
+        private void OpenManualLinkDialog()
+        {
+            if (_showManualLinkDialog == null)
+            {
+                return;
+            }
+
+            FlushManualUnlocks();
+            if (_showManualLinkDialog())
+            {
+                ReloadData();
+                RaiseAssignmentsChanged();
+            }
+        }
+
         private void RaiseAssignmentsChanged()
         {
             if (_assignmentsChangedDebounce == null)
@@ -2482,6 +2757,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isValidTime = true;
         private bool _isUpdatingFromText;
         private bool _isApplyingPickerUpdate;
+        private bool _isManuallyTrackedGame;
 
         private static readonly string[] TimeModeDisplayNames = { "AM", "PM", "24hr" };
 
@@ -2602,12 +2878,31 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ManageAchievements.AchievementEditorFieldRules.CanEditRarity(isCustomRow: !IsProviderRow);
 
         /// <summary>
-        /// Unlock status is authored data on a custom achievement, but provider-owned on a provider
-        /// one: editing it there would move unlocked counts and completion, and read as a real
-        /// unlock to the in-game monitor. Only the timestamp of an already-unlocked provider
-        /// achievement can be corrected.
+        /// True when this row belongs to a game whose achievements are tracked manually. Set by the
+        /// loader from the game, not from the row: it is a property of the link, and every row of a
+        /// linked game shares it.
         /// </summary>
-        public bool CanEditUnlocked => !IsProviderRow;
+        public bool IsManuallyTrackedGame
+        {
+            get => _isManuallyTrackedGame;
+            set
+            {
+                if (SetValueAndReturn(ref _isManuallyTrackedGame, value))
+                {
+                    OnPropertyChanged(nameof(CanEditUnlocked));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Unlock status is authored data on a custom achievement and user-recorded on a manually
+        /// tracked game, but provider-owned everywhere else: editing it there would move unlocked
+        /// counts and completion, and read as a real unlock to the in-game monitor.
+        /// </summary>
+        public bool CanEditUnlocked =>
+            ManageAchievements.AchievementEditorFieldRules.CanEditUnlockStatus(
+                isCustomRow: !IsProviderRow,
+                isManuallyTrackedGame: IsManuallyTrackedGame);
 
         /// <summary>Progress totals are provider-reported; only an authored row defines its own.</summary>
         public bool CanEditProgress => !IsProviderRow;
