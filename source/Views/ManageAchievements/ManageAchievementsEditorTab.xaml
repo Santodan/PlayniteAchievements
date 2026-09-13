@@ -333,8 +333,9 @@
                     </WrapPanel>
 
                     <!-- Second row: the shortcuts that rewrite one facet of the list, kept off the
-                         row of per-achievement actions above them. -->
-                    <WrapPanel HorizontalAlignment="Right">
+                         row of per-achievement actions above them. Left within the block the row
+                         above sizes, so these start under Add rather than under the reset. -->
+                    <WrapPanel HorizontalAlignment="Left">
                         <Button x:Name="AutoCapstoneButton"
                                 Content="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstone}"
                                 ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstoneHint}"
