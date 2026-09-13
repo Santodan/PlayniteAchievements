@@ -504,8 +504,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.Description = SharedValue(r => r.Description);
             row.PointsText = SharedValue(r => r.PointsText);
             row.TrophyType = SharedValue(r => r.TrophyType);
-            row.CategoryLabel = SharedValue(r => r.CategoryLabel);
-            row.CategoryTypeValue = SharedValue(r => r.CategoryTypeValue);
+            row.CategoryLabel = SharedValue(r => r.EffectiveCategoryLabel);
+            row.CategoryTypeValue = SharedValue(r => r.EffectiveCategoryTypeValue);
             row.AchievementNote = SharedValue(r => r.AchievementNote);
             row.RarityInput = SharedValue(r => r.RarityInput);
             row.ProgressNumText = SharedValue(r => r.ProgressNumText);
@@ -543,8 +543,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _isApplyingBulk = true;
             try
             {
-                _bulkRow.CategoryLabel = SharedValue(r => r.CategoryLabel);
-                _bulkRow.CategoryTypeValue = SharedValue(r => r.CategoryTypeValue);
+                _bulkRow.CategoryLabel = SharedValue(r => r.EffectiveCategoryLabel);
+                _bulkRow.CategoryTypeValue = SharedValue(r => r.EffectiveCategoryTypeValue);
                 _bulkRow.SetFilterScopeFromSource(SharedScope());
                 _bulkRow.SetGoalFromSource(SharedFlagOrNull(r => r.IsGoal));
                 _bulkRow.SetHiddenFromSource(SharedFlagOrNull(r => r.Hidden));
@@ -808,6 +808,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     row.ProviderUnlockedIconPath = raw.UnlockedIconPath;
                     row.ProviderLockedIconPath = raw.LockedIconPath;
                     row.ProviderHidden = raw.Hidden;
+                    // The hydrated row carries the overridden type, so the provider's own is only
+                    // available here. Without it an existing type override would compare equal to
+                    // "what the provider says" and be dropped on the next write.
+                    row.ProviderCategoryTypeValue = raw.CategoryType;
                 }
             }
         }
@@ -1879,7 +1883,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             labels.AddRange(AchievementRows
-                .Select(row => row?.CategoryLabel)
+                .Select(row => row?.EffectiveCategoryLabel)
                 .Where(label => !string.IsNullOrWhiteSpace(label)));
             labels.AddRange(GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted)?.Keys
                 ?? Enumerable.Empty<string>());
@@ -1910,7 +1914,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // the type ticks describing one row while the button beside them described the
                 // whole selection.
                 var selectedTypes = new HashSet<string>(
-                    AchievementCategoryTypeHelper.ParseValues(EditTarget?.CategoryTypeValue),
+                    AchievementCategoryTypeHelper.ParseValues(EditTarget?.EffectiveCategoryTypeValue),
                     StringComparer.OrdinalIgnoreCase);
                 foreach (var option in TypeSelectionOptions)
                 {
@@ -2705,7 +2709,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void PersistCategoryAssignmentsFromRows()
         {
             PersistAssignmentMaps(
-                BuildAssignmentMap(row => row.CategoryLabel, row => row.ProviderCategoryLabel, CategoryPathHelper.IsSame),
+                BuildAssignmentMap(
+                    row => row.CategoryLabel,
+                    row => row.ProviderCategoryLabel,
+                    (assigned, provider) => CategoryPathHelper.IsSame(
+                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(assigned),
+                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(provider))),
                 BuildAssignmentMap(
                     row => row.CategoryTypeValue,
                     row => row.ProviderCategoryTypeValue,
@@ -3172,7 +3181,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var categoryType = SelectedTypeFilter?.Value;
             if (!string.IsNullOrWhiteSpace(categoryType) &&
-                !string.Equals(NormalizeText(row.CategoryTypeValue), categoryType, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(NormalizeText(row.EffectiveCategoryTypeValue), categoryType, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -3881,13 +3890,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
-                var assigned = (CategoryLabel ?? string.Empty).Trim();
-                return !string.IsNullOrWhiteSpace(assigned) &&
-                       !string.Equals(assigned, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
-                    ? assigned
-                    : AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel);
+                var assigned = AchievementCategoryTypeHelper.NormalizeCategory(CategoryLabel);
+                return assigned ?? AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel);
             }
         }
+
+        /// <summary>
+        /// The category type the achievement actually carries: the user's override when they set
+        /// one, otherwise the provider's own.
+        /// </summary>
+        public string EffectiveCategoryTypeValue =>
+            AchievementCategoryTypeHelper.Normalize(CategoryTypeValue) ??
+            AchievementCategoryTypeHelper.NormalizeOrDefault(ProviderCategoryTypeValue);
 
         /// <summary>
         /// The achievement's position in the provider's own order, stamped by the loader before
@@ -4061,7 +4075,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string CategoryLabel
         {
             get => _categoryLabel;
-            set => SetValue(ref _categoryLabel, value);
+            set
+            {
+                if (SetValueAndReturn(ref _categoryLabel, value))
+                {
+                    OnPropertyChanged(nameof(EffectiveCategoryLabel));
+                }
+            }
         }
 
         public string CategoryTypeValue
@@ -4071,6 +4091,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _categoryTypeValue, value))
                 {
+                    OnPropertyChanged(nameof(EffectiveCategoryTypeValue));
                     OnPropertyChanged(nameof(CategoryTypeDisplayText));
                 }
             }
@@ -4081,7 +4102,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             get
             {
                 // The Default sentinel renders blank in grid cells; a button needs a label.
-                var text = AchievementCategoryTypeHelper.ToDisplayText(CategoryTypeValue);
+                var text = AchievementCategoryTypeHelper.ToDisplayText(EffectiveCategoryTypeValue);
                 return string.IsNullOrWhiteSpace(text)
                     ? AchievementCategoryTypeHelper.ToCategoryTypeDisplayText(AchievementCategoryTypeHelper.NormalizeOrDefault(null))
                     : text;
@@ -4787,7 +4808,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.OriginalApiName = achievement.ApiName;
             // The provider's own label, which Category holds only until an override replaces it.
             row.ProviderCategoryLabel = achievement.ProviderCategory ?? achievement.Category;
-            row.ProviderCategoryTypeValue = achievement.CategoryType;
             row.IsNew = false;
             row.CaptureBaseline();
             return row;

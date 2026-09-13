@@ -184,7 +184,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private void SeedCategoryPicker()
         {
             _categoryPickerRow = ViewModel?.EditTarget;
-            CategoryPicker.SetInitialCategory(_categoryPickerRow?.CategoryLabel);
+            // The effective label, so the picker opens showing the category the achievement is
+            // actually in rather than only a category the user had overridden it to.
+            CategoryPicker.SetInitialCategory(_categoryPickerRow?.EffectiveCategoryLabel);
         }
 
         /// <summary>
