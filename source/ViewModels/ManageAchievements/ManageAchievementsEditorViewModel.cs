@@ -380,7 +380,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // Rebuilt on every selection change, so the game-level flag has to be stamped here too;
             // without it the proxy refuses unlock edits on a manually tracked game.
             row.IsManuallyTrackedGame = IsManuallyTrackedGame;
-            row.SetUnlockedFromSource(SharedFlag(r => r.Unlocked));
+            row.SetUnlockedStateFromSource(SharedFlagOrNull(r => r.Unlocked));
             row.DisplayName = SharedValue(r => r.DisplayName);
             row.Description = SharedValue(r => r.Description);
             row.PointsText = SharedValue(r => r.PointsText);
@@ -389,8 +389,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.CategoryTypeValue = SharedValue(r => r.CategoryTypeValue);
             row.AchievementNote = SharedValue(r => r.AchievementNote);
             row.RarityInput = SharedValue(r => r.RarityInput);
-            row.IsGoal = SharedFlag(r => r.IsGoal);
-            row.Hidden = SharedFlag(r => r.Hidden);
+            row.SetGoalFromSource(SharedFlagOrNull(r => r.IsGoal));
+            row.SetHiddenFromSource(SharedFlagOrNull(r => r.Hidden));
             row.SetFilterScopeFromSource(SharedScope());
             row.SuppressNotifications = false;
 
@@ -406,16 +406,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 : null;
         }
 
-        private bool SharedFlag(Func<AchievementEditorRow, bool> selector)
+        /// <summary>
+        /// A flag the selection agrees on, or null when it disagrees, so the proxy checkbox can
+        /// tell "all unchecked" apart from "these rows differ".
+        /// </summary>
+        private bool? SharedFlagOrNull(Func<AchievementEditorRow, bool> selector)
         {
             var first = selector(_selectedRows[0]);
-            return _selectedRows.All(r => selector(r) == first) && first;
+            return _selectedRows.All(r => selector(r) == first) ? first : (bool?)null;
         }
 
         private AchievementFilterScope SharedScope()
         {
             var first = _selectedRows[0].FilterScope;
-            return _selectedRows.All(r => r.FilterScope == first) ? first : AchievementFilterScope.None;
+            return _selectedRows.All(r => r.FilterScope == first) ? first : AchievementFilterScope.Mixed;
         }
 
         public bool HasRows
@@ -2265,6 +2269,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         return;
 
                     case nameof(AchievementEditorRow.FilterScope):
+                        // The blank stands for disagreement, not a setting: applying it would
+                        // clear every selected row's filter instead of leaving them alone.
+                        if (bulk.FilterScope == AchievementFilterScope.Mixed)
+                        {
+                            return;
+                        }
+
                         StageAcrossSelection(row => row.SetFilterScopeFromSource(bulk.FilterScope));
                         PersistFiltersFromRows();
                         return;
@@ -3165,6 +3176,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isUpdatingFromText;
         private bool _isApplyingPickerUpdate;
         private bool _isManuallyTrackedGame;
+        // Display-only, and only ever set on the bulk proxy: the selected rows disagree on this
+        // facet, so the pane shows nothing rather than a value that would be applied.
+        private bool _filterScopeIsMixed;
+        private bool _unlockedIsMixed;
+        private bool _hiddenIsMixed;
+        private bool _isGoalIsMixed;
 
         private static readonly string[] TimeModeDisplayNames = { "AM", "PM", "24hr" };
 
@@ -3365,7 +3382,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool IsGoal
         {
             get => _isGoal;
-            set => SetValue(ref _isGoal, value);
+            set
+            {
+                if (SetValueAndReturn(ref _isGoal, value))
+                {
+                    OnPropertyChanged(nameof(IsGoalState));
+                }
+            }
         }
 
         public bool IsFiltered
@@ -3406,6 +3429,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
+                if (_filterScopeIsMixed)
+                {
+                    return AchievementFilterScope.Mixed;
+                }
+
                 if (IsFiltered)
                 {
                     return AchievementFilterScope.All;
@@ -3416,10 +3444,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             set
             {
-                if (value == FilterScope)
+                // Mixed is what the proxy shows, never something the user can pick: the dropdown
+                // does not list it, so this only arrives when a binding echoes the value back.
+                if (value == AchievementFilterScope.Mixed || value == FilterScope)
                 {
                     return;
                 }
+
+                // Leaving the blank behind is the point of the assignment, and the scope it
+                // stood for is unknowable, so every pick from a mixed proxy counts as a change.
+                _filterScopeIsMixed = false;
 
                 // Set the pair together, then raise once: the two flags persist as whole lists, so
                 // letting each raise separately would write the game's filters twice per change.
@@ -3510,6 +3544,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         UnlockTime = null;
                     }
 
+                    OnPropertyChanged(nameof(UnlockedState));
                     OnPropertyChanged(nameof(CanEditUnlockTime));
                     NotifyRevealStateChanged();
                 }
@@ -3529,6 +3564,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         internal void SetFilterScopeFromSource(AchievementFilterScope scope)
         {
+            _filterScopeIsMixed = scope == AchievementFilterScope.Mixed;
             _isFiltered = scope == AchievementFilterScope.All;
             _isSummaryFiltered = scope == AchievementFilterScope.Summary;
             OnPropertyChanged(nameof(IsFiltered));
@@ -3545,8 +3581,109 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             _unlocked = unlocked;
             OnPropertyChanged(nameof(Unlocked));
+            OnPropertyChanged(nameof(UnlockedState));
             OnPropertyChanged(nameof(CanEditUnlockTime));
             NotifyRevealStateChanged();
+        }
+
+        /// <summary>
+        /// The three flags the details pane binds, as nullable so a bulk proxy can show a blank
+        /// checkbox for a selection that disagrees.
+        /// </summary>
+        /// <remarks>
+        /// A blank is only ever a display state: setting one back to blank is ignored, and picking
+        /// either real value applies it even when it matches what the blank was standing in front
+        /// of, which is what lets a mixed selection be set to the unchecked pole.
+        /// </remarks>
+        public bool? UnlockedState
+        {
+            get => _unlockedIsMixed ? (bool?)null : Unlocked;
+            set => ApplyTriState(
+                value,
+                ref _unlockedIsMixed,
+                () => Unlocked,
+                next => Unlocked = next,
+                nameof(Unlocked),
+                nameof(UnlockedState));
+        }
+
+        public bool? HiddenState
+        {
+            get => _hiddenIsMixed ? (bool?)null : Hidden;
+            set => ApplyTriState(
+                value,
+                ref _hiddenIsMixed,
+                () => Hidden,
+                next => Hidden = next,
+                nameof(Hidden),
+                nameof(HiddenState));
+        }
+
+        public bool? IsGoalState
+        {
+            get => _isGoalIsMixed ? (bool?)null : IsGoal;
+            set => ApplyTriState(
+                value,
+                ref _isGoalIsMixed,
+                () => IsGoal,
+                next => IsGoal = next,
+                nameof(IsGoal),
+                nameof(IsGoalState));
+        }
+
+        private void ApplyTriState(
+            bool? value,
+            ref bool isMixed,
+            Func<bool> read,
+            Action<bool> apply,
+            string valueProperty,
+            string stateProperty)
+        {
+            if (!value.HasValue)
+            {
+                return;
+            }
+
+            var wasMixed = isMixed;
+            isMixed = false;
+            if (read() != value.Value)
+            {
+                apply(value.Value);
+            }
+            else if (wasMixed)
+            {
+                // The blank was standing in for this value, so the assignment compares as no
+                // change; raise anyway or picking it would silently do nothing.
+                OnPropertyChanged(valueProperty);
+            }
+
+            OnPropertyChanged(stateProperty);
+        }
+
+        /// <summary>Seeds the unlock flag, or blanks it for a selection that disagrees.</summary>
+        internal void SetUnlockedStateFromSource(bool? unlocked)
+        {
+            _unlockedIsMixed = !unlocked.HasValue;
+            SetUnlockedFromSource(unlocked ?? false);
+        }
+
+        /// <summary>Seeds the hidden flag, or blanks it for a selection that disagrees.</summary>
+        internal void SetHiddenFromSource(bool? hidden)
+        {
+            _hiddenIsMixed = !hidden.HasValue;
+            _hidden = hidden ?? false;
+            OnPropertyChanged(nameof(Hidden));
+            OnPropertyChanged(nameof(HiddenState));
+            NotifyRevealStateChanged();
+        }
+
+        /// <summary>Seeds the goal flag, or blanks it for a selection that disagrees.</summary>
+        internal void SetGoalFromSource(bool? isGoal)
+        {
+            _isGoalIsMixed = !isGoal.HasValue;
+            _isGoal = isGoal ?? false;
+            OnPropertyChanged(nameof(IsGoal));
+            OnPropertyChanged(nameof(IsGoalState));
         }
 
         public DateTime? UnlockTime
@@ -3669,6 +3806,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _hidden, value))
                 {
+                    OnPropertyChanged(nameof(HiddenState));
                     NotifyRevealStateChanged();
                 }
             }

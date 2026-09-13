@@ -1,4 +1,4 @@
-namespace PlayniteAchievements.ViewModels.ManageAchievements
+﻿namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
     /// <summary>
     /// How far an achievement is hidden. The two stored filter flags are a scale rather than
@@ -13,7 +13,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         Summary,
 
         /// <summary>Hidden from achievement views as well as summaries, and from all counts.</summary>
-        All
+        All,
+
+        /// <summary>
+        /// Display only, for a multi-selection whose rows disagree. It is never stored, never
+        /// returned for a single achievement, and never offered as a choice: the dropdown lists
+        /// only the three real scopes, so a proxy row holding this renders blank and picking any
+        /// real scope compares as a change.
+        /// </summary>
+        Mixed
     }
 
     /// <summary>

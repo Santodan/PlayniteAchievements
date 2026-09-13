@@ -1,4 +1,4 @@
-<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsEditorTab"
+﻿<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsEditorTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -675,8 +675,12 @@
                                           Stretch="Uniform"
                                           Margin="0,0,4,0"
                                           VerticalAlignment="Center" />
+                                    <!-- Three-state only for the bulk proxy: a blank tick means the
+                                         selected rows disagree, so nothing is applied until a real
+                                         value is picked. -->
                                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_Unlocked}"
-                                              IsChecked="{Binding Unlocked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsChecked="{Binding UnlockedState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsThreeState="{Binding IsBulkRow}"
                                               IsEnabled="{Binding CanEditUnlocked}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,18,2"
@@ -689,7 +693,8 @@
                                            helpers:AsyncImage.Uri="{Binding DataContext.HiddenCoverIcon, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                            helpers:AsyncImage.DecodePixel="28" />
                                     <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Custom_Hidden}"
-                                              IsChecked="{Binding Hidden, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsChecked="{Binding HiddenState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsThreeState="{Binding IsBulkRow}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,0,2"
                                               VerticalContentAlignment="Center" />
@@ -717,7 +722,8 @@
                                                Margin="0,0,4,0"
                                                VerticalAlignment="Center" />
                                     <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}"
-                                              IsChecked="{Binding IsGoal, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsChecked="{Binding IsGoalState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsThreeState="{Binding IsBulkRow}"
                                               IsEnabled="{Binding CanEditAssignments}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,0,2"
