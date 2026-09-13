@@ -601,14 +601,23 @@
                         <DataGridTemplateColumn.Header>
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
+                                <!-- Mirrors the toggle's footprint on the other side, so the title
+                                     sits centered on the column rather than on what is left of it,
+                                     while the toggle stays out at the edge above the row ones. It
+                                     gives the width back when there is no toggle to balance. -->
+                                <Border Grid.Column="0"
+                                        Width="30"
+                                        Visibility="{Binding DataContext.CanRevealAnyTitle, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Grid.Column="1"
                                            Text="{DynamicResource LOCPlayAch_Column_AchievementName}"
+                                           HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis" />
-                                <Button Grid.Column="1"
+                                <Button Grid.Column="2"
                                         Style="{StaticResource RevealHeaderToggleButtonStyle}"
                                         Visibility="{Binding DataContext.CanRevealAnyTitle, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding DataContext.ToggleAllTitlesRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
@@ -673,14 +682,23 @@
                         <DataGridTemplateColumn.Header>
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
+                                <!-- Mirrors the toggle's footprint on the other side, so the title
+                                     sits centered on the column rather than on what is left of it,
+                                     while the toggle stays out at the edge above the row ones. It
+                                     gives the width back when there is no toggle to balance. -->
+                                <Border Grid.Column="0"
+                                        Width="30"
+                                        Visibility="{Binding DataContext.CanRevealAnyDescription, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Grid.Column="1"
                                            Text="{DynamicResource LOCPlayAch_Column_Description}"
+                                           HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis" />
-                                <Button Grid.Column="1"
+                                <Button Grid.Column="2"
                                         Style="{StaticResource RevealHeaderToggleButtonStyle}"
                                         Visibility="{Binding DataContext.CanRevealAnyDescription, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding DataContext.ToggleAllDescriptionsRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
