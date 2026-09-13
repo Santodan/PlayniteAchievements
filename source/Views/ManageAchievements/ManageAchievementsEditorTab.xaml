@@ -424,14 +424,11 @@
                                 <!-- The transparent stretched Border is what makes the whole cell
                                      draggable: a bare glyph only hit-tests on its own pixels, so
                                      the press falls through to the row and no drag starts. -->
-                                <!-- Hidden while the grid is narrowed: ordering is one list over
-                                     every achievement, so it cannot be edited from a subset. -->
                                 <Border Tag="DragHandle"
                                         Background="Transparent"
                                         HorizontalAlignment="Stretch"
                                         VerticalAlignment="Stretch"
                                         Cursor="SizeAll"
-                                        Visibility="{Binding DataContext.IsFiltering, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}"
                                         ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}">
                                     <TextBlock Tag="DragHandle"
                                                Text="&#x2630;"

@@ -2105,14 +2105,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _logger?.Debug(
                 $"[Editor] Reorder drop onto target: dragged={draggedApiNames?.Count ?? 0} " +
                 $"target='{targetApiName}' after={insertAfterTarget}.");
-            // Position is stored as one list over every achievement, so a drop while the grid is
-            // narrowed would move the row next to a neighbour the user cannot see. Refused rather
-            // than guessed at.
-            if (IsFiltering)
-            {
-                return false;
-            }
-
             if (draggedApiNames == null || draggedApiNames.Count == 0 || string.IsNullOrWhiteSpace(targetApiName))
             {
                 return false;
@@ -2145,14 +2137,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // that misses the rows is indistinguishable from one that never arrived.
             _logger?.Debug(
                 $"[Editor] Reorder drop to end: dragged={draggedApiNames?.Count ?? 0} rows={AchievementRows.Count}.");
-            // Position is stored as one list over every achievement, so a drop while the grid is
-            // narrowed would move the row next to a neighbour the user cannot see. Refused rather
-            // than guessed at.
-            if (IsFiltering)
-            {
-                return false;
-            }
-
             if (draggedApiNames == null || draggedApiNames.Count == 0 || AchievementRows.Count == 0)
             {
                 return false;
