@@ -268,9 +268,10 @@
                             </Button.ContextMenu>
                         </Button>
                     </StackPanel>
-                    <Button x:Name="ClearButton"
-                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
-                            Command="{Binding ClearCommand}"
+                    <Button x:Name="ResetButton"
+                            Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                            ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Custom_ResetHint}"
+                            Command="{Binding ResetCommand}"
                             Style="{StaticResource ToolbarButtonStyle}"
                             Margin="0,0,0,8" />
                 </WrapPanel>

@@ -165,7 +165,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ImportFileCommand = new RelayCommand(_ => ImportFile(), _ => !IsSaving);
             ExportTemplateCommand = new RelayCommand(_ => ExportTemplate(), _ => !IsSaving);
             ExportAchievementsCommand = new RelayCommand(_ => ExportAchievements(), _ => HasRows && !IsSaving);
-            ClearCommand = new RelayCommand(_ => ClearRows(), _ => HasRows && !IsSaving);
+            ResetCommand = new RelayCommand(_ => ResetRows(), _ => HasRows && !IsSaving);
 
             ReloadData();
         }
@@ -208,7 +208,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public RelayCommand ExportAchievementsCommand { get; }
 
-        public RelayCommand ClearCommand { get; }
+        /// <summary>
+        /// Drops every customization this game carries -- the authored achievements, the
+        /// per-achievement overrides, and the game-level lists -- leaving the providers' own data.
+        /// </summary>
+        public RelayCommand ResetCommand { get; }
 
         public RelayCommand AddCustomProviderCommand { get; }
 
@@ -1120,6 +1124,50 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            ResetCustomizations(targets, deleteAuthored: false);
+        }
+
+        /// <summary>
+        /// Drops every customization the game carries, authored achievements included, and reloads
+        /// so the grid shows what the providers supply.
+        /// </summary>
+        private void ResetRows()
+        {
+            if (ShowConfirmation(
+                    L("LOCPlayAch_ManageAchievements_Custom_ResetConfirm", "Reset all achievement customization for this game?"),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OKCancel,
+                    MessageBoxImage.Warning) != MessageBoxResult.OK)
+            {
+                return;
+            }
+
+            ResetCustomizations(
+                AchievementRows
+                    .Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                    .ToList(),
+                deleteAuthored: true);
+        }
+
+        /// <summary>
+        /// Clears the stored customization for the given achievements, and for a whole-game reset
+        /// the game-level lists and the authored achievements with them.
+        /// </summary>
+        /// <remarks>
+        /// Each facet is cleared through the writer that owns it, so the stored shapes stay
+        /// consistent: the per-achievement record for the editable fields, the icons and the note,
+        /// and the whole-collection writes for categories, filters, goals and the order. The rows
+        /// are reloaded rather than emptied, because the provider's achievements are not this
+        /// editor's to delete -- clearing them from the grid only made it disagree with the store
+        /// until the window was reopened.
+        /// </remarks>
+        private void ResetCustomizations(IReadOnlyList<AchievementEditorRow> targets, bool deleteAuthored)
+        {
+            if (targets == null || targets.Count == 0)
+            {
+                return;
+            }
+
             try
             {
                 var apiNames = new HashSet<string>(
@@ -1145,19 +1193,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 PersistFiltersFromRows();
                 PersistGoalsFromRows();
 
-                if (targets.Any(row => row.IsCapstone))
+                if (deleteAuthored || targets.Any(row => row.IsCapstone))
                 {
                     _achievementOverridesService.SetCapstone(_gameId, null);
                 }
 
-                RevertOrderForRows(targets);
+                if (deleteAuthored)
+                {
+                    // Nothing is left to re-seat against, so the order is dropped outright rather
+                    // than rewritten without the reverted rows.
+                    _achievementOverridesService.SetAchievementOrderOverride(_gameId, Array.Empty<string>());
+                    _achievementOverridesService.SetCustomAchievements(_gameId, Array.Empty<CustomAchievementDefinition>());
+                    CustomAchievementsSaved?.Invoke(this, EventArgs.Empty);
+                }
+                else
+                {
+                    RevertOrderForRows(targets);
+                }
 
                 ReloadData();
                 SetStatus(null, false);
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, $"Failed reverting achievements for gameId={_gameId}.");
+                _logger?.Error(ex, $"Failed resetting achievements for gameId={_gameId}.");
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
             }
         }
@@ -1402,30 +1461,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private void ClearRows()
-        {
-            var result = ShowConfirmation(
-                L("LOCPlayAch_ManageAchievements_Custom_ClearConfirm", "Clear all custom achievements for this game?"),
-                L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
-                MessageBoxButton.OKCancel,
-                MessageBoxImage.Warning);
-            if (result != MessageBoxResult.OK)
-            {
-                return;
-            }
-
-            foreach (var row in AchievementRows)
-            {
-                row.PropertyChanged -= Row_PropertyChanged;
-            }
-
-            AchievementRows.Clear();
-            SelectedRow = null;
-            SetStatus(null, false);
-            RefreshComputedState();
-            _ = SaveAsync();
-        }
-
         private List<CustomAchievementDefinition> BuildValidatedDefinitions(
             out Dictionary<string, string> renameMap,
             out List<string> errors)
@@ -1617,6 +1652,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 row.PropertyChanged -= Row_PropertyChanged;
             }
+
+            // The multi-selection is made of the rows being replaced, and the grid only echoes a
+            // fresh one back once it has processed the reset. Dropping it here keeps a selection
+            // edit that lands in between from staging onto detached rows, where it would be
+            // written out of a collection that no longer contains them.
+            SetSelectedRows(Array.Empty<AchievementEditorRow>());
 
             AchievementRows.Clear();
             foreach (var row in rows ?? Enumerable.Empty<AchievementEditorRow>())
@@ -3294,7 +3335,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ImportFileCommand.RaiseCanExecuteChanged();
             ExportTemplateCommand.RaiseCanExecuteChanged();
             ExportAchievementsCommand.RaiseCanExecuteChanged();
-            ClearCommand.RaiseCanExecuteChanged();
+            ResetCommand.RaiseCanExecuteChanged();
             AddCustomProviderCommand?.RaiseCanExecuteChanged();
             EditCustomProviderCommand?.RaiseCanExecuteChanged();
         }

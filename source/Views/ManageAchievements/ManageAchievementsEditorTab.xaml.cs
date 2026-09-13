@@ -691,7 +691,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 DeleteButton,
                 ImportFileButton,
                 ExportButton,
-                ClearButton,
+                ResetButton,
                 CustomAchievementsGrid,
                 AddRowFooterButton,
                 CapstoneCheckBox,
