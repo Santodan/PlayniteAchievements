@@ -1,4 +1,4 @@
-<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsControl"
+﻿<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -122,15 +122,16 @@
                                      Style="{StaticResource NavTabRadioStyle}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Editor}" />
 
-                        <TextBlock x:Name="AchievementsSectionHeader"
-                                   Text="{DynamicResource LOCPlayAch_Achievements}"
-                                   Style="{StaticResource NavSectionHeaderStyle}"
-                                   Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}" />
                         <RadioButton x:Name="CategoryTabButton"
                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Category}"
                                      Style="{StaticResource NavTabRadioStyle}"
                                      Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
+
+                        <TextBlock x:Name="AchievementsSectionHeader"
+                                   Text="{DynamicResource LOCPlayAch_Achievements}"
+                                   Style="{StaticResource NavSectionHeaderStyle}"
+                                   Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}" />
                         <RadioButton x:Name="FiltersTabButton"
                                      Content="{DynamicResource LOCPlayAch_Menu_Filters}"
                                      Style="{StaticResource NavTabRadioStyle}"

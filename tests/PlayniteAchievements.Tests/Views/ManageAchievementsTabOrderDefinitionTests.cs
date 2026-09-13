@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -99,12 +99,14 @@ namespace PlayniteAchievements.Tests.Views
                     "Group header key " + key + " must already exist in en_US.xaml.");
             }
 
-            // The Achievements group collapses with its tabs, so its header is gated on having data, like the Category tab that remains.
+            // The Achievements group collapses with its tabs, and every tab it still labels is one
+            // the Editor superseded: Category sits with the Editor now, so the header follows the
+            // superseded tabs rather than the presence of achievement data.
             Assert.IsTrue(
                 Regex.IsMatch(
                     xaml,
-                    "LOCPlayAch_Achievements\\}\"[\\s\\S]{0,400}?Binding HasAchievementData"),
-                "The Achievements group header must bind visibility to HasAchievementData so it "
+                    "LOCPlayAch_Achievements\\}\"[\\s\\S]{0,400}?Binding ShowReplacedTabs"),
+                "The Achievements group header must bind visibility to ShowReplacedTabs so it "
                     + "collapses with the tabs it labels.");
         }
 
