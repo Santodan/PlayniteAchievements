@@ -82,6 +82,19 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetScoreMode(_settings),
                         value => ShowcaseWidgetOptions.SetScoreMode(_settings, value),
                         ScoreModeName);
+                    AddChoice(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_ScoreHistory"),
+                        new[]
+                        {
+                            ShowcaseScoreHistoryMode.Dual,
+                            ShowcaseScoreHistoryMode.Collection,
+                            ShowcaseScoreHistoryMode.Prestige,
+                            ShowcaseScoreHistoryMode.None
+                        },
+                        ShowcaseWidgetOptions.GetScoreHistoryMode(_settings),
+                        value => ShowcaseWidgetOptions.SetScoreHistoryMode(_settings, value),
+                        ScoreHistoryModeName);
                     AddRangeChoice(panel);
 
                     break;

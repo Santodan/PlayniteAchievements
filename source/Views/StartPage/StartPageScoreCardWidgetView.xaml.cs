@@ -12,7 +12,7 @@ namespace PlayniteAchievements.Views.StartPage
             InitializeComponent();
         }
 
-        private void ScoreCard_InfoRequested(object sender, RoutedEventArgs e)
+        private void ScoreInfoButton_Click(object sender, RoutedEventArgs e)
         {
             e.Handled = true;
             ScoreInfoDialogPresenter.Show();

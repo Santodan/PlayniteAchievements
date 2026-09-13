@@ -39,6 +39,7 @@
     <sys:String x:Key="LOCPlayAch_Common_Hide">Hide</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Import">Import</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Category">Category</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Label_Level">Level</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Platform">Platform</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Playtime">Playtime</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Region">Region</sys:String>
@@ -83,6 +84,7 @@
     <sys:String x:Key="LOCPlayAch_Common_View">View</sys:String>
     <sys:String x:Key="LOCPlayAch_Completed">Completed</sys:String>
     <sys:String x:Key="LOCPlayAch_Format_Counts">{0}/{1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Format_Pair">{0} &#183; {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Presets_ApplyConfirm">Apply preset &quot;{0}&quot;? This replaces this tab's appearance for the current selection, including any custom template.</sys:String>
     <sys:String x:Key="LOCPlayAch_Presets_DeleteConfirm">Delete preset &quot;{0}&quot;?</sys:String>
     <sys:String x:Key="LOCPlayAch_Presets_Header">Presets</sys:String>
@@ -95,10 +97,10 @@
     <sys:String x:Key="LOCPlayAch_Progress">Progress</sys:String>
     <sys:String x:Key="LOCPlayAch_RecentAchievements">Recent Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Collection">Collection Score</sys:String>
-    <sys:String x:Key="LOCPlayAch_Score_HeaderDetailFormat">{0} | {1} | {2}</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_LevelFormat">Lv {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_PointsFormat">{0} pts</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Prestige">Prestige Score</sys:String>
+    <sys:String x:Key="LOCPlayAch_Score_Tooltip_LevelInTier">Level in tier</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Tooltip_MaxLevel">Max level reached</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Tooltip_NextLevelRemainingFormat">{0} until {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Info_Title">Score System</sys:String>
@@ -1405,6 +1407,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_PerDay">{0:N1}/day</sys:String>
 
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreCards">Cards</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ScoreHistory">Score over time</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreMode_Dual">Both</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreMode_Collection">Collection</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreMode_Prestige">Prestige</sys:String>

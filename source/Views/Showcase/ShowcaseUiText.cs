@@ -32,6 +32,15 @@ namespace PlayniteAchievements.Views.Showcase
         public static string ScoreModeName(ShowcaseScoreMode value) =>
             EnumValueName("LOCPlayAch_Showcase_ScoreMode_", value);
 
+        /// <summary>
+        /// Names the score-history choices with the card choices' own strings, so "Both" means the
+        /// same thing in both dropdowns. Only None needs a word of its own.
+        /// </summary>
+        public static string ScoreHistoryModeName(ShowcaseScoreHistoryMode value) =>
+            value == ShowcaseScoreHistoryMode.None
+                ? Localize("LOCPlayAch_Common_None")
+                : EnumValueName("LOCPlayAch_Showcase_ScoreMode_", value);
+
         public static string PieModeName(ShowcasePieMode value) =>
             EnumValueName("LOCPlayAch_Showcase_PieMode_", value);
 

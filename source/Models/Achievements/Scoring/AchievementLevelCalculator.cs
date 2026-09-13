@@ -59,6 +59,18 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
             snapshot.IsMaxLevel = isMaxLevel;
             snapshot.RankValue = rank;
             snapshot.Rank = rank.ToString();
+            GetRankLevelBounds(range.Level, settings, out var rankStartLevel, out var rankEndLevel);
+            snapshot.RankStartLevel = rankStartLevel;
+            snapshot.RankEndLevel = rankEndLevel;
+            snapshot.LevelsInRank = rankEndLevel == int.MaxValue
+                ? 1
+                : Math.Max(1, rankEndLevel - rankStartLevel + 1);
+            snapshot.LevelsCompletedInRank = Math.Max(
+                0,
+                Math.Min(snapshot.LevelsInRank, range.Level - rankStartLevel));
+            snapshot.LevelsUntilNextRank = isMaxLevel
+                ? 0
+                : snapshot.LevelsInRank - snapshot.LevelsCompletedInRank;
             if (!isMaxLevel && TryGetNextRankInfo(range.Level, settings, out var nextRank, out var nextRankStartLevel))
             {
                 var nextRankRange = GetLevelRange(nextRankStartLevel, settings);
@@ -255,6 +267,38 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
                 .OrderBy(threshold => threshold.MaxLevel)
                 .ToList()
                 .AsReadOnly();
+        }
+
+        /// <summary>
+        /// First and last level of the rank containing <paramref name="level"/>. A level past the
+        /// final threshold (the cap level, when MaxDisplayLevel runs beyond the table) reports the
+        /// final rank's own span so it reads as that rank completed rather than a rank of its own.
+        /// </summary>
+        private static void GetRankLevelBounds(
+            int level,
+            AchievementLevelCurveSettings settings,
+            out int startLevel,
+            out int endLevel)
+        {
+            var thresholds = GetOrderedRankThresholds(settings);
+            var normalizedLevel = Math.Min(GetMaxInternalLevel(settings), Math.Max(0, level));
+            var start = 0;
+
+            for (var i = 0; i < thresholds.Count; i++)
+            {
+                var maxLevel = thresholds[i].MaxLevel;
+                if (normalizedLevel <= maxLevel || i == thresholds.Count - 1)
+                {
+                    startLevel = start;
+                    endLevel = Math.Max(start, maxLevel);
+                    return;
+                }
+
+                start = AddClamped(maxLevel, 1);
+            }
+
+            startLevel = 0;
+            endLevel = normalizedLevel;
         }
 
         private static bool TryGetNextRankInfo(

@@ -1,13 +1,13 @@
 using System.Windows;
-using PlayniteAchievements.Views.Controls;
+using System.Windows.Controls.Primitives;
 using PlayniteAchievements.Views.Dialogs;
 
 namespace PlayniteAchievements.Views.Showcase
 {
     /// <summary>
-    /// Opens the score-info dialog when a hosted <see cref="ScoreCardControl"/> raises
-    /// InfoRequested, letting the Scores widget template stay declarative instead of wiring the
-    /// event in code-behind.
+    /// Opens the score-info dialog from a host's own info button, letting widget templates stay
+    /// declarative instead of wiring Click in code-behind. The button belongs to the surface
+    /// hosting the score cards rather than to each card, so two cards share one affordance.
     /// </summary>
     public static class ScoreCardInfoBehavior
     {
@@ -26,20 +26,21 @@ namespace PlayniteAchievements.Views.Showcase
 
         private static void OnEnabledChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
         {
-            if (!(sender is ScoreCardControl control))
+            if (!(sender is ButtonBase button))
             {
                 return;
             }
 
-            control.InfoRequested -= OnInfoRequested;
+            button.Click -= OnInfoClick;
             if (e.NewValue is bool enabled && enabled)
             {
-                control.InfoRequested += OnInfoRequested;
+                button.Click += OnInfoClick;
             }
         }
 
-        private static void OnInfoRequested(object sender, RoutedEventArgs e)
+        private static void OnInfoClick(object sender, RoutedEventArgs e)
         {
+            e.Handled = true;
             ScoreInfoDialogPresenter.Show();
         }
     }

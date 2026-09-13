@@ -209,6 +209,53 @@
         </Setter>
     </Style>
 
+    <!-- Small round "i" for explaining a surface, sized to sit beside a caption without pulling
+         weight away from it. One definition so the score surfaces that carry it (the Scores widget
+         and the start page score card) stay identical. -->
+    <Style x:Key="PlayAch.Button.InfoGlyphStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Width" Value="18"/>
+        <Setter Property="Height" Value="18"/>
+        <Setter Property="MinHeight" Value="0"/>
+        <Setter Property="Content" Value="&#xE946;"/>
+        <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+        <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Subtle}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Chrome"
+                            Width="{TemplateBinding Width}"
+                            Height="{TemplateBinding Height}"
+                            CornerRadius="9"
+                            Background="{TemplateBinding Background}">
+                        <TextBlock Text="{TemplateBinding Content}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   FontFamily="{TemplateBinding FontFamily}"
+                                   FontSize="{TemplateBinding FontSize}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.22}"/>
+                            <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Full}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.22}"/>
+                            <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Full}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Corner actions floating over showcase widget content while a block is selected in edit
          mode. Uses the popup surface token because it is the one brush guaranteed opaque, so the
          chip never lets widget text bleed through. -->

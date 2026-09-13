@@ -297,6 +297,7 @@ namespace PlayniteAchievements.Models
     public static class ShowcaseWidgetOptions
     {
         private const string Mode = "Mode";
+        private const string ScoreHistory = "ScoreHistory";
         private const string Grouping = "Grouping";
         private const string TopN = "TopN";
         private const string Source = "Source";
@@ -409,6 +410,17 @@ namespace PlayniteAchievements.Models
 
         public static void SetScoreMode(ShowcaseWidgetInstanceSettings settings, ShowcaseScoreMode value) =>
             settings?.SetOption(Mode, value);
+
+        /// <summary>
+        /// Which cards show the score-over-time line. Unset means both, so a layout saved before
+        /// the option existed keeps the chart it already had.
+        /// </summary>
+        public static ShowcaseScoreHistoryMode GetScoreHistoryMode(ShowcaseWidgetInstanceSettings settings) =>
+            GetEnum(settings, ScoreHistory, ShowcaseScoreHistoryMode.Dual);
+
+        public static void SetScoreHistoryMode(
+            ShowcaseWidgetInstanceSettings settings,
+            ShowcaseScoreHistoryMode value) => settings?.SetOption(ScoreHistory, value);
 
         public static ShowcasePieMode GetPieMode(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, Mode, ShowcasePieMode.CompletedGames);
@@ -617,6 +629,7 @@ namespace PlayniteAchievements.Models
             {
                 case ShowcaseWidgetKind.Scores:
                     ShowcaseWidgetOptions.SetScoreMode(settings, ShowcaseScoreMode.Dual);
+                    ShowcaseWidgetOptions.SetScoreHistoryMode(settings, ShowcaseScoreHistoryMode.Dual);
                     ShowcaseTimelineOptions.SetRange(settings, TimelineRange.ThreeMonths);
                     break;
                 case ShowcaseWidgetKind.Pie:

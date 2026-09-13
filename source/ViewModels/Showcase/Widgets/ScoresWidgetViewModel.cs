@@ -162,6 +162,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private IReadOnlyList<ShowcaseScorePoint> _builtHistory;
         private WeakReference<OverviewDataSnapshot> _builtSnapshot;
         private ShowcaseScoreMode _builtMode;
+        private ShowcaseScoreHistoryMode _builtHistoryMode;
         private bool _builtShowChart;
 
         public BulkObservableCollection<ScoreCardWithHistoryViewModel> Cards { get; } =
@@ -193,13 +194,23 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ChartHeight = Density == WidgetViewportDensity.Expanded ? 90 : 60;
 
             var history = Projection?.ScoreHistory ?? new List<ShowcaseScorePoint>();
+            // Two points is the least that draws a line at all; the option then decides which
+            // cards spend their space on one.
             var showChart = history.Count >= 2;
+            var historyMode = ShowcaseWidgetOptions.GetScoreHistoryMode(Projection?.Instance);
+            var showCollectionChart = showChart &&
+                (historyMode == ShowcaseScoreHistoryMode.Dual ||
+                    historyMode == ShowcaseScoreHistoryMode.Collection);
+            var showPrestigeChart = showChart &&
+                (historyMode == ShowcaseScoreHistoryMode.Dual ||
+                    historyMode == ShowcaseScoreHistoryMode.Prestige);
             OverviewDataSnapshot builtSnapshot = null;
             _builtSnapshot?.TryGetTarget(out builtSnapshot);
             if (Cards.Count > 0 &&
                 ReferenceEquals(_builtHistory, history) &&
                 ReferenceEquals(builtSnapshot, Projection?.Snapshot) &&
                 _builtMode == mode &&
+                _builtHistoryMode == historyMode &&
                 _builtShowChart == showChart)
             {
                 return;
@@ -210,6 +221,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ? null
                 : new WeakReference<OverviewDataSnapshot>(Projection.Snapshot);
             _builtMode = mode;
+            _builtHistoryMode = historyMode;
             _builtShowChart = showChart;
 
             var rangeCaption = TimelineRangeText.Describe(
@@ -238,7 +250,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                     snapshot.CollectorScore,
                     new ChartValues<int>(history.Select(point => point.CollectionScore)),
                     historyLabels,
-                    showChart,
+                    showCollectionChart,
                     rangeCaption,
                     historyStart,
                     historyEnd));
@@ -258,7 +270,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                     snapshot.PrestigeScore,
                     new ChartValues<int>(history.Select(point => point.PrestigeScore)),
                     historyLabels,
-                    showChart,
+                    showPrestigeChart,
                     rangeCaption,
                     historyStart,
                     historyEnd));

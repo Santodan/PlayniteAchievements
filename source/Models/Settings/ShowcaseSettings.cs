@@ -38,6 +38,19 @@ namespace PlayniteAchievements.Models.Settings
         Prestige = 2
     }
 
+    /// <summary>
+    /// Which score cards carry the score-over-time line under them. Shares the vocabulary of
+    /// <see cref="ShowcaseScoreMode"/> so the two options in the Scores widget editor read as a
+    /// pair, with None added because the chart, unlike the cards, can be off entirely.
+    /// </summary>
+    public enum ShowcaseScoreHistoryMode
+    {
+        Dual = 0,
+        Collection = 1,
+        Prestige = 2,
+        None = 3
+    }
+
     public enum ShowcasePieMode
     {
         CompletedGames = 0,

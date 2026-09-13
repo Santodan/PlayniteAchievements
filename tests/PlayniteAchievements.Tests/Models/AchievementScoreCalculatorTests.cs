@@ -191,6 +191,37 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void CalculateLevel_ReportsTheRankLevelSpanForTheSegmentedBar()
+        {
+            var rankStart = AchievementLevelCalculator.Calculate(2801);
+            var midRank = AchievementLevelCalculator.Calculate(5371);
+            var rankEnd = AchievementLevelCalculator.Calculate(9600);
+            var levelCap = AchievementLevelCalculator.Calculate(int.MaxValue);
+
+            // Bronze IV covers levels 10-19, so a bar drawn from the span has ten cells.
+            Assert.AreEqual(10, rankStart.RankStartLevel);
+            Assert.AreEqual(19, rankStart.RankEndLevel);
+            Assert.AreEqual(10, rankStart.LevelsInRank);
+            Assert.AreEqual(0, rankStart.LevelsCompletedInRank);
+            Assert.AreEqual(10, rankStart.LevelsUntilNextRank);
+
+            Assert.AreEqual(14, midRank.DisplayLevel);
+            Assert.AreEqual(4, midRank.LevelsCompletedInRank);
+            Assert.AreEqual(6, midRank.LevelsUntilNextRank);
+
+            Assert.AreEqual(19, rankEnd.DisplayLevel);
+            Assert.AreEqual(9, rankEnd.LevelsCompletedInRank);
+            Assert.AreEqual(1, rankEnd.LevelsUntilNextRank);
+
+            // The cap level runs past the final threshold; it reports Master I filled rather
+            // than opening a rank of its own.
+            Assert.AreEqual(240, levelCap.RankStartLevel);
+            Assert.AreEqual(249, levelCap.RankEndLevel);
+            Assert.AreEqual(10, levelCap.LevelsCompletedInRank);
+            Assert.AreEqual(0, levelCap.LevelsUntilNextRank);
+        }
+
+        [TestMethod]
         public void RankPresentation_FormatsTierAndLevelText()
         {
             Assert.AreEqual("Bronze V", AchievementRankPresentation.FormatRank(AchievementRank.Bronze5));
