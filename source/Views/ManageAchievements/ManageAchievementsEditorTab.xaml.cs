@@ -330,6 +330,27 @@ namespace PlayniteAchievements.Views.ManageAchievements
             button.ContextMenu.IsOpen = true;
         }
 
+        /// <summary>
+        /// Reveals or re-masks one row's name. Separate from the description's toggle: each is
+        /// spoiled on its own.
+        /// </summary>
+        private void ToggleTitleRevealButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.ToggleTitleReveal();
+            }
+        }
+
+        /// <summary>Reveals or re-masks one row's description.</summary>
+        private void ToggleDescriptionRevealButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.ToggleDescriptionReveal();
+            }
+        }
+
         private void IconImage_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (!((sender as FrameworkElement)?.DataContext is AchievementEditorRow row) || !row.CanReveal)
