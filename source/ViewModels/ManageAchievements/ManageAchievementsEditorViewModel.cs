@@ -844,6 +844,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         .Select(AchievementEditorRow.FromDefinition));
                 }
                 CaptureCollectionBaseline();
+                ApplyAutoCapstoneMarker(data);
                 ApplyProviderIconBaselines();
                 RefreshAssignmentState();
                 RefreshCustomProviderState();
@@ -861,6 +862,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _logger?.Error(ex, $"Failed loading custom achievements for gameId={_gameId}.");
                 ReplaceRows(Array.Empty<AchievementEditorRow>());
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+        }
+
+        /// <summary>
+        /// Marks the row standing for the auto capstone, the rows being built from achievements
+        /// rather than from the definitions that carry the mark.
+        /// </summary>
+        private void ApplyAutoCapstoneMarker(GameCustomDataFile data)
+        {
+            var marked = data?.CustomAchievements?.FirstOrDefault(definition => definition?.IsAutoCapstone == true);
+            var apiName = marked == null
+                ? null
+                : CustomAchievementProjectionService.BuildApiName(marked.Id);
+            foreach (var row in AchievementRows)
+            {
+                if (row != null)
+                {
+                    row.IsAutoCapstone = !string.IsNullOrWhiteSpace(apiName) &&
+                                         string.Equals(row.OriginalApiName, apiName, StringComparison.OrdinalIgnoreCase);
+                }
             }
         }
 
@@ -1453,6 +1474,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             try
             {
+                // An auto capstone this game already has is brought up to date rather than
+                // joined by a second one.
+                var existing = AchievementRows.FirstOrDefault(row => row?.IsAutoCapstone == true);
+                if (existing != null)
+                {
+                    ApplyAutoCapstoneDerivation(existing);
+                    RefreshComputedState();
+                    await SaveAsync().ConfigureAwait(true);
+                    SetCapstoneForRow(existing, true);
+                    SelectedRow = existing;
+                    SetStatus(null, false);
+                    return;
+                }
+
                 var platinum = ResolvePlatinumCapstoneRow();
                 if (platinum != null)
                 {
@@ -1519,14 +1554,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 "Obtain all Achievements.");
             row.TrophyType = PlatinumTrophyType;
             row.Hidden = false;
+            row.IsAutoCapstone = true;
 
-            // As rare as the rarest achievement it stands for: finishing the game is at least as
-            // hard as its hardest step.
-            var rarest = ResolveRarestBaseGamePercent();
-            if (rarest.HasValue)
-            {
-                row.RarityInput = rarest.Value.ToString(CultureInfo.InvariantCulture);
-            }
+            // Derived here as well as on every refresh, so a game that is already finished gets a
+            // capstone that is already unlocked -- and the first refresh after this sees no
+            // crossing to announce.
+            ApplyAutoCapstoneDerivation(row);
 
             // A source path, not a cached one: the save materializes it into this game's icon
             // cache the same way it does an icon dropped onto any other authored achievement.
@@ -1555,28 +1588,29 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// The lowest unlock percentage among the achievements the capstone stands for, which is
-        /// the base game's when the provider groups them and the whole list's when it does not.
+        /// Works the capstone's rarity and unlock out from the achievements it stands for, through
+        /// the same rules the post-refresh maintenance uses so the two cannot drift apart.
         /// </summary>
-        private double? ResolveRarestBaseGamePercent()
+        private void ApplyAutoCapstoneDerivation(AchievementEditorRow row)
         {
-            var achievements = _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements;
-            if (achievements == null || achievements.Count == 0)
+            if (row == null)
             {
-                return null;
+                return;
             }
 
-            var baseGame = achievements
-                .Where(a => a != null &&
-                            AchievementCategoryTypeHelper.ParseValues(a.CategoryType)
-                                .Any(value => string.Equals(value, BaseCategoryType, StringComparison.OrdinalIgnoreCase)))
-                .ToList();
-            var scope = baseGame.Count > 0 ? baseGame : achievements.Where(a => a != null).ToList();
-            var percents = scope
-                .Where(a => a.GlobalPercentUnlocked.HasValue && a.GlobalPercentUnlocked.Value > 0)
-                .Select(a => a.GlobalPercentUnlocked.Value)
-                .ToList();
-            return percents.Count > 0 ? percents.Min() : (double?)null;
+            var apiName = NormalizeText(row.OriginalApiName);
+            var derived = AutoCapstoneCalculator.Derive(
+                _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements?
+                    .Where(achievement => string.IsNullOrWhiteSpace(apiName) ||
+                                          !string.Equals(achievement?.ApiName, apiName, StringComparison.OrdinalIgnoreCase)));
+            if (derived == null)
+            {
+                return;
+            }
+
+            row.SetRarityFromSource(derived.GlobalPercentUnlocked, derived.Rarity);
+            row.SetUnlockedFromSource(derived.Unlocked);
+            row.UnlockTime = derived.Unlocked ? derived.UnlockTimeUtc : null;
         }
 
         /// <summary>
@@ -3954,6 +3988,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isUpdatingFromText;
         private bool _isApplyingPickerUpdate;
         private bool _isManuallyTrackedGame;
+        private bool _isAutoCapstone;
         // Display-only, and only ever set on the bulk proxy: the selected rows disagree on this
         // facet, so the pane shows nothing rather than a value that would be applied.
         private bool _filterScopeIsMixed;
@@ -4261,6 +4296,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool ProviderHidden { get; internal set; }
 
         /// <summary>
+        /// True for the achievement Auto Capstone authored. Its rarity and unlock are kept in step
+        /// with the achievements it stands for, so the editor stops offering those two for editing
+        /// rather than accepting changes a refresh would undo.
+        /// </summary>
+        public bool IsAutoCapstone
+        {
+            get => _isAutoCapstone;
+            set
+            {
+                if (SetValueAndReturn(ref _isAutoCapstone, value))
+                {
+                    OnPropertyChanged(nameof(CanEditRarity));
+                    OnPropertyChanged(nameof(CanEditUnlocked));
+                }
+            }
+        }
+
+        /// <summary>
         /// The file stem an overriding image is copied to inside the plugin's icon cache, so a
         /// local file or URL survives being moved or going offline.
         /// </summary>
@@ -4330,7 +4383,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// derived from the unlock percentages the provider reports.
         /// </summary>
         public bool CanEditRarity =>
-            ManageAchievements.AchievementEditorFieldRules.CanEditRarity(isCustomRow: !IsProviderRow);
+            ManageAchievements.AchievementEditorFieldRules.CanEditRarity(
+                isCustomRow: !IsProviderRow,
+                isAutoCapstone: IsAutoCapstone);
 
         /// <summary>
         /// True when this row belongs to a game whose achievements are tracked manually. Set by the
@@ -4357,7 +4412,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool CanEditUnlocked =>
             ManageAchievements.AchievementEditorFieldRules.CanEditUnlockStatus(
                 isCustomRow: !IsProviderRow,
-                isManuallyTrackedGame: IsManuallyTrackedGame);
+                isManuallyTrackedGame: IsManuallyTrackedGame,
+                isAutoCapstone: IsAutoCapstone);
 
         /// <summary>Progress totals are provider-reported; only an authored row defines its own.</summary>
         public bool CanEditProgress => !IsProviderRow;
@@ -4578,6 +4634,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(IsSummaryFiltered));
             OnPropertyChanged(nameof(IsFilteredFromSummaries));
             OnPropertyChanged(nameof(FilterScope));
+        }
+
+        /// <summary>
+        /// Seeds the rarity from what it was derived from, bypassing the guard on the public
+        /// setter for the same reason the unlock seeder does.
+        /// </summary>
+        internal void SetRarityFromSource(double? globalPercentUnlocked, string rarity)
+        {
+            _globalPercentUnlockedText = globalPercentUnlocked.HasValue
+                ? globalPercentUnlocked.Value.ToString(CultureInfo.InvariantCulture)
+                : null;
+            _rarity = rarity;
+            _rarityInput = _globalPercentUnlockedText ?? rarity;
+            _rarityInputInvalid = false;
+            OnPropertyChanged(nameof(GlobalPercentUnlockedText));
+            OnPropertyChanged(nameof(Rarity));
+            OnPropertyChanged(nameof(RarityInput));
         }
 
         /// <summary>
@@ -5335,6 +5408,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 LockedIconPath = NormalizeText(LockedIconPath),
                 TrophyType = NormalizeText(TrophyType),
                 Hidden = Hidden,
+                IsAutoCapstone = IsAutoCapstone,
                 Rarity = string.IsNullOrWhiteSpace(Rarity) ? "Common" : Rarity.Trim()
             };
 

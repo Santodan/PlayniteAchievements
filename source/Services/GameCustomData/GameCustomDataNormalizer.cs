@@ -1,4 +1,4 @@
-using PlayniteAchievements.Models.Achievements;
+﻿using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.RPCS3;
 using PlayniteAchievements.Services.CustomProviders;
@@ -1277,6 +1277,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(definition.CategoryType),
                     TrophyType = NormalizeTrophyType(definition.TrophyType),
                     Hidden = definition.Hidden,
+                    IsAutoCapstone = definition.IsAutoCapstone,
                     IsCapstone = definition.IsCapstone,
                     Rarity = NormalizeRarity(definition.Rarity),
                     GlobalPercentUnlocked = NormalizePercent(definition.GlobalPercentUnlocked),
