@@ -34,18 +34,22 @@ namespace PlayniteAchievements.Providers.GuildWars2
 
         private readonly HashSet<Guid> _deliveredGames = new HashSet<Guid>();
 
+        private readonly Gw2LiveProgressState _liveProgress;
+
         public Gw2Scanner(
             ILogger logger,
             Gw2Settings settings,
             Gw2ApiClient apiClient,
             Gw2CatalogCache catalogCache,
-            Func<string> globalLanguageAccessor)
+            Func<string> globalLanguageAccessor,
+            Gw2LiveProgressState liveProgress = null)
         {
             _logger = logger;
             _settings = settings;
             _apiClient = apiClient;
             _catalogCache = catalogCache;
             _globalLanguageAccessor = globalLanguageAccessor;
+            _liveProgress = liveProgress;
         }
 
         public async Task<RebuildPayload> RefreshAsync(
@@ -97,7 +101,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
             // The catalog is only needed to build rows. When every target game is going to decline
             // the write, skipping the lookup also skips its build-id request, so a poll of a running
             // game costs exactly one call to the account endpoint.
-            var everyGameSkips = gamesToRefresh.All(game => ShouldSkipUnchanged(game, progressUnchanged));
+            var everyGameSkips = gamesToRefresh.All(game => ShouldSkipUnchanged(game, snapshot, progressUnchanged));
 
             Gw2Catalog catalog = null;
             if (!everyGameSkips)
@@ -138,7 +142,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
                 onGameStarting,
                 (game, token) =>
                 {
-                    if (ShouldSkipUnchanged(game, progressUnchanged))
+                    if (ShouldSkipUnchanged(game, snapshot, progressUnchanged))
                     {
                         return Task.FromResult(ProviderRefreshExecutor.ProviderGameResult.Skipped());
                     }
@@ -169,26 +173,39 @@ namespace PlayniteAchievements.Providers.GuildWars2
         }
 
         /// <summary>
-        /// A refresh may decline to rewrite rows only when the account's progress is identical to
-        /// what was last written for this game, and only while the game is running.
+        /// Whether this refresh can decline to rewrite every row for a game. Two situations qualify,
+        /// both only while the game is running:
         ///
-        /// The running check is what makes this safe. The in-game monitor re-runs a full provider
-        /// refresh every few seconds for as long as the game is open - that is its guaranteed floor,
-        /// and for a game with this many rows it is what makes the achievement list stutter while
-        /// being scrolled. A refresh the user asked for, with the game closed, always rebuilds, so
-        /// clearing the cache and refreshing still repopulates it.
+        /// The account has not moved since the last write, so a rebuild would produce identical rows.
+        ///
+        /// Or it has moved, but the live in-game reader has already pushed exactly this progress into
+        /// the cache. The monitor runs a full provider refresh every few seconds for as long as a game
+        /// is open - its guaranteed floor - and for a game with this many rows, rebuilding all of them
+        /// to reapply a change that has already been applied is the whole cost of playing.
+        ///
+        /// The running check is what keeps this safe. A refresh the user asked for, with the game
+        /// closed, always rebuilds, so clearing the cache and refreshing still repopulates it, and the
+        /// rebuild at game close reconciles anything the live reader missed.
         /// </summary>
-        private bool ShouldSkipUnchanged(Game game, bool progressUnchanged)
+        private bool ShouldSkipUnchanged(
+            Game game,
+            Dictionary<int, Gw2ProgressSignature> snapshot,
+            bool progressUnchanged)
         {
-            if (!progressUnchanged || game == null || game.Id == Guid.Empty || !game.IsRunning)
+            if (game == null || game.Id == Guid.Empty || !game.IsRunning)
             {
                 return false;
             }
 
             lock (_progressLock)
             {
-                return _deliveredGames.Contains(game.Id);
+                if (!_deliveredGames.Contains(game.Id))
+                {
+                    return false;
+                }
             }
+
+            return progressUnchanged || _liveProgress?.HasApplied(snapshot) == true;
         }
 
         /// <summary>

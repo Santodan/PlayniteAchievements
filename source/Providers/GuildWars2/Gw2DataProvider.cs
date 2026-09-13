@@ -54,7 +54,8 @@ namespace PlayniteAchievements.Providers.GuildWars2
                 ProviderSettings,
                 _apiClient,
                 _catalogCache,
-                () => _settings.Persisted?.GlobalLanguage);
+                () => _settings.Persisted?.GlobalLanguage,
+                _liveProgress);
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_GW2");
@@ -119,6 +120,13 @@ namespace PlayniteAchievements.Providers.GuildWars2
         private readonly object _liveLock = new object();
         private Dictionary<int, Gw2ProgressSignature> _liveSnapshot;
 
+        /// <summary>
+        /// How far the live reader has pushed progress into the cache. The full refresh consults it
+        /// so the monitor's guaranteed-floor prong does not rebuild every row to reapply a change
+        /// the live reader already made.
+        /// </summary>
+        private readonly Gw2LiveProgressState _liveProgress = new Gw2LiveProgressState();
+
         InGameProgressRegistration IInGameProgressSource.TryRegister(Game game, GameAchievementData cachedSchema)
         {
             if (game == null ||
@@ -129,6 +137,11 @@ namespace PlayniteAchievements.Providers.GuildWars2
             {
                 return null;
             }
+
+            // A new session starts with no applied point, so the first full refresh of the session
+            // rebuilds once and brings the cache level with the account before the live reader takes
+            // over.
+            _liveProgress.Clear();
 
             return new InGameProgressRegistration
             {
@@ -189,6 +202,8 @@ namespace PlayniteAchievements.Providers.GuildWars2
             }
 
             var results = new List<InGameProgressQueryResult>(contexts.Count);
+            var anyBaselined = false;
+
             foreach (var context in contexts)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -199,6 +214,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
                 if (session != null && !session.BaselineTaken)
                 {
                     session.BaselineTaken = true;
+                    anyBaselined = true;
                     results.Add(InGameProgressQueryResult.Succeeded(
                         context.Game.Id,
                         Array.Empty<AchievementProgressObservation>(),
@@ -236,6 +252,13 @@ namespace PlayniteAchievements.Providers.GuildWars2
                     context.Game.Id,
                     observations,
                     isDelta: true));
+            }
+
+            // A baseline read emits nothing, so the diff it swallowed has not reached the cache and
+            // the full refresh must still be allowed to rebuild.
+            if (!anyBaselined)
+            {
+                _liveProgress.MarkApplied(snapshot);
             }
 
             return results;

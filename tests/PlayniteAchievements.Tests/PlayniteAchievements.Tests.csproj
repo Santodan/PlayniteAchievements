@@ -55,6 +55,7 @@
     <Compile Include="..\..\source\Providers\GuildWars2\Gw2AchievementMapper.cs" Link="Source\Providers\GuildWars2\Gw2AchievementMapper.cs" />
     <Compile Include="..\..\source\Providers\GuildWars2\Gw2ProgressSignature.cs" Link="Source\Providers\GuildWars2\Gw2ProgressSignature.cs" />
     <Compile Include="..\..\source\Providers\GuildWars2\Gw2InGameProgressMapper.cs" Link="Source\Providers\GuildWars2\Gw2InGameProgressMapper.cs" />
+    <Compile Include="..\..\source\Providers\GuildWars2\Gw2LiveProgressState.cs" Link="Source\Providers\GuildWars2\Gw2LiveProgressState.cs" />
 
     <Compile Include="..\..\source\Providers\GameJolt\GameJoltModels.cs" Link="Source\Providers\GameJolt\GameJoltModels.cs" />
     <Compile Include="..\..\source\Providers\GameJolt\GameJoltTrophyMapper.cs" Link="Source\Providers\GameJolt\GameJoltTrophyMapper.cs" />

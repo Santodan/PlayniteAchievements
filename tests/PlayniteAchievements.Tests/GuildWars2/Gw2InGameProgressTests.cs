@@ -81,6 +81,45 @@ namespace PlayniteAchievements.GuildWars2.Tests
     }
 
     [TestClass]
+    public class Gw2LiveProgressStateTests
+    {
+        private static Dictionary<int, Gw2ProgressSignature> Snapshot(string json)
+            => Gw2ProgressSnapshot.Build(JsonConvert.DeserializeObject<List<Gw2AccountAchievement>>(json));
+
+        [TestMethod]
+        public void HasApplied_BeforeAnythingIsApplied_IsFalse()
+        {
+            // A false answer only costs a rebuild, so the untouched state must never claim otherwise.
+            Assert.IsFalse(new Gw2LiveProgressState().HasApplied(Snapshot(@"[ { ""id"": 1, ""done"": true } ]")));
+        }
+
+        [TestMethod]
+        public void HasApplied_MatchesOnlyTheExactProgressThatWasApplied()
+        {
+            var state = new Gw2LiveProgressState();
+            var applied = Snapshot(@"[ { ""id"": 1, ""current"": 60, ""done"": false } ]");
+            state.MarkApplied(applied);
+
+            Assert.IsTrue(state.HasApplied(Snapshot(@"[ { ""id"": 1, ""current"": 60, ""done"": false } ]")));
+            Assert.IsFalse(
+                state.HasApplied(Snapshot(@"[ { ""id"": 1, ""current"": 61, ""done"": false } ]")),
+                "progress moved past what the live reader pushed, so a rebuild is owed");
+        }
+
+        [TestMethod]
+        public void Clear_ForgetsTheAppliedPoint()
+        {
+            var state = new Gw2LiveProgressState();
+            var applied = Snapshot(@"[ { ""id"": 1, ""done"": true } ]");
+            state.MarkApplied(applied);
+            state.Clear();
+
+            // A new session must rebuild once before the live reader is trusted again.
+            Assert.IsFalse(state.HasApplied(applied));
+        }
+    }
+
+    [TestClass]
     public class Gw2InGameProgressMapperTests
     {
         /// <summary>A cached four-tier ladder for achievement 1, plus a single-tier achievement 2.</summary>
