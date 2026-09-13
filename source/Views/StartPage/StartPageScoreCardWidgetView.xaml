@@ -8,7 +8,13 @@
         <controls:ScoreCardControl Width="300"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
-                                   ScoreCard="{Binding ScoreCard}"
-                                   InfoRequested="ScoreCard_InfoRequested"/>
+                                   ScoreCard="{Binding ScoreCard}"/>
+        <!-- The info glyph belongs to the host, not the card: one per surface. -->
+        <Button Style="{DynamicResource PlayAch.Button.InfoGlyphStyle}"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="0,0,2,0"
+                ToolTip="{DynamicResource LOCPlayAch_Score_Info_ButtonTooltip}"
+                Click="ScoreInfoButton_Click"/>
     </Grid>
 </UserControl>
