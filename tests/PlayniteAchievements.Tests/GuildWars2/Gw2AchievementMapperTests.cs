@@ -295,6 +295,69 @@ namespace PlayniteAchievements.GuildWars2.Tests
             Assert.IsTrue(results.All(a => !a.Unlocked));
         }
 
+        /// <summary>
+        /// The example response published for /v2/account/achievements, copied verbatim. Nothing in
+        /// this suite holds a real API key, so this is what pins the DTO's field names to the
+        /// documented contract: a typo in a JsonProperty would otherwise read as silent zeros and
+        /// every achievement would simply look locked.
+        /// </summary>
+        private const string DocumentedAccountJson = @"[
+            { ""id"": 1, ""current"": 1, ""max"": 1000, ""done"": false },
+            { ""id"": 202, ""done"": true },
+            { ""id"": 1653, ""bits"": [2, 3, 4, 5], ""current"": 4, ""max"": 30, ""done"": false }
+        ]";
+
+        [TestMethod]
+        public void AccountAchievement_ParsesTheDocumentedPayloadShape()
+        {
+            var parsed = JsonConvert.DeserializeObject<List<Gw2AccountAchievement>>(DocumentedAccountJson);
+
+            Assert.AreEqual(3, parsed.Count);
+
+            var partial = parsed[0];
+            Assert.AreEqual(1, partial.Id);
+            Assert.AreEqual(1, partial.Current);
+            Assert.AreEqual(1000, partial.Max);
+            Assert.IsFalse(partial.Done);
+
+            // A finished achievement carries neither a running total nor a max.
+            var finished = parsed[1];
+            Assert.AreEqual(202, finished.Id);
+            Assert.IsTrue(finished.Done);
+            Assert.IsNull(finished.Current);
+            Assert.IsNull(finished.Max);
+
+            var checklist = parsed[2];
+            Assert.AreEqual(4, checklist.Current);
+            CollectionAssert.AreEqual(new[] { 2, 3, 4, 5 }, checklist.Bits);
+
+            // "unlocked" is absent throughout, which the API defines as unlocked.
+            Assert.IsTrue(parsed.All(a => a.Unlocked == null));
+        }
+
+        [TestMethod]
+        public void BuildProgressIndex_KeysTheDocumentedPayloadById()
+        {
+            var index = Gw2AchievementMapper.BuildProgressIndex(
+                JsonConvert.DeserializeObject<List<Gw2AccountAchievement>>(DocumentedAccountJson));
+
+            Assert.AreEqual(3, index.Count);
+            Assert.IsTrue(index[202].Done);
+            Assert.AreEqual(1, index[1].Current);
+        }
+
+        [TestMethod]
+        public void BuildAchievements_TreatsADoneEntryWithNoRunningTotalAsFullyEarned()
+        {
+            // The shape the documented payload gives for id 202: done, with current and max absent.
+            // Reading the missing current as 0 would leave every tier locked.
+            var results = Build(@"[ { ""id"": 1, ""done"": true } ]");
+            var tiers = results.Where(a => a.ApiName.StartsWith("1:t")).ToList();
+
+            Assert.IsTrue(tiers.All(a => a.Unlocked));
+            Assert.AreEqual(0, tiers[0].ProgressNum, "progress still reads from the absent total");
+        }
+
         [TestMethod]
         public void CollectAchievementIds_DeduplicatesAndFollowsCategoryOrder()
         {
