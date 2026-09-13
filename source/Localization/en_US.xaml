@@ -936,10 +936,10 @@
     <!-- Provider: Guild Wars 2 -->
     <sys:String x:Key="LOCPlayAch_Settings_GW2_Help">Guild Wars 2 achievements are read from ArenaNet's official API, which needs a free API key tied to your Guild Wars 2 account:</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GW2_SetupStep1">1. Open the {0} and sign in with your Guild Wars 2 account.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_GW2_SetupStep2">2. Create a new key and tick at least the account and progression permissions. Without progression the key cannot read your achievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_GW2_SetupStep2">2. Create a new key and tick progression. That is the only permission this plugin needs, and a key limited to it cannot read your wallet, inventory or trading post history.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GW2_SetupStep3">3. Copy the key into the box below, then click Check.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GW2_NoDatesNote">Guild Wars 2 does not record when an achievement was earned and publishes no completion rates, so Guild Wars 2 achievements show no unlock date and no rarity.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_GW2_ApiKey_Help">The key is a long code beginning with your account id. It is stored in the plugin settings and sent only to api.guildwars2.com.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_GW2_ApiKey_Help">The key is a long hyphenated code. It is stored in the plugin settings in readable form and sent only to api.guildwars2.com. It is not your password, it can only read, and you can delete it at any time on the same page you created it.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GW2_MissingProgression">The key is valid but lacks the progression permission. Create a new key with progression ticked.</sys:String>
 
     <!-- Provider: Riot -->
