@@ -170,7 +170,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ResetCommand = new RelayCommand(_ => ResetRows(), _ => HasRows && !IsSaving);
             ToggleAllTitlesRevealCommand = new RelayCommand(_ => ToggleAllTitlesReveal());
             ToggleAllDescriptionsRevealCommand = new RelayCommand(_ => ToggleAllDescriptionsReveal());
-            ToggleAllIconsRevealCommand = new RelayCommand(_ => ToggleAllIconsReveal());
+            CycleAllIconStagesCommand = new RelayCommand(_ => CycleAllIconStages());
 
             ReloadData();
         }
@@ -228,7 +228,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public RelayCommand ToggleAllDescriptionsRevealCommand { get; }
 
-        public RelayCommand ToggleAllIconsRevealCommand { get; }
+        /// <summary>
+        /// Steps the whole icon column through the hidden placeholder, the locked placeholder and
+        /// the achievements' own art, skipping whichever of those the rows on screen do not have.
+        /// </summary>
+        public RelayCommand CycleAllIconStagesCommand { get; }
 
         /// <summary>
         /// Whether any row on screen has something to reveal for that column. The header toggle is
@@ -248,7 +252,29 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool AreAllDescriptionsRevealed => !VisibleRows.Any(row => row.CanRevealDescription && !row.IsDescriptionRevealed);
 
-        public bool AreAllIconsRevealed => !VisibleRows.Any(row => row.CanReveal && !row.IsRevealed);
+        /// <summary>
+        /// The stage the icon column's toggle shows: the most masked one any row on screen is still
+        /// at, so the button describes the column rather than whichever row happens to be first.
+        /// </summary>
+        public AchievementIconRevealStage IconColumnStage
+        {
+            get
+            {
+                var stages = VisibleRows
+                    .Where(row => row.CanReveal)
+                    .Select(row => (int)row.IconStage)
+                    .ToList();
+                return stages.Count == 0
+                    ? AchievementIconRevealStage.Revealed
+                    : (AchievementIconRevealStage)stages.Min();
+            }
+        }
+
+        public bool IconColumnStageIsHidden => IconColumnStage == AchievementIconRevealStage.Hidden;
+
+        public bool IconColumnStageIsLocked => IconColumnStage == AchievementIconRevealStage.Locked;
+
+        public bool IconColumnStageIsRevealed => IconColumnStage == AchievementIconRevealStage.Revealed;
 
         /// <summary>The rows the grid is currently showing, in grid order.</summary>
         private IEnumerable<AchievementEditorRow> VisibleRows =>
@@ -260,8 +286,38 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void ToggleAllDescriptionsReveal() =>
             ToggleAllReveal(row => row.CanRevealDescription, row => row.IsDescriptionRevealed, (row, value) => row.IsDescriptionRevealed = value);
 
-        private void ToggleAllIconsReveal() =>
-            ToggleAllReveal(row => row.CanReveal, row => row.IsRevealed, (row, value) => row.IsRevealed = value);
+        /// <summary>
+        /// Steps every maskable row on screen to the column's next stage. Each row settles on the
+        /// nearest stage it has, so a column holding both hidden and merely locked achievements
+        /// still moves as one.
+        /// </summary>
+        private void CycleAllIconStages()
+        {
+            var targets = VisibleRows.Where(row => row.CanReveal).ToList();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            var next = IconColumnStage == AchievementIconRevealStage.Revealed
+                ? AchievementIconRevealStage.Hidden
+                : IconColumnStage + 1;
+
+            _isTogglingReveal = true;
+            try
+            {
+                foreach (var row in targets)
+                {
+                    row.IconStage = next;
+                }
+            }
+            finally
+            {
+                _isTogglingReveal = false;
+            }
+
+            RefreshRevealHeaderState();
+        }
 
         /// <summary>
         /// Reveals every maskable row on screen, or masks them all again once none is left masked,
@@ -305,14 +361,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(CanRevealAnyIcon));
             OnPropertyChanged(nameof(AreAllTitlesRevealed));
             OnPropertyChanged(nameof(AreAllDescriptionsRevealed));
-            OnPropertyChanged(nameof(AreAllIconsRevealed));
+            OnPropertyChanged(nameof(IconColumnStage));
+            OnPropertyChanged(nameof(IconColumnStageIsHidden));
+            OnPropertyChanged(nameof(IconColumnStageIsLocked));
+            OnPropertyChanged(nameof(IconColumnStageIsRevealed));
         }
 
         private static bool IsRevealStateProperty(string propertyName)
         {
             switch (propertyName)
             {
-                case nameof(AchievementEditorRow.IsRevealed):
+                case nameof(AchievementEditorRow.IconStage):
+                case nameof(AchievementEditorRow.IsIconStageRevealed):
                 case nameof(AchievementEditorRow.IsTitleRevealed):
                 case nameof(AchievementEditorRow.IsDescriptionRevealed):
                 case nameof(AchievementEditorRow.IsIconHidden):
@@ -3645,7 +3705,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private static readonly string[] TimeModeDisplayNames = { "AM", "PM", "24hr" };
 
-        private bool _isRevealed;
+        private AchievementIconRevealStage _iconStage;
         private bool _showHiddenIcon;
         private bool _showLockedIcon = true;
         private bool _showHiddenTitle;
@@ -3689,16 +3749,51 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        public bool IsRevealed
+        /// <summary>
+        /// How much of this row's icon is currently shown. Assigning a stage the row does not have
+        /// settles on the next one it does, so a caller -- the column header, say -- can ask every
+        /// row for the same stage and let each take what applies to it.
+        /// </summary>
+        public AchievementIconRevealStage IconStage
         {
-            get => _isRevealed;
+            get => ClampIconStage(_iconStage);
             set
             {
-                if (SetValueAndReturn(ref _isRevealed, value))
+                var clamped = ClampIconStage(value);
+                if (_iconStage == clamped)
                 {
-                    NotifyRevealStateChanged();
+                    return;
                 }
+
+                _iconStage = clamped;
+                OnPropertyChanged(nameof(IconStage));
+                NotifyRevealStateChanged();
             }
+        }
+
+        /// <summary>Whether this row masks its icon behind the hidden-achievement placeholder.</summary>
+        private bool HasHiddenIconStage => Hidden && !Unlocked && !ShowHiddenIcon;
+
+        /// <summary>Whether this row masks its icon behind the locked placeholder.</summary>
+        private bool HasLockedIconStage => !Unlocked && !ShowLockedIcon;
+
+        /// <summary>
+        /// The first stage at or after the one asked for that this row actually has, so the stored
+        /// stage can never describe a mask the row is not applying.
+        /// </summary>
+        private AchievementIconRevealStage ClampIconStage(AchievementIconRevealStage stage)
+        {
+            if (stage <= AchievementIconRevealStage.Hidden && HasHiddenIconStage)
+            {
+                return AchievementIconRevealStage.Hidden;
+            }
+
+            if (stage <= AchievementIconRevealStage.Locked && HasLockedIconStage)
+            {
+                return AchievementIconRevealStage.Locked;
+            }
+
+            return AchievementIconRevealStage.Revealed;
         }
 
         /// <summary>
@@ -3761,11 +3856,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        public bool IsIconHidden => Hidden && !Unlocked && !ShowHiddenIcon && !IsRevealed;
+        public bool IsIconHidden => IconStage == AchievementIconRevealStage.Hidden;
 
-        public bool IsLockedIconHidden => !Unlocked && !ShowLockedIcon && !IsRevealed;
+        public bool IsLockedIconHidden => IconStage == AchievementIconRevealStage.Locked;
 
-        public bool CanReveal => !Unlocked && ((Hidden && !ShowHiddenIcon) || !ShowLockedIcon);
+        public bool IsIconStageRevealed => IconStage == AchievementIconRevealStage.Revealed;
+
+        /// <summary>True when this row has at least one mask to step through.</summary>
+        public bool CanReveal => HasHiddenIconStage || HasLockedIconStage;
 
         /// <summary>
         /// Whether this row has a name worth masking at all. Only a hidden achievement that is
@@ -3780,12 +3878,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool IsDescriptionHidden => CanRevealDescription && !IsDescriptionRevealed;
 
-        public void ToggleReveal()
+        /// <summary>
+        /// Steps to the next stage this row has, wrapping from its own art back to the most masked
+        /// one so the same control both reveals and re-masks.
+        /// </summary>
+        public void AdvanceIconStage()
         {
-            if (CanReveal)
+            if (!CanReveal)
             {
-                IsRevealed = !IsRevealed;
+                return;
             }
+
+            IconStage = IconStage == AchievementIconRevealStage.Revealed
+                ? AchievementIconRevealStage.Hidden
+                : IconStage + 1;
         }
 
         public void ToggleTitleReveal()
@@ -3813,8 +3919,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void NotifyRevealStateChanged()
         {
+            OnPropertyChanged(nameof(IconStage));
             OnPropertyChanged(nameof(IsIconHidden));
             OnPropertyChanged(nameof(IsLockedIconHidden));
+            OnPropertyChanged(nameof(IsIconStageRevealed));
             OnPropertyChanged(nameof(CanReveal));
             OnPropertyChanged(nameof(CanRevealTitle));
             OnPropertyChanged(nameof(CanRevealDescription));

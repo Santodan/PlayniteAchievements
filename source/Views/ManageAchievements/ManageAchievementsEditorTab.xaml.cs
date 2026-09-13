@@ -360,7 +360,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            row.ToggleReveal();
+            row.AdvanceIconStage();
             e.Handled = true;
         }
 
