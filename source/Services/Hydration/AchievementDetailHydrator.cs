@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using PlayniteAchievements.Models;
@@ -195,6 +195,11 @@ namespace PlayniteAchievements.Services.Hydration
             if (!string.IsNullOrWhiteSpace(userOverride.TrophyType))
             {
                 detail.TrophyType = userOverride.TrophyType;
+            }
+
+            if (userOverride.Hidden.HasValue)
+            {
+                detail.Hidden = userOverride.Hidden.Value;
             }
 
             // A manually tracked game records unlock state and time in its link, which reaches the

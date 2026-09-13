@@ -1,4 +1,4 @@
-namespace PlayniteAchievements.Services.Achievements
+﻿namespace PlayniteAchievements.Services.Achievements
 {
     /// <summary>
     /// A provider-supplied achievement field the user is allowed to override.
@@ -16,6 +16,7 @@ namespace PlayniteAchievements.Services.Achievements
         Description,
         Points,
         TrophyType,
-        UnlockTimeUtc
+        UnlockTimeUtc,
+        Hidden
     }
 }

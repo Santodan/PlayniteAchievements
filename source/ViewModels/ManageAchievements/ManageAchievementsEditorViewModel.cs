@@ -684,6 +684,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     row.ProviderUnlockedIconPath = raw.UnlockedIconPath;
                     row.ProviderLockedIconPath = raw.LockedIconPath;
+                    row.ProviderHidden = raw.Hidden;
                 }
             }
         }
@@ -2088,6 +2089,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                     case nameof(AchievementEditorRow.TrophyType):
                         WriteProviderField(apiName, AchievementEditableField.TrophyType, NormalizeText(row.TrophyType));
+                        break;
+
+                    // Hiding is a presentation choice rather than a provider fact, so both values
+                    // are storable; agreeing with the provider again stores nothing, which is what
+                    // keeps a record from being kept for a row that is not customized.
+                    case nameof(AchievementEditorRow.Hidden):
+                        WriteProviderField(
+                            apiName,
+                            AchievementEditableField.Hidden,
+                            row.Hidden == row.ProviderHidden ? (bool?)null : row.Hidden);
                         break;
 
                     // Icons are stored as their own maps rather than on the override record, so
@@ -3514,6 +3525,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string ProviderUnlockedIconPath { get; internal set; }
 
         public string ProviderLockedIconPath { get; internal set; }
+
+        /// <summary>
+        /// Whether the provider calls this achievement hidden, captured before any override is
+        /// applied, so setting it back to that value clears the override instead of storing it.
+        /// </summary>
+        public bool ProviderHidden { get; internal set; }
 
         /// <summary>
         /// The file stem an overriding image is copied to inside the plugin's icon cache, so a
