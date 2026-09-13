@@ -329,6 +329,7 @@
     <Compile Include="..\..\source\ViewModels\Items\GridControlBarModels.cs" Link="Source\ViewModels\Items\GridControlBarModels.cs" />
     <Compile Include="..\..\source\ViewModels\Items\ProviderPlatformFilter.cs" Link="Source\ViewModels\Items\ProviderPlatformFilter.cs" />
     <Compile Include="..\..\source\ViewModels\ScoreCardViewModel.cs" Link="Source\ViewModels\ScoreCardViewModel.cs" />
+    <Compile Include="..\..\source\ViewModels\Items\ScoreSegmentViewModel.cs" Link="Source\ViewModels\Items\ScoreSegmentViewModel.cs" />
     <Compile Include="..\..\source\ViewModels\Items\ManualAchievementEditItem.cs" Link="Source\ViewModels\Items\ManualAchievementEditItem.cs" />
     <Compile Include="..\..\source\ViewModels\AchievementToastViewModel.cs" Link="Source\ViewModels\AchievementToastViewModel.cs" />
     <Compile Include="..\..\source\ViewModels\ToastLineDescriptor.cs" Link="Source\ViewModels\ToastLineDescriptor.cs" />
