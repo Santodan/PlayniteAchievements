@@ -545,14 +545,14 @@
                                 <Grid>
                                         <TextBlock Text="&#xEF22;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
-                                                   Visibility="{Binding DataContext.IconColumnStageIsHidden, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                                   Visibility="{Binding DataContext.IconColumnStageIsCovered, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
                                         <Viewbox Style="{StaticResource RevealGlyphBoxStyle}"
                                                  Visibility="{Binding DataContext.IconColumnStageIsLocked, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
                                             <Path Data="{StaticResource GeoLock}"
                                                   Fill="{DynamicResource PlayAch.Brush.Glyph}" />
                                         </Viewbox>
                                         <Viewbox Style="{StaticResource RevealGlyphBoxStyle}"
-                                                 Visibility="{Binding DataContext.IconColumnStageIsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                                                 Visibility="{Binding DataContext.IconColumnStageIsUnlocked, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
                                             <Path Data="{StaticResource GeoCheck}"
                                                   Stroke="{DynamicResource PlayAch.Brush.Glyph}"
                                                   StrokeThickness="2.3"
@@ -578,10 +578,7 @@
                                                 <DataTrigger Binding="{Binding CanReveal}" Value="True">
                                                     <Setter Property="Cursor" Value="Hand" />
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding IsIconHidden}" Value="True">
-                                                    <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding IsLockedIconHidden}" Value="True">
+                                                <DataTrigger Binding="{Binding IsIconCovered}" Value="True">
                                                     <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
                                                 </DataTrigger>
                                             </Style.Triggers>

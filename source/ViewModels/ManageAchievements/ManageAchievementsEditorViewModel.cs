@@ -265,16 +265,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     .Select(row => (int)row.IconStage)
                     .ToList();
                 return stages.Count == 0
-                    ? AchievementIconRevealStage.Revealed
+                    ? AchievementIconRevealStage.Unlocked
                     : (AchievementIconRevealStage)stages.Min();
             }
         }
 
-        public bool IconColumnStageIsHidden => IconColumnStage == AchievementIconRevealStage.Hidden;
+        public bool IconColumnStageIsCovered => IconColumnStage == AchievementIconRevealStage.Covered;
 
         public bool IconColumnStageIsLocked => IconColumnStage == AchievementIconRevealStage.Locked;
 
-        public bool IconColumnStageIsRevealed => IconColumnStage == AchievementIconRevealStage.Revealed;
+        public bool IconColumnStageIsUnlocked => IconColumnStage == AchievementIconRevealStage.Unlocked;
 
         /// <summary>The rows the grid is currently showing, in grid order.</summary>
         private IEnumerable<AchievementEditorRow> VisibleRows =>
@@ -299,8 +299,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            var next = IconColumnStage == AchievementIconRevealStage.Revealed
-                ? AchievementIconRevealStage.Hidden
+            var next = IconColumnStage == AchievementIconRevealStage.Unlocked
+                ? AchievementIconRevealStage.Covered
                 : IconColumnStage + 1;
 
             _isTogglingReveal = true;
@@ -362,9 +362,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(AreAllTitlesRevealed));
             OnPropertyChanged(nameof(AreAllDescriptionsRevealed));
             OnPropertyChanged(nameof(IconColumnStage));
-            OnPropertyChanged(nameof(IconColumnStageIsHidden));
+            OnPropertyChanged(nameof(IconColumnStageIsCovered));
             OnPropertyChanged(nameof(IconColumnStageIsLocked));
-            OnPropertyChanged(nameof(IconColumnStageIsRevealed));
+            OnPropertyChanged(nameof(IconColumnStageIsUnlocked));
         }
 
         private static bool IsRevealStateProperty(string propertyName)
@@ -372,12 +372,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             switch (propertyName)
             {
                 case nameof(AchievementEditorRow.IconStage):
+                case nameof(AchievementEditorRow.IsIconCovered):
                 case nameof(AchievementEditorRow.IsIconStageLocked):
-                case nameof(AchievementEditorRow.IsIconStageRevealed):
+                case nameof(AchievementEditorRow.IsIconStageUnlocked):
                 case nameof(AchievementEditorRow.IsTitleRevealed):
                 case nameof(AchievementEditorRow.IsDescriptionRevealed):
-                case nameof(AchievementEditorRow.IsIconHidden):
-                case nameof(AchievementEditorRow.IsLockedIconHidden):
                 case nameof(AchievementEditorRow.IsTitleHidden):
                 case nameof(AchievementEditorRow.IsDescriptionHidden):
                 case nameof(AchievementEditorRow.CanReveal):
@@ -3772,14 +3771,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        /// <summary>Whether this row masks its icon behind the hidden-achievement placeholder.</summary>
-        private bool HasHiddenIconStage => Hidden && !Unlocked && !ShowHiddenIcon;
+        /// <summary>
+        /// Whether a display setting is covering this row's icon at all. Either masking puts the
+        /// same step in the cycle -- the cover -- because to the user they are one thing: the art
+        /// is not being shown yet.
+        /// </summary>
+        private bool HasCoveredIconStage =>
+            !Unlocked && ((Hidden && !ShowHiddenIcon) || !ShowLockedIcon);
 
         /// <summary>
         /// Whether this row has a locked view worth stepping through. Every locked achievement
-        /// does: the stage shows what a player would see while it is locked, which is the locked
-        /// placeholder when locked icons are masked and the achievement's own locked art when they
-        /// are not. An unlocked achievement has no such view.
+        /// does: the step draws its own art the way a player sees it while locked. An unlocked
+        /// achievement has no such view -- its art is simply its art.
         /// </summary>
         private bool HasLockedIconStage => !Unlocked;
 
@@ -3789,9 +3792,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private AchievementIconRevealStage ClampIconStage(AchievementIconRevealStage stage)
         {
-            if (stage <= AchievementIconRevealStage.Hidden && HasHiddenIconStage)
+            if (stage <= AchievementIconRevealStage.Covered && HasCoveredIconStage)
             {
-                return AchievementIconRevealStage.Hidden;
+                return AchievementIconRevealStage.Covered;
             }
 
             if (stage <= AchievementIconRevealStage.Locked && HasLockedIconStage)
@@ -3799,7 +3802,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return AchievementIconRevealStage.Locked;
             }
 
-            return AchievementIconRevealStage.Revealed;
+            return AchievementIconRevealStage.Unlocked;
         }
 
         /// <summary>
@@ -3862,21 +3865,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        public bool IsIconHidden => IconStage == AchievementIconRevealStage.Hidden;
+        /// <summary>True while a placeholder is covering the art rather than the art showing.</summary>
+        public bool IsIconCovered => IconStage == AchievementIconRevealStage.Covered;
 
-        /// <summary>True while the locked view is showing, whatever that view draws.</summary>
         public bool IsIconStageLocked => IconStage == AchievementIconRevealStage.Locked;
 
-        /// <summary>
-        /// True only while the locked view is the placeholder rather than the achievement's own
-        /// locked art, which is what the reveal affordances key off.
-        /// </summary>
-        public bool IsLockedIconHidden => IsIconStageLocked && !ShowLockedIcon;
+        public bool IsIconStageUnlocked => IconStage == AchievementIconRevealStage.Unlocked;
 
-        public bool IsIconStageRevealed => IconStage == AchievementIconRevealStage.Revealed;
-
-        /// <summary>True when this row has at least one mask to step through.</summary>
-        public bool CanReveal => HasHiddenIconStage || HasLockedIconStage;
+        /// <summary>True when this row has more than its own unlocked art to show.</summary>
+        public bool CanReveal => HasCoveredIconStage || HasLockedIconStage;
 
         /// <summary>
         /// Whether this row has a name worth masking at all. Only a hidden achievement that is
@@ -3902,8 +3899,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            IconStage = IconStage == AchievementIconRevealStage.Revealed
-                ? AchievementIconRevealStage.Hidden
+            IconStage = IconStage == AchievementIconRevealStage.Unlocked
+                ? AchievementIconRevealStage.Covered
                 : IconStage + 1;
         }
 
@@ -3954,10 +3951,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void NotifyRevealStateChanged()
         {
             OnPropertyChanged(nameof(IconStage));
-            OnPropertyChanged(nameof(IsIconHidden));
+            OnPropertyChanged(nameof(IsIconCovered));
             OnPropertyChanged(nameof(IsIconStageLocked));
-            OnPropertyChanged(nameof(IsLockedIconHidden));
-            OnPropertyChanged(nameof(IsIconStageRevealed));
+            OnPropertyChanged(nameof(IsIconStageUnlocked));
             OnPropertyChanged(nameof(CanReveal));
             OnPropertyChanged(nameof(CanRevealTitle));
             OnPropertyChanged(nameof(CanRevealDescription));
@@ -4859,14 +4855,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // achievement only ever reaches the last one.
                 switch (IconStage)
                 {
-                    case AchievementIconRevealStage.Hidden:
-                        return AchievementIconResolver.GetHiddenFallbackIcon();
+                    case AchievementIconRevealStage.Covered:
+                        // Hidden wins over locked, the more spoiler-sensitive of the two, matching
+                        // AchievementDisplayItem.
+                        return Hidden && !ShowHiddenIcon
+                            ? AchievementIconResolver.GetHiddenFallbackIcon()
+                            : AchievementIconResolver.GetLockedFallbackIcon();
 
                     case AchievementIconRevealStage.Locked:
-                        // What a player would see while it is locked.
-                        return ShowLockedIcon
-                            ? AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, LockedIconPath)
-                            : AchievementIconResolver.GetLockedFallbackIcon();
+                        return AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, LockedIconPath);
 
                     default:
                         return AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath);
