@@ -19,8 +19,14 @@ namespace PlayniteAchievements.Providers.GuildWars2
     /// is account-wide and keyed on a personal access token the player creates at account.arena.net;
     /// it publishes no unlock timestamps and no global completion rates, so neither is reported.
     /// </summary>
-    internal sealed class Gw2DataProvider : DataProviderBase<Gw2Settings>, IDataProvider, IProviderOverride, IDisposable
+    internal sealed class Gw2DataProvider : DataProviderBase<Gw2Settings>, IDataProvider, IProviderOverride, IInGameProgressSource, IDisposable
     {
+        /// <summary>
+        /// Live-poll cadence. One request covers the whole account, and the API allows 600 a minute,
+        /// so this is a rounding error against the rate limit.
+        /// </summary>
+        private static readonly TimeSpan LivePollInterval = TimeSpan.FromSeconds(15);
+
         /// <summary>
         /// Presence-only override: there is no per-game Guild Wars 2 identifier to enter, since
         /// achievements belong to the account configured in settings rather than to a game.
@@ -91,6 +97,116 @@ namespace PlayniteAchievements.Providers.GuildWars2
             CancellationToken cancel)
         {
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        /// <summary>
+        /// Per-session state for one tracked game. The first poll only records where the account
+        /// stood, so a session that starts with hundreds of already-earned achievements does not
+        /// announce them all as fresh unlocks.
+        /// </summary>
+        private sealed class Gw2LiveSession
+        {
+            public bool BaselineTaken;
+        }
+
+        private readonly object _liveLock = new object();
+        private Dictionary<int, Gw2ProgressSignature> _liveSnapshot;
+
+        InGameProgressRegistration IInGameProgressSource.TryRegister(Game game, GameAchievementData cachedSchema)
+        {
+            if (game == null ||
+                cachedSchema?.Achievements == null ||
+                cachedSchema.Achievements.Count == 0 ||
+                !string.Equals(cachedSchema.ProviderKey, ProviderKey, StringComparison.OrdinalIgnoreCase) ||
+                !ProviderSettings.HasCredentials)
+            {
+                return null;
+            }
+
+            return new InGameProgressRegistration
+            {
+                ProviderKey = ProviderKey,
+                IsRemote = true,
+                PollInterval = LivePollInterval,
+
+                // Guild Wars 2 records no unlock time for anything, so there is no provider stamp to
+                // anchor to. Watching the lock-to-unlock transition is the only honest timestamp
+                // available, and it is a better one than this API can otherwise give.
+                UnlockAnchorPolicy = InGameUnlockAnchorPolicy.SourceObservation,
+                State = new Gw2LiveSession()
+            };
+        }
+
+        async Task<IReadOnlyList<InGameProgressQueryResult>> IInGameProgressSource.QueryAsync(
+            IReadOnlyList<InGameTrackingContext> games,
+            CancellationToken cancellationToken)
+        {
+            var contexts = (games ?? Array.Empty<InGameTrackingContext>())
+                .Where(context => context?.Game != null && context.CachedSchema?.Achievements != null)
+                .ToList();
+
+            if (contexts.Count == 0)
+            {
+                return Array.Empty<InGameProgressQueryResult>();
+            }
+
+            // Progress is account-wide, so one request serves every tracked game.
+            List<Gw2AccountAchievement> accountAchievements;
+            try
+            {
+                accountAchievements = await _apiClient
+                    .GetAccountAchievementsAsync(ProviderSettings.ApiKey, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[GW2] Live progress read failed.");
+                return contexts
+                    .Select(context => InGameProgressQueryResult.Failed(context.Game.Id, "account_read_failed"))
+                    .ToList();
+            }
+
+            var snapshot = Gw2ProgressSnapshot.Build(accountAchievements);
+
+            List<int> changedIds;
+            lock (_liveLock)
+            {
+                changedIds = Gw2ProgressSnapshot.GetChangedIds(_liveSnapshot, snapshot);
+                _liveSnapshot = snapshot;
+            }
+
+            var results = new List<InGameProgressQueryResult>(contexts.Count);
+            foreach (var context in contexts)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var session = context.Registration?.State as Gw2LiveSession;
+
+                // Establish the baseline silently, then report only what moves afterwards.
+                if (session != null && !session.BaselineTaken)
+                {
+                    session.BaselineTaken = true;
+                    results.Add(InGameProgressQueryResult.Succeeded(
+                        context.Game.Id,
+                        Array.Empty<AchievementProgressObservation>(),
+                        isDelta: true));
+                    continue;
+                }
+
+                var tierIndex = Gw2InGameProgressMapper.BuildTierIndex(context.CachedSchema);
+                var observations = Gw2InGameProgressMapper.BuildObservations(tierIndex, changedIds, snapshot);
+
+                results.Add(InGameProgressQueryResult.Succeeded(
+                    context.Game.Id,
+                    observations,
+                    isDelta: true));
+            }
+
+            return results;
         }
 
         public ProviderSettingsViewBase CreateSettingsView() => new Gw2SettingsView(ValidateKeyAsync);

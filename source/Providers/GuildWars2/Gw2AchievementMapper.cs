@@ -175,6 +175,32 @@ namespace PlayniteAchievements.Providers.GuildWars2
                tierNumber.ToString(CultureInfo.InvariantCulture);
 
         /// <summary>
+        /// Recovers the achievement id from a tier key built by <see cref="BuildTierApiName"/>. The
+        /// in-game path needs it to map an account entry back onto the cached rows without holding
+        /// the catalog.
+        /// </summary>
+        internal static bool TryParseTierApiName(string apiName, out int achievementId)
+        {
+            achievementId = 0;
+            if (string.IsNullOrWhiteSpace(apiName))
+            {
+                return false;
+            }
+
+            var separator = apiName.IndexOf(':');
+            if (separator <= 0)
+            {
+                return false;
+            }
+
+            return int.TryParse(
+                apiName.Substring(0, separator),
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out achievementId);
+        }
+
+        /// <summary>
         /// Distinguishes the rows of a ladder by the running total the tier is earned at, which is
         /// the same number the in-game panel shows on its progress bar.
         /// </summary>
