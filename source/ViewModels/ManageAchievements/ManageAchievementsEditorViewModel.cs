@@ -392,6 +392,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.IsGoal = SharedFlag(r => r.IsGoal);
             row.Hidden = SharedFlag(r => r.Hidden);
             row.SetFilterScopeFromSource(SharedScope());
+            if (_selectedRows.Any(r => r.FilterScope != _selectedRows[0].FilterScope))
+            {
+                row.SetFilterScopeMixed();
+            }
+
             row.SuppressNotifications = false;
 
             row.PropertyChanged += BulkRow_PropertyChanged;
@@ -3149,6 +3154,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isGoal;
         private bool _isFiltered;
         private bool _isSummaryFiltered;
+        private bool _filterScopeIsMixed;
         private TimeMode _selectedTimeMode;
         private int _selectedHour;
         private int _selectedMinute;
@@ -3379,7 +3385,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _isSummaryFiltered, value))
                 {
+                    OnPropertyChanged(nameof(IsFilteredFromSummaries));
                     OnPropertyChanged(nameof(FilterScope));
+                    OnPropertyChanged(nameof(SelectedFilterScope));
                 }
             }
         }
@@ -3508,23 +3516,70 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Sets the filter scope without raising the change that persists it, for seeding a row
-        /// from stored data or staging a bulk edit that is written once afterwards.
-        /// </summary>
-        /// <summary>
         /// Alias matching the name the shared achievement templates bind, so an editor row and a
         /// display item can be rendered by the same status glyphs.
         /// </summary>
         public bool IsFilteredFromSummaries => IsSummaryFiltered;
 
+        /// <summary>
+        /// The filter scope as the picker binds it: null while a multi-row selection disagrees, so
+        /// "mixed" reads as a blank rather than as a value.
+        /// </summary>
+        /// <remarks>
+        /// A disagreeing selection used to report None, which is also a real choice. Picking None
+        /// then did nothing at all -- the picker already showed it, so no selection change was
+        /// raised and no write followed -- which is why filters could not be cleared across a mixed
+        /// selection. A blank makes None a distinct pick again.
+        /// </remarks>
+        public AchievementFilterScope? SelectedFilterScope
+        {
+            get => _filterScopeIsMixed ? (AchievementFilterScope?)null : FilterScope;
+            set
+            {
+                if (!value.HasValue)
+                {
+                    return;
+                }
+
+                var wasMixed = _filterScopeIsMixed;
+                _filterScopeIsMixed = false;
+
+                if (value.Value != FilterScope)
+                {
+                    FilterScope = value.Value;
+                }
+                else if (wasMixed)
+                {
+                    // The blank was standing in for this value, so nothing compares as changed;
+                    // raise anyway or picking it would silently do nothing.
+                    OnPropertyChanged(nameof(FilterScope));
+                }
+
+                OnPropertyChanged(nameof(SelectedFilterScope));
+            }
+        }
+
+        /// <summary>Marks this row's filter scope as one the selection disagrees on.</summary>
+        internal void SetFilterScopeMixed()
+        {
+            _filterScopeIsMixed = true;
+            OnPropertyChanged(nameof(SelectedFilterScope));
+        }
+
+        /// <summary>
+        /// Sets the filter scope without raising the change that persists it, for seeding a row
+        /// from stored data or staging a bulk edit that is written once afterwards.
+        /// </summary>
         internal void SetFilterScopeFromSource(AchievementFilterScope scope)
         {
+            _filterScopeIsMixed = false;
             _isFiltered = scope == AchievementFilterScope.All;
             _isSummaryFiltered = scope == AchievementFilterScope.Summary;
             OnPropertyChanged(nameof(IsFiltered));
             OnPropertyChanged(nameof(IsSummaryFiltered));
             OnPropertyChanged(nameof(IsFilteredFromSummaries));
             OnPropertyChanged(nameof(FilterScope));
+            OnPropertyChanged(nameof(SelectedFilterScope));
         }
 
         /// <summary>
