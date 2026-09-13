@@ -69,6 +69,11 @@
                 <Setter Property="IsTabStop" Value="False" />
             </Style>
 
+            <Style x:Key="RevealHeaderToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource RevealToggleButtonStyle}">
+                <Setter Property="Margin" Value="6,0,0,0" />
+                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
+            </Style>
+
             <Style x:Key="MaskedCellTextStyle" TargetType="TextBlock">
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
                 <Setter Property="Opacity" Value="0.55" />
@@ -500,6 +505,25 @@
                                             MaxWidth="58"
                                             CanUserResize="False"
                                             CellStyle="{StaticResource ManageAchievementsIconCellStyle}">
+                        <!-- The column's own toggle, reaching every masked icon on screen at once
+                             rather than one click per row. Shown only while something is maskable,
+                             like the per-row toggles. -->
+                        <DataGridTemplateColumn.Header>
+                            <Button Visibility="{Binding DataContext.CanRevealAnyIcon, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                    Command="{Binding DataContext.ToggleAllIconsRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource RevealHeaderToggleButtonStyle}">
+                                        <Setter Property="Margin" Value="0" />
+                                        <Setter Property="Content" Value="&#xef22;" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DataContext.AreAllIconsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                                <Setter Property="Content" Value="&#xef24;" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </DataGridTemplateColumn.Header>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Image Width="44"
@@ -535,9 +559,27 @@
                          beside it: reading one is not a reason to spoil the other. The toggle is
                          shown only when there is something to reveal, so a row whose display
                          settings already reveal that facet carries no button at all. -->
-                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_AchievementName}"
-                                            Width="240"
+                    <DataGridTemplateColumn Width="240"
                                             SortMemberPath="DisplayName">
+                        <DataGridTemplateColumn.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Column_AchievementName}"
+                                           VerticalAlignment="Center" />
+                                <Button Visibility="{Binding DataContext.CanRevealAnyTitle, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding DataContext.ToggleAllTitlesRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource RevealHeaderToggleButtonStyle}">
+                                            <Setter Property="Content" Value="&#xef22;" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DataContext.AreAllTitlesRevealed, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                                    <Setter Property="Content" Value="&#xef24;" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                        </DataGridTemplateColumn.Header>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Grid>
@@ -576,10 +618,28 @@
 
                     <!-- Star-sized so the cells cover the full row width: a click beyond the last
                          column lands on no cell and would not select the row. -->
-                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Description}"
-                                            Width="*"
+                    <DataGridTemplateColumn Width="*"
                                             MinWidth="180"
                                             SortMemberPath="Description">
+                        <DataGridTemplateColumn.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Column_Description}"
+                                           VerticalAlignment="Center" />
+                                <Button Visibility="{Binding DataContext.CanRevealAnyDescription, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding DataContext.ToggleAllDescriptionsRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource RevealHeaderToggleButtonStyle}">
+                                            <Setter Property="Content" Value="&#xef22;" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DataContext.AreAllDescriptionsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                                    <Setter Property="Content" Value="&#xef24;" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                        </DataGridTemplateColumn.Header>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Grid>

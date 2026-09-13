@@ -68,6 +68,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly List<AchievementEditorRow> _selectedRows = new List<AchievementEditorRow>();
         private bool _isApplyingBulk;
         private bool _providerIconBaselinesResolved;
+        private bool _isTogglingReveal;
         private DispatcherTimer _assignmentsChangedDebounce;
         private bool _assignmentsChangedPending;
         private DispatcherTimer _manualUnlockDebounce;
@@ -167,6 +168,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ExportTemplateCommand = new RelayCommand(_ => ExportTemplate(), _ => !IsSaving);
             ExportAchievementsCommand = new RelayCommand(_ => ExportAchievements(), _ => HasRows && !IsSaving);
             ResetCommand = new RelayCommand(_ => ResetRows(), _ => HasRows && !IsSaving);
+            ToggleAllTitlesRevealCommand = new RelayCommand(_ => ToggleAllTitlesReveal());
+            ToggleAllDescriptionsRevealCommand = new RelayCommand(_ => ToggleAllDescriptionsReveal());
+            ToggleAllIconsRevealCommand = new RelayCommand(_ => ToggleAllIconsReveal());
 
             ReloadData();
         }
@@ -214,6 +218,115 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// per-achievement overrides, and the game-level lists -- leaving the providers' own data.
         /// </summary>
         public RelayCommand ResetCommand { get; }
+
+        /// <summary>
+        /// Reveals every masked name in the grid, or masks them all again when none is left masked.
+        /// Acts on the rows the filter is showing: the column header is part of what is on screen,
+        /// so it should not quietly reveal hundreds of rows the user cannot see.
+        /// </summary>
+        public RelayCommand ToggleAllTitlesRevealCommand { get; }
+
+        public RelayCommand ToggleAllDescriptionsRevealCommand { get; }
+
+        public RelayCommand ToggleAllIconsRevealCommand { get; }
+
+        /// <summary>
+        /// Whether any row on screen has something to reveal for that column. The header toggle is
+        /// shown only where there is, matching the per-row buttons.
+        /// </summary>
+        public bool CanRevealAnyTitle => VisibleRows.Any(row => row.CanRevealTitle);
+
+        public bool CanRevealAnyDescription => VisibleRows.Any(row => row.CanRevealDescription);
+
+        public bool CanRevealAnyIcon => VisibleRows.Any(row => row.CanReveal);
+
+        /// <summary>
+        /// Whether nothing maskable is left masked in that column, which is what turns the header
+        /// toggle back into a re-mask.
+        /// </summary>
+        public bool AreAllTitlesRevealed => !VisibleRows.Any(row => row.CanRevealTitle && !row.IsTitleRevealed);
+
+        public bool AreAllDescriptionsRevealed => !VisibleRows.Any(row => row.CanRevealDescription && !row.IsDescriptionRevealed);
+
+        public bool AreAllIconsRevealed => !VisibleRows.Any(row => row.CanReveal && !row.IsRevealed);
+
+        /// <summary>The rows the grid is currently showing, in grid order.</summary>
+        private IEnumerable<AchievementEditorRow> VisibleRows =>
+            AchievementRows.Where(row => row != null && MatchesFilter(row));
+
+        private void ToggleAllTitlesReveal() =>
+            ToggleAllReveal(row => row.CanRevealTitle, row => row.IsTitleRevealed, (row, value) => row.IsTitleRevealed = value);
+
+        private void ToggleAllDescriptionsReveal() =>
+            ToggleAllReveal(row => row.CanRevealDescription, row => row.IsDescriptionRevealed, (row, value) => row.IsDescriptionRevealed = value);
+
+        private void ToggleAllIconsReveal() =>
+            ToggleAllReveal(row => row.CanReveal, row => row.IsRevealed, (row, value) => row.IsRevealed = value);
+
+        /// <summary>
+        /// Reveals every maskable row on screen, or masks them all again once none is left masked,
+        /// so one header click always has a visible effect.
+        /// </summary>
+        private void ToggleAllReveal(
+            Func<AchievementEditorRow, bool> canReveal,
+            Func<AchievementEditorRow, bool> isRevealed,
+            Action<AchievementEditorRow, bool> setRevealed)
+        {
+            var targets = VisibleRows.Where(canReveal).ToList();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            var reveal = targets.Any(row => !isRevealed(row));
+            // The rows raise their reveal state one at a time and the header reads every row, so
+            // the recompute is held until the walk is done rather than paid once per row.
+            _isTogglingReveal = true;
+            try
+            {
+                foreach (var row in targets)
+                {
+                    setRevealed(row, reveal);
+                }
+            }
+            finally
+            {
+                _isTogglingReveal = false;
+            }
+
+            RefreshRevealHeaderState();
+        }
+
+        /// <summary>Re-reads the three column toggles from the rows on screen.</summary>
+        private void RefreshRevealHeaderState()
+        {
+            OnPropertyChanged(nameof(CanRevealAnyTitle));
+            OnPropertyChanged(nameof(CanRevealAnyDescription));
+            OnPropertyChanged(nameof(CanRevealAnyIcon));
+            OnPropertyChanged(nameof(AreAllTitlesRevealed));
+            OnPropertyChanged(nameof(AreAllDescriptionsRevealed));
+            OnPropertyChanged(nameof(AreAllIconsRevealed));
+        }
+
+        private static bool IsRevealStateProperty(string propertyName)
+        {
+            switch (propertyName)
+            {
+                case nameof(AchievementEditorRow.IsRevealed):
+                case nameof(AchievementEditorRow.IsTitleRevealed):
+                case nameof(AchievementEditorRow.IsDescriptionRevealed):
+                case nameof(AchievementEditorRow.IsIconHidden):
+                case nameof(AchievementEditorRow.IsLockedIconHidden):
+                case nameof(AchievementEditorRow.IsTitleHidden):
+                case nameof(AchievementEditorRow.IsDescriptionHidden):
+                case nameof(AchievementEditorRow.CanReveal):
+                case nameof(AchievementEditorRow.CanRevealTitle):
+                case nameof(AchievementEditorRow.CanRevealDescription):
+                    return true;
+                default:
+                    return false;
+            }
+        }
 
         public RelayCommand AddCustomProviderCommand { get; }
 
@@ -651,6 +764,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 RebuildSearchIndex();
                 RebuildFilterOptions();
                 SeedOverrideWriteCache();
+                RefreshRevealHeaderState();
                 SetStatus(null, false);
                 RefreshComputedState();
             }
@@ -1274,6 +1388,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             foreach (var row in targets)
             {
                 row.PropertyChanged -= Row_PropertyChanged;
+                row.RevealStateChanged -= Row_RevealStateChanged;
                 AchievementRows.Remove(row);
             }
 
@@ -1656,6 +1771,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             foreach (var row in AchievementRows)
             {
                 row.PropertyChanged -= Row_PropertyChanged;
+                row.RevealStateChanged -= Row_RevealStateChanged;
             }
 
             // The multi-selection is made of the rows being replaced, and the grid only echoes a
@@ -1931,6 +2047,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 text => _managedCustomIconService?.ResolveManagedDisplayPath(text, _gameIdText) ?? text);
             row.PropertyChanged -= Row_PropertyChanged;
             row.PropertyChanged += Row_PropertyChanged;
+            row.RevealStateChanged -= Row_RevealStateChanged;
+            row.RevealStateChanged += Row_RevealStateChanged;
+        }
+
+        private void Row_RevealStateChanged(object sender, EventArgs e)
+        {
+            if (!_isTogglingReveal)
+            {
+                RefreshRevealHeaderState();
+            }
         }
 
         private void Row_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -1946,6 +2072,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // per row. That made one edit cost O(rows squared). The commit runs its own
             // RefreshComputedState once it has walked every row.
             if (_isCommittingRows)
+            {
+                return;
+            }
+
+            // Reveal state never persists: it only decides what the grid is currently masking.
+            // The column headers follow it through RevealStateChanged, which fires once per change
+            // rather than once per property.
+            if (IsRevealStateProperty(e.PropertyName))
             {
                 return;
             }
@@ -1979,16 +2113,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             if (e.PropertyName == nameof(AchievementEditorRow.ValidationMessage) ||
-                e.PropertyName == nameof(AchievementEditorRow.IsRevealed) ||
-                e.PropertyName == nameof(AchievementEditorRow.IsTitleRevealed) ||
-                e.PropertyName == nameof(AchievementEditorRow.IsDescriptionRevealed) ||
-                e.PropertyName == nameof(AchievementEditorRow.IsIconHidden) ||
-                e.PropertyName == nameof(AchievementEditorRow.IsLockedIconHidden) ||
-                e.PropertyName == nameof(AchievementEditorRow.IsTitleHidden) ||
-                e.PropertyName == nameof(AchievementEditorRow.IsDescriptionHidden) ||
-                e.PropertyName == nameof(AchievementEditorRow.CanReveal) ||
-                e.PropertyName == nameof(AchievementEditorRow.CanRevealTitle) ||
-                e.PropertyName == nameof(AchievementEditorRow.CanRevealDescription) ||
                 e.PropertyName == nameof(AchievementEditorRow.DisplayIcon) ||
                 e.PropertyName == nameof(AchievementEditorRow.CategoryLabel) ||
                 e.PropertyName == nameof(AchievementEditorRow.CategoryTypeValue) ||
@@ -3106,6 +3230,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void NotifyFilterChanged()
         {
             OnPropertyChanged(nameof(IsFiltering));
+            // The header toggles summarize the rows on screen, and the filter decides which those
+            // are.
+            RefreshRevealHeaderState();
             FilterChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -3668,6 +3795,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// Raised once after any reveal state settles. A single toggle moves several of the
+        /// properties below, so a listener that summarizes them over every row -- the column
+        /// headers -- reads them once per change rather than once per property.
+        /// </summary>
+        public event EventHandler RevealStateChanged;
+
         private void NotifyRevealStateChanged()
         {
             OnPropertyChanged(nameof(IsIconHidden));
@@ -3678,6 +3812,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(IsTitleHidden));
             OnPropertyChanged(nameof(IsDescriptionHidden));
             OnPropertyChanged(nameof(DisplayIcon));
+            RevealStateChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private string _categoryLabel;
