@@ -644,10 +644,17 @@
                                              Style="{StaticResource GridEditorTextBoxStyle}"
                                              Visibility="{Binding IsTitleHidden, Converter={StaticResource InverseBoolToVis}}"
                                              KeyDown="EditorTextBox_KeyDown" />
-                                    <TextBlock Grid.Column="0"
-                                               Text="{DynamicResource LOCPlayAch_Achievements_HiddenTitle}"
-                                               Style="{StaticResource MaskedCellTextStyle}"
-                                               Visibility="{Binding IsTitleHidden, Converter={StaticResource BoolToVis}}" />
+                                    <Border Grid.Column="0"
+                                            Background="Transparent"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch"
+                                            Cursor="Hand"
+                                            ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                            Visibility="{Binding IsTitleHidden, Converter={StaticResource BoolToVis}}"
+                                            PreviewMouseLeftButtonDown="MaskedTitle_PreviewMouseLeftButtonDown">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Achievements_HiddenTitle}"
+                                                   Style="{StaticResource MaskedCellTextStyle}" />
+                                    </Border>
                                     <Button Grid.Column="1"
                                             Style="{StaticResource RevealToggleButtonStyle}"
                                             Visibility="{Binding CanRevealTitle, Converter={StaticResource BoolToVis}}"
@@ -722,10 +729,17 @@
                                              Visibility="{Binding IsDescriptionHidden, Converter={StaticResource InverseBoolToVis}}"
                                              TextWrapping="Wrap"
                                              AcceptsReturn="True" />
-                                    <TextBlock Grid.Column="0"
-                                               Text="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
-                                               Style="{StaticResource MaskedCellTextStyle}"
-                                               Visibility="{Binding IsDescriptionHidden, Converter={StaticResource BoolToVis}}" />
+                                    <Border Grid.Column="0"
+                                            Background="Transparent"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch"
+                                            Cursor="Hand"
+                                            ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                            Visibility="{Binding IsDescriptionHidden, Converter={StaticResource BoolToVis}}"
+                                            PreviewMouseLeftButtonDown="MaskedDescription_PreviewMouseLeftButtonDown">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                                   Style="{StaticResource MaskedCellTextStyle}" />
+                                    </Border>
                                     <Button Grid.Column="1"
                                             Style="{StaticResource RevealToggleButtonStyle}"
                                             Visibility="{Binding CanRevealDescription, Converter={StaticResource BoolToVis}}"

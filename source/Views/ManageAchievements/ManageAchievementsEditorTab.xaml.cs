@@ -333,6 +333,30 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         /// <summary>
+        /// Reveals a masked name by clicking it. The placeholder is only on screen while the name
+        /// is masked, so the click has one meaning and does not need to re-mask; the toggle beside
+        /// it is what puts the mask back.
+        /// </summary>
+        private void MaskedTitle_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.RevealTitle();
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>Reveals a masked description by clicking it.</summary>
+        private void MaskedDescription_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.RevealDescription();
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>
         /// Reveals or re-masks one row's name. Separate from the description's toggle: each is
         /// spoiled on its own.
         /// </summary>

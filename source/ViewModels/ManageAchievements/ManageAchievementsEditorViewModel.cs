@@ -3894,6 +3894,27 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 : IconStage + 1;
         }
 
+        /// <summary>
+        /// Reveals the name without the option of masking it again, for clicking the placeholder
+        /// itself: the click can only mean "show me", and the text is gone once it lands.
+        /// </summary>
+        public void RevealTitle()
+        {
+            if (CanRevealTitle)
+            {
+                IsTitleRevealed = true;
+            }
+        }
+
+        /// <summary>Reveals the description. See <see cref="RevealTitle"/>.</summary>
+        public void RevealDescription()
+        {
+            if (CanRevealDescription)
+            {
+                IsDescriptionRevealed = true;
+            }
+        }
+
         public void ToggleTitleReveal()
         {
             if (CanRevealTitle)
