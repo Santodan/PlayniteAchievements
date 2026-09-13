@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Achievements;
 using System;
@@ -105,6 +105,67 @@ namespace PlayniteAchievements.Tests.Services
 
             Assert.IsFalse(derived.Unlocked);
             Assert.AreEqual(1, derived.GlobalPercentUnlocked);
+        }
+
+        [TestMethod]
+        public void Derive_DlcMarkedByHandStillDropsOut()
+        {
+            // No provider grouped this game, so nothing is marked as the base game -- but the user
+            // marked the DLC, and that has to be worth something.
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", unlocked: true, percent: 30,
+                    unlockTimeUtc: new DateTime(2026, 2, 2, 0, 0, 0, DateTimeKind.Utc)),
+                Achievement("dlc", unlocked: false, percent: 1, categoryType: "DLC")
+            });
+
+            Assert.IsTrue(derived.Unlocked);
+            Assert.AreEqual(30, derived.GlobalPercentUnlocked);
+        }
+
+        [TestMethod]
+        public void Derive_SubsetsDropOutTheSameWay()
+        {
+            // RetroAchievements types its extra sets Subset rather than DLC.
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", unlocked: true, percent: 30,
+                    unlockTimeUtc: new DateTime(2026, 2, 2, 0, 0, 0, DateTimeKind.Utc)),
+                Achievement("bonus", unlocked: false, percent: 1, categoryType: "Subset")
+            });
+
+            Assert.IsTrue(derived.Unlocked);
+            Assert.AreEqual(30, derived.GlobalPercentUnlocked);
+        }
+
+        [TestMethod]
+        public void Derive_BaseGameUpdatesAreStillTheBaseGame()
+        {
+            // SteamHunters pairs Update with whichever group owns it.
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", unlocked: true, percent: 30, categoryType: "Base"),
+                Achievement("patch", unlocked: false, percent: 8, categoryType: "Base|Update")
+            });
+
+            Assert.IsFalse(derived.Unlocked);
+            Assert.AreEqual(8, derived.GlobalPercentUnlocked);
+        }
+
+        [TestMethod]
+        public void Derive_EverythingMarkedElsewhereFallsBackToTheWholeList()
+        {
+            // Nothing is left to stand for otherwise, and no capstone at all is the worse answer.
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("dlc1", unlocked: true, percent: 12, categoryType: "DLC",
+                    unlockTimeUtc: new DateTime(2026, 4, 4, 0, 0, 0, DateTimeKind.Utc)),
+                Achievement("dlc2", unlocked: true, percent: 40, categoryType: "DLC",
+                    unlockTimeUtc: new DateTime(2026, 5, 5, 0, 0, 0, DateTimeKind.Utc))
+            });
+
+            Assert.IsTrue(derived.Unlocked);
+            Assert.AreEqual(12, derived.GlobalPercentUnlocked);
         }
 
         private static AchievementDetail Achievement(
