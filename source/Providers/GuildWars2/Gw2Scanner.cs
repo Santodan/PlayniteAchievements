@@ -22,6 +22,17 @@ namespace PlayniteAchievements.Providers.GuildWars2
         private readonly Gw2CatalogCache _catalogCache;
         private readonly Func<string> _globalLanguageAccessor;
 
+        private readonly object _progressLock = new object();
+
+        /// <summary>
+        /// Account progress as of the last refresh that actually wrote rows, and the games it wrote
+        /// them for. Together they let a later refresh recognize that it would rewrite byte-identical
+        /// data and decline to do it.
+        /// </summary>
+        private Dictionary<int, Gw2ProgressSignature> _deliveredProgress;
+
+        private readonly HashSet<Guid> _deliveredGames = new HashSet<Guid>();
+
         public Gw2Scanner(
             ILogger logger,
             Gw2Settings settings,
@@ -88,19 +99,48 @@ namespace PlayniteAchievements.Providers.GuildWars2
             }
 
             var progressIndex = Gw2AchievementMapper.BuildProgressIndex(accountAchievements);
-            var achievements = Gw2AchievementMapper.BuildAchievements(catalog, progressIndex);
+            var snapshot = Gw2ProgressSnapshot.Build(accountAchievements);
 
-            _logger?.Info(
-                $"[GW2] Built {achievements.Count} achievements from {catalog.Achievements.Count} definitions " +
-                $"and {accountAchievements.Count} account entries.");
+            bool progressUnchanged;
+            lock (_progressLock)
+            {
+                progressUnchanged = Gw2ProgressSnapshot.AreEquivalent(_deliveredProgress, snapshot);
+            }
 
-            return await ProviderRefreshExecutor.RunProviderGamesAsync(
+            // Expanding the catalog into tier rows is the expensive half of a Guild Wars 2 refresh -
+            // around 13,000 of them - so it is deferred until a game is known to need it. When the
+            // in-game monitor polls a running game every few seconds and nothing has moved, it never
+            // runs at all.
+            var achievements = new Lazy<List<AchievementDetail>>(
+                () =>
+                {
+                    var built = Gw2AchievementMapper.BuildAchievements(catalog, progressIndex);
+                    _logger?.Info(
+                        $"[GW2] Built {built.Count} achievements from {catalog.Achievements.Count} definitions " +
+                        $"and {accountAchievements.Count} account entries.");
+                    return built;
+                },
+                LazyThreadSafetyMode.ExecutionAndPublication);
+
+            var result = await ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
                 onGameStarting,
-                (game, token) => Task.FromResult(new ProviderRefreshExecutor.ProviderGameResult
+                (game, token) =>
                 {
-                    Data = BuildGameData(game, achievements)
-                }),
+                    if (ShouldSkipUnchanged(game, progressUnchanged))
+                    {
+                        return Task.FromResult(ProviderRefreshExecutor.ProviderGameResult.Skipped());
+                    }
+
+                    var data = BuildGameData(game, achievements.Value);
+
+                    lock (_progressLock)
+                    {
+                        _deliveredGames.Add(game.Id);
+                    }
+
+                    return Task.FromResult(new ProviderRefreshExecutor.ProviderGameResult { Data = data });
+                },
                 onGameCompleted,
                 isAuthRequiredException: ex => ex is Gw2AuthorizationException,
                 onGameError: (game, ex, consecutiveErrors) =>
@@ -108,6 +148,36 @@ namespace PlayniteAchievements.Providers.GuildWars2
                 delayBetweenGamesAsync: null,
                 delayAfterErrorAsync: null,
                 cancel).ConfigureAwait(false);
+
+            lock (_progressLock)
+            {
+                _deliveredProgress = snapshot;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// A refresh may decline to rewrite rows only when the account's progress is identical to
+        /// what was last written for this game, and only while the game is running.
+        ///
+        /// The running check is what makes this safe. The in-game monitor re-runs a full provider
+        /// refresh every few seconds for as long as the game is open - that is its guaranteed floor,
+        /// and for a game with this many rows it is what makes the achievement list stutter while
+        /// being scrolled. A refresh the user asked for, with the game closed, always rebuilds, so
+        /// clearing the cache and refreshing still repopulates it.
+        /// </summary>
+        private bool ShouldSkipUnchanged(Game game, bool progressUnchanged)
+        {
+            if (!progressUnchanged || game == null || game.Id == Guid.Empty || !game.IsRunning)
+            {
+                return false;
+            }
+
+            lock (_progressLock)
+            {
+                return _deliveredGames.Contains(game.Id);
+            }
         }
 
         /// <summary>
