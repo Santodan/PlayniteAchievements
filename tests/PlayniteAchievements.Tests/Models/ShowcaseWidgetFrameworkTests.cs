@@ -76,7 +76,16 @@ namespace PlayniteAchievements.Tests.Models
             instance.SetOption("Count", -5);
             instance.SetOption("IntervalSeconds", 1000);
 
+            instance.SetOption("ScoreHistory", 999);
+
             Assert.AreEqual(ShowcaseScoreMode.Dual, ShowcaseWidgetOptions.GetScoreMode(instance));
+            // A layout saved before the option existed, or with a junk value, keeps both charts.
+            Assert.AreEqual(
+                ShowcaseScoreHistoryMode.Dual,
+                ShowcaseWidgetOptions.GetScoreHistoryMode(new ShowcaseWidgetInstanceSettings()));
+            Assert.AreEqual(
+                ShowcaseScoreHistoryMode.Dual,
+                ShowcaseWidgetOptions.GetScoreHistoryMode(instance));
             Assert.AreEqual(25, ShowcaseWidgetOptions.GetTopN(instance));
             Assert.AreEqual(1, ShowcaseWidgetOptions.GetMosaicCount(instance));
             Assert.AreEqual(300, ShowcaseWidgetOptions.GetSlideshowIntervalSeconds(instance));
@@ -120,6 +129,9 @@ namespace PlayniteAchievements.Tests.Models
 
             var scores = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.Scores);
             Assert.AreEqual(ShowcaseScoreMode.Dual, ShowcaseWidgetOptions.GetScoreMode(scores));
+            Assert.AreEqual(
+                ShowcaseScoreHistoryMode.Dual,
+                ShowcaseWidgetOptions.GetScoreHistoryMode(scores));
             Assert.AreEqual(TimelineRange.ThreeMonths, ShowcaseTimelineOptions.GetRange(scores));
 
             var calendar = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.ActivityCalendar);
