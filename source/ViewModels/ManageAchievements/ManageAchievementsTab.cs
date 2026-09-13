@@ -55,7 +55,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public static readonly HashSet<ManageAchievementsTab> Replaced =
             new HashSet<ManageAchievementsTab>
             {
-                ManageAchievementsTab.Category,
+                // Category is absent on purpose: the editor replaced its Assign half, but nothing
+                // replaces Manage Categories, so the tab stays and only that half is collapsed.
                 ManageAchievementsTab.Filters,
                 ManageAchievementsTab.AchievementOrder,
                 ManageAchievementsTab.Capstones,

@@ -99,12 +99,12 @@ namespace PlayniteAchievements.Tests.Views
                     "Group header key " + key + " must already exist in en_US.xaml.");
             }
 
-            // The Achievements group collapses with its tabs, so its header shares their gate.
+            // The Achievements group collapses with its tabs, so its header is gated on having data, like the Category tab that remains.
             Assert.IsTrue(
                 Regex.IsMatch(
                     xaml,
-                    "LOCPlayAch_Achievements\\}\"[\\s\\S]{0,400}?Binding ShowReplacedTabs"),
-                "The Achievements group header must bind visibility to ShowReplacedTabs so it "
+                    "LOCPlayAch_Achievements\\}\"[\\s\\S]{0,400}?Binding HasAchievementData"),
+                "The Achievements group header must bind visibility to HasAchievementData so it "
                     + "collapses with the tabs it labels.");
         }
 

@@ -125,11 +125,11 @@
                         <TextBlock x:Name="AchievementsSectionHeader"
                                    Text="{DynamicResource LOCPlayAch_Achievements}"
                                    Style="{StaticResource NavSectionHeaderStyle}"
-                                   Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}" />
+                                   Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}" />
                         <RadioButton x:Name="CategoryTabButton"
                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Category}"
                                      Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
+                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
                         <RadioButton x:Name="FiltersTabButton"
                                      Content="{DynamicResource LOCPlayAch_Menu_Filters}"

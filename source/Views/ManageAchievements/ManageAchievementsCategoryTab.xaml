@@ -23,7 +23,11 @@
     <TabControl x:Name="CategorySubTabs"
                 BorderThickness="0"
                 Background="Transparent">
-        <TabItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Category_Tab_Assign}">
+        <!-- Assigning a category is done in the merged editor now, so this half is collapsed
+             rather than deleted: the grid, its context menus and its code-behind all still work,
+             and clearing the Visibility brings it back. -->
+        <TabItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Category_Tab_Assign}"
+                 Visibility="Collapsed">
     <Grid Margin="0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
