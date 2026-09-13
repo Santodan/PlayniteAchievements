@@ -154,7 +154,7 @@
                                                   SelectedValue="{Binding Settings.PlatformRegion, Mode=TwoWay}"
                                                   Padding="4"/>
 
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RiotApiKey}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_ApiKey}"
                                                    Margin="0,12,0,8"/>
                                         <TextBox Text="{Binding Settings.RiotApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="4"/>

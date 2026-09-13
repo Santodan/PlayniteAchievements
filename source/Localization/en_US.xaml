@@ -34,6 +34,7 @@
     <sys:String x:Key="LOCPlayAch_Common_Fullscreen">Fullscreen</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_General">General</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Hide">Hide</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Label_ApiKey">API Key</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Category">Category</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Platform">Platform</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Playtime">Playtime</sys:String>
@@ -938,7 +939,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_GW2_SetupStep2">2. Create a new key and tick at least the account and progression permissions. Without progression the key cannot read your achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GW2_SetupStep3">3. Copy the key into the box below, then click Check.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GW2_NoDatesNote">Guild Wars 2 does not record when an achievement was earned and publishes no completion rates, so Guild Wars 2 achievements show no unlock date and no rarity.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_GW2_ApiKey">API Key</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GW2_ApiKey_Help">The key is a long code beginning with your account id. It is stored in the plugin settings and sent only to api.guildwars2.com.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GW2_MissingProgression">The key is valid but lacks the progression permission. Create a new key with progression ticked.</sys:String>
 
@@ -951,7 +951,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_Riot_Note">Riot reviews personal and production applications separately; the {0} explains what to expect.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RiotId">Riot ID</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RiotId_Help">Your in-game name and tag, for example Faker and KR1. The tag is the part after the # on your profile.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RiotApiKey">API Key</sys:String>
 
     <!-- Provider: Steam -->
     <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories">Use SteamHunters for Categories</sys:String>

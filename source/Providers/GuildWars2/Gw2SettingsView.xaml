@@ -115,7 +115,7 @@
                                         BorderThickness="0,1,0,0"
                                         Padding="0,12,0,0">
                                     <StackPanel>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GW2_ApiKey}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_ApiKey}"
                                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                                         <TextBox Text="{Binding Settings.ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="4"/>
