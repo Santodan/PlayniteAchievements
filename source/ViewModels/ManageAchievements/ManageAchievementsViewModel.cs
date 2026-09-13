@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -91,6 +91,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _exophaseEnrichmentSlugPlaceholder;
         private bool _isExophaseEnrichmentSlugSectionVisible;
         private bool _canExportCustomJson;
+        private const string ManualProviderKey = "Manual";
+
         private bool _canClearCustomData;
         private int _customDataRevision;
 
@@ -1090,6 +1092,29 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// Whether clearing this game's custom data would leave the achievements a manual link
+        /// produced behind with nothing owning them.
+        /// </summary>
+        /// <remarks>
+        /// A manual link is where the unlock state of the achievements it produced lives, and the
+        /// Manual provider only services a game while the link exists. Deleting the link on its own
+        /// leaves rows that no provider services, that the editor refuses to let anyone edit, and
+        /// that no refresh will ever update -- a real provider's own refresh returns nothing for
+        /// them and is turned away by the empty-payload guard, so they are frozen for good.
+        /// </remarks>
+        private bool WouldStrandManualAchievements(GameCustomDataFile currentData)
+        {
+            if (currentData?.ManualLink == null)
+            {
+                return false;
+            }
+
+            var rawGameData = GetRawGameData();
+            return rawGameData?.Achievements?.Count > 0 &&
+                   string.Equals(rawGameData.ProviderKey, ManualProviderKey, StringComparison.OrdinalIgnoreCase);
+        }
+
         private void ClearCustomData()
         {
             if (!HasGame)
@@ -1103,9 +1128,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // The manual link is not customization but the game's source of achievements, so
+            // dropping it has to take what it produced with it.
+            var strandsManualAchievements = WouldStrandManualAchievements(currentData);
             var result = _playniteApi?.Dialogs?.ShowMessage(
                 string.Format(
-                    L("LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm"),
+                    L(strandsManualAchievements
+                        ? "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual"
+                        : "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm"),
                     GameName),
                 L("LOCPlayAch_Title_PluginName"),
                 MessageBoxButton.YesNo,
@@ -1118,6 +1148,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             try
             {
+                if (strandsManualAchievements)
+                {
+                    // Removes the link from both of its homes and the achievements it produced
+                    // from the cache, so nothing is left that no provider services.
+                    _achievementOverridesService?.ClearGameData(_gameId, GameName);
+                }
+
                 store.Delete(_gameId);
                 var transitionEffects = AnalyzeCustomDataTransition(currentData, null);
                 NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);

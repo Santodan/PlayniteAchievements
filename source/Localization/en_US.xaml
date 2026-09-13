@@ -354,6 +354,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_RevertConfirm">Discard this game's custom notification appearance and follow the platform style again? Its custom notification images will be deleted.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton">Clear Custom Data</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm">Clear all custom data for &quot;{0}&quot;?&#10;&#10;This deletes this game's manual links, capstones, custom icons, notification appearance, ordering, categories, exclusions, and platform overrides. Cached achievement data is kept.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual">Clear all custom data for &quot;{0}&quot;?&#10;&#10;This game's achievements come from a manual link, so clearing deletes the link and the achievements it produced, along with this game's capstones, custom icons, notification appearance, ordering, categories, exclusions, and platform overrides. This cannot be undone.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader">Custom Data</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHint">Export or import this game's custom data as a .PA file, including custom images, or clear it. Refresh and summary exclusions are not included.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader">Game Exclusion</sys:String>
