@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Playnite.SDK;
+using PlayniteAchievements.Services.Logging;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
@@ -243,6 +244,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             Unloaded += OnUnloaded;
         }
 
+        /// <summary>The window the wheel hook is registered on, so it can be removed again.</summary>
+        private Window _hostWindow;
+
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             _isLoaded = true;
@@ -252,10 +256,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             // control is reached and the wheel silently does nothing here. Registering this way is
             // what lets the list scroll its own viewport regardless of what sits above it.
             AddHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel), true);
-            AddHandler(MouseWheelEvent, new MouseWheelEventHandler(OnMouseWheel), true);
+            _hostWindow = Window.GetWindow(this);
+            _hostWindow?.AddHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnWindowPreviewMouseWheel));
             if (Common.PerfScope.PerfTracingEnabled)
             {
-                LogManager.GetLogger()?.Debug("[CompactWheel] handler attached.");
+                PluginLogger.GetLogger(nameof(AchievementCompactListControlBase))
+                    ?.Debug("[CompactWheel] handlers attached.");
             }
         }
 
@@ -263,7 +269,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             _isLoaded = false;
             RemoveHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel));
-            RemoveHandler(MouseWheelEvent, new MouseWheelEventHandler(OnMouseWheel));
+            _hostWindow?.RemoveHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnWindowPreviewMouseWheel));
+            _hostWindow = null;
         }
 
         /// <summary>
@@ -491,19 +498,19 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// Handles mouse wheel scrolling, preferring horizontal movement for compact list hosts.
         /// </summary>
         /// <summary>
-        /// Stops the wheel continuing to the page once this list has consumed it.
+        /// Claims the wheel at the window, before the page scroller sees it, and only while the
+        /// pointer is over this strip.
         /// </summary>
         /// <remarks>
-        /// Marking the tunnelling event handled is not enough: something above already claims it,
-        /// which is why this control has to ask for handled events at all, and that claim is what
-        /// scrolls the page. The bubbling pass starts at the item under the cursor and reaches this
-        /// control before any outer scroller, so claiming it here is what keeps the page still while
-        /// the list moves. Released at the ends, so a list with nothing left to scroll hands the
-        /// wheel back rather than trapping it.
+        /// Something above this control handles the tunnelling wheel and scrolls the page with it,
+        /// which is why the strip needs handled events to react at all -- and why the page moves at
+        /// the same time. Tunnelling runs root to leaf, so no handler inside the control can get
+        /// there first; a handler on the window can. Scoped by IsMouseOver so the wheel behaves
+        /// exactly as before everywhere else.
         /// </remarks>
-        private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+        private void OnWindowPreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (e.Delta == 0)
+            if (e.Delta == 0 || !IsMouseOver)
             {
                 return;
             }
@@ -514,11 +521,20 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 return;
             }
 
+            LogWheelDiagnostics(scrollViewer, "window", e.Handled);
+
             if (scrollViewer.ScrollableWidth > 0)
             {
                 var atStart = scrollViewer.HorizontalOffset <= 0;
                 var atEnd = scrollViewer.HorizontalOffset >= scrollViewer.ScrollableWidth;
-                e.Handled = !((e.Delta > 0 && atStart) || (e.Delta < 0 && atEnd));
+                if ((e.Delta > 0 && atStart) || (e.Delta < 0 && atEnd))
+                {
+                    // Nothing left this way: let the page have it rather than trapping the wheel.
+                    return;
+                }
+
+                e.Handled = true;
+                scrollViewer.ScrollToHorizontalOffset(scrollViewer.HorizontalOffset - (e.Delta / 3.0));
                 return;
             }
 
@@ -526,7 +542,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             {
                 var atTop = scrollViewer.VerticalOffset <= 0;
                 var atBottom = scrollViewer.VerticalOffset >= scrollViewer.ScrollableHeight;
-                e.Handled = !((e.Delta > 0 && atTop) || (e.Delta < 0 && atBottom));
+                if ((e.Delta > 0 && atTop) || (e.Delta < 0 && atBottom))
+                {
+                    return;
+                }
+
+                e.Handled = true;
+                scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - (e.Delta / 3.0));
             }
         }
 
@@ -540,11 +562,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             var scrollViewer = FindScrollViewer(this);
             if (scrollViewer == null)
             {
-                LogWheelDiagnostics(null);
+                LogWheelDiagnostics(null, "preview", e.Handled);
                 return;
             }
 
-            LogWheelDiagnostics(scrollViewer);
+            LogWheelDiagnostics(scrollViewer, "preview", e.Handled);
 
             if (scrollViewer.ScrollableWidth > 0)
             {
@@ -567,22 +589,22 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// Reports what the wheel handler found, so a list that will not scroll can be told apart
         /// from one whose viewport already fits its content. Silent unless perf tracing is on.
         /// </summary>
-        private void LogWheelDiagnostics(ScrollViewer scrollViewer)
+        private void LogWheelDiagnostics(ScrollViewer scrollViewer, string pass, bool arrivedHandled)
         {
             if (!Common.PerfScope.PerfTracingEnabled)
             {
                 return;
             }
 
-            var logger = LogManager.GetLogger();
+            var logger = PluginLogger.GetLogger(nameof(AchievementCompactListControlBase));
             if (scrollViewer == null)
             {
-                logger?.Debug("[CompactWheel] no ScrollViewer found beneath the compact list.");
+                logger?.Debug($"[CompactWheel] {pass} arrivedHandled={arrivedHandled}: no ScrollViewer found.");
                 return;
             }
 
             logger?.Debug(
-                $"[CompactWheel] extent={scrollViewer.ExtentWidth:F0}x{scrollViewer.ExtentHeight:F0} " +
+                $"[CompactWheel] {pass} arrivedHandled={arrivedHandled} extent={scrollViewer.ExtentWidth:F0}x{scrollViewer.ExtentHeight:F0} " +
                 $"viewport={scrollViewer.ViewportWidth:F0}x{scrollViewer.ViewportHeight:F0} " +
                 $"scrollable={scrollViewer.ScrollableWidth:F0}x{scrollViewer.ScrollableHeight:F0} " +
                 $"canContentScroll={scrollViewer.CanContentScroll}");
