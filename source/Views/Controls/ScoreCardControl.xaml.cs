@@ -20,13 +20,6 @@ namespace PlayniteAchievements.Views.Controls
                 typeof(ScoreCardControl),
                 new PropertyMetadata(false));
 
-        public static readonly DependencyProperty ShowNextLevelTextProperty =
-            DependencyProperty.Register(
-                nameof(ShowNextLevelText),
-                typeof(bool),
-                typeof(ScoreCardControl),
-                new PropertyMetadata(false));
-
         public static readonly DependencyProperty FlatProperty =
             DependencyProperty.Register(
                 nameof(Flat),
@@ -38,8 +31,6 @@ namespace PlayniteAchievements.Views.Controls
         {
             InitializeComponent();
         }
-
-        public event RoutedEventHandler InfoRequested;
 
         public ScoreCardViewModel ScoreCard
         {
@@ -53,13 +44,6 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(IsFeaturedProperty, value);
         }
 
-        /// <summary>Shows the points-until-next-level line inline under the progress bar.</summary>
-        public bool ShowNextLevelText
-        {
-            get => (bool)GetValue(ShowNextLevelTextProperty);
-            set => SetValue(ShowNextLevelTextProperty, value);
-        }
-
         /// <summary>
         /// Drops the card's own accent background and border for hosts that already provide
         /// chrome (showcase widget blocks).
@@ -68,12 +52,6 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (bool)GetValue(FlatProperty);
             set => SetValue(FlatProperty, value);
-        }
-
-        private void ScoreInfoButton_Click(object sender, RoutedEventArgs e)
-        {
-            e.Handled = true;
-            InfoRequested?.Invoke(this, e);
         }
     }
 }
