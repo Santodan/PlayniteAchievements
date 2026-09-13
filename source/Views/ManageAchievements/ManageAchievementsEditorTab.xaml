@@ -619,15 +619,9 @@
                                         <TextBlock Text="&#xEF22;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
                                                    Visibility="{Binding DataContext.AreAllTitlesRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}" />
-                                        <Viewbox Style="{StaticResource RevealGlyphBoxStyle}"
-                                                 Visibility="{Binding DataContext.AreAllTitlesRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
-                                            <Path Data="{StaticResource GeoCheck}"
-                                                  Stroke="{DynamicResource PlayAch.Brush.Glyph}"
-                                                  StrokeThickness="2.3"
-                                                  StrokeStartLineCap="Round"
-                                                  StrokeEndLineCap="Round"
-                                                  StrokeLineJoin="Round" />
-                                        </Viewbox>
+                                        <TextBlock Text="&#xEF24;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding DataContext.AreAllTitlesRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
                                     </Grid>
                                 </Button>
                             </Grid>
@@ -663,15 +657,9 @@
                                         <TextBlock Text="&#xEF22;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
                                                    Visibility="{Binding IsTitleHidden, Converter={StaticResource BoolToVis}}" />
-                                        <Viewbox Style="{StaticResource RevealGlyphBoxStyle}"
-                                                 Visibility="{Binding IsTitleHidden, Converter={StaticResource InverseBoolToVis}}">
-                                            <Path Data="{StaticResource GeoCheck}"
-                                                  Stroke="{DynamicResource PlayAch.Brush.Glyph}"
-                                                  StrokeThickness="2.3"
-                                                  StrokeStartLineCap="Round"
-                                                  StrokeEndLineCap="Round"
-                                                  StrokeLineJoin="Round" />
-                                        </Viewbox>
+                                        <TextBlock Text="&#xEF24;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding IsTitleHidden, Converter={StaticResource InverseBoolToVis}}" />
                                     </Grid>
                                     </Button>
                                 </Grid>
@@ -703,15 +691,9 @@
                                         <TextBlock Text="&#xEF22;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
                                                    Visibility="{Binding DataContext.AreAllDescriptionsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}" />
-                                        <Viewbox Style="{StaticResource RevealGlyphBoxStyle}"
-                                                 Visibility="{Binding DataContext.AreAllDescriptionsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
-                                            <Path Data="{StaticResource GeoCheck}"
-                                                  Stroke="{DynamicResource PlayAch.Brush.Glyph}"
-                                                  StrokeThickness="2.3"
-                                                  StrokeStartLineCap="Round"
-                                                  StrokeEndLineCap="Round"
-                                                  StrokeLineJoin="Round" />
-                                        </Viewbox>
+                                        <TextBlock Text="&#xEF24;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding DataContext.AreAllDescriptionsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
                                     </Grid>
                                 </Button>
                             </Grid>
@@ -748,15 +730,9 @@
                                         <TextBlock Text="&#xEF22;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
                                                    Visibility="{Binding IsDescriptionHidden, Converter={StaticResource BoolToVis}}" />
-                                        <Viewbox Style="{StaticResource RevealGlyphBoxStyle}"
-                                                 Visibility="{Binding IsDescriptionHidden, Converter={StaticResource InverseBoolToVis}}">
-                                            <Path Data="{StaticResource GeoCheck}"
-                                                  Stroke="{DynamicResource PlayAch.Brush.Glyph}"
-                                                  StrokeThickness="2.3"
-                                                  StrokeStartLineCap="Round"
-                                                  StrokeEndLineCap="Round"
-                                                  StrokeLineJoin="Round" />
-                                        </Viewbox>
+                                        <TextBlock Text="&#xEF24;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding IsDescriptionHidden, Converter={StaticResource InverseBoolToVis}}" />
                                     </Grid>
                                     </Button>
                                 </Grid>
