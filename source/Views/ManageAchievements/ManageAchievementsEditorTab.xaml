@@ -711,7 +711,7 @@
                                     <CheckBox x:Name="CapstoneCheckBox"
                                               Content="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
                                               IsChecked="{Binding IsCapstone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsEnabled="{Binding CanEditAssignments}"
+                                              IsEnabled="{Binding CanEditCapstone}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,18,2"
                                               VerticalContentAlignment="Center" />

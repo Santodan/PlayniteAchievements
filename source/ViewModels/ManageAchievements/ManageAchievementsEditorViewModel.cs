@@ -390,6 +390,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.CategoryTypeValue = SharedValue(r => r.CategoryTypeValue);
             row.AchievementNote = SharedValue(r => r.AchievementNote);
             row.RarityInput = SharedValue(r => r.RarityInput);
+            row.ProgressNumText = SharedValue(r => r.ProgressNumText);
+            row.ProgressDenomText = SharedValue(r => r.ProgressDenomText);
+            row.UnlockedIconPath = SharedValue(r => r.UnlockedIconPath);
+            row.LockedIconPath = SharedValue(r => r.LockedIconPath);
+            row.UnlockTime = SharedUnlockTime();
             row.SetGoalFromSource(SharedFlagOrNull(r => r.IsGoal));
             row.SetHiddenFromSource(SharedFlagOrNull(r => r.Hidden));
             row.SetFilterScopeFromSource(SharedScope());
@@ -451,6 +456,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             var first = selector(_selectedRows[0]);
             return _selectedRows.All(r => selector(r) == first) ? first : (bool?)null;
+        }
+
+        /// <summary>The timestamp the selection agrees on, or none when it disagrees.</summary>
+        private DateTime? SharedUnlockTime()
+        {
+            var first = _selectedRows[0].UnlockTime;
+            return _selectedRows.All(r => Nullable.Equals(r.UnlockTime, first)) ? first : null;
         }
 
         private AchievementFilterScope SharedScope()
@@ -2311,6 +2323,48 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         ApplyPerRow(row => row.Hidden = bulk.Hidden, property);
                         return;
 
+                    // Progress is authored state, so a provider row has nowhere to keep it and the
+                    // row refuses the edit; skipping it here keeps a mixed selection from silently
+                    // dropping half the values it appeared to accept.
+                    case nameof(AchievementEditorRow.ProgressNumText):
+                        ApplyPerRow(
+                            row =>
+                            {
+                                if (row.CanEditProgress)
+                                {
+                                    row.ProgressNumText = bulk.ProgressNumText;
+                                }
+                            },
+                            property);
+                        return;
+
+                    case nameof(AchievementEditorRow.ProgressDenomText):
+                        ApplyPerRow(
+                            row =>
+                            {
+                                if (row.CanEditProgress)
+                                {
+                                    row.ProgressDenomText = bulk.ProgressDenomText;
+                                }
+                            },
+                            property);
+                        return;
+
+                    // The time picker's other properties each drive this one, so correcting a
+                    // timestamp across the selection is handled once here. A locked achievement
+                    // has no unlock to stamp, so it keeps its empty timestamp.
+                    case nameof(AchievementEditorRow.UnlockTime):
+                        ApplyPerRow(
+                            row =>
+                            {
+                                if (row.Unlocked)
+                                {
+                                    row.UnlockTime = bulk.UnlockTime;
+                                }
+                            },
+                            property);
+                        return;
+
                     case nameof(AchievementEditorRow.RarityInput):
                         // Refused on provider rows by the row itself; a mixed selection is marked
                         // as provider-backed, so this only reaches an all-authored selection.
@@ -3258,6 +3312,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// none of its own but every row it stands for does, so it qualifies.
         /// </summary>
         public bool CanEditAssignments => IsBulkRow || !string.IsNullOrWhiteSpace(OriginalApiName);
+
+        /// <summary>
+        /// The capstone is one achievement per game, so it has no meaning for a multi-selection.
+        /// The proxy refuses it rather than accepting a click it could not apply.
+        /// </summary>
+        public bool CanEditCapstone => CanEditAssignments && !IsBulkRow;
 
         /// <summary>
         /// The category the provider gave this achievement, kept because <see cref="CategoryLabel"/>
