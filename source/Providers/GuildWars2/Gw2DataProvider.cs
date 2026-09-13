@@ -180,9 +180,11 @@ namespace PlayniteAchievements.Providers.GuildWars2
             var snapshot = Gw2ProgressSnapshot.Build(accountAchievements);
 
             List<int> changedIds;
+            Dictionary<int, Gw2ProgressSignature> previousSnapshot;
             lock (_liveLock)
             {
-                changedIds = Gw2ProgressSnapshot.GetChangedIds(_liveSnapshot, snapshot);
+                previousSnapshot = _liveSnapshot;
+                changedIds = Gw2ProgressSnapshot.GetChangedIds(previousSnapshot, snapshot);
                 _liveSnapshot = snapshot;
             }
 
@@ -224,7 +226,11 @@ namespace PlayniteAchievements.Providers.GuildWars2
                 var tierIndex = session?.TierIndex
                     ?? Gw2InGameProgressMapper.BuildTierIndex(context.CachedSchema);
 
-                var observations = Gw2InGameProgressMapper.BuildObservations(tierIndex, changedIds, snapshot);
+                var observations = Gw2InGameProgressMapper.BuildObservations(
+                    tierIndex,
+                    changedIds,
+                    snapshot,
+                    previousSnapshot);
 
                 results.Add(InGameProgressQueryResult.Succeeded(
                     context.Game.Id,

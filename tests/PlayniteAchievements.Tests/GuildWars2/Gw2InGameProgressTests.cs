@@ -209,6 +209,55 @@ namespace PlayniteAchievements.GuildWars2.Tests
             Assert.AreEqual(0, Gw2InGameProgressMapper.BuildObservations(index, new[] { 999 }, snapshot).Count);
         }
 
+        [TestMethod]
+        public void BuildObservations_SkipsTiersAlreadySettledAtThePreviousRead()
+        {
+            var index = Gw2InGameProgressMapper.BuildTierIndex(BuildCachedSchema());
+            var before = Snapshot(@"[ { ""id"": 1, ""current"": 60, ""done"": false } ]");
+            var after = Snapshot(@"[ { ""id"": 1, ""current"": 120, ""done"": false } ]");
+
+            var observations = Gw2InGameProgressMapper.BuildObservations(index, new[] { 1 }, after, before);
+
+            // Tiers 1 and 2 (10 and 50) were already earned with full bars at 60 and cannot move.
+            CollectionAssert.AreEquivalent(
+                new[] { "1:t3", "1:t4" },
+                observations.Select(o => o.ApiName).ToArray());
+        }
+
+        [TestMethod]
+        public void BuildObservations_StillReportsTheTierThatJustUnlocked()
+        {
+            var index = Gw2InGameProgressMapper.BuildTierIndex(BuildCachedSchema());
+            var before = Snapshot(@"[ { ""id"": 1, ""current"": 60, ""done"": false } ]");
+            var after = Snapshot(@"[ { ""id"": 1, ""current"": 120, ""done"": false } ]");
+
+            var observations = Gw2InGameProgressMapper.BuildObservations(index, new[] { 1 }, after, before);
+
+            var crossed = observations.Single(o => o.ApiName == "1:t3");
+            Assert.IsTrue(crossed.Unlocked, "120 crossed the 100 threshold");
+            Assert.AreEqual(100, crossed.ProgressNum);
+        }
+
+        [TestMethod]
+        public void BuildObservations_EmitsNothingForAnAlreadyFinishedLadder()
+        {
+            // Only the repeat count moved, which changes no tier.
+            var index = Gw2InGameProgressMapper.BuildTierIndex(BuildCachedSchema());
+            var before = Snapshot(@"[ { ""id"": 1, ""done"": true, ""repeated"": 1 } ]");
+            var after = Snapshot(@"[ { ""id"": 1, ""done"": true, ""repeated"": 2 } ]");
+
+            Assert.AreEqual(0, Gw2InGameProgressMapper.BuildObservations(index, new[] { 1 }, after, before).Count);
+        }
+
+        [TestMethod]
+        public void BuildObservations_WithNoPreviousReadReportsEveryTier()
+        {
+            var index = Gw2InGameProgressMapper.BuildTierIndex(BuildCachedSchema());
+            var after = Snapshot(@"[ { ""id"": 1, ""current"": 60, ""done"": false } ]");
+
+            Assert.AreEqual(4, Gw2InGameProgressMapper.BuildObservations(index, new[] { 1 }, after, null).Count);
+        }
+
         [DataTestMethod]
         [DataRow("1:t1", true, 1)]
         [DataRow("12345:t42", true, 12345)]

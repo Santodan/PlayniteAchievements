@@ -67,11 +67,17 @@ namespace PlayniteAchievements.Providers.GuildWars2
         /// Observations for the achievements whose progress moved, expanded to one per tier. The
         /// unlock rules match the full refresh exactly, so a live update and a later refresh cannot
         /// disagree about whether a tier is earned.
+        ///
+        /// Tiers that were already settled at <paramref name="previous"/> are left out. Progress in
+        /// this game never goes backwards, so a tier at or below the previous running total is
+        /// already unlocked with its bar already full: it cannot change, and reporting it again
+        /// would only make the monitor re-examine a row that is finished with.
         /// </summary>
         public static List<AchievementProgressObservation> BuildObservations(
             Dictionary<int, List<Gw2CachedTier>> tierIndex,
             IReadOnlyList<int> changedIds,
-            Dictionary<int, Gw2ProgressSignature> snapshot)
+            Dictionary<int, Gw2ProgressSignature> snapshot,
+            Dictionary<int, Gw2ProgressSignature> previous = null)
         {
             var observations = new List<AchievementProgressObservation>();
             if (tierIndex == null || changedIds == null || snapshot == null)
@@ -87,7 +93,20 @@ namespace PlayniteAchievements.Providers.GuildWars2
                     continue;
                 }
 
+                var before = default(Gw2ProgressSignature);
+                var hadPrevious = previous != null &&
+                    previous.TryGetValue(achievementId, out before);
+
+                // A ladder that was already finished has no tier left to move. Only its repeat
+                // count can still climb, and that changes nothing about any tier.
+                if (hadPrevious && (before.Done || before.Repeated > 0))
+                {
+                    continue;
+                }
+
+                var settledAt = hadPrevious && before.Current > 0 ? before.Current : 0;
                 var completed = progress.Done || progress.Repeated > 0;
+                var current = progress.Current < 0 ? 0 : progress.Current;
 
                 foreach (var tier in tiers)
                 {
@@ -97,7 +116,10 @@ namespace PlayniteAchievements.Providers.GuildWars2
                     }
 
                     var threshold = tier.Threshold > 0 ? tier.Threshold : 1;
-                    var current = progress.Current < 0 ? 0 : progress.Current;
+                    if (threshold <= settledAt)
+                    {
+                        continue;
+                    }
 
                     observations.Add(new AchievementProgressObservation
                     {
