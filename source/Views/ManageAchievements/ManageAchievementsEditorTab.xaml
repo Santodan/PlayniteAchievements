@@ -323,7 +323,9 @@
                                     Margin="0,0,0,8" />
                         </WrapPanel>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                    <!-- Top of the line, not stretched down it: the group beside these carries a
+                         second row, and a wrap panel would otherwise give every item that height. -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0" VerticalAlignment="Top">
                         <Button x:Name="ImportFileButton"
                                 Content="{DynamicResource LOCPlayAch_Common_Import}"
                                 Command="{Binding ImportFileCommand}"
@@ -343,6 +345,7 @@
                         </Button>
                     </StackPanel>
                     <Button x:Name="ResetButton"
+                            VerticalAlignment="Top"
                             Content="{DynamicResource LOCPlayAch_Button_ResetAll}"
                             ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Custom_ResetHint}"
                             Command="{Binding ResetCommand}"
