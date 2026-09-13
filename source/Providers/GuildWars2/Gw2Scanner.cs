@@ -5,6 +5,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Refresh;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -85,20 +86,6 @@ namespace PlayniteAchievements.Providers.GuildWars2
                 return payload;
             }
 
-            var language = Gw2Parsing.MapGlobalLanguage(_globalLanguageAccessor?.Invoke());
-            var catalog = await _catalogCache
-                .GetCatalogAsync(_apiClient, language, null, cancel)
-                .ConfigureAwait(false);
-
-            if (catalog == null || !catalog.IsUsable)
-            {
-                // Writing an empty payload would erase the cached achievements, so fault the provider
-                // instead and let the run surface the failure with the rest of the cache intact.
-                throw new Gw2ApiException(
-                    "No Guild Wars 2 achievement definitions are available from the API or the local cache.");
-            }
-
-            var progressIndex = Gw2AchievementMapper.BuildProgressIndex(accountAchievements);
             var snapshot = Gw2ProgressSnapshot.Build(accountAchievements);
 
             bool progressUnchanged;
@@ -106,6 +93,30 @@ namespace PlayniteAchievements.Providers.GuildWars2
             {
                 progressUnchanged = Gw2ProgressSnapshot.AreEquivalent(_deliveredProgress, snapshot);
             }
+
+            // The catalog is only needed to build rows. When every target game is going to decline
+            // the write, skipping the lookup also skips its build-id request, so a poll of a running
+            // game costs exactly one call to the account endpoint.
+            var everyGameSkips = gamesToRefresh.All(game => ShouldSkipUnchanged(game, progressUnchanged));
+
+            Gw2Catalog catalog = null;
+            if (!everyGameSkips)
+            {
+                var language = Gw2Parsing.MapGlobalLanguage(_globalLanguageAccessor?.Invoke());
+                catalog = await _catalogCache
+                    .GetCatalogAsync(_apiClient, language, null, cancel)
+                    .ConfigureAwait(false);
+
+                if (catalog == null || !catalog.IsUsable)
+                {
+                    // Writing an empty payload would erase the cached achievements, so fault the
+                    // provider instead and let the run surface the failure with the cache intact.
+                    throw new Gw2ApiException(
+                        "No Guild Wars 2 achievement definitions are available from the API or the local cache.");
+                }
+            }
+
+            var progressIndex = Gw2AchievementMapper.BuildProgressIndex(accountAchievements);
 
             // Expanding the catalog into tier rows is the expensive half of a Guild Wars 2 refresh -
             // around 13,000 of them - so it is deferred until a game is known to need it. When the

@@ -107,6 +107,13 @@ namespace PlayniteAchievements.Providers.GuildWars2
         private sealed class Gw2LiveSession
         {
             public bool BaselineTaken;
+
+            /// <summary>
+            /// Tier lookup for this game's cached rows, built once per session. The cached schema
+            /// does not change while a game runs, and rebuilding it meant walking all 13,000 rows
+            /// on every poll.
+            /// </summary>
+            public Dictionary<int, List<Gw2CachedTier>> TierIndex;
         }
 
         private readonly object _liveLock = new object();
@@ -197,7 +204,26 @@ namespace PlayniteAchievements.Providers.GuildWars2
                     continue;
                 }
 
-                var tierIndex = Gw2InGameProgressMapper.BuildTierIndex(context.CachedSchema);
+                // The overwhelmingly common tick: the account has not moved, so there is nothing to
+                // map and no reason to touch the cached rows at all.
+                if (changedIds.Count == 0)
+                {
+                    results.Add(InGameProgressQueryResult.Succeeded(
+                        context.Game.Id,
+                        Array.Empty<AchievementProgressObservation>(),
+                        isDelta: true));
+                    continue;
+                }
+
+                if (session != null)
+                {
+                    session.TierIndex = session.TierIndex
+                        ?? Gw2InGameProgressMapper.BuildTierIndex(context.CachedSchema);
+                }
+
+                var tierIndex = session?.TierIndex
+                    ?? Gw2InGameProgressMapper.BuildTierIndex(context.CachedSchema);
+
                 var observations = Gw2InGameProgressMapper.BuildObservations(tierIndex, changedIds, snapshot);
 
                 results.Add(InGameProgressQueryResult.Succeeded(
