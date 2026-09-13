@@ -639,6 +639,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         .Select(AchievementEditorRow.FromDefinition));
                 }
                 CaptureCollectionBaseline();
+                ApplyProviderIconBaselines();
                 RefreshAssignmentState();
                 RefreshCustomProviderState();
                 ApplyManualTrackingToRows();
@@ -653,6 +654,37 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _logger?.Error(ex, $"Failed loading custom achievements for gameId={_gameId}.");
                 ReplaceRows(Array.Empty<AchievementEditorRow>());
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+        }
+
+        /// <summary>
+        /// Stamps each row with the provider's own icons and the managed-cache file stem, read
+        /// from the raw snapshot because the rows themselves show the overridden values.
+        /// </summary>
+        private void ApplyProviderIconBaselines()
+        {
+            var fileStems = AchievementIconCachePathBuilder.BuildFileStems(
+                AchievementRows.Select(row => row?.OriginalApiName));
+            var rawByApiName = _gameDataSnapshotProvider?.GetRawGameData()?.Achievements?
+                .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
+                .GroupBy(a => NormalizeText(a.ApiName), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase)
+                ?? new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var row in AchievementRows)
+            {
+                var apiName = NormalizeText(row?.OriginalApiName);
+                if (row == null || string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                row.IconFileStem = fileStems.TryGetValue(apiName, out var stem) ? stem : null;
+                if (rawByApiName.TryGetValue(apiName, out var raw))
+                {
+                    row.ProviderUnlockedIconPath = raw.UnlockedIconPath;
+                    row.ProviderLockedIconPath = raw.LockedIconPath;
+                }
             }
         }
 
@@ -2058,6 +2090,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         WriteProviderField(apiName, AchievementEditableField.TrophyType, NormalizeText(row.TrophyType));
                         break;
 
+                    // Icons are stored as their own maps rather than on the override record, so
+                    // they are written whole. Without this the editor accepted an icon for a
+                    // provider achievement and lost it on the next reload.
+                    case nameof(AchievementEditorRow.UnlockedIconPath):
+                        _ = ApplyIconEditAsync(new[] { row }, AchievementIconVariant.Unlocked);
+                        break;
+
+                    case nameof(AchievementEditorRow.LockedIconPath):
+                        _ = ApplyIconEditAsync(new[] { row }, AchievementIconVariant.Locked);
+                        break;
+
                     case nameof(AchievementEditorRow.Unlocked):
                     case nameof(AchievementEditorRow.UnlockTime):
                     case nameof(AchievementEditorRow.HasUnlockTime):
@@ -2297,6 +2340,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         PersistUnlockStateFromRows();
                         return;
 
+                    case nameof(AchievementEditorRow.UnlockedIconPath):
+                        ApplyIconEditAcrossSelection(
+                            row => row.UnlockedIconPath = bulk.UnlockedIconPath,
+                            AchievementIconVariant.Unlocked);
+                        return;
+
+                    case nameof(AchievementEditorRow.LockedIconPath):
+                        ApplyIconEditAcrossSelection(
+                            row => row.LockedIconPath = bulk.LockedIconPath,
+                            AchievementIconVariant.Locked);
+                        return;
+
                     // Per-achievement fields: each row persists on its own, because they are stored
                     // per achievement rather than as one collection.
                     case nameof(AchievementEditorRow.DisplayName):
@@ -2383,6 +2438,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             StageAcross(_selectedRows, apply);
 
         /// <summary>
+        /// Applies one icon across the selection: the provider rows through the override maps, the
+        /// authored ones through their own definitions.
+        /// </summary>
+        private void ApplyIconEditAcrossSelection(Action<AchievementEditorRow> apply, AchievementIconVariant variant)
+        {
+            var targets = _selectedRows.ToList();
+            StageAcross(targets, apply);
+            _ = ApplyIconEditAsync(targets, variant);
+            if (targets.Any(row => !row.IsProviderRow))
+            {
+                RefreshComputedState();
+                _ = SaveAsync();
+            }
+        }
+
+        /// <summary>
         /// Applies a staged edit to each row without raising the per-row persist, for facets that
         /// are written once for the whole collection afterwards.
         /// </summary>
@@ -2442,6 +2513,122 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             PersistAssignmentMaps(
                 BuildRowMap(row => row.CategoryLabel),
                 BuildRowMap(row => row.CategoryTypeValue));
+        }
+
+        /// <summary>
+        /// Writes the icon overrides for the provider-backed rows as one pair of maps.
+        /// </summary>
+        /// <remarks>
+        /// A row shows its effective icon, so an entry is written only where that differs from the
+        /// provider's own art; an icon cleared back to the provider's leaves no entry, which is
+        /// what removes the override. Authored rows keep their icons on their own definition and
+        /// are written by the save, so they stay out of both maps.
+        /// </remarks>
+        private void PersistIconOverridesFromRows()
+        {
+            try
+            {
+                var unlockedOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var lockedOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var row in AchievementRows)
+                {
+                    var apiName = NormalizeText(row?.OriginalApiName);
+                    if (row == null || !row.IsProviderRow || string.IsNullOrWhiteSpace(apiName))
+                    {
+                        continue;
+                    }
+
+                    var unlocked = NormalizeText(row.UnlockedIconPath);
+                    if (!string.IsNullOrWhiteSpace(unlocked) &&
+                        !string.Equals(unlocked, NormalizeText(row.ProviderUnlockedIconPath), StringComparison.OrdinalIgnoreCase))
+                    {
+                        unlockedOverrides[apiName] = unlocked;
+                    }
+
+                    var locked = NormalizeText(row.LockedIconPath);
+                    if (!string.IsNullOrWhiteSpace(locked) &&
+                        !string.Equals(locked, NormalizeText(row.ProviderLockedIconPath), StringComparison.OrdinalIgnoreCase))
+                    {
+                        lockedOverrides[apiName] = locked;
+                    }
+                }
+
+                _achievementOverridesService.SetIconOverridesAndCustomAchievementIcons(
+                    _gameId,
+                    unlockedOverrides,
+                    lockedOverrides,
+                    new Dictionary<string, (string Unlocked, string Locked)>(StringComparer.OrdinalIgnoreCase));
+                RaiseAssignmentsChanged();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed saving achievement icon overrides for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+        }
+
+        /// <summary>
+        /// Copies a chosen image into the managed icon cache for each row it was set on, then
+        /// writes the override maps once.
+        /// </summary>
+        /// <remarks>
+        /// Clearing an icon puts the provider's own back on the row, which is both what the user
+        /// should see and what leaves no override behind.
+        /// </remarks>
+        private async Task ApplyIconEditAsync(IReadOnlyList<AchievementEditorRow> rows, AchievementIconVariant variant)
+        {
+            var errors = new List<string>();
+            foreach (var row in rows ?? Array.Empty<AchievementEditorRow>())
+            {
+                if (row == null || !row.IsProviderRow)
+                {
+                    continue;
+                }
+
+                var current = NormalizeText(ReadIcon(row, variant));
+                if (string.IsNullOrWhiteSpace(current))
+                {
+                    StageAcross(new[] { row }, target => WriteIcon(target, variant, ReadProviderIcon(target, variant)));
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(row.IconFileStem))
+                {
+                    continue;
+                }
+
+                var materialized = await MaterializeIconSourceAsync(current, row.IconFileStem, variant, errors)
+                    .ConfigureAwait(true);
+                if (!string.Equals(materialized, current, StringComparison.Ordinal))
+                {
+                    StageAcross(new[] { row }, target => WriteIcon(target, variant, materialized));
+                }
+            }
+
+            if (errors.Count > 0)
+            {
+                SetStatus(string.Join(Environment.NewLine, errors.Take(8)), true);
+            }
+
+            PersistIconOverridesFromRows();
+        }
+
+        private static string ReadIcon(AchievementEditorRow row, AchievementIconVariant variant) =>
+            variant == AchievementIconVariant.Locked ? row.LockedIconPath : row.UnlockedIconPath;
+
+        private static string ReadProviderIcon(AchievementEditorRow row, AchievementIconVariant variant) =>
+            variant == AchievementIconVariant.Locked ? row.ProviderLockedIconPath : row.ProviderUnlockedIconPath;
+
+        private static void WriteIcon(AchievementEditorRow row, AchievementIconVariant variant, string value)
+        {
+            if (variant == AchievementIconVariant.Locked)
+            {
+                row.LockedIconPath = value;
+            }
+            else
+            {
+                row.UnlockedIconPath = value;
+            }
         }
 
         private void PersistGoalsFromRows()
@@ -3318,6 +3505,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// The proxy refuses it rather than accepting a click it could not apply.
         /// </summary>
         public bool CanEditCapstone => CanEditAssignments && !IsBulkRow;
+
+        /// <summary>
+        /// The icons the provider supplies, captured before any override is applied over them.
+        /// A row shows its effective icon, so this is the only way to tell an override apart from
+        /// the provider's own art, and the only thing to fall back to when one is cleared.
+        /// </summary>
+        public string ProviderUnlockedIconPath { get; internal set; }
+
+        public string ProviderLockedIconPath { get; internal set; }
+
+        /// <summary>
+        /// The file stem an overriding image is copied to inside the plugin's icon cache, so a
+        /// local file or URL survives being moved or going offline.
+        /// </summary>
+        public string IconFileStem { get; internal set; }
 
         /// <summary>
         /// The category the provider gave this achievement, kept because <see cref="CategoryLabel"/>
