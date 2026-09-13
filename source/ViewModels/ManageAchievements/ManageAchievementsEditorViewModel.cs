@@ -1598,6 +1598,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // The snapshot holds hydrated data until something drops it, and a category the user
+            // changed in this window is exactly what decides the scope. Without this the capstone
+            // would be worked out from the grouping as it stood before that edit.
+            _gameDataSnapshotProvider?.Invalidate();
+
             var apiName = NormalizeText(row.OriginalApiName);
             var derived = AutoCapstoneCalculator.Derive(
                 _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements?
