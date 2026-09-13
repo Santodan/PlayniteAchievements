@@ -170,6 +170,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ExportAchievementsCommand = new RelayCommand(_ => ExportAchievements(), _ => HasRows && !IsSaving);
             ResetCommand = new RelayCommand(_ => ResetRows(), _ => HasRows && !IsSaving);
             ResetOrderCommand = new RelayCommand(_ => ResetOrder(), _ => HasCustomOrder && !IsSaving);
+            AutoCapstoneCommand = new RelayCommand(_ => _ = ApplyAutoCapstoneAsync(), _ => HasRows && !IsSaving);
             ToggleAllTitlesRevealCommand = new RelayCommand(_ => ToggleAllTitlesReveal());
             ToggleAllDescriptionsRevealCommand = new RelayCommand(_ => ToggleAllDescriptionsReveal());
             CycleAllIconStagesCommand = new RelayCommand(_ => CycleAllIconStages());
@@ -226,6 +227,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// over. Disabled until there is an order to drop.
         /// </summary>
         public RelayCommand ResetOrderCommand { get; }
+
+        /// <summary>
+        /// Points the game's capstone at its platinum trophy, authoring one when the game has none.
+        /// </summary>
+        public RelayCommand AutoCapstoneCommand { get; }
 
         /// <summary>
         /// Reveals every masked name in the grid, or masks them all again when none is left masked.
@@ -1431,6 +1437,211 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// providers hand over. Unlike reverting a selection there is nothing to re-seat: the
         /// positional list goes entirely.
         /// </summary>
+        private const string PlatinumTrophyType = "platinum";
+
+        private const string BaseCategoryType = "Base";
+
+        /// <summary>The plugin's own mark, the one the notification preview shows.</summary>
+        private const string BrandingIconPackUri =
+            "pack://application:,,,/PlayniteAchievements;component/Resources/BrandingIcon.png";
+
+        /// <summary>
+        /// Makes the game's platinum trophy its capstone, authoring one when the game has no
+        /// platinum of its own.
+        /// </summary>
+        private async Task ApplyAutoCapstoneAsync()
+        {
+            try
+            {
+                var platinum = ResolvePlatinumCapstoneRow();
+                if (platinum != null)
+                {
+                    SetCapstoneForRow(platinum, true);
+                    SelectedRow = platinum;
+                    SetStatus(null, false);
+                    return;
+                }
+
+                await CreateCapstoneAchievementAsync().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed applying the automatic capstone for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+        }
+
+        /// <summary>
+        /// The platinum trophy that stands for finishing the game, or null when it has none.
+        /// </summary>
+        /// <remarks>
+        /// Several platinums means DLC trophy sets alongside the base game's, and only the base
+        /// game's marks the game complete. Providers type the group rather than leaving it to the
+        /// label, so the base one is read off that type instead of guessed from the category text.
+        /// When nothing is typed -- a game whose trophies were authored or came from a provider
+        /// that does not group them -- the earliest in the achievement order wins, that order being
+        /// what the list is showing.
+        /// </remarks>
+        private AchievementEditorRow ResolvePlatinumCapstoneRow()
+        {
+            var platinums = AchievementRows
+                .Where(row => row != null &&
+                              !string.IsNullOrWhiteSpace(row.OriginalApiName) &&
+                              string.Equals(NormalizeText(row.TrophyType), PlatinumTrophyType, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (platinums.Count <= 1)
+            {
+                return platinums.FirstOrDefault();
+            }
+
+            var baseGame = platinums.FirstOrDefault(row =>
+                AchievementCategoryTypeHelper.ParseValues(row.EffectiveCategoryTypeValue)
+                    .Any(value => string.Equals(value, BaseCategoryType, StringComparison.OrdinalIgnoreCase)));
+            return baseGame ?? platinums[0];
+        }
+
+        /// <summary>
+        /// Authors the achievement that stands for finishing the game and makes it the capstone.
+        /// </summary>
+        /// <remarks>
+        /// Its locked art is left unset on purpose: an achievement without one is drawn as a
+        /// greyscale of its unlocked art already, which is what a locked platinum should look like,
+        /// and storing a second copy of the same image would only be another file to keep in step.
+        /// </remarks>
+        private async Task CreateCapstoneAchievementAsync()
+        {
+            var game = API.Instance?.Database?.Games?.Get(_gameId);
+            var row = AchievementEditorRow.CreateNew(AchievementRows.Count + 1);
+            AssignStableId(row);
+            row.DisplayName = NormalizeText(game?.Name) ?? row.DisplayName;
+            row.Description = L(
+                "LOCPlayAch_ManageAchievements_Custom_AutoCapstoneDescription",
+                "Obtain all Achievements.");
+            row.TrophyType = PlatinumTrophyType;
+            row.Hidden = false;
+
+            // As rare as the rarest achievement it stands for: finishing the game is at least as
+            // hard as its hardest step.
+            var rarest = ResolveRarestBaseGamePercent();
+            if (rarest.HasValue)
+            {
+                row.RarityInput = rarest.Value.ToString(CultureInfo.InvariantCulture);
+            }
+
+            // A source path, not a cached one: the save materializes it into this game's icon
+            // cache the same way it does an icon dropped onto any other authored achievement.
+            row.UnlockedIconPath = ResolveCapstoneIconSource(game);
+
+            AttachRow(row);
+            AchievementRows.Add(row);
+            SelectedRow = row;
+            RefreshComputedState();
+            await SaveAsync().ConfigureAwait(true);
+
+            if (string.IsNullOrWhiteSpace(row.OriginalApiName))
+            {
+                // The save refused it, and its own validation message says why.
+                return;
+            }
+
+            SetCapstoneForRow(row, true);
+
+            // Only when the game already carries an order: pinning it otherwise would author one
+            // for every achievement just to place this one.
+            if (HasCustomOrder)
+            {
+                PersistCurrentOrder();
+            }
+        }
+
+        /// <summary>
+        /// The lowest unlock percentage among the achievements the capstone stands for, which is
+        /// the base game's when the provider groups them and the whole list's when it does not.
+        /// </summary>
+        private double? ResolveRarestBaseGamePercent()
+        {
+            var achievements = _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements;
+            if (achievements == null || achievements.Count == 0)
+            {
+                return null;
+            }
+
+            var baseGame = achievements
+                .Where(a => a != null &&
+                            AchievementCategoryTypeHelper.ParseValues(a.CategoryType)
+                                .Any(value => string.Equals(value, BaseCategoryType, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            var scope = baseGame.Count > 0 ? baseGame : achievements.Where(a => a != null).ToList();
+            var percents = scope
+                .Where(a => a.GlobalPercentUnlocked.HasValue && a.GlobalPercentUnlocked.Value > 0)
+                .Select(a => a.GlobalPercentUnlocked.Value)
+                .ToList();
+            return percents.Count > 0 ? percents.Min() : (double?)null;
+        }
+
+        /// <summary>
+        /// The image to stand the capstone on: the game's own icon, then its cover, then the
+        /// plugin's mark, so it is never left without one.
+        /// </summary>
+        private string ResolveCapstoneIconSource(Playnite.SDK.Models.Game game)
+        {
+            var icon = ResolvePlayniteAssetFile(game?.Icon);
+            if (!string.IsNullOrWhiteSpace(icon))
+            {
+                return icon;
+            }
+
+            var cover = ResolvePlayniteAssetFile(game?.CoverImage);
+            return !string.IsNullOrWhiteSpace(cover) ? cover : ResolveBrandingIconFile();
+        }
+
+        private static string ResolvePlayniteAssetFile(string databasePath)
+        {
+            var normalized = NormalizeText(databasePath);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return null;
+            }
+
+            var full = API.Instance?.Database?.GetFullFilePath(normalized);
+            return !string.IsNullOrWhiteSpace(full) && File.Exists(full) ? full : null;
+        }
+
+        /// <summary>
+        /// Unpacks the plugin's mark to a file, because an achievement's icon is stored as a path
+        /// and the mark ships inside the assembly.
+        /// </summary>
+        private string ResolveBrandingIconFile()
+        {
+            try
+            {
+                var target = Path.Combine(Path.GetTempPath(), "playniteachievements-capstone.png");
+                if (File.Exists(target))
+                {
+                    return target;
+                }
+
+                var resource = System.Windows.Application.GetResourceStream(new Uri(BrandingIconPackUri));
+                if (resource?.Stream == null)
+                {
+                    return null;
+                }
+
+                using (var source = resource.Stream)
+                using (var file = File.Create(target))
+                {
+                    source.CopyTo(file);
+                }
+
+                return target;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed unpacking the branding icon for the automatic capstone.");
+                return null;
+            }
+        }
+
         private void ResetOrder()
         {
             try
@@ -3627,6 +3838,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ExportAchievementsCommand.RaiseCanExecuteChanged();
             ResetCommand.RaiseCanExecuteChanged();
             ResetOrderCommand.RaiseCanExecuteChanged();
+            AutoCapstoneCommand.RaiseCanExecuteChanged();
             AddCustomProviderCommand?.RaiseCanExecuteChanged();
             EditCustomProviderCommand?.RaiseCanExecuteChanged();
         }

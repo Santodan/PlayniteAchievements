@@ -335,6 +335,12 @@
                     <!-- Second row: the shortcuts that rewrite one facet of the list, kept off the
                          row of per-achievement actions above them. -->
                     <WrapPanel HorizontalAlignment="Right">
+                        <Button x:Name="AutoCapstoneButton"
+                                Content="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstone}"
+                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstoneHint}"
+                                Command="{Binding AutoCapstoneCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="0,0,0,8" />
                         <Button x:Name="ResetOrderButton"
                                 Content="{DynamicResource LOCPlayAch_ManageAchievements_Order_Reset}"
                                 Command="{Binding ResetOrderCommand}"
