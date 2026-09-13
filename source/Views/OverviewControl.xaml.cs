@@ -22,7 +22,6 @@ using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
-using PlayniteAchievements.Views.Dialogs;
 using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Views.Showcase;
 
@@ -320,12 +319,6 @@ namespace PlayniteAchievements.Views
             {
                 command.Execute(null);
             }
-        }
-
-        private void ScoreCard_InfoRequested(object sender, RoutedEventArgs e)
-        {
-            e.Handled = true;
-            ScoreInfoDialogPresenter.Show();
         }
 
         public void Activate()
