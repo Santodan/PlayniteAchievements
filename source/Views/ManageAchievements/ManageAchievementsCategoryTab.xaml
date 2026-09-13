@@ -348,7 +348,11 @@
     </Grid>
         </TabItem>
 
-        <TabItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Category_Context_ManageCategories}">
+        <!-- Selected explicitly: a collapsed TabItem is still selectable, so with Assign
+             collapsed above the control would otherwise default to it and show its content under
+             no header at all. -->
+        <TabItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Category_Context_ManageCategories}"
+                 IsSelected="True">
             <Grid Margin="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
