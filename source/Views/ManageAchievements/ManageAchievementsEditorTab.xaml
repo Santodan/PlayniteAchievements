@@ -1081,7 +1081,7 @@
                                  they apply to authored and provider achievements alike. -->
                             <TextBlock Text="{DynamicResource LOCPlayAch_Menu_Filters}"
                                        Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox SelectedValue="{Binding SelectedFilterScope, Mode=TwoWay}"
+                            <ComboBox SelectedValue="{Binding FilterScope, Mode=TwoWay}"
                                       SelectedValuePath="Value"
                                       ItemsSource="{Binding DataContext.FilterScopeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                       DisplayMemberPath="DisplayName"
