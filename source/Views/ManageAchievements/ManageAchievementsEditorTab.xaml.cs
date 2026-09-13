@@ -204,6 +204,33 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         /// <summary>
+        /// Applies a filter scope picked in the details pane to every selected achievement.
+        /// </summary>
+        /// <remarks>
+        /// The combo only reports what the user chose; re-seeding it as the selection changes
+        /// raises this too, which the comparison against the edit target's current scope filters
+        /// out. A proxy standing in for rows that disagree has no matching item at all, so the
+        /// first real pick always reads as a change.
+        /// </remarks>
+        private void FilterScopeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!(e?.AddedItems?.Count > 0) ||
+                !(e.AddedItems[0] is AchievementFilterScopeOption option) ||
+                ViewModel == null)
+            {
+                return;
+            }
+
+            var target = ViewModel.EditTarget;
+            if (target == null || !target.CanEditAssignments || option.Value == target.FilterScope)
+            {
+                return;
+            }
+
+            ViewModel.SetFilterScopeForSelection(option.Value);
+        }
+
+        /// <summary>
         /// Opens the same note editor the Notes tab uses, so a note written here is written the
         /// same way and gets the markdown-capable editor rather than a bare cell.
         /// </summary>

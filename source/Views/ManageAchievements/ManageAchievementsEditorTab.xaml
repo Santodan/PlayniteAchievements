@@ -1088,10 +1088,17 @@
                                  they apply to authored and provider achievements alike. -->
                             <TextBlock Text="{DynamicResource LOCPlayAch_Menu_Filters}"
                                        Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox SelectedValue="{Binding FilterScope, Mode=TwoWay}"
+                            <!-- One-way, with the pick applied in code: a proxy standing in for a
+                                 selection that disagrees holds a scope the list deliberately does
+                                 not offer, and a two-way binding could push the first real option
+                                 back over it, filing every selected row under a filter nobody
+                                 chose. -->
+                            <ComboBox x:Name="FilterScopeComboBox"
+                                      SelectedValue="{Binding FilterScope, Mode=OneWay}"
                                       SelectedValuePath="Value"
                                       ItemsSource="{Binding DataContext.FilterScopeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                       DisplayMemberPath="DisplayName"
+                                      SelectionChanged="FilterScopeComboBox_SelectionChanged"
                                       IsEnabled="{Binding CanEditAssignments}"
                                       MinHeight="26"
                                       VerticalContentAlignment="Center" />
