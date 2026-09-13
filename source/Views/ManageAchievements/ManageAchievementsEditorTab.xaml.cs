@@ -1,4 +1,4 @@
-using Playnite.SDK;
+﻿using Playnite.SDK;
 using PlayniteAchievements.Views.Dialogs;
 using Microsoft.Win32;
 using Playnite.SDK.Events;
@@ -170,18 +170,28 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void ViewModel_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (e?.PropertyName == nameof(ManageAchievementsEditorViewModel.SelectedRow))
+            if (e?.PropertyName == nameof(ManageAchievementsEditorViewModel.SelectedRow) ||
+                e?.PropertyName == nameof(ManageAchievementsEditorViewModel.EditTarget))
             {
                 SeedCategoryPicker();
             }
         }
 
+        /// <summary>
+        /// Seeds the picker from whatever the pane is editing: the selected row, or the bulk proxy
+        /// carrying the label the selection agrees on.
+        /// </summary>
         private void SeedCategoryPicker()
         {
-            _categoryPickerRow = ViewModel?.SelectedRow;
+            _categoryPickerRow = ViewModel?.EditTarget;
             CategoryPicker.SetInitialCategory(_categoryPickerRow?.CategoryLabel);
         }
 
+        /// <summary>
+        /// Commits the picker to every selected achievement. The captured row is only the guard
+        /// that editing had actually begun; the label lands on the selection, which is what the
+        /// pane says it is editing.
+        /// </summary>
         private void ApplyCategoryFromPicker()
         {
             var row = _categoryPickerRow;
@@ -190,7 +200,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            ViewModel.ApplyCategoryToRow(row, CategoryPicker.ResolveSelection());
+            ViewModel.SetCategoryForSelection(CategoryPicker.ResolveSelection());
         }
 
         /// <summary>

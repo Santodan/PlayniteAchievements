@@ -267,7 +267,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     OnPropertyChanged(nameof(HasSelection));
                     OnPropertyChanged(nameof(HasEditTarget));
                     OnPropertyChanged(nameof(EditTarget));
-                    SyncTypeOptionsToSelectedRow();
+                    SyncTypeOptionsToEditTarget();
                     RaiseCommandStates();
                 }
             }
@@ -341,6 +341,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             RebuildBulkRow();
+            SyncTypeOptionsToEditTarget();
             RaiseCommandStates();
             OnPropertyChanged(nameof(HasSelection));
             OnPropertyChanged(nameof(IsBulkEditing));
@@ -396,6 +397,42 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             row.PropertyChanged += BulkRow_PropertyChanged;
             BulkRow = row;
+        }
+
+        /// <summary>
+        /// Re-seeds the bulk proxy from the rows after a selection-level edit made somewhere other
+        /// than the details pane, such as the grid's context menu.
+        /// </summary>
+        /// <remarks>
+        /// The proxy's fields are assigned rather than the proxy replaced, so the pane keeps its
+        /// focus and scroll position; the applying flag keeps those assignments from being read
+        /// back as a fresh bulk edit.
+        /// </remarks>
+        private void SyncBulkRowFromSelection()
+        {
+            if (_bulkRow == null || _selectedRows.Count <= 1)
+            {
+                SyncTypeOptionsToEditTarget();
+                return;
+            }
+
+            var wasApplying = _isApplyingBulk;
+            _isApplyingBulk = true;
+            try
+            {
+                _bulkRow.CategoryLabel = SharedValue(r => r.CategoryLabel);
+                _bulkRow.CategoryTypeValue = SharedValue(r => r.CategoryTypeValue);
+                _bulkRow.SetFilterScopeFromSource(SharedScope());
+                _bulkRow.SetGoalFromSource(SharedFlagOrNull(r => r.IsGoal));
+                _bulkRow.SetHiddenFromSource(SharedFlagOrNull(r => r.Hidden));
+                _bulkRow.SetUnlockedStateFromSource(SharedFlagOrNull(r => r.Unlocked));
+            }
+            finally
+            {
+                _isApplyingBulk = wasApplying;
+            }
+
+            SyncTypeOptionsToEditTarget();
         }
 
         private string SharedValue(Func<AchievementEditorRow, string> selector)
@@ -919,6 +956,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var normalized = AchievementCategoryTypeHelper.NormalizeCategory(categoryLabel);
             StageAcross(targets, row => row.CategoryLabel = normalized);
             PersistCategoryAssignmentsFromRows();
+            SyncBulkRowFromSelection();
         }
 
         /// <summary>
@@ -941,6 +979,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 normalizedType,
                 isSelected));
             PersistCategoryAssignmentsFromRows();
+            SyncBulkRowFromSelection();
         }
 
         /// <summary>
@@ -981,6 +1020,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             StageAcross(targets, row => row.IsGoal = isGoal);
             PersistGoalsFromRows();
+            SyncBulkRowFromSelection();
         }
 
         /// <summary>
@@ -996,6 +1036,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             StageAcross(targets, row => row.SetFilterScopeFromSource(scope));
             PersistFiltersFromRows();
+            SyncBulkRowFromSelection();
         }
 
         /// <summary>
@@ -1590,7 +1631,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 RefreshAssignableCategoryOptions(categoryOverrides);
-                SyncTypeOptionsToSelectedRow();
+                SyncTypeOptionsToEditTarget();
             }
             catch (Exception ex)
             {
@@ -1643,7 +1684,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, ordered);
         }
 
-        private void SyncTypeOptionsToSelectedRow()
+        private void SyncTypeOptionsToEditTarget()
         {
             if (TypeSelectionOptions == null)
             {
@@ -1653,8 +1694,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _isSyncingTypeOptions = true;
             try
             {
+                // The pane's other controls bind EditTarget, so seeding these from SelectedRow left
+                // the type ticks describing one row while the button beside them described the
+                // whole selection.
                 var selectedTypes = new HashSet<string>(
-                    AchievementCategoryTypeHelper.ParseValues(SelectedRow?.CategoryTypeValue),
+                    AchievementCategoryTypeHelper.ParseValues(EditTarget?.CategoryTypeValue),
                     StringComparer.OrdinalIgnoreCase);
                 foreach (var option in TypeSelectionOptions)
                 {
@@ -1676,69 +1720,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            SetCategoryTypeForRow(SelectedRow, option.Value, option.IsSelected);
-        }
-
-        /// <summary>
-        /// Assigns a category label to a saved row, or clears its override when the text is
-        /// blank. Persists immediately, like the Category tab.
-        /// </summary>
-        public bool ApplyCategoryToRow(AchievementEditorRow row, string categoryText)
-        {
-            var apiName = NormalizeText(row?.OriginalApiName);
-            if (string.IsNullOrWhiteSpace(apiName))
-            {
-                return false;
-            }
-
-            var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(categoryText);
-            var categoryOverrides = GetCurrentCategoryOverrideMap();
-            var changed = string.IsNullOrWhiteSpace(normalizedCategory)
-                ? categoryOverrides.Remove(apiName)
-                : !categoryOverrides.TryGetValue(apiName, out var existing) ||
-                  !string.Equals(existing, normalizedCategory, StringComparison.Ordinal);
-            if (!changed)
-            {
-                return false;
-            }
-
-            if (!string.IsNullOrWhiteSpace(normalizedCategory))
-            {
-                categoryOverrides[apiName] = normalizedCategory;
-            }
-
-            PersistAssignmentMaps(categoryOverrides, GetCurrentCategoryTypeOverrideMap());
-            return true;
-        }
-
-        private void SetCategoryTypeForRow(AchievementEditorRow row, string categoryType, bool isSelected)
-        {
-            var apiName = NormalizeText(row?.OriginalApiName);
-            var normalizedType = AchievementCategoryTypeHelper.Normalize(categoryType);
-            if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(normalizedType))
-            {
-                return;
-            }
-
-            var categoryTypeOverrides = GetCurrentCategoryTypeOverrideMap();
-            var currentType = AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryTypeValue);
-            var updatedType = AchievementCategoryTypeHelper.WithCategoryType(currentType, normalizedType, isSelected);
-            if (string.Equals(updatedType, currentType, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            // Custom achievements carry no provider type, so the default means "no override".
-            if (string.Equals(updatedType, AchievementCategoryTypeHelper.NormalizeOrDefault(null), StringComparison.Ordinal))
-            {
-                categoryTypeOverrides.Remove(apiName);
-            }
-            else
-            {
-                categoryTypeOverrides[apiName] = updatedType;
-            }
-
-            PersistAssignmentMaps(GetCurrentCategoryOverrideMap(), categoryTypeOverrides);
+            SetCategoryTypeForSelection(option.Value, option.IsSelected);
         }
 
         private void PersistAssignmentMaps(
