@@ -67,6 +67,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private AchievementEditorRow _bulkRow;
         private readonly List<AchievementEditorRow> _selectedRows = new List<AchievementEditorRow>();
         private bool _isApplyingBulk;
+        private bool _providerIconBaselinesResolved;
         private DispatcherTimer _assignmentsChangedDebounce;
         private bool _assignmentsChangedPending;
         private DispatcherTimer _manualUnlockDebounce;
@@ -674,6 +675,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .GroupBy(a => NormalizeText(a.ApiName), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase)
                 ?? new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+
+            // Without the raw snapshot every row's icon would read as different from a provider
+            // path of null, so the override maps are only safe to rebuild once it has been seen.
+            _providerIconBaselinesResolved = rawByApiName.Count > 0;
 
             foreach (var row in AchievementRows)
             {
@@ -2578,6 +2583,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void PersistIconOverridesFromRows()
         {
+            // The maps are written whole, so rebuilding them without the provider baseline would
+            // both stamp every provider icon in as an override and drop the real ones already
+            // stored. Refusing the write leaves the stored icons alone.
+            if (!_providerIconBaselinesResolved)
+            {
+                _logger?.Warn($"Skipped writing icon overrides for gameId={_gameId}: no provider data to compare against.");
+                return;
+            }
+
             try
             {
                 var unlockedOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
