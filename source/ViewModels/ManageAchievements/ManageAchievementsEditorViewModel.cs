@@ -69,6 +69,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isApplyingBulk;
         private bool _providerIconBaselinesResolved;
         private bool _isTogglingReveal;
+        private bool _hasCustomOrder;
         private DispatcherTimer _assignmentsChangedDebounce;
         private bool _assignmentsChangedPending;
         private DispatcherTimer _manualUnlockDebounce;
@@ -168,6 +169,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ExportTemplateCommand = new RelayCommand(_ => ExportTemplate(), _ => !IsSaving);
             ExportAchievementsCommand = new RelayCommand(_ => ExportAchievements(), _ => HasRows && !IsSaving);
             ResetCommand = new RelayCommand(_ => ResetRows(), _ => HasRows && !IsSaving);
+            ResetOrderCommand = new RelayCommand(_ => ResetOrder(), _ => HasCustomOrder && !IsSaving);
             ToggleAllTitlesRevealCommand = new RelayCommand(_ => ToggleAllTitlesReveal());
             ToggleAllDescriptionsRevealCommand = new RelayCommand(_ => ToggleAllDescriptionsReveal());
             CycleAllIconStagesCommand = new RelayCommand(_ => CycleAllIconStages());
@@ -218,6 +220,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// per-achievement overrides, and the game-level lists -- leaving the providers' own data.
         /// </summary>
         public RelayCommand ResetCommand { get; }
+
+        /// <summary>
+        /// Drops the stored achievement order, putting the list back the way the providers hand it
+        /// over. Disabled until there is an order to drop.
+        /// </summary>
+        public RelayCommand ResetOrderCommand { get; }
 
         /// <summary>
         /// Reveals every masked name in the grid, or masks them all again when none is left masked.
@@ -661,6 +669,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>Whether this game carries a stored achievement order.</summary>
+        public bool HasCustomOrder
+        {
+            get => _hasCustomOrder;
+            private set
+            {
+                if (SetValueAndReturn(ref _hasCustomOrder, value))
+                {
+                    ResetOrderCommand.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
         public bool HasChanges
         {
             get => _hasChanges;
@@ -824,6 +845,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 RebuildSearchIndex();
                 RebuildFilterOptions();
                 SeedOverrideWriteCache();
+                HasCustomOrder = ResolveCurrentCustomData()?.AchievementOrder?.Count > 0;
                 RefreshRevealHeaderState();
                 SetStatus(null, false);
                 RefreshComputedState();
@@ -1400,6 +1422,28 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed resetting achievements for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+        }
+
+        /// <summary>
+        /// Drops the stored order for the whole game, so the list falls back to the order the
+        /// providers hand over. Unlike reverting a selection there is nothing to re-seat: the
+        /// positional list goes entirely.
+        /// </summary>
+        private void ResetOrder()
+        {
+            try
+            {
+                _achievementOverridesService.SetAchievementOrderOverride(_gameId, Array.Empty<string>());
+                HasCustomOrder = false;
+                RaiseAssignmentsChanged();
+                ReloadData();
+                SetStatus(null, false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed resetting achievement order for gameId={_gameId}.");
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
             }
         }
@@ -2517,6 +2561,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     .Select(row => row.OriginalApiName)
                     .ToList();
                 _achievementOverridesService.SetAchievementOrderOverride(_gameId, ordered);
+                HasCustomOrder = ordered.Count > 0;
                 RaiseAssignmentsChanged();
             }
             catch (Exception ex)
@@ -3581,6 +3626,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ExportTemplateCommand.RaiseCanExecuteChanged();
             ExportAchievementsCommand.RaiseCanExecuteChanged();
             ResetCommand.RaiseCanExecuteChanged();
+            ResetOrderCommand.RaiseCanExecuteChanged();
             AddCustomProviderCommand?.RaiseCanExecuteChanged();
             EditCustomProviderCommand?.RaiseCanExecuteChanged();
         }
