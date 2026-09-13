@@ -1,4 +1,4 @@
-using Microsoft.Win32;
+﻿using Microsoft.Win32;
 using Newtonsoft.Json;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
@@ -1043,21 +1043,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _achievementOverridesService.ClearAchievementOverrides(_gameId, apiNames);
 
                 // Whole-collection facets: staged across the rows, then written once each.
-                foreach (var row in targets)
+                StageAcross(targets, row =>
                 {
-                    row.SuppressNotifications = true;
-                    try
-                    {
-                        row.CategoryLabel = null;
-                        row.CategoryTypeValue = null;
-                        row.IsGoal = false;
-                        row.SetFilterScopeFromSource(AchievementFilterScope.None);
-                    }
-                    finally
-                    {
-                        row.SuppressNotifications = false;
-                    }
-                }
+                    row.CategoryLabel = null;
+                    row.CategoryTypeValue = null;
+                    row.IsGoal = false;
+                    row.SetFilterScopeFromSource(AchievementFilterScope.None);
+                });
 
                 PersistCategoryAssignmentsFromRows();
                 PersistFiltersFromRows();
@@ -1893,6 +1885,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _searchIndex.Invalidate(renamedRow);
             }
 
+            // A selection edit applies the same value to every selected row and then persists the
+            // facet once for the whole selection. Letting each row persist itself here as well
+            // would write the same store record twice per row. The search index above is still
+            // invalidated, because a bulk rename has to be searchable by its new text.
+            if (_isApplyingBulk)
+            {
+                return;
+            }
+
             if (e.PropertyName == nameof(AchievementEditorRow.ValidationMessage) ||
                 e.PropertyName == nameof(AchievementEditorRow.IsRevealed) ||
                 e.PropertyName == nameof(AchievementEditorRow.IsIconHidden) ||
@@ -2338,19 +2339,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// Applies a staged edit to each row without raising the per-row persist, for facets that
         /// are written once for the whole collection afterwards.
         /// </summary>
-        private static void StageAcross(IEnumerable<AchievementEditorRow> rows, Action<AchievementEditorRow> apply)
+        /// <remarks>
+        /// The rows still raise their changes: suppressing those left the grid showing the old
+        /// value until the window was reopened, because the notification the DataGrid binds to is
+        /// the same one the persist listens for. Only the persist is held off, through the flag the
+        /// row handler checks.
+        /// </remarks>
+        private void StageAcross(IEnumerable<AchievementEditorRow> rows, Action<AchievementEditorRow> apply)
         {
-            foreach (var row in rows)
+            var wasApplying = _isApplyingBulk;
+            _isApplyingBulk = true;
+            try
             {
-                row.SuppressNotifications = true;
-                try
+                foreach (var row in rows)
                 {
                     apply(row);
                 }
-                finally
-                {
-                    row.SuppressNotifications = false;
-                }
+            }
+            finally
+            {
+                _isApplyingBulk = wasApplying;
             }
         }
 
