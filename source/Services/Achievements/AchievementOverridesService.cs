@@ -1,4 +1,4 @@
-using PlayniteAchievements.Models;
+﻿using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
@@ -561,6 +561,11 @@ namespace PlayniteAchievements.Services.Achievements
                             var unlockTime = value as DateTime?;
                             entry.UnlockTimeUtc = unlockTime;
                             entry.ClearUnlockTime = !unlockTime.HasValue;
+                            break;
+                        case AchievementEditableField.Hidden:
+                            // Either value can be a customization, so the caller passes null to
+                            // mean "back to whatever the provider says" rather than "not hidden".
+                            entry.Hidden = value as bool?;
                             break;
                     }
                 }),

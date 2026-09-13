@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -132,6 +132,7 @@ namespace PlayniteAchievements
         private readonly HashSet<Guid> _pendingTagSyncIds = new HashSet<Guid>();
         private bool _tagSyncDrainRunning;
         private TagSyncService _tagSyncService;
+        private AutoCapstoneMaintainer _autoCapstoneMaintainer;
 
         public override Guid Id { get; } =
             Guid.Parse("e6aad2c9-6e06-4d8d-ac55-ac3b252b5f7b");
@@ -626,6 +627,17 @@ namespace PlayniteAchievements
                         _refreshService,
                         _logger,
                         runWithProgressWindow: ShowRefreshProgressControlAndRun);
+
+                    // The auto capstone stands for the achievements a refresh just rewrote, so it
+                    // is brought back into step here: what it derives only changes when provider
+                    // data does.
+                    _autoCapstoneMaintainer = new AutoCapstoneMaintainer(
+                        _gameCustomDataStore,
+                        _achievementOverridesService,
+                        gameId => _achievementDataService?.GetGameAchievementData(gameId),
+                        NotifyAchievementUnlocked,
+                        _logger);
+                    _refreshCoordinator.RefreshCompleted += gameIds => _autoCapstoneMaintainer?.Maintain(gameIds);
                     _windowTracker = new ActiveGameWindowTracker(_logger);
                     var soundThemeResolver = new AchievementToastTemplateResolver(PlayniteApi, _logger);
                     var pluginInstallDirectory = GetPluginInstallDirectory();

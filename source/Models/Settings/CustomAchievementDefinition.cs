@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace PlayniteAchievements.Models.Settings
 {
@@ -40,6 +40,14 @@ namespace PlayniteAchievements.Models.Settings
 
         public int? ProgressDenom { get; set; }
 
+        /// <summary>
+        /// True for the achievement the editor's Auto Capstone authored to stand for finishing the
+        /// game. It marks the one achievement whose rarity and unlock the plugin keeps in step with
+        /// the achievements it stands for, so a refresh knows which one to maintain and a second
+        /// press of the button updates it rather than authoring another.
+        /// </summary>
+        public bool IsAutoCapstone { get; set; }
+
         public CustomAchievementDefinition Clone()
         {
             return new CustomAchievementDefinition
@@ -61,7 +69,8 @@ namespace PlayniteAchievements.Models.Settings
                 Rarity = Rarity,
                 GlobalPercentUnlocked = GlobalPercentUnlocked,
                 ProgressNum = ProgressNum,
-                ProgressDenom = ProgressDenom
+                ProgressDenom = ProgressDenom,
+                IsAutoCapstone = IsAutoCapstone
             };
         }
     }

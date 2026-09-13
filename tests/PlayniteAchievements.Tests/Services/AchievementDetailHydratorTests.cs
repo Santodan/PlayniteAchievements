@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
@@ -169,6 +169,52 @@ namespace PlayniteAchievements.Tests.Services
             Assert.IsFalse(details[0].Unlocked);
             Assert.AreEqual(RarityTier.UltraRare, details[0].Rarity);
             Assert.AreEqual(2.5, details[0].GlobalPercentUnlocked);
+        }
+
+        [TestMethod]
+        public void HydrateAll_HiddenOverride_ReplacesTheProviderFlagInBothDirections()
+        {
+            // Hiding is a presentation choice rather than a provider fact, so either value can be
+            // the customization: revealing what the provider hid has to stick as well as hiding
+            // what it showed.
+            var details = Details("alpha", "beta");
+            details[0].Hidden = false;
+            details[1].Hidden = true;
+
+            Hydrate(details, new ResolvedGameCustomData
+            {
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["alpha"] = new AchievementOverride { Hidden = true },
+                    ["beta"] = new AchievementOverride { Hidden = false }
+                }
+            });
+
+            Assert.IsTrue(details[0].Hidden);
+            Assert.IsFalse(details[1].Hidden);
+        }
+
+        [TestMethod]
+        public void HydrateAll_NoHiddenOverride_KeepsTheProviderFlag()
+        {
+            // A record carrying other customization must not read as "not hidden".
+            var details = Details("alpha");
+            details[0].Hidden = true;
+
+            Hydrate(details, WithOverride("alpha", new AchievementOverride { Note = "note" }));
+
+            Assert.IsTrue(details[0].Hidden);
+        }
+
+        [TestMethod]
+        public void HiddenOverride_AloneKeepsTheRecordStored()
+        {
+            // An override record is pruned when empty, so a hidden mark on its own has to count as
+            // a value or it would be dropped on the next normalize.
+            Assert.IsFalse(new AchievementOverride { Hidden = false }.IsEmpty);
+            Assert.IsFalse(new AchievementOverride { Hidden = true }.IsEmpty);
+            Assert.IsTrue(new AchievementOverride().IsEmpty);
+            Assert.AreEqual(true, new AchievementOverride { Hidden = true }.Clone().Hidden);
         }
 
         [TestMethod]

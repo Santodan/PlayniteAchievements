@@ -1,4 +1,4 @@
-using Microsoft.Win32;
+﻿using Microsoft.Win32;
 using Newtonsoft.Json;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
@@ -67,6 +67,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private AchievementEditorRow _bulkRow;
         private readonly List<AchievementEditorRow> _selectedRows = new List<AchievementEditorRow>();
         private bool _isApplyingBulk;
+        private bool _providerIconBaselinesResolved;
+        private bool _isTogglingReveal;
+        private bool _hasCustomOrder;
         private DispatcherTimer _assignmentsChangedDebounce;
         private bool _assignmentsChangedPending;
         private DispatcherTimer _manualUnlockDebounce;
@@ -165,7 +168,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ImportFileCommand = new RelayCommand(_ => ImportFile(), _ => !IsSaving);
             ExportTemplateCommand = new RelayCommand(_ => ExportTemplate(), _ => !IsSaving);
             ExportAchievementsCommand = new RelayCommand(_ => ExportAchievements(), _ => HasRows && !IsSaving);
-            ClearCommand = new RelayCommand(_ => ClearRows(), _ => HasRows && !IsSaving);
+            ResetCommand = new RelayCommand(_ => ResetRows(), _ => HasRows && !IsSaving);
+            ResetOrderCommand = new RelayCommand(_ => ResetOrder(), _ => HasCustomOrder && !IsSaving);
+            AutoCapstoneCommand = new RelayCommand(_ => _ = ApplyAutoCapstoneAsync(), _ => HasRows && !IsSaving);
+            ToggleAllTitlesRevealCommand = new RelayCommand(_ => ToggleAllTitlesReveal());
+            ToggleAllDescriptionsRevealCommand = new RelayCommand(_ => ToggleAllDescriptionsReveal());
+            CycleAllIconStagesCommand = new RelayCommand(_ => CycleAllIconStages());
 
             ReloadData();
         }
@@ -208,7 +216,191 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public RelayCommand ExportAchievementsCommand { get; }
 
-        public RelayCommand ClearCommand { get; }
+        /// <summary>
+        /// Drops every customization this game carries -- the authored achievements, the
+        /// per-achievement overrides, and the game-level lists -- leaving the providers' own data.
+        /// </summary>
+        public RelayCommand ResetCommand { get; }
+
+        /// <summary>
+        /// Drops the stored achievement order, putting the list back the way the providers hand it
+        /// over. Disabled until there is an order to drop.
+        /// </summary>
+        public RelayCommand ResetOrderCommand { get; }
+
+        /// <summary>
+        /// Points the game's capstone at its platinum trophy, authoring one when the game has none.
+        /// </summary>
+        public RelayCommand AutoCapstoneCommand { get; }
+
+        /// <summary>
+        /// Reveals every masked name in the grid, or masks them all again when none is left masked.
+        /// Acts on the rows the filter is showing: the column header is part of what is on screen,
+        /// so it should not quietly reveal hundreds of rows the user cannot see.
+        /// </summary>
+        public RelayCommand ToggleAllTitlesRevealCommand { get; }
+
+        public RelayCommand ToggleAllDescriptionsRevealCommand { get; }
+
+        /// <summary>
+        /// Steps the whole icon column through the hidden placeholder, the locked placeholder and
+        /// the achievements' own art, skipping whichever of those the rows on screen do not have.
+        /// </summary>
+        public RelayCommand CycleAllIconStagesCommand { get; }
+
+        /// <summary>
+        /// Whether any row on screen has something to reveal for that column. The header toggle is
+        /// shown only where there is, matching the per-row buttons.
+        /// </summary>
+        public bool CanRevealAnyTitle => VisibleRows.Any(row => row.CanRevealTitle);
+
+        public bool CanRevealAnyDescription => VisibleRows.Any(row => row.CanRevealDescription);
+
+        public bool CanRevealAnyIcon => VisibleRows.Any(row => row.CanReveal);
+
+        /// <summary>
+        /// Whether nothing maskable is left masked in that column, which is what turns the header
+        /// toggle back into a re-mask.
+        /// </summary>
+        public bool AreAllTitlesRevealed => !VisibleRows.Any(row => row.CanRevealTitle && !row.IsTitleRevealed);
+
+        public bool AreAllDescriptionsRevealed => !VisibleRows.Any(row => row.CanRevealDescription && !row.IsDescriptionRevealed);
+
+        /// <summary>
+        /// The stage the icon column's toggle shows: the most masked one any row on screen is still
+        /// at, so the button describes the column rather than whichever row happens to be first.
+        /// </summary>
+        public AchievementIconRevealStage IconColumnStage
+        {
+            get
+            {
+                var stages = VisibleRows
+                    .Where(row => row.CanReveal)
+                    .Select(row => (int)row.IconStage)
+                    .ToList();
+                return stages.Count == 0
+                    ? AchievementIconRevealStage.Unlocked
+                    : (AchievementIconRevealStage)stages.Min();
+            }
+        }
+
+        public bool IconColumnStageIsCovered => IconColumnStage == AchievementIconRevealStage.Covered;
+
+        public bool IconColumnStageIsLocked => IconColumnStage == AchievementIconRevealStage.Locked;
+
+        public bool IconColumnStageIsUnlocked => IconColumnStage == AchievementIconRevealStage.Unlocked;
+
+        /// <summary>The rows the grid is currently showing, in grid order.</summary>
+        private IEnumerable<AchievementEditorRow> VisibleRows =>
+            AchievementRows.Where(row => row != null && MatchesFilter(row));
+
+        private void ToggleAllTitlesReveal() =>
+            ToggleAllReveal(row => row.CanRevealTitle, row => row.IsTitleRevealed, (row, value) => row.IsTitleRevealed = value);
+
+        private void ToggleAllDescriptionsReveal() =>
+            ToggleAllReveal(row => row.CanRevealDescription, row => row.IsDescriptionRevealed, (row, value) => row.IsDescriptionRevealed = value);
+
+        /// <summary>
+        /// Steps every maskable row on screen to the column's next stage. Each row settles on the
+        /// nearest stage it has, so a column holding both hidden and merely locked achievements
+        /// still moves as one.
+        /// </summary>
+        private void CycleAllIconStages()
+        {
+            var targets = VisibleRows.Where(row => row.CanReveal).ToList();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            var next = IconColumnStage == AchievementIconRevealStage.Unlocked
+                ? AchievementIconRevealStage.Covered
+                : IconColumnStage + 1;
+
+            _isTogglingReveal = true;
+            try
+            {
+                foreach (var row in targets)
+                {
+                    row.IconStage = next;
+                }
+            }
+            finally
+            {
+                _isTogglingReveal = false;
+            }
+
+            RefreshRevealHeaderState();
+        }
+
+        /// <summary>
+        /// Reveals every maskable row on screen, or masks them all again once none is left masked,
+        /// so one header click always has a visible effect.
+        /// </summary>
+        private void ToggleAllReveal(
+            Func<AchievementEditorRow, bool> canReveal,
+            Func<AchievementEditorRow, bool> isRevealed,
+            Action<AchievementEditorRow, bool> setRevealed)
+        {
+            var targets = VisibleRows.Where(canReveal).ToList();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            var reveal = targets.Any(row => !isRevealed(row));
+            // The rows raise their reveal state one at a time and the header reads every row, so
+            // the recompute is held until the walk is done rather than paid once per row.
+            _isTogglingReveal = true;
+            try
+            {
+                foreach (var row in targets)
+                {
+                    setRevealed(row, reveal);
+                }
+            }
+            finally
+            {
+                _isTogglingReveal = false;
+            }
+
+            RefreshRevealHeaderState();
+        }
+
+        /// <summary>Re-reads the three column toggles from the rows on screen.</summary>
+        private void RefreshRevealHeaderState()
+        {
+            OnPropertyChanged(nameof(CanRevealAnyTitle));
+            OnPropertyChanged(nameof(CanRevealAnyDescription));
+            OnPropertyChanged(nameof(CanRevealAnyIcon));
+            OnPropertyChanged(nameof(AreAllTitlesRevealed));
+            OnPropertyChanged(nameof(AreAllDescriptionsRevealed));
+            OnPropertyChanged(nameof(IconColumnStage));
+            OnPropertyChanged(nameof(IconColumnStageIsCovered));
+            OnPropertyChanged(nameof(IconColumnStageIsLocked));
+            OnPropertyChanged(nameof(IconColumnStageIsUnlocked));
+        }
+
+        private static bool IsRevealStateProperty(string propertyName)
+        {
+            switch (propertyName)
+            {
+                case nameof(AchievementEditorRow.IconStage):
+                case nameof(AchievementEditorRow.IsIconCovered):
+                case nameof(AchievementEditorRow.IsIconStageLocked):
+                case nameof(AchievementEditorRow.IsIconStageUnlocked):
+                case nameof(AchievementEditorRow.IsTitleRevealed):
+                case nameof(AchievementEditorRow.IsDescriptionRevealed):
+                case nameof(AchievementEditorRow.IsTitleHidden):
+                case nameof(AchievementEditorRow.IsDescriptionHidden):
+                case nameof(AchievementEditorRow.CanReveal):
+                case nameof(AchievementEditorRow.CanRevealTitle):
+                case nameof(AchievementEditorRow.CanRevealDescription):
+                    return true;
+                default:
+                    return false;
+            }
+        }
 
         public RelayCommand AddCustomProviderCommand { get; }
 
@@ -267,7 +459,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     OnPropertyChanged(nameof(HasSelection));
                     OnPropertyChanged(nameof(HasEditTarget));
                     OnPropertyChanged(nameof(EditTarget));
-                    SyncTypeOptionsToSelectedRow();
+                    SyncTypeOptionsToEditTarget();
                     RaiseCommandStates();
                 }
             }
@@ -341,6 +533,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             RebuildBulkRow();
+            SyncTypeOptionsToEditTarget();
             RaiseCommandStates();
             OnPropertyChanged(nameof(HasSelection));
             OnPropertyChanged(nameof(IsBulkEditing));
@@ -380,22 +573,63 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // Rebuilt on every selection change, so the game-level flag has to be stamped here too;
             // without it the proxy refuses unlock edits on a manually tracked game.
             row.IsManuallyTrackedGame = IsManuallyTrackedGame;
-            row.SetUnlockedFromSource(SharedFlag(r => r.Unlocked));
+            row.SetUnlockedStateFromSource(SharedFlagOrNull(r => r.Unlocked));
             row.DisplayName = SharedValue(r => r.DisplayName);
             row.Description = SharedValue(r => r.Description);
             row.PointsText = SharedValue(r => r.PointsText);
             row.TrophyType = SharedValue(r => r.TrophyType);
-            row.CategoryLabel = SharedValue(r => r.CategoryLabel);
-            row.CategoryTypeValue = SharedValue(r => r.CategoryTypeValue);
+            row.CategoryLabel = SharedValue(r => r.EffectiveCategoryLabel);
+            row.CategoryTypeValue = SharedValue(r => r.EffectiveCategoryTypeValue);
             row.AchievementNote = SharedValue(r => r.AchievementNote);
             row.RarityInput = SharedValue(r => r.RarityInput);
-            row.IsGoal = SharedFlag(r => r.IsGoal);
-            row.Hidden = SharedFlag(r => r.Hidden);
+            row.ProgressNumText = SharedValue(r => r.ProgressNumText);
+            row.ProgressDenomText = SharedValue(r => r.ProgressDenomText);
+            row.UnlockedIconPath = SharedValue(r => r.UnlockedIconPath);
+            row.LockedIconPath = SharedValue(r => r.LockedIconPath);
+            row.UnlockTime = SharedUnlockTime();
+            row.SetGoalFromSource(SharedFlagOrNull(r => r.IsGoal));
+            row.SetHiddenFromSource(SharedFlagOrNull(r => r.Hidden));
             row.SetFilterScopeFromSource(SharedScope());
             row.SuppressNotifications = false;
 
             row.PropertyChanged += BulkRow_PropertyChanged;
             BulkRow = row;
+        }
+
+        /// <summary>
+        /// Re-seeds the bulk proxy from the rows after a selection-level edit made somewhere other
+        /// than the details pane, such as the grid's context menu.
+        /// </summary>
+        /// <remarks>
+        /// The proxy's fields are assigned rather than the proxy replaced, so the pane keeps its
+        /// focus and scroll position; the applying flag keeps those assignments from being read
+        /// back as a fresh bulk edit.
+        /// </remarks>
+        private void SyncBulkRowFromSelection()
+        {
+            if (_bulkRow == null || _selectedRows.Count <= 1)
+            {
+                SyncTypeOptionsToEditTarget();
+                return;
+            }
+
+            var wasApplying = _isApplyingBulk;
+            _isApplyingBulk = true;
+            try
+            {
+                _bulkRow.CategoryLabel = SharedValue(r => r.EffectiveCategoryLabel);
+                _bulkRow.CategoryTypeValue = SharedValue(r => r.EffectiveCategoryTypeValue);
+                _bulkRow.SetFilterScopeFromSource(SharedScope());
+                _bulkRow.SetGoalFromSource(SharedFlagOrNull(r => r.IsGoal));
+                _bulkRow.SetHiddenFromSource(SharedFlagOrNull(r => r.Hidden));
+                _bulkRow.SetUnlockedStateFromSource(SharedFlagOrNull(r => r.Unlocked));
+            }
+            finally
+            {
+                _isApplyingBulk = wasApplying;
+            }
+
+            SyncTypeOptionsToEditTarget();
         }
 
         private string SharedValue(Func<AchievementEditorRow, string> selector)
@@ -406,16 +640,27 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 : null;
         }
 
-        private bool SharedFlag(Func<AchievementEditorRow, bool> selector)
+        /// <summary>
+        /// A flag the selection agrees on, or null when it disagrees, so the proxy checkbox can
+        /// tell "all unchecked" apart from "these rows differ".
+        /// </summary>
+        private bool? SharedFlagOrNull(Func<AchievementEditorRow, bool> selector)
         {
             var first = selector(_selectedRows[0]);
-            return _selectedRows.All(r => selector(r) == first) && first;
+            return _selectedRows.All(r => selector(r) == first) ? first : (bool?)null;
+        }
+
+        /// <summary>The timestamp the selection agrees on, or none when it disagrees.</summary>
+        private DateTime? SharedUnlockTime()
+        {
+            var first = _selectedRows[0].UnlockTime;
+            return _selectedRows.All(r => Nullable.Equals(r.UnlockTime, first)) ? first : null;
         }
 
         private AchievementFilterScope SharedScope()
         {
             var first = _selectedRows[0].FilterScope;
-            return _selectedRows.All(r => r.FilterScope == first) ? first : AchievementFilterScope.None;
+            return _selectedRows.All(r => r.FilterScope == first) ? first : AchievementFilterScope.Mixed;
         }
 
         public bool HasRows
@@ -426,6 +671,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _hasRows, value))
                 {
                     RaiseCommandStates();
+                }
+            }
+        }
+
+        /// <summary>Whether this game carries a stored achievement order.</summary>
+        public bool HasCustomOrder
+        {
+            get => _hasCustomOrder;
+            private set
+            {
+                if (SetValueAndReturn(ref _hasCustomOrder, value))
+                {
+                    ResetOrderCommand.RaiseCanExecuteChanged();
                 }
             }
         }
@@ -586,12 +844,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         .Select(AchievementEditorRow.FromDefinition));
                 }
                 CaptureCollectionBaseline();
+                ApplyAutoCapstoneMarker(data);
+                ApplyProviderIconBaselines();
                 RefreshAssignmentState();
                 RefreshCustomProviderState();
                 ApplyManualTrackingToRows();
                 RebuildSearchIndex();
                 RebuildFilterOptions();
                 SeedOverrideWriteCache();
+                HasCustomOrder = ResolveCurrentCustomData()?.AchievementOrder?.Count > 0;
+                RefreshRevealHeaderState();
                 SetStatus(null, false);
                 RefreshComputedState();
             }
@@ -600,6 +862,66 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _logger?.Error(ex, $"Failed loading custom achievements for gameId={_gameId}.");
                 ReplaceRows(Array.Empty<AchievementEditorRow>());
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+        }
+
+        /// <summary>
+        /// Marks the row standing for the auto capstone, the rows being built from achievements
+        /// rather than from the definitions that carry the mark.
+        /// </summary>
+        private void ApplyAutoCapstoneMarker(GameCustomDataFile data)
+        {
+            var marked = data?.CustomAchievements?.FirstOrDefault(definition => definition?.IsAutoCapstone == true);
+            var apiName = marked == null
+                ? null
+                : CustomAchievementProjectionService.BuildApiName(marked.Id);
+            foreach (var row in AchievementRows)
+            {
+                if (row != null)
+                {
+                    row.IsAutoCapstone = !string.IsNullOrWhiteSpace(apiName) &&
+                                         string.Equals(row.OriginalApiName, apiName, StringComparison.OrdinalIgnoreCase);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Stamps each row with the provider's own icons and the managed-cache file stem, read
+        /// from the raw snapshot because the rows themselves show the overridden values.
+        /// </summary>
+        private void ApplyProviderIconBaselines()
+        {
+            var fileStems = AchievementIconCachePathBuilder.BuildFileStems(
+                AchievementRows.Select(row => row?.OriginalApiName));
+            var rawByApiName = _gameDataSnapshotProvider?.GetRawGameData()?.Achievements?
+                .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
+                .GroupBy(a => NormalizeText(a.ApiName), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase)
+                ?? new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+
+            // Without the raw snapshot every row's icon would read as different from a provider
+            // path of null, so the override maps are only safe to rebuild once it has been seen.
+            _providerIconBaselinesResolved = rawByApiName.Count > 0;
+
+            foreach (var row in AchievementRows)
+            {
+                var apiName = NormalizeText(row?.OriginalApiName);
+                if (row == null || string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                row.IconFileStem = fileStems.TryGetValue(apiName, out var stem) ? stem : null;
+                if (rawByApiName.TryGetValue(apiName, out var raw))
+                {
+                    row.ProviderUnlockedIconPath = raw.UnlockedIconPath;
+                    row.ProviderLockedIconPath = raw.LockedIconPath;
+                    row.ProviderHidden = raw.Hidden;
+                    // The hydrated row carries the overridden type, so the provider's own is only
+                    // available here. Without it an existing type override would compare equal to
+                    // "what the provider says" and be dropped on the next write.
+                    row.ProviderCategoryTypeValue = raw.CategoryType;
+                }
             }
         }
 
@@ -915,6 +1237,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var normalized = AchievementCategoryTypeHelper.NormalizeCategory(categoryLabel);
             StageAcross(targets, row => row.CategoryLabel = normalized);
             PersistCategoryAssignmentsFromRows();
+            SyncBulkRowFromSelection();
         }
 
         /// <summary>
@@ -937,6 +1260,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 normalizedType,
                 isSelected));
             PersistCategoryAssignmentsFromRows();
+            SyncBulkRowFromSelection();
         }
 
         /// <summary>
@@ -977,6 +1301,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             StageAcross(targets, row => row.IsGoal = isGoal);
             PersistGoalsFromRows();
+            SyncBulkRowFromSelection();
         }
 
         /// <summary>
@@ -992,6 +1317,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             StageAcross(targets, row => row.SetFilterScopeFromSource(scope));
             PersistFiltersFromRows();
+            SyncBulkRowFromSelection();
         }
 
         /// <summary>
@@ -1030,6 +1356,50 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            ResetCustomizations(targets, deleteAuthored: false);
+        }
+
+        /// <summary>
+        /// Drops every customization the game carries, authored achievements included, and reloads
+        /// so the grid shows what the providers supply.
+        /// </summary>
+        private void ResetRows()
+        {
+            if (ShowConfirmation(
+                    L("LOCPlayAch_ManageAchievements_Custom_ResetConfirm", "Reset all achievement customization for this game?"),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OKCancel,
+                    MessageBoxImage.Warning) != MessageBoxResult.OK)
+            {
+                return;
+            }
+
+            ResetCustomizations(
+                AchievementRows
+                    .Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                    .ToList(),
+                deleteAuthored: true);
+        }
+
+        /// <summary>
+        /// Clears the stored customization for the given achievements, and for a whole-game reset
+        /// the game-level lists and the authored achievements with them.
+        /// </summary>
+        /// <remarks>
+        /// Each facet is cleared through the writer that owns it, so the stored shapes stay
+        /// consistent: the per-achievement record for the editable fields, the icons and the note,
+        /// and the whole-collection writes for categories, filters, goals and the order. The rows
+        /// are reloaded rather than emptied, because the provider's achievements are not this
+        /// editor's to delete -- clearing them from the grid only made it disagree with the store
+        /// until the window was reopened.
+        /// </remarks>
+        private void ResetCustomizations(IReadOnlyList<AchievementEditorRow> targets, bool deleteAuthored)
+        {
+            if (targets == null || targets.Count == 0)
+            {
+                return;
+            }
+
             try
             {
                 var apiNames = new HashSet<string>(
@@ -1043,39 +1413,287 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _achievementOverridesService.ClearAchievementOverrides(_gameId, apiNames);
 
                 // Whole-collection facets: staged across the rows, then written once each.
-                foreach (var row in targets)
+                StageAcross(targets, row =>
                 {
-                    row.SuppressNotifications = true;
-                    try
-                    {
-                        row.CategoryLabel = null;
-                        row.CategoryTypeValue = null;
-                        row.IsGoal = false;
-                        row.SetFilterScopeFromSource(AchievementFilterScope.None);
-                    }
-                    finally
-                    {
-                        row.SuppressNotifications = false;
-                    }
-                }
+                    row.CategoryLabel = null;
+                    row.CategoryTypeValue = null;
+                    row.IsGoal = false;
+                    row.SetFilterScopeFromSource(AchievementFilterScope.None);
+                });
 
                 PersistCategoryAssignmentsFromRows();
                 PersistFiltersFromRows();
                 PersistGoalsFromRows();
 
-                if (targets.Any(row => row.IsCapstone))
+                if (deleteAuthored || targets.Any(row => row.IsCapstone))
                 {
                     _achievementOverridesService.SetCapstone(_gameId, null);
                 }
 
-                RevertOrderForRows(targets);
+                if (deleteAuthored)
+                {
+                    // Nothing is left to re-seat against, so the order is dropped outright rather
+                    // than rewritten without the reverted rows.
+                    _achievementOverridesService.SetAchievementOrderOverride(_gameId, Array.Empty<string>());
+                    _achievementOverridesService.SetCustomAchievements(_gameId, Array.Empty<CustomAchievementDefinition>());
+                    CustomAchievementsSaved?.Invoke(this, EventArgs.Empty);
+                }
+                else
+                {
+                    RevertOrderForRows(targets);
+                }
 
                 ReloadData();
                 SetStatus(null, false);
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, $"Failed reverting achievements for gameId={_gameId}.");
+                _logger?.Error(ex, $"Failed resetting achievements for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+        }
+
+        /// <summary>
+        /// Drops the stored order for the whole game, so the list falls back to the order the
+        /// providers hand over. Unlike reverting a selection there is nothing to re-seat: the
+        /// positional list goes entirely.
+        /// </summary>
+        private const string PlatinumTrophyType = "platinum";
+
+        private const string BaseCategoryType = "Base";
+
+        /// <summary>The plugin's own mark, the one the notification preview shows.</summary>
+        private const string BrandingIconPackUri =
+            "pack://application:,,,/PlayniteAchievements;component/Resources/BrandingIcon.png";
+
+        /// <summary>
+        /// Makes the game's platinum trophy its capstone, authoring one when the game has no
+        /// platinum of its own.
+        /// </summary>
+        private async Task ApplyAutoCapstoneAsync()
+        {
+            try
+            {
+                // An auto capstone this game already has is brought up to date rather than
+                // joined by a second one.
+                var existing = AchievementRows.FirstOrDefault(row => row?.IsAutoCapstone == true);
+                if (existing != null)
+                {
+                    ApplyAutoCapstoneDerivation(existing);
+                    RefreshComputedState();
+                    await SaveAsync().ConfigureAwait(true);
+                    SetCapstoneForRow(existing, true);
+                    SelectedRow = existing;
+                    SetStatus(null, false);
+                    return;
+                }
+
+                var platinum = ResolvePlatinumCapstoneRow();
+                if (platinum != null)
+                {
+                    SetCapstoneForRow(platinum, true);
+                    SelectedRow = platinum;
+                    SetStatus(null, false);
+                    return;
+                }
+
+                await CreateCapstoneAchievementAsync().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed applying the automatic capstone for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+        }
+
+        /// <summary>
+        /// The platinum trophy that stands for finishing the game, or null when it has none.
+        /// </summary>
+        /// <remarks>
+        /// Several platinums means DLC trophy sets alongside the base game's, and only the base
+        /// game's marks the game complete. Providers type the group rather than leaving it to the
+        /// label, so the base one is read off that type instead of guessed from the category text.
+        /// When nothing is typed -- a game whose trophies were authored or came from a provider
+        /// that does not group them -- the earliest in the achievement order wins, that order being
+        /// what the list is showing.
+        /// </remarks>
+        private AchievementEditorRow ResolvePlatinumCapstoneRow()
+        {
+            var platinums = AchievementRows
+                .Where(row => row != null &&
+                              !string.IsNullOrWhiteSpace(row.OriginalApiName) &&
+                              string.Equals(NormalizeText(row.TrophyType), PlatinumTrophyType, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (platinums.Count <= 1)
+            {
+                return platinums.FirstOrDefault();
+            }
+
+            var baseGame = platinums.FirstOrDefault(row =>
+                AchievementCategoryTypeHelper.ParseValues(row.EffectiveCategoryTypeValue)
+                    .Any(value => string.Equals(value, BaseCategoryType, StringComparison.OrdinalIgnoreCase)));
+            return baseGame ?? platinums[0];
+        }
+
+        /// <summary>
+        /// Authors the achievement that stands for finishing the game and makes it the capstone.
+        /// </summary>
+        /// <remarks>
+        /// Its locked art is left unset on purpose: an achievement without one is drawn as a
+        /// greyscale of its unlocked art already, which is what a locked platinum should look like,
+        /// and storing a second copy of the same image would only be another file to keep in step.
+        /// </remarks>
+        private async Task CreateCapstoneAchievementAsync()
+        {
+            var game = API.Instance?.Database?.Games?.Get(_gameId);
+            var row = AchievementEditorRow.CreateNew(AchievementRows.Count + 1);
+            AssignStableId(row);
+            row.DisplayName = NormalizeText(game?.Name) ?? row.DisplayName;
+            row.Description = L(
+                "LOCPlayAch_ManageAchievements_Custom_AutoCapstoneDescription",
+                "Obtain all Achievements.");
+            row.TrophyType = PlatinumTrophyType;
+            row.Hidden = false;
+            row.IsAutoCapstone = true;
+
+            // Derived here as well as on every refresh, so a game that is already finished gets a
+            // capstone that is already unlocked -- and the first refresh after this sees no
+            // crossing to announce.
+            ApplyAutoCapstoneDerivation(row);
+
+            // A source path, not a cached one: the save materializes it into this game's icon
+            // cache the same way it does an icon dropped onto any other authored achievement.
+            row.UnlockedIconPath = ResolveCapstoneIconSource(game);
+
+            AttachRow(row);
+            AchievementRows.Add(row);
+            SelectedRow = row;
+            RefreshComputedState();
+            await SaveAsync().ConfigureAwait(true);
+
+            if (string.IsNullOrWhiteSpace(row.OriginalApiName))
+            {
+                // The save refused it, and its own validation message says why.
+                return;
+            }
+
+            SetCapstoneForRow(row, true);
+
+            // Only when the game already carries an order: pinning it otherwise would author one
+            // for every achievement just to place this one.
+            if (HasCustomOrder)
+            {
+                PersistCurrentOrder();
+            }
+        }
+
+        /// <summary>
+        /// Works the capstone's rarity and unlock out from the achievements it stands for, through
+        /// the same rules the post-refresh maintenance uses so the two cannot drift apart.
+        /// </summary>
+        private void ApplyAutoCapstoneDerivation(AchievementEditorRow row)
+        {
+            if (row == null)
+            {
+                return;
+            }
+
+            // The snapshot holds hydrated data until something drops it, and a category the user
+            // changed in this window is exactly what decides the scope. Without this the capstone
+            // would be worked out from the grouping as it stood before that edit.
+            _gameDataSnapshotProvider?.Invalidate();
+
+            var apiName = NormalizeText(row.OriginalApiName);
+            var derived = AutoCapstoneCalculator.Derive(
+                _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements?
+                    .Where(achievement => string.IsNullOrWhiteSpace(apiName) ||
+                                          !string.Equals(achievement?.ApiName, apiName, StringComparison.OrdinalIgnoreCase)));
+            if (derived == null)
+            {
+                return;
+            }
+
+            row.SetRarityFromSource(derived.GlobalPercentUnlocked, derived.Rarity);
+            row.SetUnlockedFromSource(derived.Unlocked);
+            row.UnlockTime = derived.Unlocked ? derived.UnlockTimeUtc : null;
+        }
+
+        /// <summary>
+        /// The image to stand the capstone on: the game's own icon, then its cover, then the
+        /// plugin's mark, so it is never left without one.
+        /// </summary>
+        private string ResolveCapstoneIconSource(Playnite.SDK.Models.Game game)
+        {
+            var icon = ResolvePlayniteAssetFile(game?.Icon);
+            if (!string.IsNullOrWhiteSpace(icon))
+            {
+                return icon;
+            }
+
+            var cover = ResolvePlayniteAssetFile(game?.CoverImage);
+            return !string.IsNullOrWhiteSpace(cover) ? cover : ResolveBrandingIconFile();
+        }
+
+        private static string ResolvePlayniteAssetFile(string databasePath)
+        {
+            var normalized = NormalizeText(databasePath);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return null;
+            }
+
+            var full = API.Instance?.Database?.GetFullFilePath(normalized);
+            return !string.IsNullOrWhiteSpace(full) && File.Exists(full) ? full : null;
+        }
+
+        /// <summary>
+        /// Unpacks the plugin's mark to a file, because an achievement's icon is stored as a path
+        /// and the mark ships inside the assembly.
+        /// </summary>
+        private string ResolveBrandingIconFile()
+        {
+            try
+            {
+                var target = Path.Combine(Path.GetTempPath(), "playniteachievements-capstone.png");
+                if (File.Exists(target))
+                {
+                    return target;
+                }
+
+                var resource = System.Windows.Application.GetResourceStream(new Uri(BrandingIconPackUri));
+                if (resource?.Stream == null)
+                {
+                    return null;
+                }
+
+                using (var source = resource.Stream)
+                using (var file = File.Create(target))
+                {
+                    source.CopyTo(file);
+                }
+
+                return target;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed unpacking the branding icon for the automatic capstone.");
+                return null;
+            }
+        }
+
+        private void ResetOrder()
+        {
+            try
+            {
+                _achievementOverridesService.SetAchievementOrderOverride(_gameId, Array.Empty<string>());
+                HasCustomOrder = false;
+                RaiseAssignmentsChanged();
+                ReloadData();
+                SetStatus(null, false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed resetting achievement order for gameId={_gameId}.");
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
             }
         }
@@ -1128,6 +1746,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             foreach (var row in targets)
             {
                 row.PropertyChanged -= Row_PropertyChanged;
+                row.RevealStateChanged -= Row_RevealStateChanged;
                 AchievementRows.Remove(row);
             }
 
@@ -1320,30 +1939,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private void ClearRows()
-        {
-            var result = ShowConfirmation(
-                L("LOCPlayAch_ManageAchievements_Custom_ClearConfirm", "Clear all custom achievements for this game?"),
-                L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
-                MessageBoxButton.OKCancel,
-                MessageBoxImage.Warning);
-            if (result != MessageBoxResult.OK)
-            {
-                return;
-            }
-
-            foreach (var row in AchievementRows)
-            {
-                row.PropertyChanged -= Row_PropertyChanged;
-            }
-
-            AchievementRows.Clear();
-            SelectedRow = null;
-            SetStatus(null, false);
-            RefreshComputedState();
-            _ = SaveAsync();
-        }
-
         private List<CustomAchievementDefinition> BuildValidatedDefinitions(
             out Dictionary<string, string> renameMap,
             out List<string> errors)
@@ -1534,7 +2129,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             foreach (var row in AchievementRows)
             {
                 row.PropertyChanged -= Row_PropertyChanged;
+                row.RevealStateChanged -= Row_RevealStateChanged;
             }
+
+            // The multi-selection is made of the rows being replaced, and the grid only echoes a
+            // fresh one back once it has processed the reset. Dropping it here keeps a selection
+            // edit that lands in between from staging onto detached rows, where it would be
+            // written out of a collection that no longer contains them.
+            SetSelectedRows(Array.Empty<AchievementEditorRow>());
 
             AchievementRows.Clear();
             foreach (var row in rows ?? Enumerable.Empty<AchievementEditorRow>())
@@ -1584,17 +2186,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         continue;
                     }
 
+                    // Blank, not the Default sentinel: these two fields hold the user's override
+                    // and the writers rebuild the whole stored map from them, so a row standing in
+                    // for "no override" has to be empty. Filling it with Default instead made every
+                    // uncustomized achievement look like one deliberately filed under Default, and
+                    // the next write stamped that over the category its provider gave it.
                     row.CategoryLabel = categoryOverrides.TryGetValue(apiName, out var category)
                         ? category
-                        : AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(null);
+                        : null;
                     row.CategoryTypeValue = categoryTypeOverrides.TryGetValue(apiName, out var categoryType)
                         ? categoryType
-                        : AchievementCategoryTypeHelper.NormalizeOrDefault(null);
+                        : null;
                     row.IsCapstone = string.Equals(apiName, capstoneApiName, StringComparison.OrdinalIgnoreCase);
                 }
 
                 RefreshAssignableCategoryOptions(categoryOverrides);
-                SyncTypeOptionsToSelectedRow();
+                SyncTypeOptionsToEditTarget();
             }
             catch (Exception ex)
             {
@@ -1630,7 +2237,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             labels.AddRange(AchievementRows
-                .Select(row => row?.CategoryLabel)
+                .Select(row => row?.EffectiveCategoryLabel)
                 .Where(label => !string.IsNullOrWhiteSpace(label)));
             labels.AddRange(GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted)?.Keys
                 ?? Enumerable.Empty<string>());
@@ -1647,7 +2254,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, ordered);
         }
 
-        private void SyncTypeOptionsToSelectedRow()
+        private void SyncTypeOptionsToEditTarget()
         {
             if (TypeSelectionOptions == null)
             {
@@ -1657,8 +2264,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _isSyncingTypeOptions = true;
             try
             {
+                // The pane's other controls bind EditTarget, so seeding these from SelectedRow left
+                // the type ticks describing one row while the button beside them described the
+                // whole selection.
                 var selectedTypes = new HashSet<string>(
-                    AchievementCategoryTypeHelper.ParseValues(SelectedRow?.CategoryTypeValue),
+                    AchievementCategoryTypeHelper.ParseValues(EditTarget?.EffectiveCategoryTypeValue),
                     StringComparer.OrdinalIgnoreCase);
                 foreach (var option in TypeSelectionOptions)
                 {
@@ -1680,69 +2290,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            SetCategoryTypeForRow(SelectedRow, option.Value, option.IsSelected);
-        }
-
-        /// <summary>
-        /// Assigns a category label to a saved row, or clears its override when the text is
-        /// blank. Persists immediately, like the Category tab.
-        /// </summary>
-        public bool ApplyCategoryToRow(AchievementEditorRow row, string categoryText)
-        {
-            var apiName = NormalizeText(row?.OriginalApiName);
-            if (string.IsNullOrWhiteSpace(apiName))
-            {
-                return false;
-            }
-
-            var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(categoryText);
-            var categoryOverrides = GetCurrentCategoryOverrideMap();
-            var changed = string.IsNullOrWhiteSpace(normalizedCategory)
-                ? categoryOverrides.Remove(apiName)
-                : !categoryOverrides.TryGetValue(apiName, out var existing) ||
-                  !string.Equals(existing, normalizedCategory, StringComparison.Ordinal);
-            if (!changed)
-            {
-                return false;
-            }
-
-            if (!string.IsNullOrWhiteSpace(normalizedCategory))
-            {
-                categoryOverrides[apiName] = normalizedCategory;
-            }
-
-            PersistAssignmentMaps(categoryOverrides, GetCurrentCategoryTypeOverrideMap());
-            return true;
-        }
-
-        private void SetCategoryTypeForRow(AchievementEditorRow row, string categoryType, bool isSelected)
-        {
-            var apiName = NormalizeText(row?.OriginalApiName);
-            var normalizedType = AchievementCategoryTypeHelper.Normalize(categoryType);
-            if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(normalizedType))
-            {
-                return;
-            }
-
-            var categoryTypeOverrides = GetCurrentCategoryTypeOverrideMap();
-            var currentType = AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryTypeValue);
-            var updatedType = AchievementCategoryTypeHelper.WithCategoryType(currentType, normalizedType, isSelected);
-            if (string.Equals(updatedType, currentType, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            // Custom achievements carry no provider type, so the default means "no override".
-            if (string.Equals(updatedType, AchievementCategoryTypeHelper.NormalizeOrDefault(null), StringComparison.Ordinal))
-            {
-                categoryTypeOverrides.Remove(apiName);
-            }
-            else
-            {
-                categoryTypeOverrides[apiName] = updatedType;
-            }
-
-            PersistAssignmentMaps(GetCurrentCategoryOverrideMap(), categoryTypeOverrides);
+            SetCategoryTypeForSelection(option.Value, option.IsSelected);
         }
 
         private void PersistAssignmentMaps(
@@ -1850,11 +2398,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // locked or hidden custom row masks its icon until clicked.
             row.ShowHiddenIcon = _settings?.Persisted?.ShowHiddenIcon ?? false;
             row.ShowLockedIcon = _settings?.Persisted?.ShowLockedIcon ?? true;
+            row.ShowHiddenTitle = _settings?.Persisted?.ShowHiddenTitle ?? false;
+            row.ShowHiddenDescription = _settings?.Persisted?.ShowHiddenDescription ?? false;
             row.ConfigureIconPathDisplay(
                 path => _managedCustomIconService?.GetManagedDisplayPath(path, _gameIdText) ?? path,
                 text => _managedCustomIconService?.ResolveManagedDisplayPath(text, _gameIdText) ?? text);
             row.PropertyChanged -= Row_PropertyChanged;
             row.PropertyChanged += Row_PropertyChanged;
+            row.RevealStateChanged -= Row_RevealStateChanged;
+            row.RevealStateChanged += Row_RevealStateChanged;
+        }
+
+        private void Row_RevealStateChanged(object sender, EventArgs e)
+        {
+            if (!_isTogglingReveal)
+            {
+                RefreshRevealHeaderState();
+            }
         }
 
         private void Row_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -1870,6 +2430,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // per row. That made one edit cost O(rows squared). The commit runs its own
             // RefreshComputedState once it has walked every row.
             if (_isCommittingRows)
+            {
+                return;
+            }
+
+            // Reveal state never persists: it only decides what the grid is currently masking.
+            // The column headers follow it through RevealStateChanged, which fires once per change
+            // rather than once per property.
+            if (IsRevealStateProperty(e.PropertyName))
             {
                 return;
             }
@@ -1893,11 +2461,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _searchIndex.Invalidate(renamedRow);
             }
 
+            // A selection edit applies the same value to every selected row and then persists the
+            // facet once for the whole selection. Letting each row persist itself here as well
+            // would write the same store record twice per row. The search index above is still
+            // invalidated, because a bulk rename has to be searchable by its new text.
+            if (_isApplyingBulk)
+            {
+                return;
+            }
+
             if (e.PropertyName == nameof(AchievementEditorRow.ValidationMessage) ||
-                e.PropertyName == nameof(AchievementEditorRow.IsRevealed) ||
-                e.PropertyName == nameof(AchievementEditorRow.IsIconHidden) ||
-                e.PropertyName == nameof(AchievementEditorRow.IsLockedIconHidden) ||
-                e.PropertyName == nameof(AchievementEditorRow.CanReveal) ||
                 e.PropertyName == nameof(AchievementEditorRow.DisplayIcon) ||
                 e.PropertyName == nameof(AchievementEditorRow.CategoryLabel) ||
                 e.PropertyName == nameof(AchievementEditorRow.CategoryTypeValue) ||
@@ -2059,6 +2632,27 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         WriteProviderField(apiName, AchievementEditableField.TrophyType, NormalizeText(row.TrophyType));
                         break;
 
+                    // Hiding is a presentation choice rather than a provider fact, so both values
+                    // are storable; agreeing with the provider again stores nothing, which is what
+                    // keeps a record from being kept for a row that is not customized.
+                    case nameof(AchievementEditorRow.Hidden):
+                        WriteProviderField(
+                            apiName,
+                            AchievementEditableField.Hidden,
+                            row.Hidden == row.ProviderHidden ? (bool?)null : row.Hidden);
+                        break;
+
+                    // Icons are stored as their own maps rather than on the override record, so
+                    // they are written whole. Without this the editor accepted an icon for a
+                    // provider achievement and lost it on the next reload.
+                    case nameof(AchievementEditorRow.UnlockedIconPath):
+                        _ = ApplyIconEditAsync(new[] { row }, AchievementIconVariant.Unlocked);
+                        break;
+
+                    case nameof(AchievementEditorRow.LockedIconPath):
+                        _ = ApplyIconEditAsync(new[] { row }, AchievementIconVariant.Locked);
+                        break;
+
                     case nameof(AchievementEditorRow.Unlocked):
                     case nameof(AchievementEditorRow.UnlockTime):
                     case nameof(AchievementEditorRow.HasUnlockTime):
@@ -2217,6 +2811,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     .Select(row => row.OriginalApiName)
                     .ToList();
                 _achievementOverridesService.SetAchievementOrderOverride(_gameId, ordered);
+                HasCustomOrder = ordered.Count > 0;
                 RaiseAssignmentsChanged();
             }
             catch (Exception ex)
@@ -2264,6 +2859,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         return;
 
                     case nameof(AchievementEditorRow.FilterScope):
+                        // The blank stands for disagreement, not a setting: applying it would
+                        // clear every selected row's filter instead of leaving them alone.
+                        if (bulk.FilterScope == AchievementFilterScope.Mixed)
+                        {
+                            return;
+                        }
+
                         StageAcrossSelection(row => row.SetFilterScopeFromSource(bulk.FilterScope));
                         PersistFiltersFromRows();
                         return;
@@ -2289,6 +2891,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                             }
                         });
                         PersistUnlockStateFromRows();
+                        return;
+
+                    case nameof(AchievementEditorRow.UnlockedIconPath):
+                        ApplyIconEditAcrossSelection(
+                            row => row.UnlockedIconPath = bulk.UnlockedIconPath,
+                            AchievementIconVariant.Unlocked);
+                        return;
+
+                    case nameof(AchievementEditorRow.LockedIconPath):
+                        ApplyIconEditAcrossSelection(
+                            row => row.LockedIconPath = bulk.LockedIconPath,
+                            AchievementIconVariant.Locked);
                         return;
 
                     // Per-achievement fields: each row persists on its own, because they are stored
@@ -2317,6 +2931,48 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         ApplyPerRow(row => row.Hidden = bulk.Hidden, property);
                         return;
 
+                    // Progress is authored state, so a provider row has nowhere to keep it and the
+                    // row refuses the edit; skipping it here keeps a mixed selection from silently
+                    // dropping half the values it appeared to accept.
+                    case nameof(AchievementEditorRow.ProgressNumText):
+                        ApplyPerRow(
+                            row =>
+                            {
+                                if (row.CanEditProgress)
+                                {
+                                    row.ProgressNumText = bulk.ProgressNumText;
+                                }
+                            },
+                            property);
+                        return;
+
+                    case nameof(AchievementEditorRow.ProgressDenomText):
+                        ApplyPerRow(
+                            row =>
+                            {
+                                if (row.CanEditProgress)
+                                {
+                                    row.ProgressDenomText = bulk.ProgressDenomText;
+                                }
+                            },
+                            property);
+                        return;
+
+                    // The time picker's other properties each drive this one, so correcting a
+                    // timestamp across the selection is handled once here. A locked achievement
+                    // has no unlock to stamp, so it keeps its empty timestamp.
+                    case nameof(AchievementEditorRow.UnlockTime):
+                        ApplyPerRow(
+                            row =>
+                            {
+                                if (row.Unlocked)
+                                {
+                                    row.UnlockTime = bulk.UnlockTime;
+                                }
+                            },
+                            property);
+                        return;
+
                     case nameof(AchievementEditorRow.RarityInput):
                         // Refused on provider rows by the row itself; a mixed selection is marked
                         // as provider-backed, so this only reaches an all-authored selection.
@@ -2335,22 +2991,45 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             StageAcross(_selectedRows, apply);
 
         /// <summary>
+        /// Applies one icon across the selection: the provider rows through the override maps, the
+        /// authored ones through their own definitions.
+        /// </summary>
+        private void ApplyIconEditAcrossSelection(Action<AchievementEditorRow> apply, AchievementIconVariant variant)
+        {
+            var targets = _selectedRows.ToList();
+            StageAcross(targets, apply);
+            _ = ApplyIconEditAsync(targets, variant);
+            if (targets.Any(row => !row.IsProviderRow))
+            {
+                RefreshComputedState();
+                _ = SaveAsync();
+            }
+        }
+
+        /// <summary>
         /// Applies a staged edit to each row without raising the per-row persist, for facets that
         /// are written once for the whole collection afterwards.
         /// </summary>
-        private static void StageAcross(IEnumerable<AchievementEditorRow> rows, Action<AchievementEditorRow> apply)
+        /// <remarks>
+        /// The rows still raise their changes: suppressing those left the grid showing the old
+        /// value until the window was reopened, because the notification the DataGrid binds to is
+        /// the same one the persist listens for. Only the persist is held off, through the flag the
+        /// row handler checks.
+        /// </remarks>
+        private void StageAcross(IEnumerable<AchievementEditorRow> rows, Action<AchievementEditorRow> apply)
         {
-            foreach (var row in rows)
+            var wasApplying = _isApplyingBulk;
+            _isApplyingBulk = true;
+            try
             {
-                row.SuppressNotifications = true;
-                try
+                foreach (var row in rows)
                 {
                     apply(row);
                 }
-                finally
-                {
-                    row.SuppressNotifications = false;
-                }
+            }
+            finally
+            {
+                _isApplyingBulk = wasApplying;
             }
         }
 
@@ -2385,8 +3064,144 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void PersistCategoryAssignmentsFromRows()
         {
             PersistAssignmentMaps(
-                BuildRowMap(row => row.CategoryLabel),
-                BuildRowMap(row => row.CategoryTypeValue));
+                BuildAssignmentMap(
+                    row => row.CategoryLabel,
+                    row => row.ProviderCategoryLabel,
+                    (assigned, provider) => CategoryPathHelper.IsSame(
+                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(assigned),
+                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(provider))),
+                BuildAssignmentMap(
+                    row => row.CategoryTypeValue,
+                    row => row.ProviderCategoryTypeValue,
+                    (assigned, provider) => string.Equals(
+                        AchievementCategoryTypeHelper.NormalizeOrDefault(assigned),
+                        AchievementCategoryTypeHelper.NormalizeOrDefault(provider),
+                        StringComparison.OrdinalIgnoreCase)));
+        }
+
+        /// <summary>
+        /// Writes the icon overrides for the provider-backed rows as one pair of maps.
+        /// </summary>
+        /// <remarks>
+        /// A row shows its effective icon, so an entry is written only where that differs from the
+        /// provider's own art; an icon cleared back to the provider's leaves no entry, which is
+        /// what removes the override. Authored rows keep their icons on their own definition and
+        /// are written by the save, so they stay out of both maps.
+        /// </remarks>
+        private void PersistIconOverridesFromRows()
+        {
+            // The maps are written whole, so rebuilding them without the provider baseline would
+            // both stamp every provider icon in as an override and drop the real ones already
+            // stored. Refusing the write leaves the stored icons alone.
+            if (!_providerIconBaselinesResolved)
+            {
+                _logger?.Warn($"Skipped writing icon overrides for gameId={_gameId}: no provider data to compare against.");
+                return;
+            }
+
+            try
+            {
+                var unlockedOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var lockedOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var row in AchievementRows)
+                {
+                    var apiName = NormalizeText(row?.OriginalApiName);
+                    if (row == null || !row.IsProviderRow || string.IsNullOrWhiteSpace(apiName))
+                    {
+                        continue;
+                    }
+
+                    var unlocked = NormalizeText(row.UnlockedIconPath);
+                    if (!string.IsNullOrWhiteSpace(unlocked) &&
+                        !string.Equals(unlocked, NormalizeText(row.ProviderUnlockedIconPath), StringComparison.OrdinalIgnoreCase))
+                    {
+                        unlockedOverrides[apiName] = unlocked;
+                    }
+
+                    var locked = NormalizeText(row.LockedIconPath);
+                    if (!string.IsNullOrWhiteSpace(locked) &&
+                        !string.Equals(locked, NormalizeText(row.ProviderLockedIconPath), StringComparison.OrdinalIgnoreCase))
+                    {
+                        lockedOverrides[apiName] = locked;
+                    }
+                }
+
+                _achievementOverridesService.SetIconOverridesAndCustomAchievementIcons(
+                    _gameId,
+                    unlockedOverrides,
+                    lockedOverrides,
+                    new Dictionary<string, (string Unlocked, string Locked)>(StringComparer.OrdinalIgnoreCase));
+                RaiseAssignmentsChanged();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed saving achievement icon overrides for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+        }
+
+        /// <summary>
+        /// Copies a chosen image into the managed icon cache for each row it was set on, then
+        /// writes the override maps once.
+        /// </summary>
+        /// <remarks>
+        /// Clearing an icon puts the provider's own back on the row, which is both what the user
+        /// should see and what leaves no override behind.
+        /// </remarks>
+        private async Task ApplyIconEditAsync(IReadOnlyList<AchievementEditorRow> rows, AchievementIconVariant variant)
+        {
+            var errors = new List<string>();
+            foreach (var row in rows ?? Array.Empty<AchievementEditorRow>())
+            {
+                if (row == null || !row.IsProviderRow)
+                {
+                    continue;
+                }
+
+                var current = NormalizeText(ReadIcon(row, variant));
+                if (string.IsNullOrWhiteSpace(current))
+                {
+                    StageAcross(new[] { row }, target => WriteIcon(target, variant, ReadProviderIcon(target, variant)));
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(row.IconFileStem))
+                {
+                    continue;
+                }
+
+                var materialized = await MaterializeIconSourceAsync(current, row.IconFileStem, variant, errors)
+                    .ConfigureAwait(true);
+                if (!string.Equals(materialized, current, StringComparison.Ordinal))
+                {
+                    StageAcross(new[] { row }, target => WriteIcon(target, variant, materialized));
+                }
+            }
+
+            if (errors.Count > 0)
+            {
+                SetStatus(string.Join(Environment.NewLine, errors.Take(8)), true);
+            }
+
+            PersistIconOverridesFromRows();
+        }
+
+        private static string ReadIcon(AchievementEditorRow row, AchievementIconVariant variant) =>
+            variant == AchievementIconVariant.Locked ? row.LockedIconPath : row.UnlockedIconPath;
+
+        private static string ReadProviderIcon(AchievementEditorRow row, AchievementIconVariant variant) =>
+            variant == AchievementIconVariant.Locked ? row.ProviderLockedIconPath : row.ProviderUnlockedIconPath;
+
+        private static void WriteIcon(AchievementEditorRow row, AchievementIconVariant variant, string value)
+        {
+            if (variant == AchievementIconVariant.Locked)
+            {
+                row.LockedIconPath = value;
+            }
+            else
+            {
+                row.UnlockedIconPath = value;
+            }
         }
 
         private void PersistGoalsFromRows()
@@ -2399,17 +3214,33 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             RaiseAssignmentsChanged();
         }
 
-        private Dictionary<string, string> BuildRowMap(Func<AchievementEditorRow, string> selector)
+        /// <summary>
+        /// Rebuilds one stored assignment map from the rows, keeping only the assignments that are
+        /// really the user's.
+        /// </summary>
+        /// <remarks>
+        /// Both maps are written whole, so every row that carries no assignment has to leave no
+        /// entry. An assignment that only restates what the provider already says is dropped too,
+        /// which is the same economy the Category tab applies when it reparents a row.
+        /// </remarks>
+        private Dictionary<string, string> BuildAssignmentMap(
+            Func<AchievementEditorRow, string> selector,
+            Func<AchievementEditorRow, string> providerSelector,
+            Func<string, string, bool> matchesProvider)
         {
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in AchievementRows)
             {
                 var apiName = row?.OriginalApiName;
                 var value = selector(row);
-                if (!string.IsNullOrWhiteSpace(apiName) && !string.IsNullOrWhiteSpace(value))
+                if (string.IsNullOrWhiteSpace(apiName) ||
+                    string.IsNullOrWhiteSpace(value) ||
+                    matchesProvider(value, providerSelector(row)))
                 {
-                    map[apiName] = value;
+                    continue;
                 }
+
+                map[apiName] = value;
             }
 
             return map;
@@ -2705,7 +3536,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var categoryType = SelectedTypeFilter?.Value;
             if (!string.IsNullOrWhiteSpace(categoryType) &&
-                !string.Equals(NormalizeText(row.CategoryTypeValue), categoryType, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(NormalizeText(row.EffectiveCategoryTypeValue), categoryType, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -2763,6 +3594,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void NotifyFilterChanged()
         {
             OnPropertyChanged(nameof(IsFiltering));
+            // The header toggles summarize the rows on screen, and the filter decides which those
+            // are.
+            RefreshRevealHeaderState();
             FilterChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -3041,7 +3875,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ImportFileCommand.RaiseCanExecuteChanged();
             ExportTemplateCommand.RaiseCanExecuteChanged();
             ExportAchievementsCommand.RaiseCanExecuteChanged();
-            ClearCommand.RaiseCanExecuteChanged();
+            ResetCommand.RaiseCanExecuteChanged();
+            ResetOrderCommand.RaiseCanExecuteChanged();
+            AutoCapstoneCommand.RaiseCanExecuteChanged();
             AddCustomProviderCommand?.RaiseCanExecuteChanged();
             EditCustomProviderCommand?.RaiseCanExecuteChanged();
         }
@@ -3157,12 +3993,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isUpdatingFromText;
         private bool _isApplyingPickerUpdate;
         private bool _isManuallyTrackedGame;
+        private bool _isAutoCapstone;
+        // Display-only, and only ever set on the bulk proxy: the selected rows disagree on this
+        // facet, so the pane shows nothing rather than a value that would be applied.
+        private bool _filterScopeIsMixed;
+        private bool _unlockedIsMixed;
+        private bool _hiddenIsMixed;
+        private bool _isGoalIsMixed;
 
         private static readonly string[] TimeModeDisplayNames = { "AM", "PM", "24hr" };
 
-        private bool _isRevealed;
+        private AchievementIconRevealStage _iconStage;
         private bool _showHiddenIcon;
         private bool _showLockedIcon = true;
+        private bool _showHiddenTitle;
+        private bool _showHiddenDescription;
+        private bool _isTitleRevealed;
+        private bool _isDescriptionRevealed;
 
         public string OriginalApiName { get; private set; }
 
@@ -3200,38 +4047,218 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        public bool IsRevealed
+        /// <summary>
+        /// How much of this row's icon is currently shown. Assigning a stage the row does not have
+        /// settles on the next one it does, so a caller -- the column header, say -- can ask every
+        /// row for the same stage and let each take what applies to it.
+        /// </summary>
+        public AchievementIconRevealStage IconStage
         {
-            get => _isRevealed;
+            get => ClampIconStage(_iconStage);
             set
             {
-                if (SetValueAndReturn(ref _isRevealed, value))
+                var clamped = ClampIconStage(value);
+                if (_iconStage == clamped)
+                {
+                    return;
+                }
+
+                _iconStage = clamped;
+                OnPropertyChanged(nameof(IconStage));
+                NotifyRevealStateChanged();
+            }
+        }
+
+        /// <summary>
+        /// Whether a display setting is covering this row's icon at all. Either masking puts the
+        /// same step in the cycle -- the cover -- because to the user they are one thing: the art
+        /// is not being shown yet.
+        /// </summary>
+        private bool HasCoveredIconStage =>
+            !Unlocked && ((Hidden && !ShowHiddenIcon) || !ShowLockedIcon);
+
+        /// <summary>
+        /// Whether this row has a locked view worth stepping through. Every locked achievement
+        /// does: the step draws its own art the way a player sees it while locked. An unlocked
+        /// achievement has no such view -- its art is simply its art.
+        /// </summary>
+        private bool HasLockedIconStage => !Unlocked;
+
+        /// <summary>
+        /// The first stage at or after the one asked for that this row actually has, so the stored
+        /// stage can never describe a mask the row is not applying.
+        /// </summary>
+        private AchievementIconRevealStage ClampIconStage(AchievementIconRevealStage stage)
+        {
+            if (stage <= AchievementIconRevealStage.Covered && HasCoveredIconStage)
+            {
+                return AchievementIconRevealStage.Covered;
+            }
+
+            if (stage <= AchievementIconRevealStage.Locked && HasLockedIconStage)
+            {
+                return AchievementIconRevealStage.Locked;
+            }
+
+            return AchievementIconRevealStage.Unlocked;
+        }
+
+        /// <summary>
+        /// Mirrors the grid display setting: when false, a locked hidden row masks its name until
+        /// revealed, so opening the editor does not spoil what the achievement is.
+        /// </summary>
+        public bool ShowHiddenTitle
+        {
+            get => _showHiddenTitle;
+            set
+            {
+                if (SetValueAndReturn(ref _showHiddenTitle, value))
                 {
                     NotifyRevealStateChanged();
                 }
             }
         }
 
-        public bool IsIconHidden => Hidden && !Unlocked && !ShowHiddenIcon && !IsRevealed;
-
-        public bool IsLockedIconHidden => !Unlocked && !ShowLockedIcon && !IsRevealed;
-
-        public bool CanReveal => !Unlocked && ((Hidden && !ShowHiddenIcon) || !ShowLockedIcon);
-
-        public void ToggleReveal()
+        /// <summary>
+        /// Mirrors the grid display setting: when false, a locked hidden row masks its description
+        /// until revealed.
+        /// </summary>
+        public bool ShowHiddenDescription
         {
-            if (CanReveal)
+            get => _showHiddenDescription;
+            set
             {
-                IsRevealed = !IsRevealed;
+                if (SetValueAndReturn(ref _showHiddenDescription, value))
+                {
+                    NotifyRevealStateChanged();
+                }
             }
         }
 
+        /// <summary>
+        /// Whether the name and the description are revealed. They are tracked apart because each
+        /// has its own toggle beside it, and reading one is not a reason to spoil the other.
+        /// </summary>
+        public bool IsTitleRevealed
+        {
+            get => _isTitleRevealed;
+            set
+            {
+                if (SetValueAndReturn(ref _isTitleRevealed, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
+        public bool IsDescriptionRevealed
+        {
+            get => _isDescriptionRevealed;
+            set
+            {
+                if (SetValueAndReturn(ref _isDescriptionRevealed, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
+        /// <summary>True while a placeholder is covering the art rather than the art showing.</summary>
+        public bool IsIconCovered => IconStage == AchievementIconRevealStage.Covered;
+
+        public bool IsIconStageLocked => IconStage == AchievementIconRevealStage.Locked;
+
+        public bool IsIconStageUnlocked => IconStage == AchievementIconRevealStage.Unlocked;
+
+        /// <summary>True when this row has more than its own unlocked art to show.</summary>
+        public bool CanReveal => HasCoveredIconStage || HasLockedIconStage;
+
+        /// <summary>
+        /// Whether this row has a name worth masking at all. Only a hidden achievement that is
+        /// still locked does, and only while the display setting says not to reveal it -- with the
+        /// setting on there is nothing to reveal, so the toggle beside it is not shown either.
+        /// </summary>
+        public bool CanRevealTitle => Hidden && !Unlocked && !ShowHiddenTitle;
+
+        public bool CanRevealDescription => Hidden && !Unlocked && !ShowHiddenDescription;
+
+        public bool IsTitleHidden => CanRevealTitle && !IsTitleRevealed;
+
+        public bool IsDescriptionHidden => CanRevealDescription && !IsDescriptionRevealed;
+
+        /// <summary>
+        /// Steps to the next stage this row has, wrapping from its own art back to the most masked
+        /// one so the same control both reveals and re-masks.
+        /// </summary>
+        public void AdvanceIconStage()
+        {
+            if (!CanReveal)
+            {
+                return;
+            }
+
+            IconStage = IconStage == AchievementIconRevealStage.Unlocked
+                ? AchievementIconRevealStage.Covered
+                : IconStage + 1;
+        }
+
+        /// <summary>
+        /// Reveals the name without the option of masking it again, for clicking the placeholder
+        /// itself: the click can only mean "show me", and the text is gone once it lands.
+        /// </summary>
+        public void RevealTitle()
+        {
+            if (CanRevealTitle)
+            {
+                IsTitleRevealed = true;
+            }
+        }
+
+        /// <summary>Reveals the description. See <see cref="RevealTitle"/>.</summary>
+        public void RevealDescription()
+        {
+            if (CanRevealDescription)
+            {
+                IsDescriptionRevealed = true;
+            }
+        }
+
+        public void ToggleTitleReveal()
+        {
+            if (CanRevealTitle)
+            {
+                IsTitleRevealed = !IsTitleRevealed;
+            }
+        }
+
+        public void ToggleDescriptionReveal()
+        {
+            if (CanRevealDescription)
+            {
+                IsDescriptionRevealed = !IsDescriptionRevealed;
+            }
+        }
+
+        /// <summary>
+        /// Raised once after any reveal state settles. A single toggle moves several of the
+        /// properties below, so a listener that summarizes them over every row -- the column
+        /// headers -- reads them once per change rather than once per property.
+        /// </summary>
+        public event EventHandler RevealStateChanged;
+
         private void NotifyRevealStateChanged()
         {
-            OnPropertyChanged(nameof(IsIconHidden));
-            OnPropertyChanged(nameof(IsLockedIconHidden));
+            OnPropertyChanged(nameof(IconStage));
+            OnPropertyChanged(nameof(IsIconCovered));
+            OnPropertyChanged(nameof(IsIconStageLocked));
+            OnPropertyChanged(nameof(IsIconStageUnlocked));
             OnPropertyChanged(nameof(CanReveal));
+            OnPropertyChanged(nameof(CanRevealTitle));
+            OnPropertyChanged(nameof(CanRevealDescription));
+            OnPropertyChanged(nameof(IsTitleHidden));
+            OnPropertyChanged(nameof(IsDescriptionHidden));
             OnPropertyChanged(nameof(DisplayIcon));
+            RevealStateChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private string _categoryLabel;
@@ -3253,11 +4280,62 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool CanEditAssignments => IsBulkRow || !string.IsNullOrWhiteSpace(OriginalApiName);
 
         /// <summary>
+        /// The capstone is one achievement per game, so it has no meaning for a multi-selection.
+        /// The proxy refuses it rather than accepting a click it could not apply.
+        /// </summary>
+        public bool CanEditCapstone => CanEditAssignments && !IsBulkRow;
+
+        /// <summary>
+        /// The icons the provider supplies, captured before any override is applied over them.
+        /// A row shows its effective icon, so this is the only way to tell an override apart from
+        /// the provider's own art, and the only thing to fall back to when one is cleared.
+        /// </summary>
+        public string ProviderUnlockedIconPath { get; internal set; }
+
+        public string ProviderLockedIconPath { get; internal set; }
+
+        /// <summary>
+        /// Whether the provider calls this achievement hidden, captured before any override is
+        /// applied, so setting it back to that value clears the override instead of storing it.
+        /// </summary>
+        public bool ProviderHidden { get; internal set; }
+
+        /// <summary>
+        /// True for the achievement Auto Capstone authored. Its rarity and unlock are kept in step
+        /// with the achievements it stands for, so the editor stops offering those two for editing
+        /// rather than accepting changes a refresh would undo.
+        /// </summary>
+        public bool IsAutoCapstone
+        {
+            get => _isAutoCapstone;
+            set
+            {
+                if (SetValueAndReturn(ref _isAutoCapstone, value))
+                {
+                    OnPropertyChanged(nameof(CanEditRarity));
+                    OnPropertyChanged(nameof(CanEditUnlocked));
+                }
+            }
+        }
+
+        /// <summary>
+        /// The file stem an overriding image is copied to inside the plugin's icon cache, so a
+        /// local file or URL survives being moved or going offline.
+        /// </summary>
+        public string IconFileStem { get; internal set; }
+
+        /// <summary>
         /// The category the provider gave this achievement, kept because <see cref="CategoryLabel"/>
         /// holds the user's override and reads as the Default bucket when there is none. Filtering
         /// needs the effective value, not the override.
         /// </summary>
         public string ProviderCategoryLabel { get; set; }
+
+        /// <summary>
+        /// The category type the provider gave this achievement, kept for the same reason as
+        /// <see cref="ProviderCategoryLabel"/>: an assignment matching it is not an override.
+        /// </summary>
+        public string ProviderCategoryTypeValue { get; set; }
 
         /// <summary>
         /// The category this achievement actually sits in: the user's override when they set one,
@@ -3267,13 +4345,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
-                var assigned = (CategoryLabel ?? string.Empty).Trim();
-                return !string.IsNullOrWhiteSpace(assigned) &&
-                       !string.Equals(assigned, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
-                    ? assigned
-                    : AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel);
+                var assigned = AchievementCategoryTypeHelper.NormalizeCategory(CategoryLabel);
+                return assigned ?? AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel);
             }
         }
+
+        /// <summary>
+        /// The category type the achievement actually carries: the user's override when they set
+        /// one, otherwise the provider's own.
+        /// </summary>
+        public string EffectiveCategoryTypeValue =>
+            AchievementCategoryTypeHelper.Normalize(CategoryTypeValue) ??
+            AchievementCategoryTypeHelper.NormalizeOrDefault(ProviderCategoryTypeValue);
 
         /// <summary>
         /// The achievement's position in the provider's own order, stamped by the loader before
@@ -3305,7 +4388,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// derived from the unlock percentages the provider reports.
         /// </summary>
         public bool CanEditRarity =>
-            ManageAchievements.AchievementEditorFieldRules.CanEditRarity(isCustomRow: !IsProviderRow);
+            ManageAchievements.AchievementEditorFieldRules.CanEditRarity(
+                isCustomRow: !IsProviderRow,
+                isAutoCapstone: IsAutoCapstone);
 
         /// <summary>
         /// True when this row belongs to a game whose achievements are tracked manually. Set by the
@@ -3332,7 +4417,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool CanEditUnlocked =>
             ManageAchievements.AchievementEditorFieldRules.CanEditUnlockStatus(
                 isCustomRow: !IsProviderRow,
-                isManuallyTrackedGame: IsManuallyTrackedGame);
+                isManuallyTrackedGame: IsManuallyTrackedGame,
+                isAutoCapstone: IsAutoCapstone);
 
         /// <summary>Progress totals are provider-reported; only an authored row defines its own.</summary>
         public bool CanEditProgress => !IsProviderRow;
@@ -3357,7 +4443,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool IsGoal
         {
             get => _isGoal;
-            set => SetValue(ref _isGoal, value);
+            set
+            {
+                if (SetValueAndReturn(ref _isGoal, value))
+                {
+                    OnPropertyChanged(nameof(IsGoalState));
+                }
+            }
         }
 
         public bool IsFiltered
@@ -3398,6 +4490,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
+                if (_filterScopeIsMixed)
+                {
+                    return AchievementFilterScope.Mixed;
+                }
+
                 if (IsFiltered)
                 {
                     return AchievementFilterScope.All;
@@ -3408,10 +4505,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             set
             {
-                if (value == FilterScope)
+                // Mixed is what the proxy shows, never something the user can pick: the dropdown
+                // does not list it, so this only arrives when a binding echoes the value back.
+                if (value == AchievementFilterScope.Mixed || value == FilterScope)
                 {
                     return;
                 }
+
+                // Leaving the blank behind is the point of the assignment, and the scope it
+                // stood for is unknowable, so every pick from a mixed proxy counts as a change.
+                _filterScopeIsMixed = false;
 
                 // Set the pair together, then raise once: the two flags persist as whole lists, so
                 // letting each raise separately would write the game's filters twice per change.
@@ -3430,7 +4533,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string CategoryLabel
         {
             get => _categoryLabel;
-            set => SetValue(ref _categoryLabel, value);
+            set
+            {
+                if (SetValueAndReturn(ref _categoryLabel, value))
+                {
+                    OnPropertyChanged(nameof(EffectiveCategoryLabel));
+                }
+            }
         }
 
         public string CategoryTypeValue
@@ -3440,6 +4549,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _categoryTypeValue, value))
                 {
+                    OnPropertyChanged(nameof(EffectiveCategoryTypeValue));
                     OnPropertyChanged(nameof(CategoryTypeDisplayText));
                 }
             }
@@ -3450,7 +4560,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             get
             {
                 // The Default sentinel renders blank in grid cells; a button needs a label.
-                var text = AchievementCategoryTypeHelper.ToDisplayText(CategoryTypeValue);
+                var text = AchievementCategoryTypeHelper.ToDisplayText(EffectiveCategoryTypeValue);
                 return string.IsNullOrWhiteSpace(text)
                     ? AchievementCategoryTypeHelper.ToCategoryTypeDisplayText(AchievementCategoryTypeHelper.NormalizeOrDefault(null))
                     : text;
@@ -3502,6 +4612,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         UnlockTime = null;
                     }
 
+                    OnPropertyChanged(nameof(UnlockedState));
                     OnPropertyChanged(nameof(CanEditUnlockTime));
                     NotifyRevealStateChanged();
                 }
@@ -3521,12 +4632,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         internal void SetFilterScopeFromSource(AchievementFilterScope scope)
         {
+            _filterScopeIsMixed = scope == AchievementFilterScope.Mixed;
             _isFiltered = scope == AchievementFilterScope.All;
             _isSummaryFiltered = scope == AchievementFilterScope.Summary;
             OnPropertyChanged(nameof(IsFiltered));
             OnPropertyChanged(nameof(IsSummaryFiltered));
             OnPropertyChanged(nameof(IsFilteredFromSummaries));
             OnPropertyChanged(nameof(FilterScope));
+        }
+
+        /// <summary>
+        /// Seeds the rarity from what it was derived from, bypassing the guard on the public
+        /// setter for the same reason the unlock seeder does.
+        /// </summary>
+        internal void SetRarityFromSource(double? globalPercentUnlocked, string rarity)
+        {
+            _globalPercentUnlockedText = globalPercentUnlocked.HasValue
+                ? globalPercentUnlocked.Value.ToString(CultureInfo.InvariantCulture)
+                : null;
+            _rarity = rarity;
+            _rarityInput = _globalPercentUnlockedText ?? rarity;
+            _rarityInputInvalid = false;
+            OnPropertyChanged(nameof(GlobalPercentUnlockedText));
+            OnPropertyChanged(nameof(Rarity));
+            OnPropertyChanged(nameof(RarityInput));
         }
 
         /// <summary>
@@ -3537,8 +4666,109 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             _unlocked = unlocked;
             OnPropertyChanged(nameof(Unlocked));
+            OnPropertyChanged(nameof(UnlockedState));
             OnPropertyChanged(nameof(CanEditUnlockTime));
             NotifyRevealStateChanged();
+        }
+
+        /// <summary>
+        /// The three flags the details pane binds, as nullable so a bulk proxy can show a blank
+        /// checkbox for a selection that disagrees.
+        /// </summary>
+        /// <remarks>
+        /// A blank is only ever a display state: setting one back to blank is ignored, and picking
+        /// either real value applies it even when it matches what the blank was standing in front
+        /// of, which is what lets a mixed selection be set to the unchecked pole.
+        /// </remarks>
+        public bool? UnlockedState
+        {
+            get => _unlockedIsMixed ? (bool?)null : Unlocked;
+            set => ApplyTriState(
+                value,
+                ref _unlockedIsMixed,
+                () => Unlocked,
+                next => Unlocked = next,
+                nameof(Unlocked),
+                nameof(UnlockedState));
+        }
+
+        public bool? HiddenState
+        {
+            get => _hiddenIsMixed ? (bool?)null : Hidden;
+            set => ApplyTriState(
+                value,
+                ref _hiddenIsMixed,
+                () => Hidden,
+                next => Hidden = next,
+                nameof(Hidden),
+                nameof(HiddenState));
+        }
+
+        public bool? IsGoalState
+        {
+            get => _isGoalIsMixed ? (bool?)null : IsGoal;
+            set => ApplyTriState(
+                value,
+                ref _isGoalIsMixed,
+                () => IsGoal,
+                next => IsGoal = next,
+                nameof(IsGoal),
+                nameof(IsGoalState));
+        }
+
+        private void ApplyTriState(
+            bool? value,
+            ref bool isMixed,
+            Func<bool> read,
+            Action<bool> apply,
+            string valueProperty,
+            string stateProperty)
+        {
+            if (!value.HasValue)
+            {
+                return;
+            }
+
+            var wasMixed = isMixed;
+            isMixed = false;
+            if (read() != value.Value)
+            {
+                apply(value.Value);
+            }
+            else if (wasMixed)
+            {
+                // The blank was standing in for this value, so the assignment compares as no
+                // change; raise anyway or picking it would silently do nothing.
+                OnPropertyChanged(valueProperty);
+            }
+
+            OnPropertyChanged(stateProperty);
+        }
+
+        /// <summary>Seeds the unlock flag, or blanks it for a selection that disagrees.</summary>
+        internal void SetUnlockedStateFromSource(bool? unlocked)
+        {
+            _unlockedIsMixed = !unlocked.HasValue;
+            SetUnlockedFromSource(unlocked ?? false);
+        }
+
+        /// <summary>Seeds the hidden flag, or blanks it for a selection that disagrees.</summary>
+        internal void SetHiddenFromSource(bool? hidden)
+        {
+            _hiddenIsMixed = !hidden.HasValue;
+            _hidden = hidden ?? false;
+            OnPropertyChanged(nameof(Hidden));
+            OnPropertyChanged(nameof(HiddenState));
+            NotifyRevealStateChanged();
+        }
+
+        /// <summary>Seeds the goal flag, or blanks it for a selection that disagrees.</summary>
+        internal void SetGoalFromSource(bool? isGoal)
+        {
+            _isGoalIsMixed = !isGoal.HasValue;
+            _isGoal = isGoal ?? false;
+            OnPropertyChanged(nameof(IsGoal));
+            OnPropertyChanged(nameof(IsGoalState));
         }
 
         public DateTime? UnlockTime
@@ -3661,6 +4891,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _hidden, value))
                 {
+                    OnPropertyChanged(nameof(HiddenState));
                     NotifyRevealStateChanged();
                 }
             }
@@ -3953,21 +5184,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
-                // Hidden is tested first so the more spoiler-sensitive state wins when a row
-                // is both hidden and locked-masked, matching AchievementDisplayItem.
-                if (IsIconHidden)
+                // The stage decides, so the last step shows the unlocked art even for an
+                // achievement that is still locked -- which is the point of stepping through:
+                // the three looks an icon has, rather than only the one this row happens to be
+                // in. The stages a row does not have are already clamped away, so an unlocked
+                // achievement only ever reaches the last one.
+                switch (IconStage)
                 {
-                    return AchievementIconResolver.GetHiddenFallbackIcon();
-                }
+                    case AchievementIconRevealStage.Covered:
+                        // Hidden wins over locked, the more spoiler-sensitive of the two, matching
+                        // AchievementDisplayItem.
+                        return Hidden && !ShowHiddenIcon
+                            ? AchievementIconResolver.GetHiddenFallbackIcon()
+                            : AchievementIconResolver.GetLockedFallbackIcon();
 
-                if (IsLockedIconHidden)
-                {
-                    return AchievementIconResolver.GetLockedFallbackIcon();
-                }
+                    case AchievementIconRevealStage.Locked:
+                        return AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, LockedIconPath);
 
-                return Unlocked
-                    ? AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath)
-                    : AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, LockedIconPath);
+                    default:
+                        return AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath);
+                }
             }
         }
 
@@ -4050,8 +5286,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.SuppressNotifications = false;
 
             row.OriginalApiName = achievement.ApiName;
-            // Captured before RefreshAssignmentState replaces CategoryLabel with the user override.
-            row.ProviderCategoryLabel = achievement.Category;
+            // The provider's own label, which Category holds only until an override replaces it.
+            row.ProviderCategoryLabel = achievement.ProviderCategory ?? achievement.Category;
             row.IsNew = false;
             row.CaptureBaseline();
             return row;
@@ -4177,6 +5413,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 LockedIconPath = NormalizeText(LockedIconPath),
                 TrophyType = NormalizeText(TrophyType),
                 Hidden = Hidden,
+                IsAutoCapstone = IsAutoCapstone,
                 Rarity = string.IsNullOrWhiteSpace(Rarity) ? "Common" : Rarity.Trim()
             };
 

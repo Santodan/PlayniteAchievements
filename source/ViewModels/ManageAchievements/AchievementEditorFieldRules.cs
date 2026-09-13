@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 
 namespace PlayniteAchievements.ViewModels.ManageAchievements
@@ -14,7 +14,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// rarity is derived from the unlock percentages the provider supplies, and the
         /// stored-rarity guard cannot distinguish a deliberate Common from "never filled in".
         /// </summary>
-        public static bool CanEditRarity(bool isCustomRow) => isCustomRow;
+        public static bool CanEditRarity(bool isCustomRow, bool isAutoCapstone = false) =>
+            isCustomRow && !isAutoCapstone;
 
         /// <summary>
         /// An unlock timestamp is only a correction to an achievement that is already unlocked.
@@ -84,8 +85,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// the source of unlock state by definition -- that is the whole feature -- so the rule does
         /// not apply to its rows either.
         /// </remarks>
-        public static bool CanEditUnlockStatus(bool isCustomRow, bool isManuallyTrackedGame) =>
-            isCustomRow || isManuallyTrackedGame;
+        public static bool CanEditUnlockStatus(
+            bool isCustomRow,
+            bool isManuallyTrackedGame,
+            bool isAutoCapstone = false) =>
+            (isCustomRow || isManuallyTrackedGame) && !isAutoCapstone;
 
         /// <summary>
         /// Parses a points override. Blank clears the override and yields null. Returns false when

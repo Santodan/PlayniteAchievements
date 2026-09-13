@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace PlayniteAchievements.Models.Settings
 {
@@ -51,6 +51,13 @@ namespace PlayniteAchievements.Models.Settings
         public string LockedIconPath { get; set; }
 
         /// <summary>
+        /// Whether the achievement is treated as hidden, when the user disagrees with the
+        /// provider. Null means "not customized": hiding is a presentation choice rather than a
+        /// provider fact, so either value can be an override, and only an explicit one is stored.
+        /// </summary>
+        public bool? Hidden { get; set; }
+
+        /// <summary>
         /// True when no member carries a value, so the record can be pruned rather than stored
         /// as an empty row. Normalization relies on this to keep the "is this game customized"
         /// predicates accurate.
@@ -66,7 +73,8 @@ namespace PlayniteAchievements.Models.Settings
             string.IsNullOrWhiteSpace(CategoryType) &&
             string.IsNullOrWhiteSpace(Note) &&
             string.IsNullOrWhiteSpace(UnlockedIconPath) &&
-            string.IsNullOrWhiteSpace(LockedIconPath);
+            string.IsNullOrWhiteSpace(LockedIconPath) &&
+            !Hidden.HasValue;
 
         public AchievementOverride Clone()
         {
@@ -82,7 +90,8 @@ namespace PlayniteAchievements.Models.Settings
                 CategoryType = CategoryType,
                 Note = Note,
                 UnlockedIconPath = UnlockedIconPath,
-                LockedIconPath = LockedIconPath
+                LockedIconPath = LockedIconPath,
+                Hidden = Hidden
             };
         }
     }

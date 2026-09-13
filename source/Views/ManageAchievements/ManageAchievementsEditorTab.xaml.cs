@@ -1,4 +1,4 @@
-using Playnite.SDK;
+﻿using Playnite.SDK;
 using PlayniteAchievements.Views.Dialogs;
 using Microsoft.Win32;
 using Playnite.SDK.Events;
@@ -170,18 +170,30 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void ViewModel_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (e?.PropertyName == nameof(ManageAchievementsEditorViewModel.SelectedRow))
+            if (e?.PropertyName == nameof(ManageAchievementsEditorViewModel.SelectedRow) ||
+                e?.PropertyName == nameof(ManageAchievementsEditorViewModel.EditTarget))
             {
                 SeedCategoryPicker();
             }
         }
 
+        /// <summary>
+        /// Seeds the picker from whatever the pane is editing: the selected row, or the bulk proxy
+        /// carrying the label the selection agrees on.
+        /// </summary>
         private void SeedCategoryPicker()
         {
-            _categoryPickerRow = ViewModel?.SelectedRow;
-            CategoryPicker.SetInitialCategory(_categoryPickerRow?.CategoryLabel);
+            _categoryPickerRow = ViewModel?.EditTarget;
+            // The effective label, so the picker opens showing the category the achievement is
+            // actually in rather than only a category the user had overridden it to.
+            CategoryPicker.SetInitialCategory(_categoryPickerRow?.EffectiveCategoryLabel);
         }
 
+        /// <summary>
+        /// Commits the picker to every selected achievement. The captured row is only the guard
+        /// that editing had actually begun; the label lands on the selection, which is what the
+        /// pane says it is editing.
+        /// </summary>
         private void ApplyCategoryFromPicker()
         {
             var row = _categoryPickerRow;
@@ -190,7 +202,34 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            ViewModel.ApplyCategoryToRow(row, CategoryPicker.ResolveSelection());
+            ViewModel.SetCategoryForSelection(CategoryPicker.ResolveSelection());
+        }
+
+        /// <summary>
+        /// Applies a filter scope picked in the details pane to every selected achievement.
+        /// </summary>
+        /// <remarks>
+        /// The combo only reports what the user chose; re-seeding it as the selection changes
+        /// raises this too, which the comparison against the edit target's current scope filters
+        /// out. A proxy standing in for rows that disagree has no matching item at all, so the
+        /// first real pick always reads as a change.
+        /// </remarks>
+        private void FilterScopeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!(e?.AddedItems?.Count > 0) ||
+                !(e.AddedItems[0] is AchievementFilterScopeOption option) ||
+                ViewModel == null)
+            {
+                return;
+            }
+
+            var target = ViewModel.EditTarget;
+            if (target == null || !target.CanEditAssignments || option.Value == target.FilterScope)
+            {
+                return;
+            }
+
+            ViewModel.SetFilterScopeForSelection(option.Value);
         }
 
         /// <summary>
@@ -293,6 +332,51 @@ namespace PlayniteAchievements.Views.ManageAchievements
             button.ContextMenu.IsOpen = true;
         }
 
+        /// <summary>
+        /// Reveals a masked name by clicking it. The placeholder is only on screen while the name
+        /// is masked, so the click has one meaning and does not need to re-mask; the toggle beside
+        /// it is what puts the mask back.
+        /// </summary>
+        private void MaskedTitle_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.RevealTitle();
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>Reveals a masked description by clicking it.</summary>
+        private void MaskedDescription_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.RevealDescription();
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>
+        /// Reveals or re-masks one row's name. Separate from the description's toggle: each is
+        /// spoiled on its own.
+        /// </summary>
+        private void ToggleTitleRevealButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.ToggleTitleReveal();
+            }
+        }
+
+        /// <summary>Reveals or re-masks one row's description.</summary>
+        private void ToggleDescriptionRevealButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.ToggleDescriptionReveal();
+            }
+        }
+
         private void IconImage_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (!((sender as FrameworkElement)?.DataContext is AchievementEditorRow row) || !row.CanReveal)
@@ -300,7 +384,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            row.ToggleReveal();
+            row.AdvanceIconStage();
             e.Handled = true;
         }
 
@@ -681,7 +765,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 DeleteButton,
                 ImportFileButton,
                 ExportButton,
-                ClearButton,
+                ResetButton,
                 CustomAchievementsGrid,
                 AddRowFooterButton,
                 CapstoneCheckBox,

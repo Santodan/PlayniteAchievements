@@ -1,4 +1,4 @@
-<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsEditorTab"
+﻿<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsEditorTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -51,6 +51,61 @@
                         <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}" />
                     </Trigger>
                 </Style.Triggers>
+            </Style>
+
+            <!-- Sits inside the name and description cells, so it is sized to the editor text box
+                 beside it rather than to a toolbar button. -->
+            <Style x:Key="RevealToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Width" Value="24" />
+                <Setter Property="Height" Value="24" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="4,0,0,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="IsTabStop" Value="False" />
+                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
+            </Style>
+
+            <Style x:Key="RevealHeaderToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource RevealToggleButtonStyle}">
+                <Setter Property="Margin" Value="6,0,0,0" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+            </Style>
+
+            <!-- Centered header content would leave these sitting under the middle of the column;
+                 the row toggles are at the right edge of their cell, so the header stretches and
+                 puts its own toggle in the same place. -->
+            <Style x:Key="RevealColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource ManageAchievementsColumnHeaderStyle}">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            </Style>
+
+            <!-- The three states an achievement's art can be in, drawn the way the grid control
+                 bar draws them: the hidden glyph from the icon font, and stroked/filled geometry
+                 for the padlock and the check. -->
+            <Style x:Key="RevealGlyphTextStyle" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Icon}" />
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="FontWeight" Value="Normal" />
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Glyph}" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="RevealGlyphBoxStyle" TargetType="Viewbox">
+                <Setter Property="Width" Value="14" />
+                <Setter Property="Height" Value="14" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="MaskedCellTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="Opacity" Value="0.55" />
+                <Setter Property="FontStyle" Value="Italic" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Margin" Value="6,0" />
             </Style>
 
             <Style x:Key="DropdownButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -225,11 +280,12 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Three groups: row edits, transfer, and the destructive clear kept apart on the right. -->
-                <WrapPanel Grid.Column="1"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Top"
-                           Margin="12,0,0,0">
+                <StackPanel Grid.Column="1"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Margin="12,0,0,0">
+                    <!-- Three groups: row edits, transfer, and the destructive reset kept apart on the right. -->
+                    <WrapPanel HorizontalAlignment="Right">
                     <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                         <Button x:Name="AddButton"
                                 Content="{DynamicResource LOCPlayAch_Common_Add}"
@@ -268,12 +324,31 @@
                             </Button.ContextMenu>
                         </Button>
                     </StackPanel>
-                    <Button x:Name="ClearButton"
-                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
-                            Command="{Binding ClearCommand}"
+                    <Button x:Name="ResetButton"
+                            Content="{DynamicResource LOCPlayAch_Button_ResetAll}"
+                            ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Custom_ResetHint}"
+                            Command="{Binding ResetCommand}"
                             Style="{StaticResource ToolbarButtonStyle}"
                             Margin="0,0,0,8" />
-                </WrapPanel>
+                    </WrapPanel>
+
+                    <!-- Second row: the shortcuts that rewrite one facet of the list, kept off the
+                         row of per-achievement actions above them. Left within the block the row
+                         above sizes, so these start under Add rather than under the reset. -->
+                    <WrapPanel HorizontalAlignment="Left">
+                        <Button x:Name="AutoCapstoneButton"
+                                Content="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstone}"
+                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstoneHint}"
+                                Command="{Binding AutoCapstoneCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="0,0,0,8" />
+                        <Button x:Name="ResetOrderButton"
+                                Content="{DynamicResource LOCPlayAch_ManageAchievements_Order_Reset}"
+                                Command="{Binding ResetOrderCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="0,0,0,8" />
+                    </WrapPanel>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -474,6 +549,39 @@
                                             MaxWidth="58"
                                             CanUserResize="False"
                                             CellStyle="{StaticResource ManageAchievementsIconCellStyle}">
+                        <!-- The column's own toggle, reaching every masked icon on screen at once
+                             rather than one click per row. Shown only while something is maskable,
+                             like the per-row toggles. -->
+                        <DataGridTemplateColumn.Header>
+                            <Button Command="{Binding DataContext.CycleAllIconStagesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    Visibility="{Binding DataContext.CanRevealAnyIcon, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource RevealHeaderToggleButtonStyle}">
+                                        <Setter Property="Margin" Value="0" />
+                                        <Setter Property="HorizontalAlignment" Value="Center" />
+                                    </Style>
+                                </Button.Style>
+                                <Grid>
+                                        <TextBlock Text="&#xEF22;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding DataContext.IconColumnStageIsCovered, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                        <Viewbox Style="{StaticResource RevealGlyphBoxStyle}"
+                                                 Visibility="{Binding DataContext.IconColumnStageIsLocked, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                                            <Path Data="{StaticResource GeoLock}"
+                                                  Fill="{DynamicResource PlayAch.Brush.Glyph}" />
+                                        </Viewbox>
+                                        <Viewbox Style="{StaticResource RevealGlyphBoxStyle}"
+                                                 Visibility="{Binding DataContext.IconColumnStageIsUnlocked, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                                            <Path Data="{StaticResource GeoCheck}"
+                                                  Stroke="{DynamicResource PlayAch.Brush.Glyph}"
+                                                  StrokeThickness="2.3"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  StrokeLineJoin="Round" />
+                                        </Viewbox>
+                                    </Grid>
+                            </Button>
+                        </DataGridTemplateColumn.Header>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Image Width="44"
@@ -489,10 +597,7 @@
                                                 <DataTrigger Binding="{Binding CanReveal}" Value="True">
                                                     <Setter Property="Cursor" Value="Hand" />
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding IsIconHidden}" Value="True">
-                                                    <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding IsLockedIconHidden}" Value="True">
+                                                <DataTrigger Binding="{Binding IsIconCovered}" Value="True">
                                                     <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -503,30 +608,168 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_AchievementName}"
-                                            Width="280"
-                                            SortMemberPath="DisplayName">
+                    <!-- The name and description of a locked hidden achievement are masked until
+                         revealed, the same way the achievement grids mask them, so opening the
+                         editor does not spoil what the achievement is. Each has its own toggle
+                         beside it: reading one is not a reason to spoil the other. The toggle is
+                         shown only when there is something to reveal, so a row whose display
+                         settings already reveal that facet carries no button at all. -->
+                    <DataGridTemplateColumn Width="240"
+                                            SortMemberPath="DisplayName"
+                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}">
+                        <DataGridTemplateColumn.Header>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <!-- Mirrors the toggle's footprint on the other side, so the title
+                                     sits centered on the column rather than on what is left of it,
+                                     while the toggle stays out at the edge above the row ones. It
+                                     gives the width back when there is no toggle to balance. -->
+                                <Border Grid.Column="0"
+                                        Width="30"
+                                        Visibility="{Binding DataContext.CanRevealAnyTitle, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{DynamicResource LOCPlayAch_Column_AchievementName}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+                                <Button Grid.Column="2"
+                                        Style="{StaticResource RevealHeaderToggleButtonStyle}"
+                                        Visibility="{Binding DataContext.CanRevealAnyTitle, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding DataContext.ToggleAllTitlesRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <Grid>
+                                        <TextBlock Text="&#xEF22;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding DataContext.AreAllTitlesRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}" />
+                                        <TextBlock Text="&#xEF24;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding DataContext.AreAllTitlesRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                    </Grid>
+                                </Button>
+                            </Grid>
+                        </DataGridTemplateColumn.Header>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBox Text="{Binding DisplayName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                         Style="{StaticResource GridEditorTextBoxStyle}"
-                                         KeyDown="EditorTextBox_KeyDown" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding DisplayName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             Style="{StaticResource GridEditorTextBoxStyle}"
+                                             Visibility="{Binding IsTitleHidden, Converter={StaticResource InverseBoolToVis}}"
+                                             KeyDown="EditorTextBox_KeyDown" />
+                                    <Border Grid.Column="0"
+                                            Background="Transparent"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch"
+                                            Cursor="Hand"
+                                            ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                            Visibility="{Binding IsTitleHidden, Converter={StaticResource BoolToVis}}"
+                                            PreviewMouseLeftButtonDown="MaskedTitle_PreviewMouseLeftButtonDown">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Achievements_HiddenTitle}"
+                                                   Style="{StaticResource MaskedCellTextStyle}" />
+                                    </Border>
+                                    <Button Grid.Column="1"
+                                            Style="{StaticResource RevealToggleButtonStyle}"
+                                            Visibility="{Binding CanRevealTitle, Converter={StaticResource BoolToVis}}"
+                                            Click="ToggleTitleRevealButton_Click">
+                                        <Grid>
+                                        <TextBlock Text="&#xEF22;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding IsTitleHidden, Converter={StaticResource BoolToVis}}" />
+                                        <TextBlock Text="&#xEF24;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding IsTitleHidden, Converter={StaticResource InverseBoolToVis}}" />
+                                    </Grid>
+                                    </Button>
+                                </Grid>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
                     <!-- Star-sized so the cells cover the full row width: a click beyond the last
                          column lands on no cell and would not select the row. -->
-                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Description}"
-                                            Width="*"
-                                            MinWidth="200"
-                                            SortMemberPath="Description">
+                    <DataGridTemplateColumn Width="*"
+                                            MinWidth="180"
+                                            SortMemberPath="Description"
+                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}">
+                        <DataGridTemplateColumn.Header>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <!-- Mirrors the toggle's footprint on the other side, so the title
+                                     sits centered on the column rather than on what is left of it,
+                                     while the toggle stays out at the edge above the row ones. It
+                                     gives the width back when there is no toggle to balance. -->
+                                <Border Grid.Column="0"
+                                        Width="30"
+                                        Visibility="{Binding DataContext.CanRevealAnyDescription, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{DynamicResource LOCPlayAch_Column_Description}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+                                <Button Grid.Column="2"
+                                        Style="{StaticResource RevealHeaderToggleButtonStyle}"
+                                        Visibility="{Binding DataContext.CanRevealAnyDescription, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding DataContext.ToggleAllDescriptionsRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <Grid>
+                                        <TextBlock Text="&#xEF22;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding DataContext.AreAllDescriptionsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}" />
+                                        <TextBlock Text="&#xEF24;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding DataContext.AreAllDescriptionsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                    </Grid>
+                                </Button>
+                            </Grid>
+                        </DataGridTemplateColumn.Header>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBox Text="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                         Style="{StaticResource GridEditorTextBoxStyle}"
-                                         TextWrapping="Wrap"
-                                         AcceptsReturn="True" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             Style="{StaticResource GridEditorTextBoxStyle}"
+                                             Visibility="{Binding IsDescriptionHidden, Converter={StaticResource InverseBoolToVis}}"
+                                             TextWrapping="Wrap"
+                                             AcceptsReturn="True" />
+                                    <Border Grid.Column="0"
+                                            Background="Transparent"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch"
+                                            Cursor="Hand"
+                                            ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                            Visibility="{Binding IsDescriptionHidden, Converter={StaticResource BoolToVis}}"
+                                            PreviewMouseLeftButtonDown="MaskedDescription_PreviewMouseLeftButtonDown">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                                   Style="{StaticResource MaskedCellTextStyle}" />
+                                    </Border>
+                                    <Button Grid.Column="1"
+                                            Style="{StaticResource RevealToggleButtonStyle}"
+                                            Visibility="{Binding CanRevealDescription, Converter={StaticResource BoolToVis}}"
+                                            Click="ToggleDescriptionRevealButton_Click">
+                                        <Grid>
+                                        <TextBlock Text="&#xEF22;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding IsDescriptionHidden, Converter={StaticResource BoolToVis}}" />
+                                        <TextBlock Text="&#xEF24;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding IsDescriptionHidden, Converter={StaticResource InverseBoolToVis}}" />
+                                    </Grid>
+                                    </Button>
+                                </Grid>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -675,8 +918,12 @@
                                           Stretch="Uniform"
                                           Margin="0,0,4,0"
                                           VerticalAlignment="Center" />
+                                    <!-- Three-state only for the bulk proxy: a blank tick means the
+                                         selected rows disagree, so nothing is applied until a real
+                                         value is picked. -->
                                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_Unlocked}"
-                                              IsChecked="{Binding Unlocked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsChecked="{Binding UnlockedState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsThreeState="{Binding IsBulkRow}"
                                               IsEnabled="{Binding CanEditUnlocked}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,18,2"
@@ -689,7 +936,8 @@
                                            helpers:AsyncImage.Uri="{Binding DataContext.HiddenCoverIcon, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                            helpers:AsyncImage.DecodePixel="28" />
                                     <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Custom_Hidden}"
-                                              IsChecked="{Binding Hidden, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsChecked="{Binding HiddenState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsThreeState="{Binding IsBulkRow}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,0,2"
                                               VerticalContentAlignment="Center" />
@@ -706,7 +954,7 @@
                                     <CheckBox x:Name="CapstoneCheckBox"
                                               Content="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
                                               IsChecked="{Binding IsCapstone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsEnabled="{Binding CanEditAssignments}"
+                                              IsEnabled="{Binding CanEditCapstone}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,18,2"
                                               VerticalContentAlignment="Center" />
@@ -717,7 +965,8 @@
                                                Margin="0,0,4,0"
                                                VerticalAlignment="Center" />
                                     <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}"
-                                              IsChecked="{Binding IsGoal, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsChecked="{Binding IsGoalState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsThreeState="{Binding IsBulkRow}"
                                               IsEnabled="{Binding CanEditAssignments}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,0,2"
@@ -1081,10 +1330,17 @@
                                  they apply to authored and provider achievements alike. -->
                             <TextBlock Text="{DynamicResource LOCPlayAch_Menu_Filters}"
                                        Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox SelectedValue="{Binding FilterScope, Mode=TwoWay}"
+                            <!-- One-way, with the pick applied in code: a proxy standing in for a
+                                 selection that disagrees holds a scope the list deliberately does
+                                 not offer, and a two-way binding could push the first real option
+                                 back over it, filing every selected row under a filter nobody
+                                 chose. -->
+                            <ComboBox x:Name="FilterScopeComboBox"
+                                      SelectedValue="{Binding FilterScope, Mode=OneWay}"
                                       SelectedValuePath="Value"
                                       ItemsSource="{Binding DataContext.FilterScopeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                       DisplayMemberPath="DisplayName"
+                                      SelectionChanged="FilterScopeComboBox_SelectionChanged"
                                       IsEnabled="{Binding CanEditAssignments}"
                                       MinHeight="26"
                                       VerticalContentAlignment="Center" />
