@@ -198,6 +198,17 @@
     <!-- Scores: reuses ScoreCardControl for the collection and/or prestige card, with a
          cumulative score-over-time line under each card outside compact. -->
     <DataTemplate DataType="{x:Type widgets:ScoresWidgetViewModel}">
+      <Grid>
+        <!-- One info affordance for the widget. The cards themselves carry none: with both the
+             collection and prestige card on screen, a per-card glyph appeared twice and competed
+             with the label that tells the two cards apart. -->
+        <Button Style="{DynamicResource PlayAch.Button.InfoGlyphStyle}"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Panel.ZIndex="1"
+                Margin="0,2,4,0"
+                ToolTip="{DynamicResource LOCPlayAch_Score_Info_ButtonTooltip}"
+                showcase:ScoreCardInfoBehavior.Enabled="True"/>
         <ItemsControl ItemsSource="{Binding Cards}" VerticalAlignment="Center">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -221,11 +232,9 @@
                         <controls:ScoreCardControl
                             ScoreCard="{Binding Card}"
                             IsFeatured="{Binding DataContext.IsFeatured, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                            ShowNextLevelText="True"
                             Flat="True"
                             MinWidth="0"
-                            HorizontalAlignment="Stretch"
-                            showcase:ScoreCardInfoBehavior.Enabled="True"/>
+                            HorizontalAlignment="Stretch"/>
                         <TextBlock Grid.Row="1"
                                    Margin="6,2,6,0"
                                    Text="{Binding HistoryCaption}"
@@ -299,6 +308,7 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+      </Grid>
     </DataTemplate>
 
     <!-- IconMosaic: centered wrap of reused AchievementCompactItemControl icons. -->
