@@ -1712,12 +1712,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         continue;
                     }
 
+                    // Blank, not the Default sentinel: these two fields hold the user's override
+                    // and the writers rebuild the whole stored map from them, so a row standing in
+                    // for "no override" has to be empty. Filling it with Default instead made every
+                    // uncustomized achievement look like one deliberately filed under Default, and
+                    // the next write stamped that over the category its provider gave it.
                     row.CategoryLabel = categoryOverrides.TryGetValue(apiName, out var category)
                         ? category
-                        : AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(null);
+                        : null;
                     row.CategoryTypeValue = categoryTypeOverrides.TryGetValue(apiName, out var categoryType)
                         ? categoryType
-                        : AchievementCategoryTypeHelper.NormalizeOrDefault(null);
+                        : null;
                     row.IsCapstone = string.Equals(apiName, capstoneApiName, StringComparison.OrdinalIgnoreCase);
                 }
 
@@ -2568,8 +2573,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void PersistCategoryAssignmentsFromRows()
         {
             PersistAssignmentMaps(
-                BuildRowMap(row => row.CategoryLabel),
-                BuildRowMap(row => row.CategoryTypeValue));
+                BuildAssignmentMap(row => row.CategoryLabel, row => row.ProviderCategoryLabel, CategoryPathHelper.IsSame),
+                BuildAssignmentMap(
+                    row => row.CategoryTypeValue,
+                    row => row.ProviderCategoryTypeValue,
+                    (assigned, provider) => string.Equals(
+                        AchievementCategoryTypeHelper.NormalizeOrDefault(assigned),
+                        AchievementCategoryTypeHelper.NormalizeOrDefault(provider),
+                        StringComparison.OrdinalIgnoreCase)));
         }
 
         /// <summary>
@@ -2707,17 +2718,33 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             RaiseAssignmentsChanged();
         }
 
-        private Dictionary<string, string> BuildRowMap(Func<AchievementEditorRow, string> selector)
+        /// <summary>
+        /// Rebuilds one stored assignment map from the rows, keeping only the assignments that are
+        /// really the user's.
+        /// </summary>
+        /// <remarks>
+        /// Both maps are written whole, so every row that carries no assignment has to leave no
+        /// entry. An assignment that only restates what the provider already says is dropped too,
+        /// which is the same economy the Category tab applies when it reparents a row.
+        /// </remarks>
+        private Dictionary<string, string> BuildAssignmentMap(
+            Func<AchievementEditorRow, string> selector,
+            Func<AchievementEditorRow, string> providerSelector,
+            Func<string, string, bool> matchesProvider)
         {
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in AchievementRows)
             {
                 var apiName = row?.OriginalApiName;
                 var value = selector(row);
-                if (!string.IsNullOrWhiteSpace(apiName) && !string.IsNullOrWhiteSpace(value))
+                if (string.IsNullOrWhiteSpace(apiName) ||
+                    string.IsNullOrWhiteSpace(value) ||
+                    matchesProvider(value, providerSelector(row)))
                 {
-                    map[apiName] = value;
+                    continue;
                 }
+
+                map[apiName] = value;
             }
 
             return map;
@@ -3599,6 +3626,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// needs the effective value, not the override.
         /// </summary>
         public string ProviderCategoryLabel { get; set; }
+
+        /// <summary>
+        /// The category type the provider gave this achievement, kept for the same reason as
+        /// <see cref="ProviderCategoryLabel"/>: an assignment matching it is not an override.
+        /// </summary>
+        public string ProviderCategoryTypeValue { get; set; }
 
         /// <summary>
         /// The category this achievement actually sits in: the user's override when they set one,
@@ -4512,8 +4545,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.SuppressNotifications = false;
 
             row.OriginalApiName = achievement.ApiName;
-            // Captured before RefreshAssignmentState replaces CategoryLabel with the user override.
-            row.ProviderCategoryLabel = achievement.Category;
+            // The provider's own label, which Category holds only until an override replaces it.
+            row.ProviderCategoryLabel = achievement.ProviderCategory ?? achievement.Category;
+            row.ProviderCategoryTypeValue = achievement.CategoryType;
             row.IsNew = false;
             row.CaptureBaseline();
             return row;
