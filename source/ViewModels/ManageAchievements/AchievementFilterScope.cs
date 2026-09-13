@@ -13,7 +13,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         Summary,
 
         /// <summary>Hidden from achievement views as well as summaries, and from all counts.</summary>
-        All
+        All,
+
+        /// <summary>
+        /// The rows in a multi-row selection do not agree. Display only: it is never stored, never
+        /// returned for a single achievement, and picking it applies nothing. It exists so that
+        /// "they disagree" is a distinct choice from None, which is itself a real setting -- without
+        /// it a mixed selection shows None already and choosing None raises no change at all.
+        /// </summary>
+        Mixed
     }
 
     /// <summary>

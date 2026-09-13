@@ -364,6 +364,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             if (_selectedRows.Count <= 1)
             {
+                SyncMixedFilterScopeOption(false);
                 BulkRow = null;
                 return;
             }
@@ -392,9 +393,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.IsGoal = SharedFlag(r => r.IsGoal);
             row.Hidden = SharedFlag(r => r.Hidden);
             row.SetFilterScopeFromSource(SharedScope());
+            // The rows disagree, so the picker gets a blank rather than None -- None is a real
+            // setting, and showing it would make choosing it raise no change at all.
+            if (_selectedRows.Any(r => r.FilterScope != _selectedRows[0].FilterScope))
+            {
+                row.SetFilterScopeMixed();
+            }
+
             row.SuppressNotifications = false;
 
             row.PropertyChanged += BulkRow_PropertyChanged;
+            SyncMixedFilterScopeOption(row.FilterScope == AchievementFilterScope.Mixed);
             BulkRow = row;
         }
 
@@ -493,8 +502,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// The filter scale as three choices. Reuses the Filters tab's own wording so the option
         /// names match what that tab called the two flags.
         /// </summary>
-        public IReadOnlyList<AchievementFilterScopeOption> FilterScopeOptions { get; } =
-            new[]
+        /// <summary>
+        /// The filter choices the picker offers. The blank "mixed" entry is present only while a
+        /// multi-row selection disagrees, so it cannot be picked deliberately in any other case.
+        /// </summary>
+        public ObservableCollection<AchievementFilterScopeOption> FilterScopeOptions { get; } =
+            new ObservableCollection<AchievementFilterScopeOption>
             {
                 new AchievementFilterScopeOption(
                     AchievementFilterScope.None,
@@ -506,6 +519,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     AchievementFilterScope.All,
                     L("LOCPlayAch_ManageAchievements_Filters_FilterOut", "All"))
             };
+
+        /// <summary>
+        /// Adds or removes the blank "mixed" choice so it exists exactly while the selection needs
+        /// it. Keeping it out of the list otherwise is what stops it being chosen on purpose.
+        /// </summary>
+        private void SyncMixedFilterScopeOption(bool isMixed)
+        {
+            var existing = FilterScopeOptions.FirstOrDefault(
+                option => option.Value == AchievementFilterScope.Mixed);
+            if (isMixed && existing == null)
+            {
+                FilterScopeOptions.Add(new AchievementFilterScopeOption(
+                    AchievementFilterScope.Mixed,
+                    string.Empty));
+            }
+            else if (!isMixed && existing != null)
+            {
+                FilterScopeOptions.Remove(existing);
+            }
+        }
 
         public string StatusText
         {
@@ -2264,6 +2297,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         return;
 
                     case nameof(AchievementEditorRow.FilterScope):
+                        // The blank stands for disagreement, not a setting: applying it would
+                        // clear every selected row's filter instead of leaving them alone.
+                        if (bulk.FilterScope == AchievementFilterScope.Mixed)
+                        {
+                            return;
+                        }
+
                         StageAcrossSelection(row => row.SetFilterScopeFromSource(bulk.FilterScope));
                         PersistFiltersFromRows();
                         return;
@@ -3149,6 +3189,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isGoal;
         private bool _isFiltered;
         private bool _isSummaryFiltered;
+        private bool _filterScopeIsMixed;
         private TimeMode _selectedTimeMode;
         private int _selectedHour;
         private int _selectedMinute;
@@ -3398,6 +3439,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
+                if (_filterScopeIsMixed)
+                {
+                    return AchievementFilterScope.Mixed;
+                }
+
                 if (IsFiltered)
                 {
                     return AchievementFilterScope.All;
@@ -3408,10 +3454,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             set
             {
-                if (value == FilterScope)
+                // Picking the blank applies nothing: it stands for "the rows disagree", not a state
+                // any achievement can be put into.
+                if (value == AchievementFilterScope.Mixed || value == FilterScope)
                 {
                     return;
                 }
+
+                _filterScopeIsMixed = false;
 
                 // Set the pair together, then raise once: the two flags persist as whole lists, so
                 // letting each raise separately would write the game's filters twice per change.
@@ -3422,9 +3472,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 OnPropertyChanged(nameof(IsFiltered));
                 OnPropertyChanged(nameof(IsSummaryFiltered));
-            OnPropertyChanged(nameof(IsFilteredFromSummaries));
+                OnPropertyChanged(nameof(IsFilteredFromSummaries));
                 OnPropertyChanged(nameof(FilterScope));
             }
+        }
+
+        /// <summary>Marks this row as standing in for a selection whose rows disagree.</summary>
+        internal void SetFilterScopeMixed()
+        {
+            _filterScopeIsMixed = true;
+            OnPropertyChanged(nameof(FilterScope));
         }
 
         public string CategoryLabel
@@ -3522,6 +3579,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         internal void SetFilterScopeFromSource(AchievementFilterScope scope)
         {
             _isFiltered = scope == AchievementFilterScope.All;
+            _filterScopeIsMixed = false;
             _isSummaryFiltered = scope == AchievementFilterScope.Summary;
             OnPropertyChanged(nameof(IsFiltered));
             OnPropertyChanged(nameof(IsSummaryFiltered));
