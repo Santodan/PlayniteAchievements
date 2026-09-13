@@ -14,12 +14,14 @@ namespace PlayniteAchievements.Services.Achievements
             bool unlocked,
             DateTime? unlockTimeUtc,
             double? globalPercentUnlocked,
-            string rarity)
+            string rarity,
+            string category)
         {
             Unlocked = unlocked;
             UnlockTimeUtc = unlockTimeUtc;
             GlobalPercentUnlocked = globalPercentUnlocked;
             Rarity = rarity;
+            Category = category;
         }
 
         /// <summary>True once every achievement the capstone stands for is unlocked.</summary>
@@ -34,6 +36,19 @@ namespace PlayniteAchievements.Services.Achievements
         public double? GlobalPercentUnlocked { get; }
 
         public string Rarity { get; }
+
+        /// <summary>
+        /// The category everything the capstone stands for sits in, when they all sit in one, so a
+        /// capstone can be filed alongside them rather than landing in the default bucket beside a
+        /// game whose achievements are all sorted. Null when they disagree, or when the one they
+        /// share is the default bucket and there is nothing to inherit.
+        /// </summary>
+        /// <remarks>
+        /// Unlike the rarity and the unlock this is only read when the capstone is authored: it is
+        /// a sensible starting place rather than something kept in step, so filing the capstone
+        /// somewhere of your own choosing sticks.
+        /// </remarks>
+        public string Category { get; }
     }
 
     /// <summary>
@@ -90,6 +105,27 @@ namespace PlayniteAchievements.Services.Achievements
             return withoutOtherGroups.Count > 0 ? withoutOtherGroups : candidates;
         }
 
+        /// <summary>
+        /// The one category the whole scope sits in, or null when they are spread across several or
+        /// all sit in the default bucket.
+        /// </summary>
+        private static string ResolveSharedCategory(List<AchievementDetail> scope)
+        {
+            var labels = scope
+                .Select(achievement => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (labels.Count != 1)
+            {
+                return null;
+            }
+
+            var shared = labels[0];
+            return string.Equals(shared, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : shared;
+        }
+
         private static bool HasGroupType(AchievementDetail achievement, string groupType)
         {
             return AchievementCategoryTypeHelper
@@ -129,7 +165,8 @@ namespace PlayniteAchievements.Services.Achievements
                 unlocked,
                 unlockTimeUtc == default(DateTime) ? (DateTime?)null : unlockTimeUtc,
                 rarest,
-                rarest.HasValue ? PercentRarityHelper.GetRarityTier(rarest.Value).ToString() : null);
+                rarest.HasValue ? PercentRarityHelper.GetRarityTier(rarest.Value).ToString() : null,
+                ResolveSharedCategory(scope));
         }
     }
 }

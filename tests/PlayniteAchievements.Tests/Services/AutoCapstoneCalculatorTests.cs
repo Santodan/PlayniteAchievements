@@ -168,12 +168,63 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(12, derived.GlobalPercentUnlocked);
         }
 
+        [TestMethod]
+        public void Derive_InheritsTheOneCategoryTheyAllSitIn()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", category: "Story"),
+                Achievement("b", category: "Story")
+            });
+
+            Assert.AreEqual("Story", derived.Category);
+        }
+
+        [TestMethod]
+        public void Derive_InheritsTheBaseGameCategoryRatherThanTheDlcOne()
+        {
+            // The scope is the base game's, so the category it agrees on is the base game's too.
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", categoryType: "Base", category: "Base Game"),
+                Achievement("dlc", categoryType: "DLC", category: "Expansion")
+            });
+
+            Assert.AreEqual("Base Game", derived.Category);
+        }
+
+        [TestMethod]
+        public void Derive_InheritsNothingWhenTheyAreSpreadAround()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", category: "Story"),
+                Achievement("b", category: "Combat")
+            });
+
+            Assert.IsNull(derived.Category);
+        }
+
+        [TestMethod]
+        public void Derive_InheritsNothingFromTheDefaultBucket()
+        {
+            // Everything unsorted is not a category to inherit.
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a"),
+                Achievement("b")
+            });
+
+            Assert.IsNull(derived.Category);
+        }
+
         private static AchievementDetail Achievement(
             string apiName,
             bool unlocked = false,
             double? percent = null,
             string categoryType = null,
-            DateTime? unlockTimeUtc = null)
+            DateTime? unlockTimeUtc = null,
+            string category = null)
         {
             return new AchievementDetail
             {
@@ -182,7 +233,8 @@ namespace PlayniteAchievements.Tests.Services
                 Unlocked = unlocked,
                 UnlockTimeUtc = unlockTimeUtc,
                 GlobalPercentUnlocked = percent,
-                CategoryType = categoryType
+                CategoryType = categoryType,
+                Category = category
             };
         }
     }
