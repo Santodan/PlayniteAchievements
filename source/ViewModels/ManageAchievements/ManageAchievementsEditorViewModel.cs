@@ -372,6 +372,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             switch (propertyName)
             {
                 case nameof(AchievementEditorRow.IconStage):
+                case nameof(AchievementEditorRow.IsIconStageLocked):
                 case nameof(AchievementEditorRow.IsIconStageRevealed):
                 case nameof(AchievementEditorRow.IsTitleRevealed):
                 case nameof(AchievementEditorRow.IsDescriptionRevealed):
@@ -3774,8 +3775,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>Whether this row masks its icon behind the hidden-achievement placeholder.</summary>
         private bool HasHiddenIconStage => Hidden && !Unlocked && !ShowHiddenIcon;
 
-        /// <summary>Whether this row masks its icon behind the locked placeholder.</summary>
-        private bool HasLockedIconStage => !Unlocked && !ShowLockedIcon;
+        /// <summary>
+        /// Whether this row has a locked view worth stepping through. Every locked achievement
+        /// does: the stage shows what a player would see while it is locked, which is the locked
+        /// placeholder when locked icons are masked and the achievement's own locked art when they
+        /// are not. An unlocked achievement has no such view.
+        /// </summary>
+        private bool HasLockedIconStage => !Unlocked;
 
         /// <summary>
         /// The first stage at or after the one asked for that this row actually has, so the stored
@@ -3858,7 +3864,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool IsIconHidden => IconStage == AchievementIconRevealStage.Hidden;
 
-        public bool IsLockedIconHidden => IconStage == AchievementIconRevealStage.Locked;
+        /// <summary>True while the locked view is showing, whatever that view draws.</summary>
+        public bool IsIconStageLocked => IconStage == AchievementIconRevealStage.Locked;
+
+        /// <summary>
+        /// True only while the locked view is the placeholder rather than the achievement's own
+        /// locked art, which is what the reveal affordances key off.
+        /// </summary>
+        public bool IsLockedIconHidden => IsIconStageLocked && !ShowLockedIcon;
 
         public bool IsIconStageRevealed => IconStage == AchievementIconRevealStage.Revealed;
 
@@ -3942,6 +3955,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             OnPropertyChanged(nameof(IconStage));
             OnPropertyChanged(nameof(IsIconHidden));
+            OnPropertyChanged(nameof(IsIconStageLocked));
             OnPropertyChanged(nameof(IsLockedIconHidden));
             OnPropertyChanged(nameof(IsIconStageRevealed));
             OnPropertyChanged(nameof(CanReveal));
@@ -4838,21 +4852,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
-                // Hidden is tested first so the more spoiler-sensitive state wins when a row
-                // is both hidden and locked-masked, matching AchievementDisplayItem.
-                if (IsIconHidden)
+                // The stage decides, so the last step shows the unlocked art even for an
+                // achievement that is still locked -- which is the point of stepping through:
+                // the three looks an icon has, rather than only the one this row happens to be
+                // in. The stages a row does not have are already clamped away, so an unlocked
+                // achievement only ever reaches the last one.
+                switch (IconStage)
                 {
-                    return AchievementIconResolver.GetHiddenFallbackIcon();
-                }
+                    case AchievementIconRevealStage.Hidden:
+                        return AchievementIconResolver.GetHiddenFallbackIcon();
 
-                if (IsLockedIconHidden)
-                {
-                    return AchievementIconResolver.GetLockedFallbackIcon();
-                }
+                    case AchievementIconRevealStage.Locked:
+                        // What a player would see while it is locked.
+                        return ShowLockedIcon
+                            ? AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, LockedIconPath)
+                            : AchievementIconResolver.GetLockedFallbackIcon();
 
-                return Unlocked
-                    ? AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath)
-                    : AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, LockedIconPath);
+                    default:
+                        return AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath);
+                }
             }
         }
 
