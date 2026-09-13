@@ -281,6 +281,39 @@ namespace PlayniteAchievements.Providers.GuildWars2
             return index;
         }
 
+        /// <summary>
+        /// The distinct achievement ids the categories reference, in category order. An achievement
+        /// can be listed by more than one category, so duplicates are dropped before paging.
+        /// </summary>
+        public static List<int> CollectAchievementIds(IReadOnlyList<Gw2Category> categories)
+        {
+            var ids = new List<int>();
+            var seen = new HashSet<int>();
+
+            if (categories == null)
+            {
+                return ids;
+            }
+
+            foreach (var category in categories.Where(c => c != null).OrderBy(c => c.Order))
+            {
+                if (category.Achievements == null)
+                {
+                    continue;
+                }
+
+                foreach (var id in category.Achievements)
+                {
+                    if (id > 0 && seen.Add(id))
+                    {
+                        ids.Add(id);
+                    }
+                }
+            }
+
+            return ids;
+        }
+
         /// <summary>Indexes the account's progress by achievement id, tolerating repeated ids.</summary>
         public static Dictionary<int, Gw2AccountAchievement> BuildProgressIndex(
             IReadOnlyList<Gw2AccountAchievement> accountAchievements)

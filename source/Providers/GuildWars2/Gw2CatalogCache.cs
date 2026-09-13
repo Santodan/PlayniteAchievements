@@ -142,7 +142,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
             // Achievements are paged by the ids the categories list rather than by /v2/achievements,
             // which also returns roughly 1,350 orphans that belong to no category and so have no
             // place in the tree.
-            var ids = CollectAchievementIds(categories);
+            var ids = Gw2AchievementMapper.CollectAchievementIds(categories);
 
             progress?.Report("achievements");
             var achievements = await api
@@ -161,39 +161,6 @@ namespace PlayniteAchievements.Providers.GuildWars2
                 Categories = categories,
                 Achievements = achievements
             };
-        }
-
-        /// <summary>
-        /// The distinct achievement ids the categories reference, in category order. An achievement
-        /// can appear in more than one category, so duplicates are dropped before paging.
-        /// </summary>
-        internal static List<int> CollectAchievementIds(IReadOnlyList<Gw2Category> categories)
-        {
-            var ids = new List<int>();
-            var seen = new HashSet<int>();
-
-            if (categories == null)
-            {
-                return ids;
-            }
-
-            foreach (var category in categories.OrderBy(c => c?.Order ?? 0))
-            {
-                if (category?.Achievements == null)
-                {
-                    continue;
-                }
-
-                foreach (var id in category.Achievements)
-                {
-                    if (id > 0 && seen.Add(id))
-                    {
-                        ids.Add(id);
-                    }
-                }
-            }
-
-            return ids;
         }
 
         private string GetCachePath(string language)
