@@ -54,6 +54,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             viewModel.FilterChanged += ViewModel_FilterChanged;
             AttachFilter();
             viewModel.AssignmentsChanged += (_, __) => SeedCategoryPicker();
+            viewModel.ScrollRowIntoViewRequested += (_, row) => ScrollRowIntoView(row);
             CategoryPicker.Committed += (_, __) => ApplyCategoryFromPicker();
             CategoryPicker.IsKeyboardFocusWithinChanged += (_, e) =>
             {
@@ -166,6 +167,33 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private void AchievementsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             ViewModel?.SetSelectedRows(CustomAchievementsGrid.SelectedItems.OfType<AchievementEditorRow>());
+        }
+
+        /// <summary>
+        /// Brings a row the editor picked into view, after the grid has had a chance to realize it:
+        /// a row added a moment ago has no container yet, and scrolling to one that does not exist
+        /// does nothing.
+        /// </summary>
+        private void ScrollRowIntoView(AchievementEditorRow row)
+        {
+            if (row == null)
+            {
+                return;
+            }
+
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    try
+                    {
+                        CustomAchievementsGrid.ScrollIntoView(row);
+                    }
+                    catch (Exception)
+                    {
+                        // A row the filter is hiding has nowhere to scroll to.
+                    }
+                }),
+                System.Windows.Threading.DispatcherPriority.Background);
         }
 
         private void ViewModel_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)

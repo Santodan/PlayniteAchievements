@@ -183,6 +183,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>Raised after a category or type assignment was persisted for a custom row.</summary>
         public event EventHandler AssignmentsChanged;
 
+        /// <summary>
+        /// Asks the grid to bring a row into view. Raised when the editor picks a row on the user's
+        /// behalf, which is the one case where the row they should be looking at may be off screen.
+        /// </summary>
+        public event EventHandler<AchievementEditorRow> ScrollRowIntoViewRequested;
+
         /// <summary>Raised after the game's manual capstone was changed from this tab.</summary>
         public event EventHandler<CapstoneChangedEventArgs> CapstoneChanged;
 
@@ -1483,7 +1489,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     RefreshComputedState();
                     await SaveAsync().ConfigureAwait(true);
                     SetCapstoneForRow(existing, true);
-                    SelectedRow = existing;
+                    SelectRowAndScrollTo(existing);
                     SetStatus(null, false);
                     return;
                 }
@@ -1492,7 +1498,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (platinum != null)
                 {
                     SetCapstoneForRow(platinum, true);
-                    SelectedRow = platinum;
+                    SelectRowAndScrollTo(platinum);
                     SetStatus(null, false);
                     return;
                 }
@@ -1504,6 +1510,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _logger?.Error(ex, $"Failed applying the automatic capstone for gameId={_gameId}.");
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
             }
+        }
+
+        /// <summary>Selects a row the editor picked, and asks the grid to show it.</summary>
+        private void SelectRowAndScrollTo(AchievementEditorRow row)
+        {
+            SelectedRow = row;
+            ScrollRowIntoViewRequested?.Invoke(this, row);
         }
 
         /// <summary>
@@ -1567,7 +1580,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             AttachRow(row);
             AchievementRows.Add(row);
-            SelectedRow = row;
+            SelectRowAndScrollTo(row);
             RefreshComputedState();
             await SaveAsync().ConfigureAwait(true);
 
@@ -1578,6 +1591,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             SetCapstoneForRow(row, true);
+
+            // Filed where the achievements it stands for are filed, when they agree on one place.
+            // Only at authoring: unlike the rarity this is a starting point, not something kept in
+            // step, so moving it afterwards sticks.
+            var shared = AutoCapstoneCalculator
+                .Derive(_gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements?
+                    .Where(achievement => !string.Equals(achievement?.ApiName, row.OriginalApiName, StringComparison.OrdinalIgnoreCase)))
+                ?.Category;
+            if (!string.IsNullOrWhiteSpace(shared))
+            {
+                row.CategoryLabel = shared;
+                PersistCategoryAssignmentsFromRows();
+            }
 
             // Only when the game already carries an order: pinning it otherwise would author one
             // for every achievement just to place this one.

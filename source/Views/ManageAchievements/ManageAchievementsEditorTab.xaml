@@ -286,7 +286,8 @@
                             Margin="12,0,0,0">
                     <!-- Three groups: row edits, transfer, and the destructive reset kept apart on the right. -->
                     <WrapPanel HorizontalAlignment="Right">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                    <StackPanel Margin="0,0,16,0">
+                    <StackPanel Orientation="Horizontal">
                         <Button x:Name="AddButton"
                                 Content="{DynamicResource LOCPlayAch_Common_Add}"
                                 Command="{Binding AddCommand}"
@@ -304,6 +305,23 @@
                                 Content="{DynamicResource LOCPlayAch_Common_Delete}"
                                 Command="{Binding DeleteCommand}"
                                 Style="{StaticResource ToolbarButtonStyle}" />
+                    </StackPanel>
+                        <!-- Second row: the shortcuts that rewrite one facet of the list, kept
+                             off the row of per-achievement actions and centered under the group
+                             they sit beneath. -->
+                        <WrapPanel HorizontalAlignment="Center">
+                            <Button x:Name="AutoCapstoneButton"
+                                    Content="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstone}"
+                                    ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstoneHint}"
+                                    Command="{Binding AutoCapstoneCommand}"
+                                    Style="{StaticResource ToolbarButtonStyle}"
+                                    Margin="0,0,0,8" />
+                            <Button x:Name="ResetOrderButton"
+                                    Content="{DynamicResource LOCPlayAch_ManageAchievements_Order_Reset}"
+                                    Command="{Binding ResetOrderCommand}"
+                                    Style="{StaticResource ToolbarButtonStyle}"
+                                    Margin="0,0,0,8" />
+                        </WrapPanel>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                         <Button x:Name="ImportFileButton"
@@ -332,22 +350,6 @@
                             Margin="0,0,0,8" />
                     </WrapPanel>
 
-                    <!-- Second row: the shortcuts that rewrite one facet of the list, kept off the
-                         row of per-achievement actions above them. Left within the block the row
-                         above sizes, so these start under Add rather than under the reset. -->
-                    <WrapPanel HorizontalAlignment="Left">
-                        <Button x:Name="AutoCapstoneButton"
-                                Content="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstone}"
-                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstoneHint}"
-                                Command="{Binding AutoCapstoneCommand}"
-                                Style="{StaticResource ToolbarButtonStyle}"
-                                Margin="0,0,0,8" />
-                        <Button x:Name="ResetOrderButton"
-                                Content="{DynamicResource LOCPlayAch_ManageAchievements_Order_Reset}"
-                                Command="{Binding ResetOrderCommand}"
-                                Style="{StaticResource ToolbarButtonStyle}"
-                                Margin="0,0,0,8" />
-                    </WrapPanel>
                 </StackPanel>
             </Grid>
         </Border>
