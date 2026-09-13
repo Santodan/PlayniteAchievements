@@ -532,6 +532,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // The reload re-reads the cache, so a staged unlock has to be written first or the
             // checkbox the user just ticked visibly reverts.
             FlushManualUnlocks();
+
+            // The snapshot caches hydrated data until something invalidates it, and the only
+            // invalidation runs through the host on a debounced notification. A reload that follows
+            // one of this view model's own writes -- revert, link, unlink -- would otherwise re-read
+            // the state from before the write and show it unchanged.
+            _gameDataSnapshotProvider?.Invalidate();
             try
             {
                 var data = _gameCustomDataStore.LoadOrDefault(_gameId);
