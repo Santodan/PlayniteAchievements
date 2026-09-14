@@ -217,6 +217,14 @@ namespace PlayniteAchievements.Views.Controls
                 options.Insert(0, CategoryPickerOption.CreateNewRow(CreateNewText));
             }
 
+            // Nothing to do when the list is the same one: swapping an identical ItemsSource still
+            // costs the drop-down every container it had realized, and every assignment refreshes
+            // these options whether or not the categories moved.
+            if (SameOptions(_options, options))
+            {
+                return;
+            }
+
             _options = options;
             var carriedLabel = _lastPickedOption?.Label;
 
@@ -236,6 +244,31 @@ namespace PlayniteAchievements.Views.Controls
 
             // The label the box was showing goes back when the rebuilt list still has a row for it.
             SetInitialCategory(carriedLabel);
+        }
+
+        /// <summary>
+        /// Whether two option lists describe the same rows. Shapes are derived from the labels and
+        /// their order, so an equal label sequence draws an equal tree.
+        /// </summary>
+        private static bool SameOptions(List<CategoryPickerOption> left, List<CategoryPickerOption> right)
+        {
+            if (left == null || right == null || left.Count != right.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < left.Count; i++)
+            {
+                if (left[i].IsCreateNew != right[i].IsCreateNew ||
+                    left[i].IsSelectable != right[i].IsSelectable ||
+                    !string.Equals(left[i].Label, right[i].Label, StringComparison.Ordinal) ||
+                    !string.Equals(left[i].LeafDisplay, right[i].LeafDisplay, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private void SelectWithoutCommitting(CategoryPickerOption option)
@@ -262,7 +295,17 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             var selected = PickerComboBox.SelectedItem as CategoryPickerOption;
-            if (selected != null && selected.IsCreateNew)
+            if (selected == null)
+            {
+                // Nothing in a select-only box can unselect it, so an empty selection is always the
+                // option list being rebuilt underneath it. The selector can report that after the
+                // fact, once the guard around the rebuild has closed, so the pick that was showing
+                // is put back here rather than being read as the user clearing the category.
+                SetInitialCategory(_lastPickedOption?.Label);
+                return;
+            }
+
+            if (selected.IsCreateNew)
             {
                 // The create row is an action, not a category: the previous pick goes back before
                 // the host is asked, so cancelling the prompt leaves the box as it was.
