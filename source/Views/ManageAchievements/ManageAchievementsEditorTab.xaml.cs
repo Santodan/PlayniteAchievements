@@ -232,7 +232,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            ViewModel.SetCategoryForSelection(CategoryPicker.ResolveSelection());
+            // The box is select-only, so it has no way to express "no category": an empty selection
+            // means the list was rebuilt under it, and committing that would clear the assignment.
+            // Clearing is the row menu's job.
+            var picked = CategoryPicker.ResolveSelection();
+            if (string.IsNullOrWhiteSpace(picked))
+            {
+                return;
+            }
+
+            ViewModel.SetCategoryForSelection(picked);
         }
 
         /// <summary>
