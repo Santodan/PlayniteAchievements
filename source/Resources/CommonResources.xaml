@@ -633,7 +633,7 @@
          CategoryPickerOption. -->
     <DataTemplate x:Key="PlayAch.CategoryTreeComboBoxItemTemplate">
         <!-- The create row sits above the categories and is ruled off from them: it names nothing in
-             the tree, so it carries no connectors and reads in the accent colour. -->
+             the tree, so it carries no connectors either. -->
         <Border>
             <Border.Style>
                 <Style TargetType="Border">
@@ -674,17 +674,7 @@
                        VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"
                        TextWrapping="NoWrap"
-                       Margin="5">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsCreateNew}" Value="True">
-                                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
+                       Margin="5"/>
         </DockPanel>
         </Border>
     </DataTemplate>
