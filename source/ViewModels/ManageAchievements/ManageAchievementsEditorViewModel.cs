@@ -14,6 +14,7 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.CustomProviders;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Images;
+using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.ViewModels.ManageAchievements;
 using System;
@@ -1251,9 +1252,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetCategoryForSelection(string categoryLabel)
         {
-            var targets = ResolveSelectionTargets()
+            var resolved = ResolveSelectionTargets();
+            var targets = resolved
                 .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .ToList();
+            PluginLogger.GetLogger("CategoryDiag").Debug(
+                $"[CategoryDiag] SetCategoryForSelection label='{categoryLabel}' " +
+                $"selected={_selectedRows.Count} resolved={resolved.Count} targets={targets.Count}.");
             if (targets.Count == 0)
             {
                 return;
@@ -1262,6 +1267,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var normalized = AchievementCategoryTypeHelper.NormalizeCategory(categoryLabel);
             StageAcross(targets, row => row.CategoryLabel = normalized);
             PersistCategoryAssignmentsFromRows();
+            PluginLogger.GetLogger("CategoryDiag").Debug(
+                $"[CategoryDiag] After persist: normalized='{normalized}' " +
+                $"firstRowLabel='{targets[0].CategoryLabel}' firstRowEffective='{targets[0].EffectiveCategoryLabel}' " +
+                $"storedForFirst='{(GetCurrentCategoryOverrideMap().TryGetValue(targets[0].OriginalApiName, out var stored) ? stored : "<none>")}'.");
             SyncBulkRowFromSelection();
         }
 
@@ -2310,6 +2319,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     row.IsCapstone = string.Equals(apiName, capstoneApiName, StringComparison.OrdinalIgnoreCase);
                 }
 
+                PluginLogger.GetLogger("CategoryDiag").Debug(
+                    $"[CategoryDiag] RefreshAssignmentState reread {categoryOverrides.Count} category overrides; " +
+                    $"options={AssignableCategoryOptions.Count}.");
                 RefreshAssignableCategoryOptions(categoryOverrides);
                 SyncTypeOptionsToEditTarget();
             }

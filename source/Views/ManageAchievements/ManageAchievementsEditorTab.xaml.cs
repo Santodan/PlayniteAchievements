@@ -214,6 +214,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private void SeedCategoryPicker()
         {
             _categoryPickerRow = ViewModel?.EditTarget;
+            Services.Logging.PluginLogger.GetLogger("CategoryDiag").Debug(
+                $"[CategoryDiag] SeedCategoryPicker target={(_categoryPickerRow == null ? "<null>" : (_categoryPickerRow.IsBulkRow ? "bulk" : "single"))} " +
+                $"label='{_categoryPickerRow?.CategoryLabel}' effective='{_categoryPickerRow?.EffectiveCategoryLabel}'.");
             // The effective label, so the picker opens showing the category the achievement is
             // actually in rather than only a category the user had overridden it to.
             CategoryPicker.SetInitialCategory(_categoryPickerRow?.EffectiveCategoryLabel);
@@ -236,6 +239,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // means the list was rebuilt under it, and committing that would clear the assignment.
             // Clearing is the row menu's job.
             var picked = CategoryPicker.ResolveSelection();
+            Services.Logging.PluginLogger.GetLogger("CategoryDiag").Debug(
+                $"[CategoryDiag] ApplyCategoryFromPicker picked='{picked}' " +
+                $"rowIsBulk={row.IsBulkRow} canEdit={row.CanEditAssignments}.");
             if (string.IsNullOrWhiteSpace(picked))
             {
                 return;
