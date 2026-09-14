@@ -728,8 +728,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     Header = ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(captured),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
+                    // The effective type, like the Category item above and the ticks in the details
+                    // pane: reading the override alone left a provider-typed row showing the type
+                    // unticked here and ticked there.
                     IsChecked = selection.All(row =>
-                        AchievementCategoryTypeHelper.ParseValues(row.CategoryTypeValue)
+                        AchievementCategoryTypeHelper.ParseValues(row.EffectiveCategoryTypeValue)
                             .Any(value => string.Equals(value, captured, StringComparison.OrdinalIgnoreCase)))
                 };
                 typeItem.Click += (_, __) => viewModel.SetCategoryTypeForSelection(captured, typeItem.IsChecked);
