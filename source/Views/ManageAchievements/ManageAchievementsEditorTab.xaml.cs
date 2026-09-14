@@ -743,6 +743,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 Header = ResourceProvider.GetString("LOCPlayAch_Common_Label_Type"),
                 IsEnabled = selection.All(row => row.CanEditAssignments)
             };
+            // Kept so a click can read every tick, not just its own: the menu stays open, and the
+            // set the user leaves it in is what the whole selection takes.
+            var typeItems = new List<MenuItem>();
             foreach (var categoryType in AchievementCategoryTypeHelper.AssignableCategoryTypes)
             {
                 var captured = categoryType;
@@ -751,6 +754,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     Header = ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(captured),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
+                    Tag = captured,
                     // The effective type, like the Category item above and the ticks in the details
                     // pane: reading the override alone left a provider-typed row showing the type
                     // unticked here and ticked there.
@@ -758,7 +762,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                         AchievementCategoryTypeHelper.ParseValues(row.EffectiveCategoryTypeValue)
                             .Any(value => string.Equals(value, captured, StringComparison.OrdinalIgnoreCase)))
                 };
-                typeItem.Click += (_, __) => viewModel.SetCategoryTypeForSelection(captured, typeItem.IsChecked);
+                typeItem.Click += (_, __) => viewModel.SetCategoryTypesForSelection(
+                    typeItems.Where(item => item.IsChecked).Select(item => item.Tag as string));
+                typeItems.Add(typeItem);
                 typeMenu.Items.Add(typeItem);
             }
 
