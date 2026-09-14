@@ -157,6 +157,14 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         public void SetInitialCategory(string label)
         {
+            // Checked before normalizing: an empty label normalizes to the Default bucket, and
+            // clearing the box would otherwise read as filing everything under Default.
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                SelectWithoutCommitting(null);
+                return;
+            }
+
             var normalized = CategoryPathHelper.NormalizePath(label);
             CategoryPickerOption match = null;
             foreach (var option in _options)
