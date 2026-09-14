@@ -4446,7 +4446,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             get
             {
                 var assigned = AchievementCategoryTypeHelper.NormalizeCategory(CategoryLabel);
-                return assigned ?? AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel);
+                if (assigned != null)
+                {
+                    return assigned;
+                }
+
+                // The proxy has no provider category of its own, so there is nothing to fall back
+                // to: a blank value means the selected rows disagree, and answering Default would
+                // state a category none of them may be in - and, read back by the pane, file them
+                // all under it. Disagreement is an absence here, the way the filter scope proxy
+                // carries a value no list item matches.
+                return IsBulkRow
+                    ? null
+                    : AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel);
             }
         }
 
@@ -4454,9 +4466,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// The category type the achievement actually carries: the user's override when they set
         /// one, otherwise the provider's own.
         /// </summary>
-        public string EffectiveCategoryTypeValue =>
-            AchievementCategoryTypeHelper.Normalize(CategoryTypeValue) ??
-            AchievementCategoryTypeHelper.NormalizeOrDefault(ProviderCategoryTypeValue);
+        /// <remarks>
+        /// Blank on the bulk proxy when the selection disagrees, for the reason given on
+        /// <see cref="EffectiveCategoryLabel"/>: it has no provider value to fall back to, and
+        /// Default is a real type rather than a stand-in for "these differ".
+        /// </remarks>
+        public string EffectiveCategoryTypeValue
+        {
+            get
+            {
+                var assigned = AchievementCategoryTypeHelper.Normalize(CategoryTypeValue);
+                if (assigned != null)
+                {
+                    return assigned;
+                }
+
+                return IsBulkRow
+                    ? null
+                    : AchievementCategoryTypeHelper.NormalizeOrDefault(ProviderCategoryTypeValue);
+            }
+        }
 
         /// <summary>
         /// The achievement's position in the provider's own order, stamped by the loader before
@@ -4659,11 +4688,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
-                // The Default sentinel renders blank in grid cells; a button needs a label.
+                // The Default sentinel renders blank in grid cells; a button needs a label. Except
+                // on the bulk proxy, where a blank effective value means the selection disagrees
+                // and the button has to stay empty rather than claim they are all Default.
                 var text = AchievementCategoryTypeHelper.ToDisplayText(EffectiveCategoryTypeValue);
-                return string.IsNullOrWhiteSpace(text)
-                    ? AchievementCategoryTypeHelper.ToCategoryTypeDisplayText(AchievementCategoryTypeHelper.NormalizeOrDefault(null))
-                    : text;
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    return text;
+                }
+
+                return IsBulkRow && string.IsNullOrWhiteSpace(EffectiveCategoryTypeValue)
+                    ? string.Empty
+                    : AchievementCategoryTypeHelper.ToCategoryTypeDisplayText(AchievementCategoryTypeHelper.NormalizeOrDefault(null));
             }
         }
 
