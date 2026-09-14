@@ -1267,12 +1267,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var normalized = AchievementCategoryTypeHelper.NormalizeCategory(categoryLabel);
             StageAcross(targets, row => row.CategoryLabel = normalized);
             PersistCategoryAssignmentsFromRows();
-            var writtenMap = BuildAssignmentMap(
-                row => row.CategoryLabel,
-                row => row.ProviderCategoryLabel,
-                (assigned, provider) => CategoryPathHelper.IsSame(
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(assigned),
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(provider)));
+            var writtenMap = BuildAssignmentMap(row => row.CategoryLabel);
             PluginLogger.GetLogger("CategoryDiag").Debug(
                 $"[CategoryDiag] After persist: normalized='{normalized}' rows={AchievementRows.Count} " +
                 $"mapEntries={writtenMap.Count} firstApi='{targets[0].OriginalApiName}' " +
@@ -3192,22 +3187,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// Writes the category and type assignments as one pair of maps, keeping every value the
+        /// user picked.
+        /// </summary>
+        /// <remarks>
+        /// An assignment is no longer dropped for matching the provider's own label. The provider
+        /// baseline is not trustworthy enough to decide that: it is not stored as a field of its
+        /// own, so it is reconstructed from the cached category, which a backfill can fill with a
+        /// value that started life as a user assignment. Once that happened, the category the user
+        /// picked looked redundant and was discarded - and, the map being written whole, their rows
+        /// kept whichever older assignment they already had, with no way to move them at all.
+        ///
+        /// Writing a redundant entry costs one string per achievement and is undone by clearing the
+        /// assignment, which still removes the override because a blank value is skipped below.
+        /// </remarks>
         private void PersistCategoryAssignmentsFromRows()
         {
             PersistAssignmentMaps(
-                BuildAssignmentMap(
-                    row => row.CategoryLabel,
-                    row => row.ProviderCategoryLabel,
-                    (assigned, provider) => CategoryPathHelper.IsSame(
-                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(assigned),
-                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(provider))),
-                BuildAssignmentMap(
-                    row => row.CategoryTypeValue,
-                    row => row.ProviderCategoryTypeValue,
-                    (assigned, provider) => string.Equals(
-                        AchievementCategoryTypeHelper.NormalizeOrDefault(assigned),
-                        AchievementCategoryTypeHelper.NormalizeOrDefault(provider),
-                        StringComparison.OrdinalIgnoreCase)));
+                BuildAssignmentMap(row => row.CategoryLabel),
+                BuildAssignmentMap(row => row.CategoryTypeValue));
         }
 
         /// <summary>
@@ -3354,19 +3353,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// entry. An assignment that only restates what the provider already says is dropped too,
         /// which is the same economy the Category tab applies when it reparents a row.
         /// </remarks>
-        private Dictionary<string, string> BuildAssignmentMap(
-            Func<AchievementEditorRow, string> selector,
-            Func<AchievementEditorRow, string> providerSelector,
-            Func<string, string, bool> matchesProvider)
+        /// <summary>
+        /// Every non-blank assignment the rows carry, keyed by ApiName. A blank one is left out,
+        /// which is what removes the override for a row whose assignment was cleared.
+        /// </summary>
+        private Dictionary<string, string> BuildAssignmentMap(Func<AchievementEditorRow, string> selector)
         {
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in AchievementRows)
             {
                 var apiName = row?.OriginalApiName;
                 var value = selector(row);
-                if (string.IsNullOrWhiteSpace(apiName) ||
-                    string.IsNullOrWhiteSpace(value) ||
-                    matchesProvider(value, providerSelector(row)))
+                if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(value))
                 {
                     continue;
                 }
