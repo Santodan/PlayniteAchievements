@@ -1345,8 +1345,44 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Adds or removes one category type across the selection. A row may carry several types, so
-        /// this toggles the one named rather than replacing the set.
+        /// Replaces the category types on every selected achievement with the set given.
+        /// </summary>
+        /// <remarks>
+        /// A whole set rather than one type at a time, because the ticks describe a selection that
+        /// may disagree. Merging into each row's own types meant a selection of a Base row and a
+        /// Base+Update row could never be reduced to Base: ticking Base added what was already
+        /// there and left Update behind on the second row. The edited set is taken literally and
+        /// every selected row ends up with exactly it - which is also how the pane's other bulk
+        /// fields behave.
+        ///
+        /// An empty set is the Default type, written as an override rather than left blank: blank
+        /// would fall back to each provider's own type and the ticks would come straight back.
+        /// </remarks>
+        public void SetCategoryTypesForSelection(IEnumerable<string> categoryTypes)
+        {
+            var targets = ResolveSelectionTargets()
+                .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .ToList();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            var normalized = AchievementCategoryTypeHelper.NormalizeOrDefault(
+                AchievementCategoryTypeHelper.Combine(
+                    (categoryTypes ?? Enumerable.Empty<string>())
+                        .Select(AchievementCategoryTypeHelper.Normalize)
+                        .Where(categoryType => !string.IsNullOrWhiteSpace(categoryType))));
+
+            StageAcross(targets, row => row.CategoryTypeValue = normalized);
+            PersistCategoryAssignmentsFromRows();
+            SyncBulkRowFromSelection();
+        }
+
+        /// <summary>
+        /// Adds or removes one category type across the selection, merging into the types each row
+        /// already carries. Prefer <see cref="SetCategoryTypesForSelection"/> for anything driven by
+        /// a set of ticks; this stays for a caller that really does mean "toggle just this one".
         /// </summary>
         public void SetCategoryTypeForSelection(string categoryType, bool isSelected)
         {
@@ -2436,7 +2472,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            SetCategoryTypeForSelection(option.Value, option.IsSelected);
+            // The whole tick state, not the one that changed: the set the user has built is what
+            // every selected row takes.
+            SetCategoryTypesForSelection(TypeSelectionOptions
+                .Where(candidate => candidate?.IsSelected == true)
+                .Select(candidate => candidate.Value));
         }
 
         private void PersistAssignmentMaps(
