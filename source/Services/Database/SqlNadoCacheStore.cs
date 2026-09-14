@@ -6683,7 +6683,12 @@ namespace PlayniteAchievements.Services.Database
                 // Canonicalize the path here so the stored label is the same form the change
                 // detection below compares against, and a provider that starts emitting a nested
                 // path does not read back as a change on every refresh.
-                var incomingCategory = CategoryPathHelper.NormalizePath(achievement.Category);
+                // The provider's own label wins over Category, which hydration replaces with the
+                // user's assignment: this table holds provider data, and the user's categories live
+                // in the per-game custom data. A payload that has been through the hydrator then
+                // stores what the provider said rather than what the user filed it under.
+                var incomingCategory = CategoryPathHelper.NormalizePath(
+                    achievement.ProviderCategory ?? achievement.Category);
                 var incomingCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(achievement.CategoryType);
                 var incomingGlobalPercent = NormalizeStoredPercent(achievement.GlobalPercentUnlocked);
                 var incomingRarity = achievement.Rarity.ToString();
