@@ -1,5 +1,13 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 3.2.1.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-09-09
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v3.2.1.1/PlayniteAchievementsSantodan_3_2_1_1.pext
+    Changelog:
+    - "v3.2.1 merge"
+    - "Made the extension setting to open quicker. It will now load the `Achievement Notification` UI only when entering in it's tab."
+
   - Version: 3.2.0.2
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-09-09
