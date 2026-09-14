@@ -638,22 +638,19 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>
         /// The number of luma rows a decoded frame's surface is allocated over — the chroma plane
         /// begins that many rows down, not <paramref name="frameH"/>. Media Foundation exposes no
-        /// direct accessor, so it comes from the contiguous length, which packs rows to the frame
-        /// width while keeping the allocated height; the buffer's own capacity is the cross-check,
-        /// and an answer that fits neither is refused rather than guessed at (the pass then falls
-        /// back to leaving the clip without its card, never to writing one with torn colour).
+        /// direct accessor, so it comes from the contiguous length, cross-checked against the
+        /// buffer's own capacity by <see cref="Nv12LayoutMath.AlignedHeight"/>; an answer that fits
+        /// nothing is refused rather than guessed at (the pass then falls back to leaving the clip
+        /// without its card, never to writing one with torn colour).
         /// </summary>
         private static int AlignedHeight(IMF2DBuffer view, MediaBuffer buffer, int frameW, int frameH, int pitch)
         {
-            var planeBytes = frameW * 3 / 2;
             var contiguousLength = view.GetContiguousLength();
-            if (pitch >= frameW && planeBytes > 0 && contiguousLength % planeBytes == 0)
+            var alignedH = Nv12LayoutMath.AlignedHeight(
+                frameW, frameH, pitch, contiguousLength, buffer.MaxLength);
+            if (alignedH > 0)
             {
-                var alignedH = contiguousLength / planeBytes;
-                if (alignedH >= frameH && (long)pitch * alignedH * 3 / 2 <= buffer.MaxLength)
-                {
-                    return alignedH;
-                }
+                return alignedH;
             }
 
             throw new InvalidDataException(
