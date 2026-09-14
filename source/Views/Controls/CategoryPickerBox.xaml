@@ -8,20 +8,22 @@
              d:DesignWidth="320">
 
     <Grid>
-        <!-- Editable so the same control both picks an existing category and names a new one.
+        <!-- Select-only: a category is picked from the list or created through the row at the top
+             of it, never named by typing into the box. An editable ComboBox ran WPF's text-search
+             pipeline on every keystroke - a prefix scan resolving a binding per option, an open
+             drop-down scrolled to each auto-match, and a tree guide realized per row - which made
+             the box lag, and it also turned a typo into a new category.
+
              Items show the leaf, with the full path on hover: a list of paths sharing long
              prefixes is hard to scan, but two leaves can share a name under different parents.
              Depth is carried by the same tree connectors the category grid draws, so the list
              places a leaf without spelling its path out.
 
              TextSearch.TextPath rather than DisplayMemberPath: the latter cannot coexist with an
-             ItemTemplate, and on an editable box it is what fills the edit field on selection and
-             drives type-ahead. ResolveSelection reads that text. -->
+             ItemTemplate. On a closed box it costs one prefix scan per keypress, which is what
+             makes jumping to a category by its first letters still work. -->
         <ComboBox x:Name="PickerComboBox"
-                  IsEditable="True"
                   IsTextSearchEnabled="True"
-                  IsTextSearchCaseSensitive="False"
-                  StaysOpenOnEdit="True"
                   TextSearch.TextPath="LeafDisplay"
                   ItemContainerStyle="{StaticResource PlayAch.CategoryTreeComboBoxItemStyle}"
                   ItemTemplate="{StaticResource PlayAch.CategoryTreeComboBoxItemTemplate}"
