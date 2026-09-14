@@ -5539,7 +5539,7 @@ index 87100899b54a94bd7c188199394f10e3e46a31ee..6a6887ea2671272759c954d6cb0217eb
  
      /// <summary>
 diff --git a/source/Services/InGameAchievementMonitor.cs b/source/Services/InGameAchievementMonitor.cs
-index 6a350368c57b3e2a2d1c50e8885c0422e64efbd9..33092f09f5e1e82893a63b32fb835fe7a050f53c 100644
+index 6f05dcf7d23caa5b509e53018ec19790036c3773..6f5eea228c6299cc88c39eb87fd09dd0ffd60e82 100644
 --- a/source/Services/InGameAchievementMonitor.cs
 +++ b/source/Services/InGameAchievementMonitor.cs
 @@ -12,12 +12,14 @@
@@ -15971,7 +15971,7 @@ index ce98f2573c8577dbe0170b4385b0da04446a35d2..179a687b98802cc0d7fbd665fe60990d
          {
              try
 diff --git a/source/Services/UI/ToastNotificationService.cs b/source/Services/UI/ToastNotificationService.cs
-index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a390c6b05f 100644
+index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230d55e08d7 100644
 --- a/source/Services/UI/ToastNotificationService.cs
 +++ b/source/Services/UI/ToastNotificationService.cs
 @@ -1,6 +1,7 @@
@@ -16483,10 +16483,10 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
                  : (DateTime?)null;
  
              // Feeds every variant: clean saves it as-is, framed composites the frame onto it, and
-@@ -2375,9 +2669,56 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
-             var previewSource = cardItems
-                 .Select(vm => vm.PreviewTemplateSource)
-                 .FirstOrDefault(source => source.HasValue);
+@@ -2390,9 +2684,56 @@ await Task.WhenAny(
+                 return;
+             }
+ 
 -            var template = ToastSurfaceFactory.ResolveToastTemplate(
 -                _templateResolver, cardItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
 -            var items = ToastSurfaceFactory.BuildToastSurface(cardItems, template);
@@ -16543,7 +16543,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
  
              LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
  
-@@ -2391,7 +2732,7 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -2406,7 +2747,7 @@ await Task.WhenAny(
              // reveal shift together and their alignment holds; bounded, so a stuck capture costs
              // latency, never the wave. A delayed capture runs after the card is on screen and
              // never overlaps the pop-up in the first place.
@@ -16552,7 +16552,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
              {
                  await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                      .ConfigureAwait(true);
-@@ -2449,10 +2790,8 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2464,10 +2805,8 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                  ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
              _activeWindow = window;
  
@@ -16565,7 +16565,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
              var slideHost = ToastSurfaceFactory.BuildSlideHost(items, out var slideTransform);
              _activeCardSurface = items;
              _activeSlideHost = slideHost;
-@@ -2554,7 +2893,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2569,7 +2908,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                      $"systemScale={systemScale:0.###}, perMonitorWindow={needsPerMonitorWindow}, " +
                      $"isGame={_activeIsGame}, revealed={visible}, mode={wavePlan.Mode}, " +
                      $"testFire={waveIsTestFire}, preview={previewSource.HasValue}, cards={cardItems.Count}, " +
@@ -16574,7 +16574,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
                  if (needsPerMonitorWindow)
                  {
                      using (Common.DpiAwarenessScope.PerMonitorV2())
-@@ -2636,13 +2975,16 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2651,13 +2990,16 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                  // presented before the next begins and the slide starts against a drained
                  // composition queue, at the price of two composed frames of extra latency. Game
                  // anchor only — a test fire out of game has no video — and only with recordings
@@ -16594,7 +16594,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
                      _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
                      trackSampleCount = 0;
                      _waveShadowCaptureCount = 0;
-@@ -2786,6 +3128,23 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2801,6 +3143,23 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                          plan, window, waveIsTestFire, baseCaptureTask, anchorFramesTask);
                  }
  
@@ -16618,7 +16618,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
                  if (plan != null)
                  {
                      _ = SaveWaveScreenshotsAsync(plan, baseCaptureTask, anchorFramesTask, toastCompositeTask);
-@@ -2828,7 +3187,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2843,7 +3202,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                      CompositionTarget.Rendering += onRendering;
                  }
  
@@ -16627,7 +16627,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
                  var remainingMs = Math.Max(0, durationMs - captureDelayMs);
                  try
                  {
-@@ -2936,6 +3295,10 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2951,6 +3310,10 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                  _activeIsGame = false;
                  _activeSuppressZOrder = false;
                  _activeMonitorScale = 1.0;
@@ -16638,7 +16638,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
  
                  try
                  {
-@@ -3055,12 +3418,22 @@ private sealed class WaveScreenshotPlan
+@@ -3070,12 +3433,22 @@ private sealed class WaveScreenshotPlan
  
              public string FramedSuffix { get; set; }
  
@@ -16665,7 +16665,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
              public bool NeedsFrame => Items.Any(i =>
                  (i.Variants & ScreenshotVariants.Framed) != 0);
          }
-@@ -3085,8 +3458,23 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3100,8 +3473,23 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              }
  
              var persisted = _settings?.Persisted;
@@ -16691,7 +16691,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
              {
                  return null;
              }
-@@ -3095,7 +3483,8 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3110,7 +3498,8 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              // unlock — re-capturing a moment is the point of the shortcut. Opting into the test
              // folder diverts it to a shared "Test" subfolder the capture library hides, which is
              // what makes the shortcut usable for throwaway testing instead.
@@ -16701,7 +16701,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
              {
                  baseDir = System.IO.Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
              }
-@@ -3103,20 +3492,22 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3118,20 +3507,22 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              var plan = new WaveScreenshotPlan
              {
                  BaseDirectory = baseDir,
@@ -16732,7 +16732,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
  
                  if (variants != ScreenshotVariants.None)
                  {
-@@ -3127,6 +3518,39 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3142,6 +3533,39 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              return plan.Items.Count > 0 ? plan : null;
          }
  
@@ -16772,7 +16772,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
          /// <summary>
          /// Trims a configured screenshot filename suffix; blank collapses to null so the path
          /// builder emits no suffix at all.
-@@ -3172,6 +3596,10 @@ private async Task SaveWaveScreenshotsAsync(
+@@ -3187,6 +3611,10 @@ private async Task SaveWaveScreenshotsAsync(
                  anchorFrames = anchorFramesTask != null
                      ? await anchorFramesTask.ConfigureAwait(true)
                      : null;
@@ -16783,7 +16783,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
  
                  var framedByVm = new Dictionary<AchievementToastViewModel, System.Windows.Media.Imaging.BitmapSource>();
                  if (plan.NeedsFrame && (baseBitmap != null || anchorFrames != null))
-@@ -3265,27 +3693,65 @@ private async Task SaveWaveScreenshotsAsync(
+@@ -3291,27 +3719,65 @@ private async Task SaveWaveScreenshotsAsync(
                                  : clean;
                              if ((item.Variants & ScreenshotVariants.Clean) != 0 && itemClean != null)
                              {
@@ -16861,7 +16861,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
                              }
                          }
  
-@@ -3521,7 +3987,43 @@ private bool AlignBottom()
+@@ -3547,7 +4013,43 @@ private bool AlignBottom()
          // margin, so the body sits a constant distance from the corner whether or not the glow is on.
          private double EffectiveGapDip()
          {
@@ -16906,7 +16906,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
          }
  
          /// <summary>
-@@ -3566,11 +4068,23 @@ private bool TryPlacePhysical(Window window, bool measure, out ToastWindowPlacer
+@@ -3592,11 +4094,23 @@ private bool TryPlacePhysical(Window window, bool measure, out ToastWindowPlacer
              }
  
              var renderScale = ToastWindowPlacer.RenderScale(window);
@@ -16935,7 +16935,7 @@ index ac80ce3860ff461fe2e07e1b96a62335434dbdec..e2e940ebd3721dd9465db47a0930e5a3
  
              // Keep the toast directly above the game window in the z-order (not owned, so the game is
              // never raised). Re-asserted every placement/follow frame so it stays interleaved as the
-@@ -4853,6 +5367,18 @@ private int EffectiveDurationSeconds()
+@@ -4882,6 +5396,18 @@ private int EffectiveDurationSeconds()
              return setting;
          }
  
@@ -17188,10 +17188,10 @@ index 37efe8e887a6a0864db1d32417676f9a5a548487..70980266250685db60f8952837c6cb74
          public Rectangle? TryGetGameMonitorBounds(int? startedProcessId)
          {
 diff --git a/source/ViewModels/AchievementToastViewModel.cs b/source/ViewModels/AchievementToastViewModel.cs
-index b177a8bfdf1df6f7e40a26a42dbd667a6719b7b4..ea18c634e0069e4ca6e6612c2ad82cd48eb84154 100644
+index d519e66d91dd4f14f8742e4693fb8f30dbe9bd65..261cc26ac6cf70f3001249009f4eed180991a69c 100644
 --- a/source/ViewModels/AchievementToastViewModel.cs
 +++ b/source/ViewModels/AchievementToastViewModel.cs
-@@ -126,6 +126,7 @@ public AchievementToastViewModel(
+@@ -131,6 +131,7 @@ public AchievementToastViewModel(
          internal Services.UI.NotificationTemplatePreviewSource? PreviewTemplateSource => _args.PreviewTemplateSource;
          internal string AchievementName => ResolveAchievementName(_args);
          internal int AchievementNumber => _args.AchievementNumber;
@@ -21205,7 +21205,7 @@ index 6276c45590d9fc563d02cfb72e6b0dde5c347ada..e3913a8aa02f9d390e82640962204872
              <TabItem x:Name="DisplayTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_TabDisplay}">
                  <TabItem.Header>
 diff --git a/source/Views/SettingsControl.xaml.cs b/source/Views/SettingsControl.xaml.cs
-index 17a6247d15a0555a8ee6b4b2cc669569912fe173..0428b5fcd7db3cf42a61fdd8585cac5da26ea557 100644
+index 17a6247d15a0555a8ee6b4b2cc669569912fe173..633b10470455a40b065970c077d9ccfee1c56a76 100644
 --- a/source/Views/SettingsControl.xaml.cs
 +++ b/source/Views/SettingsControl.xaml.cs
 @@ -31,6 +31,7 @@ public partial class SettingsControl : UserControl, IDisposable
@@ -21216,43 +21216,67 @@ index 17a6247d15a0555a8ee6b4b2cc669569912fe173..0428b5fcd7db3cf42a61fdd8585cac5d
          private bool _providerNavigationBuilt;
          private readonly HashSet<string> _autoAuthCheckedProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
          private CancellationTokenSource _autoAuthDebounceCts;
-@@ -129,6 +130,24 @@ public SettingsControl(
+@@ -129,6 +130,12 @@ public SettingsControl(
  
              _settingsViewModel.Settings.PropertyChanged += Settings_PropertyChanged;
              AttachPersistedSettings(_settingsViewModel.Settings.Persisted);
-+            if (AchievementNotificationsContent != null)
-+            {
-+                _legacyNotificationSettingsControl = new LegacyNotificationSettingsControl(
-+                    _settingsViewModel,
-+                    _logger,
-+                    _plugin,
-+                    _providerRegistry);
-+                AchievementNotificationsContent.Content =
-+                    _legacyNotificationSettingsControl.DetachAchievementNotificationsContent();
-+            }
-+
-+            if (ForkThemeMigrationContent != null && _legacyNotificationSettingsControl != null)
-+            {
-+                ForkThemeMigrationContent.Content =
-+                    _legacyNotificationSettingsControl.DetachThemeMigrationContent();
-+            }
++            // The legacy notification editor contains a very large XAML tree, previews, and
++            // notification-control initialization.  Do not construct it merely because the
++            // settings window opened: create it only when its tab (or the compatibility theme
++            // migration tab) is actually visited.
 +
 +            _settingsViewModel.Settings.Persisted.PropertyChanged += Persisted_PropertyChanged;
  
              // Debug logging to verify DataContext and Settings values
              _logger?.Info($"SettingsControl created. DataContext type: {DataContext?.GetType().Name}");
-@@ -371,6 +390,10 @@ private void TabControl_SelectionChanged(object sender, SelectionChangedEventArg
+@@ -371,6 +378,46 @@ private void TabControl_SelectionChanged(object sender, SelectionChangedEventArg
                  BuildProviderNavigationItems(selectDefault: string.IsNullOrWhiteSpace(PendingNavigationProviderKey));
                  NavigateToPendingProvider();
              }
 +            else if (string.Equals(name, "ForkThemeMigrationTab", StringComparison.OrdinalIgnoreCase))
 +            {
++                EnsureLegacyNotificationSettingsContent();
 +                _legacyNotificationSettingsControl?.RefreshThemeMigrationContent();
++            }
++            else if (string.Equals(name, "AchievementNotificationsTab", StringComparison.OrdinalIgnoreCase))
++            {
++                EnsureLegacyNotificationSettingsContent();
++            }
++        }
++
++        /// <summary>
++        /// Materializes the compatibility pages on first use. Keeping this outside the settings
++        /// constructor prevents an otherwise unused notification editor from delaying every
++        /// extension-settings launch.
++        /// </summary>
++        private void EnsureLegacyNotificationSettingsContent()
++        {
++            if (_legacyNotificationSettingsControl != null)
++            {
++                return;
++            }
++
++            _legacyNotificationSettingsControl = new LegacyNotificationSettingsControl(
++                _settingsViewModel,
++                _logger,
++                _plugin,
++                _providerRegistry);
++
++            if (AchievementNotificationsContent != null)
++            {
++                AchievementNotificationsContent.Content =
++                    _legacyNotificationSettingsControl.DetachAchievementNotificationsContent();
++            }
++
++            if (ForkThemeMigrationContent != null)
++            {
++                ForkThemeMigrationContent.Content =
++                    _legacyNotificationSettingsControl.DetachThemeMigrationContent();
 +            }
          }
  
          // Quick navigation callback used by the General tab's quick-link buttons
-@@ -386,8 +409,7 @@ private void JumpToTab(string tabKey)
+@@ -386,8 +433,7 @@ private void JumpToTab(string tabKey)
                      tab = ProvidersTab;
                      break;
                  case "ThemeMigration":
@@ -21262,7 +21286,7 @@ index 17a6247d15a0555a8ee6b4b2cc669569912fe173..0428b5fcd7db3cf42a61fdd8585cac5d
                      break;
                  default:
                      return;
-@@ -404,11 +426,6 @@ private void JumpToTab(string tabKey)
+@@ -404,11 +450,6 @@ private void JumpToTab(string tabKey)
                  BuildProviderNavigationItems();
              }
  
@@ -21274,7 +21298,7 @@ index 17a6247d15a0555a8ee6b4b2cc669569912fe173..0428b5fcd7db3cf42a61fdd8585cac5d
              tab.BringIntoView();
          }
  
-@@ -426,6 +443,7 @@ public void Dispose()
+@@ -426,6 +467,7 @@ public void Dispose()
              _displaySettingsTab?.Dispose();
              _generalSettingsTab?.Dispose();
              _notificationsSettingsTab?.Dispose();
@@ -22147,7 +22171,7 @@ index f5871b8b1f6573b0f286c7f6c2448eaf2ec7cc7f..42e2b84dbdde9ab00feb6e4ae2d70619
          public void CloneAndCopyFrom_PreserveEnableFriendsFeatures()
          {
 diff --git a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
-index b35128af5c3dea7de3284b3536cc1d1a3bcc1fc5..632e834ecaa4de89d6c42975748533a64b81ca44 100644
+index fafe48f8a4a219a5a215a761c0042cbff3deddca..f4c324ea882d64c11c1ecc1501f6ecb99de2ff73 100644
 --- a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 +++ b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 @@ -90,6 +90,7 @@
@@ -22166,7 +22190,7 @@ index b35128af5c3dea7de3284b3536cc1d1a3bcc1fc5..632e834ecaa4de89d6c42975748533a6
      <Compile Include="..\..\source\Services\Search\SearchQuery.cs" Link="Source\Services\Search\SearchQuery.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextBuilder.cs" Link="Source\Services\Search\SearchTextBuilder.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextIndex.cs" Link="Source\Services\Search\SearchTextIndex.cs" />
-@@ -344,6 +346,8 @@
+@@ -345,6 +347,8 @@
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.cs" Link="Source\Models\Settings\PersistedSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.cs" />
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" />
@@ -22175,7 +22199,7 @@ index b35128af5c3dea7de3284b3536cc1d1a3bcc1fc5..632e834ecaa4de89d6c42975748533a6
      <Compile Include="..\..\source\Models\Settings\ProviderNotificationOverride.cs" Link="Source\Models\Settings\ProviderNotificationOverride.cs" />
      <Compile Include="..\..\source\Models\Settings\FrameVignetteStyle.cs" Link="Source\Models\Settings\FrameVignetteStyle.cs" />
      <Compile Include="..\..\source\Models\Settings\NotificationLineEmphasis.cs" Link="Source\Models\Settings\NotificationLineEmphasis.cs" />
-@@ -453,6 +457,7 @@
+@@ -454,6 +458,7 @@
      <Compile Include="..\..\source\Services\Refresh\FriendRefreshWorkPolicy.cs" Link="Source\Services\Refresh\FriendRefreshWorkPolicy.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshStateManager.cs" Link="Source\Services\Refresh\RefreshStateManager.cs" />
      <Compile Include="..\..\source\Services\Refresh\TargetSelectionResolver.cs" Link="Source\Services\Refresh\TargetSelectionResolver.cs" />
@@ -22183,7 +22207,7 @@ index b35128af5c3dea7de3284b3536cc1d1a3bcc1fc5..632e834ecaa4de89d6c42975748533a6
      <Compile Include="..\..\source\Services\ProgressReporting\ProgressReportingService.cs" Link="Source\Services\ProgressReporting\ProgressReportingService.cs" />
      <Compile Include="..\..\source\Services\ProgressReporting\RefreshProgressReporter.cs" Link="Source\Services\ProgressReporting\RefreshProgressReporter.cs" />
      <Compile Include="..\..\source\Services\Friends\FriendCacheModels.cs" Link="Source\Services\Friends\FriendCacheModels.cs" />
-@@ -501,6 +506,9 @@
+@@ -502,6 +507,9 @@
      <Compile Include="..\..\source\Services\UI\UnlockScreenshotVariantPolicy.cs" Link="Source\Services\UI\UnlockScreenshotVariantPolicy.cs" />
      <Compile Include="..\..\source\Services\UI\ToastWindowPlacer.cs" Link="Source\Services\UI\ToastWindowPlacer.cs" />
      <Compile Include="..\..\source\Services\UI\UnlockScreenshotService.cs" Link="Source\Services\UI\UnlockScreenshotService.cs" />
@@ -22797,10 +22821,10 @@ index 79807bb1d5a01101052852ab538798785dd731bb..167904bf63e31e92ccea421d7dc73d6d
          public void DynamicBindings_ExposeOptionsAndWritableKeysForComboBoxes()
          {
 diff --git a/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationTestStubs.cs b/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationTestStubs.cs
-index 0fa3e678e1eda3e34508041aa70bd228a2b87c11..d2ac28c010784a421906c17d82a9ab8d7a5649a5 100644
+index 676a4b7f0115494705226459ccc2ddf2be4dbf8f..89d2c7b968a35293e578ecf97587f7b832db8ae0 100644
 --- a/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationTestStubs.cs
 +++ b/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationTestStubs.cs
-@@ -28,12 +28,10 @@ public class PlayniteAchievementsPlugin
+@@ -28,16 +28,14 @@ public class PlayniteAchievementsPlugin
  
          public Services.GameCustomData.GameCustomDataStore GameCustomDataStore { get; set; }
  
@@ -22810,12 +22834,16 @@ index 0fa3e678e1eda3e34508041aa70bd228a2b87c11..d2ac28c010784a421906c17d82a9ab8d
 -        // animation URL to its disk-cache path.
          public Services.Images.DiskImageService DiskImageService { get; set; }
  
+         // Mirrors the real plugin property ToastImageResolver reads when decoding notification
+         // artwork. Left null in tests, which is the "no image service yet" path.
+         public Services.Images.MemoryImageService ImageService { get; set; }
+ 
 +        public Services.ThemeIntegration.ThemeIntegrationService ThemeIntegrationService { get; set; }
 +
          public IPlayniteAPI PlayniteApi { get; set; }
  
          public void SavePluginSettings(PlayniteAchievementsSettings settings)
-@@ -220,7 +218,8 @@ public sealed class GameAchievementData
+@@ -224,7 +222,8 @@ public sealed class GameAchievementData
          public string ProviderPlatformKey { get; set; }
  
          public string EffectiveProviderKey =>
@@ -22825,7 +22853,7 @@ index 0fa3e678e1eda3e34508041aa70bd228a2b87c11..d2ac28c010784a421906c17d82a9ab8d
                  ? ProviderPlatformKey
                  : ProviderKey;
  
-@@ -335,6 +334,8 @@ public sealed class AppearanceSettingsSnapshot
+@@ -347,6 +346,8 @@ public sealed class AppearanceSettingsSnapshot
  
          public string SortingName { get; set; }
  

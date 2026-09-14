@@ -99,6 +99,11 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-09-14 - v3.2.1.1
+
+- v3.2.1 merge
+- Made the extension setting to open quicker. It will now load the `Achievement Notification` UI only when entering in it's tab.
+
 ## 2026-09-09 - v3.2.0.2
 
 - Fixed not taking the screenshot when achievements were unlocked
@@ -109,15 +114,14 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 - v3.2.0 merge
 
+## Old Changelogs
+<details>
+
 ## 2026-09-06 - v3.1.3.3
 
 - Fixed achievements not been retrieve correctly when an `<appid>.json` existed in the steam's folder
 - Fixed freezing when right clicking a game in the library
 - Fixed `Solaris` theme migration
-
-
-## Old Changelogs
-<details>
 
 ## 2026-08-30 - v3.1.3.2
 

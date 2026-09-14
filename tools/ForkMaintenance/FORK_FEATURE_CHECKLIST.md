@@ -8,6 +8,10 @@ must still be verified in Playnite.
 
 - The separate Achievement Notification settings page is populated with its
   fork defaults.
+- Opening extension settings does not construct the large legacy Achievement
+  Notifications editor until its tab is selected; opening the compatibility
+  Theme Migration tab may also construct it because that page shares the same
+  host control.
 - Global and per-provider notification styles work, including Local and
   Exophase.
 - Custom templates, custom sounds, screenshots, recordings, and test

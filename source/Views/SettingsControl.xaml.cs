@@ -130,22 +130,10 @@ namespace PlayniteAchievements.Views
 
             _settingsViewModel.Settings.PropertyChanged += Settings_PropertyChanged;
             AttachPersistedSettings(_settingsViewModel.Settings.Persisted);
-            if (AchievementNotificationsContent != null)
-            {
-                _legacyNotificationSettingsControl = new LegacyNotificationSettingsControl(
-                    _settingsViewModel,
-                    _logger,
-                    _plugin,
-                    _providerRegistry);
-                AchievementNotificationsContent.Content =
-                    _legacyNotificationSettingsControl.DetachAchievementNotificationsContent();
-            }
-
-            if (ForkThemeMigrationContent != null && _legacyNotificationSettingsControl != null)
-            {
-                ForkThemeMigrationContent.Content =
-                    _legacyNotificationSettingsControl.DetachThemeMigrationContent();
-            }
+            // The legacy notification editor contains a very large XAML tree, previews, and
+            // notification-control initialization.  Do not construct it merely because the
+            // settings window opened: create it only when its tab (or the compatibility theme
+            // migration tab) is actually visited.
 
             _settingsViewModel.Settings.Persisted.PropertyChanged += Persisted_PropertyChanged;
 
@@ -392,7 +380,43 @@ namespace PlayniteAchievements.Views
             }
             else if (string.Equals(name, "ForkThemeMigrationTab", StringComparison.OrdinalIgnoreCase))
             {
+                EnsureLegacyNotificationSettingsContent();
                 _legacyNotificationSettingsControl?.RefreshThemeMigrationContent();
+            }
+            else if (string.Equals(name, "AchievementNotificationsTab", StringComparison.OrdinalIgnoreCase))
+            {
+                EnsureLegacyNotificationSettingsContent();
+            }
+        }
+
+        /// <summary>
+        /// Materializes the compatibility pages on first use. Keeping this outside the settings
+        /// constructor prevents an otherwise unused notification editor from delaying every
+        /// extension-settings launch.
+        /// </summary>
+        private void EnsureLegacyNotificationSettingsContent()
+        {
+            if (_legacyNotificationSettingsControl != null)
+            {
+                return;
+            }
+
+            _legacyNotificationSettingsControl = new LegacyNotificationSettingsControl(
+                _settingsViewModel,
+                _logger,
+                _plugin,
+                _providerRegistry);
+
+            if (AchievementNotificationsContent != null)
+            {
+                AchievementNotificationsContent.Content =
+                    _legacyNotificationSettingsControl.DetachAchievementNotificationsContent();
+            }
+
+            if (ForkThemeMigrationContent != null)
+            {
+                ForkThemeMigrationContent.Content =
+                    _legacyNotificationSettingsControl.DetachThemeMigrationContent();
             }
         }
 
