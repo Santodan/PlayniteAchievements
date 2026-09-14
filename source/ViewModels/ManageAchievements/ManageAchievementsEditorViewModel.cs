@@ -56,6 +56,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly Func<bool> _showManualLinkDialog;
         private readonly Action _unlinkManualTracking;
         private bool _isRefreshingAssignments;
+
+        private bool _isDetailsPaneExpanded = true;
         private bool _isCommittingRows;
         private bool _isSyncingTypeOptions;
         private bool _isSyncingCustomProvider;
@@ -83,6 +85,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isSyncingDisplayPlatform;
         private CategoryPickerOption _selectedCategoryFilter;
         private EditorFilterOption _selectedTypeFilter;
+        private bool _suppressFilterNotifications;
         private SearchQuery _filterQuery;
         private readonly SearchTextIndex<AchievementEditorRow> _searchIndex =
             new SearchTextIndex<AchievementEditorRow>(row => SearchTextBuilder.ForManualEdit(
@@ -182,6 +185,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>Raised after a category or type assignment was persisted for a custom row.</summary>
         public event EventHandler AssignmentsChanged;
+
+        /// <summary>
+        /// Raised after a rebuild replaced the rows, carrying the ApiNames that were selected before
+        /// it. SelectedItems lives on the control, so only the view can put a multi-row selection
+        /// back; the single-row case is restored here through <see cref="SelectedRow"/>.
+        /// </summary>
+        public event EventHandler<IReadOnlyList<string>> RestoreSelectionRequested;
 
         /// <summary>
         /// Asks the grid to bring a row into view. Raised when the editor picks a row on the user's
@@ -511,6 +521,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool IsBulkEditing => _selectedRows.Count > 1;
 
+        /// <summary>
+        /// Whether the details pane is showing. Deliberately not persisted: folding it away is a
+        /// gesture for the width of one piece of work, so the tab opens showing the pane every time
+        /// rather than hiding the editors from someone who does not remember collapsing them.
+        /// </summary>
+        public bool IsDetailsPaneExpanded
+        {
+            get => _isDetailsPaneExpanded;
+            set => SetValue(ref _isDetailsPaneExpanded, value);
+        }
+
         public int BulkSelectionCount => _selectedRows.Count;
 
         public bool HasEditTarget => EditTarget != null;
@@ -529,13 +550,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetSelectedRows(IEnumerable<AchievementEditorRow> rows)
         {
-            _selectedRows.Clear();
-            foreach (var row in rows ?? Enumerable.Empty<AchievementEditorRow>())
+            var incoming = (rows ?? Enumerable.Empty<AchievementEditorRow>())
+                .Where(row => row != null)
+                .ToList();
+
+            // The grid re-reports the same selection while it processes a collection reset and
+            // again after a view refresh. Each report otherwise raises EditTarget and re-seeds the
+            // whole details pane, which is most of the cost of one edit.
+            if (incoming.Count == _selectedRows.Count &&
+                !incoming.Where((row, index) => !ReferenceEquals(row, _selectedRows[index])).Any())
             {
-                if (row != null)
-                {
-                    _selectedRows.Add(row);
-                }
+                return;
+            }
+
+            _selectedRows.Clear();
+            foreach (var row in incoming)
+            {
+                _selectedRows.Add(row);
             }
 
             RebuildBulkRow();
@@ -743,6 +774,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             .Select(tier => new CustomAchievementSelectionOption(tier.ToString(), tier.ToDisplayText()))
             .ToList();
 
+        /// <remarks>
+        /// The None option's value is the empty string, and a bulk selection that disagrees carries
+        /// a null trophy type - which matches no option, so the combo renders blank. Do not coalesce
+        /// that null to string.Empty anywhere on the way to this combo: it would select None and
+        /// push it two-way onto every selected row.
+        /// </remarks>
         public IReadOnlyList<CustomAchievementSelectionOption> TrophyTypeOptions { get; } =
             new[]
             {
@@ -1247,8 +1284,105 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Adds or removes one category type across the selection. A row may carry several types, so
-        /// this toggles the one named rather than replacing the set.
+        /// Creates a top-level category and files the selected achievements in it. Returns the label
+        /// in effect - the created one, or an existing one the name already belonged to - or null
+        /// when the name was unusable.
+        /// </summary>
+        /// <remarks>
+        /// The category is written into the order list first, so it exists even when nothing is
+        /// selected to put in it: a category is otherwise only a label some achievement carries, and
+        /// creating one to fill later would vanish on the next read. Nesting is not offered here -
+        /// a created category is a root, and the Categories tab is where one is moved under another.
+        /// </remarks>
+        public string CreateAndAssignCategory(string leafName)
+        {
+            var label = CategoryPathHelper.SanitizeSegment(leafName);
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                return null;
+            }
+
+            try
+            {
+                var existing = AssignableCategoryOptions
+                    .FirstOrDefault(option => CategoryPathHelper.IsSame(option, label));
+                if (string.IsNullOrWhiteSpace(existing))
+                {
+                    // The whole known set, not just the stored order: a partial order would pin the
+                    // new category ahead of categories that had never needed an entry of their own.
+                    var order = AssignableCategoryOptions
+                        .Where(option => !string.IsNullOrWhiteSpace(option))
+                        .ToList();
+                    order.Add(label);
+
+                    // Per-game display state, scoped out of the library-wide passes like every
+                    // other category order write.
+                    _achievementOverridesService.SetAchievementCategoryMetadata(
+                        _gameId,
+                        order,
+                        GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted),
+                        GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted),
+                        affectsSummaryData: false);
+                }
+                else
+                {
+                    label = existing;
+                }
+
+                SetCategoryForSelection(label);
+
+                // SetCategoryForSelection does nothing without a selection, and the refresh it would
+                // have run is what puts a freshly created category into the picker.
+                RefreshAssignmentState();
+                return label;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed creating achievement category for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Replaces the category types on every selected achievement with the set given.
+        /// </summary>
+        /// <remarks>
+        /// A whole set rather than one type at a time, because the ticks describe a selection that
+        /// may disagree. Merging into each row's own types meant a selection of a Base row and a
+        /// Base+Update row could never be reduced to Base: ticking Base added what was already
+        /// there and left Update behind on the second row. The edited set is taken literally and
+        /// every selected row ends up with exactly it - which is also how the pane's other bulk
+        /// fields behave.
+        ///
+        /// An empty set is the Default type, written as an override rather than left blank: blank
+        /// would fall back to each provider's own type and the ticks would come straight back.
+        /// </remarks>
+        public void SetCategoryTypesForSelection(IEnumerable<string> categoryTypes)
+        {
+            var targets = ResolveSelectionTargets()
+                .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .ToList();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            var normalized = AchievementCategoryTypeHelper.NormalizeOrDefault(
+                AchievementCategoryTypeHelper.Combine(
+                    (categoryTypes ?? Enumerable.Empty<string>())
+                        .Select(AchievementCategoryTypeHelper.Normalize)
+                        .Where(categoryType => !string.IsNullOrWhiteSpace(categoryType))));
+
+            StageAcross(targets, row => row.CategoryTypeValue = normalized);
+            PersistCategoryAssignmentsFromRows();
+            SyncBulkRowFromSelection();
+        }
+
+        /// <summary>
+        /// Adds or removes one category type across the selection, merging into the types each row
+        /// already carries. Prefer <see cref="SetCategoryTypesForSelection"/> for anything driven by
+        /// a set of ticks; this stays for a caller that really does mean "toggle just this one".
         /// </summary>
         public void SetCategoryTypeForSelection(string categoryType, bool isSelected)
         {
@@ -1261,8 +1395,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // Merged into the type the row actually carries, not into its override alone. A row with
+            // no override of its own has a null one, which reads as Default, so ticking a second
+            // type used to drop the provider's grouping the ticks beside it were still showing.
+            // The Categories tab and the shared row menu both toggle from the effective value.
             StageAcross(targets, row => row.CategoryTypeValue = AchievementCategoryTypeHelper.WithCategoryType(
-                AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryTypeValue),
+                AchievementCategoryTypeHelper.NormalizeOrDefault(row.EffectiveCategoryTypeValue),
                 normalizedType,
                 isSelected));
             PersistCategoryAssignmentsFromRows();
@@ -2152,6 +2290,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void ReplaceRows(IEnumerable<AchievementEditorRow> rows)
         {
             var previousSelectedId = SelectedRow?.NormalizedId;
+            var previousSelectedApiNames = _selectedRows
+                .Where(row => !string.IsNullOrWhiteSpace(row?.OriginalApiName))
+                .Select(row => row.OriginalApiName)
+                .ToList();
             foreach (var row in AchievementRows)
             {
                 row.PropertyChanged -= Row_PropertyChanged;
@@ -2177,6 +2319,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                               !string.IsNullOrWhiteSpace(previousSelectedId) &&
                               string.Equals(row?.NormalizedId, previousSelectedId, StringComparison.OrdinalIgnoreCase))
                           ?? AchievementRows.FirstOrDefault();
+
+            // SelectedRow restores one row, so a multi-row selection would otherwise come back as
+            // whichever row the pane had been editing. A reload the editor did not ask for should
+            // not cost the user their selection.
+            if (previousSelectedApiNames.Count > 1)
+            {
+                RestoreSelectionRequested?.Invoke(this, previousSelectedApiNames);
+            }
         }
 
         /// <summary>
@@ -2226,7 +2376,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     row.IsCapstone = string.Equals(apiName, capstoneApiName, StringComparison.OrdinalIgnoreCase);
                 }
 
-                RefreshAssignableCategoryOptions(categoryOverrides);
+                RefreshAssignableCategoryOptions(resolved);
                 SyncTypeOptionsToEditTarget();
             }
             catch (Exception ex)
@@ -2239,36 +2389,34 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private void RefreshAssignableCategoryOptions(IReadOnlyDictionary<string, string> categoryOverrides)
+        /// <summary>
+        /// Rebuilds the categories the pickers offer: every label the rows carry, plus labels that
+        /// only hold user state - the order, the art overrides, the summary pick - in tree order.
+        /// </summary>
+        /// <remarks>
+        /// Reads the rows rather than the hydrated snapshot. A row's effective label is already the
+        /// override where there is one and the provider's label otherwise, so the snapshot pass
+        /// restated what the rows say - and, since every assignment invalidates that snapshot, it
+        /// paid for a cold rebuild of it on each edit. The resolved record is passed in for the
+        /// same reason: each lookup helper clones the game's whole customization.
+        /// </remarks>
+        private void RefreshAssignableCategoryOptions(ResolvedGameCustomData resolved)
         {
-            // Same sources the Category tab renders: every achievement's effective label, plus
-            // labels that only carry user state (order, art, the summary pick), in tree order.
-            var categoryOrder = GameCustomDataLookup.GetAchievementCategoryOrder(_gameId, _settings?.Persisted);
-            var labels = new List<string>();
-            var achievements = _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements;
-            if (achievements != null)
+            // An empty grid means a load that failed or has not finished, not a game with no
+            // categories: synchronising to empty here blanked the picker under the user.
+            if (AchievementRows.Count == 0)
             {
-                foreach (var achievement in achievements)
-                {
-                    var apiName = NormalizeText(achievement?.ApiName);
-                    if (string.IsNullOrWhiteSpace(apiName))
-                    {
-                        continue;
-                    }
-
-                    labels.Add(categoryOverrides.TryGetValue(apiName, out var overrideLabel)
-                        ? overrideLabel
-                        : AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category));
-                }
+                return;
             }
 
+            var categoryOrder = resolved?.AchievementCategoryOrder;
+            var labels = new List<string>(AchievementRows.Count);
             labels.AddRange(AchievementRows
                 .Select(row => row?.EffectiveCategoryLabel)
                 .Where(label => !string.IsNullOrWhiteSpace(label)));
-            labels.AddRange(GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted)?.Keys
-                ?? Enumerable.Empty<string>());
+            labels.AddRange(resolved?.AchievementCategoryImageOverrides?.Keys ?? Enumerable.Empty<string>());
             labels.AddRange(categoryOrder ?? new List<string>());
-            var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted);
+            var summaryCategory = resolved?.GameSummaryCategory;
             if (!string.IsNullOrWhiteSpace(summaryCategory?.Label))
             {
                 labels.Add(summaryCategory.Label);
@@ -2277,6 +2425,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var ordered = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryTree(
                 labels.Where(label => !string.IsNullOrWhiteSpace(label)),
                 categoryOrder);
+
+            // The pickers rebuild their option rows once per collection event, so an unchanged
+            // label set has to raise none.
+            if (AssignableCategoryOptions.SequenceEqual(ordered, StringComparer.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
             CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, ordered);
         }
 
@@ -2316,7 +2472,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            SetCategoryTypeForSelection(option.Value, option.IsSelected);
+            // The whole tick state, not the one that changed: the set the user has built is what
+            // every selected row takes.
+            SetCategoryTypesForSelection(TypeSelectionOptions
+                .Where(candidate => candidate?.IsSelected == true)
+                .Select(candidate => candidate.Value));
         }
 
         private void PersistAssignmentMaps(
@@ -2327,7 +2487,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrides, categoryTypeOverrides);
                 RefreshAssignmentState();
-                AssignmentsChanged?.Invoke(this, EventArgs.Empty);
+
+                // Through the debounce, not raised directly: only its flush marks the notification
+                // as this editor's own, and without that mark the cascade came back as a refresh
+                // request that reloaded every row - clearing the grid's selection on the way - for
+                // an edit the editor was already showing.
+                RaiseAssignmentsChanged();
             }
             catch (Exception ex)
             {
@@ -3087,22 +3252,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// Writes the category and type assignments as one pair of maps, keeping every value the
+        /// user picked.
+        /// </summary>
+        /// <remarks>
+        /// An assignment is no longer dropped for matching the provider's own label. The provider
+        /// baseline is not trustworthy enough to decide that: it is not stored as a field of its
+        /// own, so it is reconstructed from the cached category, which a backfill can fill with a
+        /// value that started life as a user assignment. Once that happened, the category the user
+        /// picked looked redundant and was discarded - and, the map being written whole, their rows
+        /// kept whichever older assignment they already had, with no way to move them at all.
+        ///
+        /// Writing a redundant entry costs one string per achievement and is undone by clearing the
+        /// assignment, which still removes the override because a blank value is skipped below.
+        /// </remarks>
         private void PersistCategoryAssignmentsFromRows()
         {
             PersistAssignmentMaps(
-                BuildAssignmentMap(
-                    row => row.CategoryLabel,
-                    row => row.ProviderCategoryLabel,
-                    (assigned, provider) => CategoryPathHelper.IsSame(
-                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(assigned),
-                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(provider))),
-                BuildAssignmentMap(
-                    row => row.CategoryTypeValue,
-                    row => row.ProviderCategoryTypeValue,
-                    (assigned, provider) => string.Equals(
-                        AchievementCategoryTypeHelper.NormalizeOrDefault(assigned),
-                        AchievementCategoryTypeHelper.NormalizeOrDefault(provider),
-                        StringComparison.OrdinalIgnoreCase)));
+                BuildAssignmentMap(row => row.CategoryLabel),
+                BuildAssignmentMap(row => row.CategoryTypeValue));
         }
 
         /// <summary>
@@ -3249,19 +3418,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// entry. An assignment that only restates what the provider already says is dropped too,
         /// which is the same economy the Category tab applies when it reparents a row.
         /// </remarks>
-        private Dictionary<string, string> BuildAssignmentMap(
-            Func<AchievementEditorRow, string> selector,
-            Func<AchievementEditorRow, string> providerSelector,
-            Func<string, string, bool> matchesProvider)
+        /// <summary>
+        /// Every non-blank assignment the rows carry, keyed by ApiName. A blank one is left out,
+        /// which is what removes the override for a row whose assignment was cleared.
+        /// </summary>
+        private Dictionary<string, string> BuildAssignmentMap(Func<AchievementEditorRow, string> selector)
         {
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in AchievementRows)
             {
                 var apiName = row?.OriginalApiName;
                 var value = selector(row);
-                if (string.IsNullOrWhiteSpace(apiName) ||
-                    string.IsNullOrWhiteSpace(value) ||
-                    matchesProvider(value, providerSelector(row)))
+                if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(value))
                 {
                     continue;
                 }
@@ -3619,6 +3787,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void NotifyFilterChanged()
         {
+            if (_suppressFilterNotifications)
+            {
+                return;
+            }
+
             OnPropertyChanged(nameof(IsFiltering));
             // The header toggles summarize the rows on screen, and the filter decides which those
             // are.
@@ -3670,13 +3843,32 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // A filter whose category disappeared falls back to showing everything, rather than
             // leaving the grid mysteriously empty.
-            SelectedCategoryFilter = CategoryFilterOptions.FirstOrDefault(option =>
-                                         option.IsSelectable &&
-                                         string.Equals(option.Label, previousCategory, StringComparison.OrdinalIgnoreCase))
-                                     ?? CategoryFilterOptions.FirstOrDefault();
-            SelectedTypeFilter = TypeFilterOptions.FirstOrDefault(option =>
-                                     string.Equals(option.Value, previousType, StringComparison.OrdinalIgnoreCase))
-                                 ?? TypeFilterOptions.FirstOrDefault();
+            //
+            // Reassigned under a guard because the rebuilt options are new instances every time, so
+            // the setters always see a change even when the filter is the same one. The view
+            // answers a filter change by refreshing the collection view, and that reset takes the
+            // grid's selection with it.
+            _suppressFilterNotifications = true;
+            try
+            {
+                SelectedCategoryFilter = CategoryFilterOptions.FirstOrDefault(option =>
+                                             option.IsSelectable &&
+                                             string.Equals(option.Label, previousCategory, StringComparison.OrdinalIgnoreCase))
+                                         ?? CategoryFilterOptions.FirstOrDefault();
+                SelectedTypeFilter = TypeFilterOptions.FirstOrDefault(option =>
+                                         string.Equals(option.Value, previousType, StringComparison.OrdinalIgnoreCase))
+                                     ?? TypeFilterOptions.FirstOrDefault();
+            }
+            finally
+            {
+                _suppressFilterNotifications = false;
+            }
+
+            if (!string.Equals(SelectedCategoryFilter?.Label, previousCategory, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(SelectedTypeFilter?.Value, previousType, StringComparison.OrdinalIgnoreCase))
+            {
+                NotifyFilterChanged();
+            }
         }
 
         /// <summary>
@@ -4372,7 +4564,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             get
             {
                 var assigned = AchievementCategoryTypeHelper.NormalizeCategory(CategoryLabel);
-                return assigned ?? AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel);
+                if (assigned != null)
+                {
+                    return assigned;
+                }
+
+                // The proxy has no provider category of its own, so there is nothing to fall back
+                // to: a blank value means the selected rows disagree, and answering Default would
+                // state a category none of them may be in - and, read back by the pane, file them
+                // all under it. Disagreement is an absence here, the way the filter scope proxy
+                // carries a value no list item matches.
+                return IsBulkRow
+                    ? null
+                    : AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel);
             }
         }
 
@@ -4380,9 +4584,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// The category type the achievement actually carries: the user's override when they set
         /// one, otherwise the provider's own.
         /// </summary>
-        public string EffectiveCategoryTypeValue =>
-            AchievementCategoryTypeHelper.Normalize(CategoryTypeValue) ??
-            AchievementCategoryTypeHelper.NormalizeOrDefault(ProviderCategoryTypeValue);
+        /// <remarks>
+        /// Blank on the bulk proxy when the selection disagrees, for the reason given on
+        /// <see cref="EffectiveCategoryLabel"/>: it has no provider value to fall back to, and
+        /// Default is a real type rather than a stand-in for "these differ".
+        /// </remarks>
+        public string EffectiveCategoryTypeValue
+        {
+            get
+            {
+                var assigned = AchievementCategoryTypeHelper.Normalize(CategoryTypeValue);
+                if (assigned != null)
+                {
+                    return assigned;
+                }
+
+                return IsBulkRow
+                    ? null
+                    : AchievementCategoryTypeHelper.NormalizeOrDefault(ProviderCategoryTypeValue);
+            }
+        }
 
         /// <summary>
         /// The achievement's position in the provider's own order, stamped by the loader before
@@ -4585,11 +4806,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
-                // The Default sentinel renders blank in grid cells; a button needs a label.
+                // The Default sentinel renders blank in grid cells; a button needs a label. Except
+                // on the bulk proxy, where a blank effective value means the selection disagrees
+                // and the button has to stay empty rather than claim they are all Default.
                 var text = AchievementCategoryTypeHelper.ToDisplayText(EffectiveCategoryTypeValue);
-                return string.IsNullOrWhiteSpace(text)
-                    ? AchievementCategoryTypeHelper.ToCategoryTypeDisplayText(AchievementCategoryTypeHelper.NormalizeOrDefault(null))
-                    : text;
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    return text;
+                }
+
+                return IsBulkRow && string.IsNullOrWhiteSpace(EffectiveCategoryTypeValue)
+                    ? string.Empty
+                    : AchievementCategoryTypeHelper.ToCategoryTypeDisplayText(AchievementCategoryTypeHelper.NormalizeOrDefault(null));
             }
         }
 

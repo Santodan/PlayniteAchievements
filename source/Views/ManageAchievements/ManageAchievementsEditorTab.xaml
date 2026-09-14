@@ -361,7 +361,9 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="560" />
                 <ColumnDefinition Width="12" />
-                <ColumnDefinition Width="340" />
+                <!-- Sized to whichever of the pane and its collapsed strip is showing, so folding
+                     the pane away hands the whole width to the grid. -->
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <!-- The grid owns its own scrolling. Nested in a ScrollViewer it was measured with
@@ -874,29 +876,58 @@
                         Panel.ZIndex="10" />
             </Grid>
 
-            <Border Grid.Column="2"
-                    Style="{StaticResource CardBorderStyle}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Custom_Details}"
-                                   Foreground="{DynamicResource TextBrush}"
-                                   FontWeight="SemiBold"
-                                   Visibility="{Binding IsBulkEditing, Converter={StaticResource InverseBoolToVis}}" />
+            <Grid Grid.Column="2">
+            <Border x:Name="DetailsPaneCard"
+                    Width="340"
+                    Style="{StaticResource CardBorderStyle}"
+                    Visibility="{Binding IsDetailsPaneExpanded, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                        <!-- While several rows are selected the pane edits all of them, so it says
-                             so and explains what a blank field means. -->
-                        <StackPanel Visibility="{Binding IsBulkEditing, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{Binding BulkEditHeader}"
+                    <!-- The header and its collapse chevron sit outside the scroller: the way out of
+                         the pane should not be somewhere the user has to scroll back up to. -->
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Custom_Details}"
                                        Foreground="{DynamicResource TextBrush}"
                                        FontWeight="SemiBold"
-                                       TextWrapping="Wrap" />
-                            <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Editor_BulkHint}"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Opacity="0.72"
-                                       TextWrapping="Wrap"
-                                       Margin="0,4,0,0" />
+                                       Visibility="{Binding IsBulkEditing, Converter={StaticResource InverseBoolToVis}}" />
+
+                            <!-- While several rows are selected the pane edits all of them, so it says
+                                 so and explains what a blank field means. -->
+                            <StackPanel Visibility="{Binding IsBulkEditing, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding BulkEditHeader}"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Editor_BulkHint}"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           Opacity="0.72"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
                         </StackPanel>
 
+                        <Button Grid.Column="1"
+                                VerticalAlignment="Top"
+                                Style="{StaticResource DetailsPaneToggleButtonStyle}"
+                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Editor_CollapseDetailsTooltip}"
+                                Click="ToggleDetailsPaneButton_Click">
+                            <Path Data="M 0,0 L 5,5 L 0,10"
+                                  Style="{StaticResource DetailsPaneChevronStyle}" />
+                        </Button>
+                    </Grid>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
                         <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Custom_NoSelection}"
                                    Foreground="{DynamicResource TextBrush}"
                                    Opacity="0.72"
@@ -1313,6 +1344,8 @@
                             <controls:CategoryPickerBox x:Name="CategoryPicker"
                                                         Categories="{Binding DataContext.AssignableCategoryOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         Placeholder="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
+                                                        AllowCreateNew="True"
+                                                        CreateNewText="{DynamicResource LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis}"
                                                         IsEnabled="{Binding CanEditAssignments}" />
 
                             <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_Type}"
@@ -1382,7 +1415,25 @@
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
+                </Grid>
             </Border>
+
+            <!-- What is left of the pane once it is folded away: the chevron that brings it back,
+                 over the full height so it stays easy to hit. -->
+            <Border x:Name="DetailsPaneStrip"
+                    Width="22"
+                    Padding="0"
+                    Style="{StaticResource CardBorderStyle}"
+                    Visibility="{Binding IsDetailsPaneExpanded, Converter={StaticResource InverseBoolToVis}}">
+                <Button Style="{StaticResource DetailsPaneToggleButtonStyle}"
+                        VerticalAlignment="Stretch"
+                        ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Editor_ExpandDetailsTooltip}"
+                        Click="ToggleDetailsPaneButton_Click">
+                    <Path Data="M 5,0 L 0,5 L 5,10"
+                          Style="{StaticResource DetailsPaneChevronStyle}" />
+                </Button>
+            </Border>
+            </Grid>
         </Grid>
 
         <Popup x:Name="DragCountPopup"

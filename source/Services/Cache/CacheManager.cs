@@ -1593,6 +1593,12 @@ namespace PlayniteAchievements.Services.Cache
                     ScaledPoints = achievement.ScaledPoints,
                     CategoryType = achievement.CategoryType,
                     Category = achievement.Category,
+                    // Carried with Category, not derived from it later: hydration overwrites
+                    // Category with the user's assignment and keeps the provider's own label here,
+                    // and every load clones. Dropping it made the hydrator's "prefer the captured
+                    // provider label" defence dead across any cache round-trip, leaving the
+                    // provider baseline to be reconstructed from a value the user can replace.
+                    ProviderCategory = achievement.ProviderCategory,
                     TrophyType = achievement.TrophyType,
                     Hidden = achievement.Hidden,
                     IsCapstone = achievement.IsCapstone,

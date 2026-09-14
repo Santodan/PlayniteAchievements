@@ -85,6 +85,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // control raises this only when its drop-down is closed, so Enter still picks the
             // highlighted row while the list is open.
             CategoryInputPicker.Committed += (_, __) => ApplyBulk();
+            CategoryInputPicker.CreateRequested += (_, __) => CreateCategoryFromPicker();
         }
 
         private ManageAchievementsCategoryViewModel ViewModel => DataContext as ManageAchievementsCategoryViewModel;
@@ -169,6 +170,24 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 CategoryInputPicker.SetInitialCategory(null);
                 ViewModel.ResetBulkEditorInputs();
                 ViewModel.ClearAllSelections();
+            }
+        }
+
+        /// <summary>
+        /// Creates a category from the picker's create row and leaves it picked, ready for the
+        /// apply button. The manager list is where it is then nested, renamed, or given art.
+        /// </summary>
+        private void CreateCategoryFromPicker()
+        {
+            if (ViewModel == null || !CategoryCreationPrompt.TryPrompt(out var leafName))
+            {
+                return;
+            }
+
+            var created = ViewModel.CreateCategory(leafName);
+            if (!string.IsNullOrWhiteSpace(created))
+            {
+                CategoryInputPicker.SetInitialCategory(created);
             }
         }
 
@@ -986,10 +1005,20 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
+            // Seeded only with a category every targeted row is already in. One row's label cannot
+            // speak for a selection that disagrees: the picker would open showing it - often
+            // Default, which is what an uncategorised row reads as - and an OK without touching the
+            // box would file every other row under it. A blank box says "these differ" instead.
+            var shared = rows[0]?.Category;
+            if (rows.Any(row => !string.Equals(row?.Category, shared, StringComparison.Ordinal)))
+            {
+                shared = null;
+            }
+
             var inputDialog = new CategoryPickerDialog(
                 L("LOCPlayAch_ManageAchievements_Category_Context_SetLabelHint"),
                 ViewModel.AssignableCategoryOptions,
-                contextItem?.Category);
+                shared);
             var window = PlayniteUiProvider.CreateExtensionWindow(
                 L("LOCPlayAch_ManageAchievements_Category_Context_SetLabelTitle"),
                 inputDialog,
@@ -1012,7 +1041,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            ViewModel.SetCategoryLabelForSelection(rows, (inputDialog.SelectedCategory ?? string.Empty).Trim());
+            // An empty pick is the blank the box opens with, not a request to clear: accepting it
+            // would strip the category off every selected row. Clearing has its own menu item.
+            var picked = (inputDialog.SelectedCategory ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(picked))
+            {
+                return;
+            }
+
+            ViewModel.SetCategoryLabelForSelection(rows, picked);
         }
 
         private void ClearRowsFromContext(ManageAchievementsCategoryItem contextItem)

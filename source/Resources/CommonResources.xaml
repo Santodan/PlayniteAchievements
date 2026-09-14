@@ -632,6 +632,19 @@
          combo box draws the tree the same way and there is one place to change it. Expects a
          CategoryPickerOption. -->
     <DataTemplate x:Key="PlayAch.CategoryTreeComboBoxItemTemplate">
+        <!-- The create row sits above the categories and is ruled off from them: it names nothing in
+             the tree, so it carries no connectors either. -->
+        <Border>
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCreateNew}" Value="True">
+                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
         <DockPanel LastChildFill="True">
             <controls:CategoryTreeGuide DockPanel.Dock="Left"
                                         VerticalAlignment="Stretch"
@@ -648,6 +661,9 @@
                                          Value="{x:Null}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
+                            <DataTrigger Binding="{Binding IsCreateNew}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </controls:CategoryTreeGuide.Style>
@@ -660,6 +676,7 @@
                        TextWrapping="NoWrap"
                        Margin="5"/>
         </DockPanel>
+        </Border>
     </DataTemplate>
 
     <Style x:Key="PlayAch.ComboBox.BaseStyle" TargetType="ComboBox">

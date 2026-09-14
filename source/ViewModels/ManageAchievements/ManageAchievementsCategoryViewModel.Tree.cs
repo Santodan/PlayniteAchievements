@@ -753,6 +753,43 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 existing,
                 parentPath: null,
                 baseLeafName: L("LOCPlayAch_ManageAchievements_Category_NewCategoryName"));
+            return PersistNewCategory(existing, label);
+        }
+
+        /// <summary>
+        /// Creates an empty top-level category under a name the user gave. A name that already names
+        /// a top-level category adopts it rather than creating a second one alongside it, so naming
+        /// something twice is not a way to end up with two of it.
+        /// </summary>
+        public string CreateCategory(string leafName)
+        {
+            if (CategoryRows.Count == 0)
+            {
+                return null;
+            }
+
+            var label = CategoryPathHelper.SanitizeSegment(leafName);
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                return null;
+            }
+
+            var existing = CategoryRows
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
+                .Select(row => row.CategoryLabel)
+                .ToList();
+
+            var alreadyThere = existing.FirstOrDefault(candidate => CategoryPathHelper.IsSame(candidate, label));
+            if (!string.IsNullOrWhiteSpace(alreadyThere))
+            {
+                return alreadyThere;
+            }
+
+            return PersistNewCategory(existing, label);
+        }
+
+        private string PersistNewCategory(List<string> existing, string label)
+        {
             if (string.IsNullOrWhiteSpace(label))
             {
                 return null;

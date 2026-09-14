@@ -16,13 +16,28 @@ namespace PlayniteAchievements.Services.Achievements
             string leafDisplay,
             string pathDisplay,
             CategoryTreeShape treeShape = null,
-            bool isSelectable = true)
+            bool isSelectable = true,
+            bool isCreateNew = false)
         {
             Label = label;
             LeafDisplay = leafDisplay;
             PathDisplay = pathDisplay;
             TreeShape = treeShape;
             IsSelectable = isSelectable;
+            IsCreateNew = isCreateNew;
+        }
+
+        /// <summary>
+        /// The row that offers to create a category rather than naming one that exists. It carries no
+        /// label: picking it is a request the host answers, and the box puts the previous pick back.
+        /// </summary>
+        public static CategoryPickerOption CreateNewRow(string leafDisplay)
+        {
+            return new CategoryPickerOption(
+                label: null,
+                leafDisplay: leafDisplay,
+                pathDisplay: null,
+                isCreateNew: true);
         }
 
         /// <summary>Storage form - the value written back, never shown.</summary>
@@ -46,6 +61,12 @@ namespace PlayniteAchievements.Services.Achievements
         /// target a caller can resolve to.
         /// </summary>
         public bool IsSelectable { get; }
+
+        /// <summary>
+        /// True for the create-a-category row. It is an action rather than a target, so it never
+        /// resolves to a label and never stays selected.
+        /// </summary>
+        public bool IsCreateNew { get; }
     }
 
     /// <summary>
@@ -142,6 +163,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             if (pickedOption != null &&
                 pickedOption.IsSelectable &&
+                !pickedOption.IsCreateNew &&
                 string.Equals(pickedOption.LeafDisplay, text, StringComparison.OrdinalIgnoreCase))
             {
                 return pickedOption.Label;
@@ -155,6 +177,7 @@ namespace PlayniteAchievements.Services.Achievements
             var matches = (options ?? new List<CategoryPickerOption>())
                 .Where(option => option != null &&
                     option.IsSelectable &&
+                    !option.IsCreateNew &&
                     string.Equals(option.LeafDisplay, text, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 

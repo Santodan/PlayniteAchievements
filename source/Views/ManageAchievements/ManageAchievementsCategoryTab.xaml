@@ -335,13 +335,16 @@
                             Margin="8,6,0,0" />
 
                     <!-- Pick any category the manager shows - user-created empty ones included,
-                         since a nested one cannot be reached by typing - or type a new one. -->
+                         since a nested one cannot be reached by typing - or create one from the
+                         row at the top of the list. -->
                     <controls:CategoryPickerBox x:Name="CategoryInputPicker"
                                                 Grid.Row="2"
                                                 Grid.Column="0"
                                                 VerticalAlignment="Center"
                                                 Categories="{Binding AssignableCategoryOptions}"
                                                 Placeholder="{DynamicResource LOCPlayAch_ManageAchievements_Category_InputPlaceholder}"
+                                                AllowCreateNew="True"
+                                                CreateNewText="{DynamicResource LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis}"
                                                 Margin="{StaticResource PlayAch.Thickness.Top.Sm}" />
 
                         <Button x:Name="ApplyBulkButton"

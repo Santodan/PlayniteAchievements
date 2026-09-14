@@ -1,14 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views.Dialogs
 {
     /// <summary>
-    /// Set-category dialog: pick one the game already has, or name a new one. Replaces the plain
-    /// text prompt this used to be, which could only ever create a category and gave no way to see
-    /// what already existed.
+    /// Set-category dialog: pick one the game already has, or create one from the row at the top of
+    /// the list. Replaces the plain text prompt this used to be, which could only ever create a
+    /// category and gave no way to see what already existed.
     /// </summary>
     public partial class CategoryPickerDialog : UserControl
     {
@@ -43,6 +46,7 @@ namespace PlayniteAchievements.Views.Dialogs
             DataContext = this;
             PickerBox.Committed += (_, __) => Accept();
             PickerBox.Cancelled += (_, __) => Cancel();
+            PickerBox.CreateRequested += (_, __) => CreateCategory();
             Loaded += (_, __) => PickerBox.FocusInput();
         }
 
@@ -61,6 +65,41 @@ namespace PlayniteAchievements.Views.Dialogs
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             Cancel();
+        }
+
+        /// <summary>
+        /// Names a category and offers it as the picked one. Nothing is written here: the dialog
+        /// only reports a label, and the caller applying it to an achievement is what makes the
+        /// category exist.
+        /// </summary>
+        private void CreateCategory()
+        {
+            if (!CategoryCreationPrompt.TryPrompt(out var leafName))
+            {
+                return;
+            }
+
+            var label = CategoryPathHelper.SanitizeSegment(leafName);
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                return;
+            }
+
+            var known = (Categories ?? Enumerable.Empty<string>())
+                .Where(category => !string.IsNullOrWhiteSpace(category))
+                .ToList();
+            var existing = known.FirstOrDefault(category => CategoryPathHelper.IsSame(category, label));
+            if (string.IsNullOrWhiteSpace(existing))
+            {
+                known.Add(label);
+                Categories = known;
+            }
+            else
+            {
+                label = existing;
+            }
+
+            PickerBox.SetInitialCategory(label);
         }
 
         private void Accept()
