@@ -1019,6 +1019,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
         // for refresh and keeps its rows and selection.
         private void EditorViewModel_CustomizationPersisted(object sender, EventArgs e)
         {
+            // Marked before propagating, not after: the propagation bumps CustomDataRevision
+            // synchronously, so the refresh this is meant to pre-empt had already run - rebuilding
+            // every row and taking the grid's selection with it - by the time control returned
+            // here. Set on the view model rather than per raise site so every editor-originated
+            // notification is covered.
+            if (_editorViewModel != null)
+            {
+                _editorViewModel.SuppressExternalRefresh = true;
+            }
+
             CategoryViewModel_DeferredLibraryRefreshRequired(sender, e);
             _editorRefreshPending = false;
         }
