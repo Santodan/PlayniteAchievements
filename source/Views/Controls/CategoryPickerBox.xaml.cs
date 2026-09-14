@@ -295,9 +295,6 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             var selected = PickerComboBox.SelectedItem as CategoryPickerOption;
-            Services.Logging.PluginLogger.GetLogger("CategoryDiag").Debug(
-                $"[CategoryDiag] Picker selection changed to '{selected?.Label ?? "<null>"}' " +
-                $"(createRow={selected?.IsCreateNew == true}, lastPick='{_lastPickedOption?.Label}', options={_options.Count}).");
             if (selected == null)
             {
                 // Nothing in a select-only box can unselect it, so an empty selection is always the
