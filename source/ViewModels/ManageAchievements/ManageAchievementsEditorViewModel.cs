@@ -1267,9 +1267,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var normalized = AchievementCategoryTypeHelper.NormalizeCategory(categoryLabel);
             StageAcross(targets, row => row.CategoryLabel = normalized);
             PersistCategoryAssignmentsFromRows();
+            var writtenMap = BuildAssignmentMap(
+                row => row.CategoryLabel,
+                row => row.ProviderCategoryLabel,
+                (assigned, provider) => CategoryPathHelper.IsSame(
+                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(assigned),
+                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(provider)));
             PluginLogger.GetLogger("CategoryDiag").Debug(
-                $"[CategoryDiag] After persist: normalized='{normalized}' " +
-                $"firstRowLabel='{targets[0].CategoryLabel}' firstRowEffective='{targets[0].EffectiveCategoryLabel}' " +
+                $"[CategoryDiag] After persist: normalized='{normalized}' rows={AchievementRows.Count} " +
+                $"mapEntries={writtenMap.Count} firstApi='{targets[0].OriginalApiName}' " +
+                $"firstRowLabel='{targets[0].CategoryLabel}' firstProvider='{targets[0].ProviderCategoryLabel}' " +
+                $"firstRowEffective='{targets[0].EffectiveCategoryLabel}' " +
+                $"inMap={writtenMap.ContainsKey(targets[0].OriginalApiName ?? string.Empty)} " +
                 $"storedForFirst='{(GetCurrentCategoryOverrideMap().TryGetValue(targets[0].OriginalApiName, out var stored) ? stored : "<none>")}'.");
             SyncBulkRowFromSelection();
         }
