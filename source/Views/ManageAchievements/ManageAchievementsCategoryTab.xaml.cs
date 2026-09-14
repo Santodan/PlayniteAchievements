@@ -85,6 +85,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // control raises this only when its drop-down is closed, so Enter still picks the
             // highlighted row while the list is open.
             CategoryInputPicker.Committed += (_, __) => ApplyBulk();
+            CategoryInputPicker.CreateRequested += (_, __) => CreateCategoryFromPicker();
         }
 
         private ManageAchievementsCategoryViewModel ViewModel => DataContext as ManageAchievementsCategoryViewModel;
@@ -169,6 +170,24 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 CategoryInputPicker.SetInitialCategory(null);
                 ViewModel.ResetBulkEditorInputs();
                 ViewModel.ClearAllSelections();
+            }
+        }
+
+        /// <summary>
+        /// Creates a category from the picker's create row and leaves it picked, ready for the
+        /// apply button. The manager list is where it is then nested, renamed, or given art.
+        /// </summary>
+        private void CreateCategoryFromPicker()
+        {
+            if (ViewModel == null || !CategoryCreationPrompt.TryPrompt(out var leafName))
+            {
+                return;
+            }
+
+            var created = ViewModel.CreateCategory(leafName);
+            if (!string.IsNullOrWhiteSpace(created))
+            {
+                CategoryInputPicker.SetInitialCategory(created);
             }
         }
 
