@@ -56,6 +56,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly Func<bool> _showManualLinkDialog;
         private readonly Action _unlinkManualTracking;
         private bool _isRefreshingAssignments;
+
+        private bool _isDetailsPaneExpanded = true;
         private bool _isCommittingRows;
         private bool _isSyncingTypeOptions;
         private bool _isSyncingCustomProvider;
@@ -510,6 +512,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         public bool IsBulkEditing => _selectedRows.Count > 1;
+
+        /// <summary>
+        /// Whether the details pane is showing. Deliberately not persisted: folding it away is a
+        /// gesture for the width of one piece of work, so the tab opens showing the pane every time
+        /// rather than hiding the editors from someone who does not remember collapsing them.
+        /// </summary>
+        public bool IsDetailsPaneExpanded
+        {
+            get => _isDetailsPaneExpanded;
+            set => SetValue(ref _isDetailsPaneExpanded, value);
+        }
 
         public int BulkSelectionCount => _selectedRows.Count;
 
@@ -1244,6 +1257,67 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             StageAcross(targets, row => row.CategoryLabel = normalized);
             PersistCategoryAssignmentsFromRows();
             SyncBulkRowFromSelection();
+        }
+
+        /// <summary>
+        /// Creates a top-level category and files the selected achievements in it. Returns the label
+        /// in effect - the created one, or an existing one the name already belonged to - or null
+        /// when the name was unusable.
+        /// </summary>
+        /// <remarks>
+        /// The category is written into the order list first, so it exists even when nothing is
+        /// selected to put in it: a category is otherwise only a label some achievement carries, and
+        /// creating one to fill later would vanish on the next read. Nesting is not offered here -
+        /// a created category is a root, and the Categories tab is where one is moved under another.
+        /// </remarks>
+        public string CreateAndAssignCategory(string leafName)
+        {
+            var label = CategoryPathHelper.SanitizeSegment(leafName);
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                return null;
+            }
+
+            try
+            {
+                var existing = AssignableCategoryOptions
+                    .FirstOrDefault(option => CategoryPathHelper.IsSame(option, label));
+                if (string.IsNullOrWhiteSpace(existing))
+                {
+                    // The whole known set, not just the stored order: a partial order would pin the
+                    // new category ahead of categories that had never needed an entry of their own.
+                    var order = AssignableCategoryOptions
+                        .Where(option => !string.IsNullOrWhiteSpace(option))
+                        .ToList();
+                    order.Add(label);
+
+                    // Per-game display state, scoped out of the library-wide passes like every
+                    // other category order write.
+                    _achievementOverridesService.SetAchievementCategoryMetadata(
+                        _gameId,
+                        order,
+                        GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted),
+                        GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted),
+                        affectsSummaryData: false);
+                }
+                else
+                {
+                    label = existing;
+                }
+
+                SetCategoryForSelection(label);
+
+                // SetCategoryForSelection does nothing without a selection, and the refresh it would
+                // have run is what puts a freshly created category into the picker.
+                RefreshAssignmentState();
+                return label;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed creating achievement category for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+                return null;
+            }
         }
 
         /// <summary>
