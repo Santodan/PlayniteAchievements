@@ -41,6 +41,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private AchievementEditorRow _categoryPickerRow;
 
+        private string _categoryPickerLabel;
+
         private DataGridRow _pendingRightClickRow;
 
         public ManageAchievementsEditorTab(ManageAchievementsEditorViewModel viewModel)
@@ -55,6 +57,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
             AttachFilter();
             viewModel.AssignmentsChanged += (_, __) => SeedCategoryPicker();
             viewModel.ScrollRowIntoViewRequested += (_, row) => ScrollRowIntoView(row);
+
+            // Posted at Background priority on purpose: the grid is still working through the
+            // collection reset and the SelectedRow push-back when this is raised, and reselecting
+            // inline would be undone by them.
+            viewModel.RestoreSelectionRequested += (_, apiNames) =>
+                Dispatcher.BeginInvoke(
+                    new Action(() => RestoreSelectionByApiNames(apiNames)),
+                    System.Windows.Threading.DispatcherPriority.Background);
             CategoryPicker.SelectionCommitted += (_, __) => ApplyCategoryFromPicker();
             CategoryPicker.CreateRequested += (_, __) => PromptAndCreateCategory();
             SeedCategoryPicker();
@@ -213,10 +223,23 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// </summary>
         private void SeedCategoryPicker()
         {
-            _categoryPickerRow = ViewModel?.EditTarget;
+            var target = ViewModel?.EditTarget;
             // The effective label, so the picker opens showing the category the achievement is
             // actually in rather than only a category the user had overridden it to.
-            CategoryPicker.SetInitialCategory(_categoryPickerRow?.EffectiveCategoryLabel);
+            var label = target?.EffectiveCategoryLabel;
+
+            // The box's state is a function of exactly these two, and one selection change raises
+            // EditTarget many times over - once for the grid's own reset, once for each row it
+            // re-reports, and once more for the assignment notification.
+            if (ReferenceEquals(target, _categoryPickerRow) &&
+                string.Equals(label, _categoryPickerLabel, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _categoryPickerRow = target;
+            _categoryPickerLabel = label;
+            CategoryPicker.SetInitialCategory(label);
         }
 
         /// <summary>
