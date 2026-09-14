@@ -85,6 +85,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isSyncingDisplayPlatform;
         private CategoryPickerOption _selectedCategoryFilter;
         private EditorFilterOption _selectedTypeFilter;
+        private bool _suppressFilterNotifications;
         private SearchQuery _filterQuery;
         private readonly SearchTextIndex<AchievementEditorRow> _searchIndex =
             new SearchTextIndex<AchievementEditorRow>(row => SearchTextBuilder.ForManualEdit(
@@ -184,6 +185,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>Raised after a category or type assignment was persisted for a custom row.</summary>
         public event EventHandler AssignmentsChanged;
+
+        /// <summary>
+        /// Raised after a rebuild replaced the rows, carrying the ApiNames that were selected before
+        /// it. SelectedItems lives on the control, so only the view can put a multi-row selection
+        /// back; the single-row case is restored here through <see cref="SelectedRow"/>.
+        /// </summary>
+        public event EventHandler<IReadOnlyList<string>> RestoreSelectionRequested;
 
         /// <summary>
         /// Asks the grid to bring a row into view. Raised when the editor picks a row on the user's
@@ -542,13 +550,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetSelectedRows(IEnumerable<AchievementEditorRow> rows)
         {
-            _selectedRows.Clear();
-            foreach (var row in rows ?? Enumerable.Empty<AchievementEditorRow>())
+            var incoming = (rows ?? Enumerable.Empty<AchievementEditorRow>())
+                .Where(row => row != null)
+                .ToList();
+
+            // The grid re-reports the same selection while it processes a collection reset and
+            // again after a view refresh. Each report otherwise raises EditTarget and re-seeds the
+            // whole details pane, which is most of the cost of one edit.
+            if (incoming.Count == _selectedRows.Count &&
+                !incoming.Where((row, index) => !ReferenceEquals(row, _selectedRows[index])).Any())
             {
-                if (row != null)
-                {
-                    _selectedRows.Add(row);
-                }
+                return;
+            }
+
+            _selectedRows.Clear();
+            foreach (var row in incoming)
+            {
+                _selectedRows.Add(row);
             }
 
             RebuildBulkRow();
@@ -2236,6 +2254,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void ReplaceRows(IEnumerable<AchievementEditorRow> rows)
         {
             var previousSelectedId = SelectedRow?.NormalizedId;
+            var previousSelectedApiNames = _selectedRows
+                .Where(row => !string.IsNullOrWhiteSpace(row?.OriginalApiName))
+                .Select(row => row.OriginalApiName)
+                .ToList();
             foreach (var row in AchievementRows)
             {
                 row.PropertyChanged -= Row_PropertyChanged;
@@ -2261,6 +2283,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                               !string.IsNullOrWhiteSpace(previousSelectedId) &&
                               string.Equals(row?.NormalizedId, previousSelectedId, StringComparison.OrdinalIgnoreCase))
                           ?? AchievementRows.FirstOrDefault();
+
+            // SelectedRow restores one row, so a multi-row selection would otherwise come back as
+            // whichever row the pane had been editing. A reload the editor did not ask for should
+            // not cost the user their selection.
+            if (previousSelectedApiNames.Count > 1)
+            {
+                RestoreSelectionRequested?.Invoke(this, previousSelectedApiNames);
+            }
         }
 
         /// <summary>
@@ -2310,7 +2340,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     row.IsCapstone = string.Equals(apiName, capstoneApiName, StringComparison.OrdinalIgnoreCase);
                 }
 
-                RefreshAssignableCategoryOptions(categoryOverrides);
+                RefreshAssignableCategoryOptions(resolved);
                 SyncTypeOptionsToEditTarget();
             }
             catch (Exception ex)
@@ -2323,36 +2353,34 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private void RefreshAssignableCategoryOptions(IReadOnlyDictionary<string, string> categoryOverrides)
+        /// <summary>
+        /// Rebuilds the categories the pickers offer: every label the rows carry, plus labels that
+        /// only hold user state - the order, the art overrides, the summary pick - in tree order.
+        /// </summary>
+        /// <remarks>
+        /// Reads the rows rather than the hydrated snapshot. A row's effective label is already the
+        /// override where there is one and the provider's label otherwise, so the snapshot pass
+        /// restated what the rows say - and, since every assignment invalidates that snapshot, it
+        /// paid for a cold rebuild of it on each edit. The resolved record is passed in for the
+        /// same reason: each lookup helper clones the game's whole customization.
+        /// </remarks>
+        private void RefreshAssignableCategoryOptions(ResolvedGameCustomData resolved)
         {
-            // Same sources the Category tab renders: every achievement's effective label, plus
-            // labels that only carry user state (order, art, the summary pick), in tree order.
-            var categoryOrder = GameCustomDataLookup.GetAchievementCategoryOrder(_gameId, _settings?.Persisted);
-            var labels = new List<string>();
-            var achievements = _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements;
-            if (achievements != null)
+            // An empty grid means a load that failed or has not finished, not a game with no
+            // categories: synchronising to empty here blanked the picker under the user.
+            if (AchievementRows.Count == 0)
             {
-                foreach (var achievement in achievements)
-                {
-                    var apiName = NormalizeText(achievement?.ApiName);
-                    if (string.IsNullOrWhiteSpace(apiName))
-                    {
-                        continue;
-                    }
-
-                    labels.Add(categoryOverrides.TryGetValue(apiName, out var overrideLabel)
-                        ? overrideLabel
-                        : AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category));
-                }
+                return;
             }
 
+            var categoryOrder = resolved?.AchievementCategoryOrder;
+            var labels = new List<string>(AchievementRows.Count);
             labels.AddRange(AchievementRows
                 .Select(row => row?.EffectiveCategoryLabel)
                 .Where(label => !string.IsNullOrWhiteSpace(label)));
-            labels.AddRange(GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted)?.Keys
-                ?? Enumerable.Empty<string>());
+            labels.AddRange(resolved?.AchievementCategoryImageOverrides?.Keys ?? Enumerable.Empty<string>());
             labels.AddRange(categoryOrder ?? new List<string>());
-            var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted);
+            var summaryCategory = resolved?.GameSummaryCategory;
             if (!string.IsNullOrWhiteSpace(summaryCategory?.Label))
             {
                 labels.Add(summaryCategory.Label);
@@ -2361,6 +2389,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var ordered = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryTree(
                 labels.Where(label => !string.IsNullOrWhiteSpace(label)),
                 categoryOrder);
+
+            // The pickers rebuild their option rows once per collection event, so an unchanged
+            // label set has to raise none.
+            if (AssignableCategoryOptions.SequenceEqual(ordered, StringComparer.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
             CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, ordered);
         }
 
@@ -2411,7 +2447,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrides, categoryTypeOverrides);
                 RefreshAssignmentState();
-                AssignmentsChanged?.Invoke(this, EventArgs.Empty);
+
+                // Through the debounce, not raised directly: only its flush marks the notification
+                // as this editor's own, and without that mark the cascade came back as a refresh
+                // request that reloaded every row - clearing the grid's selection on the way - for
+                // an edit the editor was already showing.
+                RaiseAssignmentsChanged();
             }
             catch (Exception ex)
             {
@@ -3706,6 +3747,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void NotifyFilterChanged()
         {
+            if (_suppressFilterNotifications)
+            {
+                return;
+            }
+
             OnPropertyChanged(nameof(IsFiltering));
             // The header toggles summarize the rows on screen, and the filter decides which those
             // are.
@@ -3757,13 +3803,32 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // A filter whose category disappeared falls back to showing everything, rather than
             // leaving the grid mysteriously empty.
-            SelectedCategoryFilter = CategoryFilterOptions.FirstOrDefault(option =>
-                                         option.IsSelectable &&
-                                         string.Equals(option.Label, previousCategory, StringComparison.OrdinalIgnoreCase))
-                                     ?? CategoryFilterOptions.FirstOrDefault();
-            SelectedTypeFilter = TypeFilterOptions.FirstOrDefault(option =>
-                                     string.Equals(option.Value, previousType, StringComparison.OrdinalIgnoreCase))
-                                 ?? TypeFilterOptions.FirstOrDefault();
+            //
+            // Reassigned under a guard because the rebuilt options are new instances every time, so
+            // the setters always see a change even when the filter is the same one. The view
+            // answers a filter change by refreshing the collection view, and that reset takes the
+            // grid's selection with it.
+            _suppressFilterNotifications = true;
+            try
+            {
+                SelectedCategoryFilter = CategoryFilterOptions.FirstOrDefault(option =>
+                                             option.IsSelectable &&
+                                             string.Equals(option.Label, previousCategory, StringComparison.OrdinalIgnoreCase))
+                                         ?? CategoryFilterOptions.FirstOrDefault();
+                SelectedTypeFilter = TypeFilterOptions.FirstOrDefault(option =>
+                                         string.Equals(option.Value, previousType, StringComparison.OrdinalIgnoreCase))
+                                     ?? TypeFilterOptions.FirstOrDefault();
+            }
+            finally
+            {
+                _suppressFilterNotifications = false;
+            }
+
+            if (!string.Equals(SelectedCategoryFilter?.Label, previousCategory, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(SelectedTypeFilter?.Value, previousType, StringComparison.OrdinalIgnoreCase))
+            {
+                NotifyFilterChanged();
+            }
         }
 
         /// <summary>
