@@ -48,21 +48,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
             InitializeComponent();
             DataContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
 
-            // The picker resolves on demand (Enter or focus loss); it is seeded for the row that
-            // was selected when editing began, so a click onto another row commits to the right one.
+            // The picker applies on pick, like the rest of this window, and is seeded for the row
+            // that was selected when editing began, so it always commits to the right one.
             viewModel.PropertyChanged += ViewModel_PropertyChanged;
             viewModel.FilterChanged += ViewModel_FilterChanged;
             AttachFilter();
             viewModel.AssignmentsChanged += (_, __) => SeedCategoryPicker();
             viewModel.ScrollRowIntoViewRequested += (_, row) => ScrollRowIntoView(row);
-            CategoryPicker.Committed += (_, __) => ApplyCategoryFromPicker();
-            CategoryPicker.IsKeyboardFocusWithinChanged += (_, e) =>
-            {
-                if (!(bool)e.NewValue)
-                {
-                    ApplyCategoryFromPicker();
-                }
-            };
+            CategoryPicker.SelectionCommitted += (_, __) => ApplyCategoryFromPicker();
+            CategoryPicker.CreateRequested += (_, __) => PromptAndCreateCategory();
             SeedCategoryPicker();
 
             // Same behavior that drove the Order and Goals grids, including its ctrl/shift-
@@ -117,6 +111,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private void ViewModel_FilterChanged(object sender, EventArgs e)
         {
             CollectionViewSource.GetDefaultView(ViewModel?.AchievementRows)?.Refresh();
+        }
+
+        private void ToggleDetailsPaneButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel != null)
+            {
+                ViewModel.IsDetailsPaneExpanded = !ViewModel.IsDetailsPaneExpanded;
+            }
         }
 
         private void ClearFilterButton_Click(object sender, RoutedEventArgs e)
@@ -231,6 +233,24 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             ViewModel.SetCategoryForSelection(CategoryPicker.ResolveSelection());
+        }
+
+        /// <summary>
+        /// Names and creates a category, filing the selection in it. Reached from the create row at
+        /// the top of the picker and from the row menu, so both gestures share one set of rules.
+        /// </summary>
+        private void PromptAndCreateCategory()
+        {
+            if (ViewModel == null || !CategoryCreationPrompt.TryPrompt(out var leafName))
+            {
+                return;
+            }
+
+            var created = ViewModel.CreateAndAssignCategory(leafName);
+            if (!string.IsNullOrWhiteSpace(created))
+            {
+                SeedCategoryPicker();
+            }
         }
 
         /// <summary>
@@ -648,6 +668,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 Header = ResourceProvider.GetString("LOCPlayAch_Common_Label_Category"),
                 IsEnabled = selection.All(row => row.CanEditAssignments)
             };
+
+            // Creating one sits above the categories that exist, the same place the picker offers
+            // it, so the gesture is in reach without going to the Categories tab.
+            categoryMenu.Items.Add(CreateMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis"),
+                PromptAndCreateCategory));
+            categoryMenu.Items.Add(new Separator());
+
             foreach (var option in viewModel.CategoryFilterOptions.Where(option => option.IsSelectable))
             {
                 var label = option.Label;
@@ -668,7 +696,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 categoryMenu.Items.Add(categoryItem);
             }
 
-            if (categoryMenu.Items.Count > 0)
+            if (!(categoryMenu.Items[categoryMenu.Items.Count - 1] is Separator))
             {
                 categoryMenu.Items.Add(new Separator());
             }
