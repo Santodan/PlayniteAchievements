@@ -31,6 +31,15 @@ namespace PlayniteAchievements.Views.Controls
         {
             InitializeComponent();
             PickerComboBox.SelectionChanged += PickerComboBox_SelectionChanged;
+
+            // A TabControl unloads the tab this box sits on, so the watcher has to come back with
+            // it: the bound collection is delivered once and never replaced, which left a box that
+            // had been unloaded showing the categories that existed when the user last left it.
+            Loaded += (_, __) =>
+            {
+                AttachCategoriesWatcher(Categories as INotifyCollectionChanged);
+                RebuildOptions();
+            };
             Unloaded += (_, __) => DetachCategoriesWatcher();
         }
 
@@ -210,10 +219,22 @@ namespace PlayniteAchievements.Views.Controls
 
             _options = options;
             var carriedLabel = _lastPickedOption?.Label;
-            PickerComboBox.ItemsSource = _options;
 
-            // Reassigning the source drops the selection; the label the box was showing goes back
-            // when the rebuilt list still has a row for it.
+            // Reassigning the source drops the selection - the rebuilt rows are new instances - and
+            // the selector reports that as a selection change. It is bookkeeping, not a pick, so it
+            // is made under the guard: left uncovered it committed an empty category over whatever
+            // the user had just filed, which is exactly what a freshly created category triggers.
+            _isSyncingSelection = true;
+            try
+            {
+                PickerComboBox.ItemsSource = _options;
+            }
+            finally
+            {
+                _isSyncingSelection = false;
+            }
+
+            // The label the box was showing goes back when the rebuilt list still has a row for it.
             SetInitialCategory(carriedLabel);
         }
 
