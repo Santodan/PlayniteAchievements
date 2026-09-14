@@ -756,6 +756,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             .Select(tier => new CustomAchievementSelectionOption(tier.ToString(), tier.ToDisplayText()))
             .ToList();
 
+        /// <remarks>
+        /// The None option's value is the empty string, and a bulk selection that disagrees carries
+        /// a null trophy type - which matches no option, so the combo renders blank. Do not coalesce
+        /// that null to string.Empty anywhere on the way to this combo: it would select None and
+        /// push it two-way onto every selected row.
+        /// </remarks>
         public IReadOnlyList<CustomAchievementSelectionOption> TrophyTypeOptions { get; } =
             new[]
             {
@@ -1335,8 +1341,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // Merged into the type the row actually carries, not into its override alone. A row with
+            // no override of its own has a null one, which reads as Default, so ticking a second
+            // type used to drop the provider's grouping the ticks beside it were still showing.
+            // The Categories tab and the shared row menu both toggle from the effective value.
             StageAcross(targets, row => row.CategoryTypeValue = AchievementCategoryTypeHelper.WithCategoryType(
-                AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryTypeValue),
+                AchievementCategoryTypeHelper.NormalizeOrDefault(row.EffectiveCategoryTypeValue),
                 normalizedType,
                 isSelected));
             PersistCategoryAssignmentsFromRows();
