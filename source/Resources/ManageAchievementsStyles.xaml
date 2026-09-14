@@ -362,6 +362,48 @@
         <Setter Property="VerticalAlignment" Value="Top"/>
     </Style>
 
+    <!-- Collapses and expands the editor's details pane. Transparent and borderless, so the chevron
+         reads as an affordance on the card rather than a third button in the toolbar. -->
+    <Style x:Key="DetailsPaneToggleButtonStyle" TargetType="Button">
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Padding" Value="4"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="ToggleBorder"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}"
+                            CornerRadius="3"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ToggleBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DetailsPaneChevronStyle" TargetType="Path">
+        <Setter Property="Width" Value="6"/>
+        <Setter Property="Height" Value="10"/>
+        <Setter Property="Stretch" Value="Uniform"/>
+        <Setter Property="Stroke" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="StrokeThickness" Value="1.5"/>
+        <Setter Property="StrokeStartLineCap" Value="Round"/>
+        <Setter Property="StrokeEndLineCap" Value="Round"/>
+        <Setter Property="StrokeLineJoin" Value="Round"/>
+    </Style>
+
     <Style x:Key="ManageAchievementsToolbarRowStyle" TargetType="Grid">
         <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
         <Setter Property="MinHeight" Value="{StaticResource PlayAch.Size.Control.LargeHeight}"/>
