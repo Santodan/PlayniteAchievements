@@ -59,9 +59,6 @@ namespace PlayniteAchievements.Services.Hydration
                 }
             }
 
-            var manualCapstone = customData.ManualCapstoneApiName;
-            var hasManualCapstone = !string.IsNullOrWhiteSpace(manualCapstone);
-
             // One record per achievement carries category, category type, note, the icon paths and
             // the user-editable provider fields, so a row needs a single lookup rather than one per
             // facet.
@@ -103,14 +100,6 @@ namespace PlayniteAchievements.Services.Hydration
                 var providerCategory = NormalizeCategory(detail.ProviderCategory ?? detail.Category);
                 detail.ProviderCategory = providerCategory;
                 var providerCategoryType = AchievementCategoryTypeHelper.Normalize(detail.CategoryType);
-
-                if (hasManualCapstone)
-                {
-                    detail.IsCapstone = string.Equals(
-                        apiName,
-                        manualCapstone,
-                        StringComparison.OrdinalIgnoreCase);
-                }
 
                 AchievementOverride userOverride = null;
                 if (hasOverrides && !string.IsNullOrWhiteSpace(apiName))
@@ -157,6 +146,34 @@ namespace PlayniteAchievements.Services.Hydration
 
                 detail.IsGoal = goalOrderIndex != int.MaxValue;
                 detail.GoalOrderIndex = goalOrderIndex;
+            }
+
+            StampCapstones(detailList, customData);
+        }
+
+        /// <summary>
+        /// Marks the game's capstones, in a pass of its own because a category-scoped capstone is
+        /// filed by its achievement's category and the loop above is where that category is
+        /// finally decided. Stamping inside it would file every capstone under the provider's label
+        /// and quietly lose any the user had re-filed.
+        /// </summary>
+        private static void StampCapstones(
+            IList<AchievementDetail> detailList,
+            ResolvedGameCustomData customData)
+        {
+            // An untouched game keeps whatever the provider flagged, so there is nothing to stamp.
+            if (customData?.CapstonesMaterialized != true)
+            {
+                return;
+            }
+
+            var resolver = CapstoneResolver.Resolve(detailList, customData.Capstones, true);
+            foreach (var detail in detailList)
+            {
+                if (detail != null)
+                {
+                    detail.IsCapstone = resolver.IsCapstone(detail.ApiName);
+                }
             }
         }
 
