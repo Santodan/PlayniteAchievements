@@ -1016,6 +1016,15 @@ namespace PlayniteAchievements.Services.Achievements
                         achievement.TrophyType = userOverride.TrophyType;
                     }
 
+                    // Either value is a customization, so only a stored one counts: null means the
+                    // provider still decides. Summary rows come straight from SQL, which reads the
+                    // provider's own column, so without this the editor's hidden override showed
+                    // in the achievement list and nowhere else.
+                    if (userOverride.Hidden.HasValue)
+                    {
+                        achievement.Hidden = userOverride.Hidden.Value;
+                    }
+
                     // Only a correction to an achievement that is already unlocked; unlock status
                     // itself stays provider-owned.
                     if (userOverride.UnlockTimeUtc.HasValue && achievement.Unlocked)
