@@ -903,7 +903,8 @@ namespace PlayniteAchievements.Services.Achievements
             return result;
         }
 
-        private static readonly string[] PlatinumApiNameSeparator = { "~|~" };
+        private static readonly string[] PlatinumApiNameSeparator =
+            { CachedGameSummaryData.PlatinumApiNameSeparator };
 
         private static HashSet<string> SplitPlatinumApiNames(string packed)
         {
@@ -963,10 +964,10 @@ namespace PlayniteAchievements.Services.Achievements
 
             game.CapstoneTotal = total;
             game.CapstoneUnlocked = unlocked;
-            // Same identity rule as the unedited path: a game with no capstones hands the finish
-            // badge to its platinum outright, one with capstones only when they are its platinums.
-            game.CapstonesMatchPlatinums =
-                capstonesThatAreNotPlatinum == 0 && (total == 0 || platinums.Count == total);
+            // The stored set replaces both halves of the identity: the query counted the capstones
+            // the provider flagged, which this game no longer goes by.
+            game.CapstonesNotPlatinum = capstonesThatAreNotPlatinum;
+            game.PlatinumsNotCapstone = platinums.Count - (total - capstonesThatAreNotPlatinum);
             game.IsCompleted =
                 (game.TotalAchievements > 0 && game.UnlockedAchievements >= game.TotalAchievements) ||
                 (total > 0 && unlocked >= total);
