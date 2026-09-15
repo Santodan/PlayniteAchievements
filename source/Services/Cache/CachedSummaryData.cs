@@ -92,6 +92,11 @@ namespace PlayniteAchievements.Services.Cache
 
         public bool IsCompleted { get; set; }
 
+        /// <summary>How many capstones the game has, and how many are earned.</summary>
+        public int CapstoneTotal { get; set; }
+
+        public int CapstoneUnlocked { get; set; }
+
         public DateTime? LastUnlockUtc { get; set; }
     }
 

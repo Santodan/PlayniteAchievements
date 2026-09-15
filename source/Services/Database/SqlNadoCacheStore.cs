@@ -5332,10 +5332,10 @@ namespace PlayniteAchievements.Services.Database
                 return;
             }
 
-            var manualCapstoneApiName = NormalizeDbText(customData.ManualCapstoneApiName);
-            if (!string.IsNullOrWhiteSpace(manualCapstoneApiName))
+            // The stored set replaces the provider seed outright once the user has edited it.
+            if (customData.CapstonesMaterialized)
             {
-                item.IsCapstone = string.Equals(apiName, manualCapstoneApiName, StringComparison.OrdinalIgnoreCase);
+                item.IsCapstone = customData.Capstones?.Any(capstone => capstone.Matches(apiName)) == true;
             }
 
             if (customData.AchievementCategoryOverrides != null &&

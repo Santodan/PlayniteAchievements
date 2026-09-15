@@ -541,9 +541,12 @@ namespace PlayniteAchievements.Services.Achievements
                     (hasCustomData
                         ? customData.UseSeparateLockedIconsOverride == true
                         : Persisted?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true),
-                ManualCapstoneApiName = hasCustomData
-                    ? NormalizeText(customData.ManualCapstoneApiName)
-                    : ResolveFallbackManualCapstone(gameId),
+                CapstonesMaterialized = hasCustomData
+                    ? customData.CapstonesMaterialized
+                    : ResolveFallbackCapstones(gameId).Count > 0,
+                Capstones = hasCustomData
+                    ? customData.Capstones ?? new List<CapstoneAssignment>()
+                    : ResolveFallbackCapstones(gameId),
                 AchievementCategoryOverrides = hasCustomData
                     ? CloneStringMap(customData.AchievementCategoryOverrides)
                     : ResolveFallbackOverrides(Persisted?.AchievementCategoryOverrides, gameId),
@@ -566,15 +569,24 @@ namespace PlayniteAchievements.Services.Achievements
             };
         }
 
-        private string ResolveFallbackManualCapstone(Guid gameId)
+        /// <summary>
+        /// The pre-per-game-file capstone as a materialized single game-wide set, which is what it
+        /// always behaved as: it suppressed every provider capstone.
+        /// </summary>
+        private List<CapstoneAssignment> ResolveFallbackCapstones(Guid gameId)
         {
-            if (Persisted?.ManualCapstones == null ||
-                !Persisted.ManualCapstones.TryGetValue(gameId, out var manualCapstoneApiName))
+            var capstones = new List<CapstoneAssignment>();
+            if (Persisted?.ManualCapstones != null &&
+                Persisted.ManualCapstones.TryGetValue(gameId, out var legacy))
             {
-                return null;
+                var apiName = NormalizeText(legacy);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    capstones.Add(new CapstoneAssignment { ApiName = apiName, IsGameWide = true });
+                }
             }
 
-            return NormalizeText(manualCapstoneApiName);
+            return capstones;
         }
 
         private (Dictionary<Guid, GameCustomDataFile> customDataByGameId, HashSet<Guid> excludedSummaryIds)
@@ -794,7 +806,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             foreach (var game in games)
             {
-                if (game == null || game.IsCompleted || !game.PlayniteGameId.HasValue)
+                if (game == null || !game.PlayniteGameId.HasValue)
                 {
                     continue;
                 }
@@ -805,17 +817,46 @@ namespace PlayniteAchievements.Services.Achievements
                     continue;
                 }
 
-                var manualCapstoneApiName = NormalizeText(customization.Resolved?.ManualCapstoneApiName);
-                if (string.IsNullOrWhiteSpace(manualCapstoneApiName))
+                // The summary SQL counts the provider seed, which is the right answer only while a
+                // game is untouched. Once the user has edited its capstones the stored set is the
+                // truth, and it can move completion either way: nominating a second capstone can
+                // un-finish a game just as dropping one can finish it.
+                var resolved = customization.Resolved;
+                if (resolved?.CapstonesMaterialized != true)
                 {
                     continue;
                 }
 
-                if (IsManualCapstoneUnlocked(game.PlayniteGameId.Value, manualCapstoneApiName))
+                ApplyStoredCapstoneCompletion(game, resolved);
+            }
+        }
+
+        /// <summary>
+        /// Recomputes a summary row's capstone counts and completion from the game's stored set.
+        /// </summary>
+        private void ApplyStoredCapstoneCompletion(CachedGameSummaryData game, ResolvedGameCustomData resolved)
+        {
+            var achievements = GetRawGameAchievementData(game.PlayniteGameId.Value)?.Achievements;
+            if (achievements == null || achievements.Count == 0)
+            {
+                return;
+            }
+
+            var resolver = CapstoneResolver.Resolve(achievements, resolved.Capstones, true);
+            var unlocked = 0;
+            foreach (var achievement in achievements)
+            {
+                if (achievement != null && achievement.Unlocked && resolver.IsCapstone(achievement.ApiName))
                 {
-                    game.IsCompleted = true;
+                    unlocked++;
                 }
             }
+
+            game.CapstoneTotal = resolver.Count;
+            game.CapstoneUnlocked = unlocked;
+            game.IsCompleted =
+                (game.TotalAchievements > 0 && game.UnlockedAchievements >= game.TotalAchievements) ||
+                (resolver.Count > 0 && unlocked >= resolver.Count);
         }
 
         private void ApplyAchievementSummaryCustomization(
@@ -853,10 +894,9 @@ namespace PlayniteAchievements.Services.Achievements
                     continue;
                 }
 
-                var manualCapstoneApiName = NormalizeText(resolved.ManualCapstoneApiName);
-                if (!string.IsNullOrWhiteSpace(manualCapstoneApiName))
+                if (resolved.CapstonesMaterialized)
                 {
-                    achievement.IsCapstone = string.Equals(apiName, manualCapstoneApiName, StringComparison.OrdinalIgnoreCase);
+                    achievement.IsCapstone = resolved.Capstones?.Any(capstone => capstone.Matches(apiName)) == true;
                 }
 
                 // Summary rows come straight from SQL, so the per-achievement record is applied
@@ -937,21 +977,6 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             return overrides.TryGetValue(apiName, out var entry) ? entry : null;
-        }
-
-        private bool IsManualCapstoneUnlocked(Guid playniteGameId, string manualCapstoneApiName)
-        {
-            if (playniteGameId == Guid.Empty || string.IsNullOrWhiteSpace(manualCapstoneApiName))
-            {
-                return false;
-            }
-
-            var gameData = GetRawGameAchievementData(playniteGameId);
-            return gameData?.Achievements != null &&
-                gameData.Achievements.Any(achievement =>
-                    achievement != null &&
-                    achievement.Unlocked &&
-                    string.Equals(achievement.ApiName, manualCapstoneApiName, StringComparison.OrdinalIgnoreCase));
         }
 
         private static string ResolveCustomIconOverridePath(string value, Guid playniteGameId)

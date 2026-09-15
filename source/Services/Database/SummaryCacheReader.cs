@@ -51,7 +51,8 @@ namespace PlayniteAchievements.Services.Database
             public long TrophyGoldTotal { get; set; }
             public long TrophySilverTotal { get; set; }
             public long TrophyBronzeTotal { get; set; }
-            public long HasUnlockedCapstone { get; set; }
+            public long CapstoneTotal { get; set; }
+            public long CapstoneUnlocked { get; set; }
         }
 
         private sealed class CachedRecentUnlockRow
@@ -165,9 +166,15 @@ namespace PlayniteAchievements.Services.Database
                         TrophyGoldTotal = (int)Math.Max(0, row.TrophyGoldTotal),
                         TrophySilverTotal = (int)Math.Max(0, row.TrophySilverTotal),
                         TrophyBronzeTotal = (int)Math.Max(0, row.TrophyBronzeTotal),
+                        CapstoneTotal = (int)Math.Max(0, row.CapstoneTotal),
+                        CapstoneUnlocked = (int)Math.Max(0, row.CapstoneUnlocked),
+                        // Finishing takes every capstone, not any one of them: a platinum earned
+                        // while a DLC pack is still open has not finished the game. These counts
+                        // are the provider seed; a game whose capstones the user has edited is
+                        // corrected from its stored set once custom data is applied.
                         IsCompleted = ((int)Math.Max(0, row.TotalAchievements) > 0 &&
                             (int)Math.Max(0, row.AchievementsUnlocked) >= (int)Math.Max(0, row.TotalAchievements)) ||
-                            row.HasUnlockedCapstone != 0
+                            (row.CapstoneTotal > 0 && row.CapstoneUnlocked >= row.CapstoneTotal)
                     });
                 }
 
@@ -285,7 +292,8 @@ namespace PlayniteAchievements.Services.Database
                     SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'gold' THEN 1 ELSE 0 END) AS TrophyGoldTotal,
                     SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'silver' THEN 1 ELSE 0 END) AS TrophySilverTotal,
                     SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'bronze' THEN 1 ELSE 0 END) AS TrophyBronzeTotal,
-                    MAX(CASE WHEN ad.IsCapstone = 1 AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS HasUnlockedCapstone
+                    SUM(CASE WHEN ad.IsCapstone = 1 THEN 1 ELSE 0 END) AS CapstoneTotal,
+                    SUM(CASE WHEN ad.IsCapstone = 1 AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS CapstoneUnlocked
                 FROM LatestProgress lp
                 LEFT JOIN AchievementDefinitions ad
                     ON ad.GameId = lp.GameId
