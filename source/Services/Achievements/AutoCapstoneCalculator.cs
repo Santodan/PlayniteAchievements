@@ -133,11 +133,32 @@ namespace PlayniteAchievements.Services.Achievements
                 .Any(value => string.Equals(value, groupType, StringComparison.OrdinalIgnoreCase));
         }
 
-        public static AutoCapstoneDerivation Derive(IEnumerable<AchievementDetail> achievements)
+        /// <param name="category">
+        /// The category the capstone stands for, or null for the whole game. Category and category
+        /// type are different axes and both apply: the label narrows the capstone to one category,
+        /// and the group rules below still drop DLC and subsets from within it. For a game whose
+        /// achievements all sit in one category the two give the same answer, which is what keeps a
+        /// single-category game behaving exactly as it did.
+        /// </param>
+        public static AutoCapstoneDerivation Derive(
+            IEnumerable<AchievementDetail> achievements,
+            string category = null)
         {
             var candidates = (achievements ?? Enumerable.Empty<AchievementDetail>())
                 .Where(achievement => achievement != null)
                 .ToList();
+
+            var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(category);
+            if (!string.IsNullOrWhiteSpace(normalizedCategory))
+            {
+                candidates = candidates
+                    .Where(achievement => string.Equals(
+                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category),
+                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(normalizedCategory),
+                        StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+
             if (candidates.Count == 0)
             {
                 return null;

@@ -69,48 +69,87 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var definitions = _store.LoadOrDefault(gameId)?.CustomAchievements;
-            var index = definitions?.FindIndex(definition => definition?.IsAutoCapstone == true) ?? -1;
-            if (index < 0)
+            if (definitions == null || definitions.Count == 0)
             {
                 return;
             }
 
-            var current = definitions[index];
-            var apiName = CustomAchievementProjectionService.BuildApiName(current.Id);
+            // Every auto capstone, not just the first: a game can hold one per category, each
+            // standing for its own, so maintaining only one left the rest frozen at the values
+            // they were authored with.
+            var indexes = new List<int>();
+            for (var i = 0; i < definitions.Count; i++)
+            {
+                if (definitions[i]?.IsAutoCapstone == true)
+                {
+                    indexes.Add(i);
+                }
+            }
+
+            if (indexes.Count == 0)
+            {
+                return;
+            }
+
             var gameData = _resolveGameData?.Invoke(gameId);
-
-            // Everything except the capstone itself: it stands for the others, so counting itself
-            // would leave it waiting on its own unlock.
-            var derived = AutoCapstoneCalculator.Derive(gameData?.Achievements?
-                .Where(achievement => !string.Equals(achievement?.ApiName, apiName, StringComparison.OrdinalIgnoreCase)));
-            if (derived == null)
-            {
-                return;
-            }
-
-            var updated = current.Clone();
-            updated.Unlocked = derived.Unlocked;
-            updated.UnlockTimeUtc = derived.Unlocked ? derived.UnlockTimeUtc : null;
-            updated.GlobalPercentUnlocked = derived.GlobalPercentUnlocked;
-            updated.Rarity = derived.Rarity ?? updated.Rarity;
-            if (!HasChanges(current, updated))
-            {
-                return;
-            }
-
             var replacement = definitions
                 .Select(definition => definition?.Clone())
                 .Where(definition => definition != null)
                 .ToList();
-            replacement[index] = updated;
+
+            var announce = new List<CustomAchievementDefinition>();
+            var changed = false;
+
+            foreach (var index in indexes)
+            {
+                var current = definitions[index];
+                var apiName = CustomAchievementProjectionService.BuildApiName(current.Id);
+
+                // Everything in its own category except itself: it stands for the others, so
+                // counting itself would leave it waiting on its own unlock.
+                var derived = AutoCapstoneCalculator.Derive(
+                    gameData?.Achievements?.Where(achievement =>
+                        !string.Equals(achievement?.ApiName, apiName, StringComparison.OrdinalIgnoreCase)),
+                    current.Category);
+                if (derived == null)
+                {
+                    continue;
+                }
+
+                var updated = current.Clone();
+                updated.Unlocked = derived.Unlocked;
+                updated.UnlockTimeUtc = derived.Unlocked ? derived.UnlockTimeUtc : null;
+                updated.GlobalPercentUnlocked = derived.GlobalPercentUnlocked;
+                updated.Rarity = derived.Rarity ?? updated.Rarity;
+                if (!HasChanges(current, updated))
+                {
+                    continue;
+                }
+
+                replacement[index] = updated;
+                changed = true;
+
+                // Only the crossing is worth announcing: an already-finished category stays
+                // finished, and a capstone is authored with its unlock already worked out, so this
+                // cannot fire for one that was complete before the capstone existed.
+                if (!current.Unlocked && updated.Unlocked)
+                {
+                    announce.Add(updated);
+                }
+            }
+
+            if (!changed)
+            {
+                return;
+            }
+
+            // One write for the whole set: each store update fans out a synchronous whole-library
+            // recompute, so one per capstone would pay for it several times over.
             _overridesService.SetCustomAchievements(gameId, replacement);
 
-            // Only the crossing is worth announcing: an already-finished game stays finished, and
-            // the capstone is authored with its unlock already worked out, so this cannot fire for
-            // a game that was complete before the capstone existed.
-            if (!current.Unlocked && updated.Unlocked)
+            foreach (var definition in announce)
             {
-                AnnounceUnlock(gameId, updated, gameData);
+                AnnounceUnlock(gameId, definition, gameData);
             }
         }
 
