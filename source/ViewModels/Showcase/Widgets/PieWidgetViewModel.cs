@@ -157,8 +157,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                     break;
                 default:
                     chart.SetGameData(
-                        snapshot.TotalGames,
-                        snapshot.CompletedGames,
+                        snapshot.PossibleCompletions,
+                        snapshot.Completions,
                         Localize("LOCPlayAch_Completed"),
                         Localize("LOCPlayAch_Overview_Incomplete"));
                     break;
