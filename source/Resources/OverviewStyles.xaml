@@ -364,10 +364,52 @@
         </Style.Triggers>
     </Style>
 
+    <!-- The finish badge. When the row's capstones are exactly its platinum trophies and the user
+         has left trophy badges on, the badge becomes the platinum itself and the trophy row drops
+         its own platinum, so the platinum is shown once rather than twice. -->
     <Style x:Key="OverviewCompletedFooterIconStyle" TargetType="Image" BasedOn="{StaticResource OverviewMiniBadgeImageStyle}">
         <Setter Property="HorizontalAlignment" Value="Left"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="Margin" Value="4,0,0,0"/>
+        <Setter Property="Source" Value="{DynamicResource BadgeRarityCompleted}"/>
+        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Completed}"/>
+        <Setter Property="Visibility" Value="{Binding ShowCompletionBadge, Converter={StaticResource BoolToVis}}"/>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding ShowPlatinumInCompletionSpot}" Value="True"/>
+                    <Condition Binding="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}"/>
+                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Trophy_Platinum}"/>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- The finish badge's count, tinted to match whichever icon the badge is showing. -->
+    <Style x:Key="OverviewCompletedFooterTextStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextCompletedStyle}">
+        <Setter Property="Visibility" Value="{Binding ShowCompletionCount, Converter={StaticResource BoolToVis}}"/>
+        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Dynamic_Capstone}"/>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding ShowPlatinumInCompletionSpot}" Value="True"/>
+                    <Condition Binding="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                    <Condition Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Platinum}"/>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- The trophy row's platinum badge, which steps aside when the finish badge has taken it. -->
+    <Style x:Key="OverviewTrophyPlatinumBadgeItemStyle" TargetType="StackPanel" BasedOn="{StaticResource OverviewMiniBadgeItemStyle}">
+        <Setter Property="Visibility" Value="{Binding TrophyPlatinumCount, Converter={StaticResource IntToVis}}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding ShowPlatinumInCompletionSpot}" Value="True">
+                <Setter Property="Visibility" Value="Collapsed"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <!-- Shared rarity/trophy badge row for the Progress column footer. Only one of the two
@@ -424,7 +466,7 @@
             </StackPanel>
 
             <StackPanel Style="{StaticResource OverviewTrophyBadgePanelStyle}">
-                <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding TrophyPlatinumCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}">
+                <StackPanel Style="{StaticResource OverviewTrophyPlatinumBadgeItemStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}">
                     <Image Source="{DynamicResource TrophyPlatinum}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
                     <TextBlock Text="{Binding TrophyPlatinumCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextTrophyPlatinumStyle}"/>
                 </StackPanel>
@@ -453,14 +495,8 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <Image Source="{DynamicResource BadgeRarityCompleted}"
-                       Style="{StaticResource OverviewCompletedFooterIconStyle}"
-                       ToolTip="{DynamicResource LOCPlayAch_Completed}"
-                       Visibility="{Binding ShowCompletionBadge, Converter={StaticResource BoolToVis}}"/>
-            <TextBlock Text="{Binding CompletionCountText}"
-                       Visibility="{Binding ShowCompletionCount, Converter={StaticResource BoolToVis}}"
-                       Style="{StaticResource OverviewMiniBadgeTextUltraRareStyle}"
-                       ToolTip="{DynamicResource LOCPlayAch_Dynamic_Capstone}"/>
+                <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
+            <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
             </StackPanel>
             <ContentControl Grid.Column="1"
                             HorizontalAlignment="Right"
@@ -480,14 +516,8 @@
                             FlowDirection="RightToLeft"
                             Content="{Binding}"
                             ContentTemplate="{StaticResource ProgressBadgeRowTemplate}"/>
-            <Image Source="{DynamicResource BadgeRarityCompleted}"
-                   Style="{StaticResource OverviewCompletedFooterIconStyle}"
-                   ToolTip="{DynamicResource LOCPlayAch_Completed}"
-                   Visibility="{Binding ShowCompletionBadge, Converter={StaticResource BoolToVis}}"/>
-            <TextBlock Text="{Binding CompletionCountText}"
-                       Visibility="{Binding ShowCompletionCount, Converter={StaticResource BoolToVis}}"
-                       Style="{StaticResource OverviewMiniBadgeTextUltraRareStyle}"
-                       ToolTip="{DynamicResource LOCPlayAch_Dynamic_Capstone}"/>
+            <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
+            <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
         </StackPanel>
     </DataTemplate>
 
@@ -506,14 +536,8 @@
                             Content="{Binding}"
                             ContentTemplate="{StaticResource ProgressBadgeRowTemplate}"/>
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0">
-                <Image Source="{DynamicResource BadgeRarityCompleted}"
-                       Style="{StaticResource OverviewCompletedFooterIconStyle}"
-                       ToolTip="{DynamicResource LOCPlayAch_Completed}"
-                       Visibility="{Binding ShowCompletionBadge, Converter={StaticResource BoolToVis}}"/>
-            <TextBlock Text="{Binding CompletionCountText}"
-                       Visibility="{Binding ShowCompletionCount, Converter={StaticResource BoolToVis}}"
-                       Style="{StaticResource OverviewMiniBadgeTextUltraRareStyle}"
-                       ToolTip="{DynamicResource LOCPlayAch_Dynamic_Capstone}"/>
+                <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
+            <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
             </StackPanel>
         </Grid>
     </DataTemplate>
