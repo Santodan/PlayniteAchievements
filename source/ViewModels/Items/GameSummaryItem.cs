@@ -179,10 +179,7 @@ namespace PlayniteAchievements.ViewModels.Items
 
         private int _capstoneTotal;
 
-        /// <summary>
-        /// How many capstones this row has. The badge beside the rarity badges only appears above
-        /// one, because a single capstone is already what the completion badge stands for.
-        /// </summary>
+        /// <summary>How many capstones this row has, and how many are earned.</summary>
         public int CapstoneTotal
         {
             get => _capstoneTotal;
@@ -190,8 +187,8 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (SetValueAndReturn(ref _capstoneTotal, value))
                 {
-                    OnPropertyChanged(nameof(ShowCapstoneCounts));
-                    OnPropertyChanged(nameof(CapstoneCountText));
+                    OnPropertyChanged(nameof(ShowCompletionCount));
+                    OnPropertyChanged(nameof(CompletionCountText));
                     OnPropertyChanged(nameof(Completions));
                 }
             }
@@ -205,21 +202,22 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (SetValueAndReturn(ref _capstoneUnlocked, value))
                 {
-                    OnPropertyChanged(nameof(CapstoneCountText));
+                    OnPropertyChanged(nameof(ShowCompletionCount));
+                    OnPropertyChanged(nameof(CompletionCountText));
                     OnPropertyChanged(nameof(Completions));
                 }
             }
         }
 
-        public bool ShowCapstoneCounts => CapstoneTotal > 1;
+        /// <summary>
+        /// Whether the completion badge carries a number. One finish needs none, the badge itself
+        /// being the statement; several are worth counting.
+        /// </summary>
+        public bool ShowCompletionCount => ShowCompletionBadge && Completions > 1;
 
-        /// <summary>Earned of total, for the badge beside the rarity badges.</summary>
-        public string CapstoneCountText =>
-            string.Format(
-                PlayniteAchievements.Common.FormattingCulture.Current,
-                "{0:N0}/{1:N0}",
-                CapstoneUnlocked,
-                CapstoneTotal);
+        /// <summary>How many finishes the badge stands for.</summary>
+        public string CompletionCountText =>
+            Completions.ToString("N0", PlayniteAchievements.Common.FormattingCulture.Current);
 
         /// <summary>
         /// How many times this row counts as finished: one per capstone earned, or one for a clean
@@ -414,6 +412,9 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _isCompleted, value))
                 {
                     OnPropertyChanged(nameof(ShowCompletionBadge));
+                    OnPropertyChanged(nameof(ShowCompletionCount));
+                    OnPropertyChanged(nameof(CompletionCountText));
+                    OnPropertyChanged(nameof(Completions));
                 }
             }
         }

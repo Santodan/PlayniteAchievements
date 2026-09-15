@@ -123,6 +123,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _allowCompletionBadge, value))
                 {
                     OnPropertyChanged(nameof(ShowCompletionBadge));
+                    OnPropertyChanged(nameof(ShowCompletionCount));
                 }
             }
         }
