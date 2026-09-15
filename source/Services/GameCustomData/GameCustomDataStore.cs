@@ -268,6 +268,15 @@ namespace PlayniteAchievements.Services.GameCustomData
                 changed = true;
             }
 
+            foreach (var capstone in data.Capstones ?? Enumerable.Empty<CapstoneAssignment>())
+            {
+                if (TryResolveRenamedApiName(renamedApiNames, capstone?.ApiName, out var renamedEntry))
+                {
+                    capstone.ApiName = renamedEntry;
+                    changed = true;
+                }
+            }
+
             changed |= RenameListEntries(data.AchievementOrder, renamedApiNames);
             changed |= RenameListEntries(data.FilteredAchievementApiNames, renamedApiNames);
             changed |= RenameListEntries(data.SummaryFilteredAchievementApiNames, renamedApiNames);
