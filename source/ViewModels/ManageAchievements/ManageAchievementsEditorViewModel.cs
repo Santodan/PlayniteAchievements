@@ -1750,17 +1750,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// The platinum trophy that stands for finishing the game, or null when it has none.
-        /// </summary>
-        /// <remarks>
-        /// Several platinums means DLC trophy sets alongside the base game's, and only the base
-        /// game's marks the game complete. Providers type the group rather than leaving it to the
-        /// label, so the base one is read off that type instead of guessed from the category text.
-        /// When nothing is typed -- a game whose trophies were authored or came from a provider
-        /// that does not group them -- the earliest in the achievement order wins, that order being
-        /// what the list is showing.
-        /// </remarks>
-        /// <summary>
         /// Which category the auto capstone should stand for. Null means the game as a whole, which
         /// is the answer whenever its achievements all sit in one category.
         /// </summary>
@@ -1827,6 +1816,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// The platinum trophy that stands for finishing the game, or null when it has none.
+        /// </summary>
+        /// <remarks>
+        /// Several platinums means DLC trophy sets alongside the base game's, and only the base
+        /// game's marks the game complete. Providers type the group rather than leaving it to the
+        /// label, so the base one is read off that type instead of guessed from the category text.
+        /// When nothing is typed -- a game whose trophies were authored or came from a provider
+        /// that does not group them -- the earliest in the achievement order wins, that order being
+        /// what the list is showing.
+        /// </remarks>
         private AchievementEditorRow ResolvePlatinumCapstoneRow()
         {
             var platinums = AchievementRows
