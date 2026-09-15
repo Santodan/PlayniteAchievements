@@ -903,6 +903,28 @@ namespace PlayniteAchievements.Services.Achievements
             return result;
         }
 
+        private static readonly string[] PlatinumApiNameSeparator = { "~|~" };
+
+        private static HashSet<string> SplitPlatinumApiNames(string packed)
+        {
+            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(packed))
+            {
+                return result;
+            }
+
+            foreach (var part in packed.Split(PlatinumApiNameSeparator, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var apiName = NormalizeText(part);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    result.Add(apiName);
+                }
+            }
+
+            return result;
+        }
+
         /// <summary>
         /// Recomputes a summary row's capstone counts and completion from the game's stored set.
         /// </summary>
@@ -915,8 +937,10 @@ namespace PlayniteAchievements.Services.Achievements
             ResolvedGameCustomData resolved,
             HashSet<string> unlockedApiNames)
         {
+            var platinums = SplitPlatinumApiNames(game.PlatinumApiNames);
             var total = 0;
             var unlocked = 0;
+            var capstonesThatAreNotPlatinum = 0;
             foreach (var assignment in resolved.Capstones ?? new List<CapstoneAssignment>())
             {
                 var apiName = NormalizeText(assignment?.ApiName);
@@ -930,10 +954,19 @@ namespace PlayniteAchievements.Services.Achievements
                 {
                     unlocked++;
                 }
+
+                if (!platinums.Contains(apiName))
+                {
+                    capstonesThatAreNotPlatinum++;
+                }
             }
 
             game.CapstoneTotal = total;
             game.CapstoneUnlocked = unlocked;
+            // Same identity rule as the unedited path: a game with no capstones hands the finish
+            // badge to its platinum outright, one with capstones only when they are its platinums.
+            game.CapstonesMatchPlatinums =
+                capstonesThatAreNotPlatinum == 0 && (total == 0 || platinums.Count == total);
             game.IsCompleted =
                 (game.TotalAchievements > 0 && game.UnlockedAchievements >= game.TotalAchievements) ||
                 (total > 0 && unlocked >= total);

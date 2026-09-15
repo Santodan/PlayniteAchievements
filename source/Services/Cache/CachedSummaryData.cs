@@ -97,6 +97,18 @@ namespace PlayniteAchievements.Services.Cache
 
         public int CapstoneUnlocked { get; set; }
 
+        /// <summary>
+        /// Whether the game's capstones are exactly its platinum trophies, or it names none.
+        /// </summary>
+        public bool CapstonesMatchPlatinums { get; set; }
+
+        /// <summary>
+        /// The game's platinum ApiNames, separated by <c>~|~</c>, so the capstone overlay can
+        /// re-decide the identity for a game whose capstones the user has edited. Locked rows are
+        /// absent from the unlock snapshot, which is why this rides along with the summary row.
+        /// </summary>
+        public string PlatinumApiNames { get; set; }
+
         public DateTime? LastUnlockUtc { get; set; }
     }
 
