@@ -413,7 +413,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 ViewModel,
                 row.CapstoneScope,
                 CapstoneScope.None,
-                ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeNone"));
+                ResourceProvider.GetString("LOCPlayAch_Common_None"));
 
             CapstoneScopeContextMenu.PlacementTarget = CapstoneScopeButton;
             CapstoneScopeContextMenu.Placement = PlacementMode.Bottom;
@@ -718,7 +718,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     viewModel,
                     capstoneScope,
                     CapstoneScope.None,
-                    ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeNone"));
+                    ResourceProvider.GetString("LOCPlayAch_Common_None"));
 
                 menu.Items.Add(capstoneMenu);
             }
