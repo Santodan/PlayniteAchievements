@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Services.Achievements
 {
@@ -103,6 +105,53 @@ namespace PlayniteAchievements.Services.Achievements
                 .FirstOrDefault(a => a != null && Matches(a.ApiName, standing))
                 ?.DisplayName;
             return CapstoneAction.Replace;
+        }
+
+        /// <summary>
+        /// Re-stamps a game's rows from its stored capstone set, so a surface can settle after a
+        /// toggle without waiting for a reload.
+        /// </summary>
+        /// <remarks>
+        /// Deterministic on purpose. A capstone write is followed by a debounced invalidation
+        /// elsewhere, and a surface that re-read on its own schedule would show the state from
+        /// before the write on one click and catch up on the next.
+        ///
+        /// Only a materialized game can be stamped this way: an untouched one still takes its
+        /// capstones from provider flags, which only hydration knows.
+        /// </remarks>
+        /// <returns>False when the rows could not be settled and the caller must reload.</returns>
+        public bool TryRestampCapstones(Guid gameId, IEnumerable<AchievementDisplayItem> items)
+        {
+            if (gameId == Guid.Empty || items == null)
+            {
+                return false;
+            }
+
+            var capstones = GameCustomDataLookup.GetCapstoneSet(gameId, _resolveSettings(), _resolveStore());
+            if (!capstones.Materialized)
+            {
+                return false;
+            }
+
+            var effective = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var assignment in capstones.Assignments ?? new List<CapstoneAssignment>())
+            {
+                var apiName = (assignment?.ApiName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    effective.Add(apiName);
+                }
+            }
+
+            foreach (var item in items)
+            {
+                if (item != null)
+                {
+                    item.IsCapstone = effective.Contains((item.ApiName ?? string.Empty).Trim());
+                }
+            }
+
+            return true;
         }
 
         private static bool Matches(string left, string right)

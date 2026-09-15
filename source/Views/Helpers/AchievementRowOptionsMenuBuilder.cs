@@ -293,10 +293,15 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
 
-                // A game can carry several capstones, so setting one no longer tells the other rows
-                // anything and they cannot be re-stamped from this result alone. Only the resolver
-                // knows the whole set, including what a category now inherits, so every change
-                // takes the full reload.
+                // Settled from the stored set rather than from this one result: a game carries
+                // several capstones, so the write says nothing about the other rows. Doing it here
+                // rather than leaving it to a reload is what makes the glyph change on the click
+                // that caused it, instead of on the one after.
+                if (onCapstoneChanged?.Invoke(result.CapstoneApiName) == true)
+                {
+                    return;
+                }
+
                 onChanged?.Invoke();
             };
 

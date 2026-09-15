@@ -3190,27 +3190,22 @@ namespace PlayniteAchievements.ViewModels
         /// Re-stamps the capstone flag on the selected game's rows. Valid only when a capstone is
         /// being set, where every other row becomes a non-capstone.
         /// </summary>
+        /// <summary>
+        /// Re-stamps the capstone flags on the rows already in memory from the game's stored
+        /// set, so the click that changed a capstone is the one that shows it.
+        /// </summary>
         public bool ApplyCapstone(string capstoneApiName)
         {
+            var gameId = SelectedGame?.PlayniteGameId;
             if (_allSelectedGameAchievements == null ||
                 _allSelectedGameAchievements.Count == 0 ||
-                string.IsNullOrWhiteSpace(capstoneApiName))
+                gameId == null)
             {
                 return false;
             }
 
-            foreach (var item in _allSelectedGameAchievements)
-            {
-                if (item != null)
-                {
-                    item.IsCapstone = string.Equals(
-                        (item.ApiName ?? string.Empty).Trim(),
-                        capstoneApiName.Trim(),
-                        StringComparison.OrdinalIgnoreCase);
-                }
-            }
-
-            return true;
+            return PlayniteAchievementsPlugin.Instance?.AchievementMarkerToggle?
+                .TryRestampCapstones(gameId.Value, _allSelectedGameAchievements) == true;
         }
 
         /// <summary>
