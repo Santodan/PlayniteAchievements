@@ -1,7 +1,47 @@
 using System;
+using System.Collections.Generic;
 
 namespace PlayniteAchievements.Models.Settings
 {
+    /// <summary>
+    /// How much of a game one capstone stands for, as chosen in the editor.
+    /// </summary>
+    public enum CapstoneScope
+    {
+        /// <summary>Not a capstone. Clearing one is the same gesture whatever set it there.</summary>
+        None = 0,
+
+        /// <summary>Stands for its own category, and for any subcategory without one.</summary>
+        Category = 1,
+
+        /// <summary>Stands for the whole game, filling every category that has none of its own.</summary>
+        GameWide = 2
+    }
+
+    /// <summary>
+    /// A game's stored capstones together with whether they have been stored at all, which is the
+    /// pair every reader needs: an empty set means something different before and after the user
+    /// has touched it.
+    /// </summary>
+    public struct CapstoneSet
+    {
+        public static readonly CapstoneSet Untouched = new CapstoneSet(false, null);
+
+        public CapstoneSet(bool materialized, IReadOnlyList<CapstoneAssignment> assignments)
+        {
+            Materialized = materialized;
+            Assignments = assignments;
+        }
+
+        /// <summary>
+        /// True once the user has edited this game's capstones. Provider capstone flags stop
+        /// applying to the game at that point.
+        /// </summary>
+        public bool Materialized { get; }
+
+        public IReadOnlyList<CapstoneAssignment> Assignments { get; }
+    }
+
     /// <summary>
     /// One of a game's capstones: an achievement that stands for finishing something, and how much
     /// it stands for.
