@@ -187,6 +187,7 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (SetValueAndReturn(ref _capstoneTotal, value))
                 {
+                    OnPropertyChanged(nameof(ShowCompletionBadge));
                     OnPropertyChanged(nameof(ShowCompletionCount));
                     OnPropertyChanged(nameof(CompletionCountText));
                     OnPropertyChanged(nameof(Completions));
@@ -202,6 +203,7 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (SetValueAndReturn(ref _capstoneUnlocked, value))
                 {
+                    OnPropertyChanged(nameof(ShowCompletionBadge));
                     OnPropertyChanged(nameof(ShowCompletionCount));
                     OnPropertyChanged(nameof(CompletionCountText));
                     OnPropertyChanged(nameof(Completions));
@@ -213,7 +215,7 @@ namespace PlayniteAchievements.ViewModels.Items
         /// Whether the completion badge carries a number. One finish needs none, the badge itself
         /// being the statement; several are worth counting.
         /// </summary>
-        public bool ShowCompletionCount => ShowCompletionBadge && Completions > 1;
+        public bool ShowCompletionCount => CapstoneTotal > 1 && Completions > 0;
 
         /// <summary>How many finishes the badge stands for.</summary>
         public string CompletionCountText =>
@@ -412,6 +414,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _isCompleted, value))
                 {
                     OnPropertyChanged(nameof(ShowCompletionBadge));
+                    OnPropertyChanged(nameof(ShowCompletionBadge));
                     OnPropertyChanged(nameof(ShowCompletionCount));
                     OnPropertyChanged(nameof(CompletionCountText));
                     OnPropertyChanged(nameof(Completions));
@@ -420,11 +423,17 @@ namespace PlayniteAchievements.ViewModels.Items
         }
 
         /// <summary>
-        /// Whether the progress column footer renders the completion badge for this row. Game rows
-        /// track <see cref="IsCompleted"/>; category rows additionally honor the
-        /// CategoryCompletionBadgeMode display setting.
+        /// Whether the progress column footer renders the completion badge for this row. Category
+        /// rows additionally honor the CategoryCompletionBadgeMode display setting.
         /// </summary>
-        public virtual bool ShowCompletionBadge => IsCompleted;
+        /// <remarks>
+        /// With several capstones the badge counts rather than waits: each one earned is a finish
+        /// in its own right, so two of three shows a badge reading 2 instead of nothing until all
+        /// three land. A row with one capstone, or none, keeps the plain finished-or-not badge,
+        /// which is what makes a rollup over mixed rows read consistently.
+        /// </remarks>
+        public virtual bool ShowCompletionBadge =>
+            CapstoneTotal > 1 ? Completions > 0 : IsCompleted;
 
         private string _provider;
         public string Provider { get => _provider; set => SetValue(ref _provider, value); }

@@ -128,6 +128,6 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        public override bool ShowCompletionBadge => IsCompleted && AllowCompletionBadge;
+        public override bool ShowCompletionBadge => base.ShowCompletionBadge && AllowCompletionBadge;
     }
 }
