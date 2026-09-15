@@ -2589,19 +2589,27 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             public CapstoneState(
                 CapstoneResolver resolver,
-                IReadOnlyList<AchievementDetail> achievements,
+                Dictionary<string, AchievementDetail> byApiName,
                 bool materialized)
             {
                 Resolver = resolver;
-                Achievements = achievements;
+                ByApiName = byApiName;
                 Materialized = materialized;
+                CategoryDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             }
 
             public CapstoneResolver Resolver { get; }
 
-            public IReadOnlyList<AchievementDetail> Achievements { get; }
+            public Dictionary<string, AchievementDetail> ByApiName { get; }
 
             public bool Materialized { get; }
+
+            /// <summary>
+            /// Memo for the category display text, which normalizes a path and reads a localized
+            /// string. Rows share categories heavily, so this is computed once per category rather
+            /// than once per row.
+            /// </summary>
+            public Dictionary<string, string> CategoryDisplayNames { get; }
         }
 
         private CapstoneState BuildCapstoneState(ResolvedGameCustomData resolved)
@@ -2609,9 +2617,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var achievements = _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements
                 ?? new List<AchievementDetail>();
             var materialized = resolved?.CapstonesMaterialized == true;
+
+            // Indexed once per refresh rather than scanned per row: this runs for every row in the
+            // grid, and a linear lookup inside it makes re-seeding quadratic in the achievement
+            // count, which a large game feels as a hang on the click that triggered it.
+            var byApiName = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+            foreach (var achievement in achievements)
+            {
+                var key = (achievement?.ApiName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(key) && !byApiName.ContainsKey(key))
+                {
+                    byApiName[key] = achievement;
+                }
+            }
+
             return new CapstoneState(
                 CapstoneResolver.Resolve(achievements, resolved?.Capstones, materialized),
-                achievements,
+                byApiName,
                 materialized);
         }
 
@@ -2625,7 +2647,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // What this row's own category stands on, which is not always this row: a category with
             // no capstone of its own shows the one it inherits from an ancestor.
-            var category = ResolveRowCategory(capstones.Achievements, apiName);
+            var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                FindAchievement(capstones, apiName)?.Category);
             var categoryApiName = resolver.ResolveForCategory(category);
 
             // A game holding exactly one capstone has that capstone standing for the whole of it,
@@ -2640,41 +2663,43 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             row.SetCapstoneStateFromSource(
                 isCapstone,
-                AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(category),
-                ResolveDisplayName(capstones.Achievements, categoryApiName),
-                ResolveDisplayName(capstones.Achievements, gameApiName));
+                ResolveCategoryDisplayName(capstones, category),
+                ResolveDisplayName(capstones, categoryApiName),
+                ResolveDisplayName(capstones, gameApiName));
+
+            // Only worth resolving when the button would actually say Replace.
             row.CapstoneReplacesDisplayName = isCapstone || !resolver.HasOwnCapstone(category)
                 ? null
-                : ResolveDisplayName(capstones.Achievements, resolver.ResolveForCategory(category));
+                : ResolveDisplayName(capstones, resolver.ResolveForCategory(category));
         }
 
-        private static string ResolveRowCategory(IReadOnlyList<AchievementDetail> achievements, string apiName)
+        private static string ResolveCategoryDisplayName(CapstoneState capstones, string category)
         {
-            return AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
-                FindAchievement(achievements, apiName)?.Category);
+            var key = category ?? string.Empty;
+            if (!capstones.CategoryDisplayNames.TryGetValue(key, out var display))
+            {
+                display = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(category);
+                capstones.CategoryDisplayNames[key] = display;
+            }
+
+            return display;
         }
 
-        private static string ResolveDisplayName(IReadOnlyList<AchievementDetail> achievements, string apiName)
+        private static string ResolveDisplayName(CapstoneState capstones, string apiName)
         {
-            var match = FindAchievement(achievements, apiName);
+            var match = FindAchievement(capstones, apiName);
             return match == null ? null : (match.DisplayName ?? match.ApiName);
         }
 
-        private static AchievementDetail FindAchievement(
-            IReadOnlyList<AchievementDetail> achievements,
-            string apiName)
+        private static AchievementDetail FindAchievement(CapstoneState capstones, string apiName)
         {
-            if (string.IsNullOrWhiteSpace(apiName) || achievements == null)
+            if (string.IsNullOrWhiteSpace(apiName) || capstones.ByApiName == null)
             {
                 return null;
             }
 
-            return achievements.FirstOrDefault(achievement =>
-                achievement != null &&
-                string.Equals(
-                    (achievement.ApiName ?? string.Empty).Trim(),
-                    apiName.Trim(),
-                    StringComparison.OrdinalIgnoreCase));
+            capstones.ByApiName.TryGetValue(apiName.Trim(), out var match);
+            return match;
         }
 
         private void SetCapstoneForRow(AchievementEditorRow row, bool isCapstone)
