@@ -55,9 +55,28 @@ namespace PlayniteAchievements.Services.Achievements
 
             try
             {
-                var achievements = _cacheService?.LoadGameData(playniteGameId.ToString())?.Achievements
-                    ?? new List<AchievementDetail>();
-                var next = BuildNextCapstones(playniteGameId, achievements, apiName.Trim(), scope);
+                var achievements = _cacheService?.LoadGameData(playniteGameId.ToString())?.Achievements;
+
+                // Materializing means capturing the provider's own capstones alongside the edit, so
+                // a game whose achievements cannot be read right now must not be materialized: the
+                // stored set would be this one entry and every provider capstone would be dropped.
+                if ((achievements == null || achievements.Count == 0) &&
+                    !(_gameCustomDataStore.TryLoad(playniteGameId, out var existing) &&
+                      existing?.CapstonesMaterialized == true))
+                {
+                    _logger?.Warn(
+                        $"Refusing to set a capstone for gameId={playniteGameId}: no achievements are loaded to seed the set from.");
+                    return CacheWriteResult.CreateFailure(
+                        playniteGameId.ToString(),
+                        "no_achievements_loaded",
+                        ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"));
+                }
+
+                var next = BuildNextCapstones(
+                    playniteGameId,
+                    achievements ?? new List<AchievementDetail>(),
+                    apiName.Trim(),
+                    scope);
 
                 // A capstone's only summary-visible effect is the game's completion state, so the
                 // summary and projection rebuild is only warranted when that actually flips.
@@ -104,7 +123,13 @@ namespace PlayniteAchievements.Services.Achievements
                     .ToList()
                 : CapstoneResolver.Materialize(achievements);
 
-            var category = ResolveCategory(achievements, apiName);
+            // Categories come from the cache unhydrated, so a user's category override has to be
+            // applied here the way hydration applies it. Without this the displacement below reads
+            // the provider's category and can free a slot the user never pointed at.
+            var categoryOverrides = GameCustomDataLookup
+                .ResolveGameCustomData(playniteGameId, null, _gameCustomDataStore)
+                .ResolveAchievementOverrides();
+            var category = ResolveCategory(achievements, categoryOverrides, apiName);
             var next = new List<CapstoneAssignment>();
             foreach (var assignment in current)
             {
@@ -117,7 +142,7 @@ namespace PlayniteAchievements.Services.Achievements
                 {
                     // Only one capstone stands for a category, and only one stands for the game.
                     var displacedByCategory = string.Equals(
-                        ResolveCategory(achievements, assignment.ApiName),
+                        ResolveCategory(achievements, categoryOverrides, assignment.ApiName),
                         category,
                         StringComparison.OrdinalIgnoreCase);
                     if (displacedByCategory || (scope == CapstoneScope.GameWide && assignment.IsGameWide))
@@ -141,15 +166,27 @@ namespace PlayniteAchievements.Services.Achievements
             return next;
         }
 
-        private static string ResolveCategory(IReadOnlyList<AchievementDetail> achievements, string apiName)
+        private static string ResolveCategory(
+            IReadOnlyList<AchievementDetail> achievements,
+            IReadOnlyDictionary<string, AchievementOverride> categoryOverrides,
+            string apiName)
         {
+            var trimmed = (apiName ?? string.Empty).Trim();
+            if (categoryOverrides != null &&
+                categoryOverrides.TryGetValue(trimmed, out var userOverride) &&
+                !string.IsNullOrWhiteSpace(userOverride?.Category))
+            {
+                return AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(userOverride.Category);
+            }
+
             var match = achievements?.FirstOrDefault(achievement =>
                 achievement != null &&
                 string.Equals(
                     (achievement.ApiName ?? string.Empty).Trim(),
-                    (apiName ?? string.Empty).Trim(),
+                    trimmed,
                     StringComparison.OrdinalIgnoreCase));
-            return AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(match?.Category);
+            return AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                match?.ProviderCategory ?? match?.Category);
         }
 
         /// <summary>
