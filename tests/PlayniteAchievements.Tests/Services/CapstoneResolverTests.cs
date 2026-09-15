@@ -301,5 +301,76 @@ namespace PlayniteAchievements.Services.Tests
 
             Assert.IsTrue(counts.IsCompleted);
         }
+
+        private static AchievementDetail Trophy(string apiName, bool isCapstone, string trophyType)
+        {
+            return new AchievementDetail
+            {
+                ApiName = apiName,
+                IsCapstone = isCapstone,
+                TrophyType = trophyType
+            };
+        }
+
+        [TestMethod]
+        public void PlatinumIsTheOnlyCapstone_MatchesPlatinums()
+        {
+            var counts = CapstoneCompletion.Count(new[]
+            {
+                Trophy("plat", true, "Platinum"),
+                Trophy("gold", false, "Gold")
+            });
+
+            Assert.IsTrue(counts.CapstonesMatchPlatinums);
+        }
+
+        [TestMethod]
+        public void NoCapstonesAtAll_MatchesPlatinums()
+        {
+            var counts = CapstoneCompletion.Count(new[]
+            {
+                Trophy("plat", false, "Platinum"),
+                Trophy("gold", false, "Gold")
+            });
+
+            Assert.IsTrue(counts.CapstonesMatchPlatinums);
+        }
+
+        [TestMethod]
+        public void CapstoneBesidesThePlatinum_DoesNotMatchPlatinums()
+        {
+            var counts = CapstoneCompletion.Count(new[]
+            {
+                Trophy("plat", true, "Platinum"),
+                Trophy("dlc_mastery", true, null)
+            });
+
+            Assert.IsFalse(counts.CapstonesMatchPlatinums);
+        }
+
+        [TestMethod]
+        public void PlatinumThatIsNotTheCapstone_DoesNotMatchPlatinums()
+        {
+            // Same count on each side, different achievements: two finish lines, not one.
+            var counts = CapstoneCompletion.Count(new[]
+            {
+                Trophy("plat", false, "Platinum"),
+                Trophy("mastery", true, null)
+            });
+
+            Assert.IsFalse(counts.CapstonesMatchPlatinums);
+        }
+
+        [TestMethod]
+        public void NoTrophiesAndOneCapstone_DoesNotMatchPlatinums()
+        {
+            var counts = CapstoneCompletion.Count(new[]
+            {
+                Trophy("mastery", true, null),
+                Trophy("ordinary", false, null)
+            });
+
+            Assert.IsFalse(counts.CapstonesMatchPlatinums);
+        }
     }
 }
