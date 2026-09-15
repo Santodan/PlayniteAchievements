@@ -113,10 +113,12 @@ namespace PlayniteAchievements.Services.Achievements
             string apiName,
             bool isCapstone)
         {
-            var materialized = _gameCustomDataStore.TryLoad(playniteGameId, out var customData) &&
-                               customData?.CapstonesMaterialized == true;
+            // One load of the record, not three: resolving it clones the whole graph, including the
+            // per-achievement override map, which is the bulk of a heavily customized game.
+            var stored = _gameCustomDataStore.TryLoad(playniteGameId, out var customData) ? customData : null;
+            var materialized = stored?.CapstonesMaterialized == true;
             var current = materialized
-                ? (customData?.Capstones ?? new List<CapstoneAssignment>())
+                ? (stored.Capstones ?? new List<CapstoneAssignment>())
                     .Select(assignment => assignment?.Clone())
                     .Where(assignment => assignment != null)
                     .ToList()
@@ -125,10 +127,21 @@ namespace PlayniteAchievements.Services.Achievements
             // Categories come from the cache unhydrated, so a user's category override has to be
             // applied here the way hydration applies it. Without this the displacement below reads
             // the provider's category and can free a slot the user never pointed at.
-            var categoryOverrides = GameCustomDataLookup
-                .ResolveGameCustomData(playniteGameId, null, _gameCustomDataStore)
-                .ResolveAchievementOverrides();
-            var category = ResolveCategory(achievements, categoryOverrides, apiName);
+            var categoryOverrides = GameCustomDataFile.CloneAchievementOverrideMap(stored?.AchievementOverrides)
+                ?? new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+
+            // Indexed once: the displacement check below asks for a category per stored capstone.
+            var byApiName = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+            foreach (var achievement in achievements)
+            {
+                var key = (achievement?.ApiName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(key) && !byApiName.ContainsKey(key))
+                {
+                    byApiName[key] = achievement;
+                }
+            }
+
+            var category = ResolveCategory(byApiName, categoryOverrides, apiName);
             var next = new List<CapstoneAssignment>();
             foreach (var assignment in current)
             {
@@ -141,7 +154,7 @@ namespace PlayniteAchievements.Services.Achievements
                 // for that category before.
                 if (isCapstone &&
                     string.Equals(
-                        ResolveCategory(achievements, categoryOverrides, assignment.ApiName),
+                        ResolveCategory(byApiName, categoryOverrides, assignment.ApiName),
                         category,
                         StringComparison.OrdinalIgnoreCase))
                 {
@@ -160,7 +173,7 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         private static string ResolveCategory(
-            IReadOnlyList<AchievementDetail> achievements,
+            IReadOnlyDictionary<string, AchievementDetail> byApiName,
             IReadOnlyDictionary<string, AchievementOverride> categoryOverrides,
             string apiName)
         {
@@ -172,12 +185,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(userOverride.Category);
             }
 
-            var match = achievements?.FirstOrDefault(achievement =>
-                achievement != null &&
-                string.Equals(
-                    (achievement.ApiName ?? string.Empty).Trim(),
-                    trimmed,
-                    StringComparison.OrdinalIgnoreCase));
+            byApiName.TryGetValue(trimmed, out var match);
             return AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
                 match?.ProviderCategory ?? match?.Category);
         }
