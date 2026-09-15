@@ -98,16 +98,35 @@ namespace PlayniteAchievements.Services.Cache
         public int CapstoneUnlocked { get; set; }
 
         /// <summary>
-        /// Whether the game's capstones are exactly its platinum trophies, or it names none.
+        /// The two disagreements that decide whether the game's capstones are exactly its
+        /// platinums. Kept as counts rather than the answer because a game's achievements reach
+        /// this row from two places -- the summary query and the custom-achievement merge -- and
+        /// counts add up where a boolean does not.
         /// </summary>
-        public bool CapstonesMatchPlatinums { get; set; }
+        public int CapstonesNotPlatinum { get; set; }
+
+        public int PlatinumsNotCapstone { get; set; }
 
         /// <summary>
-        /// The game's platinum ApiNames, separated by <c>~|~</c>, so the capstone overlay can
-        /// re-decide the identity for a game whose capstones the user has edited. Locked rows are
-        /// absent from the unlock snapshot, which is why this rides along with the summary row.
+        /// Whether the game's capstones are exactly its platinum trophies, or it names none. A
+        /// game with no capstones hands the finish badge to its platinum outright.
+        /// </summary>
+        public bool CapstonesMatchPlatinums =>
+            CapstonesNotPlatinum == 0 && (CapstoneTotal == 0 || PlatinumsNotCapstone == 0);
+
+        /// <summary>
+        /// The game's platinum ApiNames, separated by <see cref="PlatinumApiNameSeparator"/>, so
+        /// the capstone overlay can re-decide the identity for a game whose capstones the user has
+        /// edited. Locked rows are absent from the unlock snapshot, which is why this rides along
+        /// with the summary row.
         /// </summary>
         public string PlatinumApiNames { get; set; }
+
+        /// <summary>
+        /// Separates packed ApiNames. Rare enough in an ApiName that a provider's own punctuation
+        /// cannot split one in half, which a comma could.
+        /// </summary>
+        public const string PlatinumApiNameSeparator = "~|~";
 
         public DateTime? LastUnlockUtc { get; set; }
     }

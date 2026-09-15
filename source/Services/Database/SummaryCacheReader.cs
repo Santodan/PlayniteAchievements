@@ -171,8 +171,8 @@ namespace PlayniteAchievements.Services.Database
                         TrophyBronzeTotal = (int)Math.Max(0, row.TrophyBronzeTotal),
                         CapstoneTotal = (int)Math.Max(0, row.CapstoneTotal),
                         CapstoneUnlocked = (int)Math.Max(0, row.CapstoneUnlocked),
-                        CapstonesMatchPlatinums = row.CapstonesNotPlatinum == 0 &&
-                            (row.CapstoneTotal == 0 || row.PlatinumsNotCapstone == 0),
+                        CapstonesNotPlatinum = (int)Math.Max(0, row.CapstonesNotPlatinum),
+                        PlatinumsNotCapstone = (int)Math.Max(0, row.PlatinumsNotCapstone),
                         PlatinumApiNames = row.PlatinumApiNames,
                         // Finishing takes every capstone, not any one of them: a platinum earned
                         // while a DLC pack is still open has not finished the game. These counts
