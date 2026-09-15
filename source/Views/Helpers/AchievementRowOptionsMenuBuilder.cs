@@ -228,17 +228,50 @@ namespace PlayniteAchievements.Views.Helpers
             return item;
         }
 
+        /// <summary>
+        /// "Capstone", with what the click would do appended, and the displaced capstone named when
+        /// there is one so a replacement is never a surprise.
+        /// </summary>
+        private static string BuildCapstoneHeader(
+            FrameworkElement resourceOwner,
+            AchievementMarkerToggle.CapstoneAction action,
+            string displacedDisplayName)
+        {
+            var capstone = L(resourceOwner, "LOCPlayAch_Dynamic_Capstone");
+            switch (action)
+            {
+                case AchievementMarkerToggle.CapstoneAction.Remove:
+                    return $"{capstone} — {L(resourceOwner, "LOCPlayAch_Button_Remove")}";
+                case AchievementMarkerToggle.CapstoneAction.Replace:
+                    var replace = L(resourceOwner, "LOCPlayAch_Button_Replace");
+                    return string.IsNullOrWhiteSpace(displacedDisplayName)
+                        ? $"{capstone} — {replace}"
+                        : $"{capstone} — {replace}: {displacedDisplayName}";
+                default:
+                    return $"{capstone} — {L(resourceOwner, "LOCPlayAch_Button_Add")}";
+            }
+        }
+
         private static MenuItem CreateSetCapstoneItem(
             AchievementRowContext context,
             FrameworkElement resourceOwner,
             Action onChanged,
             Func<string, bool> onCapstoneChanged)
         {
+            // The entry says what the click will do, because a capstone belongs to a category and
+            // adding one there quietly displaces whatever stood for it before.
+            var action = AchievementMarkerToggle.CapstoneAction.Add;
+            string displaced = null;
+            if (CurrentMarkerToggle != null)
+            {
+                action = CurrentMarkerToggle.ResolveCapstoneAction(context.ToMarkerTarget(), out displaced);
+            }
+
             var item = new MenuItem
             {
-                Header = L(resourceOwner, "LOCPlayAch_Menu_SetCapstone"),
+                Header = BuildCapstoneHeader(resourceOwner, action, displaced),
                 IsCheckable = true,
-                IsChecked = CurrentMarkerToggle?.IsEffectiveCapstone(context.ToMarkerTarget()) == true
+                IsChecked = action == AchievementMarkerToggle.CapstoneAction.Remove
             };
             item.Click += async (_, __) =>
             {

@@ -593,7 +593,8 @@ namespace PlayniteAchievements
                     _achievementMarkerToggle = new AchievementMarkerToggle(
                         _achievementOverridesService,
                         () => _settingsViewModel?.Settings?.Persisted,
-                        () => _gameCustomDataStore);
+                        () => _gameCustomDataStore,
+                        gameId => _cacheManager?.LoadGameData(gameId.ToString()));
                     _achievementDataService = new AchievementDataService(
                         _cacheManager,
                         PlayniteApi,
