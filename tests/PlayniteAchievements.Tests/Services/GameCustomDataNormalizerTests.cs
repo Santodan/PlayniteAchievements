@@ -157,7 +157,13 @@ namespace PlayniteAchievements.Services.Tests
                 gameId);
 
             Assert.AreEqual(GameCustomDataNormalizer.CurrentSchemaVersion, normalized.SchemaVersion);
-            Assert.AreEqual("capstone", normalized.ManualCapstoneApiName);
+            // The legacy scalar folds into a materialized single game-wide set, which behaves
+            // the same way it always did: it suppresses every provider capstone.
+            Assert.IsNull(normalized.ManualCapstoneApiName);
+            Assert.IsTrue(normalized.CapstonesMaterialized);
+            Assert.AreEqual(1, normalized.Capstones.Count);
+            Assert.AreEqual("capstone", normalized.Capstones[0].ApiName);
+            Assert.IsTrue(normalized.Capstones[0].IsGameWide);
             Assert.IsNull(normalized.NotificationAppearanceOverride);
         }
 
