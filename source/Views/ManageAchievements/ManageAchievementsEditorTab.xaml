@@ -954,12 +954,15 @@
                                           Stretch="Uniform"
                                           Margin="0,0,4,0"
                                           VerticalAlignment="Center" />
-                                    <!-- Three-state only for the bulk proxy: a blank tick means the
-                                         selected rows disagree, so nothing is applied until a real
-                                         value is picked. -->
+                                    <!-- A blank tick means the selected rows disagree. It is a
+                                         display state the binding pushes in, never one a click can
+                                         reach: three-state toggling put the blank between checked
+                                         and unchecked, so unticking a selection that agreed landed
+                                         on the blank and applied nothing. Each tick therefore has
+                                         two clickable states, and a disagreeing selection resolves
+                                         to whichever the user picks. -->
                                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_Unlocked}"
                                               IsChecked="{Binding UnlockedState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsThreeState="{Binding IsBulkRow}"
                                               IsEnabled="{Binding CanEditUnlocked}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,18,2"
@@ -973,7 +976,6 @@
                                            helpers:AsyncImage.DecodePixel="28" />
                                     <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Custom_Hidden}"
                                               IsChecked="{Binding HiddenState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsThreeState="{Binding IsBulkRow}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,18,2"
                                               VerticalContentAlignment="Center" />
@@ -985,7 +987,6 @@
                                                VerticalAlignment="Center" />
                                     <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}"
                                               IsChecked="{Binding IsGoalState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsThreeState="{Binding IsBulkRow}"
                                               IsEnabled="{Binding CanEditAssignments}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,0,2"
