@@ -2714,7 +2714,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             try
             {
                 _achievementOverridesService.SetCapstone(_gameId, apiName, isCapstone);
+
+                // Re-seeded from the store, so the rows are right whatever the snapshot holds. The
+                // snapshot is only read here for categories and names, which a capstone write does
+                // not move, so this deliberately runs before the invalidation below and pays for no
+                // re-hydration of its own.
                 RefreshAssignmentState();
+
+                // The snapshot caches hydrated data until something drops it, and the host's own
+                // invalidation is debounced. A reload landing inside that window would rebuild
+                // these rows from pre-write data and put the capstone flag back as it was, which
+                // is what left the status glyph stale on some clicks and not others.
+                _gameDataSnapshotProvider?.Invalidate();
+
                 CapstoneChanged?.Invoke(
                     this,
                     new CapstoneChangedEventArgs(
