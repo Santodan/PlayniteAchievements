@@ -403,7 +403,11 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_SummaryExclusionHeader">Summary Exclusion</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_SummaryExclusionHint">Exclude this game from overview and all-games summary data.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Current">Current Capstone: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Subtitle">Choose one achievement to mark as this game's Capstone. Unlocking a Capstone achievement will mark the game as Completed.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_InCategory">Capstone in {0}: {1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_ScopeCategory">Category: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_ScopeGameWide">Whole game</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_ScopeOwnCategory">This category</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_Subtitle">Choose the achievements that stand for finishing this game. Each Capstone covers the whole game or one category, and the game is Completed when all of them are unlocked.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_Capstone">Current Capstone</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_Completion">Completion</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_GameId">Playnite Game ID</sys:String>
