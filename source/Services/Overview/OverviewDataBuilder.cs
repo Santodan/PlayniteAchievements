@@ -241,6 +241,9 @@ namespace PlayniteAchievements.Services.Overview
                 snapshot.Completions += game.CapstoneTotal > 0
                     ? game.CapstoneUnlocked
                     : (game.IsCompleted ? 1 : 0);
+                snapshot.PossibleCompletions += game.CapstoneTotal > 0
+                    ? game.CapstoneTotal
+                    : (game.TotalAchievements > 0 ? 1 : 0);
 
                 if (!snapshot.UnlockedByProvider.ContainsKey(providerKey))
                 {

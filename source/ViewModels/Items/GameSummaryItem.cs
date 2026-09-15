@@ -228,6 +228,14 @@ namespace PlayniteAchievements.ViewModels.Items
         public int Completions =>
             CapstoneTotal > 0 ? CapstoneUnlocked : (IsCompleted ? 1 : 0);
 
+        /// <summary>
+        /// How many completions this row could ever yield, which is what keeps the completions pie
+        /// a real partition: every capstone is one finish available, and a game that names none
+        /// still offers the single finish of a clean 100%.
+        /// </summary>
+        public int PossibleCompletions =>
+            CapstoneTotal > 0 ? CapstoneTotal : (TotalAchievements > 0 ? 1 : 0);
+
         private int _collectionScore;
         public int CollectionScore
         {
