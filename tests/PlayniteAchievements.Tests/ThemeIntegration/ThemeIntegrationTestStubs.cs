@@ -118,7 +118,7 @@ namespace PlayniteAchievements.Models.Achievements
         }
     }
 
-    public sealed class AchievementDetail
+    public sealed class AchievementDetail : IAchievementOverrideTarget
     {
         public string ApiName { get; set; }
 
