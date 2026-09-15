@@ -260,14 +260,10 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
 
-                // Setting a capstone makes every other row a non-capstone, which is exactly what
-                // hydration would do, so the rows can be re-stamped in place. Clearing one lets
-                // provider-assigned capstones reappear, and only hydration knows those.
-                if (result.WasSet && onCapstoneChanged?.Invoke(result.CapstoneApiName) == true)
-                {
-                    return;
-                }
-
+                // A game can carry several capstones, so setting one no longer tells the other rows
+                // anything and they cannot be re-stamped from this result alone. Only the resolver
+                // knows the whole set, including what a category now inherits, so every change
+                // takes the full reload.
                 onChanged?.Invoke();
             };
 

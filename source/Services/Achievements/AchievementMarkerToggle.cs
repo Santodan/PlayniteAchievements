@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.GameCustomData;
@@ -28,9 +29,8 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Whether this achievement is the capstone the user would see marked right now: either
-        /// hydration flagged it (which also covers provider-assigned capstones) or the stored
-        /// manual capstone points at it.
+        /// Whether this achievement is a capstone right now: either hydration flagged it, which
+        /// covers the provider seed, or the game's stored set names it.
         /// </summary>
         public bool IsEffectiveCapstone(AchievementMarkerTarget target)
         {
@@ -39,19 +39,27 @@ namespace PlayniteAchievements.Services.Achievements
                 return false;
             }
 
-            var manualCapstone = GameCustomDataLookup.GetManualCapstone(
+            var capstones = GameCustomDataLookup.GetCapstoneSet(
                 target.GameId,
                 _resolveSettings(),
                 _resolveStore());
 
-            return target.IsCapstone ||
-                string.Equals(manualCapstone, target.ApiName, StringComparison.OrdinalIgnoreCase);
+            if (capstones.Materialized)
+            {
+                return capstones.Assignments?.Any(capstone => capstone.Matches(target.ApiName)) == true;
+            }
+
+            return target.IsCapstone;
         }
 
         /// <summary>
-        /// Sets this achievement as the game's manual capstone, or clears the manual capstone when
-        /// it is already the effective one.
+        /// Adds this achievement to the game's capstones, or drops it when it is already one.
         /// </summary>
+        /// <remarks>
+        /// A bare toggle carries no scope, so a new capstone is filed against its own category,
+        /// which is the narrowest reading and the one that cannot silently take over categories the
+        /// user never pointed at. The editor offers the game-wide choice explicitly.
+        /// </remarks>
         public async Task<CapstoneToggleResult> ToggleCapstoneAsync(AchievementMarkerTarget target)
         {
             if (!target.IsValid)
@@ -59,10 +67,13 @@ namespace PlayniteAchievements.Services.Achievements
                 return CapstoneToggleResult.Skipped();
             }
 
-            var nextCapstone = IsEffectiveCapstone(target) ? null : target.ApiName;
-            var result = await _achievementOverridesService.SetCapstoneAsync(target.GameId, nextCapstone);
+            var scope = IsEffectiveCapstone(target) ? CapstoneScope.None : CapstoneScope.Category;
+            var result = await _achievementOverridesService.SetCapstoneScopeAsync(
+                target.GameId,
+                target.ApiName,
+                scope);
             return result.Success
-                ? CapstoneToggleResult.Wrote(nextCapstone)
+                ? CapstoneToggleResult.Wrote(scope == CapstoneScope.None ? null : target.ApiName)
                 : CapstoneToggleResult.Failed(result.ErrorMessage);
         }
 
