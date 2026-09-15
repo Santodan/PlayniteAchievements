@@ -1,4 +1,5 @@
 using PlayniteAchievements.Models.Achievements;
+using System;
 using System.Collections.Generic;
 
 namespace PlayniteAchievements.Services.Achievements
@@ -19,13 +20,26 @@ namespace PlayniteAchievements.Services.Achievements
     {
         public struct Counts
         {
-            public Counts(int total, int unlocked, int achievementCount, int achievementsUnlocked)
+            public Counts(
+                int total,
+                int unlocked,
+                int achievementCount,
+                int achievementsUnlocked,
+                bool capstonesMatchPlatinums)
             {
                 Total = total;
                 Unlocked = unlocked;
                 AchievementCount = achievementCount;
                 AchievementsUnlocked = achievementsUnlocked;
+                CapstonesMatchPlatinums = capstonesMatchPlatinums;
             }
+
+            /// <summary>
+            /// True when the game's capstones are exactly its platinum trophies, which is the
+            /// ordinary PlayStation case, or when it has neither. The badge row shows the platinum
+            /// in the capstone spot rather than twice when this holds.
+            /// </summary>
+            public bool CapstonesMatchPlatinums { get; }
 
             public int Total { get; }
 
@@ -58,6 +72,11 @@ namespace PlayniteAchievements.Services.Achievements
             var achievementCount = 0;
             var achievementsUnlocked = 0;
 
+            // Identity, not tallies: one capstone and one platinum that are different achievements
+            // must not read as the same thing.
+            var capstonesThatAreNotPlatinum = 0;
+            var platinumsThatAreNotCapstones = 0;
+
             if (achievements != null)
             {
                 foreach (var achievement in achievements)
@@ -73,6 +92,11 @@ namespace PlayniteAchievements.Services.Achievements
                         achievementsUnlocked++;
                     }
 
+                    var isPlatinum = string.Equals(
+                        (achievement.TrophyType ?? string.Empty).Trim(),
+                        "platinum",
+                        StringComparison.OrdinalIgnoreCase);
+
                     if (achievement.IsCapstone)
                     {
                         total++;
@@ -80,11 +104,28 @@ namespace PlayniteAchievements.Services.Achievements
                         {
                             unlocked++;
                         }
+
+                        if (!isPlatinum)
+                        {
+                            capstonesThatAreNotPlatinum++;
+                        }
+                    }
+                    else if (isPlatinum)
+                    {
+                        platinumsThatAreNotCapstones++;
                     }
                 }
             }
 
-            return new Counts(total, unlocked, achievementCount, achievementsUnlocked);
+            return new Counts(
+                total,
+                unlocked,
+                achievementCount,
+                achievementsUnlocked,
+                // A game with no capstones hands the spot to its platinum outright; one with
+                // capstones only does so when they are exactly its platinums.
+                capstonesThatAreNotPlatinum == 0 &&
+                (total == 0 || platinumsThatAreNotCapstones == 0));
         }
 
         public static bool IsCompleted(IEnumerable<AchievementDetail> achievements)
