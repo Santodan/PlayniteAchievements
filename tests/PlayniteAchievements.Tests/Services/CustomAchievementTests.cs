@@ -236,6 +236,106 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void CustomCapstones_CountTowardTheFinishBadgeAndItsPlatinumIdentity()
+        {
+            var gameId = Guid.NewGuid();
+            var summary = new CachedSummaryData
+            {
+                Games = new List<CachedGameSummaryData>
+                {
+                    // What the summary query found: two ordinary stored achievements.
+                    new CachedGameSummaryData
+                    {
+                        PlayniteGameId = gameId,
+                        CacheKey = gameId.ToString("D"),
+                        TotalAchievements = 2,
+                        UnlockedAchievements = 2
+                    }
+                }
+            };
+
+            var customData = new Dictionary<Guid, GameCustomDataFile>
+            {
+                [gameId] = new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    CustomAchievements = new List<CustomAchievementDefinition>
+                    {
+                        new CustomAchievementDefinition
+                        {
+                            Id = "mastery",
+                            DisplayName = "Mastery",
+                            IsCapstone = true,
+                            Unlocked = false
+                        }
+                    }
+                }
+            };
+
+            CustomAchievementSummaryMerger.Merge(
+                summary,
+                customData,
+                new HashSet<Guid>(),
+                recentAchievementDetailLimit: 0,
+                resolveGameName: _ => "Game",
+                managedCustomIconService: null);
+
+            var game = summary.Games.Single();
+            Assert.AreEqual(1, game.CapstoneTotal, "A custom capstone is a capstone.");
+            Assert.AreEqual(0, game.CapstoneUnlocked);
+            Assert.IsFalse(
+                game.IsCompleted,
+                "Every stored achievement is unlocked, but the custom capstone that stands for the game is not.");
+            Assert.IsFalse(
+                game.CapstonesMatchPlatinums,
+                "A capstone that is not a platinum must not hand the finish badge to one.");
+        }
+
+        [TestMethod]
+        public void CustomPlatinumCapstone_KeepsTheFinishBadgeOnThePlatinum()
+        {
+            var gameId = Guid.NewGuid();
+            var summary = new CachedSummaryData();
+            var customData = new Dictionary<Guid, GameCustomDataFile>
+            {
+                [gameId] = new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    CustomAchievements = new List<CustomAchievementDefinition>
+                    {
+                        new CustomAchievementDefinition
+                        {
+                            Id = "plat",
+                            DisplayName = "Platinum",
+                            TrophyType = "Platinum",
+                            IsCapstone = true,
+                            Unlocked = true
+                        },
+                        new CustomAchievementDefinition { Id = "gold", DisplayName = "Gold", TrophyType = "Gold" }
+                    }
+                }
+            };
+
+            CustomAchievementSummaryMerger.Merge(
+                summary,
+                customData,
+                new HashSet<Guid>(),
+                recentAchievementDetailLimit: 0,
+                resolveGameName: _ => "Game",
+                managedCustomIconService: null);
+
+            var game = summary.Games.Single();
+            Assert.AreEqual(1, game.CapstoneTotal);
+            Assert.AreEqual(1, game.CapstoneUnlocked);
+            Assert.IsTrue(game.IsCompleted, "The only capstone is earned.");
+            Assert.IsTrue(game.CapstonesMatchPlatinums);
+            Assert.AreEqual(
+                CustomAchievementProjectionService.BuildApiName("plat"),
+                game.PlatinumApiNames,
+                "The overlay needs the custom platinum by name, not only as a count.");
+        }
+
+        [TestMethod]
         public void CustomAchievementsPackage_RoundTripsDefinitionsAndHeaderOnlyTemplate()
         {
             var tempDirectory = Path.Combine(Path.GetTempPath(), "PlayniteAchievementsTests", Guid.NewGuid().ToString("N"));
