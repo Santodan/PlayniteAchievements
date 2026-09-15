@@ -61,7 +61,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_GW2");
         public string ProviderKey => "GW2";
         public string ProviderIconKey => "ProviderIconGW2";
-        public string ProviderColorHex => "#B5121B";
+        public string ProviderColorHex => "#E2601A";
 
         public bool IsAuthenticated => ProviderSettings.HasCredentials;
 
