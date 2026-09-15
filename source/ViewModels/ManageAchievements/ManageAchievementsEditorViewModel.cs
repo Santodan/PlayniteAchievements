@@ -5376,9 +5376,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// checkbox for a selection that disagrees.
         /// </summary>
         /// <remarks>
-        /// A blank is only ever a display state: setting one back to blank is ignored, and picking
-        /// either real value applies it even when it matches what the blank was standing in front
-        /// of, which is what lets a mixed selection be set to the unchecked pole.
+        /// A blank is only ever a display state: the ticks are not three-state, so no click can
+        /// land on it, setting one back to blank is ignored, and picking either real value applies
+        /// it even when it matches what the blank was standing in front of.
         /// </remarks>
         public bool? UnlockedState
         {
