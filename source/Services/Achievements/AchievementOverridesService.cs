@@ -667,14 +667,17 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            // Only the fields a summary aggregate actually reads are worth a rebuild. Points and
-            // trophy type are mirrored into AchievementOverrides and resolved by the score and
-            // trophy SQL, so they are. An unlock-time override is not: the summary's last-unlock
-            // comes from the real recorded time in UserAchievements and the mirror does not carry
-            // the override, so rebuilding would recompute identical numbers. The overview's
-            // per-achievement rows still pick it up on their next read, where it is applied in
-            // code rather than in SQL.
-            var affectsSummaryData =
+            // This flag gates two things: the summary memo, and the Overview's per-game delta. So
+            // it has to be true for any field a displayed row shows, not just the ones a summary
+            // aggregate sums -- otherwise the edit lands in the store and nothing on screen
+            // re-reads it, which is what left a hidden edit visible only inside the editor.
+            //
+            // Points and trophy type additionally move SQL-resolved aggregates, via the override
+            // mirror. The rest are applied in code over the rows, so they need the re-read but not
+            // the mirror. Only the unlock-time override changes nothing on a row the user can see:
+            // the summary's last-unlock comes from the real recorded time in UserAchievements.
+            var affectsSummaryData = field != AchievementEditableField.UnlockTimeUtc;
+            var affectsOverrideMirror =
                 field == AchievementEditableField.Points ||
                 field == AchievementEditableField.TrophyType;
 
@@ -712,7 +715,8 @@ namespace PlayniteAchievements.Services.Achievements
                             break;
                     }
                 }),
-                affectsSummaryData);
+                affectsSummaryData,
+                affectsOverrideMirror);
         }
 
         /// <summary>
