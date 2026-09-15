@@ -101,6 +101,7 @@ namespace PlayniteAchievements.Services.Summaries
                 IsCompleted = gameData.IsCompleted,
                 CapstoneTotal = capstoneCounts.Total,
                 CapstoneUnlocked = capstoneCounts.Unlocked,
+                CapstonesMatchPlatinums = capstoneCounts.CapstonesMatchPlatinums,
                 Provider = providerName,
                 ProviderKey = providerKey,
                 ProviderIconKey = providerMetadata.iconKey,
