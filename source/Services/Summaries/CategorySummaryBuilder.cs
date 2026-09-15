@@ -243,15 +243,11 @@ namespace PlayniteAchievements.Services.Summaries
                 item.CategoryType = ResolveCategoryType(directMembers, members);
 
                 // A capstone claims its own achievement's category, so a capstone sitting in this
-                // bucket is one this category owns rather than one it inherits. Owning a finish
-                // line of its own is worth showing whatever the badge mode says; a category that
-                // only inherits the game-wide one still defers to the setting, which is what keeps
-                // a single-capstone game looking exactly as it did.
+                // bucket is one this category owns rather than one it inherits.
                 var capstones = CountCapstones(counted);
                 item.CapstoneTotal = capstones.Key;
                 item.CapstoneUnlocked = capstones.Value;
-                item.AllowCompletionBadge = capstones.Key > 0 ||
-                                            AllowsCompletionBadge(badgeMode, result.Count);
+                item.AllowCompletionBadge = AllowsCompletionBadge(badgeMode, result.Count, capstones.Key > 0);
 
                 result.Add(item);
             }
@@ -330,14 +326,24 @@ namespace PlayniteAchievements.Services.Summaries
             return new KeyValuePair<int, int>(total, unlocked);
         }
 
-        private static bool AllowsCompletionBadge(CategoryCompletionBadgeMode mode, int emittedCount)
+        /// <remarks>
+        /// A category holding a capstone of its own is exempt from <see cref="CategoryCompletionBadgeMode.First"/>,
+        /// which exists to stop one game-wide finish line being restated on every row: a category
+        /// with its own capstone is stating something the other rows do not. It is not exempt from
+        /// <see cref="CategoryCompletionBadgeMode.None"/>, which is a hard off rather than a
+        /// de-duplication preference.
+        /// </remarks>
+        private static bool AllowsCompletionBadge(
+            CategoryCompletionBadgeMode mode,
+            int emittedCount,
+            bool hasOwnCapstone)
         {
             switch (mode)
             {
                 case CategoryCompletionBadgeMode.None:
                     return false;
                 case CategoryCompletionBadgeMode.First:
-                    return emittedCount == 0;
+                    return hasOwnCapstone || emittedCount == 0;
                 default:
                     return true;
             }
