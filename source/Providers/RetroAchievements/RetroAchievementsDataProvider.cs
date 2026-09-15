@@ -260,6 +260,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 return logRegistration;
             }
 
+            // No declared UnlockAnchorPolicy: IsRemote resolves it to SourceObservation, because
+            // the feed's unlock stamp is RetroAchievements' own server clock and cannot seek this
+            // machine's capture buffer.
             return new InGameProgressRegistration
             {
                 ProviderKey = ProviderKey,
@@ -319,6 +322,14 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 ProviderKey = ProviderKey,
                 WatchTargets = new[] { logPath },
                 PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
+
+                // Declared rather than resolved: this registration is local (IsRemote stays false
+                // so the monitor subscribes a watcher), but QueryAsync merges the remote feed's
+                // observations into log-tracked games once baselined, so its unlocks can arrive
+                // stamped by either this machine's clock or RetroAchievements' server clock. The
+                // safety re-read runs at 500ms and the watcher event time is the observation, so
+                // anchoring on observation costs a fraction of a second here.
+                UnlockAnchorPolicy = InGameUnlockAnchorPolicy.SourceObservation,
                 State = new RaEmulatorLogSession(logPath, entry.Profile, achievementIds)
             };
         }
