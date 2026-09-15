@@ -28,9 +28,9 @@ namespace PlayniteAchievements.Services.Tests
             };
         }
 
-        private static CapstoneAssignment Assignment(string apiName, bool gameWide)
+        private static CapstoneAssignment Assignment(string apiName)
         {
-            return new CapstoneAssignment { ApiName = apiName, IsGameWide = gameWide };
+            return new CapstoneAssignment { ApiName = apiName };
         }
 
         [TestMethod]
@@ -46,7 +46,7 @@ namespace PlayniteAchievements.Services.Tests
 
             Assert.AreEqual(1, resolver.Count);
             Assert.IsTrue(resolver.IsCapstone("plat"));
-            Assert.AreEqual("plat", resolver.GameWideApiName);
+            Assert.AreEqual("plat", resolver.ResolveForCategory("Base"));
         }
 
         [TestMethod]
@@ -60,7 +60,7 @@ namespace PlayniteAchievements.Services.Tests
 
             var resolver = CapstoneResolver.Resolve(
                 achievements,
-                new[] { Assignment("boss", true) },
+                new[] { Assignment("boss") },
                 true);
 
             Assert.AreEqual(1, resolver.Count);
@@ -83,7 +83,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void SeedScope_BaseIsGameWide_SubsetAndDlcAreCategoryScoped()
+        public void Seed_FilesEveryProviderCapstoneUnderItsOwnCategory()
         {
             var achievements = new List<AchievementDetail>
             {
@@ -95,7 +95,7 @@ namespace PlayniteAchievements.Services.Tests
             var resolver = CapstoneResolver.Resolve(achievements, null, false);
 
             Assert.AreEqual(3, resolver.Count);
-            Assert.AreEqual("base_mastery", resolver.GameWideApiName);
+            Assert.AreEqual("base_mastery", resolver.ResolveForCategory("Base"));
             Assert.AreEqual("subset_mastery", resolver.ResolveForCategory("Hardcore"));
             Assert.AreEqual("dlc_mastery", resolver.ResolveForCategory("Winter"));
         }
@@ -119,7 +119,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void ResolveForCategory_FallsBackToGameWide()
+        public void ResolveForCategory_UnrelatedCategory_StandsOnNothing()
         {
             var achievements = new List<AchievementDetail>
             {
@@ -129,12 +129,14 @@ namespace PlayniteAchievements.Services.Tests
 
             var resolver = CapstoneResolver.Resolve(achievements, null, false);
 
-            Assert.AreEqual("plat", resolver.ResolveForCategory("Side Quests"));
+            // No whole-game fallback: completion counts the capstones a category actually holds,
+            // so reporting an unrelated one as covering it would contradict the rollup.
+            Assert.IsNull(resolver.ResolveForCategory("Side Quests"));
             Assert.IsFalse(resolver.HasOwnCapstone("Side Quests"));
         }
 
         [TestMethod]
-        public void ResolveForCategory_CategoryCapstoneBeatsGameWide()
+        public void ResolveForCategory_EachCapstoneAnswersOnlyItsOwnCategory()
         {
             var achievements = new List<AchievementDetail>
             {
@@ -144,16 +146,16 @@ namespace PlayniteAchievements.Services.Tests
 
             var resolver = CapstoneResolver.Resolve(
                 achievements,
-                new[] { Assignment("plat", true), Assignment("dlc_cap", false) },
+                new[] { Assignment("plat"), Assignment("dlc_cap") },
                 true);
 
             Assert.AreEqual("dlc_cap", resolver.ResolveForCategory("Winter"));
             Assert.AreEqual("plat", resolver.ResolveForCategory("Base"));
-            Assert.AreEqual("plat", resolver.ResolveForCategory("Anything Else"));
+            Assert.IsNull(resolver.ResolveForCategory("Anything Else"));
         }
 
         [TestMethod]
-        public void Resolve_GameWideCapstoneCoveringManyCategories_CountsOnce()
+        public void Resolve_OneCapstone_AnswersOnlyItsOwnCategory()
         {
             var achievements = new List<AchievementDetail>
             {
@@ -162,11 +164,12 @@ namespace PlayniteAchievements.Services.Tests
                 Achievement("b", "Two")
             };
 
-            var resolver = CapstoneResolver.Resolve(achievements, new[] { Assignment("plat", true) }, true);
+            var resolver = CapstoneResolver.Resolve(achievements, new[] { Assignment("plat") }, true);
 
             Assert.AreEqual(1, resolver.Count);
-            Assert.AreEqual("plat", resolver.ResolveForCategory("One"));
-            Assert.AreEqual("plat", resolver.ResolveForCategory("Two"));
+            Assert.AreEqual("plat", resolver.ResolveForCategory("Base"));
+            Assert.IsNull(resolver.ResolveForCategory("One"));
+            Assert.IsNull(resolver.ResolveForCategory("Two"));
         }
 
         [TestMethod]
@@ -180,7 +183,7 @@ namespace PlayniteAchievements.Services.Tests
 
             var resolver = CapstoneResolver.Resolve(
                 achievements,
-                new[] { Assignment("first", false), Assignment("second", false) },
+                new[] { Assignment("first"), Assignment("second") },
                 true);
 
             Assert.AreEqual("second", resolver.ResolveForCategory("Winter"));
@@ -193,7 +196,7 @@ namespace PlayniteAchievements.Services.Tests
 
             var resolver = CapstoneResolver.Resolve(
                 achievements,
-                new[] { Assignment("still_here", true), Assignment("vanished", false) },
+                new[] { Assignment("still_here"), Assignment("vanished") },
                 true);
 
             Assert.AreEqual(1, resolver.Count);
@@ -201,7 +204,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void Materialize_CapturesTheProviderSeedWithItsScopes()
+        public void Materialize_CapturesTheProviderSeed()
         {
             var achievements = new List<AchievementDetail>
             {
@@ -213,8 +216,9 @@ namespace PlayniteAchievements.Services.Tests
             var seeded = CapstoneResolver.Materialize(achievements);
 
             Assert.AreEqual(2, seeded.Count);
-            Assert.IsTrue(seeded.Single(entry => entry.ApiName == "plat").IsGameWide);
-            Assert.IsFalse(seeded.Single(entry => entry.ApiName == "subset").IsGameWide);
+            CollectionAssert.AreEquivalent(
+                new[] { "plat", "subset" },
+                seeded.Select(entry => entry.ApiName).ToList());
         }
     }
 

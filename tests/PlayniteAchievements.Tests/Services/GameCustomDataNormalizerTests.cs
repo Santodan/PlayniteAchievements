@@ -163,7 +163,6 @@ namespace PlayniteAchievements.Services.Tests
             Assert.IsTrue(normalized.CapstonesMaterialized);
             Assert.AreEqual(1, normalized.Capstones.Count);
             Assert.AreEqual("capstone", normalized.Capstones[0].ApiName);
-            Assert.IsTrue(normalized.Capstones[0].IsGameWide);
             Assert.IsNull(normalized.NotificationAppearanceOverride);
         }
 

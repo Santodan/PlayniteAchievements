@@ -1055,7 +1055,6 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.IsTrue(legacyOnly.ExcludedFromSummaries == true);
                 Assert.IsTrue(legacyOnly.UseSeparateLockedIconsOverride == true);
                 Assert.AreEqual("legacy-only-capstone", legacyOnly.Capstones.Single().ApiName);
-                Assert.IsTrue(legacyOnly.Capstones.Single().IsGameWide);
                 CollectionAssert.AreEqual(new[] { "ach_one", "ach_two" }, legacyOnly.AchievementOrder);
                 Assert.AreEqual("Main", legacyOnly.AchievementCategoryOverrides["ach_one"]);
                 Assert.AreEqual("DLC|Singleplayer", legacyOnly.AchievementCategoryTypeOverrides["ach_one"]);
