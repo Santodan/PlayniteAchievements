@@ -959,7 +959,11 @@ namespace PlayniteAchievements.Services.GameCustomData
                     CategoryType = AchievementCategoryTypeHelper.Normalize(pair.Value.CategoryType),
                     Note = AchievementNoteHelper.NormalizeNote(pair.Value.Note),
                     UnlockedIconPath = NormalizeString(pair.Value.UnlockedIconPath),
-                    LockedIconPath = NormalizeString(pair.Value.LockedIconPath)
+                    LockedIconPath = NormalizeString(pair.Value.LockedIconPath),
+                    // Either value is a customization, so this is carried as stored: null means the
+                    // provider still decides. Omitting it here dropped the override on every save,
+                    // and a hidden-only record then read as empty and was discarded outright.
+                    Hidden = pair.Value.Hidden
                 };
 
                 if (!entry.IsEmpty)
