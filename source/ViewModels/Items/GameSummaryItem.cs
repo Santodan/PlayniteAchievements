@@ -298,70 +298,100 @@ namespace PlayniteAchievements.ViewModels.Items
         public int TotalRarePossible { get; set; }
         public int TotalUltraRarePossible { get; set; }
 
-        // Trophy counts for PlayStation games. Each setter also raises HasTrophyTypes: a category
-        // row swapping between its own and subtree stat snapshots in place can flip whether the
-        // row has trophy data at all.
+        // Earned trophy counts for PlayStation games.
         private int _trophyPlatinumCount;
         public int TrophyPlatinumCount
         {
             get => _trophyPlatinumCount;
-            set
-            {
-                if (SetValueAndReturn(ref _trophyPlatinumCount, value))
-                {
-                    OnPropertyChanged(nameof(HasTrophyTypes));
-                }
-            }
+            set => SetValue(ref _trophyPlatinumCount, value);
         }
 
         private int _trophyGoldCount;
         public int TrophyGoldCount
         {
             get => _trophyGoldCount;
-            set
-            {
-                if (SetValueAndReturn(ref _trophyGoldCount, value))
-                {
-                    OnPropertyChanged(nameof(HasTrophyTypes));
-                }
-            }
+            set => SetValue(ref _trophyGoldCount, value);
         }
 
         private int _trophySilverCount;
         public int TrophySilverCount
         {
             get => _trophySilverCount;
-            set
-            {
-                if (SetValueAndReturn(ref _trophySilverCount, value))
-                {
-                    OnPropertyChanged(nameof(HasTrophyTypes));
-                }
-            }
+            set => SetValue(ref _trophySilverCount, value);
         }
 
         private int _trophyBronzeCount;
         public int TrophyBronzeCount
         {
             get => _trophyBronzeCount;
+            set => SetValue(ref _trophyBronzeCount, value);
+        }
+
+        // Each total raises HasTrophyTypes, which is derived from them: a category row swapping
+        // between its own and subtree stat snapshots in place can flip whether the row has trophy
+        // data at all.
+        private int _trophyPlatinumTotal;
+        public int TrophyPlatinumTotal
+        {
+            get => _trophyPlatinumTotal;
             set
             {
-                if (SetValueAndReturn(ref _trophyBronzeCount, value))
+                if (SetValueAndReturn(ref _trophyPlatinumTotal, value))
                 {
                     OnPropertyChanged(nameof(HasTrophyTypes));
                 }
             }
         }
 
-        public int TrophyPlatinumTotal { get; set; }
-        public int TrophyGoldTotal { get; set; }
-        public int TrophySilverTotal { get; set; }
-        public int TrophyBronzeTotal { get; set; }
+        private int _trophyGoldTotal;
+        public int TrophyGoldTotal
+        {
+            get => _trophyGoldTotal;
+            set
+            {
+                if (SetValueAndReturn(ref _trophyGoldTotal, value))
+                {
+                    OnPropertyChanged(nameof(HasTrophyTypes));
+                }
+            }
+        }
+
+        private int _trophySilverTotal;
+        public int TrophySilverTotal
+        {
+            get => _trophySilverTotal;
+            set
+            {
+                if (SetValueAndReturn(ref _trophySilverTotal, value))
+                {
+                    OnPropertyChanged(nameof(HasTrophyTypes));
+                }
+            }
+        }
+
+        private int _trophyBronzeTotal;
+        public int TrophyBronzeTotal
+        {
+            get => _trophyBronzeTotal;
+            set
+            {
+                if (SetValueAndReturn(ref _trophyBronzeTotal, value))
+                {
+                    OnPropertyChanged(nameof(HasTrophyTypes));
+                }
+            }
+        }
 
         /// <summary>
         /// True if this game has PlayStation trophy type data.
         /// </summary>
-        public bool HasTrophyTypes => TrophyPlatinumCount > 0 || TrophyGoldCount > 0 || TrophySilverCount > 0 || TrophyBronzeCount > 0;
+        /// <remarks>
+        /// The totals, not the earned counts: whether a game has trophies is a fact about the game,
+        /// not about progress through it. Reading the earned counts left a PSN game showing rarity
+        /// badges until its first unlock and then switching to trophy badges.
+        /// </remarks>
+        public bool HasTrophyTypes =>
+            TrophyPlatinumTotal > 0 || TrophyGoldTotal > 0 || TrophySilverTotal > 0 || TrophyBronzeTotal > 0;
 
         public bool HasRarityPieChartData =>
             TotalCommonPossible > 0 ||
