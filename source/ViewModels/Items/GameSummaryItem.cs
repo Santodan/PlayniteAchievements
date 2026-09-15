@@ -211,6 +211,33 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
+        private bool _capstonesMatchPlatinums;
+
+        /// <summary>
+        /// Whether this row's capstones are exactly its platinum trophies, or it names no capstone
+        /// at all. Decided where the achievements are in hand, since one capstone and one platinum
+        /// that are different achievements must not read as the same thing.
+        /// </summary>
+        public bool CapstonesMatchPlatinums
+        {
+            get => _capstonesMatchPlatinums;
+            set
+            {
+                if (SetValueAndReturn(ref _capstonesMatchPlatinums, value))
+                {
+                    OnPropertyChanged(nameof(ShowPlatinumInCompletionSpot));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Whether the finish badge renders as the platinum trophy, which also takes the platinum
+        /// out of the trophy row so it appears once rather than twice. Whether trophy badges are
+        /// preferred at all is the host grid's business, so the templates pair this with that.
+        /// </summary>
+        public bool ShowPlatinumInCompletionSpot =>
+            CapstonesMatchPlatinums && TrophyPlatinumTotal > 0;
+
         /// <summary>
         /// Whether the completion badge carries a number. One finish needs none, the badge itself
         /// being the statement; several are worth counting.
@@ -339,6 +366,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _trophyPlatinumTotal, value))
                 {
                     OnPropertyChanged(nameof(HasTrophyTypes));
+                    OnPropertyChanged(nameof(ShowPlatinumInCompletionSpot));
                 }
             }
         }
