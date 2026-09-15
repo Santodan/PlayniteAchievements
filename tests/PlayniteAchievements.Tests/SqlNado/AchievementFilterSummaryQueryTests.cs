@@ -39,7 +39,8 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Assert.AreEqual(0, gameA.CommonCount);
                 Assert.AreEqual(1, gameA.TotalRarePossible);
                 Assert.AreEqual(1, gameA.TotalCommonPossible);
-                Assert.AreEqual(0, gameA.HasUnlockedCapstone, "A filtered capstone unlock must not complete the game.");
+                Assert.AreEqual(0, gameA.CapstoneTotal, "A filtered capstone must not be counted.");
+                Assert.AreEqual(0, gameA.CapstoneUnlocked, "A filtered capstone unlock must not complete the game.");
 
                 // Game B has no PlayniteGameId; the decoy filter row must not match (fail open).
                 Assert.AreEqual(1, gameB.TotalAchievements);
@@ -143,7 +144,8 @@ namespace PlayniteAchievements.SqlNado.Tests
                     .Single(r => r.PlayniteGameId == GameAId);
                 Assert.AreEqual(3, gameA.TotalAchievements);
                 Assert.AreEqual(2, gameA.AchievementsUnlocked);
-                Assert.AreEqual(1, gameA.HasUnlockedCapstone);
+                Assert.AreEqual(1, gameA.CapstoneTotal);
+                Assert.AreEqual(1, gameA.CapstoneUnlocked);
             });
         }
 
@@ -166,6 +168,40 @@ namespace PlayniteAchievements.SqlNado.Tests
 
                 Assert.AreEqual(2, gameA.TotalAchievements, "A points/trophy override must not filter the achievement.");
                 Assert.AreEqual(1, gameA.TrophyGoldTotal, "The trophy count must resolve the override first.");
+            });
+        }
+
+        [TestMethod]
+        public void CapstoneIdentity_IsDecidedAgainstThePlatinumsThemselves()
+        {
+            WithSeededDb(db =>
+            {
+                // A plain PlayStation game: the platinum is the capstone.
+                SeedGame(db, 400, "44444444-4444-4444-4444-444444444444", "Game D");
+                SeedAchievement(db, 40, 400, 1400, "d_plat", "platinum", isCapstone: true);
+                SeedAchievement(db, 41, 400, 1400, "d_gold", "gold", isCapstone: false);
+
+                // Same count on each side, different achievements: two finish lines, not one.
+                SeedGame(db, 500, "55555555-5555-5555-5555-555555555555", "Game E");
+                SeedAchievement(db, 50, 500, 1500, "e_plat", "platinum", isCapstone: false);
+                SeedAchievement(db, 51, 500, 1500, "e_mastery", null, isCapstone: true);
+
+                var rows = db.Load<GameSummaryTestRow>(GameSummarySql).ToList();
+
+                var gameD = rows.Single(r => r.GameName == "Game D");
+                Assert.AreEqual(0, gameD.CapstonesNotPlatinum);
+                Assert.AreEqual(0, gameD.PlatinumsNotCapstone);
+                Assert.AreEqual("d_plat", gameD.PlatinumApiNames);
+
+                var gameE = rows.Single(r => r.GameName == "Game E");
+                Assert.AreEqual(1, gameE.CapstonesNotPlatinum);
+                Assert.AreEqual(1, gameE.PlatinumsNotCapstone);
+                Assert.AreEqual("e_plat", gameE.PlatinumApiNames);
+
+                // A game with neither hands the finish badge to nothing, and says so by carrying
+                // no platinum at all rather than by a count that happens to agree.
+                var gameC = rows.Single(r => r.PlayniteGameId == GameCId);
+                Assert.IsNull(gameC.PlatinumApiNames);
             });
         }
 
@@ -213,6 +249,11 @@ namespace PlayniteAchievements.SqlNado.Tests
                 "Rarity is provider-owned and must not be resolved from the override mirror.");
             StringAssert.Contains(reader, "MAX(CASE WHEN ua.Unlocked = 1 THEN ua.UnlockTimeUtc END) AS LastUnlockUtc");
             StringAssert.Contains(reader, "COUNT(ad.Id) AS TotalAchievements");
+            // The capstone/platinum identity is settled by the query, by identity rather than by
+            // tally, and the platinum ApiNames ride along for the stored-capstone overlay.
+            StringAssert.Contains(reader, "THEN 1 ELSE 0 END) AS CapstonesNotPlatinum");
+            StringAssert.Contains(reader, "THEN 1 ELSE 0 END) AS PlatinumsNotCapstone");
+            StringAssert.Contains(reader, "THEN ad.ApiName END, '~|~') AS PlatinumApiNames");
             StringAssert.Contains(reader, "SUM(CASE WHEN ua.Unlocked = 1 THEN 1 ELSE 0 END) AS AchievementsUnlocked");
 
             var schema = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoSchemaManager.cs"));
@@ -346,6 +387,32 @@ namespace PlayniteAchievements.SqlNado.Tests
             Exec(db, $"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, IsFiltered, IsSummaryFiltered, UpdatedUtc) VALUES ('{GameCId}', 'c1', 1, 0, '2026-07-01T00:00:00Z');");
         }
 
+        private static void SeedGame(SQLiteDatabase db, int gameId, string playniteGameId, string gameName)
+        {
+            Exec(db, $"INSERT INTO Games (Id, ProviderKey, PlayniteGameId, GameName) VALUES ({gameId}, 'PSN', '{playniteGameId}', '{gameName}');");
+            Exec(db, $"INSERT INTO UserGameProgress (Id, UserId, GameId, CacheKey, HasAchievements, LastUpdatedUtc) VALUES ({1000 + gameId}, 1, {gameId}, '{playniteGameId}', 1, '2026-07-04T00:00:00Z');");
+        }
+
+        private static void SeedAchievement(
+            SQLiteDatabase db,
+            int definitionId,
+            int gameId,
+            int progressId,
+            string apiName,
+            string trophyType,
+            bool isCapstone)
+        {
+            var trophy = trophyType == null ? "NULL" : $"'{trophyType}'";
+            Exec(
+                db,
+                $"INSERT INTO AchievementDefinitions (Id, GameId, ApiName, TrophyType, IsCapstone) " +
+                $"VALUES ({definitionId}, {gameId}, '{apiName}', {trophy}, {(isCapstone ? 1 : 0)});");
+            Exec(
+                db,
+                $"INSERT INTO UserAchievements (Id, UserGameProgressId, AchievementDefinitionId, Unlocked) " +
+                $"VALUES ({definitionId}, {progressId}, {definitionId}, 0);");
+        }
+
         private static void Exec(SQLiteDatabase db, string sql) => db.ExecuteNonQuery(sql);
 
         private static int CountOccurrences(string text, string token)
@@ -414,7 +481,16 @@ namespace PlayniteAchievements.SqlNado.Tests
                 SUM(CASE WHEN LOWER(COALESCE(ad.Rarity, '')) = 'common' THEN 1 ELSE 0 END) AS TotalCommonPossible,
                 SUM(CASE WHEN LOWER(COALESCE(ad.Rarity, '')) = 'rare' THEN 1 ELSE 0 END) AS TotalRarePossible,
                 SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'gold' THEN 1 ELSE 0 END) AS TrophyGoldTotal,
-                MAX(CASE WHEN ad.IsCapstone = 1 AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS HasUnlockedCapstone
+                SUM(CASE WHEN ad.IsCapstone = 1 THEN 1 ELSE 0 END) AS CapstoneTotal,
+                SUM(CASE WHEN ad.IsCapstone = 1 AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS CapstoneUnlocked,
+                SUM(CASE WHEN ad.IsCapstone = 1
+                         AND LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) <> 'platinum'
+                    THEN 1 ELSE 0 END) AS CapstonesNotPlatinum,
+                SUM(CASE WHEN COALESCE(ad.IsCapstone, 0) <> 1
+                         AND LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'platinum'
+                    THEN 1 ELSE 0 END) AS PlatinumsNotCapstone,
+                GROUP_CONCAT(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'platinum'
+                             THEN ad.ApiName END, '~|~') AS PlatinumApiNames
             FROM LatestProgress lp
             LEFT JOIN AchievementDefinitions ad
                 ON ad.GameId = lp.GameId
@@ -571,7 +647,11 @@ namespace PlayniteAchievements.SqlNado.Tests
             public long TotalCommonPossible { get; set; }
             public long TotalRarePossible { get; set; }
             public long TrophyGoldTotal { get; set; }
-            public long HasUnlockedCapstone { get; set; }
+            public long CapstoneTotal { get; set; }
+            public long CapstoneUnlocked { get; set; }
+            public long CapstonesNotPlatinum { get; set; }
+            public long PlatinumsNotCapstone { get; set; }
+            public string PlatinumApiNames { get; set; }
         }
 
         private sealed class TimelineTestRow
