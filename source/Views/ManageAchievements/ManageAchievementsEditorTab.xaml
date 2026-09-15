@@ -1023,12 +1023,27 @@
                                     </Button>
                                 </StackPanel>
 
-                                <TextBlock Text="{Binding EffectiveCategoryCapstoneText}"
+                                <!-- Each line is hidden when this achievement is that capstone,
+                                     because the selector above already says so. Trimmed rather
+                                     than wrapped so a long achievement name cannot push the pane
+                                     around; the tooltip carries the full text. -->
+                                <TextBlock Text="{Binding CurrentCategoryCapstoneText}"
+                                           ToolTip="{Binding CurrentCategoryCapstoneText}"
+                                           Visibility="{Binding ShowCurrentCategoryCapstone, Converter={StaticResource BoolToVis}}"
                                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            Opacity="{StaticResource PlayAch.Opacity.Secondary}"
-                                           TextWrapping="Wrap"
-                                           Margin="18,4,0,2" />
+                                           TextTrimming="CharacterEllipsis"
+                                           Margin="18,4,0,0" />
+
+                                <TextBlock Text="{Binding CurrentGameCapstoneText}"
+                                           ToolTip="{Binding CurrentGameCapstoneText}"
+                                           Visibility="{Binding ShowCurrentGameCapstone, Converter={StaticResource BoolToVis}}"
+                                           Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           Opacity="{StaticResource PlayAch.Opacity.Secondary}"
+                                           TextTrimming="CharacterEllipsis"
+                                           Margin="18,2,0,2" />
                             </StackPanel>
                         </Border>
 

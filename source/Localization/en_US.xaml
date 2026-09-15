@@ -403,7 +403,8 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_SummaryExclusionHeader">Summary Exclusion</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_SummaryExclusionHint">Exclude this game from overview and all-games summary data.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Current">Current Capstone: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_InCategory">Capstone in {0}: {1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_CurrentCategory">Current category capstone: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_CurrentGame">Current game capstone: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_ScopeCategory">Category: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_ScopeGameWide">Whole game</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_ScopeOwnCategory">This category</sys:String>
