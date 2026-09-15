@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
 namespace PlayniteAchievements.Providers.GuildWars2
 {
@@ -78,6 +79,51 @@ namespace PlayniteAchievements.Providers.GuildWars2
             }
 
             return SupportedLanguages.Contains(prefix) ? prefix.ToLowerInvariant() : DefaultLanguage;
+        }
+
+        /// <summary>
+        /// In-game colour markup the API passes through verbatim: the game client renders
+        /// &lt;c=@flavor&gt;...&lt;/c&gt; as tinted flavour text, and nothing outside the client can. The
+        /// closing tag, the opening tag with or without the @, and the capitalised spelling all
+        /// occur in live data, so the match is deliberately loose about which.
+        /// </summary>
+        private static readonly Regex ColorMarkupRegex =
+            new Regex(@"</?c(?:=[^>]*)?>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        /// <summary>The only other tag in the data, used as a paragraph break.</summary>
+        private static readonly Regex LineBreakRegex =
+            new Regex(@"<br\s*/?>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        /// <summary>
+        /// Runs of spaces and tabs, which appear where the game templated a number out of the
+        /// string. Newlines are preserved.
+        /// </summary>
+        private static readonly Regex RepeatedSpaceRegex =
+            new Regex(@"[ \t]{2,}", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Removes the markup the Guild Wars 2 client renders and nothing else can, leaving the
+        /// prose intact. Line-break tags become real newlines rather than disappearing, so a
+        /// description written as two paragraphs still reads as two.
+        ///
+        /// Requirement strings also arrive with the achievement's target count templated out
+        /// ("Kill  player in PvP."), which leaves a run of spaces mid-sentence. The run is
+        /// collapsed; the missing number is not invented, since each tier has a different one.
+        /// </summary>
+        public static string StripMarkup(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+
+            var text = LineBreakRegex.Replace(value, "\n");
+            text = ColorMarkupRegex.Replace(text, string.Empty);
+            text = RepeatedSpaceRegex.Replace(text, " ");
+
+            // Stripping a leading tag can leave the line starting or ending on a space, and the
+            // flavour text in live data frequently ends on one before its closing tag.
+            return text.Trim();
         }
 
         /// <summary>

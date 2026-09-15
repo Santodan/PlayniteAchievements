@@ -115,7 +115,11 @@ namespace PlayniteAchievements.Providers.GuildWars2
             // Only 9% of achievements carry their own art; the category icon covers the rest, and
             // every one of the 355 categories has one.
             var icon = FirstNonBlank(achievement.Icon, category?.Icon);
-            var description = FirstNonBlank(achievement.Description, achievement.Requirement);
+
+            // Both prose fields carry the game client's own colour markup, which only the client can
+            // render; left in, it shows up literally as <c=@flavor> around the text.
+            var description = Gw2Parsing.StripMarkup(
+                FirstNonBlank(achievement.Description, achievement.Requirement));
             var hidden = achievement.Flags?.Contains(HiddenFlag) == true;
             var multiTier = tiers.Count > 1;
 
