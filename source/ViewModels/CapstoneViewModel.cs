@@ -222,10 +222,18 @@ namespace PlayniteAchievements.ViewModels
             {
                 // This tab still presents one capstone for the game, so it writes the game-wide
                 // scope; clearing it drops only that entry.
+                var targetApiName = markerApiName ?? _persistedMarkerApiName;
+                if (string.IsNullOrWhiteSpace(targetApiName))
+                {
+                    // Clearing when nothing is set has nothing to write, and asking the service to
+                    // drop a blank achievement would surface as a failure dialog.
+                    return CacheWriteResult.CreateSuccess(_gameId.ToString("D"), DateTime.UtcNow);
+                }
+
                 return await _achievementOverridesService
                     .SetCapstoneScopeAsync(
                         _gameId,
-                        markerApiName ?? _persistedMarkerApiName,
+                        targetApiName,
                         markerApiName == null ? CapstoneScope.None : CapstoneScope.GameWide)
                     .ConfigureAwait(true);
             }
