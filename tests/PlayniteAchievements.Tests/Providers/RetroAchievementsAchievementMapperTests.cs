@@ -75,7 +75,6 @@ namespace PlayniteAchievements.Tests.Providers
                 gameInfo,
                 rarityStats: "casual",
                 categoryLabel: "Base",
-                enableAutomaticCapstoneAssignment: true,
                 setCategoryType: "Base");
 
             Assert.AreEqual(2, achievements.Count);
@@ -91,7 +90,9 @@ namespace PlayniteAchievements.Tests.Providers
             var hard = achievements.Single(item => item.ApiName == "102");
             Assert.AreEqual("Base|Hardcore", hard.CategoryType);
             Assert.AreEqual(new DateTime(2025, 6, 12, 2, 0, 0, DateTimeKind.Utc), hard.UnlockTimeUtc);
-            Assert.IsTrue(hard.IsCapstone);
+            // A win condition means the game was beaten, not finished; mastering a set is plain
+            // 100% and needs no capstone, so RetroAchievements supplies none.
+            Assert.IsFalse(hard.IsCapstone);
 
             var rows = RetroAchievementsAchievementMapper.ToFriendRows(achievements);
             Assert.AreEqual(2, rows.Count);
@@ -135,7 +136,6 @@ namespace PlayniteAchievements.Tests.Providers
                 gameInfo,
                 rarityStats: "casual",
                 categoryLabel: "Bonus",
-                enableAutomaticCapstoneAssignment: false,
                 setCategoryType: "Subset");
 
             // The free-form label is unchanged; only the canonical type gains "Subset",
