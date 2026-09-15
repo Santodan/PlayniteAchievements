@@ -100,7 +100,7 @@ namespace PlayniteAchievements.Services.Cache
         public DateTime? LastUnlockUtc { get; set; }
     }
 
-    internal sealed class CachedRecentUnlockData
+    internal sealed class CachedRecentUnlockData : Models.Achievements.IAchievementOverrideTarget
     {
         public string CacheKey { get; set; }
 

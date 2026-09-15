@@ -996,50 +996,7 @@ namespace PlayniteAchievements.Services.Achievements
                         achievement.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(userOverride.CategoryType);
                     }
 
-                    if (!string.IsNullOrWhiteSpace(userOverride.DisplayName))
-                    {
-                        achievement.DisplayName = userOverride.DisplayName;
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(userOverride.Description))
-                    {
-                        achievement.Description = userOverride.Description;
-                    }
-
-                    if (userOverride.Points.HasValue)
-                    {
-                        achievement.Points = userOverride.Points;
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(userOverride.TrophyType))
-                    {
-                        achievement.TrophyType = userOverride.TrophyType;
-                    }
-
-                    // Either value is a customization, so only a stored one counts: null means the
-                    // provider still decides. Summary rows come straight from SQL, which reads the
-                    // provider's own column, so without this the editor's hidden override showed
-                    // in the achievement list and nowhere else.
-                    if (userOverride.Hidden.HasValue)
-                    {
-                        achievement.Hidden = userOverride.Hidden.Value;
-                    }
-
-                    // Only a correction to an achievement that is already unlocked; unlock status
-                    // itself stays provider-owned. Mirrors the hydrator exactly, including both
-                    // guards it applies: a manually tracked game keeps its link's timestamp, and a
-                    // cleared timestamp is itself a stored value rather than "no customization".
-                    if (achievement.Unlocked && !resolved.HasManualLink)
-                    {
-                        if (userOverride.UnlockTimeUtc.HasValue)
-                        {
-                            achievement.UnlockTimeUtc = userOverride.UnlockTimeUtc;
-                        }
-                        else if (userOverride.ClearUnlockTime)
-                        {
-                            achievement.UnlockTimeUtc = null;
-                        }
-                    }
+                    AchievementOverrideApplier.Apply(achievement, userOverride, resolved.HasManualLink);
                 }
 
                 achievement.AchievementNote = userOverride?.Note;
