@@ -175,6 +175,7 @@
     <sys:String x:Key="LOCPlayAch_Button_Login">Sign in</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_SignOut">Sign out</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Remove">Remove</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Replace">Replace</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Next">Next</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Ok">OK</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Pick">Select</sys:String>
@@ -405,10 +406,8 @@
     <sys:String x:Key="LOCPlayAch_Capstone_Current">Current Capstone: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_CurrentCategory">Current category capstone: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_CurrentGame">Current game capstone: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_ScopeCategory">Category: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_ScopeGameWide">Whole game</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_ScopeOwnCategory">This category</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Subtitle">Choose the achievements that stand for finishing this game. Each Capstone covers the whole game or one category, and the game is Completed when all of them are unlocked.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_Replaces">Replaces {0}</sys:String>
+                <sys:String x:Key="LOCPlayAch_Capstone_Subtitle">Choose the achievements that stand for finishing this game. Each Capstone covers the whole game or one category, and the game is Completed when all of them are unlocked.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_Capstone">Current Capstone</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_Completion">Completion</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_GameId">Playnite Game ID</sys:String>

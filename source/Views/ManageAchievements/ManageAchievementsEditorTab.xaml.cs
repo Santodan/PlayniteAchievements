@@ -384,46 +384,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         /// <summary>
-        /// Opens the capstone scope picker, rebuilt on each open so the category name in the
-        /// labels matches whatever the achievement is filed under right now.
+        /// Adds, replaces or drops the capstone for the edited achievement. The button says which,
+        /// so a replacement is never silent.
         /// </summary>
-        private void CapstoneScopeButton_Click(object sender, RoutedEventArgs e)
+        private void CapstoneActionButton_Click(object sender, RoutedEventArgs e)
         {
-            if (ViewModel?.EditTarget == null || CapstoneScopeContextMenu == null || CapstoneScopeButton == null)
+            var row = ViewModel?.EditTarget;
+            if (row == null)
             {
                 return;
             }
 
-            var row = ViewModel.EditTarget;
-            CapstoneScopeContextMenu.Items.Clear();
-
-            // There is one game, so a game-wide capstone cannot be applied across a selection: it
-            // would just leave whichever row was written last.
-            if (!row.IsBulkRow)
-            {
-                AddCapstoneScopeItem(
-                    CapstoneScopeContextMenu,
-                    ViewModel,
-                    row.CapstoneScope,
-                    CapstoneScope.GameWide,
-                    ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeGameWide"));
-            }
-            AddCapstoneScopeItem(
-                CapstoneScopeContextMenu,
-                ViewModel,
-                row.CapstoneScope,
-                CapstoneScope.Category,
-                row.CapstoneScopeCategoryMenuText);
-            AddCapstoneScopeItem(
-                CapstoneScopeContextMenu,
-                ViewModel,
-                row.CapstoneScope,
-                CapstoneScope.None,
-                ResourceProvider.GetString("LOCPlayAch_Common_None"));
-
-            CapstoneScopeContextMenu.PlacementTarget = CapstoneScopeButton;
-            CapstoneScopeContextMenu.Placement = PlacementMode.Bottom;
-            CapstoneScopeContextMenu.IsOpen = true;
+            ViewModel.SetCapstoneForSelection(!row.IsCapstone);
         }
 
         private void TypeSelectionButton_Click(object sender, RoutedEventArgs e)
@@ -696,37 +668,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             // Capstone first, matching the Capstones tab's single-per-game rule: it is a property of
             // the game, not of a selection, so it is offered only for one row.
-            if (viewModel.IsSingleCapstoneSelection(out var capstoneScope))
+            if (viewModel.IsSingleCapstoneSelection(out var isCapstone))
             {
-                // A capstone now carries how much of the game it stands for, so the entry offers
-                // the scopes rather than a single tick.
-                var capstoneMenu = new MenuItem
+                var capstoneItem = new MenuItem
                 {
-                    Header = ResourceProvider.GetString("LOCPlayAch_Dynamic_Capstone")
+                    Header = ResourceProvider.GetString("LOCPlayAch_Dynamic_Capstone"),
+                    IsCheckable = true,
+                    IsChecked = isCapstone
                 };
-
-                AddCapstoneScopeItem(
-                    capstoneMenu,
-                    viewModel,
-                    capstoneScope,
-                    CapstoneScope.GameWide,
-                    ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeGameWide"));
-                AddCapstoneScopeItem(
-                    capstoneMenu,
-                    viewModel,
-                    capstoneScope,
-                    CapstoneScope.Category,
-                    selection.Count == 1
-                        ? selection[0].CapstoneScopeCategoryMenuText
-                        : ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeOwnCategory"));
-                AddCapstoneScopeItem(
-                    capstoneMenu,
-                    viewModel,
-                    capstoneScope,
-                    CapstoneScope.None,
-                    ResourceProvider.GetString("LOCPlayAch_Common_None"));
-
-                menu.Items.Add(capstoneMenu);
+                capstoneItem.Click += (_, __) => viewModel.SetCapstoneForSelection(capstoneItem.IsChecked);
+                menu.Items.Add(capstoneItem);
             }
 
             var goalItem = new MenuItem
@@ -855,26 +806,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             return menu;
         }
 
-        /// <summary>
-        /// One scope choice on the capstone submenu, ticked when it is what the row already is.
-        /// </summary>
-        private static void AddCapstoneScopeItem(
-            ItemsControl parent,
-            ManageAchievementsEditorViewModel viewModel,
-            CapstoneScope currentScope,
-            CapstoneScope scope,
-            string header)
-        {
-            var item = new MenuItem
-            {
-                Header = header,
-                IsCheckable = true,
-                IsChecked = currentScope == scope
-            };
-            item.Click += (_, __) => viewModel.SetCapstoneScopeForSelection(scope);
-            parent.Items.Add(item);
-        }
-
         private static MenuItem CreateMenuItem(string header, Action onClick, bool isEnabled = true)
         {
             var item = new MenuItem { Header = header, IsEnabled = isEnabled };
@@ -950,7 +881,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 ResetButton,
                 CustomAchievementsGrid,
                 AddRowFooterButton,
-                CapstoneScopeButton,
+                CapstoneActionButton,
                 CategoryPicker,
                 TypeSelectionButton
             };

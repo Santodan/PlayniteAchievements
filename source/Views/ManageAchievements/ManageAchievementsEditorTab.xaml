@@ -1004,23 +1004,25 @@
                                            Height="14"
                                            Margin="0,0,4,0"
                                            VerticalAlignment="Center" />
-                                    <TextBlock Text="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
-                                               Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                               Margin="0,0,8,0"
-                                               VerticalAlignment="Center" />
-                                    <Button x:Name="CapstoneScopeButton"
+                                    <!-- The tick is a state indicator, not a control: the button
+                                         beside it is what acts, because only the button can say
+                                         whether acting adds a capstone or replaces one. -->
+                                    <CheckBox Content="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
+                                              IsChecked="{Binding IsCapstone, Mode=OneWay}"
+                                              IsHitTestVisible="False"
+                                              Focusable="False"
+                                              Opacity="{StaticResource PlayAch.Opacity.Secondary}"
+                                              MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                                              Margin="0,0,10,0"
+                                              VerticalContentAlignment="Center" />
+                                    <Button x:Name="CapstoneActionButton"
                                             Style="{StaticResource AchievementSelectorButtonStyle}"
-                                            Content="{Binding CapstoneScopeDisplayText}"
+                                            Content="{Binding CapstoneActionText}"
+                                            ToolTip="{Binding CapstoneActionToolTip}"
                                             IsEnabled="{Binding CanEditCapstone}"
-                                            Click="CapstoneScopeButton_Click"
+                                            Click="CapstoneActionButton_Click"
                                             MinHeight="26"
-                                            MinWidth="150">
-                                        <Button.ContextMenu>
-                                            <ContextMenu x:Name="CapstoneScopeContextMenu"
-                                                         Style="{StaticResource AchievementSelectorContextMenuStyle}" />
-                                        </Button.ContextMenu>
-                                    </Button>
+                                            MinWidth="110" />
                                 </StackPanel>
 
                                 <!-- Each line is hidden when this achievement is that capstone,
