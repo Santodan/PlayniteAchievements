@@ -247,6 +247,16 @@ namespace PlayniteAchievements.Services.Summaries
                 var capstones = CountCapstones(counted);
                 item.CapstoneTotal = capstones.Key;
                 item.CapstoneUnlocked = capstones.Value;
+                item.OwnCapstoneTotal = capstones.Key;
+                item.OwnCapstoneUnlocked = capstones.Value;
+                if (dualStats)
+                {
+                    // A collapsed row absorbs its descendants, so it reports their capstones too.
+                    var subtreeCapstones = CountCapstones(members);
+                    item.SubtreeCapstoneTotal = subtreeCapstones.Key;
+                    item.SubtreeCapstoneUnlocked = subtreeCapstones.Value;
+                }
+
                 item.AllowCompletionBadge = AllowsCompletionBadge(badgeMode, result.Count, capstones.Key > 0);
 
                 result.Add(item);
