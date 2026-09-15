@@ -2637,10 +2637,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // category with no capstone of its own shows the one it inherits.
             var category = ResolveRowCategory(capstones.Achievements, apiName);
             var effectiveApiName = resolver.ResolveForCategory(category);
+
+            // Resolution falls back to the game-wide capstone, so for most categories these are the
+            // same achievement. Saying so twice is noise: the category readout is worth showing
+            // only when the category stands on something of its own.
+            var categoryStandsOnGameWide = string.Equals(
+                effectiveApiName,
+                resolver.GameWideApiName,
+                StringComparison.OrdinalIgnoreCase);
+
             row.SetCapstoneScopeFromSource(
                 scope,
                 AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(category),
-                ResolveDisplayName(capstones.Achievements, effectiveApiName),
+                categoryStandsOnGameWide
+                    ? null
+                    : ResolveDisplayName(capstones.Achievements, effectiveApiName),
                 ResolveDisplayName(capstones.Achievements, resolver.GameWideApiName));
         }
 
