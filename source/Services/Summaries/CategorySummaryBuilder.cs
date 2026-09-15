@@ -241,7 +241,17 @@ namespace PlayniteAchievements.Services.Summaries
                 }
 
                 item.CategoryType = ResolveCategoryType(directMembers, members);
-                item.AllowCompletionBadge = AllowsCompletionBadge(badgeMode, result.Count);
+
+                // A capstone claims its own achievement's category, so a capstone sitting in this
+                // bucket is one this category owns rather than one it inherits. Owning a finish
+                // line of its own is worth showing whatever the badge mode says; a category that
+                // only inherits the game-wide one still defers to the setting, which is what keeps
+                // a single-capstone game looking exactly as it did.
+                var capstones = CountCapstones(counted);
+                item.CapstoneTotal = capstones.Key;
+                item.CapstoneUnlocked = capstones.Value;
+                item.AllowCompletionBadge = capstones.Key > 0 ||
+                                            AllowsCompletionBadge(badgeMode, result.Count);
 
                 result.Add(item);
             }
@@ -298,6 +308,28 @@ namespace PlayniteAchievements.Services.Summaries
         /// first category that is not completed leaves the whole list badge-free. Each level is its
         /// own call, so First means the first row of the level being shown.
         /// </summary>
+        /// <summary>How many capstones a bucket holds, and how many are earned.</summary>
+        private static KeyValuePair<int, int> CountCapstones(IReadOnlyList<AchievementDisplayItem> bucket)
+        {
+            var total = 0;
+            var unlocked = 0;
+            foreach (var achievement in bucket)
+            {
+                if (achievement?.IsCapstone != true)
+                {
+                    continue;
+                }
+
+                total++;
+                if (achievement.Unlocked)
+                {
+                    unlocked++;
+                }
+            }
+
+            return new KeyValuePair<int, int>(total, unlocked);
+        }
+
         private static bool AllowsCompletionBadge(CategoryCompletionBadgeMode mode, int emittedCount)
         {
             switch (mode)
@@ -313,12 +345,18 @@ namespace PlayniteAchievements.Services.Summaries
 
         /// <summary>
         /// Mirrors <see cref="PlayniteAchievements.Models.Achievements.GameAchievementData.IsCompleted"/>:
-        /// every achievement unlocked, or the category contains the game's unlocked capstone achievement.
+        /// every achievement unlocked, or every capstone in the category unlocked.
         /// </summary>
+        /// <remarks>
+        /// A category with several capstones needs all of them, for the same reason the game does:
+        /// one finish line earned while another is still open has not finished the thing.
+        /// </remarks>
         private static bool ComputeIsCompleted(IReadOnlyList<AchievementDisplayItem> bucket)
         {
             var hasAny = false;
             var allUnlocked = true;
+            var capstones = 0;
+            var capstonesUnlocked = 0;
             foreach (var achievement in bucket)
             {
                 if (achievement == null)
@@ -327,15 +365,24 @@ namespace PlayniteAchievements.Services.Summaries
                 }
 
                 hasAny = true;
-                if (achievement.IsCapstone && achievement.Unlocked)
+                if (achievement.IsCapstone)
                 {
-                    return true;
+                    capstones++;
+                    if (achievement.Unlocked)
+                    {
+                        capstonesUnlocked++;
+                    }
                 }
 
                 if (!achievement.Unlocked)
                 {
                     allUnlocked = false;
                 }
+            }
+
+            if (capstones > 0 && capstonesUnlocked >= capstones)
+            {
+                return true;
             }
 
             return hasAny && allUnlocked;
