@@ -69,7 +69,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private AchievementEditorRow _bulkRow;
         private readonly List<AchievementEditorRow> _selectedRows = new List<AchievementEditorRow>();
         private bool _isApplyingBulk;
-        private bool _providerIconBaselinesResolved;
+        private bool _providerBaselinesResolved;
         private bool _isTogglingReveal;
         private bool _hasCustomOrder;
         private DispatcherTimer _assignmentsChangedDebounce;
@@ -998,7 +998,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // Without the raw snapshot every row's icon would read as different from a provider
             // path of null, so the override maps are only safe to rebuild once it has been seen.
-            _providerIconBaselinesResolved = rawByApiName.Count > 0;
+            _providerBaselinesResolved = rawByApiName.Count > 0;
 
             foreach (var row in AchievementRows)
             {
@@ -3126,11 +3126,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     // Hiding is a presentation choice rather than a provider fact, so both values
                     // are storable; agreeing with the provider again stores nothing, which is what
                     // keeps a record from being kept for a row that is not customized.
+                    // Without the provider baseline every row reads as not hidden, so unhiding a
+                    // provider-hidden achievement would store nothing and snap straight back.
+                    // Storing the chosen value keeps a record that happens to agree with the
+                    // provider, which costs a row and holds the edit.
                     case nameof(AchievementEditorRow.Hidden):
                         WriteProviderField(
                             apiName,
                             AchievementEditableField.Hidden,
-                            row.Hidden == row.ProviderHidden ? (bool?)null : row.Hidden);
+                            _providerBaselinesResolved && row.Hidden == row.ProviderHidden
+                                ? (bool?)null
+                                : row.Hidden);
                         break;
 
                     // Icons are stored as their own maps rather than on the override record, so
@@ -3588,7 +3594,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // The maps are written whole, so rebuilding them without the provider baseline would
             // both stamp every provider icon in as an override and drop the real ones already
             // stored. Refusing the write leaves the stored icons alone.
-            if (!_providerIconBaselinesResolved)
+            if (!_providerBaselinesResolved)
             {
                 _logger?.Warn($"Skipped writing icon overrides for gameId={_gameId}: no provider data to compare against.");
                 return;
