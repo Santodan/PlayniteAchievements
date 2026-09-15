@@ -5093,31 +5093,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string CurrentCategoryCapstoneText =>
             string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Capstone_CurrentCategory"),
-                NameOrNone(_effectiveCategoryCapstoneName));
+                _effectiveCategoryCapstoneName);
 
         /// <summary>What stands for the game as a whole.</summary>
         public string CurrentGameCapstoneText =>
             string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Capstone_CurrentGame"),
-                NameOrNone(_gameWideCapstoneName));
+                _gameWideCapstoneName);
 
         /// <summary>
-        /// Hidden when this row is its category's capstone, because the selector beside it already
-        /// says so. The proxy reports on no single category at all.
+        /// Shown only when there is a capstone to name and it is not this row: the selector beside
+        /// it already says when this achievement is the one, and a line reading None says nothing
+        /// the empty selector has not. The proxy reports on no single category at all.
         /// </summary>
         public bool ShowCurrentCategoryCapstone =>
-            !IsBulkRow && CapstoneScope != CapstoneScope.Category && CapstoneScope != CapstoneScope.GameWide;
+            !IsBulkRow &&
+            !string.IsNullOrWhiteSpace(_effectiveCategoryCapstoneName) &&
+            CapstoneScope != CapstoneScope.Category &&
+            CapstoneScope != CapstoneScope.GameWide;
 
-        /// <summary>Hidden when this row is the game-wide capstone, for the same reason.</summary>
+        /// <summary>Shown on the same terms, for the capstone standing for the whole game.</summary>
         public bool ShowCurrentGameCapstone =>
-            !IsBulkRow && CapstoneScope != CapstoneScope.GameWide;
-
-        private static string NameOrNone(string displayName)
-        {
-            return string.IsNullOrWhiteSpace(displayName)
-                ? ResourceProvider.GetString("LOCPlayAch_Common_None")
-                : displayName;
-        }
+            !IsBulkRow &&
+            !string.IsNullOrWhiteSpace(_gameWideCapstoneName) &&
+            CapstoneScope != CapstoneScope.GameWide;
 
         /// <summary>
         /// Applies resolved capstone state without writing it back, for the refresh that re-reads
