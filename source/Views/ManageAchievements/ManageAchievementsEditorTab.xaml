@@ -1041,7 +1041,7 @@
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            Opacity="{StaticResource PlayAch.Opacity.Secondary}"
                                            TextTrimming="CharacterEllipsis"
-                                           Margin="18,4,0,0" />
+                                           Margin="18,8,0,0" />
 
                                 <TextBlock Text="{Binding CurrentGameCapstoneText}"
                                            ToolTip="{Binding CurrentGameCapstoneText}"
@@ -1050,7 +1050,7 @@
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            Opacity="{StaticResource PlayAch.Opacity.Secondary}"
                                            TextTrimming="CharacterEllipsis"
-                                           Margin="18,2,0,2" />
+                                           Margin="18,3,0,2" />
                             </StackPanel>
                         </Border>
 
