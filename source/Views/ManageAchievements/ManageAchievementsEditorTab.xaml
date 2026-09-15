@@ -1015,14 +1015,19 @@
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,10,0"
                                               VerticalContentAlignment="Center" />
+                                    <!-- A plain button, not a selector: it commits an action rather
+                                         than opening a list, so it must not wear the dropdown
+                                         chevron the category and type pickers use. -->
                                     <Button x:Name="CapstoneActionButton"
-                                            Style="{StaticResource AchievementSelectorButtonStyle}"
                                             Content="{Binding CapstoneActionText}"
                                             ToolTip="{Binding CapstoneActionToolTip}"
                                             IsEnabled="{Binding CanEditCapstone}"
                                             Click="CapstoneActionButton_Click"
+                                            Padding="12,4"
                                             MinHeight="26"
-                                            MinWidth="110" />
+                                            MinWidth="90"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center" />
                                 </StackPanel>
 
                                 <!-- Each line is hidden when this achievement is that capstone,
