@@ -1026,10 +1026,19 @@ namespace PlayniteAchievements.Services.Achievements
                     }
 
                     // Only a correction to an achievement that is already unlocked; unlock status
-                    // itself stays provider-owned.
-                    if (userOverride.UnlockTimeUtc.HasValue && achievement.Unlocked)
+                    // itself stays provider-owned. Mirrors the hydrator exactly, including both
+                    // guards it applies: a manually tracked game keeps its link's timestamp, and a
+                    // cleared timestamp is itself a stored value rather than "no customization".
+                    if (achievement.Unlocked && !resolved.HasManualLink)
                     {
-                        achievement.UnlockTimeUtc = userOverride.UnlockTimeUtc;
+                        if (userOverride.UnlockTimeUtc.HasValue)
+                        {
+                            achievement.UnlockTimeUtc = userOverride.UnlockTimeUtc;
+                        }
+                        else if (userOverride.ClearUnlockTime)
+                        {
+                            achievement.UnlockTimeUtc = null;
+                        }
                     }
                 }
 
