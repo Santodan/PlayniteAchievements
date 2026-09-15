@@ -691,8 +691,7 @@ namespace PlayniteAchievements.Services
                     observedUtc = CaptureTimelineClock.UtcNow;
                 }
 
-                anchorPolicy = state.Registration?.UnlockAnchorPolicy ??
-                    InGameUnlockAnchorPolicy.ProviderReported;
+                anchorPolicy = InGameUnlockAnchorSelector.ResolvePolicy(state.Registration);
                 anchorBias = state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero;
                 state.Schedule.Succeeded(
                     CaptureTimelineClock.UtcNow,
@@ -1174,9 +1173,11 @@ namespace PlayniteAchievements.Services
                                 keys,
                                 timer.ElapsedMilliseconds,
                                 observedUtc,
-                                InGameUnlockAnchorPolicy.ProviderReported,
                                 // Refresh-prong unlocks carry the same provider stamps the fast
-                                // source reports, so a registered bias applies here too.
+                                // source reports, so both the resolved policy and a registered
+                                // bias apply here too. With no fast source to register, this
+                                // resolves to ProviderReported.
+                                InGameUnlockAnchorSelector.ResolvePolicy(state.Registration),
                                 state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero);
                         if (completion != null)
                         {
