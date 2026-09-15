@@ -383,6 +383,43 @@ namespace PlayniteAchievements.Views.ManageAchievements
             e.Handled = true;
         }
 
+        /// <summary>
+        /// Opens the capstone scope picker, rebuilt on each open so the category name in the
+        /// labels matches whatever the achievement is filed under right now.
+        /// </summary>
+        private void CapstoneScopeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel?.EditTarget == null || CapstoneScopeContextMenu == null || CapstoneScopeButton == null)
+            {
+                return;
+            }
+
+            var row = ViewModel.EditTarget;
+            CapstoneScopeContextMenu.Items.Clear();
+            AddCapstoneScopeItem(
+                CapstoneScopeContextMenu,
+                ViewModel,
+                row.CapstoneScope,
+                CapstoneScope.GameWide,
+                ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeGameWide"));
+            AddCapstoneScopeItem(
+                CapstoneScopeContextMenu,
+                ViewModel,
+                row.CapstoneScope,
+                CapstoneScope.Category,
+                row.CapstoneScopeCategoryMenuText);
+            AddCapstoneScopeItem(
+                CapstoneScopeContextMenu,
+                ViewModel,
+                row.CapstoneScope,
+                CapstoneScope.None,
+                ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeNone"));
+
+            CapstoneScopeContextMenu.PlacementTarget = CapstoneScopeButton;
+            CapstoneScopeContextMenu.Placement = PlacementMode.Bottom;
+            CapstoneScopeContextMenu.IsOpen = true;
+        }
+
         private void TypeSelectionButton_Click(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null || TypeSelectionContextMenu == null || TypeSelectionButton == null)
@@ -667,19 +704,21 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     viewModel,
                     capstoneScope,
                     CapstoneScope.GameWide,
-                    "LOCPlayAch_Capstone_ScopeGameWide");
+                    ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeGameWide"));
                 AddCapstoneScopeItem(
                     capstoneMenu,
                     viewModel,
                     capstoneScope,
                     CapstoneScope.Category,
-                    "LOCPlayAch_Capstone_ScopeOwnCategory");
+                    selection.Count == 1
+                        ? selection[0].CapstoneScopeCategoryMenuText
+                        : ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeOwnCategory"));
                 AddCapstoneScopeItem(
                     capstoneMenu,
                     viewModel,
                     capstoneScope,
                     CapstoneScope.None,
-                    "LOCPlayAch_Capstone_ScopeNone");
+                    ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeNone"));
 
                 menu.Items.Add(capstoneMenu);
             }
@@ -814,15 +853,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// One scope choice on the capstone submenu, ticked when it is what the row already is.
         /// </summary>
         private static void AddCapstoneScopeItem(
-            MenuItem parent,
+            ItemsControl parent,
             ManageAchievementsEditorViewModel viewModel,
             CapstoneScope currentScope,
             CapstoneScope scope,
-            string headerKey)
+            string header)
         {
             var item = new MenuItem
             {
-                Header = ResourceProvider.GetString(headerKey),
+                Header = header,
                 IsCheckable = true,
                 IsChecked = currentScope == scope
             };
@@ -905,7 +944,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 ResetButton,
                 CustomAchievementsGrid,
                 AddRowFooterButton,
-                CapstoneCheckBox,
+                CapstoneScopeButton,
                 CategoryPicker,
                 TypeSelectionButton
             };

@@ -4972,6 +4972,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// The scope menu's category entry, naming the category so the choice is unambiguous when
+        /// several achievements in the selection sit in different ones.
+        /// </summary>
+        public string CapstoneScopeCategoryMenuText =>
+            string.IsNullOrWhiteSpace(CapstoneCategoryDisplayName)
+                ? ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeOwnCategory")
+                : string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeCategory"),
+                    CapstoneCategoryDisplayName);
+
         /// <summary>The display path of this achievement's own category.</summary>
         public string CapstoneCategoryDisplayName
         {

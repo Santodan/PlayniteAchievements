@@ -975,23 +975,6 @@
                                               IsChecked="{Binding HiddenState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               IsThreeState="{Binding IsBulkRow}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                              Margin="0,0,0,2"
-                                              VerticalContentAlignment="Center" />
-                                </WrapPanel>
-
-                                <!-- What the user has singled the achievement out as. -->
-                                <WrapPanel Orientation="Horizontal">
-                                    <Image Source="{DynamicResource BadgeCompletedGame}"
-                                           Style="{StaticResource RarityIcon}"
-                                           Width="14"
-                                           Height="14"
-                                           Margin="0,0,4,0"
-                                           VerticalAlignment="Center" />
-                                    <CheckBox x:Name="CapstoneCheckBox"
-                                              Content="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
-                                              IsChecked="{Binding IsCapstone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsEnabled="{Binding CanEditCapstone}"
-                                              MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,18,2"
                                               VerticalContentAlignment="Center" />
                                     <TextBlock Text="&#xf003;"
@@ -1008,6 +991,44 @@
                                               Margin="0,0,0,2"
                                               VerticalContentAlignment="Center" />
                                 </WrapPanel>
+
+                                <!-- A capstone carries how much of the game it stands for, so this
+                                     is a scope picker rather than a tick. The line under it says
+                                     what this achievement's own category currently stands on, which
+                                     may be a capstone on an ancestor category or the game-wide one
+                                     rather than anything in this category at all. -->
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <Image Source="{DynamicResource BadgeCompletedGame}"
+                                           Style="{StaticResource RarityIcon}"
+                                           Width="14"
+                                           Height="14"
+                                           Margin="0,0,4,0"
+                                           VerticalAlignment="Center" />
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
+                                               Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               Margin="0,0,8,0"
+                                               VerticalAlignment="Center" />
+                                    <Button x:Name="CapstoneScopeButton"
+                                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                                            Content="{Binding CapstoneScopeDisplayText}"
+                                            IsEnabled="{Binding CanEditCapstone}"
+                                            Click="CapstoneScopeButton_Click"
+                                            MinHeight="26"
+                                            MinWidth="150">
+                                        <Button.ContextMenu>
+                                            <ContextMenu x:Name="CapstoneScopeContextMenu"
+                                                         Style="{StaticResource AchievementSelectorContextMenuStyle}" />
+                                        </Button.ContextMenu>
+                                    </Button>
+                                </StackPanel>
+
+                                <TextBlock Text="{Binding EffectiveCategoryCapstoneText}"
+                                           Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           Opacity="{StaticResource PlayAch.Opacity.Secondary}"
+                                           TextWrapping="Wrap"
+                                           Margin="18,4,0,2" />
                             </StackPanel>
                         </Border>
 
