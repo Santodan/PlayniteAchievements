@@ -69,6 +69,10 @@ namespace PlayniteAchievements.ViewModels.Items
 
         internal int SubtreeCapstoneUnlocked { get; set; }
 
+        internal bool OwnCapstonesMatchPlatinums { get; set; }
+
+        internal bool SubtreeCapstonesMatchPlatinums { get; set; }
+
         /// <summary>
         /// Which snapshot the row's live stat properties currently hold. Defaults to Own because
         /// the builder applies the own-members reading as it emits the row.
@@ -98,6 +102,9 @@ namespace PlayniteAchievements.ViewModels.Items
             IsCompleted = subtree ? SubtreeIsCompleted : OwnIsCompleted;
             CapstoneTotal = subtree ? SubtreeCapstoneTotal : OwnCapstoneTotal;
             CapstoneUnlocked = subtree ? SubtreeCapstoneUnlocked : OwnCapstoneUnlocked;
+            CapstonesMatchPlatinums = subtree
+                ? SubtreeCapstonesMatchPlatinums
+                : OwnCapstonesMatchPlatinums;
             AppliedStatsScope = scope;
         }
 

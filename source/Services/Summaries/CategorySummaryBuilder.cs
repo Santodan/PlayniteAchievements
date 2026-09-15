@@ -245,19 +245,22 @@ namespace PlayniteAchievements.Services.Summaries
                 // A capstone claims its own achievement's category, so a capstone sitting in this
                 // bucket is one this category owns rather than one it inherits.
                 var capstones = CountCapstones(counted);
-                item.CapstoneTotal = capstones.Key;
-                item.CapstoneUnlocked = capstones.Value;
-                item.OwnCapstoneTotal = capstones.Key;
-                item.OwnCapstoneUnlocked = capstones.Value;
+                item.CapstoneTotal = capstones.Total;
+                item.CapstoneUnlocked = capstones.Unlocked;
+                item.CapstonesMatchPlatinums = capstones.MatchesPlatinums;
+                item.OwnCapstoneTotal = capstones.Total;
+                item.OwnCapstoneUnlocked = capstones.Unlocked;
+                item.OwnCapstonesMatchPlatinums = capstones.MatchesPlatinums;
                 if (dualStats)
                 {
                     // A collapsed row absorbs its descendants, so it reports their capstones too.
                     var subtreeCapstones = CountCapstones(members);
-                    item.SubtreeCapstoneTotal = subtreeCapstones.Key;
-                    item.SubtreeCapstoneUnlocked = subtreeCapstones.Value;
+                    item.SubtreeCapstoneTotal = subtreeCapstones.Total;
+                    item.SubtreeCapstoneUnlocked = subtreeCapstones.Unlocked;
+                    item.SubtreeCapstonesMatchPlatinums = subtreeCapstones.MatchesPlatinums;
                 }
 
-                item.AllowCompletionBadge = AllowsCompletionBadge(badgeMode, result.Count, capstones.Key > 0);
+                item.AllowCompletionBadge = AllowsCompletionBadge(badgeMode, result.Count, capstones.Total > 0);
 
                 result.Add(item);
             }
@@ -315,25 +318,61 @@ namespace PlayniteAchievements.Services.Summaries
         /// own call, so First means the first row of the level being shown.
         /// </summary>
         /// <summary>How many capstones a bucket holds, and how many are earned.</summary>
-        private static KeyValuePair<int, int> CountCapstones(IReadOnlyList<AchievementDisplayItem> bucket)
+        /// <summary>
+        /// A bucket's capstones, and whether they are exactly its platinum trophies.
+        /// </summary>
+        private struct CapstoneTally
         {
-            var total = 0;
-            var unlocked = 0;
+            public int Total;
+            public int Unlocked;
+            public bool MatchesPlatinums;
+        }
+
+        private static CapstoneTally CountCapstones(IReadOnlyList<AchievementDisplayItem> bucket)
+        {
+            var tally = new CapstoneTally();
+            var capstonesThatAreNotPlatinum = 0;
+            var platinumsThatAreNotCapstones = 0;
+
             foreach (var achievement in bucket)
             {
-                if (achievement?.IsCapstone != true)
+                if (achievement == null)
                 {
                     continue;
                 }
 
-                total++;
+                var isPlatinum = string.Equals(
+                    (achievement.TrophyType ?? string.Empty).Trim(),
+                    "platinum",
+                    StringComparison.OrdinalIgnoreCase);
+
+                if (achievement.IsCapstone != true)
+                {
+                    if (isPlatinum)
+                    {
+                        platinumsThatAreNotCapstones++;
+                    }
+
+                    continue;
+                }
+
+                tally.Total++;
                 if (achievement.Unlocked)
                 {
-                    unlocked++;
+                    tally.Unlocked++;
+                }
+
+                if (!isPlatinum)
+                {
+                    capstonesThatAreNotPlatinum++;
                 }
             }
 
-            return new KeyValuePair<int, int>(total, unlocked);
+            // A bucket with no capstones hands the finish badge to its platinum outright; one with
+            // capstones only does so when they are exactly its platinums.
+            tally.MatchesPlatinums = capstonesThatAreNotPlatinum == 0 &&
+                (tally.Total == 0 || platinumsThatAreNotCapstones == 0);
+            return tally;
         }
 
         /// <remarks>
