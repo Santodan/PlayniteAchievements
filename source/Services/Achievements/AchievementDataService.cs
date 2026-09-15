@@ -403,7 +403,10 @@ namespace PlayniteAchievements.Services.Achievements
                 gameIdsNeedingCompletionOverrides,
                 achievementGameIds,
                 customDataByGameId);
-            ApplyGameSummaryCustomization(summaryData.Games, customizationByGameId);
+            ApplyGameSummaryCustomization(
+                summaryData.Games,
+                customizationByGameId,
+                summaryData.Achievements);
             ApplyAchievementSummaryCustomization(achievementDetails, customizationByGameId);
 
             return summaryData;
@@ -797,12 +800,22 @@ namespace PlayniteAchievements.Services.Achievements
 
         private void ApplyGameSummaryCustomization(
             IList<CachedGameSummaryData> games,
-            IReadOnlyDictionary<Guid, SummaryCustomizationData> customizationByGameId)
+            IReadOnlyDictionary<Guid, SummaryCustomizationData> customizationByGameId,
+            IReadOnlyList<CachedRecentUnlockData> unlockedAchievements)
         {
             if (games == null || games.Count == 0 || customizationByGameId == null || customizationByGameId.Count == 0)
             {
                 return;
             }
+
+            // Built once from the unlocked rows already in hand, and only for the games that need
+            // it. This used to load each materialized game's whole achievement payload, which made
+            // every summary hydration cost one full per-game cache read per capstone the user had
+            // ever set -- a price that grew with use and was paid holding the cache lock.
+            var unlockedByGameId = BuildUnlockedApiNamesByGame(
+                unlockedAchievements,
+                games,
+                customizationByGameId);
 
             foreach (var game in games)
             {
@@ -827,36 +840,103 @@ namespace PlayniteAchievements.Services.Achievements
                     continue;
                 }
 
-                ApplyStoredCapstoneCompletion(game, resolved);
+                unlockedByGameId.TryGetValue(game.PlayniteGameId.Value, out var unlockedApiNames);
+                ApplyStoredCapstoneCompletion(game, resolved, unlockedApiNames);
             }
+        }
+
+        /// <summary>
+        /// Unlocked ApiNames per game, for the materialized games only, so the capstone correction
+        /// can count earned capstones without re-reading anything.
+        /// </summary>
+        private static Dictionary<Guid, HashSet<string>> BuildUnlockedApiNamesByGame(
+            IReadOnlyList<CachedRecentUnlockData> unlockedAchievements,
+            IList<CachedGameSummaryData> games,
+            IReadOnlyDictionary<Guid, SummaryCustomizationData> customizationByGameId)
+        {
+            var result = new Dictionary<Guid, HashSet<string>>();
+            if (unlockedAchievements == null || unlockedAchievements.Count == 0)
+            {
+                return result;
+            }
+
+            var wanted = new HashSet<Guid>();
+            foreach (var game in games)
+            {
+                var gameId = game?.PlayniteGameId;
+                if (gameId.HasValue &&
+                    customizationByGameId.TryGetValue(gameId.Value, out var customization) &&
+                    customization?.Resolved?.CapstonesMaterialized == true)
+                {
+                    wanted.Add(gameId.Value);
+                }
+            }
+
+            if (wanted.Count == 0)
+            {
+                return result;
+            }
+
+            foreach (var unlock in unlockedAchievements)
+            {
+                var gameId = unlock?.PlayniteGameId;
+                if (gameId == null || !wanted.Contains(gameId.Value))
+                {
+                    continue;
+                }
+
+                var apiName = NormalizeText(unlock.ApiName);
+                if (string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                if (!result.TryGetValue(gameId.Value, out var set))
+                {
+                    set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    result[gameId.Value] = set;
+                }
+
+                set.Add(apiName);
+            }
+
+            return result;
         }
 
         /// <summary>
         /// Recomputes a summary row's capstone counts and completion from the game's stored set.
         /// </summary>
-        private void ApplyStoredCapstoneCompletion(CachedGameSummaryData game, ResolvedGameCustomData resolved)
+        /// <remarks>
+        /// The stored set is taken as the total without checking that each entry still exists,
+        /// because the write path prunes entries whose achievement the provider no longer sends.
+        /// </remarks>
+        private static void ApplyStoredCapstoneCompletion(
+            CachedGameSummaryData game,
+            ResolvedGameCustomData resolved,
+            HashSet<string> unlockedApiNames)
         {
-            var achievements = GetRawGameAchievementData(game.PlayniteGameId.Value)?.Achievements;
-            if (achievements == null || achievements.Count == 0)
-            {
-                return;
-            }
-
-            var resolver = CapstoneResolver.Resolve(achievements, resolved.Capstones, true);
+            var total = 0;
             var unlocked = 0;
-            foreach (var achievement in achievements)
+            foreach (var assignment in resolved.Capstones ?? new List<CapstoneAssignment>())
             {
-                if (achievement != null && achievement.Unlocked && resolver.IsCapstone(achievement.ApiName))
+                var apiName = NormalizeText(assignment?.ApiName);
+                if (string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                total++;
+                if (unlockedApiNames != null && unlockedApiNames.Contains(apiName))
                 {
                     unlocked++;
                 }
             }
 
-            game.CapstoneTotal = resolver.Count;
+            game.CapstoneTotal = total;
             game.CapstoneUnlocked = unlocked;
             game.IsCompleted =
                 (game.TotalAchievements > 0 && game.UnlockedAchievements >= game.TotalAchievements) ||
-                (resolver.Count > 0 && unlocked >= resolver.Count);
+                (total > 0 && unlocked >= total);
         }
 
         private void ApplyAchievementSummaryCustomization(
@@ -1084,7 +1164,14 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            SyncAchievementFiltersForGame(e?.PlayniteGameId ?? Guid.Empty);
+            // Still before the memo is cleared, preserving the ordering invariant above. A writer
+            // that cannot have moved the mirror says so, and for that case the invariant is
+            // vacuous rather than bypassed: there are no stale mirror rows to guard against.
+            if (e == null || e.AffectsOverrideMirror)
+            {
+                SyncAchievementFiltersForGame(e?.PlayniteGameId ?? Guid.Empty);
+            }
+
             InvalidateOverviewProjectionCaches();
         }
 

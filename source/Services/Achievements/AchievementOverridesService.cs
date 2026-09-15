@@ -88,7 +88,11 @@ namespace PlayniteAchievements.Services.Achievements
                         customData.CapstonesMaterialized = true;
                         customData.Capstones = next;
                     },
-                    affectsSummaryData);
+                    affectsSummaryData,
+                    // Capstones are not in the override mirror, which carries only the filtered
+                    // ApiNames and the user-editable points and trophy type, so resyncing it here
+                    // would clone the record and take the write connection for nothing.
+                    affectsOverrideMirror: false);
 
                 return CacheWriteResult.CreateSuccess(playniteGameId.ToString(), DateTime.UtcNow);
             }
@@ -167,6 +171,15 @@ namespace PlayniteAchievements.Services.Achievements
             if (isCapstone)
             {
                 next.Add(new CapstoneAssignment { ApiName = apiName });
+            }
+
+            // Drop entries whose achievement the provider no longer sends, so readers can trust the
+            // stored count as the game's capstone total without re-reading its achievements to
+            // check. Only when the achievements are actually in hand: an empty list here means a
+            // game that could not be loaded, and pruning against it would wipe the set.
+            if (byApiName.Count > 0)
+            {
+                next.RemoveAll(assignment => !byApiName.ContainsKey((assignment.ApiName ?? string.Empty).Trim()));
             }
 
             return next;
