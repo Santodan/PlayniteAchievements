@@ -406,6 +406,7 @@
     <sys:String x:Key="LOCPlayAch_Capstone_Current">Current Capstone: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_CurrentCategory">Current category capstone: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_CurrentGame">Current game capstone: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_ChooseCategory">Which category should this capstone stand for?</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Replaces">Replaces {0}</sys:String>
                 <sys:String x:Key="LOCPlayAch_Capstone_Subtitle">Choose the achievements that stand for finishing this game. Each Capstone covers the whole game or one category, and the game is Completed when all of them are unlocked.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_Capstone">Current Capstone</sys:String>
