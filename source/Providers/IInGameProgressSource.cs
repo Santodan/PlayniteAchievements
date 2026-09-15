@@ -1,4 +1,5 @@
 using Playnite.SDK.Models;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using System;
@@ -50,6 +51,17 @@ namespace PlayniteAchievements.Providers
         public static InGameUnlockAnchorPolicy ResolvePolicy(InGameProgressRegistration registration)
         {
             var declared = registration?.UnlockAnchorPolicy ?? InGameUnlockAnchorPolicy.Auto;
+
+            // A source that declares a foreign reported clock may only use its stamps while that
+            // clock is correlated with the capture timeline. Before the first sample the stamps
+            // are still the right value to store and show, but they cannot seek the buffer.
+            if (declared != InGameUnlockAnchorPolicy.SourceObservation &&
+                registration?.ReportedClock != null &&
+                !registration.ReportedClock.Offset.HasValue)
+            {
+                return InGameUnlockAnchorPolicy.SourceObservation;
+            }
+
             if (declared != InGameUnlockAnchorPolicy.Auto)
             {
                 return declared;
@@ -127,6 +139,15 @@ namespace PlayniteAchievements.Providers
 
         public InGameUnlockAnchorPolicy UnlockAnchorPolicy { get; set; } =
             InGameUnlockAnchorPolicy.Auto;
+
+        /// <summary>
+        /// Set by a source whose reported unlock stamps originate on a provider's clock and are
+        /// converted onto the capture timeline before emission. Declaring it lets the source anchor
+        /// on its own stamps -- placing the notification on the unlock rather than on its detection
+        /// -- while keeping the guarantee that an unconverted foreign stamp never anchors a clip:
+        /// until the clock is correlated the anchor falls back to the local observation.
+        /// </summary>
+        public ServerClockOffset ReportedClock { get; set; }
 
         /// <summary>
         /// Correction added to the provider-reported timestamp when it anchors video capture, for
