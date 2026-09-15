@@ -17,6 +17,12 @@ namespace PlayniteAchievements.Models.Settings
 
         public string ManualCapstoneApiName { get; set; }
 
+        /// <inheritdoc cref="GameCustomDataFile.CapstonesMaterialized"/>
+        public bool CapstonesMaterialized { get; set; }
+
+        /// <inheritdoc cref="GameCustomDataFile.Capstones"/>
+        public List<CapstoneAssignment> Capstones { get; set; }
+
         public List<string> AchievementOrder { get; set; }
 
         public Dictionary<string, string> AchievementCategoryOverrides { get; set; }
@@ -84,6 +90,10 @@ namespace PlayniteAchievements.Models.Settings
                 PlayniteGameId = PlayniteGameId,
                 UseSeparateLockedIconsOverride = UseSeparateLockedIconsOverride,
                 ManualCapstoneApiName = ManualCapstoneApiName,
+                CapstonesMaterialized = CapstonesMaterialized,
+                Capstones = Capstones != null
+                    ? Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : null,
                 AchievementOrder = AchievementOrder != null
                     ? new List<string>(AchievementOrder)
                     : null,
