@@ -1,6 +1,7 @@
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Search;
@@ -219,8 +220,18 @@ namespace PlayniteAchievements.ViewModels
         {
             try
             {
+                // This tab still presents one capstone for the game, so it writes the game-wide
+                // scope; clearing it drops only that entry.
+                var targetApiName = markerApiName ?? _persistedMarkerApiName;
+                if (string.IsNullOrWhiteSpace(targetApiName))
+                {
+                    // Clearing when nothing is set has nothing to write, and asking the service to
+                    // drop a blank achievement would surface as a failure dialog.
+                    return CacheWriteResult.CreateSuccess(_gameId.ToString("D"), DateTime.UtcNow);
+                }
+
                 return await _achievementOverridesService
-                    .SetCapstoneAsync(_gameId, markerApiName)
+                    .SetCapstoneAsync(_gameId, targetApiName, markerApiName != null)
                     .ConfigureAwait(true);
             }
             catch (Exception ex)

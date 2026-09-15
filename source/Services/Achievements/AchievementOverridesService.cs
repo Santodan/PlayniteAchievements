@@ -29,9 +29,22 @@ namespace PlayniteAchievements.Services.Achievements
             _logger = logger;
         }
 
-        public CacheWriteResult SetCapstone(Guid playniteGameId, string capstoneApiName)
+        /// <summary>
+        /// Sets, moves or clears one of a game's capstones.
+        /// </summary>
+        /// <remarks>
+        /// The first edit materializes the game: the provider's own capstones are written to the
+        /// stored set alongside the edit, and from then on the stored set is the whole truth while
+        /// provider flags no longer apply. That is what makes a seeded capstone and a nominated one
+        /// behave identically afterwards, and it is what the single stored capstone already did
+        /// before there could be more than one.
+        ///
+        /// A capstone claims its own achievement's category, so nominating one displaces whatever
+        /// stood for that category before.
+        /// </remarks>
+        public CacheWriteResult SetCapstone(Guid playniteGameId, string apiName, bool isCapstone)
         {
-            if (playniteGameId == Guid.Empty)
+            if (playniteGameId == Guid.Empty || string.IsNullOrWhiteSpace(apiName))
             {
                 return CacheWriteResult.CreateFailure(
                     string.Empty,
@@ -41,18 +54,45 @@ namespace PlayniteAchievements.Services.Achievements
 
             try
             {
-                // A capstone's only summary-visible effect is GameAchievementData.IsCompleted, so
-                // the summary and projection rebuild is only warranted when completion actually
-                // flips. Setting one on a still-locked achievement cannot flip it.
-                var affectsSummaryData = CapstoneChangeFlipsCompletion(playniteGameId, capstoneApiName);
+                var achievements = ResolveCapstoneCandidates(playniteGameId);
+
+                // Materializing means capturing the provider's own capstones alongside the edit, so
+                // a game whose achievements cannot be read right now must not be materialized: the
+                // stored set would be this one entry and every provider capstone would be dropped.
+                if ((achievements == null || achievements.Count == 0) &&
+                    !(_gameCustomDataStore.TryLoad(playniteGameId, out var existing) &&
+                      existing?.CapstonesMaterialized == true))
+                {
+                    _logger?.Warn(
+                        $"Refusing to set a capstone for gameId={playniteGameId}: no achievements are loaded to seed the set from.");
+                    return CacheWriteResult.CreateFailure(
+                        playniteGameId.ToString(),
+                        "no_achievements_loaded",
+                        ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"));
+                }
+
+                var next = BuildNextCapstones(
+                    playniteGameId,
+                    achievements ?? new List<AchievementDetail>(),
+                    apiName.Trim(),
+                    isCapstone);
+
+                // Summary rows carry the capstone counts the completion badge shows, so the rebuild
+                // is warranted whenever the edit moves either that count or completion.
+                var affectsSummaryData = CapstoneChangeAffectsSummaries(playniteGameId, achievements, next);
 
                 _gameCustomDataStore.Update(
                     playniteGameId,
                     customData =>
                     {
-                        customData.ManualCapstoneApiName = capstoneApiName;
+                        customData.CapstonesMaterialized = true;
+                        customData.Capstones = next;
                     },
-                    affectsSummaryData);
+                    affectsSummaryData,
+                    // Capstones are not in the override mirror, which carries only the filtered
+                    // ApiNames and the user-editable points and trophy type, so resyncing it here
+                    // would clone the record and take the write connection for nothing.
+                    affectsOverrideMirror: false);
 
                 return CacheWriteResult.CreateSuccess(playniteGameId.ToString(), DateTime.UtcNow);
             }
@@ -68,63 +108,195 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Whether changing the manual capstone changes the game's completion state, which is the
-        /// only thing about a capstone any summary or rollup can see. Fails safe: anything it
-        /// cannot determine is reported as a change, so summaries are never left stale.
+        /// Every achievement that could be a capstone, which means the authored ones too.
         /// </summary>
-        private bool CapstoneChangeFlipsCompletion(Guid playniteGameId, string nextCapstoneApiName)
+        /// <remarks>
+        /// The cache holds only what a provider supplied; an authored achievement lives in custom
+        /// data and is projected onto the list by hydration, which this path does not run. Reading
+        /// the cache alone left authored achievements invisible here, so seeding missed the ones a
+        /// provider had marked, a category could not be resolved for them, and the pruning below
+        /// treated a capstone on one as pointing at an achievement that no longer exists.
+        /// </remarks>
+        private List<AchievementDetail> ResolveCapstoneCandidates(Guid playniteGameId)
+        {
+            var achievements = _cacheService?.LoadGameData(playniteGameId.ToString())?.Achievements
+                ?? new List<AchievementDetail>();
+            var candidates = new List<AchievementDetail>(achievements);
+
+            if (_gameCustomDataStore.TryLoad(playniteGameId, out var customData) &&
+                customData?.CustomAchievements != null &&
+                customData.CustomAchievements.Count > 0)
+            {
+                candidates.AddRange(
+                    CustomAchievementProjectionService.ProjectAchievements(
+                        playniteGameId,
+                        customData.CustomAchievements));
+            }
+
+            return candidates;
+        }
+
+        /// <summary>
+        /// The game's capstone set with one edit applied, seeded from the provider when the game
+        /// has not been edited before.
+        /// </summary>
+        private List<CapstoneAssignment> BuildNextCapstones(
+            Guid playniteGameId,
+            IReadOnlyList<AchievementDetail> achievements,
+            string apiName,
+            bool isCapstone)
+        {
+            // One load of the record, not three: resolving it clones the whole graph, including the
+            // per-achievement override map, which is the bulk of a heavily customized game.
+            var stored = _gameCustomDataStore.TryLoad(playniteGameId, out var customData) ? customData : null;
+            var materialized = stored?.CapstonesMaterialized == true;
+            var current = materialized
+                ? (stored.Capstones ?? new List<CapstoneAssignment>())
+                    .Select(assignment => assignment?.Clone())
+                    .Where(assignment => assignment != null)
+                    .ToList()
+                : CapstoneResolver.Materialize(achievements);
+
+            // Categories come from the cache unhydrated, so a user's category override has to be
+            // applied here the way hydration applies it. Without this the displacement below reads
+            // the provider's category and can free a slot the user never pointed at.
+            var categoryOverrides = GameCustomDataFile.CloneAchievementOverrideMap(stored?.AchievementOverrides)
+                ?? new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+
+            // Indexed once: the displacement check below asks for a category per stored capstone.
+            var byApiName = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+            foreach (var achievement in achievements)
+            {
+                var key = (achievement?.ApiName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(key) && !byApiName.ContainsKey(key))
+                {
+                    byApiName[key] = achievement;
+                }
+            }
+
+            var category = ResolveCategory(byApiName, categoryOverrides, apiName);
+            var next = new List<CapstoneAssignment>();
+            foreach (var assignment in current)
+            {
+                if (assignment.Matches(apiName))
+                {
+                    continue;
+                }
+
+                // One capstone stands for a category, so nominating one displaces whatever stood
+                // for that category before.
+                if (isCapstone &&
+                    string.Equals(
+                        ResolveCategory(byApiName, categoryOverrides, assignment.ApiName),
+                        category,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                next.Add(assignment);
+            }
+
+            if (isCapstone)
+            {
+                next.Add(new CapstoneAssignment { ApiName = apiName });
+            }
+
+            // Drop entries whose achievement the provider no longer sends, so readers can trust the
+            // stored count as the game's capstone total without re-reading its achievements to
+            // check. Only when the achievements are actually in hand: an empty list here means a
+            // game that could not be loaded, and pruning against it would wipe the set.
+            if (byApiName.Count > 0)
+            {
+                next.RemoveAll(assignment => !byApiName.ContainsKey((assignment.ApiName ?? string.Empty).Trim()));
+            }
+
+            return next;
+        }
+
+        private static string ResolveCategory(
+            IReadOnlyDictionary<string, AchievementDetail> byApiName,
+            IReadOnlyDictionary<string, AchievementOverride> categoryOverrides,
+            string apiName)
+        {
+            var trimmed = (apiName ?? string.Empty).Trim();
+            if (categoryOverrides != null &&
+                categoryOverrides.TryGetValue(trimmed, out var userOverride) &&
+                !string.IsNullOrWhiteSpace(userOverride?.Category))
+            {
+                return AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(userOverride.Category);
+            }
+
+            byApiName.TryGetValue(trimmed, out var match);
+            return AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                match?.ProviderCategory ?? match?.Category);
+        }
+
+        /// <summary>
+        /// Whether a capstone edit changes anything a summary or rollup can see. Fails safe:
+        /// anything it cannot determine is reported as a change, so summaries are never left stale.
+        /// </summary>
+        /// <remarks>
+        /// Completion is no longer the only visible effect. Summary rows carry how many capstones a
+        /// game has and how many are earned, and the completion badge shows that count, so adding
+        /// or dropping one matters even on a game whose completion cannot move. A fully unlocked
+        /// game used to be able to skip the rebuild for exactly that reason; it cannot now.
+        /// </remarks>
+        private bool CapstoneChangeAffectsSummaries(
+            Guid playniteGameId,
+            IReadOnlyList<AchievementDetail> achievements,
+            List<CapstoneAssignment> next)
         {
             try
             {
-                var achievements = _cacheService?.LoadGameData(playniteGameId.ToString())?.Achievements;
                 if (achievements == null || achievements.Count == 0)
                 {
                     return true;
                 }
 
-                // A fully unlocked game counts as complete whatever the capstone is.
-                if (achievements.All(a => a?.Unlocked == true))
-                {
-                    return false;
-                }
-
-                var previousCapstone = _gameCustomDataStore.TryLoad(playniteGameId, out var customData)
-                    ? customData?.ManualCapstoneApiName
-                    : null;
-
-                return IsCapstoneUnlocked(achievements, previousCapstone) !=
-                       IsCapstoneUnlocked(achievements, nextCapstoneApiName);
+                var set = GameCustomDataLookup.GetCapstoneSet(playniteGameId, null, _gameCustomDataStore);
+                var before = Summarize(achievements, set.Assignments, set.Materialized);
+                var after = Summarize(achievements, next, true);
+                return before.Key != after.Key || before.Value != after.Value;
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, $"Failed evaluating capstone completion impact for gameId={playniteGameId}.");
+                _logger?.Debug(ex, $"Failed evaluating capstone summary impact for gameId={playniteGameId}.");
                 return true;
             }
         }
 
         /// <summary>
-        /// Mirrors hydration: a manual capstone replaces the provider's own capstone flags
-        /// outright, so with one set only that achievement counts.
+        /// What a given capstone set would put on the game's summary row: whether it reads as
+        /// finished, and how many finishes it stands for. Resolves the set rather than reading the
+        /// already stamped flags, because the point is to weigh a set that is not stored yet.
         /// </summary>
-        private static bool IsCapstoneUnlocked(
+        private static KeyValuePair<bool, int> Summarize(
             IReadOnlyList<AchievementDetail> achievements,
-            string manualCapstoneApiName)
+            IEnumerable<CapstoneAssignment> assignments,
+            bool materialized)
         {
-            if (string.IsNullOrWhiteSpace(manualCapstoneApiName))
+            var resolver = CapstoneResolver.Resolve(achievements, assignments, materialized);
+            var allUnlocked = achievements.All(a => a?.Unlocked == true);
+            if (resolver.Count == 0)
             {
-                return achievements.Any(a => a?.IsCapstone == true && a.Unlocked);
+                return new KeyValuePair<bool, int>(allUnlocked, allUnlocked ? 1 : 0);
             }
 
-            var trimmed = manualCapstoneApiName.Trim();
-            return achievements.Any(a =>
-                a != null &&
-                a.Unlocked &&
-                string.Equals((a.ApiName ?? string.Empty).Trim(), trimmed, StringComparison.OrdinalIgnoreCase));
+            var unlocked = resolver.EffectiveApiNames.Count(apiName =>
+                achievements.Any(a =>
+                    a != null &&
+                    a.Unlocked &&
+                    string.Equals((a.ApiName ?? string.Empty).Trim(), apiName, StringComparison.OrdinalIgnoreCase)));
+
+            return new KeyValuePair<bool, int>(
+                allUnlocked || unlocked >= resolver.Count,
+                unlocked);
         }
 
-        public Task<CacheWriteResult> SetCapstoneAsync(Guid playniteGameId, string capstoneApiName)
+        public Task<CacheWriteResult> SetCapstoneAsync(Guid playniteGameId, string apiName, bool isCapstone)
         {
-            return Task.Run(() => SetCapstone(playniteGameId, capstoneApiName));
+            return Task.Run(() => SetCapstone(playniteGameId, apiName, isCapstone));
         }
 
         public void SetAchievementOrderOverride(Guid gameId, IReadOnlyList<string> orderedApiNames)
@@ -524,14 +696,17 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            // Only the fields a summary aggregate actually reads are worth a rebuild. Points and
-            // trophy type are mirrored into AchievementOverrides and resolved by the score and
-            // trophy SQL, so they are. An unlock-time override is not: the summary's last-unlock
-            // comes from the real recorded time in UserAchievements and the mirror does not carry
-            // the override, so rebuilding would recompute identical numbers. The overview's
-            // per-achievement rows still pick it up on their next read, where it is applied in
-            // code rather than in SQL.
-            var affectsSummaryData =
+            // This flag gates two things: the summary memo, and the Overview's per-game delta. So
+            // it has to be true for any field a displayed row shows, not just the ones a summary
+            // aggregate sums -- otherwise the edit lands in the store and nothing on screen
+            // re-reads it, which is what left a hidden edit visible only inside the editor.
+            //
+            // Points and trophy type additionally move SQL-resolved aggregates, via the override
+            // mirror. The rest are applied in code over the rows, so they need the re-read but not
+            // the mirror. Only the unlock-time override changes nothing on a row the user can see:
+            // the summary's last-unlock comes from the real recorded time in UserAchievements.
+            var affectsSummaryData = field != AchievementEditableField.UnlockTimeUtc;
+            var affectsOverrideMirror =
                 field == AchievementEditableField.Points ||
                 field == AchievementEditableField.TrophyType;
 
@@ -569,7 +744,8 @@ namespace PlayniteAchievements.Services.Achievements
                             break;
                     }
                 }),
-                affectsSummaryData);
+                affectsSummaryData,
+                affectsOverrideMirror);
         }
 
         /// <summary>
@@ -1177,6 +1353,14 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             customData.ManualCapstoneApiName = MigrateApiName(customData.ManualCapstoneApiName, renamedApiNames);
+            foreach (var capstone in customData.Capstones ?? Enumerable.Empty<CapstoneAssignment>())
+            {
+                if (capstone != null)
+                {
+                    capstone.ApiName = MigrateApiName(capstone.ApiName, renamedApiNames);
+                }
+            }
+
             customData.AchievementOrder = MigrateApiNameList(customData.AchievementOrder, renamedApiNames);
             customData.FilteredAchievementApiNames = MigrateApiNameList(customData.FilteredAchievementApiNames, renamedApiNames);
             customData.SummaryFilteredAchievementApiNames = MigrateApiNameList(customData.SummaryFilteredAchievementApiNames, renamedApiNames);

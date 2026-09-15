@@ -97,6 +97,25 @@ namespace PlayniteAchievements.Models.Settings
 
         public string ManualCapstoneApiName { get; set; }
 
+        /// <summary>
+        /// True once the user has edited this game's capstones. From that moment the
+        /// <see cref="Capstones"/> list is the whole truth for the game and provider capstone
+        /// flags no longer apply to it, so an empty list means "this game has no capstones"
+        /// rather than "fall back to the provider".
+        /// </summary>
+        /// <remarks>
+        /// Stored rather than derived from the list being non-null because the normalizer nulls
+        /// empty collections, which would otherwise collapse a deliberately emptied set back into
+        /// an untouched one.
+        /// </remarks>
+        public bool CapstonesMaterialized { get; set; }
+
+        /// <summary>
+        /// The game's capstones once <see cref="CapstonesMaterialized"/> is set, seeded from the
+        /// provider's own capstones at the moment of the first edit.
+        /// </summary>
+        public List<CapstoneAssignment> Capstones { get; set; }
+
         public List<string> AchievementOrder { get; set; }
 
         /// <inheritdoc cref="AchievementUnlockedIconOverrides"/>
@@ -180,6 +199,10 @@ namespace PlayniteAchievements.Models.Settings
                 ExcludedFromSummaries = ExcludedFromSummaries,
                 UseSeparateLockedIconsOverride = UseSeparateLockedIconsOverride,
                 ManualCapstoneApiName = ManualCapstoneApiName,
+                CapstonesMaterialized = CapstonesMaterialized,
+                Capstones = Capstones != null
+                    ? Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : null,
                 AchievementOrder = AchievementOrder != null
                     ? new List<string>(AchievementOrder)
                     : null,
@@ -237,6 +260,10 @@ namespace PlayniteAchievements.Models.Settings
                 PlayniteGameId = PlayniteGameId,
                 UseSeparateLockedIconsOverride = UseSeparateLockedIconsOverride,
                 ManualCapstoneApiName = ManualCapstoneApiName,
+                CapstonesMaterialized = CapstonesMaterialized,
+                Capstones = Capstones != null
+                    ? Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : null,
                 AchievementOrder = AchievementOrder != null
                     ? new List<string>(AchievementOrder)
                     : null,
@@ -302,6 +329,10 @@ namespace PlayniteAchievements.Models.Settings
                 ExcludedFromSummaries = excludedFromSummaries,
                 UseSeparateLockedIconsOverride = portable?.UseSeparateLockedIconsOverride,
                 ManualCapstoneApiName = portable?.ManualCapstoneApiName,
+                CapstonesMaterialized = portable?.CapstonesMaterialized ?? false,
+                Capstones = portable?.Capstones != null
+                    ? portable.Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : null,
                 AchievementOrder = portable?.AchievementOrder != null
                     ? new List<string>(portable.AchievementOrder)
                     : null,

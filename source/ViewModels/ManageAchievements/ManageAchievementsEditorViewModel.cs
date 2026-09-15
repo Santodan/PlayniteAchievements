@@ -69,7 +69,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private AchievementEditorRow _bulkRow;
         private readonly List<AchievementEditorRow> _selectedRows = new List<AchievementEditorRow>();
         private bool _isApplyingBulk;
-        private bool _providerIconBaselinesResolved;
+        private bool _providerBaselinesResolved;
         private bool _isTogglingReveal;
         private bool _hasCustomOrder;
         private DispatcherTimer _assignmentsChangedDebounce;
@@ -627,10 +627,64 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.SetGoalFromSource(SharedFlagOrNull(r => r.IsGoal));
             row.SetHiddenFromSource(SharedFlagOrNull(r => r.Hidden));
             row.SetFilterScopeFromSource(SharedScope());
+
+            // Several achievements can become capstones in one go only while they sit in different
+            // categories. Two in the same category would displace each other as the write walked
+            // the selection, leaving one capstone and no sign of which.
+            row.AllowBulkCapstone = SelectionCategoriesAreDistinct();
+            row.SetCapstoneStateFromSource(SharedCapstone(), null, null, null);
             row.SuppressNotifications = false;
 
             row.PropertyChanged += BulkRow_PropertyChanged;
             BulkRow = row;
+        }
+
+        /// <summary>
+        /// Whether every selected achievement sits in a different category, which is what makes a
+        /// capstone edit across the selection mean something.
+        /// </summary>
+        private bool SelectionCategoriesAreDistinct()
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in _selectedRows)
+            {
+                if (row == null || string.IsNullOrWhiteSpace(row.OriginalApiName))
+                {
+                    continue;
+                }
+
+                if (!seen.Add(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                        row.EffectiveCategoryLabel)))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// The scope the whole selection agrees on, or None when it does not.
+        /// </summary>
+        /// <summary>Whether every selected achievement is a capstone.</summary>
+        private bool SharedCapstone()
+        {
+            var any = false;
+            foreach (var row in _selectedRows)
+            {
+                if (row == null)
+                {
+                    continue;
+                }
+
+                any = true;
+                if (!row.IsCapstone)
+                {
+                    return false;
+                }
+            }
+
+            return any;
         }
 
         /// <summary>
@@ -944,7 +998,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // Without the raw snapshot every row's icon would read as different from a provider
             // path of null, so the override maps are only safe to rebuild once it has been seen.
-            _providerIconBaselinesResolved = rawByApiName.Count > 0;
+            _providerBaselinesResolved = rawByApiName.Count > 0;
 
             foreach (var row in AchievementRows)
             {
@@ -1408,22 +1462,42 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Makes one achievement the game's capstone, or clears it.
+        /// Sets one achievement as a capstone at the given scope, or drops it.
         /// </summary>
         /// <remarks>
-        /// Single-selection only: the capstone is one string per game, so a multi-row set has no
-        /// meaning and the menu offers it only when exactly one row is selected.
+        /// A game-wide capstone stays single-selection: there is one game, so applying it across a
+        /// selection would just leave whichever row happened to be written last. Category scope and
+        /// clearing do apply across the selection, gated on the rows sitting in distinct
+        /// categories, which is what stops them displacing each other as the write walks them.
         /// </remarks>
         public void SetCapstoneForSelection(bool isCapstone)
         {
             var targets = ResolveSelectionTargets();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
             if (targets.Count == 1)
             {
                 SetCapstoneForRow(targets[0], isCapstone);
+                return;
             }
+
+            if (!SelectionCategoriesAreDistinct())
+            {
+                return;
+            }
+
+            foreach (var target in targets)
+            {
+                SetCapstoneForRow(target, isCapstone);
+            }
+
+            SyncBulkRowFromSelection();
         }
 
-        /// <summary>Whether the selection is one row that is currently the game's capstone.</summary>
+        /// <summary>Whether the selection is one row whose capstone scope can be edited.</summary>
         public bool IsSingleCapstoneSelection(out bool isCapstone)
         {
             var targets = ResolveSelectionTargets();
@@ -1569,9 +1643,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 PersistFiltersFromRows();
                 PersistGoalsFromRows();
 
-                if (deleteAuthored || targets.Any(row => row.IsCapstone))
+                // Reverting drops each reverted row's own capstone and leaves the rest of the set
+                // alone, so reverting one achievement cannot clear a capstone elsewhere.
+                foreach (var capstoneRow in targets.Where(row => row.IsCapstone))
                 {
-                    _achievementOverridesService.SetCapstone(_gameId, null);
+                    var capstoneApiName = NormalizeText(capstoneRow.OriginalApiName);
+                    if (!string.IsNullOrWhiteSpace(capstoneApiName))
+                    {
+                        _achievementOverridesService.SetCapstone(_gameId, capstoneApiName, false);
+                    }
                 }
 
                 if (deleteAuthored)
@@ -1618,9 +1698,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             try
             {
-                // An auto capstone this game already has is brought up to date rather than
+                // One capstone stands for one category, so the first thing to settle is which. A
+                // game whose achievements all sit in one category has only one answer and is never
+                // asked; anything else is a choice the user has to make, because adding a capstone
+                // to a category means the game is not finished until that category is.
+                if (!TryResolveAutoCapstoneCategory(out var category))
+                {
+                    return;
+                }
+
+                // An auto capstone this category already has is brought up to date rather than
                 // joined by a second one.
-                var existing = AchievementRows.FirstOrDefault(row => row?.IsAutoCapstone == true);
+                var existing = AchievementRows.FirstOrDefault(row =>
+                    row?.IsAutoCapstone == true && IsInCategory(row, category));
                 if (existing != null)
                 {
                     ApplyAutoCapstoneDerivation(existing);
@@ -1632,7 +1722,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
-                var platinum = ResolvePlatinumCapstoneRow();
+                // Adopting a real platinum only makes sense for the game as a whole: a platinum is
+                // never awarded for finishing one DLC, so a category capstone is always authored.
+                var platinum = category == null ? ResolvePlatinumCapstoneRow() : null;
                 if (platinum != null)
                 {
                     SetCapstoneForRow(platinum, true);
@@ -1641,7 +1733,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
-                await CreateCapstoneAchievementAsync().ConfigureAwait(true);
+                await CreateCapstoneAchievementAsync(category).ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -1655,6 +1747,73 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             SelectedRow = row;
             ScrollRowIntoViewRequested?.Invoke(this, row);
+        }
+
+        /// <summary>
+        /// Which category the auto capstone should stand for. Null means the game as a whole, which
+        /// is the answer whenever its achievements all sit in one category.
+        /// </summary>
+        /// <returns>False when the user dismissed the choice, so nothing should be written.</returns>
+        private bool TryResolveAutoCapstoneCategory(out string category)
+        {
+            category = null;
+
+            var categories = AchievementRows
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .Select(row => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.EffectiveCategoryLabel))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(label => label, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            // One category, or none to speak of: the capstone stands for the whole game, exactly as
+            // it did before a game could hold more than one.
+            if (categories.Count <= 1)
+            {
+                return true;
+            }
+
+            var chosen = PromptForAutoCapstoneCategory(categories);
+            if (string.IsNullOrWhiteSpace(chosen))
+            {
+                return false;
+            }
+
+            category = chosen;
+            return true;
+        }
+
+        /// <summary>
+        /// Asks which category to stand for, listing the game's categories by their display label.
+        /// </summary>
+        private string PromptForAutoCapstoneCategory(IReadOnlyList<string> categories)
+        {
+            var options = categories
+                .Select(label => new GenericItemOption(
+                    AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(label),
+                    label))
+                .ToList();
+
+            var selected = API.Instance?.Dialogs?.ChooseItemWithSearch(
+                options,
+                _ => options,
+                string.Empty,
+                L("LOCPlayAch_Capstone_ChooseCategory", "Which category should this capstone stand for?"));
+
+            // Description carries the raw label; the name is the localized display path.
+            return selected?.Description;
+        }
+
+        private static bool IsInCategory(AchievementEditorRow row, string category)
+        {
+            if (category == null)
+            {
+                return true;
+            }
+
+            return string.Equals(
+                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.EffectiveCategoryLabel),
+                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(category),
+                StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -1694,7 +1853,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// greyscale of its unlocked art already, which is what a locked platinum should look like,
         /// and storing a second copy of the same image would only be another file to keep in step.
         /// </remarks>
-        private async Task CreateCapstoneAchievementAsync()
+        private async Task CreateCapstoneAchievementAsync(string category)
         {
             var game = API.Instance?.Database?.Games?.Get(_gameId);
             var row = AchievementEditorRow.CreateNew(AchievementRows.Count + 1);
@@ -1710,7 +1869,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // Derived here as well as on every refresh, so a game that is already finished gets a
             // capstone that is already unlocked -- and the first refresh after this sees no
             // crossing to announce.
-            ApplyAutoCapstoneDerivation(row);
+            ApplyAutoCapstoneDerivation(row, category);
 
             // A source path, not a cached one: the save materializes it into this game's icon
             // cache the same way it does an icon dropped onto any other authored achievement.
@@ -1730,16 +1889,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             SetCapstoneForRow(row, true);
 
-            // Filed where the achievements it stands for are filed, when they agree on one place.
+            // A capstone sits in the category it stands for, which is what lets the resolver and
+            // the maintainer both find it again from the row alone. A chosen category is filed
+            // outright; without one the capstone falls back to wherever the achievements it stands
+            // for are filed, when they agree on a single place.
+            //
             // Only at authoring: unlike the rarity this is a starting point, not something kept in
             // step, so moving it afterwards sticks.
-            var shared = AutoCapstoneCalculator
+            var filing = category ?? AutoCapstoneCalculator
                 .Derive(_gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements?
                     .Where(achievement => !string.Equals(achievement?.ApiName, row.OriginalApiName, StringComparison.OrdinalIgnoreCase)))
                 ?.Category;
-            if (!string.IsNullOrWhiteSpace(shared))
+            if (!string.IsNullOrWhiteSpace(filing))
             {
-                row.CategoryLabel = shared;
+                row.CategoryLabel = filing;
                 PersistCategoryAssignmentsFromRows();
             }
 
@@ -1755,7 +1918,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// Works the capstone's rarity and unlock out from the achievements it stands for, through
         /// the same rules the post-refresh maintenance uses so the two cannot drift apart.
         /// </summary>
-        private void ApplyAutoCapstoneDerivation(AchievementEditorRow row)
+        private void ApplyAutoCapstoneDerivation(AchievementEditorRow row, string category = null)
         {
             if (row == null)
             {
@@ -1768,10 +1931,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _gameDataSnapshotProvider?.Invalidate();
 
             var apiName = NormalizeText(row.OriginalApiName);
+            // The row's own category when it has one, so an existing auto capstone keeps standing
+            // for the category it was filed in rather than silently widening to the whole game.
+            var scope = category ?? NormalizeText(row.EffectiveCategoryLabel);
             var derived = AutoCapstoneCalculator.Derive(
                 _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements?
                     .Where(achievement => string.IsNullOrWhiteSpace(apiName) ||
-                                          !string.Equals(achievement?.ApiName, apiName, StringComparison.OrdinalIgnoreCase)));
+                                          !string.Equals(achievement?.ApiName, apiName, StringComparison.OrdinalIgnoreCase)),
+                scope);
             if (derived == null)
             {
                 return;
@@ -2344,7 +2511,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var resolved = ResolveCurrentCustomData();
                 var categoryOverrides = GetCurrentCategoryOverrideMap(resolved);
                 var categoryTypeOverrides = GetCurrentCategoryTypeOverrideMap(resolved);
-                var capstoneApiName = NormalizeText(resolved?.ManualCapstoneApiName);
+                var capstones = BuildCapstoneState(resolved);
 
                 foreach (var row in AchievementRows)
                 {
@@ -2358,7 +2525,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     {
                         row.CategoryLabel = null;
                         row.CategoryTypeValue = null;
-                        row.IsCapstone = false;
+                        row.SetCapstoneStateFromSource(false, null, null, null);
                         continue;
                     }
 
@@ -2373,7 +2540,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     row.CategoryTypeValue = categoryTypeOverrides.TryGetValue(apiName, out var categoryType)
                         ? categoryType
                         : null;
-                    row.IsCapstone = string.Equals(apiName, capstoneApiName, StringComparison.OrdinalIgnoreCase);
+                    ApplyCapstoneStateToRow(row, apiName, capstones);
                 }
 
                 RefreshAssignableCategoryOptions(resolved);
@@ -2501,6 +2668,127 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// The game's capstones resolved once per refresh, alongside the achievements they were
+        /// resolved against so a row can be told what its own category ends up standing on.
+        /// </summary>
+        private struct CapstoneState
+        {
+            public CapstoneState(
+                CapstoneResolver resolver,
+                Dictionary<string, AchievementDetail> byApiName,
+                bool materialized)
+            {
+                Resolver = resolver;
+                ByApiName = byApiName;
+                Materialized = materialized;
+                CategoryDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            public CapstoneResolver Resolver { get; }
+
+            public Dictionary<string, AchievementDetail> ByApiName { get; }
+
+            public bool Materialized { get; }
+
+            /// <summary>
+            /// Memo for the category display text, which normalizes a path and reads a localized
+            /// string. Rows share categories heavily, so this is computed once per category rather
+            /// than once per row.
+            /// </summary>
+            public Dictionary<string, string> CategoryDisplayNames { get; }
+        }
+
+        private CapstoneState BuildCapstoneState(ResolvedGameCustomData resolved)
+        {
+            var achievements = _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements
+                ?? new List<AchievementDetail>();
+            var materialized = resolved?.CapstonesMaterialized == true;
+
+            // Indexed once per refresh rather than scanned per row: this runs for every row in the
+            // grid, and a linear lookup inside it makes re-seeding quadratic in the achievement
+            // count, which a large game feels as a hang on the click that triggered it.
+            var byApiName = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+            foreach (var achievement in achievements)
+            {
+                var key = (achievement?.ApiName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(key) && !byApiName.ContainsKey(key))
+                {
+                    byApiName[key] = achievement;
+                }
+            }
+
+            return new CapstoneState(
+                CapstoneResolver.Resolve(achievements, resolved?.Capstones, materialized),
+                byApiName,
+                materialized);
+        }
+
+        private static void ApplyCapstoneStateToRow(
+            AchievementEditorRow row,
+            string apiName,
+            CapstoneState capstones)
+        {
+            var resolver = capstones.Resolver;
+            var isCapstone = resolver.IsCapstone(apiName);
+
+            // What this row's own category stands on, which is not always this row: a category with
+            // no capstone of its own shows the one it inherits from an ancestor.
+            var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                FindAchievement(capstones, apiName)?.Category);
+            var categoryApiName = resolver.ResolveForCategory(category);
+
+            // A game holding exactly one capstone has that capstone standing for the whole of it,
+            // which is worth saying plainly. With several there is no single one to name.
+            var gameApiName = resolver.Count == 1 ? resolver.EffectiveApiNames.First() : null;
+
+            // Naming the same achievement on both lines is noise, so the category line yields.
+            if (string.Equals(categoryApiName, gameApiName, StringComparison.OrdinalIgnoreCase))
+            {
+                categoryApiName = null;
+            }
+
+            row.SetCapstoneStateFromSource(
+                isCapstone,
+                ResolveCategoryDisplayName(capstones, category),
+                ResolveDisplayName(capstones, categoryApiName),
+                ResolveDisplayName(capstones, gameApiName));
+
+            // Only worth resolving when the button would actually say Replace.
+            row.CapstoneReplacesDisplayName = isCapstone || !resolver.HasOwnCapstone(category)
+                ? null
+                : ResolveDisplayName(capstones, resolver.ResolveForCategory(category));
+        }
+
+        private static string ResolveCategoryDisplayName(CapstoneState capstones, string category)
+        {
+            var key = category ?? string.Empty;
+            if (!capstones.CategoryDisplayNames.TryGetValue(key, out var display))
+            {
+                display = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(category);
+                capstones.CategoryDisplayNames[key] = display;
+            }
+
+            return display;
+        }
+
+        private static string ResolveDisplayName(CapstoneState capstones, string apiName)
+        {
+            var match = FindAchievement(capstones, apiName);
+            return match == null ? null : (match.DisplayName ?? match.ApiName);
+        }
+
+        private static AchievementDetail FindAchievement(CapstoneState capstones, string apiName)
+        {
+            if (string.IsNullOrWhiteSpace(apiName) || capstones.ByApiName == null)
+            {
+                return null;
+            }
+
+            capstones.ByApiName.TryGetValue(apiName.Trim(), out var match);
+            return match;
+        }
+
         private void SetCapstoneForRow(AchievementEditorRow row, bool isCapstone)
         {
             var apiName = NormalizeText(row?.OriginalApiName);
@@ -2510,19 +2798,27 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            var currentCapstone = NormalizeText(GameCustomDataLookup.GetManualCapstone(_gameId, _settings?.Persisted));
-            var isCurrent = string.Equals(currentCapstone, apiName, StringComparison.OrdinalIgnoreCase);
-            if (isCapstone == isCurrent)
-            {
-                return;
-            }
-
-            var targetApiName = isCapstone ? apiName : null;
             try
             {
-                _achievementOverridesService.SetCapstone(_gameId, targetApiName);
+                _achievementOverridesService.SetCapstone(_gameId, apiName, isCapstone);
+
+                // Re-seeded from the store, so the rows are right whatever the snapshot holds. The
+                // snapshot is only read here for categories and names, which a capstone write does
+                // not move, so this deliberately runs before the invalidation below and pays for no
+                // re-hydration of its own.
                 RefreshAssignmentState();
-                CapstoneChanged?.Invoke(this, new CapstoneChangedEventArgs(targetApiName, isCapstone ? row.DisplayName : null));
+
+                // The snapshot caches hydrated data until something drops it, and the host's own
+                // invalidation is debounced. A reload landing inside that window would rebuild
+                // these rows from pre-write data and put the capstone flag back as it was, which
+                // is what left the status glyph stale on some clicks and not others.
+                _gameDataSnapshotProvider?.Invalidate();
+
+                CapstoneChanged?.Invoke(
+                    this,
+                    new CapstoneChangedEventArgs(
+                        isCapstone ? apiName : null,
+                        isCapstone ? row.DisplayName : null));
             }
             catch (Exception ex)
             {
@@ -2635,7 +2931,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             if (e.PropertyName == nameof(AchievementEditorRow.IsCapstone))
             {
-                if (!_isRefreshingAssignments && sender is AchievementEditorRow capstoneRow)
+                // The row re-seeds itself from the store after every write, and that re-seed sets
+                // IsCapstone too; persisting it again would write the same edit twice.
+                if (!_isRefreshingAssignments &&
+                    sender is AchievementEditorRow capstoneRow &&
+                    !capstoneRow.SuppressCapstonePersist)
                 {
                     SetCapstoneForRow(capstoneRow, capstoneRow.IsCapstone);
                 }
@@ -2826,11 +3126,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     // Hiding is a presentation choice rather than a provider fact, so both values
                     // are storable; agreeing with the provider again stores nothing, which is what
                     // keeps a record from being kept for a row that is not customized.
+                    // Without the provider baseline every row reads as not hidden, so unhiding a
+                    // provider-hidden achievement would store nothing and snap straight back.
+                    // Storing the chosen value keeps a record that happens to agree with the
+                    // provider, which costs a row and holds the edit.
                     case nameof(AchievementEditorRow.Hidden):
                         WriteProviderField(
                             apiName,
                             AchievementEditableField.Hidden,
-                            row.Hidden == row.ProviderHidden ? (bool?)null : row.Hidden);
+                            _providerBaselinesResolved && row.Hidden == row.ProviderHidden
+                                ? (bool?)null
+                                : row.Hidden);
                         break;
 
                     // Icons are stored as their own maps rather than on the override record, so
@@ -3288,7 +3594,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // The maps are written whole, so rebuilding them without the provider baseline would
             // both stamp every provider icon in as an override and drop the real ones already
             // stored. Refusing the write leaves the stored icons alone.
-            if (!_providerIconBaselinesResolved)
+            if (!_providerBaselinesResolved)
             {
                 _logger?.Warn($"Skipped writing icon overrides for gameId={_gameId}: no provider data to compare against.");
                 return;
@@ -4482,6 +4788,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _categoryLabel;
         private string _categoryTypeValue;
         private bool _isCapstone;
+        private string _capstoneReplacesDisplayName;
+        private bool _suppressCapstonePersist;
+        private string _capstoneCategoryDisplayName;
+        private string _effectiveCategoryCapstoneName;
+        private string _gameWideCapstoneName;
 
         /// <summary>
         /// True for the stand-in row the details pane binds to while several achievements are
@@ -4501,7 +4812,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// The capstone is one achievement per game, so it has no meaning for a multi-selection.
         /// The proxy refuses it rather than accepting a click it could not apply.
         /// </summary>
-        public bool CanEditCapstone => CanEditAssignments && !IsBulkRow;
+        /// <summary>
+        /// Set on the bulk proxy when the selected achievements sit in distinct categories, so a
+        /// capstone edit across them cannot have them displace each other.
+        /// </summary>
+        public bool AllowBulkCapstone { get; set; }
+
+        public bool CanEditCapstone => CanEditAssignments && (!IsBulkRow || AllowBulkCapstone);
 
         /// <summary>
         /// The icons the provider supplies, captured before any override is applied over them.
@@ -4824,7 +5141,136 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool IsCapstone
         {
             get => _isCapstone;
-            set => SetValue(ref _isCapstone, value);
+            set
+            {
+                if (SetValueAndReturn(ref _isCapstone, value))
+                {
+                    RaiseCapstoneReadoutChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// What acting on this achievement would do to the game's capstones: add one, replace the
+        /// one already standing for its category, or drop it.
+        /// </summary>
+        public string CapstoneActionText
+        {
+            get
+            {
+                if (IsCapstone)
+                {
+                    return ResourceProvider.GetString("LOCPlayAch_Button_Remove");
+                }
+
+                return string.IsNullOrWhiteSpace(CapstoneReplacesDisplayName)
+                    ? ResourceProvider.GetString("LOCPlayAch_Button_Add")
+                    : ResourceProvider.GetString("LOCPlayAch_Button_Replace");
+            }
+        }
+
+        /// <summary>
+        /// The capstone that acting on this achievement would displace, named on the button tooltip
+        /// so a replacement is never a surprise. Null when nothing would be displaced.
+        /// </summary>
+        public string CapstoneReplacesDisplayName
+        {
+            get => _capstoneReplacesDisplayName;
+            set
+            {
+                if (SetValueAndReturn(ref _capstoneReplacesDisplayName, value))
+                {
+                    OnPropertyChanged(nameof(CapstoneActionText));
+                    OnPropertyChanged(nameof(CapstoneActionToolTip));
+                }
+            }
+        }
+
+        public string CapstoneActionToolTip =>
+            string.IsNullOrWhiteSpace(CapstoneReplacesDisplayName)
+                ? null
+                : string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_Capstone_Replaces"),
+                    CapstoneReplacesDisplayName);
+
+        /// <summary>The display path of this achievement's own category.</summary>
+        public string CapstoneCategoryDisplayName
+        {
+            get => _capstoneCategoryDisplayName;
+            private set => SetValue(ref _capstoneCategoryDisplayName, value);
+        }
+
+        /// <summary>
+        /// What this row's own category stands on, which may be a capstone inherited from an
+        /// ancestor category rather than anything in this category at all.
+        /// </summary>
+        public string CurrentCategoryCapstoneText =>
+            string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Capstone_CurrentCategory"),
+                _effectiveCategoryCapstoneName);
+
+        /// <summary>
+        /// What stands for the whole game, which only reads that way while the game holds exactly
+        /// one capstone.
+        /// </summary>
+        public string CurrentGameCapstoneText =>
+            string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Capstone_CurrentGame"),
+                _gameWideCapstoneName);
+
+        /// <summary>
+        /// Shown only when there is a capstone to name and it is not this row: the checkbox beside
+        /// it already says when this achievement is the one, and a line reading None says nothing
+        /// the cleared checkbox has not. The proxy reports on no single category at all.
+        /// </summary>
+        public bool ShowCurrentCategoryCapstone =>
+            !IsBulkRow && !string.IsNullOrWhiteSpace(_effectiveCategoryCapstoneName) && !IsCapstone;
+
+        /// <summary>Shown on the same terms, for the capstone standing for the whole game.</summary>
+        public bool ShowCurrentGameCapstone =>
+            !IsBulkRow && !string.IsNullOrWhiteSpace(_gameWideCapstoneName) && !IsCapstone;
+
+        /// <summary>
+        /// Applies resolved capstone state without writing it back, for the refresh that re-reads
+        /// the store.
+        /// </summary>
+        public void SetCapstoneStateFromSource(
+            bool isCapstone,
+            string categoryDisplayName,
+            string categoryCapstoneName,
+            string gameCapstoneName)
+        {
+            _capstoneCategoryDisplayName = categoryDisplayName;
+            _effectiveCategoryCapstoneName = categoryCapstoneName;
+            _gameWideCapstoneName = gameCapstoneName;
+            _suppressCapstonePersist = true;
+            try
+            {
+                IsCapstone = isCapstone;
+            }
+            finally
+            {
+                _suppressCapstonePersist = false;
+            }
+
+            OnPropertyChanged(nameof(CapstoneCategoryDisplayName));
+            RaiseCapstoneReadoutChanged();
+        }
+
+        /// <summary>
+        /// True while the row is being re-seeded from the store, so the write-back hook can tell a
+        /// refresh apart from a click.
+        /// </summary>
+        internal bool SuppressCapstonePersist => _suppressCapstonePersist;
+
+        private void RaiseCapstoneReadoutChanged()
+        {
+            OnPropertyChanged(nameof(CapstoneActionText));
+            OnPropertyChanged(nameof(CapstoneActionToolTip));
+            OnPropertyChanged(nameof(CurrentCategoryCapstoneText));
+            OnPropertyChanged(nameof(CurrentGameCapstoneText));
+            OnPropertyChanged(nameof(ShowCurrentCategoryCapstone));
+            OnPropertyChanged(nameof(ShowCurrentGameCapstone));
         }
 
         public string Id
@@ -4930,9 +5376,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// checkbox for a selection that disagrees.
         /// </summary>
         /// <remarks>
-        /// A blank is only ever a display state: setting one back to blank is ignored, and picking
-        /// either real value applies it even when it matches what the blank was standing in front
-        /// of, which is what lets a mixed selection be set to the unchecked pole.
+        /// A blank is only ever a display state: the ticks are not three-state, so no click can
+        /// land on it, setting one back to blank is ignored, and picking either real value applies
+        /// it even when it matches what the blank was standing in front of.
         /// </remarks>
         public bool? UnlockedState
         {

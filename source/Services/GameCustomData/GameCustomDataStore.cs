@@ -25,13 +25,28 @@ namespace PlayniteAchievements.Services.GameCustomData
 
     public sealed class GameCustomDataChangedEventArgs : EventArgs
     {
-        public GameCustomDataChangedEventArgs(Guid playniteGameId, bool affectsSummaryData = true)
+        public GameCustomDataChangedEventArgs(
+            Guid playniteGameId,
+            bool affectsSummaryData = true,
+            bool affectsOverrideMirror = true)
         {
             PlayniteGameId = playniteGameId;
             AffectsSummaryData = affectsSummaryData;
+            AffectsOverrideMirror = affectsOverrideMirror;
         }
 
         public Guid PlayniteGameId { get; }
+
+        /// <summary>
+        /// False when the change cannot have moved the per-achievement override mirror -- the
+        /// filtered ApiNames and the user-editable points and trophy type. A capstone edit is the
+        /// case that matters: it is summary-visible but touches nothing the mirror carries, and
+        /// resyncing it costs a record clone and a write-connection query on the click.
+        ///
+        /// Defaults to true so every existing caller keeps resyncing, and only a writer that
+        /// knows better opts out.
+        /// </summary>
+        public bool AffectsOverrideMirror { get; }
 
         /// <summary>
         /// False when the change only reorders or re-presents achievements the user already had,
@@ -202,7 +217,8 @@ namespace PlayniteAchievements.Services.GameCustomData
         public void Update(
             Guid playniteGameId,
             Action<GameCustomDataFile> mutate,
-            bool affectsSummaryData = true)
+            bool affectsSummaryData = true,
+            bool affectsOverrideMirror = true)
         {
             if (playniteGameId == Guid.Empty)
             {
@@ -222,7 +238,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             mutate(data);
-            Save(playniteGameId, data, previous, affectsSummaryData);
+            Save(playniteGameId, data, previous, affectsSummaryData, affectsOverrideMirror);
         }
 
         // Rewrites every ApiName-keyed field after achievement definitions were renamed in place
@@ -266,6 +282,15 @@ namespace PlayniteAchievements.Services.GameCustomData
             {
                 data.ManualCapstoneApiName = renamedCapstone;
                 changed = true;
+            }
+
+            foreach (var capstone in data.Capstones ?? Enumerable.Empty<CapstoneAssignment>())
+            {
+                if (TryResolveRenamedApiName(renamedApiNames, capstone?.ApiName, out var renamedEntry))
+                {
+                    capstone.ApiName = renamedEntry;
+                    changed = true;
+                }
             }
 
             changed |= RenameListEntries(data.AchievementOrder, renamedApiNames);
@@ -425,7 +450,8 @@ namespace PlayniteAchievements.Services.GameCustomData
             Guid playniteGameId,
             GameCustomDataFile data,
             GameCustomDataFile previousData,
-            bool affectsSummaryData = true)
+            bool affectsSummaryData = true,
+            bool affectsOverrideMirror = true)
         {
             using (PerfScope.Start(_logger, "GameCustomData.Save", thresholdMs: 10))
             {
@@ -452,7 +478,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     normalized.NotificationAppearanceOverride?.Style);
                 using (PerfScope.Start(_logger, "GameCustomData.Save.RaiseChanged", thresholdMs: 10))
                 {
-                    RaiseCustomDataChanged(playniteGameId, affectsSummaryData);
+                    RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror);
                 }
             }
         }
@@ -2162,12 +2188,18 @@ namespace PlayniteAchievements.Services.GameCustomData
         /// Raises <see cref="CustomDataChanged"/> without writing, for changes that alter how a
         /// game's stored custom data resolves (such as an edited custom provider definition).
         /// </summary>
-        public void NotifyChanged(Guid playniteGameId, bool affectsSummaryData = true)
+        public void NotifyChanged(
+            Guid playniteGameId,
+            bool affectsSummaryData = true,
+            bool affectsOverrideMirror = true)
         {
-            RaiseCustomDataChanged(playniteGameId, affectsSummaryData);
+            RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror);
         }
 
-        private void RaiseCustomDataChanged(Guid playniteGameId, bool affectsSummaryData = true)
+        private void RaiseCustomDataChanged(
+            Guid playniteGameId,
+            bool affectsSummaryData = true,
+            bool affectsOverrideMirror = true)
         {
             if (playniteGameId == Guid.Empty)
             {

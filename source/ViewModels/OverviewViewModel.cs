@@ -2074,6 +2074,8 @@ namespace PlayniteAchievements.ViewModels
             snapshot.TotalRare = snapshot.GameSummaries.Sum(g => g?.RareCount ?? 0);
             snapshot.TotalUltraRare = snapshot.GameSummaries.Sum(g => g?.UltraRareCount ?? 0);
             snapshot.CompletedGames = snapshot.GameSummaries.Count(g => g?.IsCompleted == true);
+            snapshot.Completions = snapshot.GameSummaries.Sum(g => g?.Completions ?? 0);
+            snapshot.PossibleCompletions = snapshot.GameSummaries.Sum(g => g?.PossibleCompletions ?? 0);
             snapshot.TotalLocked = Math.Max(0, snapshot.TotalAchievements - snapshot.TotalUnlocked);
             snapshot.GlobalProgressionPercent = snapshot.TotalAchievements > 0
                 ? (double)snapshot.TotalUnlocked / snapshot.TotalAchievements * 100
@@ -3188,27 +3190,22 @@ namespace PlayniteAchievements.ViewModels
         /// Re-stamps the capstone flag on the selected game's rows. Valid only when a capstone is
         /// being set, where every other row becomes a non-capstone.
         /// </summary>
+        /// <summary>
+        /// Re-stamps the capstone flags on the rows already in memory from the game's stored
+        /// set, so the click that changed a capstone is the one that shows it.
+        /// </summary>
         public bool ApplyCapstone(string capstoneApiName)
         {
+            var gameId = SelectedGame?.PlayniteGameId;
             if (_allSelectedGameAchievements == null ||
                 _allSelectedGameAchievements.Count == 0 ||
-                string.IsNullOrWhiteSpace(capstoneApiName))
+                gameId == null)
             {
                 return false;
             }
 
-            foreach (var item in _allSelectedGameAchievements)
-            {
-                if (item != null)
-                {
-                    item.IsCapstone = string.Equals(
-                        (item.ApiName ?? string.Empty).Trim(),
-                        capstoneApiName.Trim(),
-                        StringComparison.OrdinalIgnoreCase);
-                }
-            }
-
-            return true;
+            return PlayniteAchievementsPlugin.Instance?.AchievementMarkerToggle?
+                .TryRestampCapstones(gameId.Value, _allSelectedGameAchievements) == true;
         }
 
         /// <summary>
@@ -3430,7 +3427,13 @@ namespace PlayniteAchievements.ViewModels
             var trophySilverLabel = ResourceProvider.GetString("LOCPlayAch_Trophy_Silver");
             var trophyBronzeLabel = ResourceProvider.GetString("LOCPlayAch_Trophy_Bronze");
 
-            GamesPieChart?.SetGameData(gamesPieSnapshot.TotalGames, gamesPieSnapshot.CompletedGames, completedLabel, incompleteLabel);
+            // Finishes, not finished games: a game with several capstones offers several, so the
+            // pie partitions every finish the library holds rather than every game.
+            GamesPieChart?.SetGameData(
+                gamesPieSnapshot.PossibleCompletions,
+                gamesPieSnapshot.Completions,
+                completedLabel,
+                incompleteLabel);
 
             var providerLookup = BuildProviderLookup(snapshot.UnlockedByProvider.Keys);
             var providerDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -3480,6 +3483,8 @@ namespace PlayniteAchievements.ViewModels
 
             snapshot.TotalGames = gamesList.Count;
             snapshot.CompletedGames = gamesList.Count(game => game?.IsCompleted == true);
+            snapshot.Completions = gamesList.Sum(game => game?.Completions ?? 0);
+            snapshot.PossibleCompletions = gamesList.Sum(game => game?.PossibleCompletions ?? 0);
             snapshot.TotalAchievements = gamesList.Sum(game => game?.TotalAchievements ?? 0);
             snapshot.TotalUnlocked = gamesList.Sum(game => game?.UnlockedAchievements ?? 0);
             snapshot.TotalLocked = Math.Max(0, snapshot.TotalAchievements - snapshot.TotalUnlocked);

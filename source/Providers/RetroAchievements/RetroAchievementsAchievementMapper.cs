@@ -18,7 +18,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             RaGameInfoUserProgress gameInfo,
             string rarityStats,
             string categoryLabel = null,
-            bool enableAutomaticCapstoneAssignment = false,
             string setCategoryType = null)
         {
             var list = new List<AchievementDetail>();
@@ -99,8 +98,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     Points = ach.Points,
                     ScaledPoints = ach.TrueRatio,
                     Category = categoryLabel,
-                    IsCapstone = enableAutomaticCapstoneAssignment &&
-                                 string.Equals(ach.Type, "win_condition", StringComparison.OrdinalIgnoreCase),
                     CategoryType = categoryType,
                     UnlockTimeUtc = unlockUtc,
                     Hidden = false,

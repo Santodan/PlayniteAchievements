@@ -954,12 +954,15 @@
                                           Stretch="Uniform"
                                           Margin="0,0,4,0"
                                           VerticalAlignment="Center" />
-                                    <!-- Three-state only for the bulk proxy: a blank tick means the
-                                         selected rows disagree, so nothing is applied until a real
-                                         value is picked. -->
+                                    <!-- A blank tick means the selected rows disagree. It is a
+                                         display state the binding pushes in, never one a click can
+                                         reach: three-state toggling put the blank between checked
+                                         and unchecked, so unticking a selection that agreed landed
+                                         on the blank and applied nothing. Each tick therefore has
+                                         two clickable states, and a disagreeing selection resolves
+                                         to whichever the user picks. -->
                                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_Unlocked}"
                                               IsChecked="{Binding UnlockedState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsThreeState="{Binding IsBulkRow}"
                                               IsEnabled="{Binding CanEditUnlocked}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,18,2"
@@ -973,24 +976,6 @@
                                            helpers:AsyncImage.DecodePixel="28" />
                                     <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Custom_Hidden}"
                                               IsChecked="{Binding HiddenState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsThreeState="{Binding IsBulkRow}"
-                                              MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                              Margin="0,0,0,2"
-                                              VerticalContentAlignment="Center" />
-                                </WrapPanel>
-
-                                <!-- What the user has singled the achievement out as. -->
-                                <WrapPanel Orientation="Horizontal">
-                                    <Image Source="{DynamicResource BadgeCompletedGame}"
-                                           Style="{StaticResource RarityIcon}"
-                                           Width="14"
-                                           Height="14"
-                                           Margin="0,0,4,0"
-                                           VerticalAlignment="Center" />
-                                    <CheckBox x:Name="CapstoneCheckBox"
-                                              Content="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
-                                              IsChecked="{Binding IsCapstone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsEnabled="{Binding CanEditCapstone}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,18,2"
                                               VerticalContentAlignment="Center" />
@@ -1002,12 +987,71 @@
                                                VerticalAlignment="Center" />
                                     <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}"
                                               IsChecked="{Binding IsGoalState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsThreeState="{Binding IsBulkRow}"
                                               IsEnabled="{Binding CanEditAssignments}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,0,2"
                                               VerticalContentAlignment="Center" />
                                 </WrapPanel>
+
+                                <!-- A capstone carries how much of the game it stands for, so this
+                                     is a scope picker rather than a tick. The line under it says
+                                     what this achievement's own category currently stands on, which
+                                     may be a capstone on an ancestor category or the game-wide one
+                                     rather than anything in this category at all. -->
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <Image Source="{DynamicResource BadgeCompletedGame}"
+                                           Style="{StaticResource RarityIcon}"
+                                           Width="14"
+                                           Height="14"
+                                           Margin="0,0,4,0"
+                                           VerticalAlignment="Center" />
+                                    <!-- The tick is a state indicator, not a control: the button
+                                         beside it is what acts, because only the button can say
+                                         whether acting adds a capstone or replaces one. -->
+                                    <CheckBox Content="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
+                                              IsChecked="{Binding IsCapstone, Mode=OneWay}"
+                                              IsHitTestVisible="False"
+                                              Focusable="False"
+                                              Opacity="{StaticResource PlayAch.Opacity.Secondary}"
+                                              MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                                              Margin="0,0,10,0"
+                                              VerticalContentAlignment="Center" />
+                                    <!-- A plain button, not a selector: it commits an action rather
+                                         than opening a list, so it must not wear the dropdown
+                                         chevron the category and type pickers use. -->
+                                    <Button x:Name="CapstoneActionButton"
+                                            Content="{Binding CapstoneActionText}"
+                                            ToolTip="{Binding CapstoneActionToolTip}"
+                                            IsEnabled="{Binding CanEditCapstone}"
+                                            Click="CapstoneActionButton_Click"
+                                            Padding="12,4"
+                                            MinHeight="26"
+                                            MinWidth="90"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <!-- Each line is hidden when this achievement is that capstone,
+                                     because the selector above already says so. Trimmed rather
+                                     than wrapped so a long achievement name cannot push the pane
+                                     around; the tooltip carries the full text. -->
+                                <TextBlock Text="{Binding CurrentCategoryCapstoneText}"
+                                           ToolTip="{Binding CurrentCategoryCapstoneText}"
+                                           Visibility="{Binding ShowCurrentCategoryCapstone, Converter={StaticResource BoolToVis}}"
+                                           Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           Opacity="{StaticResource PlayAch.Opacity.Secondary}"
+                                           TextTrimming="CharacterEllipsis"
+                                           Margin="18,8,0,0" />
+
+                                <TextBlock Text="{Binding CurrentGameCapstoneText}"
+                                           ToolTip="{Binding CurrentGameCapstoneText}"
+                                           Visibility="{Binding ShowCurrentGameCapstone, Converter={StaticResource BoolToVis}}"
+                                           Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           Opacity="{StaticResource PlayAch.Opacity.Secondary}"
+                                           TextTrimming="CharacterEllipsis"
+                                           Margin="18,3,0,2" />
                             </StackPanel>
                         </Border>
 

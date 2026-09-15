@@ -177,6 +177,92 @@ namespace PlayniteAchievements.ViewModels.Items
         private int _ultraRareCount;
         public int UltraRareCount { get => _ultraRareCount; set => SetValue(ref _ultraRareCount, value); }
 
+        private int _capstoneTotal;
+
+        /// <summary>How many capstones this row has, and how many are earned.</summary>
+        public int CapstoneTotal
+        {
+            get => _capstoneTotal;
+            set
+            {
+                if (SetValueAndReturn(ref _capstoneTotal, value))
+                {
+                    OnPropertyChanged(nameof(ShowCompletionBadge));
+                    OnPropertyChanged(nameof(ShowCompletionCount));
+                    OnPropertyChanged(nameof(CompletionCountText));
+                    OnPropertyChanged(nameof(Completions));
+                }
+            }
+        }
+
+        private int _capstoneUnlocked;
+        public int CapstoneUnlocked
+        {
+            get => _capstoneUnlocked;
+            set
+            {
+                if (SetValueAndReturn(ref _capstoneUnlocked, value))
+                {
+                    OnPropertyChanged(nameof(ShowCompletionBadge));
+                    OnPropertyChanged(nameof(ShowCompletionCount));
+                    OnPropertyChanged(nameof(CompletionCountText));
+                    OnPropertyChanged(nameof(Completions));
+                }
+            }
+        }
+
+        private bool _capstonesMatchPlatinums;
+
+        /// <summary>
+        /// Whether this row's capstones are exactly its platinum trophies, or it names no capstone
+        /// at all. Decided where the achievements are in hand, since one capstone and one platinum
+        /// that are different achievements must not read as the same thing.
+        /// </summary>
+        public bool CapstonesMatchPlatinums
+        {
+            get => _capstonesMatchPlatinums;
+            set
+            {
+                if (SetValueAndReturn(ref _capstonesMatchPlatinums, value))
+                {
+                    OnPropertyChanged(nameof(ShowPlatinumInCompletionSpot));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Whether the finish badge renders as the platinum trophy, which also takes the platinum
+        /// out of the trophy row so it appears once rather than twice. Whether trophy badges are
+        /// preferred at all is the host grid's business, so the templates pair this with that.
+        /// </summary>
+        public bool ShowPlatinumInCompletionSpot =>
+            CapstonesMatchPlatinums && TrophyPlatinumTotal > 0;
+
+        /// <summary>
+        /// Whether the completion badge carries a number. One finish needs none, the badge itself
+        /// being the statement; several are worth counting.
+        /// </summary>
+        public bool ShowCompletionCount => CapstoneTotal > 1 && Completions > 0;
+
+        /// <summary>How many finishes the badge stands for.</summary>
+        public string CompletionCountText =>
+            Completions.ToString("N0", PlayniteAchievements.Common.FormattingCulture.Current);
+
+        /// <summary>
+        /// How many times this row counts as finished: one per capstone earned, or one for a clean
+        /// 100% when it names no capstone at all.
+        /// </summary>
+        public int Completions =>
+            CapstoneTotal > 0 ? CapstoneUnlocked : (IsCompleted ? 1 : 0);
+
+        /// <summary>
+        /// How many completions this row could ever yield, which is what keeps the completions pie
+        /// a real partition: every capstone is one finish available, and a game that names none
+        /// still offers the single finish of a clean 100%.
+        /// </summary>
+        public int PossibleCompletions =>
+            CapstoneTotal > 0 ? CapstoneTotal : (TotalAchievements > 0 ? 1 : 0);
+
         private int _collectionScore;
         public int CollectionScore
         {
@@ -239,70 +325,101 @@ namespace PlayniteAchievements.ViewModels.Items
         public int TotalRarePossible { get; set; }
         public int TotalUltraRarePossible { get; set; }
 
-        // Trophy counts for PlayStation games. Each setter also raises HasTrophyTypes: a category
-        // row swapping between its own and subtree stat snapshots in place can flip whether the
-        // row has trophy data at all.
+        // Earned trophy counts for PlayStation games.
         private int _trophyPlatinumCount;
         public int TrophyPlatinumCount
         {
             get => _trophyPlatinumCount;
-            set
-            {
-                if (SetValueAndReturn(ref _trophyPlatinumCount, value))
-                {
-                    OnPropertyChanged(nameof(HasTrophyTypes));
-                }
-            }
+            set => SetValue(ref _trophyPlatinumCount, value);
         }
 
         private int _trophyGoldCount;
         public int TrophyGoldCount
         {
             get => _trophyGoldCount;
-            set
-            {
-                if (SetValueAndReturn(ref _trophyGoldCount, value))
-                {
-                    OnPropertyChanged(nameof(HasTrophyTypes));
-                }
-            }
+            set => SetValue(ref _trophyGoldCount, value);
         }
 
         private int _trophySilverCount;
         public int TrophySilverCount
         {
             get => _trophySilverCount;
-            set
-            {
-                if (SetValueAndReturn(ref _trophySilverCount, value))
-                {
-                    OnPropertyChanged(nameof(HasTrophyTypes));
-                }
-            }
+            set => SetValue(ref _trophySilverCount, value);
         }
 
         private int _trophyBronzeCount;
         public int TrophyBronzeCount
         {
             get => _trophyBronzeCount;
+            set => SetValue(ref _trophyBronzeCount, value);
+        }
+
+        // Each total raises HasTrophyTypes, which is derived from them: a category row swapping
+        // between its own and subtree stat snapshots in place can flip whether the row has trophy
+        // data at all.
+        private int _trophyPlatinumTotal;
+        public int TrophyPlatinumTotal
+        {
+            get => _trophyPlatinumTotal;
             set
             {
-                if (SetValueAndReturn(ref _trophyBronzeCount, value))
+                if (SetValueAndReturn(ref _trophyPlatinumTotal, value))
+                {
+                    OnPropertyChanged(nameof(HasTrophyTypes));
+                    OnPropertyChanged(nameof(ShowPlatinumInCompletionSpot));
+                }
+            }
+        }
+
+        private int _trophyGoldTotal;
+        public int TrophyGoldTotal
+        {
+            get => _trophyGoldTotal;
+            set
+            {
+                if (SetValueAndReturn(ref _trophyGoldTotal, value))
                 {
                     OnPropertyChanged(nameof(HasTrophyTypes));
                 }
             }
         }
 
-        public int TrophyPlatinumTotal { get; set; }
-        public int TrophyGoldTotal { get; set; }
-        public int TrophySilverTotal { get; set; }
-        public int TrophyBronzeTotal { get; set; }
+        private int _trophySilverTotal;
+        public int TrophySilverTotal
+        {
+            get => _trophySilverTotal;
+            set
+            {
+                if (SetValueAndReturn(ref _trophySilverTotal, value))
+                {
+                    OnPropertyChanged(nameof(HasTrophyTypes));
+                }
+            }
+        }
+
+        private int _trophyBronzeTotal;
+        public int TrophyBronzeTotal
+        {
+            get => _trophyBronzeTotal;
+            set
+            {
+                if (SetValueAndReturn(ref _trophyBronzeTotal, value))
+                {
+                    OnPropertyChanged(nameof(HasTrophyTypes));
+                }
+            }
+        }
 
         /// <summary>
         /// True if this game has PlayStation trophy type data.
         /// </summary>
-        public bool HasTrophyTypes => TrophyPlatinumCount > 0 || TrophyGoldCount > 0 || TrophySilverCount > 0 || TrophyBronzeCount > 0;
+        /// <remarks>
+        /// The totals, not the earned counts: whether a game has trophies is a fact about the game,
+        /// not about progress through it. Reading the earned counts left a PSN game showing rarity
+        /// badges until its first unlock and then switching to trophy badges.
+        /// </remarks>
+        public bool HasTrophyTypes =>
+            TrophyPlatinumTotal > 0 || TrophyGoldTotal > 0 || TrophySilverTotal > 0 || TrophyBronzeTotal > 0;
 
         public bool HasRarityPieChartData =>
             TotalCommonPossible > 0 ||
@@ -355,16 +472,26 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _isCompleted, value))
                 {
                     OnPropertyChanged(nameof(ShowCompletionBadge));
+                    OnPropertyChanged(nameof(ShowCompletionBadge));
+                    OnPropertyChanged(nameof(ShowCompletionCount));
+                    OnPropertyChanged(nameof(CompletionCountText));
+                    OnPropertyChanged(nameof(Completions));
                 }
             }
         }
 
         /// <summary>
-        /// Whether the progress column footer renders the completion badge for this row. Game rows
-        /// track <see cref="IsCompleted"/>; category rows additionally honor the
-        /// CategoryCompletionBadgeMode display setting.
+        /// Whether the progress column footer renders the completion badge for this row. Category
+        /// rows additionally honor the CategoryCompletionBadgeMode display setting.
         /// </summary>
-        public virtual bool ShowCompletionBadge => IsCompleted;
+        /// <remarks>
+        /// With several capstones the badge counts rather than waits: each one earned is a finish
+        /// in its own right, so two of three shows a badge reading 2 instead of nothing until all
+        /// three land. A row with one capstone, or none, keeps the plain finished-or-not badge,
+        /// which is what makes a rollup over mixed rows read consistently.
+        /// </remarks>
+        public virtual bool ShowCompletionBadge =>
+            CapstoneTotal > 1 ? Completions > 0 : IsCompleted;
 
         private string _provider;
         public string Provider { get => _provider; set => SetValue(ref _provider, value); }

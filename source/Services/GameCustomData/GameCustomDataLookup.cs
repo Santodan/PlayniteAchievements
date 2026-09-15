@@ -25,7 +25,11 @@ namespace PlayniteAchievements.Services.GameCustomData
 
         public bool UseSeparateLockedIcons { get; set; }
 
-        public string ManualCapstoneApiName { get; set; }
+        /// <inheritdoc cref="Models.Settings.GameCustomDataFile.CapstonesMaterialized"/>
+        public bool CapstonesMaterialized { get; set; }
+
+        /// <inheritdoc cref="Models.Settings.GameCustomDataFile.Capstones"/>
+        public List<CapstoneAssignment> Capstones { get; set; } = new List<CapstoneAssignment>();
 
         /// <summary>
         /// True when the game's achievements come from a manual link. Such a game records its own
@@ -182,12 +186,13 @@ namespace PlayniteAchievements.Services.GameCustomData
                         ? customData?.UseSeparateLockedIconsOverride == true
                         : fallbackSettings?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true),
                 HasManualLink = hasCustomData && customData?.ManualLink != null,
-                ManualCapstoneApiName = hasCustomData
-                    ? customData?.ManualCapstoneApiName
-                                        : fallbackSettings?.ManualCapstones != null &&
-                                            fallbackSettings.ManualCapstones.TryGetValue(gameId, out var capstone)
-                                                ? NormalizeValue(capstone)
-                                                : null,
+                CapstonesMaterialized = hasCustomData
+                    ? customData?.CapstonesMaterialized == true
+                    : fallbackSettings?.ManualCapstones != null &&
+                      fallbackSettings.ManualCapstones.ContainsKey(gameId),
+                Capstones = hasCustomData
+                    ? customData?.Capstones ?? new List<CapstoneAssignment>()
+                    : BuildLegacyCapstones(gameId, fallbackSettings),
                 AchievementOrder = hasCustomData
                     ? customData?.AchievementOrder ?? new List<string>()
                                         : fallbackSettings?.AchievementOrderOverrides != null &&
@@ -278,10 +283,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                 UseSeparateLockedIconsOverride = fallbackSettings?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true
                     ? true
                     : (bool?)null,
-                ManualCapstoneApiName = fallbackSettings?.ManualCapstones != null &&
-                                        fallbackSettings.ManualCapstones.TryGetValue(gameId, out var manualCapstone)
-                    ? NormalizeValue(manualCapstone)
-                    : null,
+                CapstonesMaterialized = fallbackSettings?.ManualCapstones != null &&
+                                        fallbackSettings.ManualCapstones.ContainsKey(gameId),
+                Capstones = BuildLegacyCapstones(gameId, fallbackSettings),
                 AchievementOrder = fallbackSettings?.AchievementOrderOverrides != null &&
                                    fallbackSettings.AchievementOrderOverrides.TryGetValue(gameId, out var configuredOrder)
                     ? AchievementOrderHelper.NormalizeApiNames(configuredOrder)
@@ -377,12 +381,39 @@ namespace PlayniteAchievements.Services.GameCustomData
             return ResolveGameCustomData(gameId ?? Guid.Empty, settings, store).UseSeparateLockedIcons;
         }
 
-        public static string GetManualCapstone(
+        /// <summary>
+        /// A game's stored capstones. An untouched game returns an unmaterialized set, which tells
+        /// the resolver to seed from the provider instead.
+        /// </summary>
+        public static CapstoneSet GetCapstoneSet(
             Guid gameId,
             PersistedSettings fallbackSettings = null,
             GameCustomDataStore store = null)
         {
-            return ResolveGameCustomData(gameId, fallbackSettings, store).ManualCapstoneApiName;
+            var resolved = ResolveGameCustomData(gameId, fallbackSettings, store);
+            return new CapstoneSet(resolved.CapstonesMaterialized, resolved.Capstones);
+        }
+
+        /// <summary>
+        /// The pre-per-game-file capstone, lifted into a materialized single game-wide set so it
+        /// keeps suppressing provider capstones exactly as it always did.
+        /// </summary>
+        private static List<CapstoneAssignment> BuildLegacyCapstones(
+            Guid gameId,
+            PersistedSettings fallbackSettings)
+        {
+            var capstones = new List<CapstoneAssignment>();
+            if (fallbackSettings?.ManualCapstones != null &&
+                fallbackSettings.ManualCapstones.TryGetValue(gameId, out var legacy))
+            {
+                var apiName = NormalizeValue(legacy);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    capstones.Add(new CapstoneAssignment { ApiName = apiName });
+                }
+            }
+
+            return capstones;
         }
 
         public static List<string> GetAchievementOrder(

@@ -10,7 +10,7 @@ namespace PlayniteAchievements.Models.Achievements
     /// <summary>
     /// Individual achievement detail with schema metadata and user unlock progress.
     /// </summary>
-    public sealed class AchievementDetail
+    public sealed class AchievementDetail : IAchievementOverrideTarget
     {
         private bool? _unlocked;
 

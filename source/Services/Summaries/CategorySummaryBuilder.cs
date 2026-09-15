@@ -241,7 +241,26 @@ namespace PlayniteAchievements.Services.Summaries
                 }
 
                 item.CategoryType = ResolveCategoryType(directMembers, members);
-                item.AllowCompletionBadge = AllowsCompletionBadge(badgeMode, result.Count);
+
+                // A capstone claims its own achievement's category, so a capstone sitting in this
+                // bucket is one this category owns rather than one it inherits.
+                var capstones = CountCapstones(counted);
+                item.CapstoneTotal = capstones.Total;
+                item.CapstoneUnlocked = capstones.Unlocked;
+                item.CapstonesMatchPlatinums = capstones.MatchesPlatinums;
+                item.OwnCapstoneTotal = capstones.Total;
+                item.OwnCapstoneUnlocked = capstones.Unlocked;
+                item.OwnCapstonesMatchPlatinums = capstones.MatchesPlatinums;
+                if (dualStats)
+                {
+                    // A collapsed row absorbs its descendants, so it reports their capstones too.
+                    var subtreeCapstones = CountCapstones(members);
+                    item.SubtreeCapstoneTotal = subtreeCapstones.Total;
+                    item.SubtreeCapstoneUnlocked = subtreeCapstones.Unlocked;
+                    item.SubtreeCapstonesMatchPlatinums = subtreeCapstones.MatchesPlatinums;
+                }
+
+                item.AllowCompletionBadge = AllowsCompletionBadge(badgeMode, result.Count, capstones.Total > 0);
 
                 result.Add(item);
             }
@@ -298,14 +317,82 @@ namespace PlayniteAchievements.Services.Summaries
         /// first category that is not completed leaves the whole list badge-free. Each level is its
         /// own call, so First means the first row of the level being shown.
         /// </summary>
-        private static bool AllowsCompletionBadge(CategoryCompletionBadgeMode mode, int emittedCount)
+        /// <summary>How many capstones a bucket holds, and how many are earned.</summary>
+        /// <summary>
+        /// A bucket's capstones, and whether they are exactly its platinum trophies.
+        /// </summary>
+        private struct CapstoneTally
+        {
+            public int Total;
+            public int Unlocked;
+            public bool MatchesPlatinums;
+        }
+
+        private static CapstoneTally CountCapstones(IReadOnlyList<AchievementDisplayItem> bucket)
+        {
+            var tally = new CapstoneTally();
+            var capstonesThatAreNotPlatinum = 0;
+            var platinumsThatAreNotCapstones = 0;
+
+            foreach (var achievement in bucket)
+            {
+                if (achievement == null)
+                {
+                    continue;
+                }
+
+                var isPlatinum = string.Equals(
+                    (achievement.TrophyType ?? string.Empty).Trim(),
+                    "platinum",
+                    StringComparison.OrdinalIgnoreCase);
+
+                if (achievement.IsCapstone != true)
+                {
+                    if (isPlatinum)
+                    {
+                        platinumsThatAreNotCapstones++;
+                    }
+
+                    continue;
+                }
+
+                tally.Total++;
+                if (achievement.Unlocked)
+                {
+                    tally.Unlocked++;
+                }
+
+                if (!isPlatinum)
+                {
+                    capstonesThatAreNotPlatinum++;
+                }
+            }
+
+            // A bucket with no capstones hands the finish badge to its platinum outright; one with
+            // capstones only does so when they are exactly its platinums.
+            tally.MatchesPlatinums = capstonesThatAreNotPlatinum == 0 &&
+                (tally.Total == 0 || platinumsThatAreNotCapstones == 0);
+            return tally;
+        }
+
+        /// <remarks>
+        /// A category holding a capstone of its own is exempt from <see cref="CategoryCompletionBadgeMode.First"/>,
+        /// which exists to stop one game-wide finish line being restated on every row: a category
+        /// with its own capstone is stating something the other rows do not. It is not exempt from
+        /// <see cref="CategoryCompletionBadgeMode.None"/>, which is a hard off rather than a
+        /// de-duplication preference.
+        /// </remarks>
+        private static bool AllowsCompletionBadge(
+            CategoryCompletionBadgeMode mode,
+            int emittedCount,
+            bool hasOwnCapstone)
         {
             switch (mode)
             {
                 case CategoryCompletionBadgeMode.None:
                     return false;
                 case CategoryCompletionBadgeMode.First:
-                    return emittedCount == 0;
+                    return hasOwnCapstone || emittedCount == 0;
                 default:
                     return true;
             }
@@ -313,12 +400,18 @@ namespace PlayniteAchievements.Services.Summaries
 
         /// <summary>
         /// Mirrors <see cref="PlayniteAchievements.Models.Achievements.GameAchievementData.IsCompleted"/>:
-        /// every achievement unlocked, or the category contains the game's unlocked capstone achievement.
+        /// every achievement unlocked, or every capstone in the category unlocked.
         /// </summary>
+        /// <remarks>
+        /// A category with several capstones needs all of them, for the same reason the game does:
+        /// one finish line earned while another is still open has not finished the thing.
+        /// </remarks>
         private static bool ComputeIsCompleted(IReadOnlyList<AchievementDisplayItem> bucket)
         {
             var hasAny = false;
             var allUnlocked = true;
+            var capstones = 0;
+            var capstonesUnlocked = 0;
             foreach (var achievement in bucket)
             {
                 if (achievement == null)
@@ -327,15 +420,24 @@ namespace PlayniteAchievements.Services.Summaries
                 }
 
                 hasAny = true;
-                if (achievement.IsCapstone && achievement.Unlocked)
+                if (achievement.IsCapstone)
                 {
-                    return true;
+                    capstones++;
+                    if (achievement.Unlocked)
+                    {
+                        capstonesUnlocked++;
+                    }
                 }
 
                 if (!achievement.Unlocked)
                 {
                     allUnlocked = false;
                 }
+            }
+
+            if (capstones > 0 && capstonesUnlocked >= capstones)
+            {
+                return true;
             }
 
             return hasAny && allUnlocked;

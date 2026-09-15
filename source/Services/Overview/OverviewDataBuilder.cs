@@ -210,6 +210,9 @@ namespace PlayniteAchievements.Services.Overview
                     LastPlayed = presentation.LastPlayed,
                     LastUnlockUtc = game.LastUnlockUtc,
                     IsCompleted = game.IsCompleted,
+                    CapstoneTotal = game.CapstoneTotal,
+                    CapstoneUnlocked = game.CapstoneUnlocked,
+                    CapstonesMatchPlatinums = game.CapstonesMatchPlatinums,
                     Provider = providerName,
                     ProviderKey = providerKey,
                     ProviderIconKey = providerMetadata.iconKey,
@@ -232,6 +235,16 @@ namespace PlayniteAchievements.Services.Overview
                 {
                     snapshot.CompletedGames++;
                 }
+
+                // A game with capstones contributes one completion per capstone earned; one
+                // without any contributes one for a clean 100%, so a platform that names no
+                // finish line still counts for something.
+                snapshot.Completions += game.CapstoneTotal > 0
+                    ? game.CapstoneUnlocked
+                    : (game.IsCompleted ? 1 : 0);
+                snapshot.PossibleCompletions += game.CapstoneTotal > 0
+                    ? game.CapstoneTotal
+                    : (game.TotalAchievements > 0 ? 1 : 0);
 
                 if (!snapshot.UnlockedByProvider.ContainsKey(providerKey))
                 {

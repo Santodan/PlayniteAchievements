@@ -48,7 +48,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ExcludedFromSummaries = normalized.ExcludedFromSummaries == true ? true : (bool?)null;
             normalized.UseSeparateLockedIconsOverride = normalized.UseSeparateLockedIconsOverride == true ? true : (bool?)null;
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
-            normalized.ManualCapstoneApiName = NormalizeString(normalized.ManualCapstoneApiName);
+            NormalizeCapstones(normalized);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
             normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
@@ -107,7 +107,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.PlayniteGameId = playniteGameId;
             normalized.UseSeparateLockedIconsOverride = normalized.UseSeparateLockedIconsOverride == true ? true : (bool?)null;
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
-            normalized.ManualCapstoneApiName = NormalizeString(normalized.ManualCapstoneApiName);
+            NormalizeCapstones(normalized);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
             normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
@@ -166,6 +166,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.ExcludedFromSummaries == true ||
                    data.UseSeparateLockedIconsOverride == true ||
                    !string.IsNullOrWhiteSpace(data.ManualCapstoneApiName) ||
+                   data.CapstonesMaterialized ||
                    (data.AchievementOrder != null && data.AchievementOrder.Count > 0) ||
                    (data.AchievementCategoryOverrides != null && data.AchievementCategoryOverrides.Count > 0) ||
                    (data.AchievementCategoryTypeOverrides != null && data.AchievementCategoryTypeOverrides.Count > 0) ||
@@ -206,6 +207,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             return data.UseSeparateLockedIconsOverride == true ||
                    !string.IsNullOrWhiteSpace(data.ManualCapstoneApiName) ||
+                   data.CapstonesMaterialized ||
                    (data.AchievementOrder != null && data.AchievementOrder.Count > 0) ||
                    (data.AchievementCategoryOverrides != null && data.AchievementCategoryOverrides.Count > 0) ||
                    (data.AchievementCategoryTypeOverrides != null && data.AchievementCategoryTypeOverrides.Count > 0) ||
@@ -241,6 +243,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             return data.UseSeparateLockedIconsOverride == true ||
                    !string.IsNullOrWhiteSpace(data.ManualCapstoneApiName) ||
+                   data.CapstonesMaterialized ||
                    (data.AchievementOrder != null && data.AchievementOrder.Count > 0) ||
                    (data.AchievementCategoryOverrides != null && data.AchievementCategoryOverrides.Count > 0) ||
                    (data.AchievementCategoryTypeOverrides != null && data.AchievementCategoryTypeOverrides.Count > 0) ||
@@ -289,6 +292,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                 ManualCapstoneApiName = !string.IsNullOrWhiteSpace(existing.ManualCapstoneApiName)
                     ? existing.ManualCapstoneApiName
                     : legacy.ManualCapstoneApiName,
+                CapstonesMaterialized = existing.CapstonesMaterialized || legacy.CapstonesMaterialized,
+                Capstones = NormalizeCapstoneList(existing.CapstonesMaterialized ? existing.Capstones : legacy.Capstones),
                 AchievementOrder = existing.AchievementOrder != null && existing.AchievementOrder.Count > 0
                     ? new List<string>(existing.AchievementOrder)
                     : legacy.AchievementOrder != null && legacy.AchievementOrder.Count > 0
@@ -954,7 +959,11 @@ namespace PlayniteAchievements.Services.GameCustomData
                     CategoryType = AchievementCategoryTypeHelper.Normalize(pair.Value.CategoryType),
                     Note = AchievementNoteHelper.NormalizeNote(pair.Value.Note),
                     UnlockedIconPath = NormalizeString(pair.Value.UnlockedIconPath),
-                    LockedIconPath = NormalizeString(pair.Value.LockedIconPath)
+                    LockedIconPath = NormalizeString(pair.Value.LockedIconPath),
+                    // Either value is a customization, so this is carried as stored: null means the
+                    // provider still decides. Omitting it here dropped the override on every save,
+                    // and a hidden-only record then read as empty and was discarded outright.
+                    Hidden = pair.Value.Hidden
                 };
 
                 if (!entry.IsEmpty)
@@ -1230,6 +1239,84 @@ namespace PlayniteAchievements.Services.GameCustomData
                 IconPathData = NormalizeString(snapshot.IconPathData),
                 IconSource = NormalizeString(snapshot.IconSource)
             };
+        }
+
+        /// <summary>
+        /// Folds the legacy single capstone into the set and rebuilds the set itself.
+        /// </summary>
+        /// <remarks>
+        /// The fold is behaviour-preserving: a stored single capstone already suppressed every
+        /// provider capstone, which is exactly what a materialized set does.
+        ///
+        /// An empty set is stored as a null list rather than an empty one, so
+        /// <see cref="GameCustomDataFile.CapstonesMaterialized"/> is the only thing separating
+        /// "this game has no capstones" from "this game has never been touched".
+        /// </remarks>
+        private static void NormalizeCapstones(GameCustomDataFile data)
+        {
+            var legacy = NormalizeString(data.ManualCapstoneApiName);
+            if (!data.CapstonesMaterialized && !string.IsNullOrWhiteSpace(legacy))
+            {
+                data.CapstonesMaterialized = true;
+                data.Capstones = new List<CapstoneAssignment>
+                {
+                    new CapstoneAssignment { ApiName = legacy }
+                };
+            }
+
+            data.ManualCapstoneApiName = null;
+            data.Capstones = NormalizeCapstoneList(data.Capstones);
+        }
+
+        private static void NormalizeCapstones(GameCustomDataPortableFile data)
+        {
+            var legacy = NormalizeString(data.ManualCapstoneApiName);
+            if (!data.CapstonesMaterialized && !string.IsNullOrWhiteSpace(legacy))
+            {
+                data.CapstonesMaterialized = true;
+                data.Capstones = new List<CapstoneAssignment>
+                {
+                    new CapstoneAssignment { ApiName = legacy }
+                };
+            }
+
+            data.ManualCapstoneApiName = null;
+            data.Capstones = NormalizeCapstoneList(data.Capstones);
+        }
+
+        /// <summary>
+        /// Drops blank entries and keeps one assignment per achievement, the last written winning
+        /// so that re-nominating an achievement moves it rather than duplicating it.
+        /// </summary>
+        private static List<CapstoneAssignment> NormalizeCapstoneList(IEnumerable<CapstoneAssignment> assignments)
+        {
+            if (assignments == null)
+            {
+                return null;
+            }
+
+            var normalized = new List<CapstoneAssignment>();
+            var indexByApiName = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var assignment in assignments)
+            {
+                var apiName = NormalizeString(assignment?.ApiName);
+                if (string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                var entry = new CapstoneAssignment { ApiName = apiName };
+                if (indexByApiName.TryGetValue(apiName, out var existingIndex))
+                {
+                    normalized[existingIndex] = entry;
+                    continue;
+                }
+
+                indexByApiName[apiName] = normalized.Count;
+                normalized.Add(entry);
+            }
+
+            return normalized.Count > 0 ? normalized : null;
         }
 
         private static List<CustomAchievementDefinition> NormalizeCustomAchievements(

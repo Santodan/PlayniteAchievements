@@ -25,6 +25,18 @@ namespace PlayniteAchievements.Services.Overview
         public int TotalRare { get; set; }
         public int TotalUltraRare { get; set; }
         public int CompletedGames { get; set; }
+
+        /// <summary>
+        /// How many finishes the library holds, which is not the same as how many games are
+        /// finished: a game with several capstones contributes one per capstone earned.
+        /// </summary>
+        public int Completions { get; set; }
+
+        /// <summary>
+        /// Every finish the library offers, earned or not, which is what the completions pie
+        /// partitions.
+        /// </summary>
+        public int PossibleCompletions { get; set; }
         public double GlobalProgressionPercent { get; set; }
         public int CollectorScore { get; set; }
         public int CollectorLevel { get; set; }

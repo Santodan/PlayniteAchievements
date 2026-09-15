@@ -481,6 +481,8 @@ namespace PlayniteAchievements.Services.Database
             EnsureColumn(db, "AchievementDefinitions", "ScaledPoints", "INTEGER NULL", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "Rarity", "TEXT NOT NULL DEFAULT 'Common'", definitionColumns, ref backupPath);
 
+            ClearRetroAchievementsWinConditionCapstones(db, ref backupPath);
+
             // Migrate UserGameProgress: NoAchievements -> HasAchievements (inverted) + add ExcludedByUser
             var progressColumns = GetColumnNames(db, "UserGameProgress");
 
@@ -877,6 +879,53 @@ namespace PlayniteAchievements.Services.Database
                 $"Added {tableName}.{columnName}.");
 
             knownColumns.Add(columnName);
+        }
+
+        /// <summary>
+        /// Drops capstone flags RetroAchievements games were stamped with while capstones could be
+        /// assigned from a win condition.
+        /// </summary>
+        /// <remarks>
+        /// A win condition means the game was beaten, which is not the same as finishing it -- for
+        /// RetroAchievements that is mastering the set, which is plain 100% and needs no capstone.
+        /// Those flags marked games completed on merely beating them, so they are cleared rather
+        /// than left to sit: a refresh no longer restamps this column, so nothing else would.
+        ///
+        /// Safe to re-run and self-limiting: it skips once nothing matches, and a game whose
+        /// capstones the user has edited reads from its stored set rather than this column, so a
+        /// capstone nominated by hand on a RetroAchievements game is untouched.
+        /// </remarks>
+        private void ClearRetroAchievementsWinConditionCapstones(SQLiteDatabase db, ref string backupPath)
+        {
+            const string matchSql =
+                @"SELECT COUNT(1) FROM AchievementDefinitions ad
+                  INNER JOIN Games g ON g.Id = ad.GameId
+                  WHERE ad.IsCapstone = 1 AND g.ProviderKey = 'RetroAchievements';";
+
+            long pending;
+            try
+            {
+                pending = db.ExecuteScalar<long>(matchSql);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Could not check for RetroAchievements win-condition capstones.");
+                return;
+            }
+
+            if (pending <= 0)
+            {
+                return;
+            }
+
+            ExecuteSchemaChangeWithBackup(
+                db,
+                @"UPDATE AchievementDefinitions
+                  SET IsCapstone = 0
+                  WHERE IsCapstone = 1
+                    AND GameId IN (SELECT Id FROM Games WHERE ProviderKey = 'RetroAchievements');",
+                ref backupPath,
+                $"Cleared {pending} RetroAchievements win-condition capstone flags.");
         }
 
         private void ExecuteSchemaChangeWithBackup(

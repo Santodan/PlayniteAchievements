@@ -20,7 +20,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private bool _enableRaNameFallback = true;
         private bool _enableFuzzyNameMatching = true;
         private bool _enableRaSubsetScanning = true;
-        private bool _enableAutomaticCapstoneAssignment = false;
         private Dictionary<Guid, int> _raGameIdOverrides = new Dictionary<Guid, int>();
         private Dictionary<string, string> _emulatorLogPathOverrides =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -137,16 +136,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             get => _enableRaSubsetScanning;
             set => SetValue(ref _enableRaSubsetScanning, value);
-        }
-
-        /// <summary>
-        /// Enable automatic capstone assignment for RetroAchievements using
-        /// the "win_condition" achievement type.
-        /// </summary>
-        public bool EnableAutomaticCapstoneAssignment
-        {
-            get => _enableAutomaticCapstoneAssignment;
-            set => SetValue(ref _enableAutomaticCapstoneAssignment, value);
         }
 
         /// <summary>

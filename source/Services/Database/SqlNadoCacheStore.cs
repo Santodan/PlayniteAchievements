@@ -5332,10 +5332,10 @@ namespace PlayniteAchievements.Services.Database
                 return;
             }
 
-            var manualCapstoneApiName = NormalizeDbText(customData.ManualCapstoneApiName);
-            if (!string.IsNullOrWhiteSpace(manualCapstoneApiName))
+            // The stored set replaces the provider seed outright once the user has edited it.
+            if (customData.CapstonesMaterialized)
             {
-                item.IsCapstone = string.Equals(apiName, manualCapstoneApiName, StringComparison.OrdinalIgnoreCase);
+                item.IsCapstone = customData.Capstones?.Any(capstone => capstone.Matches(apiName)) == true;
             }
 
             if (customData.AchievementCategoryOverrides != null &&
@@ -6693,8 +6693,9 @@ namespace PlayniteAchievements.Services.Database
                 var incomingGlobalPercent = NormalizeStoredPercent(achievement.GlobalPercentUnlocked);
                 var incomingRarity = achievement.Rarity.ToString();
 
-                // Compute IsCapstone: provider-set value or auto-detect platinum trophies.
-                // Manual capstones from settings are applied on top at load time.
+                // The provider seed for a newly inserted achievement: its own capstone flag,
+                // or a platinum trophy, which every platform treats as one. Once a game has a
+                // stored capstone set that set is applied over this on read instead.
                 var isCapstone = achievement.IsCapstone ||
                     string.Equals(achievement.TrophyType?.Trim(), "platinum", StringComparison.OrdinalIgnoreCase);
 
@@ -6743,7 +6744,10 @@ namespace PlayniteAchievements.Services.Database
                 var incomingScaledPoints = achievement.ScaledPoints;
                 var incomingTrophyType = NormalizeDbText(achievement.TrophyType);
                 var incomingHidden = achievement.Hidden ? 1L : 0L;
-                var incomingIsCapstone = isCapstone ? 1L : 0L;
+                // Capstones are seeded on insert and owned by the stored set from then on, so a
+                // refresh never restamps one. Without this an achievement the user has since
+                // dropped or nominated would silently revert on the next scan.
+                var incomingIsCapstone = existing.IsCapstone;
                 var incomingStoredRarity = incomingRarity;
                 var incomingProgressMax = achievement.ProgressDenom;
 
@@ -6768,7 +6772,6 @@ namespace PlayniteAchievements.Services.Database
                               !NullableEquals(NormalizeDbText(existing.CategoryType), incomingCategoryType) ||
                               !NullableEquals(NormalizeDbText(existing.TrophyType), incomingTrophyType) ||
                               existing.Hidden != incomingHidden ||
-                              existing.IsCapstone != incomingIsCapstone ||
                               existing.GlobalPercentUnlocked != incomingGlobalPercent ||
                               !NullableEquals(NormalizeDbText(existing.Rarity), incomingStoredRarity) ||
                               existing.ProgressMax != incomingProgressMax;

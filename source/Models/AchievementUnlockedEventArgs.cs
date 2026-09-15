@@ -6,7 +6,15 @@ namespace PlayniteAchievements.Models
     {
         Unknown = 0,
         ProviderReported = 1,
-        SourceObservation = 2
+        SourceObservation = 2,
+
+        /// <summary>
+        /// Anchored on the local observation after discarding a provider-reported stamp that
+        /// cannot be placed on the capture timeline -- a remote source's server clock. Separate
+        /// from <see cref="SourceObservation"/>, which means no stamp was available at all, so a
+        /// clip timing report says which of the two happened.
+        /// </summary>
+        SourceObservationForeignStamp = 3
     }
 
     public sealed class AchievementUnlockedEventArgs : EventArgs

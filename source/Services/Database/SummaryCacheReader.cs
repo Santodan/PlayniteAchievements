@@ -51,7 +51,11 @@ namespace PlayniteAchievements.Services.Database
             public long TrophyGoldTotal { get; set; }
             public long TrophySilverTotal { get; set; }
             public long TrophyBronzeTotal { get; set; }
-            public long HasUnlockedCapstone { get; set; }
+            public long CapstoneTotal { get; set; }
+            public long CapstoneUnlocked { get; set; }
+            public long CapstonesNotPlatinum { get; set; }
+            public long PlatinumsNotCapstone { get; set; }
+            public string PlatinumApiNames { get; set; }
         }
 
         private sealed class CachedRecentUnlockRow
@@ -165,9 +169,18 @@ namespace PlayniteAchievements.Services.Database
                         TrophyGoldTotal = (int)Math.Max(0, row.TrophyGoldTotal),
                         TrophySilverTotal = (int)Math.Max(0, row.TrophySilverTotal),
                         TrophyBronzeTotal = (int)Math.Max(0, row.TrophyBronzeTotal),
+                        CapstoneTotal = (int)Math.Max(0, row.CapstoneTotal),
+                        CapstoneUnlocked = (int)Math.Max(0, row.CapstoneUnlocked),
+                        CapstonesNotPlatinum = (int)Math.Max(0, row.CapstonesNotPlatinum),
+                        PlatinumsNotCapstone = (int)Math.Max(0, row.PlatinumsNotCapstone),
+                        PlatinumApiNames = row.PlatinumApiNames,
+                        // Finishing takes every capstone, not any one of them: a platinum earned
+                        // while a DLC pack is still open has not finished the game. These counts
+                        // are the provider seed; a game whose capstones the user has edited is
+                        // corrected from its stored set once custom data is applied.
                         IsCompleted = ((int)Math.Max(0, row.TotalAchievements) > 0 &&
                             (int)Math.Max(0, row.AchievementsUnlocked) >= (int)Math.Max(0, row.TotalAchievements)) ||
-                            row.HasUnlockedCapstone != 0
+                            (row.CapstoneTotal > 0 && row.CapstoneUnlocked >= row.CapstoneTotal)
                     });
                 }
 
@@ -285,7 +298,20 @@ namespace PlayniteAchievements.Services.Database
                     SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'gold' THEN 1 ELSE 0 END) AS TrophyGoldTotal,
                     SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'silver' THEN 1 ELSE 0 END) AS TrophySilverTotal,
                     SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'bronze' THEN 1 ELSE 0 END) AS TrophyBronzeTotal,
-                    MAX(CASE WHEN ad.IsCapstone = 1 AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS HasUnlockedCapstone
+                    SUM(CASE WHEN ad.IsCapstone = 1 THEN 1 ELSE 0 END) AS CapstoneTotal,
+                    SUM(CASE WHEN ad.IsCapstone = 1 AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS CapstoneUnlocked,
+                    -- Whether the capstones are exactly the platinums, by identity rather than by
+                    -- tally: one capstone and one platinum that are different achievements are two
+                    -- finish lines, not one. The platinum ApiNames come along so a game whose
+                    -- capstones the user has edited can be re-decided against its stored set.
+                    SUM(CASE WHEN ad.IsCapstone = 1
+                             AND LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) <> 'platinum'
+                        THEN 1 ELSE 0 END) AS CapstonesNotPlatinum,
+                    SUM(CASE WHEN COALESCE(ad.IsCapstone, 0) <> 1
+                             AND LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'platinum'
+                        THEN 1 ELSE 0 END) AS PlatinumsNotCapstone,
+                    GROUP_CONCAT(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'platinum'
+                                 THEN ad.ApiName END, '~|~') AS PlatinumApiNames
                 FROM LatestProgress lp
                 LEFT JOIN AchievementDefinitions ad
                     ON ad.GameId = lp.GameId

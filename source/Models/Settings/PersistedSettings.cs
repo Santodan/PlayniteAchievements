@@ -190,6 +190,7 @@ namespace PlayniteAchievements.Models.Settings
         private DateDisplayMode _unlockDateDisplayMode = DateDisplayMode.DateAndTime;
         private PlaytimeDisplayMode _playtimeDisplayMode = PlaytimeDisplayMode.HoursAndMinutes;
         private CategoryCompletionBadgeMode _categoryCompletionBadgeMode = CategoryCompletionBadgeMode.All;
+        private ProgressBadgeSource _progressBadgeSource = ProgressBadgeSource.TrophyWhenAvailable;
         private FriendNameDisplayMode _friendNameDisplayMode = FriendNameDisplayMode.PersonaAndNickname;
         private bool _enableAchievementCompactListControl = true;
         private bool _enableAchievementDataGridControl = true;
@@ -2158,6 +2159,21 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Which badges the progress column footer shows: a game's trophies when it has them, or
+        /// its rarity spread regardless.
+        /// </summary>
+        /// <remarks>
+        /// Written out even at its zero value, so choosing Rarity cannot round-trip as unset and
+        /// silently revert to the default.
+        /// </remarks>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public ProgressBadgeSource ProgressBadgeSource
+        {
+            get => _progressBadgeSource;
+            set => SetValue(ref _progressBadgeSource, value);
+        }
+
+        /// <summary>
         /// How friend names combine the provider profile name and the provider-assigned nickname.
         /// A manual plugin rename always takes precedence over this mode.
         /// </summary>
@@ -2965,6 +2981,7 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockDateDisplayMode = this.UnlockDateDisplayMode,
                 PlaytimeDisplayMode = this.PlaytimeDisplayMode,
                 CategoryCompletionBadgeMode = this.CategoryCompletionBadgeMode,
+                ProgressBadgeSource = this.ProgressBadgeSource,
                 FriendNameDisplayMode = this.FriendNameDisplayMode,
                 EnableAchievementCompactListControl = this.EnableAchievementCompactListControl,
                 EnableAchievementDataGridControl = this.EnableAchievementDataGridControl,
@@ -3122,6 +3139,7 @@ namespace PlayniteAchievements.Models.Settings
             UnlockDateDisplayMode = defaults.UnlockDateDisplayMode;
             PlaytimeDisplayMode = defaults.PlaytimeDisplayMode;
             CategoryCompletionBadgeMode = defaults.CategoryCompletionBadgeMode;
+            ProgressBadgeSource = defaults.ProgressBadgeSource;
             FriendNameDisplayMode = defaults.FriendNameDisplayMode;
 
             EnableAchievementCompactListControl = defaults.EnableAchievementCompactListControl;

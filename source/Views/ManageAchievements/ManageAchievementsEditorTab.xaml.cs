@@ -2,6 +2,7 @@
 using PlayniteAchievements.Views.Dialogs;
 using Microsoft.Win32;
 using Playnite.SDK.Events;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.UI;
@@ -380,6 +381,21 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
             e.Handled = true;
+        }
+
+        /// <summary>
+        /// Adds, replaces or drops the capstone for the edited achievement. The button says which,
+        /// so a replacement is never silent.
+        /// </summary>
+        private void CapstoneActionButton_Click(object sender, RoutedEventArgs e)
+        {
+            var row = ViewModel?.EditTarget;
+            if (row == null)
+            {
+                return;
+            }
+
+            ViewModel.SetCapstoneForSelection(!row.IsCapstone);
         }
 
         private void TypeSelectionButton_Click(object sender, RoutedEventArgs e)
@@ -865,7 +881,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 ResetButton,
                 CustomAchievementsGrid,
                 AddRowFooterButton,
-                CapstoneCheckBox,
+                CapstoneActionButton,
                 CategoryPicker,
                 TypeSelectionButton
             };

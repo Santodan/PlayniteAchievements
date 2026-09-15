@@ -469,6 +469,24 @@ namespace PlayniteAchievements.Views.Controls
             private set => SetValue(ShowNameAboveProgressProperty, value);
         }
 
+        public static readonly DependencyProperty PreferTrophyBadgesProperty =
+            DependencyProperty.Register(
+                nameof(PreferTrophyBadges),
+                typeof(bool),
+                typeof(GameSummariesGridControl),
+                new PropertyMetadata(true));
+
+        /// <summary>
+        /// Whether a game that has trophies shows trophy badges in place of its rarity badges.
+        /// Resolved from the global setting; consumed by ProgressBadgeRowTemplate, which pairs it
+        /// with each row's own HasTrophyTypes.
+        /// </summary>
+        public bool PreferTrophyBadges
+        {
+            get => (bool)GetValue(PreferTrophyBadgesProperty);
+            private set => SetValue(PreferTrophyBadgesProperty, value);
+        }
+
         public static readonly DependencyProperty ShowRarityBadgesBelowProgressProperty =
             DependencyProperty.Register(
                 nameof(ShowRarityBadgesBelowProgress),
@@ -638,6 +656,7 @@ namespace PlayniteAchievements.Views.Controls
 
             UpdateLastPlayedDateMode(settings);
             UpdateColorRarityColumnsByRarity(settings);
+            UpdatePreferTrophyBadges(settings);
             UpdateShowNameAboveProgress(settings);
             UpdateShowRarityBadgesBelowProgress(settings);
             UpdateShowcaseOptionsSubscription(settings);
@@ -1422,6 +1441,7 @@ namespace PlayniteAchievements.Views.Controls
                 e.PropertyName.EndsWith(nameof(GameSummaryGridOptions.ColorRarityColumnsByRarity), StringComparison.Ordinal))
             {
                 UpdateColorRarityColumnsByRarity(PlayniteAchievementsPlugin.Instance?.Settings);
+                UpdatePreferTrophyBadges(PlayniteAchievementsPlugin.Instance?.Settings);
             }
 
             // Matches the per-surface flat compatibility names for both the game-summary and
@@ -1448,6 +1468,16 @@ namespace PlayniteAchievements.Views.Controls
             {
                 LastPlayedDateMode = surfaceSettings.GetLastPlayedDateMode();
             }
+        }
+
+        /// <summary>
+        /// The global choice of which badges the progress footer shows. Trophy data used to
+        /// take over from rarity with nothing exposed to turn it off.
+        /// </summary>
+        private void UpdatePreferTrophyBadges(PlayniteAchievementsSettings settings)
+        {
+            PreferTrophyBadges =
+                settings?.Persisted?.ProgressBadgeSource != ProgressBadgeSource.Rarity;
         }
 
         private void UpdateColorRarityColumnsByRarity(PlayniteAchievementsSettings settings)

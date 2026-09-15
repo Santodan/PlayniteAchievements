@@ -286,6 +286,29 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
+        public void RetroAchievementsInGameCapture_NeverAnchorsOnTheServerClock()
+        {
+            var provider = File.ReadAllText(FindRepoFile(
+                "source", "Providers", "RetroAchievements", "RetroAchievementsDataProvider.cs"));
+
+            // Both registrations anchor on their reported stamps, which is only sound because
+            // ReportedClock converts them onto the capture timeline first and withholds them
+            // while that clock is uncorrelated.
+            StringAssert.Contains(provider, "IsRemote = true");
+            StringAssert.Contains(
+                provider,
+                "UnlockAnchorPolicy = InGameUnlockAnchorPolicy.ProviderReported");
+            StringAssert.Contains(provider, "ReportedClock = _serverClock");
+
+            // The feed's stamps must reach the mapper's clock conversion.
+            StringAssert.Contains(provider, "_serverClock.ToCaptureTimeline");
+
+            var reader = File.ReadAllText(FindRepoFile(
+                "source", "Providers", "RetroAchievements", "EmulatorLog", "RaEmulatorLogReader.cs"));
+            StringAssert.Contains(reader, "UnlockTimeUtc = CaptureTimelineClock.UtcNow");
+        }
+
+        [TestMethod]
         public void ControllerDefaultOutput_KeepsProgramChannelsAndDropsActuatorChannels()
         {
             var recorder = File.ReadAllText(FindRepoFile(

@@ -701,6 +701,34 @@ namespace PlayniteAchievements.Services.Tagging
         }
 
         /// <summary>
+        /// Completion under a game's stored capstone set, for raw cached data whose IsCapstone
+        /// flags are still the provider seed.
+        /// </summary>
+        private static bool IsCompletedUnderStoredCapstones(
+            GameAchievementData data,
+            CapstoneSet capstones)
+        {
+            var achievements = data?.Achievements;
+            if (achievements == null || achievements.Count == 0)
+            {
+                return false;
+            }
+
+            if (achievements.All(a => a?.Unlocked == true))
+            {
+                return true;
+            }
+
+            var resolver = CapstoneResolver.Resolve(achievements, capstones.Assignments, true);
+            return resolver.Count > 0 &&
+                   resolver.EffectiveApiNames.All(apiName =>
+                       achievements.Any(a =>
+                           a != null &&
+                           a.Unlocked &&
+                           string.Equals((a.ApiName ?? string.Empty).Trim(), apiName, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        /// <summary>
         /// Determines all applicable tag types for a game.
         /// A game can have multiple tags (e.g., HasAchievements + InProgress).
         /// Excluded is exclusive and removes other tags.
@@ -778,21 +806,13 @@ namespace PlayniteAchievements.Services.Tagging
             // Game has achievements - add HasAchievements tag
             types.Add(TagType.HasAchievements);
 
-            // Check if completed (all unlocked OR manual capstone unlocked)
-            var isCompleted = data.IsCompleted;
-
-            // Also check for manual capstone override from settings
-            // (raw cached data doesn't have IsCapstone set - that's applied during hydration)
-            var capstoneApiName = GameCustomDataLookup.GetManualCapstone(gameId, Settings);
-            if (!isCompleted && !string.IsNullOrWhiteSpace(capstoneApiName))
-            {
-                var capstoneAchievement = data.Achievements?.FirstOrDefault(a =>
-                    a?.ApiName?.Equals(capstoneApiName, StringComparison.OrdinalIgnoreCase) == true);
-                if (capstoneAchievement?.Unlocked == true)
-                {
-                    isCompleted = true;
-                }
-            }
+            // Completed means every achievement unlocked, or every capstone earned. Raw cached data
+            // has not been through hydration, so its IsCapstone flags are the provider seed and the
+            // stored set has to be applied here before the rule is applied.
+            var capstones = GameCustomDataLookup.GetCapstoneSet(gameId, Settings);
+            var isCompleted = capstones.Materialized
+                ? IsCompletedUnderStoredCapstones(data, capstones)
+                : data.IsCompleted;
 
             result.IsCompleted = isCompleted;
 

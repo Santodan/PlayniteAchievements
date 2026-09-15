@@ -489,7 +489,7 @@ namespace PlayniteAchievements.Services.Showcase
                 Stat("completion", "LOCPlayAch_Showcase_Stat_Completion", snapshot.GlobalProgressionPercent),
                 Stat("trackedGames", "LOCPlayAch_Showcase_Stat_TrackedGames", snapshot.TotalGames),
                 Stat("playedGames", "LOCPlayAch_Showcase_Stat_PlayedGames", playedGames),
-                Stat("completedGames", "LOCPlayAch_Showcase_Stat_CompletedGames", snapshot.CompletedGames),
+                Stat("completedGames", "LOCPlayAch_Showcase_Stat_CompletedGames", snapshot.Completions),
                 Stat("playtime", "LOCPlayAch_Common_Label_Playtime", totalPlaytime),
                 Stat(
                     "activeDayRate",

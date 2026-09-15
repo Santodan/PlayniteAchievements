@@ -91,16 +91,15 @@ namespace PlayniteAchievements.Services.Achievements
                     gamesByGameId[gameId] = game;
                 }
 
-                var hasUnlockedCapstone = false;
+                var platinumApiNames = new List<string>();
                 foreach (var achievement in visible)
                 {
-                    Accumulate(game, achievement);
+                    Accumulate(game, achievement, platinumApiNames);
                     if (!achievement.Unlocked)
                     {
                         continue;
                     }
 
-                    hasUnlockedCapstone |= achievement.IsCapstone;
                     var unlockDate = achievement.UnlockTimeUtc?.Date;
                     if (unlockDate.HasValue)
                     {
@@ -126,10 +125,16 @@ namespace PlayniteAchievements.Services.Achievements
                     addedRecent = true;
                 }
 
+                AppendPlatinumApiNames(game, platinumApiNames);
+
                 game.HasAchievements = true;
-                game.IsCompleted = game.IsCompleted ||
-                                   hasUnlockedCapstone ||
-                                   (game.TotalAchievements > 0 && game.UnlockedAchievements >= game.TotalAchievements);
+                // Finishing takes every capstone, not any one of them, and the custom ones the
+                // query never saw are now part of that count. Recomputed rather than OR-ed into
+                // what the query decided, since a custom capstone can leave a game unfinished
+                // that its provider achievements alone had finished.
+                game.IsCompleted =
+                    (game.TotalAchievements > 0 && game.UnlockedAchievements >= game.TotalAchievements) ||
+                    (game.CapstoneTotal > 0 && game.CapstoneUnlocked >= game.CapstoneTotal);
             }
 
             if (!addedRecent)
@@ -155,9 +160,65 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
-        private static void Accumulate(CachedGameSummaryData game, AchievementDetail achievement)
+        /// <summary>
+        /// Packs the custom platinums onto the row beside the ones the query found, so the stored
+        /// capstone overlay sees every platinum the game has rather than only its provider ones.
+        /// </summary>
+        private static void AppendPlatinumApiNames(CachedGameSummaryData game, List<string> apiNames)
+        {
+            if (apiNames.Count == 0)
+            {
+                return;
+            }
+
+            var packed = string.Join(CachedGameSummaryData.PlatinumApiNameSeparator, apiNames);
+            game.PlatinumApiNames = string.IsNullOrEmpty(game.PlatinumApiNames)
+                ? packed
+                : game.PlatinumApiNames + CachedGameSummaryData.PlatinumApiNameSeparator + packed;
+        }
+
+        private static bool IsPlatinum(AchievementDetail achievement)
+        {
+            return string.Equals(
+                (achievement.TrophyType ?? string.Empty).Trim(),
+                "platinum",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void Accumulate(
+            CachedGameSummaryData game,
+            AchievementDetail achievement,
+            List<string> platinumApiNames)
         {
             game.TotalAchievements++;
+
+            // The capstone counts and the platinum identity are carried the same way the summary
+            // query carries them for stored achievements, so a custom capstone counts toward the
+            // finish badge and a custom platinum can stand in for it.
+            var isPlatinum = IsPlatinum(achievement);
+            if (isPlatinum && !string.IsNullOrWhiteSpace(achievement.ApiName))
+            {
+                platinumApiNames.Add(achievement.ApiName.Trim());
+            }
+
+            if (achievement.IsCapstone)
+            {
+                game.CapstoneTotal++;
+                if (achievement.Unlocked)
+                {
+                    game.CapstoneUnlocked++;
+                }
+
+                if (!isPlatinum)
+                {
+                    game.CapstonesNotPlatinum++;
+                }
+            }
+            else if (isPlatinum)
+            {
+                game.PlatinumsNotCapstone++;
+            }
+
             game.CollectionScoreTotal = AddClamped(game.CollectionScoreTotal, AchievementScoreCalculator.GetCollectionValue(achievement.Rarity));
             game.PrestigeScoreTotal = AddClamped(game.PrestigeScoreTotal, AchievementScoreCalculator.GetPrestigeValue(achievement.GlobalPercentUnlocked, achievement.Rarity));
             AddRarity(game, achievement.Rarity, possible: true);

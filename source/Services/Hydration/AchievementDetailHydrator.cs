@@ -59,9 +59,6 @@ namespace PlayniteAchievements.Services.Hydration
                 }
             }
 
-            var manualCapstone = customData.ManualCapstoneApiName;
-            var hasManualCapstone = !string.IsNullOrWhiteSpace(manualCapstone);
-
             // One record per achievement carries category, category type, note, the icon paths and
             // the user-editable provider fields, so a row needs a single lookup rather than one per
             // facet.
@@ -104,14 +101,6 @@ namespace PlayniteAchievements.Services.Hydration
                 detail.ProviderCategory = providerCategory;
                 var providerCategoryType = AchievementCategoryTypeHelper.Normalize(detail.CategoryType);
 
-                if (hasManualCapstone)
-                {
-                    detail.IsCapstone = string.Equals(
-                        apiName,
-                        manualCapstone,
-                        StringComparison.OrdinalIgnoreCase);
-                }
-
                 AchievementOverride userOverride = null;
                 if (hasOverrides && !string.IsNullOrWhiteSpace(apiName))
                 {
@@ -130,7 +119,7 @@ namespace PlayniteAchievements.Services.Hydration
                         providerCategoryType = AchievementCategoryTypeHelper.Normalize(userOverride.CategoryType);
                     }
 
-                    ApplyUserFieldOverrides(detail, userOverride, customData.HasManualLink);
+                    AchievementOverrideApplier.Apply(detail, userOverride, customData.HasManualLink);
                 }
 
                 // NormalizePath, not NormalizeCategoryOrDefault: a provider may now supply a nested
@@ -158,65 +147,32 @@ namespace PlayniteAchievements.Services.Hydration
                 detail.IsGoal = goalOrderIndex != int.MaxValue;
                 detail.GoalOrderIndex = goalOrderIndex;
             }
+
+            StampCapstones(detailList, customData);
         }
 
         /// <summary>
-        /// Applies the user-editable provider fields onto a row. Each is applied only when the
-        /// override carries a value, so clearing one falls back to the provider's own value rather
-        /// than to blank.
+        /// Marks the game's capstones, in a pass of its own because a category-scoped capstone is
+        /// filed by its achievement's category and the loop above is where that category is
+        /// finally decided. Stamping inside it would file every capstone under the provider's label
+        /// and quietly lose any the user had re-filed.
         /// </summary>
-        /// <remarks>
-        /// Deliberately absent: unlock status and rarity. <see cref="AchievementDetail.Unlocked"/>
-        /// stays provider-owned so an edit cannot change unlocked counts, completion, or look like
-        /// a real unlock to the in-game monitor; the unlock timestamp is therefore only corrected on
-        /// a row that is already unlocked. Rarity stays provider-owned because the stored-rarity
-        /// guard cannot tell a deliberate Common from "never filled in".
-        /// </remarks>
-        private static void ApplyUserFieldOverrides(
-            AchievementDetail detail,
-            AchievementOverride userOverride,
-            bool hasManualLink)
+        private static void StampCapstones(
+            IList<AchievementDetail> detailList,
+            ResolvedGameCustomData customData)
         {
-            if (!string.IsNullOrWhiteSpace(userOverride.DisplayName))
+            // An untouched game keeps whatever the provider flagged, so there is nothing to stamp.
+            if (customData?.CapstonesMaterialized != true)
             {
-                detail.DisplayName = userOverride.DisplayName;
+                return;
             }
 
-            if (!string.IsNullOrWhiteSpace(userOverride.Description))
+            var resolver = CapstoneResolver.Resolve(detailList, customData.Capstones, true);
+            foreach (var detail in detailList)
             {
-                detail.Description = userOverride.Description;
-            }
-
-            if (userOverride.Points.HasValue)
-            {
-                detail.Points = userOverride.Points;
-            }
-
-            if (!string.IsNullOrWhiteSpace(userOverride.TrophyType))
-            {
-                detail.TrophyType = userOverride.TrophyType;
-            }
-
-            if (userOverride.Hidden.HasValue)
-            {
-                detail.Hidden = userOverride.Hidden.Value;
-            }
-
-            // A manually tracked game records unlock state and time in its link, which reaches the
-            // row through the cache. Layering an override on top would show one timestamp in the
-            // editor while every count, summary and theme surface kept the link's, with nothing on
-            // screen to explain the disagreement.
-            if (detail.Unlocked && !hasManualLink)
-            {
-                // A stored timestamp and a cleared state are mutually exclusive, and normalization
-                // resolves the pair the same way: the timestamp wins.
-                if (userOverride.UnlockTimeUtc.HasValue)
+                if (detail != null)
                 {
-                    detail.UnlockTimeUtc = userOverride.UnlockTimeUtc;
-                }
-                else if (userOverride.ClearUnlockTime)
-                {
-                    detail.UnlockTimeUtc = null;
+                    detail.IsCapstone = resolver.IsCapstone(detail.ApiName);
                 }
             }
         }

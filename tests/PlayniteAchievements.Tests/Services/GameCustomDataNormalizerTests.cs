@@ -157,7 +157,12 @@ namespace PlayniteAchievements.Services.Tests
                 gameId);
 
             Assert.AreEqual(GameCustomDataNormalizer.CurrentSchemaVersion, normalized.SchemaVersion);
-            Assert.AreEqual("capstone", normalized.ManualCapstoneApiName);
+            // The legacy scalar folds into a materialized single game-wide set, which behaves
+            // the same way it always did: it suppresses every provider capstone.
+            Assert.IsNull(normalized.ManualCapstoneApiName);
+            Assert.IsTrue(normalized.CapstonesMaterialized);
+            Assert.AreEqual(1, normalized.Capstones.Count);
+            Assert.AreEqual("capstone", normalized.Capstones[0].ApiName);
             Assert.IsNull(normalized.NotificationAppearanceOverride);
         }
 
@@ -971,5 +976,51 @@ namespace PlayniteAchievements.Services.Tests
                 gameId);
             Assert.IsNull(unassigned.CustomProvider);
         }
+        [TestMethod]
+        public void NormalizeInternal_HiddenOnlyOverride_Survives()
+        {
+            var gameId = Guid.NewGuid();
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    AchievementOverrides = new Dictionary<string, AchievementOverride>
+                    {
+                        ["ach_one"] = new AchievementOverride { Hidden = true },
+                        ["ach_two"] = new AchievementOverride { Hidden = false }
+                    }
+                },
+                gameId);
+
+            // The rebuild used to omit Hidden, so the value was dropped on every save and a
+            // hidden-only record then read as empty and was discarded outright.
+            Assert.IsNotNull(normalized.AchievementOverrides);
+            Assert.AreEqual(true, normalized.AchievementOverrides["ach_one"].Hidden);
+            Assert.AreEqual(false, normalized.AchievementOverrides["ach_two"].Hidden);
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_OverrideWithNoStoredValues_IsDropped()
+        {
+            var gameId = Guid.NewGuid();
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    AchievementOverrides = new Dictionary<string, AchievementOverride>
+                    {
+                        ["ach_one"] = new AchievementOverride()
+                    }
+                },
+                gameId);
+
+            // Null Hidden is "no opinion", so it must not keep an otherwise empty record alive.
+            Assert.IsTrue(
+                normalized.AchievementOverrides == null ||
+                !normalized.AchievementOverrides.ContainsKey("ach_one"));
+        }
+
     }
 }
