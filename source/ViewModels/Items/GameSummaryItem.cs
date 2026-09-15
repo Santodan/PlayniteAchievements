@@ -177,6 +177,57 @@ namespace PlayniteAchievements.ViewModels.Items
         private int _ultraRareCount;
         public int UltraRareCount { get => _ultraRareCount; set => SetValue(ref _ultraRareCount, value); }
 
+        private int _capstoneTotal;
+
+        /// <summary>
+        /// How many capstones this row has. The badge beside the rarity badges only appears above
+        /// one, because a single capstone is already what the completion badge stands for.
+        /// </summary>
+        public int CapstoneTotal
+        {
+            get => _capstoneTotal;
+            set
+            {
+                if (SetValueAndReturn(ref _capstoneTotal, value))
+                {
+                    OnPropertyChanged(nameof(ShowCapstoneCounts));
+                    OnPropertyChanged(nameof(CapstoneCountText));
+                    OnPropertyChanged(nameof(Completions));
+                }
+            }
+        }
+
+        private int _capstoneUnlocked;
+        public int CapstoneUnlocked
+        {
+            get => _capstoneUnlocked;
+            set
+            {
+                if (SetValueAndReturn(ref _capstoneUnlocked, value))
+                {
+                    OnPropertyChanged(nameof(CapstoneCountText));
+                    OnPropertyChanged(nameof(Completions));
+                }
+            }
+        }
+
+        public bool ShowCapstoneCounts => CapstoneTotal > 1;
+
+        /// <summary>Earned of total, for the badge beside the rarity badges.</summary>
+        public string CapstoneCountText =>
+            string.Format(
+                PlayniteAchievements.Common.FormattingCulture.Current,
+                "{0:N0}/{1:N0}",
+                CapstoneUnlocked,
+                CapstoneTotal);
+
+        /// <summary>
+        /// How many times this row counts as finished: one per capstone earned, or one for a clean
+        /// 100% when it names no capstone at all.
+        /// </summary>
+        public int Completions =>
+            CapstoneTotal > 0 ? CapstoneUnlocked : (IsCompleted ? 1 : 0);
+
         private int _collectionScore;
         public int CollectionScore
         {

@@ -368,6 +368,12 @@
         <Grid VerticalAlignment="Center">
             <StackPanel Style="{StaticResource OverviewProgressMetaRowStyle}"
                         Visibility="{Binding HasTrophyTypes, Converter={StaticResource InverseBoolToVis}}">
+                <!-- Only above one capstone: a single one is already what the completion
+                     badge beside this row stands for. -->
+                <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding ShowCapstoneCounts, Converter={StaticResource BoolToVis}}" ToolTip="{DynamicResource LOCPlayAch_Dynamic_Capstone}">
+                    <Image Source="{DynamicResource BadgeRarityCompleted}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                    <TextBlock Text="{Binding CapstoneCountText}" Style="{StaticResource OverviewMiniBadgeTextUltraRareStyle}"/>
+                </StackPanel>
                 <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding UltraRareCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Rarity_UltraRare}">
                     <Image Source="{DynamicResource BadgeRarityUltraRare}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
                     <TextBlock Text="{Binding UltraRareCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextUltraRareStyle}"/>
@@ -388,6 +394,12 @@
 
             <StackPanel Style="{StaticResource OverviewProgressMetaRowStyle}"
                         Visibility="{Binding HasTrophyTypes, Converter={StaticResource BoolToVis}}">
+                <!-- Only above one capstone: a single one is already what the completion
+                     badge beside this row stands for. -->
+                <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding ShowCapstoneCounts, Converter={StaticResource BoolToVis}}" ToolTip="{DynamicResource LOCPlayAch_Dynamic_Capstone}">
+                    <Image Source="{DynamicResource BadgeRarityCompleted}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                    <TextBlock Text="{Binding CapstoneCountText}" Style="{StaticResource OverviewMiniBadgeTextUltraRareStyle}"/>
+                </StackPanel>
                 <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding TrophyPlatinumCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}">
                     <Image Source="{DynamicResource TrophyPlatinum}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
                     <TextBlock Text="{Binding TrophyPlatinumCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextTrophyPlatinumStyle}"/>

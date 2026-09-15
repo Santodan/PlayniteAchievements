@@ -4,6 +4,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 using Playnite.SDK;
@@ -75,6 +76,7 @@ namespace PlayniteAchievements.Services.Summaries
             }
 
             var presentation = CreateGamePresentation(playniteGame);
+            var capstoneCounts = CapstoneCompletion.Count(gameData.Achievements);
             var (providerName, providerKey, providerMetadata) = ResolveProvider(gameData);
             var summaryArt = GameSummaryArtResolver.Resolve(
                 gameData.PlayniteGameId,
@@ -97,6 +99,8 @@ namespace PlayniteAchievements.Services.Summaries
                 PlayniteGameId = gameData.PlayniteGameId,
                 LastPlayed = presentation.LastPlayed,
                 IsCompleted = gameData.IsCompleted,
+                CapstoneTotal = capstoneCounts.Total,
+                CapstoneUnlocked = capstoneCounts.Unlocked,
                 Provider = providerName,
                 ProviderKey = providerKey,
                 ProviderIconKey = providerMetadata.iconKey,
