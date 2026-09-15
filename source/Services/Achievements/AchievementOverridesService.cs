@@ -77,9 +77,9 @@ namespace PlayniteAchievements.Services.Achievements
                     apiName.Trim(),
                     isCapstone);
 
-                // A capstone's only summary-visible effect is the game's completion state, so the
-                // summary and projection rebuild is only warranted when that actually flips.
-                var affectsSummaryData = CapstoneChangeFlipsCompletion(playniteGameId, achievements, next);
+                // Summary rows carry the capstone counts the completion badge shows, so the rebuild
+                // is warranted whenever the edit moves either that count or completion.
+                var affectsSummaryData = CapstoneChangeAffectsSummaries(playniteGameId, achievements, next);
 
                 _gameCustomDataStore.Update(
                     playniteGameId,
@@ -183,11 +183,16 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Whether changing the manual capstone changes the game's completion state, which is the
-        /// only thing about a capstone any summary or rollup can see. Fails safe: anything it
-        /// cannot determine is reported as a change, so summaries are never left stale.
+        /// Whether a capstone edit changes anything a summary or rollup can see. Fails safe:
+        /// anything it cannot determine is reported as a change, so summaries are never left stale.
         /// </summary>
-        private bool CapstoneChangeFlipsCompletion(
+        /// <remarks>
+        /// Completion is no longer the only visible effect. Summary rows carry how many capstones a
+        /// game has and how many are earned, and the completion badge shows that count, so adding
+        /// or dropping one matters even on a game whose completion cannot move. A fully unlocked
+        /// game used to be able to skip the rebuild for exactly that reason; it cannot now.
+        /// </remarks>
+        private bool CapstoneChangeAffectsSummaries(
             Guid playniteGameId,
             IReadOnlyList<AchievementDetail> achievements,
             List<CapstoneAssignment> next)
@@ -199,44 +204,44 @@ namespace PlayniteAchievements.Services.Achievements
                     return true;
                 }
 
-                // A fully unlocked game counts as complete whatever its capstones are.
-                if (achievements.All(a => a?.Unlocked == true))
-                {
-                    return false;
-                }
-
                 var set = GameCustomDataLookup.GetCapstoneSet(playniteGameId, null, _gameCustomDataStore);
-                return IsCompletedUnder(achievements, set.Assignments, set.Materialized) !=
-                       IsCompletedUnder(achievements, next, true);
+                var before = Summarize(achievements, set.Assignments, set.Materialized);
+                var after = Summarize(achievements, next, true);
+                return before.Key != after.Key || before.Value != after.Value;
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, $"Failed evaluating capstone completion impact for gameId={playniteGameId}.");
+                _logger?.Debug(ex, $"Failed evaluating capstone summary impact for gameId={playniteGameId}.");
                 return true;
             }
         }
 
         /// <summary>
-        /// Whether a given capstone set would call this game finished. Mirrors
-        /// <see cref="CapstoneCompletion"/>, resolving the set rather than reading the already
-        /// stamped flags, because the point is to compare a set that is not stored yet.
+        /// What a given capstone set would put on the game's summary row: whether it reads as
+        /// finished, and how many finishes it stands for. Resolves the set rather than reading the
+        /// already stamped flags, because the point is to weigh a set that is not stored yet.
         /// </summary>
-        private static bool IsCompletedUnder(
+        private static KeyValuePair<bool, int> Summarize(
             IReadOnlyList<AchievementDetail> achievements,
             IEnumerable<CapstoneAssignment> assignments,
             bool materialized)
         {
             var resolver = CapstoneResolver.Resolve(achievements, assignments, materialized);
+            var allUnlocked = achievements.All(a => a?.Unlocked == true);
             if (resolver.Count == 0)
             {
-                return achievements.All(a => a?.Unlocked == true);
+                return new KeyValuePair<bool, int>(allUnlocked, allUnlocked ? 1 : 0);
             }
 
-            return resolver.EffectiveApiNames.All(apiName =>
+            var unlocked = resolver.EffectiveApiNames.Count(apiName =>
                 achievements.Any(a =>
                     a != null &&
                     a.Unlocked &&
                     string.Equals((a.ApiName ?? string.Empty).Trim(), apiName, StringComparison.OrdinalIgnoreCase)));
+
+            return new KeyValuePair<bool, int>(
+                allUnlocked || unlocked >= resolver.Count,
+                unlocked);
         }
 
         public Task<CacheWriteResult> SetCapstoneAsync(Guid playniteGameId, string apiName, bool isCapstone)
