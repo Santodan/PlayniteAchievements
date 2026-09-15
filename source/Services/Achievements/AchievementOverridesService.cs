@@ -54,7 +54,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             try
             {
-                var achievements = _cacheService?.LoadGameData(playniteGameId.ToString())?.Achievements;
+                var achievements = ResolveCapstoneCandidates(playniteGameId);
 
                 // Materializing means capturing the provider's own capstones alongside the edit, so
                 // a game whose achievements cannot be read right now must not be materialized: the
@@ -105,6 +105,35 @@ namespace PlayniteAchievements.Services.Achievements
                     ex.Message,
                     ex);
             }
+        }
+
+        /// <summary>
+        /// Every achievement that could be a capstone, which means the authored ones too.
+        /// </summary>
+        /// <remarks>
+        /// The cache holds only what a provider supplied; an authored achievement lives in custom
+        /// data and is projected onto the list by hydration, which this path does not run. Reading
+        /// the cache alone left authored achievements invisible here, so seeding missed the ones a
+        /// provider had marked, a category could not be resolved for them, and the pruning below
+        /// treated a capstone on one as pointing at an achievement that no longer exists.
+        /// </remarks>
+        private List<AchievementDetail> ResolveCapstoneCandidates(Guid playniteGameId)
+        {
+            var achievements = _cacheService?.LoadGameData(playniteGameId.ToString())?.Achievements
+                ?? new List<AchievementDetail>();
+            var candidates = new List<AchievementDetail>(achievements);
+
+            if (_gameCustomDataStore.TryLoad(playniteGameId, out var customData) &&
+                customData?.CustomAchievements != null &&
+                customData.CustomAchievements.Count > 0)
+            {
+                candidates.AddRange(
+                    CustomAchievementProjectionService.ProjectAchievements(
+                        playniteGameId,
+                        customData.CustomAchievements));
+            }
+
+            return candidates;
         }
 
         /// <summary>
