@@ -627,10 +627,64 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.SetGoalFromSource(SharedFlagOrNull(r => r.IsGoal));
             row.SetHiddenFromSource(SharedFlagOrNull(r => r.Hidden));
             row.SetFilterScopeFromSource(SharedScope());
+
+            // Several achievements can become capstones in one go only while they sit in different
+            // categories. Two in the same category would displace each other as the write walked
+            // the selection, leaving one capstone and no sign of which.
+            row.AllowBulkCapstone = SelectionCategoriesAreDistinct();
+            row.SetCapstoneScopeFromSource(SharedCapstoneScope(), null, null, null);
             row.SuppressNotifications = false;
 
             row.PropertyChanged += BulkRow_PropertyChanged;
             BulkRow = row;
+        }
+
+        /// <summary>
+        /// Whether every selected achievement sits in a different category, which is what makes a
+        /// capstone edit across the selection mean something.
+        /// </summary>
+        private bool SelectionCategoriesAreDistinct()
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in _selectedRows)
+            {
+                if (row == null || string.IsNullOrWhiteSpace(row.OriginalApiName))
+                {
+                    continue;
+                }
+
+                if (!seen.Add(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                        row.EffectiveCategoryLabel)))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// The scope the whole selection agrees on, or None when it does not.
+        /// </summary>
+        private CapstoneScope SharedCapstoneScope()
+        {
+            CapstoneScope? shared = null;
+            foreach (var row in _selectedRows)
+            {
+                if (row == null)
+                {
+                    continue;
+                }
+
+                if (shared.HasValue && shared.Value != row.CapstoneScope)
+                {
+                    return CapstoneScope.None;
+                }
+
+                shared = row.CapstoneScope;
+            }
+
+            return shared ?? CapstoneScope.None;
         }
 
         /// <summary>
@@ -1411,17 +1465,36 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// Sets one achievement as a capstone at the given scope, or drops it.
         /// </summary>
         /// <remarks>
-        /// Single-selection only. A game-wide capstone across several rows has no meaning, and
-        /// filing a whole selection as category capstones would have them displace each other one
-        /// by one wherever they share a category, leaving only the last.
+        /// A game-wide capstone stays single-selection: there is one game, so applying it across a
+        /// selection would just leave whichever row happened to be written last. Category scope and
+        /// clearing do apply across the selection, gated on the rows sitting in distinct
+        /// categories, which is what stops them displacing each other as the write walks them.
         /// </remarks>
         public void SetCapstoneScopeForSelection(CapstoneScope scope)
         {
             var targets = ResolveSelectionTargets();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
             if (targets.Count == 1)
             {
                 SetCapstoneScopeForRow(targets[0], scope);
+                return;
             }
+
+            if (scope == CapstoneScope.GameWide || !SelectionCategoriesAreDistinct())
+            {
+                return;
+            }
+
+            foreach (var target in targets)
+            {
+                SetCapstoneScopeForRow(target, scope);
+            }
+
+            SyncBulkRowFromSelection();
         }
 
         /// <summary>Whether the selection is one row whose capstone scope can be edited.</summary>
@@ -2368,7 +2441,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     {
                         row.CategoryLabel = null;
                         row.CategoryTypeValue = null;
-                        row.SetCapstoneScopeFromSource(CapstoneScope.None, null, null);
+                        row.SetCapstoneScopeFromSource(CapstoneScope.None, null, null, null);
                         continue;
                     }
 
@@ -2566,8 +2639,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var effectiveApiName = resolver.ResolveForCategory(category);
             row.SetCapstoneScopeFromSource(
                 scope,
-                CategoryPathHelper.ToDisplayPath(category),
-                ResolveDisplayName(capstones.Achievements, effectiveApiName));
+                AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(category),
+                ResolveDisplayName(capstones.Achievements, effectiveApiName),
+                ResolveDisplayName(capstones.Achievements, resolver.GameWideApiName));
         }
 
         private static string ResolveRowCategory(IReadOnlyList<AchievementDetail> achievements, string apiName)
@@ -4591,6 +4665,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private CapstoneScope _capstoneScope;
         private string _capstoneCategoryDisplayName;
         private string _effectiveCategoryCapstoneName;
+        private string _gameWideCapstoneName;
 
         /// <summary>
         /// True for the stand-in row the details pane binds to while several achievements are
@@ -4610,7 +4685,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// The capstone is one achievement per game, so it has no meaning for a multi-selection.
         /// The proxy refuses it rather than accepting a click it could not apply.
         /// </summary>
-        public bool CanEditCapstone => CanEditAssignments && !IsBulkRow;
+        /// <summary>
+        /// Set on the bulk proxy when the selected achievements sit in distinct categories, so a
+        /// capstone edit across them cannot have them displace each other.
+        /// </summary>
+        public bool AllowBulkCapstone { get; set; }
+
+        public bool CanEditCapstone => CanEditAssignments && (!IsBulkRow || AllowBulkCapstone);
 
         /// <summary>
         /// The icons the provider supplies, captured before any override is applied over them.
@@ -4949,6 +5030,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     IsCapstone = value != CapstoneScope.None;
                     OnPropertyChanged(nameof(CapstoneScopeDisplayText));
+                    RaiseCapstoneReadoutChanged();
                 }
             }
         }
@@ -4958,6 +5040,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get
             {
+                // A proxy standing in for rows that disagree shows nothing rather than claiming
+                // they are all None, matching how the type selector reads a mixed selection.
+                if (IsBulkRow && CapstoneScope == CapstoneScope.None)
+                {
+                    return string.Empty;
+                }
+
                 switch (CapstoneScope)
                 {
                     case CapstoneScope.GameWide:
@@ -4992,27 +5081,42 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _capstoneCategoryDisplayName, value))
                 {
                     OnPropertyChanged(nameof(CapstoneScopeDisplayText));
-                    OnPropertyChanged(nameof(EffectiveCategoryCapstoneText));
+                    OnPropertyChanged(nameof(CapstoneScopeCategoryMenuText));
                 }
             }
         }
 
         /// <summary>
-        /// What this row's category currently stands on, which may be a capstone on an ancestor
+        /// What this row's own category currently stands on, which may be a capstone on an ancestor
         /// category or the game-wide one rather than anything in this category at all.
         /// </summary>
-        public string EffectiveCategoryCapstoneText
+        public string CurrentCategoryCapstoneText =>
+            string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Capstone_CurrentCategory"),
+                NameOrNone(_effectiveCategoryCapstoneName));
+
+        /// <summary>What stands for the game as a whole.</summary>
+        public string CurrentGameCapstoneText =>
+            string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Capstone_CurrentGame"),
+                NameOrNone(_gameWideCapstoneName));
+
+        /// <summary>
+        /// Hidden when this row is its category's capstone, because the selector beside it already
+        /// says so. The proxy reports on no single category at all.
+        /// </summary>
+        public bool ShowCurrentCategoryCapstone =>
+            !IsBulkRow && CapstoneScope != CapstoneScope.Category && CapstoneScope != CapstoneScope.GameWide;
+
+        /// <summary>Hidden when this row is the game-wide capstone, for the same reason.</summary>
+        public bool ShowCurrentGameCapstone =>
+            !IsBulkRow && CapstoneScope != CapstoneScope.GameWide;
+
+        private static string NameOrNone(string displayName)
         {
-            get
-            {
-                var capstone = string.IsNullOrWhiteSpace(_effectiveCategoryCapstoneName)
-                    ? ResourceProvider.GetString("LOCPlayAch_Common_None")
-                    : _effectiveCategoryCapstoneName;
-                return string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_Capstone_InCategory"),
-                    CapstoneCategoryDisplayName ?? string.Empty,
-                    capstone);
-            }
+            return string.IsNullOrWhiteSpace(displayName)
+                ? ResourceProvider.GetString("LOCPlayAch_Common_None")
+                : displayName;
         }
 
         /// <summary>
@@ -5022,14 +5126,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public void SetCapstoneScopeFromSource(
             CapstoneScope scope,
             string categoryDisplayName,
-            string effectiveCapstoneName)
+            string effectiveCapstoneName,
+            string gameWideCapstoneName)
         {
             _capstoneCategoryDisplayName = categoryDisplayName;
             _effectiveCategoryCapstoneName = effectiveCapstoneName;
+            _gameWideCapstoneName = gameWideCapstoneName;
             CapstoneScope = scope;
             OnPropertyChanged(nameof(CapstoneCategoryDisplayName));
             OnPropertyChanged(nameof(CapstoneScopeDisplayText));
-            OnPropertyChanged(nameof(EffectiveCategoryCapstoneText));
+            RaiseCapstoneReadoutChanged();
+        }
+
+        private void RaiseCapstoneReadoutChanged()
+        {
+            OnPropertyChanged(nameof(CurrentCategoryCapstoneText));
+            OnPropertyChanged(nameof(CurrentGameCapstoneText));
+            OnPropertyChanged(nameof(ShowCurrentCategoryCapstone));
+            OnPropertyChanged(nameof(ShowCurrentGameCapstone));
         }
 
         public string Id

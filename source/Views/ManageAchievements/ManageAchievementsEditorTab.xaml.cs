@@ -396,12 +396,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var row = ViewModel.EditTarget;
             CapstoneScopeContextMenu.Items.Clear();
-            AddCapstoneScopeItem(
-                CapstoneScopeContextMenu,
-                ViewModel,
-                row.CapstoneScope,
-                CapstoneScope.GameWide,
-                ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeGameWide"));
+
+            // There is one game, so a game-wide capstone cannot be applied across a selection: it
+            // would just leave whichever row was written last.
+            if (!row.IsBulkRow)
+            {
+                AddCapstoneScopeItem(
+                    CapstoneScopeContextMenu,
+                    ViewModel,
+                    row.CapstoneScope,
+                    CapstoneScope.GameWide,
+                    ResourceProvider.GetString("LOCPlayAch_Capstone_ScopeGameWide"));
+            }
             AddCapstoneScopeItem(
                 CapstoneScopeContextMenu,
                 ViewModel,
