@@ -40,10 +40,9 @@ namespace PlayniteAchievements.Services.Achievements
         /// before there could be more than one.
         ///
         /// A capstone claims its own achievement's category, so nominating one displaces whatever
-        /// stood for that category before. Nominating a game-wide one also displaces the previous
-        /// game-wide capstone, there being only one game.
+        /// stood for that category before.
         /// </remarks>
-        public CacheWriteResult SetCapstoneScope(Guid playniteGameId, string apiName, CapstoneScope scope)
+        public CacheWriteResult SetCapstone(Guid playniteGameId, string apiName, bool isCapstone)
         {
             if (playniteGameId == Guid.Empty || string.IsNullOrWhiteSpace(apiName))
             {
@@ -76,7 +75,7 @@ namespace PlayniteAchievements.Services.Achievements
                     playniteGameId,
                     achievements ?? new List<AchievementDetail>(),
                     apiName.Trim(),
-                    scope);
+                    isCapstone);
 
                 // A capstone's only summary-visible effect is the game's completion state, so the
                 // summary and projection rebuild is only warranted when that actually flips.
@@ -112,7 +111,7 @@ namespace PlayniteAchievements.Services.Achievements
             Guid playniteGameId,
             IReadOnlyList<AchievementDetail> achievements,
             string apiName,
-            CapstoneScope scope)
+            bool isCapstone)
         {
             var materialized = _gameCustomDataStore.TryLoad(playniteGameId, out var customData) &&
                                customData?.CapstonesMaterialized == true;
@@ -138,29 +137,23 @@ namespace PlayniteAchievements.Services.Achievements
                     continue;
                 }
 
-                if (scope != CapstoneScope.None)
-                {
-                    // Only one capstone stands for a category, and only one stands for the game.
-                    var displacedByCategory = string.Equals(
+                // One capstone stands for a category, so nominating one displaces whatever stood
+                // for that category before.
+                if (isCapstone &&
+                    string.Equals(
                         ResolveCategory(achievements, categoryOverrides, assignment.ApiName),
                         category,
-                        StringComparison.OrdinalIgnoreCase);
-                    if (displacedByCategory || (scope == CapstoneScope.GameWide && assignment.IsGameWide))
-                    {
-                        continue;
-                    }
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
                 }
 
                 next.Add(assignment);
             }
 
-            if (scope != CapstoneScope.None)
+            if (isCapstone)
             {
-                next.Add(new CapstoneAssignment
-                {
-                    ApiName = apiName,
-                    IsGameWide = scope == CapstoneScope.GameWide
-                });
+                next.Add(new CapstoneAssignment { ApiName = apiName });
             }
 
             return next;
@@ -246,9 +239,9 @@ namespace PlayniteAchievements.Services.Achievements
                     string.Equals((a.ApiName ?? string.Empty).Trim(), apiName, StringComparison.OrdinalIgnoreCase)));
         }
 
-        public Task<CacheWriteResult> SetCapstoneScopeAsync(Guid playniteGameId, string apiName, CapstoneScope scope)
+        public Task<CacheWriteResult> SetCapstoneAsync(Guid playniteGameId, string apiName, bool isCapstone)
         {
-            return Task.Run(() => SetCapstoneScope(playniteGameId, apiName, scope));
+            return Task.Run(() => SetCapstone(playniteGameId, apiName, isCapstone));
         }
 
         public void SetAchievementOrderOverride(Guid gameId, IReadOnlyList<string> orderedApiNames)

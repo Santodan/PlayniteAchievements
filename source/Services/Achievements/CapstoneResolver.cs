@@ -12,37 +12,24 @@ namespace PlayniteAchievements.Services.Achievements
     /// </summary>
     /// <remarks>
     /// A provider-supplied capstone and one the user nominated are the same thing here: there is no
-    /// precedence rule between them, only between scopes. Providers seed the set, and once the user
-    /// edits it the stored set is the whole truth for that game.
+    /// precedence rule between them. Providers seed the set, and once the user edits it the stored
+    /// set is the whole truth for that game.
     ///
     /// Kept apart from the cache and the store, like <see cref="AutoCapstoneCalculator"/>, so the
     /// rules can be read and tested without a game behind them.
     /// </remarks>
     public sealed class CapstoneResolver
     {
-        /// <summary>
-        /// The group types that mean an achievement belongs to something the base game does not
-        /// cover, and so gets a finish line of its own rather than the game's.
-        /// </summary>
-        private static readonly string[] CategoryScopedGroupTypes = { "DLC", "Subset" };
-
         private readonly Dictionary<string, string> _byCategory =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _effectiveApiNames =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private string _gameWideApiName;
 
         private CapstoneResolver()
         {
         }
 
-        /// <summary>The capstone standing for the whole game, or null when none does.</summary>
-        public string GameWideApiName => _gameWideApiName;
-
-        /// <summary>
-        /// Every achievement that is a capstone, deduplicated: a game-wide capstone covering three
-        /// empty categories is still one capstone.
-        /// </summary>
+        /// <summary>Every achievement that is a capstone.</summary>
         public IReadOnlyCollection<string> EffectiveApiNames => _effectiveApiNames;
 
         public int Count => _effectiveApiNames.Count;
@@ -53,9 +40,13 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// The capstone standing for a category: its own, failing that the nearest ancestor's,
-        /// failing that the game-wide one.
+        /// The capstone standing for a category: its own, failing that the nearest ancestor's.
         /// </summary>
+        /// <remarks>
+        /// Deliberately no whole-game fallback. Completion counts the capstones a category actually
+        /// holds, so reporting an unrelated capstone as covering it would say one thing while the
+        /// rollup did another.
+        /// </remarks>
         public string ResolveForCategory(string categoryPath)
         {
             // Root-first from the helper, walked backwards: the nearest ancestor with a capstone
@@ -70,7 +61,7 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
-            return _gameWideApiName;
+            return null;
         }
 
         /// <summary>True when a category has a capstone of its own rather than an inherited one.</summary>
@@ -82,8 +73,8 @@ namespace PlayniteAchievements.Services.Achievements
 
         /// <summary>
         /// Resolves a game's capstones. Achievements must already carry their final categories:
-        /// a category-scoped capstone is filed by its own achievement's category, so resolving
-        /// before user category overrides are applied files it under the provider's label instead.
+        /// a capstone is filed by its own achievement's category, so resolving before user category
+        /// overrides are applied files it under the provider's label instead.
         /// </summary>
         /// <param name="assignments">
         /// The stored set, used only when <paramref name="materialized"/> is true.
@@ -114,7 +105,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             foreach (var entry in entries)
             {
-                if (!byApiName.TryGetValue(entry.Key, out var achievement))
+                if (!byApiName.TryGetValue(entry, out var achievement))
                 {
                     // A capstone whose achievement the provider no longer sends. Keeping it in the
                     // stored set lets it come back if the provider does; counting it here would
@@ -122,40 +113,30 @@ namespace PlayniteAchievements.Services.Achievements
                     continue;
                 }
 
-                resolver._effectiveApiNames.Add(entry.Key);
-                if (entry.Value)
-                {
-                    resolver._gameWideApiName = entry.Key;
-                }
+                resolver._effectiveApiNames.Add(entry);
 
-                // A capstone always claims its own category, game-wide or not. Later entries win,
-                // so re-nominating within a category moves the capstone rather than duplicating it.
+                // Later entries win, so re-nominating within a category moves the capstone rather
+                // than duplicating it.
                 resolver._byCategory[
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category)] = entry.Key;
+                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category)] = entry;
             }
 
             return resolver;
         }
 
-        private static IEnumerable<KeyValuePair<string, bool>> EnumerateStored(
-            IEnumerable<CapstoneAssignment> assignments)
+        private static IEnumerable<string> EnumerateStored(IEnumerable<CapstoneAssignment> assignments)
         {
             foreach (var assignment in assignments ?? Enumerable.Empty<CapstoneAssignment>())
             {
                 var apiName = NormalizeApiName(assignment?.ApiName);
                 if (!string.IsNullOrWhiteSpace(apiName))
                 {
-                    yield return new KeyValuePair<string, bool>(apiName, assignment.IsGameWide);
+                    yield return apiName;
                 }
             }
         }
 
-        /// <summary>
-        /// The provider's own capstones, scoped by what their achievements belong to: a platinum or
-        /// a base-set mastery stands for the game, a DLC or subset mastery for its own category.
-        /// </summary>
-        private static IEnumerable<KeyValuePair<string, bool>> SeedFromProviders(
-            IEnumerable<AchievementDetail> achievements)
+        private static IEnumerable<string> SeedFromProviders(IEnumerable<AchievementDetail> achievements)
         {
             foreach (var achievement in achievements)
             {
@@ -167,21 +148,9 @@ namespace PlayniteAchievements.Services.Achievements
                 var apiName = NormalizeApiName(achievement.ApiName);
                 if (!string.IsNullOrWhiteSpace(apiName))
                 {
-                    yield return new KeyValuePair<string, bool>(apiName, IsGameWideScope(achievement));
+                    yield return apiName;
                 }
             }
-        }
-
-        /// <summary>
-        /// The scope a provider capstone is seeded with. Anything not marked as belonging to a DLC
-        /// or a subset stands for the game as a whole.
-        /// </summary>
-        public static bool IsGameWideScope(AchievementDetail achievement)
-        {
-            var groups = AchievementCategoryTypeHelper.GetGroupTypeComponents(achievement?.CategoryType);
-            return !groups.Any(group =>
-                CategoryScopedGroupTypes.Any(scoped =>
-                    string.Equals(group, scoped, StringComparison.OrdinalIgnoreCase)));
         }
 
         /// <summary>
@@ -192,7 +161,7 @@ namespace PlayniteAchievements.Services.Achievements
         {
             return SeedFromProviders(
                     (achievements ?? Enumerable.Empty<AchievementDetail>()).Where(a => a != null))
-                .Select(entry => new CapstoneAssignment { ApiName = entry.Key, IsGameWide = entry.Value })
+                .Select(apiName => new CapstoneAssignment { ApiName = apiName })
                 .ToList();
         }
 

@@ -582,7 +582,7 @@ namespace PlayniteAchievements.Services.Achievements
                 var apiName = NormalizeText(legacy);
                 if (!string.IsNullOrWhiteSpace(apiName))
                 {
-                    capstones.Add(new CapstoneAssignment { ApiName = apiName, IsGameWide = true });
+                    capstones.Add(new CapstoneAssignment { ApiName = apiName });
                 }
             }
 

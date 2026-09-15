@@ -231,10 +231,7 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 return await _achievementOverridesService
-                    .SetCapstoneScopeAsync(
-                        _gameId,
-                        targetApiName,
-                        markerApiName == null ? CapstoneScope.None : CapstoneScope.GameWide)
+                    .SetCapstoneAsync(_gameId, targetApiName, markerApiName != null)
                     .ConfigureAwait(true);
             }
             catch (Exception ex)

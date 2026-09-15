@@ -1256,7 +1256,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 data.CapstonesMaterialized = true;
                 data.Capstones = new List<CapstoneAssignment>
                 {
-                    new CapstoneAssignment { ApiName = legacy, IsGameWide = true }
+                    new CapstoneAssignment { ApiName = legacy }
                 };
             }
 
@@ -1272,7 +1272,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 data.CapstonesMaterialized = true;
                 data.Capstones = new List<CapstoneAssignment>
                 {
-                    new CapstoneAssignment { ApiName = legacy, IsGameWide = true }
+                    new CapstoneAssignment { ApiName = legacy }
                 };
             }
 
@@ -1301,7 +1301,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     continue;
                 }
 
-                var entry = new CapstoneAssignment { ApiName = apiName, IsGameWide = assignment.IsGameWide };
+                var entry = new CapstoneAssignment { ApiName = apiName };
                 if (indexByApiName.TryGetValue(apiName, out var existingIndex))
                 {
                     normalized[existingIndex] = entry;
