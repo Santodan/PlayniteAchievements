@@ -291,18 +291,17 @@ namespace PlayniteAchievements.Services.Tests.Recording
             var provider = File.ReadAllText(FindRepoFile(
                 "source", "Providers", "RetroAchievements", "RetroAchievementsDataProvider.cs"));
 
-            // The feed registration resolves to SourceObservation through IsRemote, so it must
-            // not declare ProviderReported, and it must stay marked remote.
+            // Both registrations anchor on their reported stamps, which is only sound because
+            // ReportedClock converts them onto the capture timeline first and withholds them
+            // while that clock is uncorrelated.
             StringAssert.Contains(provider, "IsRemote = true");
-            Assert.IsFalse(
-                provider.Contains("UnlockAnchorPolicy = InGameUnlockAnchorPolicy.ProviderReported"),
-                "RetroAchievements stamps come from its server clock and cannot anchor a clip.");
-
-            // The log registration cannot resolve it, because QueryAsync merges feed observations
-            // into log-tracked games, so it declares the policy outright.
             StringAssert.Contains(
                 provider,
-                "UnlockAnchorPolicy = InGameUnlockAnchorPolicy.SourceObservation");
+                "UnlockAnchorPolicy = InGameUnlockAnchorPolicy.ProviderReported");
+            StringAssert.Contains(provider, "ReportedClock = _serverClock");
+
+            // The feed's stamps must reach the mapper's clock conversion.
+            StringAssert.Contains(provider, "_serverClock.ToCaptureTimeline");
 
             var reader = File.ReadAllText(FindRepoFile(
                 "source", "Providers", "RetroAchievements", "EmulatorLog", "RaEmulatorLogReader.cs"));
