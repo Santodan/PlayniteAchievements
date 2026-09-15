@@ -374,10 +374,37 @@
          panels is visible at a time (rarity vs. PlayStation trophies). The host positions and
          (for Left alignment) flips this row; the row itself stays alignment-neutral so the same
          markup serves every alignment without duplication. -->
+    <!-- Which of the two badge panels shows. Trophy badges need both the game to have trophies and
+         the user to have left the setting on "trophy when available"; rarity badges take every
+         other case, including a trophy game whose owner asked for rarity. -->
+    <Style x:Key="OverviewRarityBadgePanelStyle" TargetType="StackPanel" BasedOn="{StaticResource OverviewProgressMetaRowStyle}">
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding HasTrophyTypes}" Value="True"/>
+                    <Condition Binding="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Visibility" Value="Collapsed"/>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="OverviewTrophyBadgePanelStyle" TargetType="StackPanel" BasedOn="{StaticResource OverviewProgressMetaRowStyle}">
+        <Setter Property="Visibility" Value="Collapsed"/>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding HasTrophyTypes}" Value="True"/>
+                    <Condition Binding="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Visibility" Value="Visible"/>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <DataTemplate x:Key="ProgressBadgeRowTemplate">
         <Grid VerticalAlignment="Center">
-            <StackPanel Style="{StaticResource OverviewProgressMetaRowStyle}"
-                        Visibility="{Binding HasTrophyTypes, Converter={StaticResource InverseBoolToVis}}">
+            <StackPanel Style="{StaticResource OverviewRarityBadgePanelStyle}">
                 <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding UltraRareCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Rarity_UltraRare}">
                     <Image Source="{DynamicResource BadgeRarityUltraRare}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
                     <TextBlock Text="{Binding UltraRareCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextUltraRareStyle}"/>
@@ -396,8 +423,7 @@
                 </StackPanel>
             </StackPanel>
 
-            <StackPanel Style="{StaticResource OverviewProgressMetaRowStyle}"
-                        Visibility="{Binding HasTrophyTypes, Converter={StaticResource BoolToVis}}">
+            <StackPanel Style="{StaticResource OverviewTrophyBadgePanelStyle}">
                 <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding TrophyPlatinumCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}">
                     <Image Source="{DynamicResource TrophyPlatinum}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
                     <TextBlock Text="{Binding TrophyPlatinumCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextTrophyPlatinumStyle}"/>
