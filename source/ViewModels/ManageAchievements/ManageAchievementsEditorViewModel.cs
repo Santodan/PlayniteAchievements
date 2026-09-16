@@ -4719,6 +4719,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string OriginalApiName { get; private set; }
 
+        /// <summary>
+        /// The provider's own key for the achievement, shown under the details pane. Authored rows
+        /// carry a generated key that means nothing outside the plugin, and the bulk proxy has none,
+        /// so both read as empty. A hidden row withholds it for the same reason it withholds the
+        /// description: the key is often the spoiler.
+        /// </summary>
+        public string ApiNameResolved =>
+            IsProviderRow && !IsBulkRow && !IsBlank && !IsDescriptionHidden
+                ? OriginalApiName
+                : string.Empty;
+
+        public bool HasApiName => !string.IsNullOrWhiteSpace(ApiNameResolved);
+
         public bool IsNew { get; private set; }
 
         /// <summary>
@@ -4964,6 +4977,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(IsTitleHidden));
             OnPropertyChanged(nameof(IsDescriptionHidden));
             OnPropertyChanged(nameof(DisplayIcon));
+            OnPropertyChanged(nameof(ApiNameResolved));
+            OnPropertyChanged(nameof(HasApiName));
             RevealStateChanged?.Invoke(this, EventArgs.Empty);
         }
 
