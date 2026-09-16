@@ -1043,6 +1043,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void CleanupEditor()
         {
+            // Before the view model's own teardown: the tab's subscriptions point at it.
+            _editorControl?.Cleanup();
+
             if (_editorViewModel != null)
             {
                 _editorViewModel.CustomAchievementsSaved -= CustomViewModel_CustomAchievementsSaved;
