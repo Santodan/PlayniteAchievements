@@ -96,6 +96,40 @@ namespace PlayniteAchievements.Common
             }
         }
 
+        /// <summary>
+        /// Measures only <see cref="WindowRects.PreferredCaptureArea"/>, resolved lazily: the client
+        /// area alone when it resolves, and the DWM frame or outer rect only when it does not. The
+        /// result is identical to <c>Measure(hwnd).PreferredCaptureArea</c>, without issuing the two
+        /// calls that answer would have discarded - which is most of the cost on the notification's
+        /// per-frame anchor read, where a borderless or fullscreen game always resolves a client area.
+        /// </summary>
+        public static Rectangle MeasurePreferredCaptureArea(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero)
+            {
+                return Rectangle.Empty;
+            }
+
+            try
+            {
+                using (DpiAwarenessScope.PerMonitorV2())
+                {
+                    var client = MeasureClient(hwnd);
+                    if (!client.IsEmpty)
+                    {
+                        return client;
+                    }
+
+                    var frame = MeasureFrame(hwnd);
+                    return !frame.IsEmpty ? frame : MeasureOuter(hwnd);
+                }
+            }
+            catch
+            {
+                return Rectangle.Empty;
+            }
+        }
+
         private static Rectangle MeasureClient(IntPtr hwnd)
         {
             if (!GetClientRect(hwnd, out var client))
