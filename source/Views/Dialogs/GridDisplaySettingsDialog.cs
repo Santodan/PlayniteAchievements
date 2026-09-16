@@ -165,14 +165,14 @@ namespace PlayniteAchievements.Views.Dialogs
                     Text = Localize("LOCPlayAch_Settings_CategoryGrid")
                 };
                 header.SetResourceReference(StyleProperty, "SubSectionHeaderStyle");
-                header.SetResourceReference(MarginProperty, "PlayAch.Thickness.Top.Md");
+                header.SetResourceReference(MarginProperty, "PlayAch.Thickness.SubSectionHeading");
                 panel.Children.Add(header);
 
                 _hideCategoryRowCheckBox = new CheckBox
                 {
                     Content = Localize("LOCPlayAch_Settings_HideCategorySummaryRow")
                 };
-                _hideCategoryRowCheckBox.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+                _hideCategoryRowCheckBox.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Sm");
                 panel.Children.Add(_hideCategoryRowCheckBox);
 
                 _categoryEditor = new GridOptionsEditor

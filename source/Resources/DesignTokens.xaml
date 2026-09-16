@@ -198,6 +198,9 @@
     <Thickness x:Key="PlayAch.Thickness.Top.Xs">0,4,0,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Top.Sm">0,8,0,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Top.Md">0,12,0,0</Thickness>
+    <!-- A heading that opens a group: separated from what precedes it, and not flush against
+         the first row beneath it. -->
+    <Thickness x:Key="PlayAch.Thickness.SubSectionHeading">0,12,0,8</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Right.Xs">0,0,4,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Right.Compact">0,0,6,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Right.Sm">0,0,8,0</Thickness>
