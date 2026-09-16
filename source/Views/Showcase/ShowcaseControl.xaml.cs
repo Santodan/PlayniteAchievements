@@ -2214,6 +2214,7 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             EnsureLayout();
+            EnsureUnlockNextPool();
             if (string.Equals(ComputeLayoutSignature(), _layoutSignature, StringComparison.Ordinal))
             {
                 RefreshWidgetData(includeCachedHosts: false);
@@ -2221,6 +2222,21 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             Rebuild();
+        }
+
+        // Every other widget option re-projects from the snapshot already in hand. Unlock Next is
+        // the exception: its locked achievements are not in the snapshot at all, and the overview
+        // builder only hydrates them when a widget asks. Switching a mosaic to that source is
+        // therefore the one option edit that needs the snapshot rebuilt.
+        private void EnsureUnlockNextPool()
+        {
+            if (!ShowcaseWidgetOptions.RequiresUnlockNextPool(Layout) ||
+                _overview.LatestSnapshot?.UnlockNextPoolBuilt == true)
+            {
+                return;
+            }
+
+            _ = _overview.RefreshViewAsync();
         }
 
         private void PageSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
