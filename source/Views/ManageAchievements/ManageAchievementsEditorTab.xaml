@@ -539,27 +539,37 @@
                                              A row the user authored is capped rather than merely
                                              barred, because reverting it deletes it outright
                                              instead of restoring the provider's values. -->
-                                        <Border Width="3"
+                                        <!-- The bar is drawn thin but hovered wide: the transparent
+                                             wrapper is the hit target and carries the tooltip, so
+                                             reaching it does not mean landing on three pixels. -->
+                                        <Border Width="14"
                                                 HorizontalAlignment="Left"
                                                 VerticalAlignment="Stretch"
-                                                Margin="0,3"
-                                                CornerRadius="1.5"
-                                                SnapsToDevicePixels="True"
-                                                UseLayoutRounding="True"
-                                                Background="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                                Margin="-4,0,0,0"
+                                                Background="Transparent"
                                                 ToolTip="{Binding CustomizationToolTip}"
-                                                Visibility="{Binding IsCustomized, Converter={StaticResource BoolToVis}}" />
-                                        <Border Width="7"
-                                                Height="7"
-                                                HorizontalAlignment="Left"
-                                                VerticalAlignment="Top"
-                                                Margin="-2,1,0,0"
-                                                CornerRadius="3.5"
-                                                SnapsToDevicePixels="True"
-                                                UseLayoutRounding="True"
-                                                IsHitTestVisible="False"
-                                                Background="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                                                Visibility="{Binding IsAuthored, Converter={StaticResource BoolToVis}}" />
+                                                Visibility="{Binding IsCustomized, Converter={StaticResource BoolToVis}}">
+                                            <Grid>
+                                                <Border Width="3"
+                                                        HorizontalAlignment="Left"
+                                                        VerticalAlignment="Stretch"
+                                                        Margin="4,3,0,3"
+                                                        CornerRadius="1.5"
+                                                        SnapsToDevicePixels="True"
+                                                        UseLayoutRounding="True"
+                                                        Background="{DynamicResource PlayAch.Brush.Text.Secondary}" />
+                                                <Border Width="7"
+                                                        Height="7"
+                                                        HorizontalAlignment="Left"
+                                                        VerticalAlignment="Top"
+                                                        Margin="2,1,0,0"
+                                                        CornerRadius="3.5"
+                                                        SnapsToDevicePixels="True"
+                                                        UseLayoutRounding="True"
+                                                        Background="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                                        Visibility="{Binding IsAuthored, Converter={StaticResource BoolToVis}}" />
+                                            </Grid>
+                                        </Border>
                                         <TextBlock Tag="DragHandle"
                                                    Text="&#x2630;"
                                                    HorizontalAlignment="Center"
