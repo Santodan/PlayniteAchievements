@@ -91,6 +91,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private bool _notificationsRefreshDiscardPending;
         private bool _selectManageCategoriesSubTab;
         private bool _ensureTabContentQueued;
+        private bool _categoryEditsPendingPropagation;
 
         internal ManageAchievementsControl(
             Guid gameId,
@@ -258,6 +259,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
             if (_viewModel == null)
             {
                 return;
+            }
+
+            if (_viewModel.SelectedTab != ManageAchievementsTab.Category)
+            {
+                PropagateCategoryEditsToSiblingTabs();
             }
 
             if (_viewModel.SelectedTab == ManageAchievementsTab.Capstones)
@@ -1459,6 +1465,36 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private void CategoryViewModel_CategoryMetadataPersisted(object sender, EventArgs e)
         {
             _viewModel?.RefreshGameImage();
+
+            // The Category tab's writes skip the library-wide passes until the tab is torn down,
+            // and the other tabs in this window were only marked stale by that same teardown: a
+            // category created or renamed here reached the Editor's picker once the window had
+            // been closed and reopened. Recorded here and drained when the user leaves the tab,
+            // so a click on this tab still costs no rebuild.
+            _categoryEditsPendingPropagation = true;
+        }
+
+        /// <summary>
+        /// Marks the tabs that read this game's categories stale after a Category tab edit. Runs on
+        /// the way out of that tab rather than per edit, so the tab's own click cost is unchanged
+        /// and each sibling reloads once, when it is next shown.
+        /// </summary>
+        private void PropagateCategoryEditsToSiblingTabs()
+        {
+            if (!_categoryEditsPendingPropagation)
+            {
+                return;
+            }
+
+            _categoryEditsPendingPropagation = false;
+            _gameDataSnapshotProvider?.Invalidate();
+            _editorRefreshPending = true;
+            _capstoneRefreshPending = true;
+            _achievementOrderRefreshPending = true;
+            _goalsRefreshPending = true;
+            _filtersRefreshPending = true;
+            _notesRefreshPending = true;
+            _achievementIconsRefreshPending = true;
         }
 
         private void CategoryViewModel_DeferredLibraryRefreshRequired(object sender, EventArgs e)
