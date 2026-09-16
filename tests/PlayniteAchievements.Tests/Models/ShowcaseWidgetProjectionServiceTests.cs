@@ -272,6 +272,228 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void UnlockNext_RanksLockedCandidatesByCriterionAndSpreadsAcrossGames()
+        {
+            var nearlyDone = Guid.NewGuid();
+            var barelyStarted = Guid.NewGuid();
+            var snapshot = new OverviewDataSnapshot
+            {
+                GameSummaries = new List<GameSummaryItem>
+                {
+                    new GameSummaryItem
+                    {
+                        PlayniteGameId = nearlyDone,
+                        GameName = "Nearly done",
+                        TotalAchievements = 10,
+                        UnlockedAchievements = 9,
+                        LastPlayed = DateTime.Now.AddDays(-2)
+                    },
+                    new GameSummaryItem
+                    {
+                        PlayniteGameId = barelyStarted,
+                        GameName = "Barely started",
+                        TotalAchievements = 10,
+                        UnlockedAchievements = 1,
+                        LastPlayed = DateTime.Now.AddDays(-3)
+                    }
+                },
+                UnlockNextPoolBuilt = true,
+                UnlockNextCandidates = new List<AchievementDisplayItem>
+                {
+                    LockedCandidate(nearlyDone, "near-first", order: 0, percent: 4),
+                    LockedCandidate(nearlyDone, "near-easy", order: 7, percent: 90),
+                    LockedCandidate(barelyStarted, "barely-first", order: 1, percent: 30),
+                    LockedCandidate(barelyStarted, "barely-easy", order: 9, percent: 75)
+                }
+            };
+            var settings = new ShowcaseSettings();
+            var mosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            ShowcaseWidgetOptions.SetMosaicSource(mosaic, ShowcaseMosaicSource.UnlockNext);
+            ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.All);
+
+            // One per game by default, and the game's own order decides which one.
+            ShowcaseWidgetOptions.SetUnlockNextCriterion(mosaic, UnlockNextCriterion.NextInLine);
+            CollectionAssert.AreEqual(
+                new[] { "near-first", "barely-first" },
+                ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
+
+            // Easiest leads with the highest global percentage, not the lowest order index.
+            ShowcaseWidgetOptions.SetUnlockNextCriterion(mosaic, UnlockNextCriterion.Easiest);
+            CollectionAssert.AreEqual(
+                new[] { "near-easy", "barely-easy" },
+                ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
+
+            // Closest to completion puts the nearly finished game's whole slice first.
+            ShowcaseWidgetOptions.SetUnlockNextCriterion(mosaic, UnlockNextCriterion.ClosestToCompletion);
+            ShowcaseWidgetOptions.SetMaxPerGame(mosaic, 2);
+            CollectionAssert.AreEqual(
+                new[] { "near-first", "barely-first", "near-easy", "barely-easy" },
+                ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
+
+            // The count caps the result after the round-robin.
+            ShowcaseWidgetOptions.SetMosaicCount(mosaic, 3);
+            Assert.AreEqual(
+                3,
+                ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic).Count);
+        }
+
+        [TestMethod]
+        public void UnlockNext_FiltersWindowHiddenAndAchievementsUnlockedSinceThePoolWasBuilt()
+        {
+            var recent = Guid.NewGuid();
+            var stale = Guid.NewGuid();
+            var claimed = LockedCandidate(recent, "claimed", order: 0, percent: 50);
+            var hidden = LockedCandidate(recent, "hidden", order: 1, percent: 50);
+            hidden.Hidden = true;
+            var snapshot = new OverviewDataSnapshot
+            {
+                GameSummaries = new List<GameSummaryItem>
+                {
+                    new GameSummaryItem
+                    {
+                        PlayniteGameId = recent,
+                        TotalAchievements = 10,
+                        UnlockedAchievements = 5,
+                        LastPlayed = DateTime.Now.AddDays(-1)
+                    },
+                    new GameSummaryItem
+                    {
+                        PlayniteGameId = stale,
+                        TotalAchievements = 10,
+                        UnlockedAchievements = 5,
+                        LastPlayed = DateTime.Now.AddYears(-2)
+                    }
+                },
+                UnlockNextPoolBuilt = true,
+                UnlockNextCandidates = new List<AchievementDisplayItem>
+                {
+                    claimed,
+                    hidden,
+                    LockedCandidate(recent, "open", order: 2, percent: 50),
+                    LockedCandidate(stale, "stale", order: 0, percent: 99)
+                },
+                // A delta tick carries the pool forward, so an achievement unlocked since must be
+                // dropped on the strength of the snapshot's own unlocked rows.
+                Achievements = new List<AchievementDisplayItem>
+                {
+                    new AchievementDisplayItem
+                    {
+                        PlayniteGameId = recent,
+                        ApiName = "claimed",
+                        Unlocked = true
+                    }
+                }
+            };
+            var settings = new ShowcaseSettings();
+            var mosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            ShowcaseWidgetOptions.SetMosaicSource(mosaic, ShowcaseMosaicSource.UnlockNext);
+            ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.OneMonth);
+            ShowcaseWidgetOptions.SetMaxPerGame(mosaic, 10);
+
+            CollectionAssert.AreEqual(
+                new[] { "open" },
+                ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
+
+            ShowcaseWidgetOptions.SetIncludeHiddenAchievements(mosaic, true);
+            CollectionAssert.AreEqual(
+                new[] { "hidden", "open" },
+                ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
+
+            // Widening the window lets the stale game back in.
+            ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.All);
+            CollectionAssert.Contains(
+                ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)),
+                "stale");
+        }
+
+        [TestMethod]
+        public void UnlockNext_WithoutAPoolResolvesEmpty()
+        {
+            var snapshot = new OverviewDataSnapshot();
+            var mosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            ShowcaseWidgetOptions.SetMosaicSource(mosaic, ShowcaseMosaicSource.UnlockNext);
+
+            Assert.AreEqual(
+                0,
+                ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, new ShowcaseSettings(), mosaic).Count);
+        }
+
+        [TestMethod]
+        public void FinishNext_RanksUnfinishedGamesByCompletionWithinTheWindow()
+        {
+            var almost = new GameSummaryItem
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                GameName = "Almost",
+                TotalAchievements = 10,
+                UnlockedAchievements = 9,
+                LastPlayed = DateTime.Now.AddDays(-1)
+            };
+            var halfway = new GameSummaryItem
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                GameName = "Halfway",
+                TotalAchievements = 10,
+                UnlockedAchievements = 5,
+                LastPlayed = DateTime.Now.AddDays(-2)
+            };
+            var finished = new GameSummaryItem
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                GameName = "Finished",
+                TotalAchievements = 10,
+                UnlockedAchievements = 10,
+                LastPlayed = DateTime.Now.AddDays(-1)
+            };
+            var forgotten = new GameSummaryItem
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                GameName = "Forgotten",
+                TotalAchievements = 10,
+                UnlockedAchievements = 8,
+                LastPlayed = DateTime.Now.AddYears(-3)
+            };
+            var snapshot = new OverviewDataSnapshot
+            {
+                GameSummaries = new List<GameSummaryItem> { halfway, finished, almost, forgotten }
+            };
+            var settings = new ShowcaseSettings();
+            var mosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            ShowcaseWidgetOptions.SetMosaicContent(mosaic, ShowcaseMosaicContent.Games);
+            ShowcaseWidgetOptions.SetGameMosaicSource(mosaic, ShowcaseGameMosaicSource.FinishNext);
+            ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.OneMonth);
+
+            CollectionAssert.AreEqual(
+                new[] { almost, halfway },
+                ShowcaseWidgetProjectionService.ResolveGameMosaic(snapshot, settings, mosaic).ToArray());
+
+            ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.All);
+            CollectionAssert.AreEqual(
+                new[] { almost, forgotten, halfway },
+                ShowcaseWidgetProjectionService.ResolveGameMosaic(snapshot, settings, mosaic).ToArray());
+        }
+
+        private static AchievementDisplayItem LockedCandidate(
+            Guid gameId,
+            string apiName,
+            int order,
+            double percent)
+        {
+            return new AchievementDisplayItem
+            {
+                PlayniteGameId = gameId,
+                ApiName = apiName,
+                DisplayName = apiName,
+                Unlocked = false,
+                DefaultOrderIndex = order,
+                GlobalPercentUnlocked = percent
+            };
+        }
+
+        private static string[] ApiNames(IEnumerable<AchievementDisplayItem> items) =>
+            items.Select(item => item.ApiName).ToArray();
+
+        [TestMethod]
         public void ActivityCalendar_DensifiesSundayAlignedTrailingYear()
         {
             var endDate = new DateTime(2026, 7, 31); // a Friday
