@@ -192,9 +192,9 @@ namespace PlayniteAchievements.Providers.Riot
                 {
                     ApiName = BuildTierApiName(challengeId, tierName),
 
-                    // Every tier of a challenge shares its name; the tier's own token art is what
-                    // tells the rows apart, so no tier label is composed into the name.
-                    DisplayName = challenge.Name,
+                    // Every tier of a challenge shares its name, so the tier is composed into the
+                    // display name to tell the rows apart without relying on the token art alone.
+                    DisplayName = ComposeTierDisplayName(challenge.Name, tierName),
                     Description = description,
                     UnlockedIconPath = iconUrl,
 
@@ -228,6 +228,23 @@ namespace PlayniteAchievements.Providers.Riot
                     TierRank = tier.Rank
                 };
             }
+        }
+
+        /// <summary>
+        /// The challenge name with its tier appended, e.g. "Always On Time (Iron)". The bare name is
+        /// kept when either part is missing rather than composing an empty parenthetical. This is
+        /// display text only; <see cref="BuildTierApiName"/> remains the row's identity.
+        /// </summary>
+        internal static string ComposeTierDisplayName(string challengeName, string tierName)
+        {
+            var name = (challengeName ?? string.Empty).Trim();
+            var tierLabel = RiotChallengeLevels.GetDisplayName(tierName);
+            if (name.Length == 0 || tierLabel.Length == 0)
+            {
+                return challengeName;
+            }
+
+            return name + " (" + tierLabel + ")";
         }
 
         /// <summary>
