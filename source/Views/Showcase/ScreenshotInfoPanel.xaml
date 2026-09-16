@@ -15,6 +15,11 @@
         AchievementDisplayItem the capture was matched to, so advancing a slide is a single
         DataContext assignment. Every row hides itself when its field is empty, which is also what
         makes an unmatched capture degrade to name and game without special-case markup.
+
+        Two layouts, switched by SetWideLayout: a side panel reads as one tall column, while a
+        bottom strip reads across in two. The fields are split between two fixed stacks rather than
+        reflowed, so which column a field lands in never depends on how many of its neighbours
+        happened to be empty.
     -->
     <UserControl.Resources>
         <ResourceDictionary>
@@ -38,144 +43,169 @@
                 <Setter Property="TextWrapping" Value="Wrap"/>
                 <Setter Property="VerticalAlignment" Value="Top"/>
             </Style>
+
+            <!-- One field: a label and its value, collapsing as a unit. -->
+            <Style x:Key="PlayAch.Screenshot.InfoRow" TargetType="Grid">
+                <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Top.Xs}"/>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
     <!--
-        Centred vertically against the image beside it. The ScrollViewer measures to at most the
-        height available, so it sits centred while the details are short and still fills the column
-        and scrolls once they are taller than the widget.
+        Centred against the image beside it. The ScrollViewer measures to at most the height
+        available, so it sits centred while the details are short and still fills and scrolls once
+        they are taller than the widget.
     -->
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalAlignment="Center"
                   Padding="12,8,4,8">
-        <StackPanel Grid.IsSharedSizeScope="True">
-            <!-- Icon. Bound to DisplayIcon so a hidden achievement keeps its masked art. -->
-            <Image Width="56"
-                   Height="56"
-                   Stretch="Uniform"
-                   HorizontalAlignment="Left"
-                   SnapsToDevicePixels="True"
-                   RenderOptions.BitmapScalingMode="HighQuality"
-                   helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-                   helpers:AsyncImage.DecodePixel="128"
-                   Visibility="{Binding DisplayIcon, Mode=OneWay, Converter={StaticResource StringToVisibility}}"/>
+        <!--
+            RootGrid: one column of stacked blocks as a side panel, or a header column plus two
+            equal star-width detail columns as a strip. SetWideLayout owns the definitions, since
+            star widths are what keep the strip's two columns aligned rather than ragged.
+        -->
+        <Grid x:Name="RootGrid" Grid.IsSharedSizeScope="True">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-            <TextBlock FontWeight="SemiBold"
-                       TextWrapping="Wrap"
-                       Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text}">
-                <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
-                <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
-                     FontStyle="Italic"
-                     FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                     Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
-            </TextBlock>
+            <!-- HeaderStack: icon above the title as a side panel, beside it as a strip. -->
+            <StackPanel x:Name="HeaderStack" Orientation="Vertical">
+                <Image x:Name="IconImage"
+                       Width="56"
+                       Height="56"
+                       Stretch="Uniform"
+                       HorizontalAlignment="Left"
+                       VerticalAlignment="Top"
+                       SnapsToDevicePixels="True"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
+                       helpers:AsyncImage.DecodePixel="128"
+                       Visibility="{Binding DisplayIcon, Mode=OneWay, Converter={StaticResource StringToVisibility}}"/>
 
-            <TextBlock Text="{Binding DescriptionResolved, Mode=OneWay}"
-                       TextWrapping="Wrap"
-                       Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                       Opacity="{StaticResource PlayAch.Opacity.Secondary}"
-                       Visibility="{Binding DescriptionResolved, Mode=OneWay, Converter={StaticResource StringToVisibility}}"/>
+                <StackPanel x:Name="TitleStack" Margin="{StaticResource PlayAch.Thickness.Top.Sm}">
+                    <TextBlock FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}">
+                        <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
+                        <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
+                             FontStyle="Italic"
+                             FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                             Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                    </TextBlock>
 
-            <!--
-                One 2-column Grid per field so a row can collapse as a unit, with a shared size
-                group keeping the labels aligned down the column.
-            -->
-            <Grid Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
-                  Visibility="{Binding GameName, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
-                           Text="{DynamicResource LOCPlayAch_Column_Game}"/>
-                <TextBlock Grid.Column="1"
-                           Style="{StaticResource PlayAch.Screenshot.InfoValue}"
-                           Text="{Binding GameName, Mode=OneWay}"/>
-            </Grid>
+                    <TextBlock Text="{Binding DescriptionResolved, Mode=OneWay}"
+                               TextWrapping="Wrap"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
+                               FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Secondary}"
+                               Visibility="{Binding DescriptionResolved, Mode=OneWay, Converter={StaticResource StringToVisibility}}"/>
+                </StackPanel>
+            </StackPanel>
 
-            <Grid Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                  Visibility="{Binding UnlockTimeText, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
-                           Text="{DynamicResource LOCPlayAch_Common_Unlocked}"/>
-                <TextBlock Grid.Column="1"
-                           Style="{StaticResource PlayAch.Screenshot.InfoValue}"
-                           Text="{Binding UnlockTimeText, Mode=OneWay}"/>
-            </Grid>
+            <!-- The two field columns: stacked as a side panel, side by side as a strip. -->
+            <StackPanel x:Name="DetailsPrimary" Grid.Row="1" VerticalAlignment="Top">
+                <Grid Style="{StaticResource PlayAch.Screenshot.InfoRow}"
+                      Visibility="{Binding GameName, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
+                               Text="{DynamicResource LOCPlayAch_Column_Game}"/>
+                    <TextBlock Grid.Column="1"
+                               Style="{StaticResource PlayAch.Screenshot.InfoValue}"
+                               Text="{Binding GameName, Mode=OneWay}"/>
+                </Grid>
 
-            <Grid Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                  Visibility="{Binding RarityDetailText, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
-                           Text="{DynamicResource LOCPlayAch_Column_Rarity}"/>
-                <TextBlock Grid.Column="1"
-                           Style="{StaticResource PlayAch.Screenshot.InfoValue}"
-                           Text="{Binding RarityDetailText, Mode=OneWay}"
-                           Foreground="{Binding RarityNameBrush, Mode=OneWay}"/>
-            </Grid>
+                <Grid Style="{StaticResource PlayAch.Screenshot.InfoRow}"
+                      Visibility="{Binding UnlockTimeText, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
+                               Text="{DynamicResource LOCPlayAch_Common_Unlocked}"/>
+                    <TextBlock Grid.Column="1"
+                               Style="{StaticResource PlayAch.Screenshot.InfoValue}"
+                               Text="{Binding UnlockTimeText, Mode=OneWay}"/>
+                </Grid>
 
-            <Grid Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                  Visibility="{Binding CategoryLabelPathDisplay, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
-                           Text="{DynamicResource LOCPlayAch_Common_Label_Category}"/>
-                <TextBlock Grid.Column="1"
-                           Style="{StaticResource PlayAch.Screenshot.InfoValue}"
-                           Text="{Binding CategoryLabelPathDisplay, Mode=OneWay}"/>
-            </Grid>
+                <Grid Style="{StaticResource PlayAch.Screenshot.InfoRow}"
+                      Visibility="{Binding RarityDetailText, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
+                               Text="{DynamicResource LOCPlayAch_Column_Rarity}"/>
+                    <TextBlock Grid.Column="1"
+                               Style="{StaticResource PlayAch.Screenshot.InfoValue}"
+                               Text="{Binding RarityDetailText, Mode=OneWay}"
+                               Foreground="{Binding RarityNameBrush, Mode=OneWay}"/>
+                </Grid>
 
-            <Grid Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                  Visibility="{Binding CategoryTypeDisplay, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
-                           Text="{DynamicResource LOCPlayAch_Common_Label_Type}"/>
-                <TextBlock Grid.Column="1"
-                           Style="{StaticResource PlayAch.Screenshot.InfoValue}"
-                           Text="{Binding CategoryTypeDisplay, Mode=OneWay}"/>
-            </Grid>
+                <Grid Style="{StaticResource PlayAch.Screenshot.InfoRow}"
+                      Visibility="{Binding CategoryLabelPathDisplay, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
+                               Text="{DynamicResource LOCPlayAch_Common_Label_Category}"/>
+                    <TextBlock Grid.Column="1"
+                               Style="{StaticResource PlayAch.Screenshot.InfoValue}"
+                               Text="{Binding CategoryLabelPathDisplay, Mode=OneWay}"/>
+                </Grid>
+            </StackPanel>
 
-            <Grid Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                  Visibility="{Binding PointsText, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
-                           Text="{DynamicResource LOCPlayAch_Column_Points}"/>
-                <TextBlock Grid.Column="1"
-                           Style="{StaticResource PlayAch.Screenshot.InfoValue}"
-                           Text="{Binding PointsText, Mode=OneWay}"/>
-            </Grid>
+            <StackPanel x:Name="DetailsSecondary" Grid.Row="2" VerticalAlignment="Top">
+                <Grid Style="{StaticResource PlayAch.Screenshot.InfoRow}"
+                      Visibility="{Binding CategoryTypeDisplay, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
+                               Text="{DynamicResource LOCPlayAch_Common_Label_Type}"/>
+                    <TextBlock Grid.Column="1"
+                               Style="{StaticResource PlayAch.Screenshot.InfoValue}"
+                               Text="{Binding CategoryTypeDisplay, Mode=OneWay}"/>
+                </Grid>
 
-            <Grid Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                  Visibility="{Binding TrophyType, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
-                           Text="{DynamicResource LOCPlayAch_Column_Trophy}"/>
-                <TextBlock Grid.Column="1"
-                           Style="{StaticResource PlayAch.Screenshot.InfoValue}"
-                           Text="{Binding TrophyType, Mode=OneWay}"/>
-            </Grid>
-        </StackPanel>
+                <Grid Style="{StaticResource PlayAch.Screenshot.InfoRow}"
+                      Visibility="{Binding PointsText, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
+                               Text="{DynamicResource LOCPlayAch_Column_Points}"/>
+                    <TextBlock Grid.Column="1"
+                               Style="{StaticResource PlayAch.Screenshot.InfoValue}"
+                               Text="{Binding PointsText, Mode=OneWay}"/>
+                </Grid>
+
+                <Grid Style="{StaticResource PlayAch.Screenshot.InfoRow}"
+                      Visibility="{Binding TrophyType, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
+                               Text="{DynamicResource LOCPlayAch_Column_Trophy}"/>
+                    <TextBlock Grid.Column="1"
+                               Style="{StaticResource PlayAch.Screenshot.InfoValue}"
+                               Text="{Binding TrophyType, Mode=OneWay}"/>
+                </Grid>
+            </StackPanel>
+        </Grid>
     </ScrollViewer>
 </UserControl>

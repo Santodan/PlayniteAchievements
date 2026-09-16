@@ -37,10 +37,12 @@ namespace PlayniteAchievements.Views.Showcase
         private const double InfoPanelMinWidth = 160;
         private const double InfoPanelMaxWidth = 280;
         private const double InfoPanelMinWidgetWidth = 420;
-        private const double InfoPanelHeightRatio = 0.4;
-        private const double InfoPanelMinHeight = 140;
-        private const double InfoPanelMaxHeight = 300;
-        private const double InfoPanelMinWidgetHeight = 360;
+        // The bottom strip lays its fields out in two columns, so it needs roughly half the height
+        // a single column would have taken.
+        private const double InfoPanelHeightRatio = 0.3;
+        private const double InfoPanelMinHeight = 120;
+        private const double InfoPanelMaxHeight = 220;
+        private const double InfoPanelMinWidgetHeight = 300;
 
         private readonly ShowcaseWidgetInstanceSettings _settings;
         private readonly Image _image;
@@ -758,6 +760,9 @@ namespace PlayniteAchievements.Views.Showcase
             // is left unset rather than pinned.
             _infoPanel.Width = bottom || !showPanel ? double.NaN : extent;
             _infoPanel.Height = bottom && showPanel ? extent : double.NaN;
+
+            // A strip reads across in two columns; a side panel reads down in one.
+            _infoPanel.SetWideLayout(bottom);
         }
 
         /// <summary>Info panel width for the current widget width; 0 means there is no room.</summary>
@@ -775,11 +780,7 @@ namespace PlayniteAchievements.Views.Showcase
                 Math.Min(InfoPanelMaxWidth, ActualWidth * InfoPanelWidthRatio));
         }
 
-        /// <summary>
-        /// Info panel height for a bottom-docked panel; 0 means there is no room. The share is
-        /// larger than the side panels' because the details stack vertically either way, so a
-        /// bottom strip needs the height to show more than a line or two.
-        /// </summary>
+        /// <summary>Info panel height for a bottom-docked panel; 0 means there is no room.</summary>
         private double ResolveInfoPanelHeight()
         {
             if (ActualHeight < InfoPanelMinWidgetHeight)
