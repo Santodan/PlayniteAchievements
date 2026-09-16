@@ -486,6 +486,7 @@ namespace PlayniteAchievements.Services.Showcase
             return new List<ShowcaseStatistic>
             {
                 Stat("unlocked", "LOCPlayAch_Common_Unlocked", snapshot.TotalUnlocked),
+                Stat("locked", "LOCPlayAch_Common_Locked", snapshot.TotalLocked),
                 Stat("completion", "LOCPlayAch_Showcase_Stat_Completion", snapshot.GlobalProgressionPercent),
                 Stat("trackedGames", "LOCPlayAch_Showcase_Stat_TrackedGames", snapshot.TotalGames),
                 Stat("playedGames", "LOCPlayAch_Showcase_Stat_PlayedGames", playedGames),
