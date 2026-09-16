@@ -55,17 +55,22 @@
         Centred against the image beside it. The ScrollViewer measures to at most the height
         available, so it sits centred while the details are short and still fills and scrolls once
         they are taller than the widget.
+
+        The shared-size scope sits here rather than on RootGrid because RootGrid's own columns join
+        it in the strip layout, and a grid's columns resolve against an ancestor's scope.
     -->
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
+    <ScrollViewer x:Name="DetailsScroll"
+                  VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalAlignment="Center"
+                  Grid.IsSharedSizeScope="True"
                   Padding="12,8,4,8">
         <!--
             RootGrid: one column of stacked blocks as a side panel, or a header column plus two
-            equal star-width detail columns as a strip. SetWideLayout owns the definitions, since
-            star widths are what keep the strip's two columns aligned rather than ragged.
+            equal detail columns as a strip. SetWideLayout owns the definitions, because the strip's
+            columns size to their content so the block can centre under the image.
         -->
-        <Grid x:Name="RootGrid" Grid.IsSharedSizeScope="True">
+        <Grid x:Name="RootGrid">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>

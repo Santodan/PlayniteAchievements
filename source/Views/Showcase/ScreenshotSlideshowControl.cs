@@ -783,7 +783,9 @@ namespace PlayniteAchievements.Views.Showcase
         /// <summary>Info panel height for a bottom-docked panel; 0 means there is no room.</summary>
         private double ResolveInfoPanelHeight()
         {
-            if (ActualHeight < InfoPanelMinWidgetHeight)
+            // Width matters here too: the strip lays its fields out across two columns, so a tile
+            // too narrow for them is no better a home than one too short.
+            if (ActualHeight < InfoPanelMinWidgetHeight || ActualWidth < InfoPanelMinWidgetWidth)
             {
                 return 0;
             }
