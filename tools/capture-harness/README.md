@@ -304,7 +304,15 @@ display's own period read from the OS.
 
 ```powershell
 tools\capture-harness\bin\SlideCadenceProbe.exe [--repeats 5] [--load N]
+    [--card-width 442] [--card-height 138] [--glow 12] [--nested]
 ```
+
+The geometry flags matter more than they look: the default 442x138 card with a 12-radius shadow pins
+every transform variant at 100% of refresh on a quick display, and a variant measured with no headroom
+cannot show a win. Display scale is not settable here, so reproduce a scaled card by its device-pixel
+equivalent - `--card-width 2328 --card-height 496 --glow 72` is the same rasterization work at 100% as
+a 1164x248 card with a 36-radius border glow at 200%. `--nested` gives each text line the real
+template's nested effect pair, which costs two full-width render intermediates per line instead of one.
 
 `--load N` spawns N child processes of the probe itself, each rendering large animated blurs every
 frame. GPU contention arrives from other processes when a game runs, so the load deliberately lives
@@ -343,6 +351,39 @@ the contended regime either, which is why the plugin's quiet-slide scope does no
 Counting the animation's own value changes would prove nothing: a WPF timeline advances once per composed
 frame by construction, so that only re-measures the render loop. The rate the loop itself holds is the
 number.
+
+#### At a user-sized card, the surface is the ceiling
+
+Both tables above were taken at the default 442x138 card, where the transform variants sit at 100% and
+so cannot separate. Re-measured on the same 165 Hz display at a reported user geometry -
+`--card-width 2328 --card-height 496 --glow 72 --nested`, the device-pixel equivalent of a 1164x248
+card with the border glow on at 200% scale - `Transform` alone drops to **22 frames, 82.5 Hz, 50% of
+refresh**, with no GPU load at all.
+
+The glow radius does not move that number. Holding the geometry and varying only the blur:
+
+| card effect | `Transform` frames | sustained |
+|---|---|---|
+| `--glow 72` | 23 | 50% |
+| `--glow 24` | 22 | 50% |
+| `--glow 0` | 23 | 50% |
+
+So the per-frame cost is **the layered window's surface blit, which scales with area**, not the card's
+effects - consistent with the contended finding above that a retained tree does not re-rasterize a
+static card on translate. A blur is paid once, at first paint; the blit is paid every frame.
+
+This corrects one claim above: *the travel padding is not free at a large card.* It is free at 442x138
+only because everything there is already at the ceiling. `TransformNoPadding` removes ~57% of the
+surface (the reserved travel room, which at a top corner hangs off the monitor entirely) and is the
+only variant observed to reach 100% at the large geometry. It remains unusable as a mode - an HWND
+clips its content, so a slide needs that room - but it prices what the oversized surface costs, and it
+means shrinking the window to the card *after the settle* is worth real frames for the hold, where 10
+of a toast's ~10.2 seconds are spent.
+
+A `BitmapCache` still buys nothing: `TransformCached` did not beat `Transform` at this geometry either,
+which is now explained rather than merely observed - there is no per-frame rasterization for a cache to
+save. Its numbers, and `TransformNoPadding`'s, varied run to run by enough (20-38 frames) that only
+`Transform`'s stable 22-23 should be read as a measurement; repeat those two before acting on them.
 
 ## The composer probe
 
