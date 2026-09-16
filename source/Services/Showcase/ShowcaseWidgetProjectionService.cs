@@ -175,6 +175,22 @@ namespace PlayniteAchievements.Services.Showcase
 
             public readonly Dictionary<string, IReadOnlyList<AchievementDisplayItem>> PinRows =
                 new Dictionary<string, IReadOnlyList<AchievementDisplayItem>>(StringComparer.Ordinal);
+
+            /// <summary>Unlock Next candidates still locked, with their game summary attached.</summary>
+            public IReadOnlyList<UnlockNextCandidate> UnlockNextPool;
+        }
+
+        /// <summary>
+        /// A locked candidate paired with the summary of the game it belongs to, so the window
+        /// filter and the completion ranking do not re-scan the library per achievement.
+        /// </summary>
+        private sealed class UnlockNextCandidate
+        {
+            public AchievementDisplayItem Achievement;
+
+            public GameSummaryItem Game;
+
+            public double CompletionFraction;
         }
 
         private static string WindowKey(TimelineRange range, DateTime endDate) =>
@@ -755,6 +771,20 @@ namespace PlayniteAchievements.Services.Showcase
                         .Where(game => game?.IsFavorite == true)
                         .OrderBy(game => game.GameName, StringComparer.CurrentCultureIgnoreCase);
                     break;
+                case ShowcaseGameMosaicSource.FinishNext:
+                    // Unfinished by achievement count rather than IsCompleted, which is capstone
+                    // based: a game can hold its capstone and still have achievements left.
+                    var finishCutoff = ResolveLastPlayedCutoff(
+                        ShowcaseWidgetOptions.GetLastPlayedWindow(instance));
+                    games = summaries
+                        .Where(game => game != null &&
+                            game.TotalAchievements > 0 &&
+                            game.UnlockedAchievements < game.TotalAchievements &&
+                            IsWithinWindow(game, finishCutoff))
+                        .OrderByDescending(CompletionFraction)
+                        .ThenBy(game => game.TotalAchievements - game.UnlockedAchievements)
+                        .ThenByDescending(game => game.LastPlayed ?? DateTime.MinValue);
+                    break;
                 default:
                     games = summaries
                         .Where(game => game?.IsCompleted == true)
@@ -1004,6 +1034,11 @@ namespace PlayniteAchievements.Services.Showcase
                         .Where(item => item?.Unlocked == true && item.IsCapstone)
                         .OrderByDescending(item => item.UnlockTimeUtc);
                     break;
+                case ShowcaseMosaicSource.UnlockNext:
+                    // Selection, not re-arrangement: the criterion decides which locked
+                    // achievements make the cut, so it runs here and the widget's generic sort
+                    // is hidden for this source.
+                    return ResolveUnlockNext(snapshot, instance, count);
                 case ShowcaseMosaicSource.Pinned:
                     achievements = ResolvePinnedAchievements(
                             snapshot,
@@ -1021,6 +1056,260 @@ namespace PlayniteAchievements.Services.Showcase
             }
 
             return achievements.Take(count).ToList();
+        }
+
+        /// <summary>
+        /// Locked achievements to hunt next, narrowed out of the snapshot's bounded candidate pool
+        /// by the widget's window, hidden-achievement choice, and per-game cap, then ranked by its
+        /// criterion. The pool itself is config-independent, so every option edit is answered here
+        /// without rebuilding the snapshot.
+        /// </summary>
+        public static IReadOnlyList<AchievementDisplayItem> ResolveUnlockNext(
+            OverviewDataSnapshot snapshot,
+            ShowcaseWidgetInstanceSettings instance,
+            int count)
+        {
+            var pool = ResolveUnlockNextPool(snapshot);
+            if (pool.Count == 0)
+            {
+                return new List<AchievementDisplayItem>();
+            }
+
+            var criterion = ShowcaseWidgetOptions.GetUnlockNextCriterion(instance);
+            var includeHidden = ShowcaseWidgetOptions.GetIncludeHiddenAchievements(instance);
+            var cutoff = ResolveLastPlayedCutoff(
+                ShowcaseWidgetOptions.GetLastPlayedWindow(instance));
+
+            var eligible = pool.Where(candidate =>
+                (includeHidden || !candidate.Achievement.Hidden) &&
+                IsWithinWindow(candidate.Game, cutoff));
+
+            // Round-robin across games so the per-game cap spreads tiles over the library instead
+            // of letting one grindy game fill the mosaic.
+            var perGame = ShowcaseWidgetOptions.GetMaxPerGame(instance);
+            var groups = eligible
+                .GroupBy(candidate => candidate.Achievement.PlayniteGameId ?? Guid.Empty)
+                .Select(group => OrderWithinGame(group, criterion).Take(perGame).ToList())
+                .OrderBy(group => group, CreateGroupComparer(criterion))
+                .ToList();
+
+            var result = new List<AchievementDisplayItem>();
+            for (var round = 0; round < perGame && result.Count < count; round++)
+            {
+                foreach (var group in groups)
+                {
+                    if (result.Count >= count)
+                    {
+                        break;
+                    }
+
+                    if (round < group.Count)
+                    {
+                        result.Add(group[round].Achievement);
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// The snapshot's candidate pool, dropping anything unlocked since it was built (a delta
+        /// tick carries the pool forward rather than rehydrating it) and pairing each row with its
+        /// game summary. Cached per snapshot because it scans the library's unlocked rows once.
+        /// </summary>
+        private static IReadOnlyList<UnlockNextCandidate> ResolveUnlockNextPool(
+            OverviewDataSnapshot snapshot)
+        {
+            if (snapshot == null)
+            {
+                return new List<UnlockNextCandidate>();
+            }
+
+            var cache = DerivedCache.GetOrCreateValue(snapshot);
+            if (cache.UnlockNextPool != null)
+            {
+                return cache.UnlockNextPool;
+            }
+
+            var candidates = snapshot.UnlockNextCandidates ?? new List<AchievementDisplayItem>();
+            if (candidates.Count == 0)
+            {
+                cache.UnlockNextPool = new List<UnlockNextCandidate>();
+                return cache.UnlockNextPool;
+            }
+
+            var summariesById = new Dictionary<Guid, GameSummaryItem>();
+            foreach (var summary in snapshot.GameSummaries ?? new List<GameSummaryItem>())
+            {
+                if (summary?.PlayniteGameId != null)
+                {
+                    summariesById[summary.PlayniteGameId.Value] = summary;
+                }
+            }
+
+            var unlockedSince = BuildUnlockedKeySet(snapshot, candidates);
+            var pool = new List<UnlockNextCandidate>(candidates.Count);
+            foreach (var achievement in candidates)
+            {
+                if (achievement == null ||
+                    achievement.Unlocked ||
+                    achievement.PlayniteGameId == null)
+                {
+                    continue;
+                }
+
+                if (unlockedSince.Contains(UnlockNextKey(
+                        achievement.PlayniteGameId.Value,
+                        achievement.ApiName)))
+                {
+                    continue;
+                }
+
+                summariesById.TryGetValue(achievement.PlayniteGameId.Value, out var summary);
+                pool.Add(new UnlockNextCandidate
+                {
+                    Achievement = achievement,
+                    Game = summary,
+                    CompletionFraction = CompletionFraction(summary)
+                });
+            }
+
+            cache.UnlockNextPool = pool;
+            return pool;
+        }
+
+        /// <summary>
+        /// Keys of pool achievements that the snapshot now reports as unlocked. Built from the
+        /// pool's own keys so the scan over the library's unlocked rows allocates nothing per row.
+        /// </summary>
+        private static HashSet<string> BuildUnlockedKeySet(
+            OverviewDataSnapshot snapshot,
+            IReadOnlyList<AchievementDisplayItem> candidates)
+        {
+            var poolKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var candidate in candidates)
+            {
+                if (candidate?.PlayniteGameId != null)
+                {
+                    poolKeys.Add(UnlockNextKey(candidate.PlayniteGameId.Value, candidate.ApiName));
+                }
+            }
+
+            var unlocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in snapshot.Achievements ?? new List<AchievementDisplayItem>())
+            {
+                if (item?.Unlocked != true || item.PlayniteGameId == null)
+                {
+                    continue;
+                }
+
+                var key = UnlockNextKey(item.PlayniteGameId.Value, item.ApiName);
+                if (poolKeys.Contains(key))
+                {
+                    unlocked.Add(key);
+                }
+            }
+
+            return unlocked;
+        }
+
+        private static string UnlockNextKey(Guid gameId, string apiName) =>
+            gameId.ToString("N") + "|" + (apiName ?? string.Empty);
+
+        private static IEnumerable<UnlockNextCandidate> OrderWithinGame(
+            IEnumerable<UnlockNextCandidate> candidates,
+            UnlockNextCriterion criterion)
+        {
+            switch (criterion)
+            {
+                case UnlockNextCriterion.Easiest:
+                    // Achievements with no global percentage are not known to be easy, so they
+                    // sort behind every achievement that has one rather than winning the slot.
+                    return candidates
+                        .OrderByDescending(candidate =>
+                            candidate.Achievement.GlobalPercentUnlocked.HasValue)
+                        .ThenByDescending(candidate =>
+                            candidate.Achievement.GlobalPercentUnlocked ?? 0)
+                        .ThenBy(candidate => candidate.Achievement.DefaultOrderIndex)
+                        .ThenBy(candidate => candidate.Achievement.ApiName, StringComparer.OrdinalIgnoreCase);
+                default:
+                    return candidates
+                        .OrderBy(candidate => candidate.Achievement.DefaultOrderIndex)
+                        .ThenBy(candidate => candidate.Achievement.ApiName, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>
+        /// Orders whole games against each other, which decides which games lead the round-robin.
+        /// </summary>
+        private static IComparer<List<UnlockNextCandidate>> CreateGroupComparer(
+            UnlockNextCriterion criterion)
+        {
+            return Comparer<List<UnlockNextCandidate>>.Create((left, right) =>
+            {
+                var first = left.FirstOrDefault();
+                var second = right.FirstOrDefault();
+                if (first == null || second == null)
+                {
+                    return first == second ? 0 : first == null ? 1 : -1;
+                }
+
+                switch (criterion)
+                {
+                    case UnlockNextCriterion.Easiest:
+                        var leftPercent = first.Achievement.GlobalPercentUnlocked ?? -1;
+                        var rightPercent = second.Achievement.GlobalPercentUnlocked ?? -1;
+                        return rightPercent.CompareTo(leftPercent);
+                    case UnlockNextCriterion.ClosestToCompletion:
+                        return second.CompletionFraction.CompareTo(first.CompletionFraction);
+                    default:
+                        var leftPlayed = first.Game?.LastPlayed ?? DateTime.MinValue;
+                        var rightPlayed = second.Game?.LastPlayed ?? DateTime.MinValue;
+                        return rightPlayed.CompareTo(leftPlayed);
+                }
+            });
+        }
+
+        /// <summary>
+        /// The oldest last-played date a game may carry and still contribute, or null for All.
+        /// </summary>
+        private static DateTime? ResolveLastPlayedCutoff(TimelineRange range)
+        {
+            var today = DateTime.Now.Date;
+            switch (range)
+            {
+                case TimelineRange.SevenDays:
+                    return today.AddDays(-6);
+                case TimelineRange.FourteenDays:
+                    return today.AddDays(-13);
+                case TimelineRange.OneMonth:
+                    return today.AddMonths(-1).AddDays(1);
+                case TimelineRange.ThreeMonths:
+                    return today.AddMonths(-3).AddDays(1);
+                case TimelineRange.OneYear:
+                    return today.AddYears(-1).AddDays(1);
+                default:
+                    return null;
+            }
+        }
+
+        private static bool IsWithinWindow(GameSummaryItem game, DateTime? cutoff)
+        {
+            if (!cutoff.HasValue)
+            {
+                return true;
+            }
+
+            // A game that was never played has no date to compare, so a window excludes it.
+            return game?.LastPlayed != null && game.LastPlayed.Value.ToLocalTime().Date >= cutoff.Value;
+        }
+
+        private static double CompletionFraction(GameSummaryItem summary)
+        {
+            return summary == null || summary.TotalAchievements <= 0
+                ? 0
+                : (double)summary.UnlockedAchievements / summary.TotalAchievements;
         }
 
         private static IReadOnlyList<ShowcaseChartEntry> ApplyTopN(
