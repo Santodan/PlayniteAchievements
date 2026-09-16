@@ -6,7 +6,6 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
              xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
-             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Settings.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -53,31 +52,8 @@
                                 ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 PreviewMinimumMaxHeight="220"
                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
-                                       Style="{StaticResource ContextLabelStyle}"/>
-                            <!-- Which rows each surface offers comes from GridDisplaySurfaces, so
-                                 this page and the per-grid display settings popup always agree. -->
-                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.Achievement[DesktopTheme]}"
-                                                        SurfaceKind="Achievement"
-                                                        SurfaceKey="DesktopTheme"/>
-                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.Achievement[Default]}"
-                                                        SurfaceKind="Achievement"
-                                                        SurfaceKey="Default"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Overview_GameSummaries}"
-                                       Style="{StaticResource SubSectionHeaderStyle}"
-                                       Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
-                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.GameSummaries[DesktopTheme]}"
-                                                        SurfaceKind="GameSummaries"
-                                                        SurfaceKey="DesktopTheme"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CategoryGrid}"
-                                       Style="{StaticResource SubSectionHeaderStyle}"
-                                       Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_HideCategorySummaryRow}"
-                                      IsChecked="{Binding Persisted.GridOptions.Achievement[DesktopTheme].HideCategorySummaryRow}"
-                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.CategorySummaries[DesktopTheme]}"
-                                                        SurfaceKind="CategorySummaries"
-                                                        SurfaceKey="DesktopTheme"/>
+                            <!-- Per-grid display options are edited from each grid's own
+                                 "Display settings" menu, reached by right-clicking the grid. -->
                         </StackPanel>
                     </Border>
                 </StackPanel>
