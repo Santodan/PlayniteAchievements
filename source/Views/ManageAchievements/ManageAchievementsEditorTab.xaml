@@ -1531,6 +1531,14 @@
                                        TextWrapping="Wrap"
                                        Margin="0,12,0,0"
                                        Visibility="{Binding HasValidationMessage, Converter={StaticResource BoolToVis}}" />
+
+                            <TextBlock Text="{Binding ApiNameResolved}"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Opacity="0.58"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Left"
+                                       Margin="0,12,0,0"
+                                       Visibility="{Binding HasApiName, Converter={StaticResource BoolToVis}}" />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
