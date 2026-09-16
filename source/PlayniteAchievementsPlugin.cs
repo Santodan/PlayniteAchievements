@@ -31,6 +31,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Services.Notifications;
+using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.Services.Library;
 using PlayniteAchievements.Services.Friends;
@@ -93,6 +94,9 @@ namespace PlayniteAchievements
         private readonly Services.CustomProviders.CustomProviderStore _customProviderStore;
         private readonly ManualSourceRegistry _manualSourceRegistry;
         private readonly SubscriptionCollection _eventSubscriptions = new SubscriptionCollection();
+
+        /// <summary>Last seen answer to "does any widget draw from the Unlock Next pool?".</summary>
+        private bool _unlockNextPoolRequired;
 
         private readonly BackgroundUpdater _backgroundUpdates;
         private readonly InGameAchievementMonitor _inGameMonitor;
@@ -1581,6 +1585,13 @@ namespace PlayniteAchievements
 
         private void SubscribePluginEventHandlers()
         {
+            // A widget switching to the Unlock Next source needs locked achievements the cached
+            // projection never hydrated, so that one option edit has to drop the cache. Widget
+            // options live in a nested string bag and raise no settings PropertyChanged, which is
+            // why this listens to the showcase's own change event instead.
+            ShowcaseConfigurationEvents.Changed += OnShowcaseConfigurationChanged;
+            _eventSubscriptions.Add(() => ShowcaseConfigurationEvents.Changed -= OnShowcaseConfigurationChanged);
+
             _refreshService.GameRefreshed += OnAchievementGameRefreshed;
             _eventSubscriptions.Add(() => _refreshService.GameRefreshed -= OnAchievementGameRefreshed);
             if (_customProviderStore != null)
@@ -1887,6 +1898,25 @@ namespace PlayniteAchievements
         {
             EnsureAchievementResourcesLoaded();
             return _themeControlRegistry.TryCreate(args.Name, out var control) ? control : null;
+        }
+
+        /// <summary>
+        /// Drops the cached library projection when the showcase starts needing the Unlock Next
+        /// candidate pool, so the next build hydrates it. Only the false-to-true flip matters; a
+        /// widget dropping the source leaves a harmless pool behind until the next rebuild.
+        /// </summary>
+        private void OnShowcaseConfigurationChanged(object sender, EventArgs e)
+        {
+            var required = ShowcaseWidgetOptions.RequiresUnlockNextPool(Settings?.Persisted?.Showcase);
+            if (!required || _unlockNextPoolRequired)
+            {
+                _unlockNextPoolRequired = required;
+                return;
+            }
+
+            _unlockNextPoolRequired = true;
+            _libraryProjectionService?.Invalidate();
+            ScheduleStartPageInvalidate();
         }
 
         // === Game selection wiring ===
