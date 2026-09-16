@@ -4117,10 +4117,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             // A row carries several category types at once, so it passes when any of its own is
-            // ticked rather than when its whole joined value matches one.
-            if (_selectedTypeFilters.Count > 0 &&
-                !AchievementCategoryTypeHelper.ParseValues(row.EffectiveCategoryTypeValue)
-                    .Any(_selectedTypeFilters.Contains))
+            // ticked rather than when its whole joined value matches one. Read through the shared
+            // component cache and walked by index: this runs for every row on every refresh, and
+            // parsing the value afresh each time made the type filter the costliest of the three.
+            if (_selectedTypeFilters.Count > 0 && !MatchesSelectedTypes(row))
             {
                 return false;
             }
@@ -4133,6 +4133,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             return true;
+        }
+
+        private bool MatchesSelectedTypes(AchievementEditorRow row)
+        {
+            var components = AchievementCategoryTypeHelper.GetCanonicalComponents(
+                row.EffectiveCategoryTypeValue);
+            for (var i = 0; i < components.Count; i++)
+            {
+                if (_selectedTypeFilters.Contains(components[i]))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
