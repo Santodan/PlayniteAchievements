@@ -456,6 +456,19 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetShuffle(_settings),
                         value => ShowcaseWidgetOptions.SetShuffle(_settings, value),
                         OnOffLabel);
+                    AddChoice(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_InfoPanel"),
+                        new[]
+                        {
+                            ShowcaseInfoPanelPosition.Off,
+                            ShowcaseInfoPanelPosition.Left,
+                            ShowcaseInfoPanelPosition.Right,
+                            ShowcaseInfoPanelPosition.Bottom
+                        },
+                        ShowcaseWidgetOptions.GetInfoPanelPosition(_settings),
+                        value => ShowcaseWidgetOptions.SetInfoPanelPosition(_settings, value),
+                        InfoPanelPositionName);
                     break;
                 case ShowcaseWidgetKind.GameSummaries:
                     // The collapsed Game Summaries Grid: library scope filters only apply to

@@ -151,6 +151,18 @@ namespace PlayniteAchievements.Models.Settings
         Fill = 1
     }
 
+    /// <summary>
+    /// Which side of the Screenshot Slideshow carries the achievement info panel, or Off when the
+    /// widget shows the image alone.
+    /// </summary>
+    public enum ShowcaseInfoPanelPosition
+    {
+        Off = 0,
+        Left = 1,
+        Right = 2,
+        Bottom = 3
+    }
+
     public enum ShowcaseGameMosaicSource
     {
         Completed = 0,

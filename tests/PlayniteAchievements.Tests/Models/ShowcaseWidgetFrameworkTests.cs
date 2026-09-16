@@ -305,9 +305,31 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(ShowcaseScreenshotVariant.All,
                 ShowcaseWidgetOptions.GetScreenshotVariant(instance));
             Assert.AreEqual(8, ShowcaseWidgetOptions.GetSlideshowIntervalSeconds(instance));
-            Assert.AreEqual(ShowcaseImageFitMode.Fill,
+            Assert.AreEqual(ShowcaseImageFitMode.Fit,
                 ShowcaseWidgetOptions.GetImageFitMode(instance));
             Assert.IsTrue(ShowcaseWidgetOptions.GetShuffle(instance));
+            Assert.AreEqual(ShowcaseInfoPanelPosition.Off,
+                ShowcaseWidgetOptions.GetInfoPanelPosition(instance));
+        }
+
+        [TestMethod]
+        public void WidgetOptions_InfoPanelDefaultsOffAndRejectsJunk()
+        {
+            // A layout saved before the option existed shows the image alone.
+            Assert.AreEqual(
+                ShowcaseInfoPanelPosition.Off,
+                ShowcaseWidgetOptions.GetInfoPanelPosition(new ShowcaseWidgetInstanceSettings()));
+
+            var instance = new ShowcaseWidgetInstanceSettings();
+            instance.SetOption("InfoPanel", 999);
+            Assert.AreEqual(
+                ShowcaseInfoPanelPosition.Off,
+                ShowcaseWidgetOptions.GetInfoPanelPosition(instance));
+
+            ShowcaseWidgetOptions.SetInfoPanelPosition(instance, ShowcaseInfoPanelPosition.Right);
+            Assert.AreEqual(
+                ShowcaseInfoPanelPosition.Right,
+                ShowcaseWidgetOptions.GetInfoPanelPosition(instance));
         }
     }
 }

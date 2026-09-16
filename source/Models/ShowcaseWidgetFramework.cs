@@ -325,6 +325,7 @@ namespace PlayniteAchievements.Models
         private const string LastPlayedWindow = "LastPlayedWindow";
         private const string MaxPerGame = "MaxPerGame";
         private const string IncludeHiddenAchievements = "IncludeHiddenAchievements";
+        private const string InfoPanel = "InfoPanel";
 
         /// <summary>
         /// Most tiles a single game may contribute to an Unlock Next mosaic. The pool the overview
@@ -652,7 +653,7 @@ namespace PlayniteAchievements.Models
             int value) => settings?.SetOption(IntervalSeconds, Clamp(value, 1, 300));
 
         public static ShowcaseImageFitMode GetImageFitMode(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, FitMode, ShowcaseImageFitMode.Fill);
+            GetEnum(settings, FitMode, ShowcaseImageFitMode.Fit);
 
         public static void SetImageFitMode(
             ShowcaseWidgetInstanceSettings settings,
@@ -663,6 +664,14 @@ namespace PlayniteAchievements.Models
 
         public static void SetShuffle(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(Shuffle, value);
+
+        public static ShowcaseInfoPanelPosition GetInfoPanelPosition(
+            ShowcaseWidgetInstanceSettings settings) =>
+            GetEnum(settings, InfoPanel, ShowcaseInfoPanelPosition.Off);
+
+        public static void SetInfoPanelPosition(
+            ShowcaseWidgetInstanceSettings settings,
+            ShowcaseInfoPanelPosition value) => settings?.SetOption(InfoPanel, value);
 
         public static bool GetHideCompleted(ShowcaseWidgetInstanceSettings settings) =>
             settings?.GetOption(HideCompleted, false) ?? false;
@@ -762,7 +771,8 @@ namespace PlayniteAchievements.Models
                     ShowcaseWidgetOptions.SetScreenshotVariant(settings, ShowcaseScreenshotVariant.All);
                     ShowcaseWidgetOptions.SetShuffle(settings, true);
                     ShowcaseWidgetOptions.SetSlideshowIntervalSeconds(settings, 8);
-                    ShowcaseWidgetOptions.SetImageFitMode(settings, ShowcaseImageFitMode.Fill);
+                    ShowcaseWidgetOptions.SetImageFitMode(settings, ShowcaseImageFitMode.Fit);
+                    ShowcaseWidgetOptions.SetInfoPanelPosition(settings, ShowcaseInfoPanelPosition.Off);
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:
                     ShowcaseWidgetOptions.SetAchievementGridSource(settings, ShowcaseAchievementGridSource.All);

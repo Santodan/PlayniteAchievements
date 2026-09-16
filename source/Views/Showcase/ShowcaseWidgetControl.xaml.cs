@@ -283,6 +283,9 @@ namespace PlayniteAchievements.Views.Showcase
                         SetBodyContent(slideshow);
                     }
 
+                    // Both branches, so a refresh reaches a reused control too: these rows are what
+                    // the info panel resolves captures against.
+                    slideshow.SetAchievementRows(_projection.Snapshot?.Achievements);
                     slideshow.SetEditHold(!IsHitTestVisible);
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:

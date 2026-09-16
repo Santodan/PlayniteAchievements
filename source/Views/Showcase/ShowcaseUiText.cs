@@ -77,6 +77,23 @@ namespace PlayniteAchievements.Views.Showcase
         public static string FitModeName(ShowcaseImageFitMode value) =>
             EnumValueName("LOCPlayAch_Showcase_ImageFit_", value);
 
+        // Off/Left/Right already exist as shared setting labels, so this maps to those keys
+        // instead of adding a prefixed key per member like the enums above.
+        public static string InfoPanelPositionName(ShowcaseInfoPanelPosition value)
+        {
+            switch (value)
+            {
+                case ShowcaseInfoPanelPosition.Left:
+                    return Localize("LOCPlayAch_Settings_GridAlignment_Left");
+                case ShowcaseInfoPanelPosition.Right:
+                    return Localize("LOCPlayAch_Settings_GridAlignment_Right");
+                case ShowcaseInfoPanelPosition.Bottom:
+                    return Localize("LOCPlayAch_Settings_GridVerticalAlignment_Bottom");
+                default:
+                    return Localize("LOCPlayAch_Settings_Override_Off");
+            }
+        }
+
         public static string TimelineRangeName(TimelineRange range) => TimelineRangeText.Describe(range);
 
         private static string EnumValueName<T>(string prefix, T value)
