@@ -2113,6 +2113,7 @@ namespace PlayniteAchievements.ViewModels
             snapshot.TotalUncommonPossible = snapshot.GameSummaries.Sum(g => g?.TotalUncommonPossible ?? 0);
             snapshot.TotalRarePossible = snapshot.GameSummaries.Sum(g => g?.TotalRarePossible ?? 0);
             snapshot.TotalUltraRarePossible = snapshot.GameSummaries.Sum(g => g?.TotalUltraRarePossible ?? 0);
+            snapshot.ApplyTrophyTotals(snapshot.GameSummaries);
             ApplyScoreSnapshotFromValues(snapshot, snapshot.CollectorScore, snapshot.PrestigeScore);
 
             return snapshot;
@@ -3496,6 +3497,7 @@ namespace PlayniteAchievements.ViewModels
             snapshot.TotalUncommonPossible = gamesList.Sum(game => game?.TotalUncommonPossible ?? 0);
             snapshot.TotalRarePossible = gamesList.Sum(game => game?.TotalRarePossible ?? 0);
             snapshot.TotalUltraRarePossible = gamesList.Sum(game => game?.TotalUltraRarePossible ?? 0);
+            snapshot.ApplyTrophyTotals(gamesList);
 
             foreach (var game in gamesList)
             {
@@ -3677,16 +3679,15 @@ namespace PlayniteAchievements.ViewModels
             }
             else
             {
-                var trophySummary = BuildTrophySummaryFromGames(snapshot?.GameSummaries);
                 TrophyPieChart.SetTrophyData(
-                    trophySummary.PlatinumUnlocked,
-                    trophySummary.GoldUnlocked,
-                    trophySummary.SilverUnlocked,
-                    trophySummary.BronzeUnlocked,
-                    trophySummary.PlatinumTotal,
-                    trophySummary.GoldTotal,
-                    trophySummary.SilverTotal,
-                    trophySummary.BronzeTotal,
+                    snapshot?.TotalPlatinum ?? 0,
+                    snapshot?.TotalGold ?? 0,
+                    snapshot?.TotalSilver ?? 0,
+                    snapshot?.TotalBronze ?? 0,
+                    snapshot?.TotalPlatinumPossible ?? 0,
+                    snapshot?.TotalGoldPossible ?? 0,
+                    snapshot?.TotalSilverPossible ?? 0,
+                    snapshot?.TotalBronzePossible ?? 0,
                     trophyPlatinumLabel,
                     trophyGoldLabel,
                     trophySilverLabel,
@@ -3727,58 +3728,6 @@ namespace PlayniteAchievements.ViewModels
             return string.IsNullOrWhiteSpace(gameName)
                 ? baseTitle
                 : $"{baseTitle} ({gameName})";
-        }
-
-        private static (
-            int PlatinumUnlocked,
-            int GoldUnlocked,
-            int SilverUnlocked,
-            int BronzeUnlocked,
-            int PlatinumTotal,
-            int GoldTotal,
-            int SilverTotal,
-            int BronzeTotal) BuildTrophySummaryFromGames(IEnumerable<GameSummaryItem> games)
-        {
-            int platinumUnlocked = 0;
-            int goldUnlocked = 0;
-            int silverUnlocked = 0;
-            int bronzeUnlocked = 0;
-            int platinumTotal = 0;
-            int goldTotal = 0;
-            int silverTotal = 0;
-            int bronzeTotal = 0;
-
-            if (games == null)
-            {
-                return (0, 0, 0, 0, 0, 0, 0, 0);
-            }
-
-            foreach (var game in games)
-            {
-                if (game == null)
-                {
-                    continue;
-                }
-
-                platinumUnlocked += game.TrophyPlatinumCount;
-                goldUnlocked += game.TrophyGoldCount;
-                silverUnlocked += game.TrophySilverCount;
-                bronzeUnlocked += game.TrophyBronzeCount;
-                platinumTotal += game.TrophyPlatinumTotal;
-                goldTotal += game.TrophyGoldTotal;
-                silverTotal += game.TrophySilverTotal;
-                bronzeTotal += game.TrophyBronzeTotal;
-            }
-
-            return (
-                platinumUnlocked,
-                goldUnlocked,
-                silverUnlocked,
-                bronzeUnlocked,
-                platinumTotal,
-                goldTotal,
-                silverTotal,
-                bronzeTotal);
         }
 
         private void UpdateSelectedGameAchievementFilterOptions(IEnumerable<AchievementDisplayItem> source)

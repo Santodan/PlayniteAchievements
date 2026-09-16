@@ -67,6 +67,57 @@ namespace PlayniteAchievements.Services.Overview
         /// </summary>
         public List<FriendIdentity> CurrentUserIdentities { get; set; } = new List<FriendIdentity>();
 
+        // Library-wide trophy grade counts, summed from the game summaries. Only the
+        // PlayStation-shaped providers populate a trophy type, so these are all zero for a
+        // library without them. Set through ApplyTrophyTotals so every snapshot builder sums
+        // them the same way.
+        public int TotalPlatinum { get; set; }
+        public int TotalGold { get; set; }
+        public int TotalSilver { get; set; }
+        public int TotalBronze { get; set; }
+        public int TotalPlatinumPossible { get; set; }
+        public int TotalGoldPossible { get; set; }
+        public int TotalSilverPossible { get; set; }
+        public int TotalBronzePossible { get; set; }
+
+        /// <summary>
+        /// Sums the eight trophy totals from the given summaries in one pass. Call once per
+        /// snapshot build; there are three builders and they must not each carry their own copy
+        /// of these sums.
+        /// </summary>
+        public void ApplyTrophyTotals(IEnumerable<GameSummaryItem> games)
+        {
+            TotalPlatinum = 0;
+            TotalGold = 0;
+            TotalSilver = 0;
+            TotalBronze = 0;
+            TotalPlatinumPossible = 0;
+            TotalGoldPossible = 0;
+            TotalSilverPossible = 0;
+            TotalBronzePossible = 0;
+            if (games == null)
+            {
+                return;
+            }
+
+            foreach (var game in games)
+            {
+                if (game == null)
+                {
+                    continue;
+                }
+
+                TotalPlatinum += game.TrophyPlatinumCount;
+                TotalGold += game.TrophyGoldCount;
+                TotalSilver += game.TrophySilverCount;
+                TotalBronze += game.TrophyBronzeCount;
+                TotalPlatinumPossible += game.TrophyPlatinumTotal;
+                TotalGoldPossible += game.TrophyGoldTotal;
+                TotalSilverPossible += game.TrophySilverTotal;
+                TotalBronzePossible += game.TrophyBronzeTotal;
+            }
+        }
+
         // Total rarity counts (including locked achievements) for "unlocked / total" display
         public int TotalCommonPossible { get; set; }
         public int TotalUncommonPossible { get; set; }

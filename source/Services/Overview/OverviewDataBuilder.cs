@@ -272,6 +272,7 @@ namespace PlayniteAchievements.Services.Overview
                 .ToList();
             snapshot.TotalGames = snapshot.GameSummaries.Count;
             snapshot.TotalLocked = Math.Max(0, snapshot.TotalAchievements - snapshot.TotalUnlocked);
+            snapshot.ApplyTrophyTotals(snapshot.GameSummaries);
             snapshot.GlobalProgressionPercent = snapshot.TotalAchievements > 0
                 ? (double)snapshot.TotalUnlocked / snapshot.TotalAchievements * 100
                 : 0;
