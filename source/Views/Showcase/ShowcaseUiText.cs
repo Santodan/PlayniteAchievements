@@ -53,6 +53,9 @@ namespace PlayniteAchievements.Views.Showcase
         public static string MosaicSourceName(ShowcaseMosaicSource value) =>
             EnumValueName("LOCPlayAch_Showcase_MosaicSource_", value);
 
+        public static string UnlockNextCriterionName(UnlockNextCriterion value) =>
+            EnumValueName("LOCPlayAch_Showcase_UnlockNextCriterion_", value);
+
         public static string ScreenshotVariantName(ShowcaseScreenshotVariant value) =>
             EnumValueName("LOCPlayAch_Showcase_ScreenshotVariant_", value);
 
