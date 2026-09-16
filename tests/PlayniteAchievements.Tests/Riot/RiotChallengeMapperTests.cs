@@ -350,15 +350,45 @@ namespace PlayniteAchievements.Riot.Tests
         }
 
         [TestMethod]
-        public void BuildAchievements_NamesEveryTierAfterItsChallenge()
+        public void BuildAchievements_NamesEveryTierAfterItsChallengeAndItsTier()
         {
             foreach (var tier in new[] { "IRON", "BRONZE", "SILVER", "GOLD" })
             {
+                var expectedTier = tier.Substring(0, 1) + tier.Substring(1).ToLowerInvariant();
                 Assert.AreEqual(
-                    "ARAM Authority",
+                    "ARAM Authority (" + expectedTier + ")",
                     Get("101000:" + tier).DisplayName,
-                    "Tiers share the challenge name; the token art distinguishes them.");
+                    "Tiers share the challenge name, so the tier is what distinguishes the rows.");
             }
+        }
+
+        [TestMethod]
+        public void ComposeTierDisplayName_TitleCasesTheTier()
+        {
+            Assert.AreEqual(
+                "Always On Time (Grandmaster)",
+                RiotChallengeMapper.ComposeTierDisplayName("Always On Time", "GRANDMASTER"));
+        }
+
+        [TestMethod]
+        public void ComposeTierDisplayName_KeepsTheBareNameWhenEitherPartIsMissing()
+        {
+            Assert.AreEqual(
+                "Always On Time",
+                RiotChallengeMapper.ComposeTierDisplayName("Always On Time", "NONE"),
+                "NONE is not a tier, so there is nothing to append.");
+
+            Assert.AreEqual(
+                "Always On Time",
+                RiotChallengeMapper.ComposeTierDisplayName("Always On Time", "NOT_A_TIER"),
+                "An unrecognized tier must not compose an empty parenthetical.");
+
+            Assert.AreEqual(
+                "   ",
+                RiotChallengeMapper.ComposeTierDisplayName("   ", "IRON"),
+                "A blank challenge name is returned untouched rather than becoming just a tier.");
+
+            Assert.IsNull(RiotChallengeMapper.ComposeTierDisplayName(null, "IRON"));
         }
 
         [TestMethod]
