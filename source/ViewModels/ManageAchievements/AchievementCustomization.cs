@@ -100,23 +100,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public DateTime? ProviderUnlockTimeUtc { get; set; }
 
+        /// <summary>
+        /// The category in effect: the user's assignment where there is one, otherwise the
+        /// provider's own. The caller resolves this, because the field behind it holds only the
+        /// assignment and is blank on an achievement carrying none.
+        /// </summary>
         public string Category { get; set; }
 
         public string ProviderCategory { get; set; }
 
-        /// <summary>
-        /// Whether the provider named a category at all. Providers commonly supply none and the
-        /// row is then filed under the default bucket on the way to the grid, so without this the
-        /// default would read as an override on every achievement of such a game.
-        /// </summary>
-        public bool ProviderCategorySpecified { get; set; }
-
+        /// <inheritdoc cref="Category"/>
         public string CategoryType { get; set; }
 
         public string ProviderCategoryType { get; set; }
-
-        /// <inheritdoc cref="ProviderCategorySpecified"/>
-        public bool ProviderCategoryTypeSpecified { get; set; }
 
         /// <summary>A note is user text throughout: no provider supplies one, so any note is one.</summary>
         public string Note { get; set; }
@@ -192,18 +188,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 facets |= AchievementCustomizationFacet.UnlockTime;
             }
 
-            // Only a category the provider actually named can be disagreed with. Where it named
-            // none there is no baseline to compare against: the value the row shows was derived on
-            // the way to the grid, not chosen by the user, and reading it as an override marked
-            // every achievement of such a game.
-            if (inputs.ProviderCategorySpecified &&
-                !string.Equals(inputs.Category, inputs.ProviderCategory, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(inputs.Category, inputs.ProviderCategory, StringComparison.OrdinalIgnoreCase))
             {
                 facets |= AchievementCustomizationFacet.Category;
             }
 
-            if (inputs.ProviderCategoryTypeSpecified &&
-                !string.Equals(inputs.CategoryType, inputs.ProviderCategoryType, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(inputs.CategoryType, inputs.ProviderCategoryType, StringComparison.OrdinalIgnoreCase))
             {
                 facets |= AchievementCustomizationFacet.CategoryType;
             }
