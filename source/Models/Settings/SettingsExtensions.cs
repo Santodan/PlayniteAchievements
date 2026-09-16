@@ -191,6 +191,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowOverviewTrophyPieChart = source.ShowOverviewTrophyPieChart;
             target.ShowOverviewPiePercentages = source.ShowOverviewPiePercentages;
             target.OverviewPieSmallSliceMode = source.OverviewPieSmallSliceMode;
+            target.OverviewPieIncludeLocked = source.OverviewPieIncludeLocked;
             target.ShowOverviewBarCharts = source.ShowOverviewBarCharts;
             target.ShowTopMenuBarButton = source.ShowTopMenuBarButton;
             target.ShowCompletedProgressColoring = source.ShowCompletedProgressColoring;
