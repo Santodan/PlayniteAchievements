@@ -252,6 +252,11 @@ namespace PlayniteAchievements.Views.Showcase
             AddTrackGrippers();
             UpdateLayoutHandles();
             ApplyPendingCutVisual();
+
+            // A rebuild destroys the focused block container, and with it the keyboard focus
+            // the editor shortcuts need: PreviewKeyDown only fires while focus is inside this
+            // control. Without this, the first paste worked and every later one did nothing.
+            FocusSelectedBlock();
             _layoutSignature = ComputeLayoutSignature();
         }
 
@@ -1488,12 +1493,22 @@ namespace PlayniteAchievements.Views.Showcase
         private void Block_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             _dragStart = e.GetPosition(null);
-            if (EditLayoutButton.IsChecked == true &&
-                sender is Border border &&
-                border.Tag is ShowcaseBlockSettings block &&
-                !string.Equals(_selectedBlockId, block.BlockId, StringComparison.OrdinalIgnoreCase))
+            if (EditLayoutButton.IsChecked != true)
             {
-                SelectBlock(block);
+                return;
+            }
+
+            if (sender is Border border &&
+                border.Tag is ShowcaseBlockSettings block)
+            {
+                if (!string.Equals(_selectedBlockId, block.BlockId, StringComparison.OrdinalIgnoreCase))
+                {
+                    SelectBlock(block);
+                }
+
+                // Clicking a block is how focus comes back after it has been taken by a
+                // widget's own control, so the editor shortcuts keep working.
+                border.Focus();
             }
         }
 
@@ -2281,10 +2296,15 @@ namespace PlayniteAchievements.Views.Showcase
 
             if (_selectedBlockId != null &&
                 _blockVisuals.TryGetValue(_selectedBlockId, out var state) &&
-                state?.Container != null)
+                state?.Container != null &&
+                state.Container.Focus())
             {
-                state.Container.Focus();
+                return;
             }
+
+            // No block took it (an empty page, or a container not yet loaded), so hold focus
+            // on the control itself rather than letting it escape the dashboard.
+            Focus();
         }
 
         private void EditLayoutButton_Changed(object sender, RoutedEventArgs e)

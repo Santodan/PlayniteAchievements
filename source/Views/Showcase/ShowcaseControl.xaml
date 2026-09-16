@@ -3,6 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Loaded="OnLoaded"
              PreviewKeyDown="OnPreviewKeyDown"
+             Focusable="True"
+             FocusVisualStyle="{x:Null}"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
     <Grid Margin="10">
