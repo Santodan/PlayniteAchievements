@@ -335,6 +335,7 @@
                     <controls:AchievementCompactItemControl
                         IconSize="{Binding DataContext.IconSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                         ShowRarityGlow="{Binding DataContext.ShowRarityGlow, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        GlowWhenLocked="{Binding DataContext.GlowWhenLocked, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                         AnimateRarityGlows="{Binding DataContext.AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                         UseLargeRarityGlow="True"
                         Margin="6"/>
