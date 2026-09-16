@@ -359,7 +359,11 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="560" />
+                <!-- 560 plus the 12 gap and the pane's 340 came to more than the window's own
+                     1080 leaves this tab, so the pane hung off the right edge until the window
+                     was maximized. The grid yields first: it scrolls horizontally, the pane does
+                     not. -->
+                <ColumnDefinition Width="*" MinWidth="420" />
                 <ColumnDefinition Width="12" />
                 <!-- Sized to whichever of the pane and its collapsed strip is showing, so folding
                      the pane away hands the whole width to the grid. -->
@@ -888,14 +892,27 @@
                     </Grid.RowDefinitions>
 
                     <!-- The header and its collapse chevron sit outside the scroller: the way out of
-                         the pane should not be somewhere the user has to scroll back up to. -->
+                         the pane should not be somewhere the user has to scroll back up to. The
+                         chevron leads the header rather than trailing it: on the pane's outer edge
+                         it sat against the right edge of the window, which put it off-screen at any
+                         scaling the window was not maximized for. -->
                     <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel Grid.Column="0">
+                        <Button Grid.Column="0"
+                                VerticalAlignment="Top"
+                                Margin="0,0,6,0"
+                                Style="{StaticResource DetailsPaneToggleButtonStyle}"
+                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Editor_CollapseDetailsTooltip}"
+                                Click="ToggleDetailsPaneButton_Click">
+                            <Path Data="M 0,0 L 5,5 L 0,10"
+                                  Style="{StaticResource DetailsPaneChevronStyle}" />
+                        </Button>
+
+                        <StackPanel Grid.Column="1">
                             <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Custom_Details}"
                                        Foreground="{DynamicResource TextBrush}"
                                        FontWeight="SemiBold"
@@ -916,14 +933,6 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <Button Grid.Column="1"
-                                VerticalAlignment="Top"
-                                Style="{StaticResource DetailsPaneToggleButtonStyle}"
-                                ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Editor_CollapseDetailsTooltip}"
-                                Click="ToggleDetailsPaneButton_Click">
-                            <Path Data="M 0,0 L 5,5 L 0,10"
-                                  Style="{StaticResource DetailsPaneChevronStyle}" />
-                        </Button>
                     </Grid>
 
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
