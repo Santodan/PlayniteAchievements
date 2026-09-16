@@ -1136,6 +1136,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 _customProviderStore.Changed -= CustomProviderStore_Changed;
             }
+
+            // The rows outnumber everything else this view model holds, and each one points back
+            // at it. Dropping them here means a window that is still rooted somewhere costs one
+            // view model rather than a whole game's worth of rows and resolved art.
+            foreach (var row in AchievementRows)
+            {
+                DetachRow(row);
+            }
+
+            SetSelectedRows(Array.Empty<AchievementEditorRow>());
+            AchievementRows.Clear();
+            _searchIndex.Clear();
         }
 
         private void RefreshCustomProviderState()
@@ -2165,8 +2177,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             foreach (var row in targets)
             {
-                row.PropertyChanged -= Row_PropertyChanged;
-                row.RevealStateChanged -= Row_RevealStateChanged;
+                DetachRow(row);
                 AchievementRows.Remove(row);
             }
 
@@ -2552,8 +2563,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .ToList();
             foreach (var row in AchievementRows)
             {
-                row.PropertyChanged -= Row_PropertyChanged;
-                row.RevealStateChanged -= Row_RevealStateChanged;
+                DetachRow(row);
             }
 
             // The multi-selection is made of the rows being replaced, and the grid only echoes a
@@ -2961,6 +2971,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             return normalized;
+        }
+
+        /// <summary>
+        /// Counterpart to <see cref="AttachRow"/>: drops the row's subscriptions and its search
+        /// text. The index is keyed by row reference and only a rebuild purges it, so a row that
+        /// leaves the collection without one would be retained by it.
+        /// </summary>
+        private void DetachRow(AchievementEditorRow row)
+        {
+            if (row == null)
+            {
+                return;
+            }
+
+            row.PropertyChanged -= Row_PropertyChanged;
+            row.RevealStateChanged -= Row_RevealStateChanged;
+            _searchIndex.Invalidate(row);
         }
 
         private void AttachRow(AchievementEditorRow row)
