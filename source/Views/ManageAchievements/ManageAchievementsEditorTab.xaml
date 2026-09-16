@@ -406,35 +406,58 @@
                     </Grid>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
-                        <!-- The shared category tree drop-down, so a nested category is placed by
-                             the same connectors the category grid and the assignment pickers draw. -->
-                        <ComboBox ItemsSource="{Binding CategoryFilterOptions}"
-                                  SelectedItem="{Binding SelectedCategoryFilter, Mode=TwoWay}"
-                                  ItemContainerStyle="{StaticResource PlayAch.CategoryTreeComboBoxItemStyle}"
-                                  ItemTemplate="{StaticResource PlayAch.CategoryTreeComboBoxItemTemplate}"
-                                  ToolTip="{DynamicResource LOCPlayAch_Common_Label_Category}"
-                                  MinWidth="140"
-                                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                  Margin="0,0,6,0"
-                                  VerticalContentAlignment="Center" />
-                        <ComboBox ItemsSource="{Binding TypeFilterOptions}"
-                                  SelectedItem="{Binding SelectedTypeFilter, Mode=TwoWay}"
-                                  DisplayMemberPath="DisplayName"
-                                  ToolTip="{DynamicResource LOCPlayAch_Common_Label_Type}"
-                                  MinWidth="140"
-                                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                  Margin="0,0,6,0"
-                                  VerticalContentAlignment="Center" />
+                        <!-- The same summary-button-over-checkable-menu the overview grids use,
+                             so these read and behave like every other filter in the plugin: several
+                             choices at once, and a button that names its facet until something is
+                             ticked. The category one renders its options as the tree they describe,
+                             with the connectors the category grid draws. -->
+                        <Button x:Name="CategoryFilterButton"
+                                DataContext="{Binding CategoryFilter}"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding DisplayText}"
+                                Click="MultiSelectFilter_Click"
+                                MinWidth="{Binding MinWidth}"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Label_Category}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
+                            </Button.ContextMenu>
+                        </Button>
+                        <Button x:Name="TypeFilterButton"
+                                DataContext="{Binding TypeFilter}"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding DisplayText}"
+                                Click="MultiSelectFilter_Click"
+                                MinWidth="{Binding MinWidth}"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Label_Type}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
+                            </Button.ContextMenu>
+                        </Button>
                         <!-- Narrows to what the user has touched, the counterpart to the marker
                              each customized row carries in its handle cell. -->
-                        <ComboBox ItemsSource="{Binding CustomizationFilterOptions}"
-                                  SelectedItem="{Binding SelectedCustomizationFilter, Mode=TwoWay}"
-                                  DisplayMemberPath="DisplayName"
-                                  ToolTip="{DynamicResource LOCPlayAch_Tagging_Customized}"
-                                  MinWidth="140"
-                                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                  Margin="0,0,10,0"
-                                  VerticalContentAlignment="Center" />
+                        <Button x:Name="CustomizationFilterButton"
+                                DataContext="{Binding CustomizationFilter}"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding DisplayText}"
+                                Click="MultiSelectFilter_Click"
+                                MinWidth="{Binding MinWidth}"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"
+                                ToolTip="{DynamicResource LOCPlayAch_Filter_CustomizationSelectorPlaceholder}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
+                            </Button.ContextMenu>
+                        </Button>
                     </StackPanel>
 
                     <!-- Same shape the Category and Filters tabs give this pair, rather than the
