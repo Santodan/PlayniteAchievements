@@ -5193,6 +5193,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // The provider icon baselines arrive after the row is built, and the slots read
+            // them to decide whether they are showing the user's art or the provider's.
+            OnPropertyChanged(nameof(UnlockedIconDisplayText));
+            OnPropertyChanged(nameof(LockedIconDisplayText));
+
             AchievementEditorFieldRules.TryParsePoints(PointsText, out var points);
             CustomizationFacets = AchievementCustomizationRules.Resolve(new AchievementCustomizationInputs
             {
@@ -5937,16 +5942,45 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(LockedIconDisplayText));
         }
 
+        /// <summary>
+        /// The icon slot's text: the user's own art, or blank where the achievement is still
+        /// showing the provider's.
+        /// </summary>
+        /// <remarks>
+        /// A row carries its effective icon, so this field used to read back the provider's path
+        /// on every untouched achievement -- a long string the user cannot act on, and which
+        /// makes a slot holding nothing look like a slot holding something. Blank says what is
+        /// true: there is no override here. The path in use is still on the slot's tooltip.
+        /// </remarks>
         public string UnlockedIconDisplayText
         {
-            get => ToIconDisplayText(UnlockedIconPath);
+            get => IsIconOverride(UnlockedIconPath, ProviderUnlockedIconPath)
+                ? ToIconDisplayText(UnlockedIconPath)
+                : string.Empty;
             set => UnlockedIconPath = FromIconDisplayText(value);
         }
 
+        /// <inheritdoc cref="UnlockedIconDisplayText"/>
         public string LockedIconDisplayText
         {
-            get => ToIconDisplayText(LockedIconPath);
+            get => IsIconOverride(LockedIconPath, ProviderLockedIconPath)
+                ? ToIconDisplayText(LockedIconPath)
+                : string.Empty;
             set => LockedIconPath = FromIconDisplayText(value);
+        }
+
+        /// <summary>
+        /// Whether a slot holds the user's art rather than the provider's. The same test the
+        /// icon-override writes use, so the field is filled exactly when something is stored.
+        /// An authored achievement has no provider art behind it, so its icon is always its own.
+        /// </summary>
+        private static bool IsIconOverride(string current, string provider)
+        {
+            return !string.IsNullOrWhiteSpace(current) &&
+                   !string.Equals(
+                       NormalizeRowText(current),
+                       NormalizeRowText(provider),
+                       StringComparison.OrdinalIgnoreCase);
         }
 
         private string ToIconDisplayText(string path)
