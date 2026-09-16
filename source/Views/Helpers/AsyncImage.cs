@@ -16,7 +16,11 @@ namespace PlayniteAchievements.Views.Helpers
     /// </summary>
     public static class AsyncImage
     {
-        private static readonly ILogger Logger = LogManager.GetLogger();
+        // PluginLogger, not LogManager: the latter writes to playnite.log, which rotates per session,
+        // so the GIF playback-path line this class emits was landing in a file that is gone by the time
+        // anyone looks for it. The plugin's own log is what a user sends.
+        private static readonly ILogger Logger =
+            Services.Logging.PluginLogger.GetLogger(nameof(AsyncImage));
 
         private const string GrayPrefix = "gray:";
         private const int DefaultDecodePixel = 64;
