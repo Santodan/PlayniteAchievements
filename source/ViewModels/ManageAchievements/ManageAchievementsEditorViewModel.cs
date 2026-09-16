@@ -85,6 +85,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isSyncingDisplayPlatform;
         private CategoryPickerOption _selectedCategoryFilter;
         private EditorFilterOption _selectedTypeFilter;
+        private EditorCustomizationFilterOption _selectedCustomizationFilter;
         private bool _suppressFilterNotifications;
         private SearchQuery _filterQuery;
         private readonly SearchTextIndex<AchievementEditorRow> _searchIndex =
@@ -942,7 +943,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
                 CaptureCollectionBaseline();
                 ApplyAutoCapstoneMarker(data);
-                ApplyProviderIconBaselines();
+                ApplyProviderBaselines();
                 RefreshAssignmentState();
                 RefreshCustomProviderState();
                 ApplyManualTrackingToRows();
@@ -983,10 +984,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Stamps each row with the provider's own icons and the managed-cache file stem, read
-        /// from the raw snapshot because the rows themselves show the overridden values.
+        /// Stamps each row with the provider's own values and the managed-cache file stem, read
+        /// from the raw snapshot because the rows themselves show the overridden values. This is
+        /// what lets a row tell an edited field from one the provider supplied, for the icon
+        /// override writes and for the grid's customization marker alike.
         /// </summary>
-        private void ApplyProviderIconBaselines()
+        private void ApplyProviderBaselines()
         {
             var fileStems = AchievementIconCachePathBuilder.BuildFileStems(
                 AchievementRows.Select(row => row?.OriginalApiName));
@@ -1018,7 +1021,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     // available here. Without it an existing type override would compare equal to
                     // "what the provider says" and be dropped on the next write.
                     row.ProviderCategoryTypeValue = raw.CategoryType;
+                    row.ProviderDisplayName = raw.DisplayName;
+                    row.ProviderDescription = raw.Description;
+                    row.ProviderPoints = raw.Points;
+                    row.ProviderTrophyType = raw.TrophyType;
+                    row.ProviderUnlockTimeUtc = raw.UnlockTimeUtc;
+                    row.ProviderIsCapstone = raw.IsCapstone;
+                    row.MarkProviderBaselinesKnown();
                 }
+                else if (!row.IsProviderRow)
+                {
+                    // An authored achievement has no raw entry to compare against and needs none:
+                    // it is the user's own outright.
+                    row.MarkProviderBaselinesKnown();
+                }
+
+                // The load runs with notifications suppressed and the baselines above are plain
+                // setters, so the row's own hook has not seen any of this.
+                row.RefreshCustomizationState();
             }
         }
 
@@ -4006,7 +4026,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool IsFiltering =>
             _filterQuery.HasValue ||
             !string.IsNullOrWhiteSpace(SelectedCategoryFilter?.Label) ||
-            !string.IsNullOrWhiteSpace(SelectedTypeFilter?.Value);
+            !string.IsNullOrWhiteSpace(SelectedTypeFilter?.Value) ||
+            (SelectedCustomizationFilter?.Value ?? AchievementCustomizationFilter.All) != AchievementCustomizationFilter.All;
 
         /// <summary>Raised when the filter text changed and the collection view needs refreshing.</summary>
         public event EventHandler FilterChanged;
@@ -4037,6 +4058,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var categoryType = SelectedTypeFilter?.Value;
             if (!string.IsNullOrWhiteSpace(categoryType) &&
                 !string.Equals(NormalizeText(row.EffectiveCategoryTypeValue), categoryType, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var customization = SelectedCustomizationFilter?.Value ?? AchievementCustomizationFilter.All;
+            if (customization == AchievementCustomizationFilter.Customized && !row.IsCustomized)
+            {
+                return false;
+            }
+
+            if (customization == AchievementCustomizationFilter.NotCustomized && row.IsCustomized)
             {
                 return false;
             }
@@ -4091,6 +4123,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public ObservableCollection<EditorFilterOption> TypeFilterOptions { get; } =
             new ObservableCollection<EditorFilterOption>();
 
+        /// <summary>
+        /// Restricts the grid to achievements the user has customized, or to the ones left as the
+        /// provider supplied them.
+        /// </summary>
+        public EditorCustomizationFilterOption SelectedCustomizationFilter
+        {
+            get => _selectedCustomizationFilter;
+            set
+            {
+                if (SetValueAndReturn(ref _selectedCustomizationFilter, value))
+                {
+                    NotifyFilterChanged();
+                }
+            }
+        }
+
+        /// <summary>The three customization choices, fixed rather than built from the rows.</summary>
+        public ObservableCollection<EditorCustomizationFilterOption> CustomizationFilterOptions { get; } =
+            new ObservableCollection<EditorCustomizationFilterOption>();
+
         private void NotifyFilterChanged()
         {
             if (_suppressFilterNotifications)
@@ -4136,6 +4188,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 CategoryFilterOptions.Add(option);
             }
 
+            if (CustomizationFilterOptions.Count == 0)
+            {
+                CustomizationFilterOptions.Add(new EditorCustomizationFilterOption(
+                    AchievementCustomizationFilter.All,
+                    ResourceProvider.GetString("LOCPlayAch_Common_All")));
+                CustomizationFilterOptions.Add(new EditorCustomizationFilterOption(
+                    AchievementCustomizationFilter.Customized,
+                    ResourceProvider.GetString("LOCPlayAch_Tagging_Customized")));
+                CustomizationFilterOptions.Add(new EditorCustomizationFilterOption(
+                    AchievementCustomizationFilter.NotCustomized,
+                    ResourceProvider.GetString("LOCPlayAch_Tagging_NotCustomized")));
+            }
+
             if (TypeFilterOptions.Count == 0)
             {
                 TypeFilterOptions.Add(new EditorFilterOption(null, L("LOCPlayAch_Common_All", "All")));
@@ -4164,6 +4229,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 SelectedTypeFilter = TypeFilterOptions.FirstOrDefault(option =>
                                          string.Equals(option.Value, previousType, StringComparison.OrdinalIgnoreCase))
                                      ?? TypeFilterOptions.FirstOrDefault();
+
+                // The customization entries are the same instances every rebuild, so that
+                // selection survives on its own and only needs seeding the first time.
+                if (SelectedCustomizationFilter == null)
+                {
+                    SelectedCustomizationFilter = CustomizationFilterOptions[0];
+                }
             }
             finally
             {
@@ -4505,6 +4577,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _validationMessage;
         private string _baselineSignature;
         private bool _isProviderRow;
+        private AchievementCustomizationFacet _customizationFacets;
+        private bool _providerBaselinesKnown;
         private string _achievementNote;
         private bool _isGoal;
         private bool _isFiltered;
@@ -4534,6 +4608,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _showHiddenDescription;
         private bool _isTitleRevealed;
         private bool _isDescriptionRevealed;
+
+        public AchievementEditorRow()
+        {
+            // The facets are derived from a dozen other properties, so rather than have each of
+            // their setters remember to raise them, the row watches itself. SuppressNotifications
+            // silences this during a bulk load, which is why the loader recomputes once at the
+            // end -- see RefreshCustomizationState.
+            PropertyChanged += (sender, args) =>
+            {
+                // An empty name is WPF's "everything changed", raised by ApplyDefinition.
+                if (string.IsNullOrEmpty(args?.PropertyName) ||
+                    CustomizationInputProperties.Contains(args.PropertyName))
+                {
+                    RefreshCustomizationState();
+                }
+            };
+        }
 
         public string OriginalApiName { get; private set; }
 
@@ -4928,6 +5019,209 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// it rather than at the end.
         /// </summary>
         public int ProviderOrderIndex { get; set; } = int.MaxValue;
+
+        /// <summary>
+        /// The provider's own values for the fields the editor lets the user override, captured
+        /// before any override is applied. A row shows the effective value, so these are the only
+        /// way to tell an edited field from one the provider supplied.
+        /// </summary>
+        public string ProviderDisplayName { get; internal set; }
+
+        /// <inheritdoc cref="ProviderDisplayName"/>
+        public string ProviderDescription { get; internal set; }
+
+        /// <inheritdoc cref="ProviderDisplayName"/>
+        public int? ProviderPoints { get; internal set; }
+
+        /// <inheritdoc cref="ProviderDisplayName"/>
+        public string ProviderTrophyType { get; internal set; }
+
+        /// <inheritdoc cref="ProviderDisplayName"/>
+        public DateTime? ProviderUnlockTimeUtc { get; internal set; }
+
+        /// <summary>
+        /// Whether the provider calls this achievement a capstone. A game whose capstones have
+        /// been materialized no longer consults it, but the row still needs it to tell a capstone
+        /// the user set from one that came with the game.
+        /// </summary>
+        public bool ProviderIsCapstone { get; internal set; }
+
+        /// <summary>
+        /// Which facets of this achievement carry user customization. Recomputed as the row is
+        /// edited, so the grid's marker tracks an edit without waiting for a reload.
+        /// </summary>
+        public AchievementCustomizationFacet CustomizationFacets
+        {
+            get => _customizationFacets;
+            private set
+            {
+                if (SetValueAndReturn(ref _customizationFacets, value))
+                {
+                    OnPropertyChanged(nameof(IsCustomized));
+                    OnPropertyChanged(nameof(IsAuthored));
+                    OnPropertyChanged(nameof(CustomizationToolTip));
+                }
+            }
+        }
+
+        /// <summary>True when the user has customized this achievement in any way.</summary>
+        public bool IsCustomized => CustomizationFacets != AchievementCustomizationFacet.None;
+
+        /// <summary>
+        /// True when the user authored this achievement outright. Marked apart from an edited
+        /// provider achievement because reverting it deletes it rather than restoring anything.
+        /// </summary>
+        public bool IsAuthored =>
+            (CustomizationFacets & AchievementCustomizationFacet.Authored) != 0;
+
+        /// <summary>
+        /// Names what was customized, one facet per line under a heading. Null on an untouched
+        /// row, which leaves the marker's cell without a tooltip.
+        /// </summary>
+        public string CustomizationToolTip => BuildCustomizationToolTip(CustomizationFacets);
+
+        /// <summary>
+        /// Recomputes <see cref="CustomizationFacets"/>. Called for the row's own edits through
+        /// the property-changed hook, and by the loader once the provider baselines are stamped --
+        /// those are plain setters, and the load runs with notifications suppressed.
+        /// </summary>
+        public void RefreshCustomizationState()
+        {
+            // Without the provider's values every field would read as differing from null, so the
+            // whole grid would mark itself customized. The loader sets this once the raw snapshot
+            // has been seen.
+            if (!_providerBaselinesKnown)
+            {
+                CustomizationFacets = IsProviderRow
+                    ? AchievementCustomizationFacet.None
+                    : AchievementCustomizationFacet.Authored;
+                return;
+            }
+
+            AchievementEditorFieldRules.TryParsePoints(PointsText, out var points);
+            CustomizationFacets = AchievementCustomizationRules.Resolve(new AchievementCustomizationInputs
+            {
+                IsAuthored = !IsProviderRow,
+                DisplayName = NormalizeRowText(DisplayName),
+                ProviderDisplayName = NormalizeRowText(ProviderDisplayName),
+                Description = NormalizeRowText(Description),
+                ProviderDescription = NormalizeRowText(ProviderDescription),
+                Points = points,
+                ProviderPoints = ProviderPoints,
+                TrophyType = NormalizeRowText(TrophyType),
+                ProviderTrophyType = NormalizeRowText(ProviderTrophyType),
+                UnlockTimeUtc = UnlockTime,
+                ProviderUnlockTimeUtc = ProviderUnlockTimeUtc,
+                Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(CategoryLabel),
+                ProviderCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel),
+                CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(CategoryTypeValue),
+                ProviderCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(ProviderCategoryTypeValue),
+                Note = AchievementNote,
+                UnlockedIconPath = NormalizeRowText(UnlockedIconPath),
+                ProviderUnlockedIconPath = NormalizeRowText(ProviderUnlockedIconPath),
+                LockedIconPath = NormalizeRowText(LockedIconPath),
+                ProviderLockedIconPath = NormalizeRowText(ProviderLockedIconPath),
+                Hidden = Hidden,
+                ProviderHidden = ProviderHidden,
+                IsFiltered = IsFiltered,
+                IsSummaryFiltered = IsSummaryFiltered,
+                IsGoal = IsGoal,
+                IsCapstone = IsCapstone,
+                ProviderIsCapstone = ProviderIsCapstone
+            });
+        }
+
+        /// <summary>
+        /// Lets the loader say the provider's values are in hand. Until they are the row reports
+        /// no customization rather than guessing against nulls.
+        /// </summary>
+        public void MarkProviderBaselinesKnown()
+        {
+            _providerBaselinesKnown = true;
+        }
+
+        /// <summary>
+        /// Every property the facets are computed from. A change to one of these recomputes them;
+        /// anything else -- a reveal step, a validation message -- leaves them alone.
+        /// </summary>
+        private static readonly HashSet<string> CustomizationInputProperties = new HashSet<string>(
+            StringComparer.Ordinal)
+        {
+            nameof(DisplayName),
+            nameof(Description),
+            nameof(PointsText),
+            nameof(TrophyType),
+            nameof(UnlockTime),
+            nameof(CategoryLabel),
+            nameof(CategoryTypeValue),
+            nameof(AchievementNote),
+            nameof(UnlockedIconPath),
+            nameof(LockedIconPath),
+            nameof(Hidden),
+            nameof(IsFiltered),
+            nameof(IsSummaryFiltered),
+            nameof(IsGoal),
+            nameof(IsCapstone),
+            nameof(IsProviderRow)
+        };
+
+        private static string NormalizeRowText(string value)
+        {
+            var normalized = (value ?? string.Empty).Trim();
+            return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+        }
+
+        /// <summary>
+        /// The localized name of each facet, in the order the tooltip lists them. Every label is
+        /// an existing key: the same words the editor's own fields carry, so the tooltip names
+        /// what it points at.
+        /// </summary>
+        private static readonly Tuple<AchievementCustomizationFacet, string>[] CustomizationFacetLabelKeys =
+        {
+            Tuple.Create(AchievementCustomizationFacet.DisplayName, "LOCPlayAch_Column_AchievementName"),
+            Tuple.Create(AchievementCustomizationFacet.Description, "LOCPlayAch_Column_Description"),
+            Tuple.Create(AchievementCustomizationFacet.UnlockedIcon, "LOCPlayAch_ManageAchievements_Custom_UnlockedIcon"),
+            Tuple.Create(AchievementCustomizationFacet.LockedIcon, "LOCPlayAch_ManageAchievements_Custom_LockedIcon"),
+            Tuple.Create(AchievementCustomizationFacet.Points, "LOCPlayAch_Column_Points"),
+            Tuple.Create(AchievementCustomizationFacet.TrophyType, "LOCPlayAch_Column_Trophy"),
+            Tuple.Create(AchievementCustomizationFacet.UnlockTime, "LOCPlayAch_Common_UnlockTime"),
+            Tuple.Create(AchievementCustomizationFacet.Category, "LOCPlayAch_Common_Label_Category"),
+            Tuple.Create(AchievementCustomizationFacet.CategoryType, "LOCPlayAch_ManageAchievements_Category_TypeSelectorLabel"),
+            Tuple.Create(AchievementCustomizationFacet.Hidden, "LOCPlayAch_ManageAchievements_Custom_Hidden"),
+            Tuple.Create(AchievementCustomizationFacet.Note, "LOCPlayAch_ManageAchievements_Notes_Note"),
+            Tuple.Create(AchievementCustomizationFacet.FilterScope, "LOCPlayAch_Menu_Filters"),
+            Tuple.Create(AchievementCustomizationFacet.Goal, "LOCPlayAch_ManageAchievements_Editor_Goal"),
+            Tuple.Create(AchievementCustomizationFacet.Capstone, "LOCPlayAch_Dynamic_Capstone")
+        };
+
+        /// <summary>
+        /// One facet per line under the same word the filter uses, so the marker, the filter and
+        /// the editor's fields all read alike. An authored row is named for what it is instead:
+        /// it has no provider values behind it to have diverged from.
+        /// </summary>
+        private static string BuildCustomizationToolTip(AchievementCustomizationFacet facets)
+        {
+            if (facets == AchievementCustomizationFacet.None)
+            {
+                return null;
+            }
+
+            if ((facets & AchievementCustomizationFacet.Authored) != 0)
+            {
+                return ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_Custom");
+            }
+
+            var lines = new List<string> { ResourceProvider.GetString("LOCPlayAch_Tagging_Customized") };
+            foreach (var entry in CustomizationFacetLabelKeys)
+            {
+                if ((facets & entry.Item1) != 0)
+                {
+                    lines.Add(ResourceProvider.GetString(entry.Item2));
+                }
+            }
+
+            return string.Join(Environment.NewLine, lines);
+        }
 
         /// <summary>
         /// True when this row stands for a provider-supplied achievement rather than one the user
