@@ -4768,6 +4768,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public AchievementEditorRow()
         {
+            // The rows are the bulk of what an open editor holds, so they are the useful
+            // retention signal: a live count that climbs game over game names the leak.
+            Common.LeakWatch.Track("Row.manageEditorRow", this);
+
             // The facets are derived from a dozen other properties, so rather than have each of
             // their setters remember to raise them, the row watches itself. SuppressNotifications
             // silences this during a bulk load, which is why the loader recomputes once at the
