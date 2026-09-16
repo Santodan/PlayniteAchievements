@@ -512,9 +512,12 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 IsHitTestVisible = false,
                 SnapsToDevicePixels = true,
-                Opacity = 0.35
+                Opacity = 0.5
             };
-            line.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "PlayAch.Brush.Border");
+            // Accent rather than the border brush: PlayAch.Brush.Border follows the theme's
+            // NormalBorderBrush, which in several themes is too low-contrast to see as a
+            // hairline. Solid and thin still reads as secondary next to the dashed 2px cut lines.
+            line.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "PlayAch.Brush.Accent");
 
             // Straddles the track edge by half its width so the line sits on the boundary
             // rather than inside the cell before it.
