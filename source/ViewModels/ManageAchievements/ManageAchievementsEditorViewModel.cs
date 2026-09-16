@@ -5112,12 +5112,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 ProviderTrophyType = NormalizeRowText(ProviderTrophyType),
                 UnlockTimeUtc = UnlockTime,
                 ProviderUnlockTimeUtc = ProviderUnlockTimeUtc,
-                Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(CategoryLabel),
+                // The effective values, not CategoryLabel and CategoryTypeValue: those two hold
+                // the user's assignment alone and are blank on a row carrying none, so comparing
+                // them against the provider's own read every untouched achievement of a
+                // categorized game as customized.
+                Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(EffectiveCategoryLabel),
                 ProviderCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(ProviderCategoryLabel),
-                ProviderCategorySpecified = !string.IsNullOrWhiteSpace(ProviderCategoryLabel),
-                CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(CategoryTypeValue),
+                CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(EffectiveCategoryTypeValue),
                 ProviderCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(ProviderCategoryTypeValue),
-                ProviderCategoryTypeSpecified = !string.IsNullOrWhiteSpace(ProviderCategoryTypeValue),
                 Note = AchievementNote,
                 UnlockedIconPath = NormalizeRowText(UnlockedIconPath),
                 ProviderUnlockedIconPath = NormalizeRowText(ProviderUnlockedIconPath),
