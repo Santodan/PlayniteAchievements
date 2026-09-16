@@ -251,6 +251,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             AddTrackGrippers();
             UpdateLayoutHandles();
+            ApplyPendingCutVisual();
             _layoutSignature = ComputeLayoutSignature();
         }
 
@@ -2775,6 +2776,14 @@ namespace PlayniteAchievements.Views.Showcase
         private void SetPendingCut(string instanceId)
         {
             _cutInstanceId = instanceId;
+            ApplyPendingCutVisual();
+        }
+
+        // Re-applied after every rebuild: the block visuals are recreated at full opacity, and
+        // a cut that survived the rebuild would otherwise stop showing.
+        private void ApplyPendingCutVisual()
+        {
+            var instanceId = _cutInstanceId;
             foreach (var state in _blockVisuals.Values)
             {
                 if (state?.Container == null)
