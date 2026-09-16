@@ -692,6 +692,11 @@ namespace PlayniteAchievements.Services.Overview
                     {
                         item.GameIconPath = presentation.IconPath;
                         item.GameCoverPath = presentation.CoverPath;
+                        // Per-game hydration names the game the way the provider does; the
+                        // unlocked rows carry Playnite's display name. Without this the same game
+                        // reads differently depending on which mosaic source a tile came from.
+                        item.GameName = presentation.DisplayName ?? item.GameName;
+                        item.SortingName = presentation.SortingName ?? item.SortingName;
                         pool.Add(item);
                     }
                 }
