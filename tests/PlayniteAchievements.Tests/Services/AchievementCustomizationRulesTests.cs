@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.ViewModels.ManageAchievements;
 using System;
 
@@ -30,8 +30,10 @@ namespace PlayniteAchievements.Services.Tests
                 ProviderUnlockTimeUtc = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc),
                 Category = "Base",
                 ProviderCategory = "Base",
+                ProviderCategorySpecified = true,
                 CategoryType = "Base",
                 ProviderCategoryType = "Base",
+                ProviderCategoryTypeSpecified = true,
                 Note = null,
                 UnlockedIconPath = "icon_cache\\first.png",
                 ProviderUnlockedIconPath = "icon_cache\\first.png",
@@ -76,7 +78,9 @@ namespace PlayniteAchievements.Services.Tests
             inputs.ProviderTrophyType = null;
             inputs.ProviderUnlockTimeUtc = null;
             inputs.ProviderCategory = null;
+            inputs.ProviderCategorySpecified = false;
             inputs.ProviderCategoryType = null;
+            inputs.ProviderCategoryTypeSpecified = false;
             inputs.ProviderUnlockedIconPath = null;
 
             Assert.AreEqual(
@@ -289,6 +293,46 @@ namespace PlayniteAchievements.Services.Tests
 
             Assert.AreEqual(
                 AchievementCustomizationFacet.Category | AchievementCustomizationFacet.CategoryType,
+                AchievementCustomizationRules.Resolve(inputs));
+        }
+
+        [TestMethod]
+        public void CategoryTheProviderNeverNamed_IsNotAnOverride()
+        {
+            // Providers commonly supply no category, and the row is filed under the default
+            // bucket on the way to the grid. Reading that derived value as the user's choice
+            // marked every achievement of such a game as customized.
+            var inputs = Untouched();
+            inputs.ProviderCategory = null;
+            inputs.ProviderCategorySpecified = false;
+            inputs.Category = "Default";
+
+            Assert.AreEqual(
+                AchievementCustomizationFacet.None,
+                AchievementCustomizationRules.Resolve(inputs));
+        }
+
+        [TestMethod]
+        public void CategoryTypeTheProviderNeverNamed_IsNotAnOverride()
+        {
+            var inputs = Untouched();
+            inputs.ProviderCategoryType = null;
+            inputs.ProviderCategoryTypeSpecified = false;
+            inputs.CategoryType = "Base";
+
+            Assert.AreEqual(
+                AchievementCustomizationFacet.None,
+                AchievementCustomizationRules.Resolve(inputs));
+        }
+
+        [TestMethod]
+        public void DisagreeingWithACategoryTheProviderNamed_IsStillAnOverride()
+        {
+            var inputs = Untouched();
+            inputs.Category = "Endgame";
+
+            Assert.AreEqual(
+                AchievementCustomizationFacet.Category,
                 AchievementCustomizationRules.Resolve(inputs));
         }
 
