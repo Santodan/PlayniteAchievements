@@ -57,17 +57,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
             viewModel.PropertyChanged += ViewModel_PropertyChanged;
             viewModel.FilterChanged += ViewModel_FilterChanged;
             AttachFilter();
-            viewModel.AssignmentsChanged += (_, __) => SeedCategoryPicker();
-            viewModel.ScrollRowIntoViewRequested += (_, row) => ScrollRowIntoView(row);
-
-            // Posted at Background priority on purpose: the grid is still working through the
-            // collection reset and the SelectedRow push-back when this is raised, and reselecting
-            // inline would be undone by them.
-            viewModel.RestoreSelectionRequested += (_, apiNames) =>
-                Dispatcher.BeginInvoke(
-                    new Action(() => RestoreSelectionByApiNames(apiNames)),
-                    System.Windows.Threading.DispatcherPriority.Background);
-            CategoryPicker.SelectionCommitted += (_, __) => ApplyCategoryFromPicker();
+            viewModel.AssignmentsChanged += ViewModel_AssignmentsChanged;
+            viewModel.ScrollRowIntoViewRequested += ViewModel_ScrollRowIntoViewRequested;
+            viewModel.RestoreSelectionRequested += ViewModel_RestoreSelectionRequested;
+            CategoryPicker.SelectionCommitted += CategoryPicker_SelectionCommitted;
 
             // Arrow navigation is the window's, not the grid's: stepping through achievements is
             // what this window is for, so it should not depend on which control was clicked last.
@@ -81,7 +74,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             PreviewDragOver += EditorTab_PreviewDragOver;
             PreviewDrop += EditorTab_EndArtworkDrag;
             DragLeave += EditorTab_EndArtworkDrag;
-            CategoryPicker.CreateRequested += (_, __) => PromptAndCreateCategory();
+            CategoryPicker.CreateRequested += CategoryPicker_CreateRequested;
             SeedCategoryPicker();
 
             // Same behavior that drove the Order and Goals grids, including its ctrl/shift-
@@ -110,6 +103,82 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         /// <summary>
+        /// Drops everything this tab hooked up in its constructor, so closing the window releases
+        /// the tab and the rows behind it.
+        /// </summary>
+        /// <remarks>
+        /// Explicit rather than Unloaded-driven: WPF does not guarantee Unloaded for a control
+        /// whose window is closing, and the reorder options and collection-view filter below hold
+        /// closures over this tab and its view model, which the grid's own teardown cannot reach.
+        /// Called from <c>ManageAchievementsControl.CleanupEditor</c>.
+        /// </remarks>
+        public void Cleanup()
+        {
+            AchievementNavigation_Unloaded(null, null);
+            Loaded -= AchievementNavigation_Loaded;
+            Unloaded -= AchievementNavigation_Unloaded;
+            PreviewDragOver -= EditorTab_PreviewDragOver;
+            PreviewDrop -= EditorTab_EndArtworkDrag;
+            DragLeave -= EditorTab_EndArtworkDrag;
+
+            if (CategoryPicker != null)
+            {
+                CategoryPicker.SelectionCommitted -= CategoryPicker_SelectionCommitted;
+                CategoryPicker.CreateRequested -= CategoryPicker_CreateRequested;
+            }
+
+            var viewModel = ViewModel;
+            if (viewModel != null)
+            {
+                viewModel.PropertyChanged -= ViewModel_PropertyChanged;
+                viewModel.FilterChanged -= ViewModel_FilterChanged;
+                viewModel.AssignmentsChanged -= ViewModel_AssignmentsChanged;
+                viewModel.ScrollRowIntoViewRequested -= ViewModel_ScrollRowIntoViewRequested;
+                viewModel.RestoreSelectionRequested -= ViewModel_RestoreSelectionRequested;
+            }
+
+            // Routes through OnOptionsChanged, which disposes the reorder state: its drag
+            // subscriptions, its auto-scroll timer and the closures it holds over this tab.
+            DataGridRowReorderBehavior.SetOptions(CustomAchievementsGrid, null);
+
+            // WPF's view manager keeps the collection view for AchievementRows, and the predicate
+            // captures this tab.
+            DetachFilter();
+        }
+
+        private void ViewModel_AssignmentsChanged(object sender, EventArgs e)
+        {
+            SeedCategoryPicker();
+        }
+
+        private void ViewModel_ScrollRowIntoViewRequested(object sender, AchievementEditorRow row)
+        {
+            ScrollRowIntoView(row);
+        }
+
+        /// <summary>
+        /// Posted at Background priority on purpose: the grid is still working through the
+        /// collection reset and the SelectedRow push-back when this is raised, and reselecting
+        /// inline would be undone by them.
+        /// </summary>
+        private void ViewModel_RestoreSelectionRequested(object sender, IReadOnlyList<string> apiNames)
+        {
+            Dispatcher.BeginInvoke(
+                new Action(() => RestoreSelectionByApiNames(apiNames)),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        private void CategoryPicker_SelectionCommitted(object sender, EventArgs e)
+        {
+            ApplyCategoryFromPicker();
+        }
+
+        private void CategoryPicker_CreateRequested(object sender, EventArgs e)
+        {
+            PromptAndCreateCategory();
+        }
+
+        /// <summary>
         /// Reselects rows after a reorder rebuilds the collection, so a multi-row drag does not
         /// clear the user's selection.
         /// </summary>
@@ -131,6 +200,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             view.Filter = candidate => ViewModel?.MatchesFilter(candidate as AchievementEditorRow) != false;
+        }
+
+        private void DetachFilter()
+        {
+            var view = CollectionViewSource.GetDefaultView(ViewModel?.AchievementRows);
+            if (view != null)
+            {
+                view.Filter = null;
+            }
         }
 
         private void ViewModel_FilterChanged(object sender, EventArgs e)
