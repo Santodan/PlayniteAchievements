@@ -183,6 +183,7 @@ namespace PlayniteAchievements.Tests.Views
             AssertEnumKeys<ShowcaseGameGridSource>(localization, "LOCPlayAch_Showcase_GameGridSource_");
             AssertEnumKeys<ShowcaseImageFitMode>(localization, "LOCPlayAch_Showcase_ImageFit_");
             AssertEnumKeys<ShowcaseGameMosaicSource>(localization, "LOCPlayAch_Showcase_GameMosaicSource_");
+            AssertEnumKeys<UnlockNextCriterion>(localization, "LOCPlayAch_Showcase_UnlockNextCriterion_");
         }
 
         [TestMethod]
@@ -420,6 +421,13 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(options, "ShowcaseAchievementGridSource.Pinned");
             StringAssert.Contains(options, "ShowcaseMosaicSource.Pinned");
             StringAssert.Contains(options, "ShowcaseGameMosaicSource.Pinned");
+
+            // Unlock Next ranks during selection, so its criterion replaces the generic sort rows
+            // instead of stacking with them.
+            StringAssert.Contains(options, "ShowcaseMosaicSource.UnlockNext");
+            StringAssert.Contains(options, "ShowcaseGameMosaicSource.FinishNext");
+            StringAssert.Contains(options, "ApplyUnlockNextVisibility");
+            StringAssert.Contains(options, "AddLastPlayedWindowChoice");
             StringAssert.Contains(templates, "PinCollectionId=\"{Binding PinCollectionId}\"");
             StringAssert.Contains(achievementGrid, "PinCollectionId");
             StringAssert.Contains(gameGrid, "PinCollectionId");
