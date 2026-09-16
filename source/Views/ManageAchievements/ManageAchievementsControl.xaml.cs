@@ -29,6 +29,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
 {
     public partial class ManageAchievementsControl : UserControl, IFullscreenControllerNavigable
     {
+        // Edit bursts in one session before closing the window is worth a compacting collection.
+        private const int CompactionEditThreshold = 20;
+
         private static readonly ManageAchievementsTab[] ControllerTabOrder =
         {
             ManageAchievementsTab.Overview,
@@ -69,6 +72,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private NotificationAppearanceSection _notificationsControl;
         private System.Windows.Threading.DispatcherTimer _iconOverridesChangedDebounce;
         private readonly HashSet<string> _pendingIconOverrideApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private bool _pendingIconOverridesFromEditor;
+        private bool _librarySuspensionHeld;
         private ManualAchievementsViewModel _manualViewModel;
         private ManageAchievementsEditorViewModel _editorViewModel;
         private ManageAchievementsAchievementOrderViewModel _achievementOrderViewModel;
@@ -139,6 +144,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _refreshService.GameCacheUpdated += RefreshService_GameCacheUpdated;
             _refreshService.CacheDeltaUpdated += RefreshService_CacheDeltaUpdated;
             Loaded += ManageAchievementsControl_Loaded;
+
+            // A window per game visited, each holding that game's rows and resolved art. If
+            // either of these is still live after Cleanup, working through a list of games cannot
+            // return memory and only a restart will.
+            Common.LeakWatch.Track("ManageAchievementsControl", this);
+            Common.LeakWatch.Track("ManageAchievementsViewModel", _viewModel);
         }
 
         public string WindowTitle
@@ -174,6 +185,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void ManageAchievementsControl_Loaded(object sender, System.Windows.RoutedEventArgs e)
         {
+            // Held for as long as this window is up, and released once in Cleanup. Editing here
+            // raises a custom-data change per edit, and each one otherwise rebuilds every game's
+            // theme lists -- work behind this window that nothing can see until it closes. The
+            // game's own theme surface is untouched by the hold and still repaints per edit.
+            if (!_librarySuspensionHeld)
+            {
+                _librarySuspensionHeld = true;
+                PlayniteAchievementsPlugin.Instance?.ThemeIntegrationService?.SuspendLibraryRefresh();
+            }
+
             QueueEnsureSelectedTabContent();
         }
 
@@ -202,6 +223,42 @@ namespace PlayniteAchievements.Views.ManageAchievements
             CleanupNotes();
             CleanupAchievementIcons();
             CleanupNotifications();
+
+            // Releases the hold taken on Loaded, which issues the single library rebuild standing
+            // in for every edit made in here.
+            if (_librarySuspensionHeld)
+            {
+                _librarySuspensionHeld = false;
+                PlayniteAchievementsPlugin.Instance?.ThemeIntegrationService?.ResumeLibraryRefresh();
+            }
+
+            CompactAfterEditSession();
+
+            // Reported after a delay and a forced collection, so the ManageAchievements* live
+            // counts in this line answer directly whether closing the window released it.
+            PlayniteAchievementsPlugin.Instance?.ScheduleRetentionDiagnostics(
+                "manage.closed",
+                delaySeconds: 8);
+        }
+
+        /// <summary>
+        /// Hands back the large-object heap after an edit session that did enough work to have
+        /// fragmented it. Each edit rebuilds this game's rows and its hydrated data, and those
+        /// arrays are large enough to land on the LOH, which .NET does not return to the OS on
+        /// its own -- the reason a long session in here grows the working set and only a restart
+        /// brings it back.
+        /// </summary>
+        private void CompactAfterEditSession()
+        {
+            // The revision counts edit bursts, so a window opened to read rather than to edit
+            // stays under the threshold and never pays for a collection.
+            var edits = _viewModel?.CustomDataRevision ?? 0;
+            var logger = _logger;
+            System.Threading.Tasks.Task.Run(() => Common.MemoryMaintenance.CompactLargeObjectHeapAfterLargeScan(
+                edits,
+                CompactionEditThreshold,
+                logger,
+                "manage.closed"));
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -1015,9 +1072,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 unlinkManualTracking: () => _viewModel.UnlinkManualTrackingCommand?.Execute(null));
             _editorViewModel.CustomAchievementsSaved += CustomViewModel_CustomAchievementsSaved;
             _editorViewModel.AssignmentsChanged += EditorViewModel_CustomizationPersisted;
+            _editorViewModel.IconOverridesSaved += EditorViewModel_IconOverridesSaved;
             _editorViewModel.CapstoneChanged += CustomViewModel_CapstoneChanged;
             _editorControl = new ManageAchievementsEditorTab(_editorViewModel);
             EditorHost.Content = _editorControl;
+
+            Common.LeakWatch.Track("ManageAchievementsEditorViewModel", _editorViewModel);
+            Common.LeakWatch.Track("ManageAchievementsEditorTab", _editorControl);
         }
 
         // An edit here changes the same data the per-facet tabs show, so it propagates exactly as
@@ -1041,10 +1102,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void CleanupEditor()
         {
+            // Before the view model's own teardown: the tab's subscriptions point at it.
+            _editorControl?.Cleanup();
+
             if (_editorViewModel != null)
             {
                 _editorViewModel.CustomAchievementsSaved -= CustomViewModel_CustomAchievementsSaved;
                 _editorViewModel.AssignmentsChanged -= EditorViewModel_CustomizationPersisted;
+                _editorViewModel.IconOverridesSaved -= EditorViewModel_IconOverridesSaved;
                 _editorViewModel.CapstoneChanged -= CustomViewModel_CapstoneChanged;
                 _editorViewModel.Detach();
             }
@@ -1240,6 +1305,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _editorRefreshPending = true;
         }
 
+        /// <summary>
+        /// The editor's own icon writes take the same apply path as the Icons tab's, but the refresh
+        /// that path sets off arrives after the assignments cascade has already consumed the editor's
+        /// self-write marker. Marking the flush as the editor's own re-arms it, so the editor keeps
+        /// its rows and the selection the user is still editing.
+        /// </summary>
+        private void EditorViewModel_IconOverridesSaved(object sender, IconOverridesSavedEventArgs e)
+        {
+            _pendingIconOverridesFromEditor = true;
+            AchievementIconsControl_IconOverridesSaved(sender, e);
+        }
+
         private void AchievementIconsControl_IconOverridesSaved(object sender, IconOverridesSavedEventArgs e)
         {
             if (!Dispatcher.CheckAccess())
@@ -1279,6 +1356,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var changedApiNames = _pendingIconOverrideApiNames.ToList();
             _pendingIconOverrideApiNames.Clear();
+
+            if (_pendingIconOverridesFromEditor)
+            {
+                _pendingIconOverridesFromEditor = false;
+                if (_editorViewModel != null)
+                {
+                    _editorViewModel.SuppressExternalRefresh = true;
+                }
+            }
+
             _viewModel?.NotifyIconOverridesChanged(changedApiNames);
 
             // Custom achievement icons are written into their definitions, which the Custom

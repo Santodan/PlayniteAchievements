@@ -406,25 +406,58 @@
                     </Grid>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
-                        <!-- The shared category tree drop-down, so a nested category is placed by
-                             the same connectors the category grid and the assignment pickers draw. -->
-                        <ComboBox ItemsSource="{Binding CategoryFilterOptions}"
-                                  SelectedItem="{Binding SelectedCategoryFilter, Mode=TwoWay}"
-                                  ItemContainerStyle="{StaticResource PlayAch.CategoryTreeComboBoxItemStyle}"
-                                  ItemTemplate="{StaticResource PlayAch.CategoryTreeComboBoxItemTemplate}"
-                                  ToolTip="{DynamicResource LOCPlayAch_Common_Label_Category}"
-                                  MinWidth="140"
-                                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                  Margin="0,0,6,0"
-                                  VerticalContentAlignment="Center" />
-                        <ComboBox ItemsSource="{Binding TypeFilterOptions}"
-                                  SelectedItem="{Binding SelectedTypeFilter, Mode=TwoWay}"
-                                  DisplayMemberPath="DisplayName"
-                                  ToolTip="{DynamicResource LOCPlayAch_Common_Label_Type}"
-                                  MinWidth="140"
-                                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                                  Margin="0,0,10,0"
-                                  VerticalContentAlignment="Center" />
+                        <!-- The same summary-button-over-checkable-menu the overview grids use,
+                             so these read and behave like every other filter in the plugin: several
+                             choices at once, and a button that names its facet until something is
+                             ticked. The category one renders its options as the tree they describe,
+                             with the connectors the category grid draws. -->
+                        <Button x:Name="CategoryFilterButton"
+                                DataContext="{Binding CategoryFilter}"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding DisplayText}"
+                                Click="MultiSelectFilter_Click"
+                                MinWidth="{Binding MinWidth}"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Label_Category}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
+                            </Button.ContextMenu>
+                        </Button>
+                        <Button x:Name="TypeFilterButton"
+                                DataContext="{Binding TypeFilter}"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding DisplayText}"
+                                Click="MultiSelectFilter_Click"
+                                MinWidth="{Binding MinWidth}"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Label_Type}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
+                            </Button.ContextMenu>
+                        </Button>
+                        <!-- Narrows to what the user has touched, the counterpart to the marker
+                             each customized row carries in its handle cell. -->
+                        <Button x:Name="CustomizationFilterButton"
+                                DataContext="{Binding CustomizationFilter}"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding DisplayText}"
+                                Click="MultiSelectFilter_Click"
+                                MinWidth="{Binding MinWidth}"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"
+                                ToolTip="{DynamicResource LOCPlayAch_Filter_CustomizationSelectorPlaceholder}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
+                            </Button.ContextMenu>
+                        </Button>
                     </StackPanel>
 
                     <!-- Same shape the Category and Filters tabs give this pair, rather than the
@@ -516,12 +549,45 @@
                                         VerticalAlignment="Stretch"
                                         Cursor="SizeAll"
                                         ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}">
-                                    <TextBlock Tag="DragHandle"
-                                               Text="&#x2630;"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                               Opacity="0.65" />
+                                    <Grid>
+                                        <!-- Customization marker. It shares the handle cell rather
+                                             than taking a column of its own: the grid is already
+                                             wide, and a bar on the left edge is what makes the
+                                             customized rows scannable down the list. One bar for
+                                             every kind of customization, authored rows included:
+                                             reverting one restores it like any other, so there is
+                                             no difference in consequence to draw. The tooltip
+                                             names the facets, and names an authored row as the
+                                             user's own.
+                                             Drawn thin but hovered wide: the transparent wrapper
+                                             is the hit target and carries the tooltip, so reaching
+                                             it does not mean landing on three pixels. It stays
+                                             hit-testable for that reason, and a press on it still
+                                             starts a drag, which the reorder behavior decides by
+                                             column rather than by what was hit. -->
+                                        <Border Width="14"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Stretch"
+                                                Margin="-4,0,0,0"
+                                                Background="Transparent"
+                                                ToolTip="{Binding CustomizationToolTip}"
+                                                Visibility="{Binding IsCustomized, Converter={StaticResource BoolToVis}}">
+                                            <Border Width="3"
+                                                    HorizontalAlignment="Left"
+                                                    VerticalAlignment="Stretch"
+                                                    Margin="4,3,0,3"
+                                                    CornerRadius="1.5"
+                                                    SnapsToDevicePixels="True"
+                                                    UseLayoutRounding="True"
+                                                    Background="{DynamicResource PlayAch.Brush.Text.Secondary}" />
+                                        </Border>
+                                        <TextBlock Tag="DragHandle"
+                                                   Text="&#x2630;"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                   Opacity="0.65" />
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
@@ -889,6 +955,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <!-- The header and its collapse chevron sit outside the scroller: the way out of
@@ -1113,8 +1180,8 @@
                                                  ToolTip="{Binding UnlockedIconPath}"
                                                  AllowDrop="True"
                                                  PreviewDragOver="IconTextBox_PreviewDragOver"
-                                                 Drop="IconTextBox_Drop" />
-                                        <Button Tag="{Binding UnlockedIconPath}"
+                                                 PreviewDrop="IconTextBox_Drop" />
+                                        <Button Tag="{Binding UnlockedIconDisplayText}"
                                                 CommandParameter="Unlocked"
                                                 Style="{StaticResource ClearSearchButtonStyle}"
                                                 Focusable="True"
@@ -1167,8 +1234,8 @@
                                                  ToolTip="{Binding LockedIconPath}"
                                                  AllowDrop="True"
                                                  PreviewDragOver="IconTextBox_PreviewDragOver"
-                                                 Drop="IconTextBox_Drop" />
-                                        <Button Tag="{Binding LockedIconPath}"
+                                                 PreviewDrop="IconTextBox_Drop" />
+                                        <Button Tag="{Binding LockedIconDisplayText}"
                                                 CommandParameter="Locked"
                                                 Style="{StaticResource ClearSearchButtonStyle}"
                                                 Focusable="True"
@@ -1468,6 +1535,19 @@
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
+
+                <!-- Pinned to the foot of the pane rather than trailing the fields: the key
+                     identifies whatever the pane is editing, so it should be readable without
+                     scrolling to the end of a long field list. -->
+                <TextBlock Grid.Row="2"
+                           DataContext="{Binding EditTarget}"
+                           Text="{Binding ApiNameResolved}"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.58"
+                           TextWrapping="Wrap"
+                           TextAlignment="Left"
+                           Margin="0,12,0,0"
+                           Visibility="{Binding HasApiName, Converter={StaticResource BoolToVis}}" />
                 </Grid>
             </Border>
 

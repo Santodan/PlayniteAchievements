@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -59,6 +59,12 @@ namespace PlayniteAchievements.Services.Achievements
         private static readonly ConcurrentDictionary<string, string> NormalizeOrDefaultCache =
             new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
 
+        private static readonly ConcurrentDictionary<string, string> NormalizeCache =
+            new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
+
+        private static readonly ConcurrentDictionary<string, IReadOnlyList<string>> ComponentsCache =
+            new ConcurrentDictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+
         private static readonly char[] ValueSeparators = { '|', ',', ';', '/' };
 
         private static readonly Dictionary<string, string> CanonicalByAlias =
@@ -102,8 +108,48 @@ namespace PlayniteAchievements.Services.Achievements
 
         public static string Normalize(string rawValue)
         {
+            // Memoized for the same reason NormalizeOrDefault is: the filters ask this of every
+            // row on every refresh, and the raw values come from a tiny fixed vocabulary.
+            var key = rawValue ?? string.Empty;
+            if (NormalizeCache.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
             var values = ParseValues(rawValue);
-            return values.Count == 0 ? null : string.Join("|", values);
+            var result = values.Count == 0 ? null : string.Join("|", values);
+            if (NormalizeCache.Count < NormalizeCacheCapacity)
+            {
+                NormalizeCache.TryAdd(key, result);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// The canonical tokens of a category type value, as a shared list rather than a fresh
+        /// one per call.
+        /// </summary>
+        /// <remarks>
+        /// For membership tests run per row per refresh -- the grid's type filter. The returned
+        /// list is cached and must not be mutated; callers that need their own copy use
+        /// <see cref="ParseValues"/>.
+        /// </remarks>
+        public static IReadOnlyList<string> GetCanonicalComponents(string rawValue)
+        {
+            var key = rawValue ?? string.Empty;
+            if (ComponentsCache.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            IReadOnlyList<string> result = ParseValues(rawValue).AsReadOnly();
+            if (ComponentsCache.Count < NormalizeCacheCapacity)
+            {
+                ComponentsCache.TryAdd(key, result);
+            }
+
+            return result;
         }
 
         public static string NormalizeOrDefault(string rawValue)

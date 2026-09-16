@@ -236,63 +236,20 @@ namespace PlayniteAchievements.Services.Hydration
 
         private static void ApplyAchievementIconOverrides(Guid gameId, IList<AchievementDetail> achievements)
         {
-            if (achievements == null || achievements.Count == 0)
-            {
-                return;
-            }
-
-            var unlockedOverrides = GameCustomDataLookup.GetAchievementUnlockedIconOverrides(gameId);
-            var lockedOverrides = GameCustomDataLookup.GetAchievementLockedIconOverrides(gameId);
-            if (!AchievementIconOverrideHelper.HasOverrides(unlockedOverrides, lockedOverrides))
-            {
-                return;
-            }
-
-            var managedCustomIconService = PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService;
-            var gameIdText = gameId.ToString("D");
-
-            for (var i = 0; i < achievements.Count; i++)
-            {
-                var achievement = achievements[i];
-                var apiName = NormalizeText(achievement?.ApiName);
-                if (achievement == null || string.IsNullOrWhiteSpace(apiName))
-                {
-                    continue;
-                }
-
-                var unlockedOverride = AchievementIconOverrideHelper.GetOverrideValue(unlockedOverrides, apiName);
-                if (!string.IsNullOrWhiteSpace(unlockedOverride))
-                {
-                    achievement.UnlockedIconPath = ResolveIconOverridePath(
-                        unlockedOverride,
-                        gameIdText,
-                        managedCustomIconService);
-                }
-
-                var lockedOverride = AchievementIconOverrideHelper.GetOverrideValue(lockedOverrides, apiName);
-                if (!string.IsNullOrWhiteSpace(lockedOverride))
-                {
-                    achievement.LockedIconPath = ResolveIconOverridePath(
-                        lockedOverride,
-                        gameIdText,
-                        managedCustomIconService);
-                }
-            }
+            AchievementIconOverrideHelper.ApplyOverrides(
+                gameId,
+                achievements,
+                PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService,
+                achievement => achievement.ApiName,
+                (achievement, path) => achievement.UnlockedIconPath = path,
+                (achievement, path) => achievement.LockedIconPath = path);
         }
 
         private static string ResolveIconOverridePath(
             string path,
             string gameIdText,
-            ManagedCustomIconService managedCustomIconService)
-        {
-            var normalized = NormalizeText(path);
-            if (string.IsNullOrWhiteSpace(normalized))
-            {
-                return null;
-            }
-
-            return managedCustomIconService?.ResolveManagedDisplayPath(normalized, gameIdText) ?? normalized;
-        }
+            ManagedCustomIconService managedCustomIconService) =>
+            AchievementIconOverrideHelper.ResolveOverridePath(path, gameIdText, managedCustomIconService);
 
         private static Dictionary<string, CategoryImageOverrideData> CloneCategoryImageOverrideMap(
             IReadOnlyDictionary<string, CategoryImageOverrideData> source,

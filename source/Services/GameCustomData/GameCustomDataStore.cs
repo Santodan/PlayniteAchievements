@@ -2208,7 +2208,10 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             CustomDataChanged?.Invoke(
                 this,
-                new GameCustomDataChangedEventArgs(playniteGameId, affectsSummaryData));
+                new GameCustomDataChangedEventArgs(
+                    playniteGameId,
+                    affectsSummaryData,
+                    affectsOverrideMirror));
         }
 
     }

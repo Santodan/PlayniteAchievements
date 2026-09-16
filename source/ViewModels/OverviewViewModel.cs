@@ -595,6 +595,9 @@ namespace PlayniteAchievements.ViewModels
 
         private List<AchievementDisplayItem> _allRecentAchievements = new List<AchievementDisplayItem>();
         private List<AchievementDisplayItem> _allSelectedGameAchievements = new List<AchievementDisplayItem>();
+        private readonly HashSet<string> _selectedGameIconOverrideKeys =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private bool _selectedGameReloadRequested;
 
         #endregion
 
@@ -1989,6 +1992,15 @@ namespace PlayniteAchievements.ViewModels
             RemoveGameRows(_allRecentAchievements, gameId, _recentAchievementSearchIndex);
             _selectedGamePipeline.Invalidate(gameId);
 
+            // The delta replaces the library rows but not the selected game's, which are their own
+            // instances built by the pipeline. Without this an icon override set from the Manage
+            // window sat in the store until something re-assigned SelectedGame -- in practice, a
+            // refresh -- and the grid kept showing the provider's art.
+            if (SelectedGame?.PlayniteGameId == gameId && !ApplySelectedGameIconOverrides(gameId))
+            {
+                _selectedGameReloadRequested = true;
+            }
+
             if (fragment.Achievements != null && fragment.Achievements.Count > 0)
             {
                 _allAchievements.AddRange(fragment.Achievements);
@@ -2005,6 +2017,85 @@ namespace PlayniteAchievements.ViewModels
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Re-stamps the selected game's rows from the stored icon overrides, the way
+        /// <see cref="ApplyCapstone"/> re-stamps capstones, so an icon set elsewhere shows without
+        /// rebuilding the grid and losing the right pane's search and scroll.
+        /// Returns false when the rows have to be rebuilt instead.
+        /// </summary>
+        private bool ApplySelectedGameIconOverrides(Guid gameId)
+        {
+            var rows = _allSelectedGameAchievements;
+            if (rows == null || rows.Count == 0)
+            {
+                return true;
+            }
+
+            var keys = ReadIconOverrideKeys(gameId);
+            if (keys.Count == 0 && _selectedGameIconOverrideKeys.Count == 0)
+            {
+                return true;
+            }
+
+            // Removing an override cannot be undone in place: the applier writes only the entries
+            // the store still holds, so a row would keep custom art that no longer has a record.
+            // Only a rebuild reads the provider's own path back out of the cache.
+            if (!_selectedGameIconOverrideKeys.IsSubsetOf(keys))
+            {
+                return false;
+            }
+
+            AchievementIconOverrideHelper.ApplyOverrides(
+                gameId,
+                rows,
+                PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService,
+                item => item.ApiName,
+                (item, path) => item.UnlockedIconPath = path,
+                (item, path) => item.LockedIconPath = path);
+
+            // Replacing an image reuses its managed path, so the writes above are no-ops for the
+            // row even though the file changed. The icon properties carry a cache-bust token read
+            // when they are got, so re-raising them is what repaints.
+            for (var i = 0; i < rows.Count; i++)
+            {
+                rows[i]?.RefreshIconDisplay();
+            }
+
+            CaptureIconOverrideKeys(keys);
+            return true;
+        }
+
+        /// <summary>
+        /// Records which achievements the selected game's rows were built with an icon override
+        /// for, so a later delta can tell a changed override from a removed one.
+        /// </summary>
+        private void CaptureIconOverrideKeys(HashSet<string> keys)
+        {
+            _selectedGameIconOverrideKeys.Clear();
+            if (keys != null)
+            {
+                _selectedGameIconOverrideKeys.UnionWith(keys);
+            }
+        }
+
+        private static HashSet<string> ReadIconOverrideKeys(Guid gameId)
+        {
+            var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var unlocked = GameCustomDataLookup.GetAchievementUnlockedIconOverrides(gameId);
+            if (unlocked != null)
+            {
+                keys.UnionWith(unlocked.Keys);
+            }
+
+            var locked = GameCustomDataLookup.GetAchievementLockedIconOverrides(gameId);
+            if (locked != null)
+            {
+                keys.UnionWith(locked.Keys);
+            }
+
+            return keys;
         }
 
         private OverviewDataSnapshot BuildSnapshotFromSourceLists()
@@ -2943,6 +3034,9 @@ namespace PlayniteAchievements.ViewModels
 
             if (requiresFallbackRefresh)
             {
+                // The full refresh re-assigns SelectedGame, which rebuilds the selected game's rows
+                // on its own, so the request raised above is already answered.
+                _selectedGameReloadRequested = false;
                 await RefreshViewAsync();
                 return;
             }
@@ -2975,6 +3069,32 @@ namespace PlayniteAchievements.ViewModels
             UpdateAggregatePieCharts();
             ApplyRightFilters();
             UpdateFilteredStatus();
+
+            await ReloadSelectedGameIfRequestedAsync();
+        }
+
+        /// <summary>
+        /// Rebuilds the selected game's rows for the deltas the in-place re-stamp could not cover.
+        /// This is the path that clears a removed icon override, and it costs the right pane's
+        /// search text, so it runs only when the re-stamp refused.
+        /// </summary>
+        private async Task ReloadSelectedGameIfRequestedAsync()
+        {
+            if (!_selectedGameReloadRequested)
+            {
+                return;
+            }
+
+            _selectedGameReloadRequested = false;
+            var gameId = SelectedGame?.PlayniteGameId;
+            if (!gameId.HasValue)
+            {
+                return;
+            }
+
+            await LoadSelectedGameAchievementsAsync(
+                gameId,
+                _selectedGameLoadCts?.Token ?? CancellationToken.None);
         }
 
         /// <summary>
@@ -4101,6 +4221,7 @@ namespace PlayniteAchievements.ViewModels
                     context: $"items={items.Count}"))
                 {
                     _allSelectedGameAchievements = items;
+                    CaptureIconOverrideKeys(ReadIconOverrideKeys(gameId));
                     Services.Captures.CapturePresenceMarker.MarkAchievements(items, _captureLibrary);
                     // Snapshot the natural order before goals are pinned, so removing a goal can put
                     // the achievement back where it belongs instead of leaving it stranded on top.

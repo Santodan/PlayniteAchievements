@@ -2675,6 +2675,98 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.AreEqual(0, goalTargets.Count);
         }
 
+        // A window editing one game's custom data in bulk -- the Manage Achievements editor --
+        // raises a change per edit, and each one would otherwise rebuild every game's theme lists
+        // behind it. The hold collapses that burst into one rebuild, issued on close.
+        [TestMethod]
+        public void LibraryRefreshesRequestedWhileHeld_CollapseToOne()
+        {
+            using var context = CreateServiceContext();
+
+            context.Service.SuspendLibraryRefresh();
+            Assert.IsFalse(
+                context.Service.HasDeferredLibraryRefreshForTests,
+                "Taking the hold is not itself a pending rebuild.");
+
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+
+            Assert.IsTrue(
+                context.Service.HasDeferredLibraryRefreshForTests,
+                "Three edits must leave one rebuild owed, not three.");
+
+            context.Service.ResumeLibraryRefresh();
+            Assert.IsFalse(
+                context.Service.HasDeferredLibraryRefreshForTests,
+                "Releasing the hold consumes the owed rebuild.");
+        }
+
+        [TestMethod]
+        public void HeldLibraryRefresh_KeepsTheHeaviestRequestedScope()
+        {
+            using var context = CreateServiceContext();
+
+            context.Service.SuspendLibraryRefresh();
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: true);
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+
+            Assert.IsTrue(
+                context.Service.DeferredLibraryRefreshIncludesHeavyListsForTests,
+                "One edit in the burst needed the achievement lists, so the single rebuild " +
+                "standing in for the burst has to carry them.");
+        }
+
+        [TestMethod]
+        public void NestedLibraryRefreshHolds_ReleaseOnlyOnTheLast()
+        {
+            using var context = CreateServiceContext();
+
+            // One Manage window per game can be open at once, so the hold is counted.
+            context.Service.SuspendLibraryRefresh();
+            context.Service.SuspendLibraryRefresh();
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+
+            context.Service.ResumeLibraryRefresh();
+            Assert.IsTrue(
+                context.Service.HasDeferredLibraryRefreshForTests,
+                "A second window is still open, so the rebuild stays owed.");
+
+            context.Service.ResumeLibraryRefresh();
+            Assert.IsFalse(context.Service.HasDeferredLibraryRefreshForTests);
+        }
+
+        [TestMethod]
+        public void LibraryRefreshHoldReleasedWithNoEdits_OwesNoRebuild()
+        {
+            using var context = CreateServiceContext();
+
+            context.Service.SuspendLibraryRefresh();
+            context.Service.ResumeLibraryRefresh();
+
+            Assert.IsFalse(
+                context.Service.HasDeferredLibraryRefreshForTests,
+                "A window opened to read rather than to edit costs no rebuild on close.");
+        }
+
+        [TestMethod]
+        public void StrayLibraryRefreshRelease_DoesNotUnderflowTheHold()
+        {
+            using var context = CreateServiceContext();
+
+            context.Service.ResumeLibraryRefresh();
+            context.Service.ResumeLibraryRefresh();
+
+            // Had the count gone negative, a later hold would not take.
+            context.Service.SuspendLibraryRefresh();
+            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+
+            Assert.IsTrue(
+                context.Service.HasDeferredLibraryRefreshForTests,
+                "The hold must still work after an unbalanced release.");
+        }
+
         private static ServiceTestContext CreateServiceContext(
             Dispatcher dispatcher = null,
             IFriendCacheManager friendCache = null,

@@ -73,6 +73,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private readonly object _refreshLock = new object();
         private CancellationTokenSource _refreshCts;
         private static readonly TimeSpan LibraryRefreshDelay = TimeSpan.FromMilliseconds(500);
+
+        // A window that edits one game's custom data in bulk -- the Manage Achievements editor --
+        // raises a change per edit, and each one would rebuild the whole library's theme lists:
+        // roughly forty fresh collections of cloned summaries, per edit, none of it visible while
+        // that window is up. Counted rather than a flag, since one window per game can be open.
+        private int _librarySuspensionCount;
+        private bool _librarySuspensionHasPendingRefresh;
+        private bool _librarySuspensionPendingHeavyLists;
 #if TEST
         private static readonly TimeSpan FriendRefreshDelay = TimeSpan.Zero;
 #else
@@ -1661,6 +1669,81 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             RequestLibraryRefresh(includeHeavyAchievementLists: false, requireFullscreen: true);
         }
 
+        /// <summary>
+        /// Holds off whole-library theme rebuilds until the matching <see cref="ResumeLibraryRefresh"/>,
+        /// for a caller about to make a burst of per-game edits. Requests that arrive while held
+        /// are collapsed into one rebuild issued on release; the per-game selected surface is not
+        /// affected, so the game being edited still repaints as it changes.
+        /// </summary>
+        public void SuspendLibraryRefresh()
+        {
+            lock (_refreshLock)
+            {
+                _librarySuspensionCount++;
+            }
+        }
+
+        /// <summary>
+        /// Releases one <see cref="SuspendLibraryRefresh"/>. The last release issues the single
+        /// rebuild standing in for everything that was held.
+        /// </summary>
+        public void ResumeLibraryRefresh()
+        {
+            bool shouldRefresh;
+            bool includeHeavyAchievementLists;
+            lock (_refreshLock)
+            {
+                if (_librarySuspensionCount > 0)
+                {
+                    _librarySuspensionCount--;
+                }
+
+                if (_librarySuspensionCount > 0)
+                {
+                    return;
+                }
+
+                shouldRefresh = _librarySuspensionHasPendingRefresh;
+                includeHeavyAchievementLists = _librarySuspensionPendingHeavyLists;
+                _librarySuspensionHasPendingRefresh = false;
+                _librarySuspensionPendingHeavyLists = false;
+            }
+
+            if (shouldRefresh)
+            {
+                RequestLibraryRefresh(includeHeavyAchievementLists);
+            }
+        }
+
+#if TEST
+        internal bool HasDeferredLibraryRefreshForTests
+        {
+            get
+            {
+                lock (_refreshLock)
+                {
+                    return _librarySuspensionHasPendingRefresh;
+                }
+            }
+        }
+
+        internal bool DeferredLibraryRefreshIncludesHeavyListsForTests
+        {
+            get
+            {
+                lock (_refreshLock)
+                {
+                    return _librarySuspensionPendingHeavyLists;
+                }
+            }
+        }
+
+        internal void RequestLibraryRefreshForTests(bool includeHeavyAchievementLists)
+        {
+            RequestLibraryRefresh(includeHeavyAchievementLists);
+        }
+#endif
+
         private void RequestLibraryRefresh(
             bool includeHeavyAchievementLists,
             bool requireFullscreen = false)
@@ -1668,6 +1751,22 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             if (requireFullscreen && !IsFullscreen())
             {
                 return;
+            }
+
+            lock (_refreshLock)
+            {
+                if (_librarySuspensionCount > 0)
+                {
+                    // The fullscreen gate above has already been answered for this request, so the
+                    // deferred one does not re-ask it.
+                    _librarySuspensionHasPendingRefresh = true;
+                    _librarySuspensionPendingHeavyLists |= includeHeavyAchievementLists;
+
+                    // An in-flight rebuild from just before the suspension is abandoned: it would
+                    // publish state built from data the burst is still changing.
+                    try { _refreshCts?.Cancel(); } catch { }
+                    return;
+                }
             }
 
             CancellationToken token;

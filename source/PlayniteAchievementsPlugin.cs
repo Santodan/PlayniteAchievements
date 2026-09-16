@@ -134,6 +134,12 @@ namespace PlayniteAchievements
         // Tagging
         private readonly object _tagSyncGate = new object();
         private readonly HashSet<Guid> _pendingTagSyncIds = new HashSet<Guid>();
+
+        /// <summary>
+        /// Games whose change can only have moved the Customized tag, so they are reconciled
+        /// without the achievement load a full evaluation does.
+        /// </summary>
+        private readonly HashSet<Guid> _pendingCustomizationTagSyncIds = new HashSet<Guid>();
         private bool _tagSyncDrainRunning;
         private TagSyncService _tagSyncService;
         private AutoCapstoneMaintainer _autoCapstoneMaintainer;
@@ -1750,12 +1756,14 @@ namespace PlayniteAchievements
         private void HandleCustomDataChanged(Guid gameId, bool affectsSummaryData)
         {
             var persisted = _settingsViewModel?.Settings?.Persisted;
-            if (affectsSummaryData &&
-                _tagSyncService != null &&
-                persisted?.TaggingSettings?.EnableTagging == true)
+            if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
             {
-                // Tags carry completion status, which only a summary-affecting change can move.
-                QueueTagSync(gameId);
+                // Any custom-data change at all, not just a summary-affecting one: completion
+                // only moves with the summary data, but the Customized tag reports whether the
+                // game carries customization of any kind, which a rename or a note moves while
+                // leaving every count alone. Those get the narrow sync, which skips the
+                // achievement load a full evaluation needs.
+                QueueTagSync(gameId, fullEvaluation: affectsSummaryData);
             }
 
             try
@@ -1800,7 +1808,11 @@ namespace PlayniteAchievements
             }
         }
 
-        private void QueueTagSync(Guid gameId)
+        /// <param name="fullEvaluation">
+        /// False when the change can only have moved the Customized tag, which is reconciled
+        /// without loading the game's achievement data. A refresh defaults to a full evaluation.
+        /// </param>
+        private void QueueTagSync(Guid gameId, bool fullEvaluation = true)
         {
             if (gameId == Guid.Empty)
             {
@@ -1819,7 +1831,18 @@ namespace PlayniteAchievements
             // sees a few batched writes instead of one write per game.
             lock (_tagSyncGate)
             {
-                _pendingTagSyncIds.Add(gameId);
+                if (fullEvaluation)
+                {
+                    // A full sync covers the customization tag too, so it supersedes a narrow one
+                    // already queued for the same game.
+                    _pendingTagSyncIds.Add(gameId);
+                    _pendingCustomizationTagSyncIds.Remove(gameId);
+                }
+                else if (!_pendingTagSyncIds.Contains(gameId))
+                {
+                    _pendingCustomizationTagSyncIds.Add(gameId);
+                }
+
                 if (_tagSyncDrainRunning)
                 {
                     return;
@@ -1836,9 +1859,10 @@ namespace PlayniteAchievements
             while (true)
             {
                 List<Guid> batch;
+                List<Guid> customizationBatch;
                 lock (_tagSyncGate)
                 {
-                    if (_pendingTagSyncIds.Count == 0)
+                    if (_pendingTagSyncIds.Count == 0 && _pendingCustomizationTagSyncIds.Count == 0)
                     {
                         _tagSyncDrainRunning = false;
                         return;
@@ -1846,15 +1870,27 @@ namespace PlayniteAchievements
 
                     batch = _pendingTagSyncIds.ToList();
                     _pendingTagSyncIds.Clear();
+                    customizationBatch = _pendingCustomizationTagSyncIds.ToList();
+                    _pendingCustomizationTagSyncIds.Clear();
                 }
 
                 try
                 {
-                    tagSyncService.SyncTagsForGames(batch);
+                    if (batch.Count > 0)
+                    {
+                        tagSyncService.SyncTagsForGames(batch);
+                    }
+
+                    if (customizationBatch.Count > 0)
+                    {
+                        tagSyncService.SyncCustomizationTagsForGames(customizationBatch);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Debug(ex, $"Failed queued tag sync for {batch.Count} game(s).");
+                    _logger?.Debug(
+                        ex,
+                        $"Failed queued tag sync for {batch.Count + customizationBatch.Count} game(s).");
                 }
             }
         }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -123,6 +123,26 @@ namespace PlayniteAchievements.Views.Helpers
             (grid?.GetValue(StateProperty) as ReorderState)?.CancelPendingDrag();
         }
 
+        /// <summary>
+        /// Keeps the edge auto-scroll running for a drag this grid did not start -- artwork
+        /// dragged in from a browser or the file manager.
+        /// </summary>
+        /// <remarks>
+        /// A row reorder drives the scroll from QueryContinueDrag, which only the drag's source
+        /// receives. An external drag's source is another application, so the drop target has to
+        /// pump it from its own DragOver instead.
+        /// </remarks>
+        public static void UpdateExternalDragAutoScroll(DependencyObject grid)
+        {
+            (grid?.GetValue(StateProperty) as ReorderState)?.BeginExternalAutoScroll();
+        }
+
+        /// <summary>Ends the auto-scroll started by <see cref="UpdateExternalDragAutoScroll"/>.</summary>
+        public static void StopExternalDragAutoScroll(DependencyObject grid)
+        {
+            (grid?.GetValue(StateProperty) as ReorderState)?.EndExternalAutoScroll();
+        }
+
         private static void OnOptionsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (!(d is DataGrid grid))
@@ -132,7 +152,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             if (grid.GetValue(StateProperty) is ReorderState existing)
             {
-                existing.Detach();
+                existing.Dispose();
                 grid.SetValue(StateProperty, null);
             }
 
@@ -182,6 +202,20 @@ namespace PlayniteAchievements.Views.Helpers
         [DllImport("user32.dll")]
         private static extern bool GetCursorPos(out POINT lpPoint);
 
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
+
+        private const int VkLButton = 0x01;
+
+        /// <summary>
+        /// True while the primary mouse button is physically down. The high bit of
+        /// <c>GetAsyncKeyState</c> is the current state.
+        /// </summary>
+        private static bool IsPrimaryButtonDown()
+        {
+            return (GetAsyncKeyState(VkLButton) & 0x8000) != 0;
+        }
+
         private sealed class ReorderState
         {
             private const double AutoScrollEdgeThreshold = 64;
@@ -220,8 +254,48 @@ namespace PlayniteAchievements.Views.Helpers
 
             public bool IsDragging => _isDragging;
 
+            /// <summary>
+            /// Hooks the grid's load lifetime, then its drag events. The lifetime hook is what
+            /// makes the auto-scroll timer safe to own: an enabled <see cref="DispatcherTimer"/>
+            /// is rooted by the process-lifetime UI dispatcher, and through this state it would
+            /// root the grid, its visual tree and its whole DataContext. So the drag events come
+            /// off when the grid leaves the tree, not only when the options change.
+            /// </summary>
             public void Attach()
             {
+                _grid.Loaded -= OnGridLoaded;
+                _grid.Loaded += OnGridLoaded;
+                _grid.Unloaded -= OnGridUnloaded;
+                _grid.Unloaded += OnGridUnloaded;
+                AttachDragHandlers();
+            }
+
+            /// <summary>
+            /// Drops every subscription including the load lifetime, for a host replacing or
+            /// clearing the options outright. Pairs with <see cref="Attach"/>.
+            /// </summary>
+            public void Dispose()
+            {
+                _grid.Loaded -= OnGridLoaded;
+                _grid.Unloaded -= OnGridUnloaded;
+                DetachDragHandlers();
+            }
+
+            private void OnGridLoaded(object sender, RoutedEventArgs e)
+            {
+                AttachDragHandlers();
+            }
+
+            private void OnGridUnloaded(object sender, RoutedEventArgs e)
+            {
+                DetachDragHandlers();
+            }
+
+            private void AttachDragHandlers()
+            {
+                // Unhook first so a second Loaded -- a tab switched away and back -- cannot
+                // double-subscribe.
+                DetachDragHandlers();
                 _grid.PreviewMouseLeftButtonDown += OnPreviewMouseLeftButtonDown;
                 _grid.PreviewMouseLeftButtonUp += OnPreviewMouseLeftButtonUp;
                 _grid.PreviewMouseMove += OnPreviewMouseMove;
@@ -234,9 +308,10 @@ namespace PlayniteAchievements.Views.Helpers
                 _grid.Drop += OnDrop;
             }
 
-            public void Detach()
+            private void DetachDragHandlers()
             {
                 StopAutoScroll();
+                _externalDragActive = false;
                 _grid.PreviewMouseLeftButtonDown -= OnPreviewMouseLeftButtonDown;
                 _grid.PreviewMouseLeftButtonUp -= OnPreviewMouseLeftButtonUp;
                 _grid.PreviewMouseMove -= OnPreviewMouseMove;
@@ -525,6 +600,20 @@ namespace PlayniteAchievements.Views.Helpers
                 _scrollViewer = VisualTreeHelpers.FindVisualChild<ScrollViewer>(_grid);
             }
 
+            private bool _externalDragActive;
+
+            internal void BeginExternalAutoScroll()
+            {
+                _externalDragActive = true;
+                StartAutoScroll();
+            }
+
+            internal void EndExternalAutoScroll()
+            {
+                _externalDragActive = false;
+                StopAutoScroll();
+            }
+
             private void StartAutoScroll()
             {
                 EnsureScrollViewer();
@@ -544,12 +633,32 @@ namespace PlayniteAchievements.Views.Helpers
 
             private void AutoScrollTimer_Tick(object sender, EventArgs e)
             {
+                // Self-limiting on purpose. An external drag is ended by PreviewDrop or DragLeave
+                // reaching the tab root, and a drag released outside the grid can deliver
+                // neither -- QueryContinueDrag only reaches the drag's source, which for
+                // dragged-in artwork is another application. Left running, this timer is rooted
+                // by the UI dispatcher and roots the whole editor through it, so the tick stops
+                // itself rather than trusting the end event to arrive.
+                if (!_isDragging && !_externalDragActive)
+                {
+                    StopAutoScroll();
+                    return;
+                }
+
+                // Read the physical button rather than Mouse.LeftButton: during a drag whose
+                // source is another process, WPF's own input state is not being updated.
+                if (_externalDragActive && !IsPrimaryButtonDown())
+                {
+                    EndExternalAutoScroll();
+                    return;
+                }
+
                 ApplyAutoScrollFromCursor();
             }
 
             private void ApplyAutoScrollFromCursor()
             {
-                if (!_isDragging || _scrollViewer == null)
+                if ((!_isDragging && !_externalDragActive) || _scrollViewer == null)
                 {
                     return;
                 }
