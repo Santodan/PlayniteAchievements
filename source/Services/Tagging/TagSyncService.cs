@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -641,6 +641,108 @@ namespace PlayniteAchievements.Services.Tagging
             EnsureConfiguredTagIds(tagConfigs);
             var tagTypes = DetermineTagTypes(game);
             return SyncGameTags(game, tagConfigs, tagTypes, tagIdsToRemove);
+        }
+
+        /// <summary>
+        /// Reconciles only the Customized / Not Customized pair, for a change that cannot have
+        /// moved any other tag.
+        /// </summary>
+        /// <remarks>
+        /// A full sync evaluates every tag, and that means loading the game's hydrated
+        /// achievement data -- the whole cost of a sync. Renaming an achievement, writing a note
+        /// or overriding an icon moves this one tag and nothing else, so the load is skipped and
+        /// the other managed tags are left exactly as they are.
+        /// </remarks>
+        public void SyncCustomizationTagsForGames(List<Guid> gameIds)
+        {
+            if (!TaggingEnabled || gameIds == null || gameIds.Count == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                var tagConfigs = Tagging?.TagConfigs;
+                EnsureConfiguredTagIds(tagConfigs);
+
+                using (_api.Database.BufferedUpdate())
+                {
+                    foreach (var gameId in gameIds)
+                    {
+                        var game = _api.Database.Games.Get(gameId);
+                        if (game == null)
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            var applies = GameCustomDataLookup.HasVisibleCustomization(gameId, Settings)
+                                ? TagType.Customized
+                                : TagType.NotCustomized;
+                            var replaced = applies == TagType.Customized
+                                ? TagType.NotCustomized
+                                : TagType.Customized;
+
+                            var changed = SetManagedTag(game, tagConfigs, replaced, false);
+                            changed |= SetManagedTag(game, tagConfigs, applies, true);
+                            if (changed)
+                            {
+                                _api.Database.Games.Update(game);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Error(ex, $"Failed to sync the customization tag for game {game.Name}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to sync customization tags for games");
+            }
+        }
+
+        /// <summary>
+        /// Adds or removes one managed tag, leaving every other tag on the game alone. Returns
+        /// whether the game's tag list actually moved.
+        /// </summary>
+        private bool SetManagedTag(
+            Game game,
+            Dictionary<TagType, TagConfig> tagConfigs,
+            TagType tagType,
+            bool shouldApply)
+        {
+            if (tagConfigs == null || !tagConfigs.TryGetValue(tagType, out var config) || !config.IsEnabled)
+            {
+                return false;
+            }
+
+            var tagId = ResolveConfiguredTagId(tagType, config);
+            if (!tagId.HasValue)
+            {
+                return false;
+            }
+
+            if (shouldApply)
+            {
+                if (game.TagIds == null)
+                {
+                    game.TagIds = new List<Guid> { tagId.Value };
+                    return true;
+                }
+
+                if (game.TagIds.Contains(tagId.Value))
+                {
+                    return false;
+                }
+
+                game.TagIds.Add(tagId.Value);
+                return true;
+            }
+
+            return game.TagIds != null && game.TagIds.Remove(tagId.Value);
         }
 
         /// <summary>
