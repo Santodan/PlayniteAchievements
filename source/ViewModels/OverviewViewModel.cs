@@ -2020,7 +2020,13 @@ namespace PlayniteAchievements.ViewModels
                 // Deltas never touch identities; carry the last full build's forward so
                 // profile consumers of a delta-built snapshot keep the resolved user.
                 CurrentUserIdentities = _latestSnapshot?.CurrentUserIdentities
-                    ?? new List<Models.Friends.FriendIdentity>()
+                    ?? new List<Models.Friends.FriendIdentity>(),
+                // Same for the Unlock Next pool: a delta rebuilds from the unlocked source lists,
+                // which never held the locked candidates, so carrying the last full build's pool
+                // forward keeps the mosaic populated between full rebuilds.
+                UnlockNextCandidates = _latestSnapshot?.UnlockNextCandidates
+                    ?? new List<AchievementDisplayItem>(),
+                UnlockNextPoolBuilt = _latestSnapshot?.UnlockNextPoolBuilt ?? false
             };
 
             for (var i = 0; i < snapshot.RecentAchievements.Count; i++)
