@@ -29,6 +29,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
 {
     public partial class ManageAchievementsControl : UserControl, IFullscreenControllerNavigable
     {
+        // Edit bursts in one session before closing the window is worth a compacting collection.
+        private const int CompactionEditThreshold = 20;
+
         private static readonly ManageAchievementsTab[] ControllerTabOrder =
         {
             ManageAchievementsTab.Overview,
@@ -70,6 +73,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private System.Windows.Threading.DispatcherTimer _iconOverridesChangedDebounce;
         private readonly HashSet<string> _pendingIconOverrideApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private bool _pendingIconOverridesFromEditor;
+        private bool _librarySuspensionHeld;
         private ManualAchievementsViewModel _manualViewModel;
         private ManageAchievementsEditorViewModel _editorViewModel;
         private ManageAchievementsAchievementOrderViewModel _achievementOrderViewModel;
@@ -181,6 +185,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void ManageAchievementsControl_Loaded(object sender, System.Windows.RoutedEventArgs e)
         {
+            // Held for as long as this window is up, and released once in Cleanup. Editing here
+            // raises a custom-data change per edit, and each one otherwise rebuilds every game's
+            // theme lists -- work behind this window that nothing can see until it closes. The
+            // game's own theme surface is untouched by the hold and still repaints per edit.
+            if (!_librarySuspensionHeld)
+            {
+                _librarySuspensionHeld = true;
+                PlayniteAchievementsPlugin.Instance?.ThemeIntegrationService?.SuspendLibraryRefresh();
+            }
+
             QueueEnsureSelectedTabContent();
         }
 
@@ -210,11 +224,41 @@ namespace PlayniteAchievements.Views.ManageAchievements
             CleanupAchievementIcons();
             CleanupNotifications();
 
+            // Releases the hold taken on Loaded, which issues the single library rebuild standing
+            // in for every edit made in here.
+            if (_librarySuspensionHeld)
+            {
+                _librarySuspensionHeld = false;
+                PlayniteAchievementsPlugin.Instance?.ThemeIntegrationService?.ResumeLibraryRefresh();
+            }
+
+            CompactAfterEditSession();
+
             // Reported after a delay and a forced collection, so the ManageAchievements* live
             // counts in this line answer directly whether closing the window released it.
             PlayniteAchievementsPlugin.Instance?.ScheduleRetentionDiagnostics(
                 "manage.closed",
                 delaySeconds: 8);
+        }
+
+        /// <summary>
+        /// Hands back the large-object heap after an edit session that did enough work to have
+        /// fragmented it. Each edit rebuilds this game's rows and its hydrated data, and those
+        /// arrays are large enough to land on the LOH, which .NET does not return to the OS on
+        /// its own -- the reason a long session in here grows the working set and only a restart
+        /// brings it back.
+        /// </summary>
+        private void CompactAfterEditSession()
+        {
+            // The revision counts edit bursts, so a window opened to read rather than to edit
+            // stays under the threshold and never pays for a collection.
+            var edits = _viewModel?.CustomDataRevision ?? 0;
+            var logger = _logger;
+            System.Threading.Tasks.Task.Run(() => Common.MemoryMaintenance.CompactLargeObjectHeapAfterLargeScan(
+                edits,
+                CompactionEditThreshold,
+                logger,
+                "manage.closed"));
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
