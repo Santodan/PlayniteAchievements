@@ -42,32 +42,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     }
 
     /// <summary>
-    /// How the editor's grid is narrowed by customization.
-    /// </summary>
-    public enum AchievementCustomizationFilter
-    {
-        All,
-        Customized,
-        NotCustomized
-    }
-
-    /// <summary>
-    /// One choice in the editor's customization filter, pairing the value with its label.
-    /// </summary>
-    public sealed class EditorCustomizationFilterOption
-    {
-        public EditorCustomizationFilterOption(AchievementCustomizationFilter value, string displayName)
-        {
-            Value = value;
-            DisplayName = displayName;
-        }
-
-        public AchievementCustomizationFilter Value { get; }
-
-        public string DisplayName { get; }
-    }
-
-    /// <summary>
     /// One achievement's current values beside the provider's own, for
     /// <see cref="AchievementCustomizationRules.Resolve"/>.
     /// </summary>
