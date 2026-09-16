@@ -81,7 +81,31 @@ namespace PlayniteAchievements.Models.Settings
         Recent = 0,
         Rarest = 1,
         Pinned = 2,
-        Capstones = 3
+        Capstones = 3,
+
+        /// <summary>
+        /// Locked achievements worth hunting next. Unlike every other source these rows are not in
+        /// the overview snapshot's unlocked-only achievement list; they come from the bounded
+        /// candidate pool the overview builder hydrates per game.
+        /// </summary>
+        UnlockNext = 4
+    }
+
+    /// <summary>
+    /// How the Unlock Next mosaic ranks the locked achievements it offers. The criterion runs
+    /// during selection rather than as a re-arrangement afterwards, so it decides which
+    /// achievements make the cut, not just the order they appear in.
+    /// </summary>
+    public enum UnlockNextCriterion
+    {
+        /// <summary>The game's own order, so each tile is the next thing in that game's list.</summary>
+        NextInLine = 0,
+
+        /// <summary>Highest global unlock percentage first: what most players already have.</summary>
+        Easiest = 1,
+
+        /// <summary>Achievements belonging to the games closest to being finished.</summary>
+        ClosestToCompletion = 2
     }
 
     public enum ShowcaseScreenshotVariant
@@ -132,7 +156,13 @@ namespace PlayniteAchievements.Models.Settings
         Completed = 0,
         All = 1,
         Pinned = 2,
-        PlayniteFavorites = 3
+        PlayniteFavorites = 3,
+
+        /// <summary>
+        /// The unfinished games closest to being finished: the games counterpart of
+        /// <see cref="ShowcaseMosaicSource.UnlockNext"/>, and the inverse of Completed.
+        /// </summary>
+        FinishNext = 4
     }
 
     public sealed class ShowcaseProfileSettings
