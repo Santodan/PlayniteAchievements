@@ -321,6 +321,17 @@ namespace PlayniteAchievements.Models
         private const string ProfileMedals = "ProfileMedals";
         private const string Sort = "Sort";
         private const string SortDescending = "SortDescending";
+        private const string UnlockNextCriterionOption = "UnlockNextCriterion";
+        private const string LastPlayedWindow = "LastPlayedWindow";
+        private const string MaxPerGame = "MaxPerGame";
+        private const string IncludeHiddenAchievements = "IncludeHiddenAchievements";
+
+        /// <summary>
+        /// Most tiles a single game may contribute to an Unlock Next mosaic. The pool the overview
+        /// builder hydrates retains a bounded slice per game, so the choices stop well below it
+        /// rather than offering an unlimited option the pool could not honour.
+        /// </summary>
+        public static readonly IReadOnlyList<int> MaxPerGameChoices = new[] { 1, 2, 3, 5, 10 };
 
         /// <summary>Stat keys the profile stat slots show when the option is unset.</summary>
         public static readonly IReadOnlyList<string> DefaultProfileStatKeys = new[]
@@ -531,6 +542,72 @@ namespace PlayniteAchievements.Models
 
         public static void SetMosaicSortDescending(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(SortDescending, value);
+
+        public static UnlockNextCriterion GetUnlockNextCriterion(ShowcaseWidgetInstanceSettings settings) =>
+            GetEnum(settings, UnlockNextCriterionOption, UnlockNextCriterion.NextInLine);
+
+        public static void SetUnlockNextCriterion(
+            ShowcaseWidgetInstanceSettings settings,
+            UnlockNextCriterion value) => settings?.SetOption(UnlockNextCriterionOption, value);
+
+        /// <summary>
+        /// How recently a game must have been played to contribute to Unlock Next / Finish Next.
+        /// Shares no key with <see cref="ShowcaseTimelineOptions"/>, whose range means a chart
+        /// window rather than a library filter.
+        /// </summary>
+        public static TimelineRange GetLastPlayedWindow(ShowcaseWidgetInstanceSettings settings) =>
+            GetEnum(settings, LastPlayedWindow, TimelineRange.OneMonth);
+
+        public static void SetLastPlayedWindow(
+            ShowcaseWidgetInstanceSettings settings,
+            TimelineRange value) => settings?.SetOption(LastPlayedWindow, value);
+
+        public static int GetMaxPerGame(ShowcaseWidgetInstanceSettings settings) =>
+            Clamp(settings?.GetOption(MaxPerGame, 1) ?? 1, 1, 10);
+
+        public static void SetMaxPerGame(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(MaxPerGame, Clamp(value, 1, 10));
+
+        public static bool GetIncludeHiddenAchievements(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.GetOption(IncludeHiddenAchievements, false) ?? false;
+
+        public static void SetIncludeHiddenAchievements(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(IncludeHiddenAchievements, value);
+
+        /// <summary>
+        /// Whether this widget instance draws from the Unlock Next candidate pool. The overview
+        /// builder only pays for the pool when some live widget asks for it, so the builder, the
+        /// dashboard refresh, and the plugin's invalidation hook all test it through here.
+        /// </summary>
+        public static bool RequiresUnlockNextPool(ShowcaseWidgetInstanceSettings settings)
+        {
+            return settings != null &&
+                settings.Kind == ShowcaseWidgetKind.IconMosaic &&
+                GetMosaicContent(settings) == ShowcaseMosaicContent.Achievements &&
+                GetMosaicSource(settings) == ShowcaseMosaicSource.UnlockNext;
+        }
+
+        /// <summary>
+        /// Whether any live widget - dashboard or start page - draws from the Unlock Next pool.
+        /// </summary>
+        public static bool RequiresUnlockNextPool(ShowcaseSettings showcase)
+        {
+            if (showcase == null)
+            {
+                return false;
+            }
+
+            if ((showcase.WidgetInstances ?? new List<ShowcaseWidgetInstanceSettings>())
+                .Any(RequiresUnlockNextPool))
+            {
+                return true;
+            }
+
+            return (showcase.StartPageInstances ??
+                    new Dictionary<string, ShowcaseWidgetInstanceSettings>())
+                .Values
+                .Any(RequiresUnlockNextPool);
+        }
 
         public static ShowcaseMosaicContent GetMosaicContent(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, Content, ShowcaseMosaicContent.Achievements);
