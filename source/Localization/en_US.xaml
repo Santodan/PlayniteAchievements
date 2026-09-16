@@ -1360,6 +1360,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_MergeUpLabel">Merge up</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MergeDownLabel">Merge down</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MergeDeleteConfirm">Merge these blocks and delete the other widgets?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_PasteReplaceConfirm">Replace the widget in this block?</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_DragMoving">Moving {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_DropMoveHere">Move {0} here</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_DropSwap">Swap {0} with {1}</sys:String>

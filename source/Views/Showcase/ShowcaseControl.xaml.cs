@@ -32,6 +32,25 @@ namespace PlayniteAchievements.Views.Showcase
         private Point _dragStart;
         private string _selectedBlockId;
         private string _dragSourceBlockId;
+
+        // Undo history for structural layout edits. Snapshots are whole-layout clones taken at
+        // each settle point rather than per-operation deltas: every mutation already funnels
+        // through SaveAndPublish, so one hook there covers add, delete, paste, move, swap,
+        // split, merge, track resizes and the page operations without each site opting in.
+        // Session-scoped and edit-mode only; the layout is persisted as it changes, so undo
+        // rewinds saved state rather than uncommitted state.
+        private const int MaxHistoryDepth = 50;
+        private readonly LinkedList<ShowcaseSettings> _undoHistory = new LinkedList<ShowcaseSettings>();
+        private readonly Stack<ShowcaseSettings> _redoHistory = new Stack<ShowcaseSettings>();
+        private ShowcaseSettings _historyBaseline;
+        private bool _restoringHistory;
+
+        // Static so a widget copied on one page is pastable on another, and after the overview
+        // window is closed and reopened. A cut holds the live instance id instead of a clone so
+        // that cut-then-paste is a move: the widget keeps its identity, and with it the
+        // per-instance grid surface holding its columns and sort.
+        private static ShowcaseWidgetInstanceSettings _clipboardWidget;
+        private static string _cutInstanceId;
         private readonly Dictionary<string, BlockVisualState> _blockVisuals =
             new Dictionary<string, BlockVisualState>(StringComparer.OrdinalIgnoreCase);
         private readonly List<System.Windows.Controls.Primitives.Thumb> _trackGrippers =
@@ -1895,6 +1914,7 @@ namespace PlayniteAchievements.Views.Showcase
         // bouncing back in as an external change and rebuilding a second time.
         private void SaveAndPublish()
         {
+            RecordHistoryPoint();
             ShowcaseLayoutService.Normalize(Layout);
             ShowcaseLayoutService.PruneOrphanedWidgets(Layout);
             ShowcaseGridSurfaces.PruneOrphaned(_settings.Persisted?.GridOptions, Layout);
@@ -1908,6 +1928,102 @@ namespace PlayniteAchievements.Views.Showcase
             finally
             {
                 _publishingConfigurationChange = false;
+            }
+        }
+
+        // Called at the head of every publish, when the baseline still holds the pre-mutation
+        // layout. That ordering is what lets one hook cover every structural edit.
+        private void RecordHistoryPoint()
+        {
+            if (_restoringHistory)
+            {
+                return;
+            }
+
+            if (_historyBaseline != null)
+            {
+                _undoHistory.AddLast(_historyBaseline);
+                while (_undoHistory.Count > MaxHistoryDepth)
+                {
+                    _undoHistory.RemoveFirst();
+                }
+            }
+
+            _redoHistory.Clear();
+            _historyBaseline = Layout.Clone();
+        }
+
+        private void Undo()
+        {
+            if (_undoHistory.Count == 0)
+            {
+                return;
+            }
+
+            var restore = _undoHistory.Last.Value;
+            _undoHistory.RemoveLast();
+            _redoHistory.Push(Layout.Clone());
+            RestoreLayout(restore);
+        }
+
+        private void Redo()
+        {
+            if (_redoHistory.Count == 0)
+            {
+                return;
+            }
+
+            var restore = _redoHistory.Pop();
+            _undoHistory.AddLast(Layout.Clone());
+            RestoreLayout(restore);
+        }
+
+        // Copies the layout members back into the live ShowcaseSettings instance rather than
+        // replacing it: Layout is a property over Persisted.Showcase and other surfaces hold
+        // that instance. Pin collections and the profile are left alone because they are not
+        // edited through the dashboard and are not part of what undo covers.
+        private void RestoreLayout(ShowcaseSettings snapshot)
+        {
+            if (snapshot == null)
+            {
+                return;
+            }
+
+            _restoringHistory = true;
+            try
+            {
+                var live = Layout;
+                live.LayoutVersion = snapshot.LayoutVersion;
+                live.LastSelectedPageId = snapshot.LastSelectedPageId;
+                live.Pages = (snapshot.Pages ?? new List<ShowcasePageSettings>())
+                    .Select(page => page.Clone())
+                    .ToList();
+                live.WidgetInstances = (snapshot.WidgetInstances ?? new List<ShowcaseWidgetInstanceSettings>())
+                    .Select(widget => widget.Clone())
+                    .ToList();
+
+                // The cut target may no longer exist in the restored layout.
+                if (FindWidget(_cutInstanceId) == null)
+                {
+                    _cutInstanceId = null;
+                }
+
+                if (FindWidget(SelectedBlock?.WidgetInstanceId) == null &&
+                    CurrentPage.Blocks.All(block => !string.Equals(
+                        block.BlockId,
+                        _selectedBlockId,
+                        StringComparison.OrdinalIgnoreCase)))
+                {
+                    _selectedBlockId = CurrentPage.Blocks.FirstOrDefault()?.BlockId;
+                }
+
+                _historyBaseline = Layout.Clone();
+                SaveAndPublish();
+                Rebuild();
+            }
+            finally
+            {
+                _restoringHistory = false;
             }
         }
 
@@ -1934,6 +2050,13 @@ namespace PlayniteAchievements.Views.Showcase
             if (_blockVisuals.Count == 0)
             {
                 Rebuild();
+            }
+
+            // The baseline has to exist before the first edit, because RecordHistoryPoint
+            // pushes what it finds here as the state to undo back to.
+            if (_historyBaseline == null)
+            {
+                _historyBaseline = Layout.Clone();
             }
         }
 
@@ -2096,6 +2219,73 @@ namespace PlayniteAchievements.Views.Showcase
 
         private void NextPageButton_Click(object sender, RoutedEventArgs e) => MovePage(1);
 
+        // Editor shortcuts. Scoped to this control rather than the window so they cannot
+        // compete with the data grids on the other overview tabs, and gated on edit mode so
+        // the dashboard stays inert while it is being read rather than arranged.
+        private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (EditLayoutButton.IsChecked != true ||
+                (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+            {
+                return;
+            }
+
+            // A text box inside a widget (a grid's search field) owns its own Ctrl shortcuts.
+            if (Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase)
+            {
+                return;
+            }
+
+            switch (e.Key)
+            {
+                case Key.C:
+                    CopySelectedWidget();
+                    break;
+                case Key.X:
+                    CutSelectedWidget();
+                    break;
+                case Key.V:
+                    PasteWidget();
+                    break;
+                case Key.Z:
+                    if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+                    {
+                        Redo();
+                    }
+                    else
+                    {
+                        Undo();
+                    }
+
+                    break;
+                case Key.Y:
+                    Redo();
+                    break;
+                default:
+                    return;
+            }
+
+            e.Handled = true;
+        }
+
+        // Nothing focuses the dashboard on its own, so the shortcuts would need a Tab press
+        // first. Focusing the selected block on entering edit mode also gives the keyboard a
+        // sensible starting point for arrowing between blocks.
+        private void FocusSelectedBlock()
+        {
+            if (EditLayoutButton.IsChecked != true)
+            {
+                return;
+            }
+
+            if (_selectedBlockId != null &&
+                _blockVisuals.TryGetValue(_selectedBlockId, out var state) &&
+                state?.Container != null)
+            {
+                state.Container.Focus();
+            }
+        }
+
         private void EditLayoutButton_Changed(object sender, RoutedEventArgs e)
         {
             // The button shows the mode a click switches to: pencil (edit) or eye (view).
@@ -2138,6 +2328,7 @@ namespace PlayniteAchievements.Views.Showcase
             // After the loop: the handle rebuild may suppress the selected empty block's own
             // + button in favor of the overlay copy, and the loop above resets visibility.
             UpdateLayoutHandles();
+            FocusSelectedBlock();
         }
 
         private ShowcaseBlockSettings SelectedBlock => CurrentPage.Blocks.FirstOrDefault(block =>
@@ -2415,6 +2606,191 @@ namespace PlayniteAchievements.Views.Showcase
 
             ShowcaseLayoutService.DeletePage(Layout, CurrentPage.PageId);
             SaveAndRebuild();
+        }
+
+        private void CopySelectedWidget()
+        {
+            var widget = FindWidget(SelectedBlock?.WidgetInstanceId);
+            if (widget == null)
+            {
+                return;
+            }
+
+            _clipboardWidget = widget.Clone();
+            SetPendingCut(null);
+        }
+
+        // Explorer-style: the widget stays put until a paste lands, so cut-then-paste can move
+        // the instance instead of destroying and recreating it.
+        private void CutSelectedWidget()
+        {
+            var widget = FindWidget(SelectedBlock?.WidgetInstanceId);
+            if (widget == null)
+            {
+                return;
+            }
+
+            _clipboardWidget = widget.Clone();
+            SetPendingCut(widget.InstanceId);
+        }
+
+        private void PasteWidget()
+        {
+            var block = SelectedBlock;
+            if (block == null)
+            {
+                return;
+            }
+
+            var cutWidget = FindWidget(_cutInstanceId);
+            if (cutWidget != null)
+            {
+                MoveCutWidgetInto(block, cutWidget);
+                return;
+            }
+
+            if (_clipboardWidget == null)
+            {
+                return;
+            }
+
+            var definition = ShowcaseWidgetCatalog.Get(_clipboardWidget.Kind);
+            if (definition != null &&
+                definition.SingleInstancePerPage &&
+                CurrentPage.Blocks
+                    .Where(candidate => !string.Equals(
+                        candidate.BlockId,
+                        block.BlockId,
+                        StringComparison.OrdinalIgnoreCase))
+                    .Select(candidate => FindWidget(candidate.WidgetInstanceId))
+                    .Any(candidate => candidate?.Kind == _clipboardWidget.Kind))
+            {
+                return;
+            }
+
+            if (!ConfirmReplacingWidgetIn(block))
+            {
+                return;
+            }
+
+            var copy = _clipboardWidget.Clone();
+            copy.InstanceId = Guid.NewGuid().ToString("N");
+            Layout.WidgetInstances.Add(copy);
+            if (!ShowcaseLayoutService.PlaceWidget(
+                    Layout,
+                    CurrentPage.PageId,
+                    block.BlockId,
+                    copy.InstanceId))
+            {
+                ShowcaseLayoutService.DeleteWidget(Layout, copy.InstanceId);
+                return;
+            }
+
+            CopyGridSurfaceOptions(_clipboardWidget, copy);
+            SelectBlockAfterPaste(block);
+            SaveAndReassignWidgets();
+        }
+
+        private void MoveCutWidgetInto(ShowcaseBlockSettings block, ShowcaseWidgetInstanceSettings cutWidget)
+        {
+            if (string.Equals(
+                block.WidgetInstanceId,
+                cutWidget.InstanceId,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                SetPendingCut(null);
+                return;
+            }
+
+            if (!ShowcaseLayoutService.CanPlaceWidget(
+                    Layout,
+                    CurrentPage.PageId,
+                    block.BlockId,
+                    cutWidget.InstanceId))
+            {
+                return;
+            }
+
+            // A move swaps rather than displaces, so nothing is destroyed and no confirmation
+            // is owed: the occupant lands in the block the cut widget came from.
+            if (!ShowcaseLayoutService.PlaceWidget(
+                    Layout,
+                    CurrentPage.PageId,
+                    block.BlockId,
+                    cutWidget.InstanceId))
+            {
+                return;
+            }
+
+            SetPendingCut(null);
+            SelectBlockAfterPaste(block);
+            SaveAndReassignWidgets();
+        }
+
+        // Pasting over an occupant orphans it, and the orphan sweep in SaveAndPublish then
+        // deletes it for good, so ask first.
+        private bool ConfirmReplacingWidgetIn(ShowcaseBlockSettings block)
+        {
+            return FindWidget(block?.WidgetInstanceId) == null ||
+                Confirm("LOCPlayAch_Showcase_PasteReplaceConfirm");
+        }
+
+        // A pasted grid widget keeps the columns, sort and row cap of the one it was copied
+        // from: those live in the catalog under a key built from the instance id, which the
+        // copy does not share.
+        private void CopyGridSurfaceOptions(
+            ShowcaseWidgetInstanceSettings source,
+            ShowcaseWidgetInstanceSettings copy)
+        {
+            var catalog = _settings.Persisted?.GridOptions;
+            if (catalog == null || source == null || copy == null)
+            {
+                return;
+            }
+
+            var sourceKey = ShowcaseGridSurfaces.ResolveWidgetSurface(source.Kind, source.InstanceId);
+            var targetKey = ShowcaseGridSurfaces.ResolveWidgetSurface(copy.Kind, copy.InstanceId);
+            if (string.IsNullOrWhiteSpace(sourceKey) || string.IsNullOrWhiteSpace(targetKey))
+            {
+                return;
+            }
+
+            if (ShowcaseGridSurfaces.IsAchievementSurface(sourceKey))
+            {
+                catalog.Achievement[targetKey] = catalog.GetAchievement(sourceKey).Clone();
+            }
+            else if (ShowcaseGridSurfaces.IsGameSurface(sourceKey))
+            {
+                catalog.GameSummaries[targetKey] = catalog.GetGameSummaries(sourceKey).Clone();
+            }
+        }
+
+        private void SelectBlockAfterPaste(ShowcaseBlockSettings block)
+        {
+            _selectedBlockId = block?.BlockId;
+        }
+
+        // The pending cut is shown by fading its block, so a cut that is never pasted is
+        // visibly still there rather than silently armed.
+        private void SetPendingCut(string instanceId)
+        {
+            _cutInstanceId = instanceId;
+            foreach (var state in _blockVisuals.Values)
+            {
+                if (state?.Container == null)
+                {
+                    continue;
+                }
+
+                var block = CurrentPage.Blocks.FirstOrDefault(candidate => string.Equals(
+                    candidate.BlockId,
+                    state.Block?.BlockId,
+                    StringComparison.OrdinalIgnoreCase));
+                var isCut = block != null &&
+                    !string.IsNullOrWhiteSpace(instanceId) &&
+                    string.Equals(block.WidgetInstanceId, instanceId, StringComparison.OrdinalIgnoreCase);
+                state.Container.Opacity = isCut ? 0.45 : 1.0;
+            }
         }
 
         private bool Confirm(string messageKey)
