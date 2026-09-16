@@ -83,9 +83,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _sourceHeading;
         private ProviderOverrideChoice _selectedDisplayPlatform;
         private bool _isSyncingDisplayPlatform;
-        private CategoryPickerOption _selectedCategoryFilter;
-        private EditorFilterOption _selectedTypeFilter;
-        private EditorCustomizationFilterOption _selectedCustomizationFilter;
+        private readonly HashSet<string> _selectedCategoryFilters =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _selectedTypeFilters =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _selectedCustomizationFilters =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private List<string> _categoryFilterOptions = new List<string>();
         private bool _suppressFilterNotifications;
         private SearchQuery _filterQuery;
         private readonly SearchTextIndex<AchievementEditorRow> _searchIndex =
@@ -145,6 +149,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             EditCustomProviderCommand = new RelayCommand(_ => EditCustomProvider(), _ => HasSelectedCustomProvider && _showEditor != null && !IsSaving);
 
             AchievementRows = new ObservableCollection<AchievementEditorRow>();
+            CategoryFilter = BuildCategoryFilter();
+            TypeFilter = BuildTypeFilter();
+            CustomizationFilter = BuildCustomizationFilter();
             AssignableCategoryOptions = new ObservableCollection<string>();
             TypeSelectionOptions = new ObservableCollection<CategoryTypeSelectionOption>(
                 AchievementCategoryTypeHelper.AssignableCategoryTypes.Select(type =>
@@ -4025,9 +4032,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>True while the grid shows a subset of the achievements.</summary>
         public bool IsFiltering =>
             _filterQuery.HasValue ||
-            !string.IsNullOrWhiteSpace(SelectedCategoryFilter?.Label) ||
-            !string.IsNullOrWhiteSpace(SelectedTypeFilter?.Value) ||
-            (SelectedCustomizationFilter?.Value ?? AchievementCustomizationFilter.All) != AchievementCustomizationFilter.All;
+            _selectedCategoryFilters.Count > 0 ||
+            _selectedTypeFilters.Count > 0 ||
+            _selectedCustomizationFilters.Count > 0;
 
         /// <summary>Raised when the filter text changed and the collection view needs refreshing.</summary>
         public event EventHandler FilterChanged;
@@ -4048,33 +4055,39 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            var category = SelectedCategoryFilter?.Label;
-            if (!string.IsNullOrWhiteSpace(category) &&
-                !string.Equals(row.EffectiveCategoryLabel, category, StringComparison.OrdinalIgnoreCase))
+            if (_selectedCategoryFilters.Count > 0 &&
+                !_selectedCategoryFilters.Contains(row.EffectiveCategoryLabel ?? string.Empty))
             {
                 return false;
             }
 
-            var categoryType = SelectedTypeFilter?.Value;
-            if (!string.IsNullOrWhiteSpace(categoryType) &&
-                !string.Equals(NormalizeText(row.EffectiveCategoryTypeValue), categoryType, StringComparison.OrdinalIgnoreCase))
+            // A row carries several category types at once, so it passes when any of its own is
+            // ticked rather than when its whole joined value matches one.
+            if (_selectedTypeFilters.Count > 0 &&
+                !AchievementCategoryTypeHelper.ParseValues(row.EffectiveCategoryTypeValue)
+                    .Any(_selectedTypeFilters.Contains))
             {
                 return false;
             }
 
-            var customization = SelectedCustomizationFilter?.Value ?? AchievementCustomizationFilter.All;
-            if (customization == AchievementCustomizationFilter.Customized && !row.IsCustomized)
-            {
-                return false;
-            }
-
-            if (customization == AchievementCustomizationFilter.NotCustomized && row.IsCustomized)
+            if (_selectedCustomizationFilters.Count > 0 &&
+                !_selectedCustomizationFilters.Contains(
+                    row.IsCustomized ? CustomizedFilterKey : NotCustomizedFilterKey))
             {
                 return false;
             }
 
             return true;
         }
+
+        /// <summary>
+        /// Option keys for the customization filter. Stored rather than displayed: the shared
+        /// multi-select model keys its options by string, and the label is resolved separately so
+        /// it can be localized.
+        /// </summary>
+        private const string CustomizedFilterKey = "Customized";
+
+        private const string NotCustomizedFilterKey = "NotCustomized";
 
         private void RebuildSearchIndex()
         {
@@ -4083,65 +4096,141 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
 
         /// <summary>
-        /// Restricts the grid to one category. Null shows every category.
+        /// Narrows the grid to the ticked categories. Nothing ticked restricts nothing, so the
+        /// button reads as the facet's own name rather than as an "all" that has to be chosen.
         /// </summary>
-        public CategoryPickerOption SelectedCategoryFilter
+        /// <remarks>
+        /// The same model the overview grids use, so these read and behave like the filters
+        /// everywhere else: a summary button over a checkable menu, several choices at once, and
+        /// -- for the categories -- the tree connectors the category grid draws.
+        /// </remarks>
+        public GridMultiSelectFilter CategoryFilter { get; }
+
+        public GridMultiSelectFilter TypeFilter { get; }
+
+        public GridMultiSelectFilter CustomizationFilter { get; }
+
+        /// <summary>
+        /// Builds the three filter drop-downs. Each reads its own options live, so a rebuild only
+        /// has to raise the change rather than refill a collection.
+        /// </summary>
+        private GridMultiSelectFilter BuildCategoryFilter()
         {
-            get => _selectedCategoryFilter;
-            set
+            return new GridMultiSelectFilter(
+                this,
+                nameof(FilterOptionsChanged),
+                () => GetSelectedFilterText(
+                    _selectedCategoryFilters,
+                    _categoryFilterOptions,
+                    ResourceProvider.GetString("LOCPlayAch_Common_Label_Category")),
+                () => _categoryFilterOptions,
+                option => _selectedCategoryFilters.Contains(option),
+                (option, isSelected) => ToggleFilter(_selectedCategoryFilters, option, isSelected),
+                getDisplayLabel: CategoryPathHelper.GetLeafName)
             {
-                if (SetValueAndReturn(ref _selectedCategoryFilter, value))
-                {
-                    NotifyFilterChanged();
-                }
+                RendersCategoryTree = true,
+                MinWidth = 140
+            };
+        }
+
+        private GridMultiSelectFilter BuildTypeFilter()
+        {
+            return new GridMultiSelectFilter(
+                this,
+                nameof(FilterOptionsChanged),
+                () => GetSelectedFilterText(
+                    _selectedTypeFilters,
+                    AchievementCategoryTypeHelper.AssignableCategoryTypes,
+                    ResourceProvider.GetString("LOCPlayAch_Common_Label_Type"),
+                    ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName),
+                () => AchievementCategoryTypeHelper.AssignableCategoryTypes,
+                option => _selectedTypeFilters.Contains(option),
+                (option, isSelected) => ToggleFilter(_selectedTypeFilters, option, isSelected),
+                getDisplayLabel: ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName)
+            {
+                MinWidth = 140
+            };
+        }
+
+        private GridMultiSelectFilter BuildCustomizationFilter()
+        {
+            var options = new[] { CustomizedFilterKey, NotCustomizedFilterKey };
+            return new GridMultiSelectFilter(
+                this,
+                nameof(FilterOptionsChanged),
+                () => GetSelectedFilterText(
+                    _selectedCustomizationFilters,
+                    options,
+                    ResourceProvider.GetString("LOCPlayAch_Filter_CustomizationSelectorPlaceholder"),
+                    GetCustomizationFilterLabel),
+                () => options,
+                option => _selectedCustomizationFilters.Contains(option),
+                (option, isSelected) => ToggleFilter(_selectedCustomizationFilters, option, isSelected),
+                getDisplayLabel: GetCustomizationFilterLabel,
+                // Two options that are always meaningful, so this one never auto-hides the way a
+                // filter built from whatever the game happens to carry does.
+                hasAvailableAction: () => true)
+            {
+                MinWidth = 140
+            };
+        }
+
+        private static string GetCustomizationFilterLabel(string option)
+        {
+            return string.Equals(option, CustomizedFilterKey, StringComparison.OrdinalIgnoreCase)
+                ? ResourceProvider.GetString("LOCPlayAch_Tagging_Customized")
+                : ResourceProvider.GetString("LOCPlayAch_Tagging_NotCustomized");
+        }
+
+        private void ToggleFilter(HashSet<string> selection, string option, bool isSelected)
+        {
+            if (string.IsNullOrWhiteSpace(option))
+            {
+                return;
             }
+
+            if (isSelected)
+            {
+                selection.Add(option);
+            }
+            else
+            {
+                selection.Remove(option);
+            }
+
+            NotifyFilterChanged();
         }
 
         /// <summary>
-        /// Restricts the grid to one category type. Null shows every type.
+        /// The ticked options joined for the button face, or the facet's own name when none are.
         /// </summary>
-        public EditorFilterOption SelectedTypeFilter
+        private static string GetSelectedFilterText(
+            HashSet<string> selectedValues,
+            IEnumerable<string> options,
+            string placeholder,
+            Func<string, string> displayText = null)
         {
-            get => _selectedTypeFilter;
-            set
+            if (selectedValues == null || selectedValues.Count == 0)
             {
-                if (SetValueAndReturn(ref _selectedTypeFilter, value))
-                {
-                    NotifyFilterChanged();
-                }
+                return placeholder;
             }
+
+            var ordered = (options ?? Enumerable.Empty<string>())
+                .Where(option => !string.IsNullOrWhiteSpace(option) && selectedValues.Contains(option))
+                .ToList();
+            if (ordered.Count == 0)
+            {
+                ordered.AddRange(selectedValues.OrderBy(value => value, StringComparer.OrdinalIgnoreCase));
+            }
+
+            return string.Join(", ", ordered.Select(value => displayText?.Invoke(value) ?? value));
         }
 
         /// <summary>
-        /// Categories present on this game's achievements, plus an "all" entry, arranged as the tree
-        /// they describe so the drop-down places a nested category rather than spelling out its path.
+        /// Raised when the option sets behind the filters change, which is what the drop-downs
+        /// subscribe to rather than each holding a collection of its own.
         /// </summary>
-        public ObservableCollection<CategoryPickerOption> CategoryFilterOptions { get; } =
-            new ObservableCollection<CategoryPickerOption>();
-
-        /// <summary>Every assignable category type, plus an "all" entry.</summary>
-        public ObservableCollection<EditorFilterOption> TypeFilterOptions { get; } =
-            new ObservableCollection<EditorFilterOption>();
-
-        /// <summary>
-        /// Restricts the grid to achievements the user has customized, or to the ones left as the
-        /// provider supplied them.
-        /// </summary>
-        public EditorCustomizationFilterOption SelectedCustomizationFilter
-        {
-            get => _selectedCustomizationFilter;
-            set
-            {
-                if (SetValueAndReturn(ref _selectedCustomizationFilter, value))
-                {
-                    NotifyFilterChanged();
-                }
-            }
-        }
-
-        /// <summary>The three customization choices, fixed rather than built from the rows.</summary>
-        public ObservableCollection<EditorCustomizationFilterOption> CustomizationFilterOptions { get; } =
-            new ObservableCollection<EditorCustomizationFilterOption>();
+        public object FilterOptionsChanged => null;
 
         private void NotifyFilterChanged()
         {
@@ -4162,88 +4251,31 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// uses rather than every category in the library. Ordered to match the category tree, with
         /// anything unknown to it falling in alphabetically after.
         /// </summary>
+        /// <remarks>
+        /// Only the option set is rebuilt. The ticks are kept as the user left them, minus any
+        /// whose category the game no longer has -- dropping the whole selection on a rebuild
+        /// would clear the filter every time an edit rewrote the category list.
+        /// </remarks>
         private void RebuildFilterOptions()
         {
-            var previousCategory = SelectedCategoryFilter?.Label;
-            var previousType = SelectedTypeFilter?.Value;
+            _categoryFilterOptions = AssignableCategoryOptions
+                .Where(option => !string.IsNullOrWhiteSpace(option))
+                .ToList();
 
-            // Built through the shared picker resolver, so this drop-down draws the same tree the
-            // category grid and the assignment pickers do. Synthesised ancestors are not selectable
-            // here: a filter on a category that holds no achievements of its own matches nothing.
-            // Every category the game has, in tree order -- the same list the assignment pickers
-            // offer. Built from what the rows currently carry, it would have offered only the
-            // categories somebody had already overridden, which is not what a filter is for.
-            var options = CategoryPickerResolver.BuildOptions(
-                AssignableCategoryOptions.ToList(),
-                AssignableCategoryOptions.ToList(),
-                synthesizedAreSelectable: false);
-
-            CategoryFilterOptions.Clear();
-            CategoryFilterOptions.Add(new CategoryPickerOption(
-                null,
-                L("LOCPlayAch_Common_All", "All"),
-                L("LOCPlayAch_Common_All", "All")));
-            foreach (var option in options)
+            var removed = _selectedCategoryFilters
+                .Where(selected => !_categoryFilterOptions.Contains(selected, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+            foreach (var stale in removed)
             {
-                CategoryFilterOptions.Add(option);
+                _selectedCategoryFilters.Remove(stale);
             }
 
-            if (CustomizationFilterOptions.Count == 0)
-            {
-                CustomizationFilterOptions.Add(new EditorCustomizationFilterOption(
-                    AchievementCustomizationFilter.All,
-                    ResourceProvider.GetString("LOCPlayAch_Common_All")));
-                CustomizationFilterOptions.Add(new EditorCustomizationFilterOption(
-                    AchievementCustomizationFilter.Customized,
-                    ResourceProvider.GetString("LOCPlayAch_Tagging_Customized")));
-                CustomizationFilterOptions.Add(new EditorCustomizationFilterOption(
-                    AchievementCustomizationFilter.NotCustomized,
-                    ResourceProvider.GetString("LOCPlayAch_Tagging_NotCustomized")));
-            }
+            OnPropertyChanged(nameof(FilterOptionsChanged));
+            CategoryFilter?.Refresh();
+            TypeFilter?.Refresh();
+            CustomizationFilter?.Refresh();
 
-            if (TypeFilterOptions.Count == 0)
-            {
-                TypeFilterOptions.Add(new EditorFilterOption(null, L("LOCPlayAch_Common_All", "All")));
-                foreach (var type in AchievementCategoryTypeHelper.AssignableCategoryTypes)
-                {
-                    TypeFilterOptions.Add(new EditorFilterOption(
-                        type,
-                        ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(type)));
-                }
-            }
-
-            // A filter whose category disappeared falls back to showing everything, rather than
-            // leaving the grid mysteriously empty.
-            //
-            // Reassigned under a guard because the rebuilt options are new instances every time, so
-            // the setters always see a change even when the filter is the same one. The view
-            // answers a filter change by refreshing the collection view, and that reset takes the
-            // grid's selection with it.
-            _suppressFilterNotifications = true;
-            try
-            {
-                SelectedCategoryFilter = CategoryFilterOptions.FirstOrDefault(option =>
-                                             option.IsSelectable &&
-                                             string.Equals(option.Label, previousCategory, StringComparison.OrdinalIgnoreCase))
-                                         ?? CategoryFilterOptions.FirstOrDefault();
-                SelectedTypeFilter = TypeFilterOptions.FirstOrDefault(option =>
-                                         string.Equals(option.Value, previousType, StringComparison.OrdinalIgnoreCase))
-                                     ?? TypeFilterOptions.FirstOrDefault();
-
-                // The customization entries are the same instances every rebuild, so that
-                // selection survives on its own and only needs seeding the first time.
-                if (SelectedCustomizationFilter == null)
-                {
-                    SelectedCustomizationFilter = CustomizationFilterOptions[0];
-                }
-            }
-            finally
-            {
-                _suppressFilterNotifications = false;
-            }
-
-            if (!string.Equals(SelectedCategoryFilter?.Label, previousCategory, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(SelectedTypeFilter?.Value, previousType, StringComparison.OrdinalIgnoreCase))
+            if (removed.Count > 0)
             {
                 NotifyFilterChanged();
             }
@@ -4510,23 +4542,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var value = ResourceProvider.GetString(key);
             return string.IsNullOrWhiteSpace(value) ? fallback : value;
         }
-    }
-
-    /// <summary>
-    /// One choice in the editor's control-bar filters, pairing the stored value with its label.
-    /// A null <see cref="Value"/> is the "all" entry and applies no restriction.
-    /// </summary>
-    public sealed class EditorFilterOption
-    {
-        public EditorFilterOption(string value, string displayName)
-        {
-            Value = value;
-            DisplayName = displayName;
-        }
-
-        public string Value { get; }
-
-        public string DisplayName { get; }
     }
 
     /// <summary>
