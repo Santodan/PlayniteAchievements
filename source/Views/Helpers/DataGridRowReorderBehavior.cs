@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -121,6 +121,26 @@ namespace PlayniteAchievements.Views.Helpers
         public static void CancelPendingDrag(DataGrid grid)
         {
             (grid?.GetValue(StateProperty) as ReorderState)?.CancelPendingDrag();
+        }
+
+        /// <summary>
+        /// Keeps the edge auto-scroll running for a drag this grid did not start -- artwork
+        /// dragged in from a browser or the file manager.
+        /// </summary>
+        /// <remarks>
+        /// A row reorder drives the scroll from QueryContinueDrag, which only the drag's source
+        /// receives. An external drag's source is another application, so the drop target has to
+        /// pump it from its own DragOver instead.
+        /// </remarks>
+        public static void UpdateExternalDragAutoScroll(DependencyObject grid)
+        {
+            (grid?.GetValue(StateProperty) as ReorderState)?.BeginExternalAutoScroll();
+        }
+
+        /// <summary>Ends the auto-scroll started by <see cref="UpdateExternalDragAutoScroll"/>.</summary>
+        public static void StopExternalDragAutoScroll(DependencyObject grid)
+        {
+            (grid?.GetValue(StateProperty) as ReorderState)?.EndExternalAutoScroll();
         }
 
         private static void OnOptionsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -525,6 +545,20 @@ namespace PlayniteAchievements.Views.Helpers
                 _scrollViewer = VisualTreeHelpers.FindVisualChild<ScrollViewer>(_grid);
             }
 
+            private bool _externalDragActive;
+
+            internal void BeginExternalAutoScroll()
+            {
+                _externalDragActive = true;
+                StartAutoScroll();
+            }
+
+            internal void EndExternalAutoScroll()
+            {
+                _externalDragActive = false;
+                StopAutoScroll();
+            }
+
             private void StartAutoScroll()
             {
                 EnsureScrollViewer();
@@ -549,7 +583,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             private void ApplyAutoScrollFromCursor()
             {
-                if (!_isDragging || _scrollViewer == null)
+                if ((!_isDragging && !_externalDragActive) || _scrollViewer == null)
                 {
                     return;
                 }
