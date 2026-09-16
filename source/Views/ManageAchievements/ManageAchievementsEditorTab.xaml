@@ -423,6 +423,16 @@
                                   ToolTip="{DynamicResource LOCPlayAch_Common_Label_Type}"
                                   MinWidth="140"
                                   MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                                  Margin="0,0,6,0"
+                                  VerticalContentAlignment="Center" />
+                        <!-- Narrows to what the user has touched, the counterpart to the marker
+                             each customized row carries in its handle cell. -->
+                        <ComboBox ItemsSource="{Binding CustomizationFilterOptions}"
+                                  SelectedItem="{Binding SelectedCustomizationFilter, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName"
+                                  ToolTip="{DynamicResource LOCPlayAch_Tagging_Customized}"
+                                  MinWidth="140"
+                                  MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                   Margin="0,0,10,0"
                                   VerticalContentAlignment="Center" />
                     </StackPanel>
@@ -516,12 +526,47 @@
                                         VerticalAlignment="Stretch"
                                         Cursor="SizeAll"
                                         ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}">
-                                    <TextBlock Tag="DragHandle"
-                                               Text="&#x2630;"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                               Opacity="0.65" />
+                                    <Grid>
+                                        <!-- Customization marker. It shares the handle cell rather
+                                             than taking a column of its own: the grid is already
+                                             wide, and a bar on the left edge is what makes the
+                                             customized rows scannable down the list. Its own
+                                             tooltip names the facets, overriding the cell's drag
+                                             hint while the pointer is on it. It stays
+                                             hit-testable so that tooltip can show; a press on it
+                                             still starts a drag, which the reorder behavior
+                                             decides by column rather than by what was hit.
+                                             A row the user authored is capped rather than merely
+                                             barred, because reverting it deletes it outright
+                                             instead of restoring the provider's values. -->
+                                        <Border Width="3"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Stretch"
+                                                Margin="0,3"
+                                                CornerRadius="1.5"
+                                                SnapsToDevicePixels="True"
+                                                UseLayoutRounding="True"
+                                                Background="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                                ToolTip="{Binding CustomizationToolTip}"
+                                                Visibility="{Binding IsCustomized, Converter={StaticResource BoolToVis}}" />
+                                        <Border Width="7"
+                                                Height="7"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Top"
+                                                Margin="-2,1,0,0"
+                                                CornerRadius="3.5"
+                                                SnapsToDevicePixels="True"
+                                                UseLayoutRounding="True"
+                                                IsHitTestVisible="False"
+                                                Background="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                                Visibility="{Binding IsAuthored, Converter={StaticResource BoolToVis}}" />
+                                        <TextBlock Tag="DragHandle"
+                                                   Text="&#x2630;"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                   Opacity="0.65" />
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
