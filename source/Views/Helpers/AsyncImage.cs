@@ -267,10 +267,24 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static void OnLoaded(object sender, RoutedEventArgs e)
         {
-            if (sender is DependencyObject d)
+            if (!(sender is DependencyObject d))
             {
-                _ = StartLoadAsync(d);
+                return;
             }
+
+            // XamlAnimatedGif stops the animator when its Image unloads, but OnUnloaded deliberately
+            // leaves the wrapper attached (clearing it would flash on a visibility toggle). So a
+            // reloaded element carries an animation that is attached and stopped — which every restart
+            // guard reads as "already running", leaving the GIF on whichever frame it stopped on. The
+            // decoder, its stream and its bitmap all survived the unload, so resuming the clock is the
+            // whole fix; rebuilding would tear down a working decoder for nothing.
+            if (GetNativeGifAnimation(d) is NativeGifAnimation reloaded)
+            {
+                reloaded.Resume();
+                return;
+            }
+
+            _ = StartLoadAsync(d);
         }
 
         private static void OnSizeChanged(object sender, SizeChangedEventArgs e)
@@ -342,6 +356,9 @@ namespace PlayniteAchievements.Views.Helpers
                 // subsequent hide, leaving a static frame). Only (re)start when nothing is running.
                 if (GetActiveAnimationSource(fe) != null)
                 {
+                    // Attached does not imply running: an unload in between stopped the animator
+                    // (see OnLoaded). Resume rather than rebuild, and no-op when it never stopped.
+                    GetNativeGifAnimation(fe)?.Resume();
                     return;
                 }
 
