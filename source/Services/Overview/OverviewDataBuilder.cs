@@ -612,8 +612,7 @@ namespace PlayniteAchievements.Services.Overview
                         categoryMemo: categoryMemo);
                     if (item != null)
                     {
-                        item.GameIconPath = presentation.IconPath;
-                        item.GameCoverPath = presentation.CoverPath;
+                        ApplyGamePresentation(item, presentation);
                         snapshot.Achievements.Add(item);
                     }
                 }
@@ -690,19 +689,34 @@ namespace PlayniteAchievements.Services.Overview
                         categoryMemo: categoryMemo);
                     if (item != null)
                     {
-                        item.GameIconPath = presentation.IconPath;
-                        item.GameCoverPath = presentation.CoverPath;
-                        // Per-game hydration names the game the way the provider does; the
-                        // unlocked rows carry Playnite's display name. Without this the same game
-                        // reads differently depending on which mosaic source a tile came from.
-                        item.GameName = presentation.DisplayName ?? item.GameName;
-                        item.SortingName = presentation.SortingName ?? item.SortingName;
+                        ApplyGamePresentation(item, presentation);
                         pool.Add(item);
                     }
                 }
             }
 
             snapshot.UnlockNextCandidates = pool;
+        }
+
+        /// <summary>
+        /// Stamps Playnite's view of the game onto a row built by per-game hydration. That path
+        /// names and illustrates a game the way its provider does, while the snapshot's unlocked
+        /// rows carry Playnite's display name and artwork; without this the same game reads
+        /// differently depending on which path produced the row.
+        /// </summary>
+        private static void ApplyGamePresentation(
+            AchievementDisplayItem item,
+            GamePresentation presentation)
+        {
+            if (item == null || presentation == null)
+            {
+                return;
+            }
+
+            item.GameIconPath = presentation.IconPath;
+            item.GameCoverPath = presentation.CoverPath;
+            item.GameName = presentation.DisplayName ?? item.GameName;
+            item.SortingName = presentation.SortingName ?? item.SortingName;
         }
 
         private List<AchievementDisplayItem> MaterializeAchievements(
