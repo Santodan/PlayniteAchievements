@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -19,6 +20,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private double _iconSize = 42;
         private bool _showRarityGlow = true;
         private bool _animateRarityGlows = true;
+        private bool _glowWhenLocked;
 
         public BulkObservableCollection<AchievementDisplayItem> Items { get; } =
             new BulkObservableCollection<AchievementDisplayItem>();
@@ -26,6 +28,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         public double IconSize { get => _iconSize; private set => SetValue(ref _iconSize, value); }
 
         public bool ShowRarityGlow { get => _showRarityGlow; private set => SetValue(ref _showRarityGlow, value); }
+
+        /// <summary>
+        /// Whether the tiles may glow while locked. Every other source shows earned achievements,
+        /// where the glow marks the unlock; Unlock Next shows nothing but locked achievements, so
+        /// without this its rarity glow option would do nothing at all.
+        /// </summary>
+        public bool GlowWhenLocked { get => _glowWhenLocked; private set => SetValue(ref _glowWhenLocked, value); }
 
         public bool AnimateRarityGlows { get => _animateRarityGlows; private set => SetValue(ref _animateRarityGlows, value); }
 
@@ -38,6 +47,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
             // Glow on/off is a per-widget option; the glow ANIMATION stays a global setting.
             ShowRarityGlow = ShowcaseWidgetOptions.GetMosaicShowRarityGlow(Projection?.Instance);
+            GlowWhenLocked = ShowcaseWidgetOptions.GetMosaicSource(Projection?.Instance) ==
+                ShowcaseMosaicSource.UnlockNext;
             AnimateRarityGlows =
                 PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.AnimateRarityGlows ?? true;
 
