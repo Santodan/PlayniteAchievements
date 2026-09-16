@@ -200,6 +200,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public event EventHandler AssignmentsChanged;
 
         /// <summary>
+        /// Raised after icon overrides were written, carrying the ApiNames whose icon moved. The
+        /// override maps alone only reach the surfaces that hydrate over them; this is what carries
+        /// the new art into the cached rows and the theme state, the same as the Icons tab.
+        /// </summary>
+        public event EventHandler<IconOverridesSavedEventArgs> IconOverridesSaved;
+
+        /// <summary>
         /// Raised after a rebuild replaced the rows, carrying the ApiNames that were selected before
         /// it. SelectedItems lives on the control, so only the view can put a multi-row selection
         /// back; the single-row case is restored here through <see cref="SelectedRow"/>.
@@ -3671,7 +3678,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// what removes the override. Authored rows keep their icons on their own definition and
         /// are written by the save, so they stay out of both maps.
         /// </remarks>
-        private void PersistIconOverridesFromRows()
+        private void PersistIconOverridesFromRows(IReadOnlyList<AchievementEditorRow> changedRows = null)
         {
             // The maps are written whole, so rebuilding them without the provider baseline would
             // both stamp every provider icon in as an override and drop the real ones already
@@ -3715,6 +3722,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     lockedOverrides,
                     new Dictionary<string, (string Unlocked, string Locked)>(StringComparer.OrdinalIgnoreCase));
                 RaiseAssignmentsChanged();
+                RaiseIconOverridesSaved(changedRows);
             }
             catch (Exception ex)
             {
@@ -3734,6 +3742,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private async Task ApplyIconEditAsync(IReadOnlyList<AchievementEditorRow> rows, AchievementIconVariant variant)
         {
             var errors = new List<string>();
+            // Both the set and the clear count as moved: clearing has to carry the provider's own
+            // art back into the cached rows, which nothing else would do.
+            var touched = new List<AchievementEditorRow>();
             foreach (var row in rows ?? Array.Empty<AchievementEditorRow>())
             {
                 if (row == null || !row.IsProviderRow)
@@ -3745,6 +3756,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (string.IsNullOrWhiteSpace(current))
                 {
                     StageAcross(new[] { row }, target => WriteIcon(target, variant, ReadProviderIcon(target, variant)));
+                    touched.Add(row);
                     continue;
                 }
 
@@ -3759,6 +3771,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     StageAcross(new[] { row }, target => WriteIcon(target, variant, materialized));
                 }
+
+                touched.Add(row);
             }
 
             if (errors.Count > 0)
@@ -3766,7 +3780,32 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 SetStatus(string.Join(Environment.NewLine, errors.Take(8)), true);
             }
 
-            PersistIconOverridesFromRows();
+            PersistIconOverridesFromRows(touched);
+        }
+
+        /// <summary>
+        /// Announces the provider rows whose icon this edit moved. Authored rows keep their icons on
+        /// their own definition and reach the cache through the save, so they are left out.
+        /// </summary>
+        private void RaiseIconOverridesSaved(IReadOnlyList<AchievementEditorRow> changedRows)
+        {
+            if (changedRows == null || changedRows.Count == 0)
+            {
+                return;
+            }
+
+            var apiNames = changedRows
+                .Where(row => row != null && row.IsProviderRow)
+                .Select(row => NormalizeText(row.OriginalApiName))
+                .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (apiNames.Count == 0)
+            {
+                return;
+            }
+
+            IconOverridesSaved?.Invoke(this, new IconOverridesSavedEventArgs(apiNames));
         }
 
         private static string ReadIcon(AchievementEditorRow row, AchievementIconVariant variant) =>
