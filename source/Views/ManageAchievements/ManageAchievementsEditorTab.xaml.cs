@@ -68,6 +68,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     new Action(() => RestoreSelectionByApiNames(apiNames)),
                     System.Windows.Threading.DispatcherPriority.Background);
             CategoryPicker.SelectionCommitted += (_, __) => ApplyCategoryFromPicker();
+
+            // Arrow navigation is the window's, not the grid's: stepping through achievements is
+            // what this window is for, so it should not depend on which control was clicked last.
+            Loaded += AchievementNavigation_Loaded;
+            Unloaded += AchievementNavigation_Unloaded;
             CategoryPicker.CreateRequested += (_, __) => PromptAndCreateCategory();
             SeedCategoryPicker();
 
@@ -198,6 +203,147 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// a row added a moment ago has no container yet, and scrolling to one that does not exist
         /// does nothing.
         /// </summary>
+        private Window _achievementNavigationHost;
+
+        private void AchievementNavigation_Loaded(object sender, RoutedEventArgs e)
+        {
+            var window = Window.GetWindow(this);
+            if (window == null || ReferenceEquals(window, _achievementNavigationHost))
+            {
+                return;
+            }
+
+            AchievementNavigation_Unloaded(null, null);
+            _achievementNavigationHost = window;
+            // Preview, so the step happens wherever focus is rather than only once the grid has
+            // it. Anything that needs the arrows for itself is let through by ConsumesArrowKeys.
+            _achievementNavigationHost.PreviewKeyDown += AchievementNavigationHost_PreviewKeyDown;
+        }
+
+        private void AchievementNavigation_Unloaded(object sender, RoutedEventArgs e)
+        {
+            if (_achievementNavigationHost == null)
+            {
+                return;
+            }
+
+            // The window outlives this control, so the handler has to come off with it.
+            _achievementNavigationHost.PreviewKeyDown -= AchievementNavigationHost_PreviewKeyDown;
+            _achievementNavigationHost = null;
+        }
+
+        private void AchievementNavigationHost_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Handled || (e.Key != Key.Up && e.Key != Key.Down))
+            {
+                return;
+            }
+
+            // The window hosts other tabs; only the one on screen owns the arrows.
+            if (!IsVisible)
+            {
+                return;
+            }
+
+            if (ConsumesArrowKeys(Keyboard.FocusedElement as DependencyObject))
+            {
+                return;
+            }
+
+            // Handled either way once it is ours: at the first or last achievement the key does
+            // nothing rather than falling through to a control that would move something else.
+            MoveAchievementSelection(e.Key == Key.Down ? 1 : -1);
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Whether the focused control needs the arrow keys for itself: a drop-down picks its
+        /// entry with them, and a multi-line box moves its caret. A single-line box does neither,
+        /// so typing a name and stepping to the next achievement works without leaving the field.
+        /// </summary>
+        private static bool ConsumesArrowKeys(DependencyObject focused)
+        {
+            for (var node = focused; node != null; node = GetParent(node))
+            {
+                if (node is ComboBox || node is System.Windows.Controls.Primitives.Popup ||
+                    node is ContextMenu || node is MenuItem || node is ListBoxItem)
+                {
+                    return true;
+                }
+
+                if (node is TextBox textBox && textBox.AcceptsReturn)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static DependencyObject GetParent(DependencyObject node)
+        {
+            // Visual first, then logical: a focused element inside a popup has no visual parent
+            // reaching back to the control that opened it.
+            if (node is System.Windows.Media.Visual || node is System.Windows.Media.Media3D.Visual3D)
+            {
+                var visualParent = System.Windows.Media.VisualTreeHelper.GetParent(node);
+                if (visualParent != null)
+                {
+                    return visualParent;
+                }
+            }
+
+            return LogicalTreeHelper.GetParent(node);
+        }
+
+        /// <summary>
+        /// Steps the selection one achievement in the grid's own order, clamped at both ends so
+        /// the list never wraps around.
+        /// </summary>
+        private void MoveAchievementSelection(int delta)
+        {
+            var view = CollectionViewSource.GetDefaultView(ViewModel?.AchievementRows);
+            if (view == null)
+            {
+                return;
+            }
+
+            // The view, not the source collection: what the arrows walk is what is on screen,
+            // in the order and with the filtering the grid is showing.
+            var rows = view.Cast<AchievementEditorRow>().ToList();
+            if (rows.Count == 0)
+            {
+                return;
+            }
+
+            var index = rows.IndexOf(CustomAchievementsGrid.SelectedItem as AchievementEditorRow);
+            int next;
+            if (index < 0)
+            {
+                next = delta > 0 ? 0 : rows.Count - 1;
+            }
+            else
+            {
+                next = index + delta;
+                if (next < 0 || next >= rows.Count)
+                {
+                    return;
+                }
+            }
+
+            // The grid takes an extended selection, so the step replaces it rather than adding to
+            // it: this is moving through the list, not building a set. Cleared only when there is
+            // really a multi-selection to collapse, because clearing drives the selection through
+            // null on its way and the details pane follows it there.
+            if (CustomAchievementsGrid.SelectedItems.Count > 1)
+            {
+                CustomAchievementsGrid.SelectedItems.Clear();
+            }
+
+            CustomAchievementsGrid.SelectedItem = rows[next];
+            ScrollRowIntoView(rows[next]);
+        }
+
         private void ScrollRowIntoView(AchievementEditorRow row)
         {
             if (row == null)
