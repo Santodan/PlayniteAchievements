@@ -184,6 +184,9 @@ namespace PlayniteAchievements.Models.Settings
             Add(A, GridOptionKeys.Achievement.ViewFriendsAchievements, nameof(AchievementGridOptions.ColorRarityColumnsByRarity), nameof(ViewFriendsAchievementsColorRarityColumnsByRarity));
 
             // Achievement / DesktopTheme
+            Add(A, GridOptionKeys.Achievement.DesktopTheme, nameof(AchievementGridOptions.ShowRarityGlow), nameof(DesktopThemeAchievementGridShowRarityGlow));
+            Add(A, GridOptionKeys.Achievement.DesktopTheme, nameof(AchievementGridOptions.ColorNamesByRarity), nameof(DesktopThemeAchievementGridColorNamesByRarity));
+            Add(A, GridOptionKeys.Achievement.DesktopTheme, nameof(AchievementGridOptions.ColorRarityColumnsByRarity), nameof(DesktopThemeAchievementGridColorRarityColumnsByRarity));
             Add(A, GridOptionKeys.Achievement.DesktopTheme, nameof(AchievementGridOptions.StartInCategoryMode), nameof(DesktopThemeAchievementGridStartInCategoryMode));
             Add(A, GridOptionKeys.Achievement.DesktopTheme, nameof(AchievementGridOptions.HideCategorySummaryRow), nameof(DesktopThemeAchievementGridHideCategorySummaryRow));
             Add(A, GridOptionKeys.Achievement.DesktopTheme, nameof(AchievementGridOptions.ShowControlBar), nameof(ShowDesktopThemeAchievementGridControlBar));
@@ -191,6 +194,7 @@ namespace PlayniteAchievements.Models.Settings
             Add(A, GridOptionKeys.Achievement.DesktopTheme, nameof(AchievementGridOptions.UnlockDateMode), nameof(DesktopThemeAchievementsUnlockDateMode));
             Add(A, GridOptionKeys.Achievement.DesktopTheme, nameof(AchievementGridOptions.RowHeight), nameof(DesktopThemeAchievementGridRowHeight));
             Add(A, GridOptionKeys.Achievement.DesktopTheme, nameof(AchievementGridOptions.MaxRows), nameof(DesktopThemeAchievementGridMaxRows));
+            Add(A, GridOptionKeys.Achievement.DesktopTheme, nameof(AchievementGridOptions.MaxHeight), nameof(DesktopThemeAchievementGridMaxHeight));
             Add(A, GridOptionKeys.Achievement.DesktopTheme, nameof(AchievementGridOptions.Columns),
                 nameof(DesktopThemeColumnWidths), nameof(DesktopThemeColumnOrder),
                 nameof(DesktopThemeColumnAlignments), nameof(DesktopThemeColumnVerticalAlignments), nameof(DesktopThemeColumnHeaderAlignments));

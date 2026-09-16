@@ -78,6 +78,7 @@ namespace PlayniteAchievements.Models.Settings
                 changed |= CopyFriendSummaryOptions(persisted, gridOptions);
                 changed |= SeedStartPageControlBarDefaults(gridOptions);
                 changed |= SeedSingleGameAppearanceFromOverviewSelectedGame(gridOptions);
+                changed |= SeedDesktopThemeAppearanceFromLegacyDataGrid(gridOptions);
 
                 return changed
                     ? root.ToString(Formatting.None)
@@ -341,6 +342,28 @@ namespace PlayniteAchievements.Models.Settings
                 GridOptionKeys.Achievement.SingleGame,
                 (nameof(AchievementGridOptions.ShowRarityGlow), nameof(AchievementGridOptions.ShowRarityGlow)),
                 (nameof(AchievementGridOptions.ColorNamesByRarity), nameof(AchievementGridOptions.ColorNamesByRarity)));
+        }
+
+        /// <summary>
+        /// The desktop theme grid used to read its rarity glow and name/column colouring from the
+        /// legacy Achievement[Default] record through the ModernDataGrid aliases. Those bindings
+        /// now point at its own DesktopTheme record, so carry the old values across or an
+        /// existing configuration would silently revert to defaults.
+        /// </summary>
+        private static bool SeedDesktopThemeAppearanceFromLegacyDataGrid(JObject gridOptions)
+        {
+            var source = (gridOptions?[nameof(GridOptionsCatalog.Achievement)] as JObject)?
+                [GridOptionKeys.Achievement.Default] as JObject;
+
+            return CopyScalars(
+                source,
+                gridOptions,
+                nameof(GridOptionsCatalog.Achievement),
+                GridOptionKeys.Achievement.DesktopTheme,
+                (nameof(AchievementGridOptions.ShowRarityGlow), nameof(AchievementGridOptions.ShowRarityGlow)),
+                (nameof(AchievementGridOptions.ColorNamesByRarity), nameof(AchievementGridOptions.ColorNamesByRarity)),
+                (nameof(AchievementGridOptions.ColorRarityColumnsByRarity), nameof(AchievementGridOptions.ColorRarityColumnsByRarity)),
+                (nameof(AchievementGridOptions.MaxHeight), nameof(AchievementGridOptions.MaxHeight)));
         }
 
         private static bool SeedStartPageControlBarDefaults(JObject gridOptions)

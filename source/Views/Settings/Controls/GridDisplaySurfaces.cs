@@ -137,11 +137,13 @@ namespace PlayniteAchievements.Views.Settings.Controls
                 // surfaces carry a per-instance suffix. The sort combo's default keeps the
                 // projection order (unlock recency), so sorting stays offered.
                 [ShowcaseGridSurfaces.RecentAchievements] = AllRows,
+                // Sort stays off (the control sorts externally) and cover images do not apply,
+                // but the appearance rows now reach this grid's own record rather than the
+                // legacy Achievement[Default] one, so they are offered here.
                 [GridOptionKeys.Achievement.DesktopTheme] = new GridDisplayRowCapabilities(
                     showSortRow: false,
                     showCoverImagesRow: false,
-                    showRarityGlowRow: false,
-                    showColorNamesRow: false,
+                    showMaxHeightRow: true,
                     showCategoryModeRow: true)
             };
 

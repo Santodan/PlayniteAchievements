@@ -271,7 +271,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             }
 
             var isPreview = ThemeDataOverride != null;
-            var persistedMaxHeight = settings.AchievementDataGridMaxHeight;
+            var persistedMaxHeight = settings.DesktopThemeAchievementGridMaxHeight;
             var resolvedMaxHeight = AchievementDataGridPreviewHeightResolver.Resolve(
                 persistedMaxHeight,
                 isPreview,
@@ -434,7 +434,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// </summary>
         protected override bool ShouldHandleSettingsDataChange(string propertyName)
         {
-            return propertyName == nameof(PersistedSettings.AchievementDataGridMaxHeight) ||
+            return propertyName == nameof(PersistedSettings.DesktopThemeAchievementGridMaxHeight) ||
                    propertyName == nameof(PersistedSettings.DesktopThemeAchievementGridMaxRows) ||
                    AchievementSortHelper.IsConfiguredDefaultSortPropertyName(
                        propertyName,
