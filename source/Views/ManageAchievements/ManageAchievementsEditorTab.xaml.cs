@@ -73,6 +73,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // what this window is for, so it should not depend on which control was clicked last.
             Loaded += AchievementNavigation_Loaded;
             Unloaded += AchievementNavigation_Unloaded;
+
+            // Dragging artwork in from outside: hovering a row selects it, so the details pane is
+            // showing that achievement's icon slots by the time the pointer reaches them. On the
+            // tunnelling event at the tab root, which reaches here before the grid's own reorder
+            // handlers rather than depending on the order those were attached in.
+            PreviewDragOver += EditorTab_PreviewDragOver;
             CategoryPicker.CreateRequested += (_, __) => PromptAndCreateCategory();
             SeedCategoryPicker();
 
@@ -203,6 +209,85 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// a row added a moment ago has no container yet, and scrolling to one that does not exist
         /// does nothing.
         /// </summary>
+        /// <summary>
+        /// Selects the achievement under the pointer while an image is being dragged over the
+        /// grid, so the drag can be carried on into one of that achievement's icon slots.
+        /// </summary>
+        /// <remarks>
+        /// The grid itself is not a drop target for artwork -- the slots are -- so this only moves
+        /// the selection and leaves the event alone. A row reorder carries the grid's own format
+        /// and is left untouched.
+        /// </remarks>
+        private void EditorTab_PreviewDragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data == null || e.Data.GetDataPresent(DragDataFormat))
+            {
+                return;
+            }
+
+            if (!DragPayloadCarriesArtwork(e.Data))
+            {
+                return;
+            }
+
+            var row = FindRowUnderPointer(e.GetPosition(CustomAchievementsGrid));
+            if (row == null || ReferenceEquals(row, CustomAchievementsGrid.SelectedItem))
+            {
+                return;
+            }
+
+            if (CustomAchievementsGrid.SelectedItems.Count > 1)
+            {
+                CustomAchievementsGrid.SelectedItems.Clear();
+            }
+
+            CustomAchievementsGrid.SelectedItem = row;
+        }
+
+        private object _dragPayloadSource;
+
+        private bool _dragPayloadCarriesArtwork;
+
+        /// <summary>
+        /// Whether the drag is carrying artwork, answered once per drag rather than per tick.
+        /// </summary>
+        /// <remarks>
+        /// DragOver fires continuously while the pointer moves, and reading a browser drag means
+        /// pulling its HTML fragment out of the data object and running a regex over it. The
+        /// payload cannot change mid-drag, so the verdict is cached against the data object it
+        /// was read from.
+        /// </remarks>
+        private bool DragPayloadCarriesArtwork(IDataObject data)
+        {
+            if (ReferenceEquals(data, _dragPayloadSource))
+            {
+                return _dragPayloadCarriesArtwork;
+            }
+
+            _dragPayloadSource = data;
+            _dragPayloadCarriesArtwork = TryGetFirstImageFilePath(data, out _) ||
+                                         TryGetFirstBrowserUrl(data, out _);
+            return _dragPayloadCarriesArtwork;
+        }
+
+        /// <summary>
+        /// The achievement whose row is under <paramref name="point"/>, in grid coordinates, or
+        /// null when the pointer is off the rows.
+        /// </summary>
+        private AchievementEditorRow FindRowUnderPointer(Point point)
+        {
+            if (point.X < 0 || point.Y < 0 ||
+                point.X > CustomAchievementsGrid.ActualWidth ||
+                point.Y > CustomAchievementsGrid.ActualHeight)
+            {
+                return null;
+            }
+
+            var hit = System.Windows.Media.VisualTreeHelper.HitTest(CustomAchievementsGrid, point);
+            var container = VisualTreeHelpers.FindVisualParent<DataGridRow>(hit?.VisualHit);
+            return container?.Item as AchievementEditorRow;
+        }
+
         private Window _achievementNavigationHost;
 
         private void AchievementNavigation_Loaded(object sender, RoutedEventArgs e)
