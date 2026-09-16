@@ -79,6 +79,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // tunnelling event at the tab root, which reaches here before the grid's own reorder
             // handlers rather than depending on the order those were attached in.
             PreviewDragOver += EditorTab_PreviewDragOver;
+            PreviewDrop += EditorTab_EndArtworkDrag;
+            DragLeave += EditorTab_EndArtworkDrag;
             CategoryPicker.CreateRequested += (_, __) => PromptAndCreateCategory();
             SeedCategoryPicker();
 
@@ -230,6 +232,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
+            // Near the top or bottom edge the list keeps scrolling, so an achievement that is off
+            // screen can still be reached without letting go. The arrow keys and the wheel are
+            // not available here: during a drag the keyboard and wheel belong to the source
+            // application's drag loop, and a drop target only ever sees the modifier keys.
+            DataGridRowReorderBehavior.UpdateExternalDragAutoScroll(CustomAchievementsGrid);
+
             var row = FindRowUnderPointer(e.GetPosition(CustomAchievementsGrid));
             if (row == null || ReferenceEquals(row, CustomAchievementsGrid.SelectedItem))
             {
@@ -242,6 +250,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             CustomAchievementsGrid.SelectedItem = row;
+        }
+
+        private void EditorTab_EndArtworkDrag(object sender, DragEventArgs e)
+        {
+            DataGridRowReorderBehavior.StopExternalDragAutoScroll(CustomAchievementsGrid);
         }
 
         private object _dragPayloadSource;
