@@ -220,6 +220,7 @@ namespace PlayniteAchievements.ViewModels
                 MinimumSeriesCount = ContextualPieSeriesCount
             };
             ApplyOverviewPieSmallSliceMode();
+            ApplyOverviewPieIncludeLocked();
 
             // Set defaults: Unlocked Only, sorted by Unlock Date
             _showUnlockedOnly = true;
@@ -2474,6 +2475,7 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(IncludeUnplayedGames));
                 RaiseOverviewScoreCardVisibilityChanged();
                 ApplyOverviewPieSmallSliceMode();
+                ApplyOverviewPieIncludeLocked();
                 RaiseOverviewPieChartVisibilityChanged();
                 OnPropertyChanged(nameof(ShowOverviewPiePercentages));
                 OnPropertyChanged(nameof(ShowOverviewBarCharts));
@@ -2668,6 +2670,12 @@ namespace PlayniteAchievements.ViewModels
             else if (propertyName == nameof(PersistedSettings.OverviewPieSmallSliceMode))
             {
                 ApplyOverviewPieSmallSliceMode();
+                UpdateAggregatePieCharts();
+            }
+            else if (propertyName == nameof(PersistedSettings.OverviewPieIncludeLocked) ||
+                propertyName == nameof(PersistedSettings.ShowOverviewPiePercentages))
+            {
+                ApplyOverviewPieIncludeLocked();
                 UpdateAggregatePieCharts();
             }
             else if (propertyName == nameof(PersistedSettings.OverviewTimelineRange))
@@ -3409,6 +3417,21 @@ namespace PlayniteAchievements.ViewModels
             ProviderPieChart.SmallSliceMode = mode;
             RarityPieChart.SmallSliceMode = mode;
             TrophyPieChart.SmallSliceMode = mode;
+        }
+
+        // The completions pie never hides its trailing slice, so it keeps the requested
+        // percentage regardless; the other three follow the setting.
+        private void ApplyOverviewPieIncludeLocked()
+        {
+            var includeLocked = _settings?.Persisted?.OverviewPieIncludeLocked ?? true;
+            var showPercentages = _settings?.Persisted?.ShowOverviewPiePercentages ?? true;
+            GamesPieChart.ShowCenterPercentageRequested = showPercentages;
+            ProviderPieChart.ShowCenterPercentageRequested = showPercentages;
+            RarityPieChart.ShowCenterPercentageRequested = showPercentages;
+            TrophyPieChart.ShowCenterPercentageRequested = showPercentages;
+            ProviderPieChart.IncludeLocked = includeLocked;
+            RarityPieChart.IncludeLocked = includeLocked;
+            TrophyPieChart.IncludeLocked = includeLocked;
         }
 
         private void UpdateAggregatePieCharts()

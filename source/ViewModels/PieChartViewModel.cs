@@ -59,6 +59,8 @@ namespace PlayniteAchievements.ViewModels
 
         private ObservableCollection<string> _highlightedLabels = new ObservableCollection<string>();
         private OverviewPieSmallSliceMode _smallSliceMode = OverviewPieSmallSliceMode.Round;
+        private bool _includeLocked = true;
+        private bool _showCenterPercentageRequested = true;
         private int _exactUnlockedCount;
         private int _exactTotalCount;
         private bool _alwaysShowSmallSliceIcons;
@@ -78,6 +80,36 @@ namespace PlayniteAchievements.ViewModels
             get => _smallSliceMode;
             set => SetValue(ref _smallSliceMode, value);
         }
+
+        /// <summary>
+        /// Whether the trailing locked slice is drawn. Like <see cref="SmallSliceMode"/> this is
+        /// applied by each Set*Data call, so it must be assigned before the data. The completed
+        /// games pie ignores it: its trailing slice counts unfinished games rather than locked
+        /// achievements, and without it that pie would be a single slice saying nothing.
+        /// </summary>
+        public bool IncludeLocked
+        {
+            get => _includeLocked;
+            set => SetValue(ref _includeLocked, value, nameof(IncludeLocked), nameof(ShowCenterPercentage));
+        }
+
+        /// <summary>
+        /// What the host asked for. Hiding the locked slice also hides the centre percentage,
+        /// because the percentage is unlocked-of-total and the pie no longer shows the total.
+        /// Kept separate from <see cref="ShowCenterPercentage"/> so toggling locked back on
+        /// restores the host's own choice.
+        /// </summary>
+        public bool ShowCenterPercentageRequested
+        {
+            get => _showCenterPercentageRequested;
+            set => SetValue(
+                ref _showCenterPercentageRequested,
+                value,
+                nameof(ShowCenterPercentageRequested),
+                nameof(ShowCenterPercentage));
+        }
+
+        public bool ShowCenterPercentage => _showCenterPercentageRequested && _includeLocked;
 
         public int ExactUnlockedCount
         {
@@ -305,17 +337,20 @@ namespace PlayniteAchievements.ViewModels
                 });
             }
 
-            dataPoints.Add(new PieSliceInputData
+            if (_includeLocked)
             {
-                Label = lockedLabel,
-                Count = locked,
-                IconKey = "BadgeLocked",
-                Color = GetLockedColor(),
-                OriginalColorHex = string.Empty,
-                UnlockedCount = locked,
-                TotalCount = locked,
-                IsLocked = true
-            });
+                dataPoints.Add(new PieSliceInputData
+                {
+                    Label = lockedLabel,
+                    Count = locked,
+                    IconKey = "BadgeLocked",
+                    Color = GetLockedColor(),
+                    OriginalColorHex = string.Empty,
+                    UnlockedCount = locked,
+                    TotalCount = locked,
+                    IsLocked = true
+                });
+            }
 
             ApplySmallSliceMode(dataPoints);
         }
@@ -398,17 +433,20 @@ namespace PlayniteAchievements.ViewModels
                 });
             }
 
-            dataPoints.Add(new PieSliceInputData
+            if (_includeLocked)
             {
-                Label = lockedLabel,
-                Count = totalLocked,
-                IconKey = "BadgeLocked",
-                Color = GetLockedColor(),
-                OriginalColorHex = string.Empty,
-                UnlockedCount = totalLocked,
-                TotalCount = totalLocked,
-                IsLocked = true
-            });
+                dataPoints.Add(new PieSliceInputData
+                {
+                    Label = lockedLabel,
+                    Count = totalLocked,
+                    IconKey = "BadgeLocked",
+                    Color = GetLockedColor(),
+                    OriginalColorHex = string.Empty,
+                    UnlockedCount = totalLocked,
+                    TotalCount = totalLocked,
+                    IsLocked = true
+                });
+            }
 
             ApplySmallSliceMode(dataPoints);
         }
@@ -502,17 +540,20 @@ namespace PlayniteAchievements.ViewModels
                 });
             }
 
-            dataPoints.Add(new PieSliceInputData
+            if (_includeLocked)
             {
-                Label = lockedLabel,
-                Count = locked,
-                IconKey = "BadgeLocked",
-                Color = GetLockedColor(),
-                OriginalColorHex = string.Empty,
-                UnlockedCount = locked,
-                TotalCount = locked,
-                IsLocked = true
-            });
+                dataPoints.Add(new PieSliceInputData
+                {
+                    Label = lockedLabel,
+                    Count = locked,
+                    IconKey = "BadgeLocked",
+                    Color = GetLockedColor(),
+                    OriginalColorHex = string.Empty,
+                    UnlockedCount = locked,
+                    TotalCount = locked,
+                    IsLocked = true
+                });
+            }
 
             ApplySmallSliceMode(dataPoints);
         }

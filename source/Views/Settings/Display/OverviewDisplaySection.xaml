@@ -55,6 +55,9 @@
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowOverviewPiePercentages}"
                                       IsChecked="{Binding Persisted.ShowOverviewPiePercentages}"
                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_PieIncludeLocked}"
+                                      IsChecked="{Binding Persisted.OverviewPieIncludeLocked}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowOverviewBarCharts}"
                                       IsChecked="{Binding Persisted.ShowOverviewBarCharts}"
                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>

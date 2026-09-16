@@ -389,7 +389,7 @@
                 HighlightedLabels="{Binding Chart.HighlightedLabels}"
                 ExactUnlockedCount="{Binding Chart.ExactUnlockedCount}"
                 ExactTotalCount="{Binding Chart.ExactTotalCount}"
-                ShowCenterPercentage="{Binding ShowCenterPercentage}"
+                ShowCenterPercentage="{Binding Chart.ShowCenterPercentage}"
                 MinHeight="70"/>
         </DockPanel>
     </DataTemplate>

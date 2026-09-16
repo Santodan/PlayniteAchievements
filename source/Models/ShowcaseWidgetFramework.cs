@@ -312,6 +312,7 @@ namespace PlayniteAchievements.Models
         private const string ShowCompletionGlow = "ShowCompletionGlow";
         private const string ShowCenterPercentage = "ShowCenterPercentage";
         private const string ShowLegend = "ShowLegend";
+        private const string IncludeLocked = "IncludeLocked";
         private const string SmallSliceMode = "SmallSliceMode";
         private const string ActivityScope = "ActivityScope";
         private const string PinCollectionId = "PinCollectionId";
@@ -434,6 +435,16 @@ namespace PlayniteAchievements.Models
 
         public static void SetPieShowCenterPercentage(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(ShowCenterPercentage, value);
+
+        /// <summary>
+        /// Whether the pie draws its trailing locked slice. Ignored by the completions mode,
+        /// whose trailing slice counts unfinished games rather than locked achievements.
+        /// </summary>
+        public static bool GetPieIncludeLocked(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.GetOption(IncludeLocked, true) ?? true;
+
+        public static void SetPieIncludeLocked(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(IncludeLocked, value);
 
         public static bool GetPieShowLegend(ShowcaseWidgetInstanceSettings settings) =>
             settings?.GetOption(ShowLegend, true) ?? true;
@@ -648,6 +659,7 @@ namespace PlayniteAchievements.Models
                     ShowcaseWidgetOptions.SetPieMode(settings, ShowcasePieMode.CompletedGames);
                     ShowcaseWidgetOptions.SetPieShowCenterPercentage(settings, true);
                     ShowcaseWidgetOptions.SetPieShowLegend(settings, true);
+                    ShowcaseWidgetOptions.SetPieIncludeLocked(settings, true);
                     ShowcaseWidgetOptions.SetPieSmallSliceMode(settings, OverviewPieSmallSliceMode.Round);
                     break;
                 case ShowcaseWidgetKind.Profile:

@@ -60,7 +60,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         protected override bool ShouldHandleSettingsDataChange(string propertyName)
         {
-            return propertyName == nameof(PersistedSettings.UseUniformRarityBadges);
+            return propertyName == nameof(PersistedSettings.UseUniformRarityBadges)
+                || propertyName == nameof(PersistedSettings.OverviewPieIncludeLocked);
         }
 
         /// <summary>
@@ -71,6 +72,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             var theme = EffectiveTheme;
             if (theme == null) return;
 
+            // Applied by SetRarityData, so it must be assigned before the data.
+            _viewModel.IncludeLocked = EffectiveSettings?.Persisted?.OverviewPieIncludeLocked ?? true;
             _viewModel.SetRarityData(
                 theme.Common.Unlocked, theme.Uncommon.Unlocked, theme.Rare.Unlocked, theme.UltraRare.Unlocked, theme.LockedCount,
                 theme.Common.Total, theme.Uncommon.Total, theme.Rare.Total, theme.UltraRare.Total,

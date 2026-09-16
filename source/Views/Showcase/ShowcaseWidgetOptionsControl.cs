@@ -135,6 +135,13 @@ namespace PlayniteAchievements.Views.Showcase
                         OnOffLabel);
                     AddChoice(
                         panel,
+                        Localize("LOCPlayAch_Settings_PieIncludeLocked"),
+                        new[] { true, false },
+                        ShowcaseWidgetOptions.GetPieIncludeLocked(_settings),
+                        value => ShowcaseWidgetOptions.SetPieIncludeLocked(_settings, value),
+                        OnOffLabel);
+                    AddChoice(
+                        panel,
                         Localize("LOCPlayAch_Settings_OverviewPieSmallSliceMode"),
                         new[]
                         {

@@ -89,8 +89,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ShowLegend = ShowcaseWidgetOptions.GetPieShowLegend(Projection?.Instance);
             var chart = new PieChartViewModel
             {
-                // Applied by each Set*Data call, so it must be assigned before the data.
-                SmallSliceMode = ShowcaseWidgetOptions.GetPieSmallSliceMode(Projection?.Instance)
+                // Both are applied by each Set*Data call, so they must be assigned before
+                // the data.
+                SmallSliceMode = ShowcaseWidgetOptions.GetPieSmallSliceMode(Projection?.Instance),
+                IncludeLocked = ShowcaseWidgetOptions.GetPieIncludeLocked(Projection?.Instance),
+                ShowCenterPercentageRequested = ShowCenterPercentage
             };
             switch (mode)
             {
@@ -139,16 +142,15 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                         Localize("LOCPlayAch_Common_Locked"));
                     break;
                 case ShowcasePieMode.Trophy:
-                    var trophyGames = snapshot.GameSummaries ?? new List<GameSummaryItem>();
                     chart.SetTrophyData(
-                        trophyGames.Sum(game => game?.TrophyPlatinumCount ?? 0),
-                        trophyGames.Sum(game => game?.TrophyGoldCount ?? 0),
-                        trophyGames.Sum(game => game?.TrophySilverCount ?? 0),
-                        trophyGames.Sum(game => game?.TrophyBronzeCount ?? 0),
-                        trophyGames.Sum(game => game?.TrophyPlatinumTotal ?? 0),
-                        trophyGames.Sum(game => game?.TrophyGoldTotal ?? 0),
-                        trophyGames.Sum(game => game?.TrophySilverTotal ?? 0),
-                        trophyGames.Sum(game => game?.TrophyBronzeTotal ?? 0),
+                        snapshot.TotalPlatinum,
+                        snapshot.TotalGold,
+                        snapshot.TotalSilver,
+                        snapshot.TotalBronze,
+                        snapshot.TotalPlatinumPossible,
+                        snapshot.TotalGoldPossible,
+                        snapshot.TotalSilverPossible,
+                        snapshot.TotalBronzePossible,
                         Localize("LOCPlayAch_Trophy_Platinum"),
                         Localize("LOCPlayAch_Trophy_Gold"),
                         Localize("LOCPlayAch_Trophy_Silver"),

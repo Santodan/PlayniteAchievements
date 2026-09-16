@@ -176,6 +176,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showFriendSpoilers;
         private int _friendsOverviewRecentUnlockLimit = 200;
         private OverviewPieSmallSliceMode _overviewPieSmallSliceMode = OverviewPieSmallSliceMode.Round;
+        private bool _overviewPieIncludeLocked = true;
         private bool _overviewPieChartVisibilityInitializedFromIndividualSettings;
         private bool _showOverviewBarCharts = true;
         private bool _showTopMenuBarButton = true;
@@ -2018,6 +2019,18 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// When true, the overview rarity, provider and trophy pies draw a trailing locked
+        /// slice. The completions pie is unaffected: its trailing slice counts unfinished games,
+        /// not locked achievements. Hiding the locked slice also hides the centre percentage,
+        /// which measures unlocked against a total the pie would no longer show.
+        /// </summary>
+        public bool OverviewPieIncludeLocked
+        {
+            get => _overviewPieIncludeLocked;
+            set => SetValue(ref _overviewPieIncludeLocked, value);
+        }
+
+        /// <summary>
         /// When true, shows the timeline bar chart at the bottom of the right overview.
         /// When false, the achievements list takes the full space.
         /// </summary>
@@ -2967,6 +2980,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowOverviewTrophyPieChart = this.ShowOverviewTrophyPieChart,
                 ShowOverviewPiePercentages = this.ShowOverviewPiePercentages,
                 OverviewPieSmallSliceMode = this.OverviewPieSmallSliceMode,
+                OverviewPieIncludeLocked = this.OverviewPieIncludeLocked,
                 ShowOverviewBarCharts = this.ShowOverviewBarCharts,
                 ShowTopMenuBarButton = this.ShowTopMenuBarButton,
                 ShowCompletedProgressColoring = this.ShowCompletedProgressColoring,
@@ -3128,6 +3142,7 @@ namespace PlayniteAchievements.Models.Settings
             ShowOverviewTrophyPieChart = defaults.ShowOverviewTrophyPieChart;
             ShowOverviewPiePercentages = defaults.ShowOverviewPiePercentages;
             OverviewPieSmallSliceMode = defaults.OverviewPieSmallSliceMode;
+            OverviewPieIncludeLocked = defaults.OverviewPieIncludeLocked;
             ShowOverviewBarCharts = defaults.ShowOverviewBarCharts;
             ShowTopMenuBarButton = defaults.ShowTopMenuBarButton;
             ShowCompletedProgressColoring = defaults.ShowCompletedProgressColoring;
