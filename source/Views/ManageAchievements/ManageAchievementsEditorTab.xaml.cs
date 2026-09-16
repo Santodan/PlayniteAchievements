@@ -7,6 +7,7 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.ViewModels.ManageAchievements;
 using PlayniteAchievements.Views.Helpers;
 using System;
@@ -130,6 +131,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 ViewModel.IsDetailsPaneExpanded = !ViewModel.IsDetailsPaneExpanded;
             }
+        }
+
+        /// <summary>
+        /// Opens a filter drop-down through the shared builder, the same one the grid control bar
+        /// uses, so the editor's filters render and behave identically to every other grid's.
+        /// </summary>
+        private void MultiSelectFilter_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            MultiSelectFilterMenu.Open(button, button?.DataContext as GridMultiSelectFilter);
         }
 
         private void ClearFilterButton_Click(object sender, RoutedEventArgs e)
