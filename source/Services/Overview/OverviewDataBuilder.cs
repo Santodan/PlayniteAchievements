@@ -262,6 +262,7 @@ namespace PlayniteAchievements.Services.Overview
                 presentationByGameId,
                 cancel);
             AppendPinnedLockedAchievements(settings, snapshot, presentationByGameId, cancel);
+            BuildUnlockNextCandidates(settings, snapshot, presentationByGameId, cancel);
             snapshot.RecentAchievements = AchievementSortHelper.CreateDefaultSortedList(
                 snapshot.Achievements.Where(item =>
                     item?.Unlocked == true && item.UnlockTimeUtc.HasValue),
@@ -617,6 +618,86 @@ namespace PlayniteAchievements.Services.Overview
                     }
                 }
             }
+        }
+
+        // The snapshot's achievement rows are unlocked-only (see SummaryCacheReader: one display
+        // row per locked definition costs hundreds of MB on the 32-bit host). Unlock Next needs
+        // locked rows, so hydrate a bounded candidate pool the same way the pinned-locked path
+        // does - per game, capped, and skipped entirely unless a live widget asks for it.
+        //
+        // The pool is deliberately config-independent: it is a superset that dominates every
+        // per-widget combination of criterion, window, and max-per-game, because editing a widget
+        // option re-projects from the existing snapshot without rebuilding it. Narrowing happens
+        // in ShowcaseWidgetProjectionService, which is free.
+        private void BuildUnlockNextCandidates(
+            PlayniteAchievementsSettings settings,
+            OverviewDataSnapshot snapshot,
+            Dictionary<Guid, GamePresentation> presentationByGameId,
+            CancellationToken cancel)
+        {
+            if (snapshot == null ||
+                !ShowcaseWidgetOptions.RequiresUnlockNextPool(settings?.Persisted?.Showcase))
+            {
+                return;
+            }
+
+            snapshot.UnlockNextPoolBuilt = true;
+
+            var pool = new List<AchievementDisplayItem>();
+            foreach (var summary in UnlockNextCandidateSelector.SelectGames(snapshot.GameSummaries))
+            {
+                cancel.ThrowIfCancellationRequested();
+                if (pool.Count >= UnlockNextCandidateSelector.PoolCap)
+                {
+                    break;
+                }
+
+                var gameId = summary.PlayniteGameId.Value;
+                GameAchievementData gameData = null;
+                try
+                {
+                    gameData = _achievementDataService.GetGameAchievementDataForOverview(gameId);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug($"[Overview] Failed to load Unlock Next data for {gameId}: {ex.Message}");
+                }
+
+                if (gameData?.Achievements == null)
+                {
+                    continue;
+                }
+
+                var appearance = AchievementDisplayItem.CreateAppearanceSettingsSnapshot(
+                    settings,
+                    gameData.PlayniteGameId,
+                    gameData.UseSeparateLockedIconsWhenAvailable);
+                var categoryMemo = new AchievementDisplayItem.CategoryPresentationMemo();
+                var presentation = ResolveGamePresentation(gameId, presentationByGameId);
+                foreach (var detail in UnlockNextCandidateSelector.SelectAchievements(gameData.Achievements))
+                {
+                    if (pool.Count >= UnlockNextCandidateSelector.PoolCap)
+                    {
+                        break;
+                    }
+
+                    var item = AchievementDisplayItem.Create(
+                        gameData,
+                        detail,
+                        settings,
+                        playniteGameIdOverride: gameData.PlayniteGameId ?? gameId,
+                        appearanceSettings: appearance,
+                        categoryMemo: categoryMemo);
+                    if (item != null)
+                    {
+                        item.GameIconPath = presentation.IconPath;
+                        item.GameCoverPath = presentation.CoverPath;
+                        pool.Add(item);
+                    }
+                }
+            }
+
+            snapshot.UnlockNextCandidates = pool;
         }
 
         private List<AchievementDisplayItem> MaterializeAchievements(
