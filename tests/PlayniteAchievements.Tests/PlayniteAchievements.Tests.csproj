@@ -423,6 +423,7 @@
     <Compile Include="..\..\source\Models\Achievements\UnlockCaptureRarityFilter.cs" Link="Source\Models\Achievements\UnlockCaptureRarityFilter.cs" />
     <Compile Include="..\..\source\Models\TimelineRange.cs" Link="Source\Models\TimelineRange.cs" />
     <Compile Include="..\..\source\Services\Overview\OverviewDataSnapshot.cs" Link="Source\Services\Overview\OverviewDataSnapshot.cs" />
+    <Compile Include="..\..\source\Services\Overview\UnlockNextCandidateSelector.cs" Link="Source\Services\Overview\UnlockNextCandidateSelector.cs" />
     <Compile Include="..\..\source\Services\StartPage\StartPageDataCoordinator.cs" Link="Source\Services\StartPage\StartPageDataCoordinator.cs" />
     <Compile Include="..\..\source\Services\Widgets\WidgetDataCoordinator.cs" Link="Source\Services\Widgets\WidgetDataCoordinator.cs" />
     <Compile Include="..\..\source\Services\StartPage\StartPageViewCatalog.cs" Link="Source\Services\StartPage\StartPageViewCatalog.cs" />
