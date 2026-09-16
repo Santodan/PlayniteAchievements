@@ -90,6 +90,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly HashSet<string> _selectedCustomizationFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private List<string> _categoryFilterOptions = new List<string>();
+        private bool _canRevealAnyTitle;
+        private bool _canRevealAnyDescription;
+        private bool _canRevealAnyIcon;
+        private bool _areAllTitlesRevealed = true;
+        private bool _areAllDescriptionsRevealed = true;
+        private AchievementIconRevealStage _iconColumnStage = AchievementIconRevealStage.Unlocked;
         private SearchQuery _filterQuery;
         private readonly SearchTextIndex<AchievementEditorRow> _searchIndex =
             new SearchTextIndex<AchievementEditorRow>(row => SearchTextBuilder.ForManualEdit(
@@ -275,36 +281,49 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// Whether any row on screen has something to reveal for that column. The header toggle is
         /// shown only where there is, matching the per-row buttons.
         /// </summary>
-        public bool CanRevealAnyTitle => VisibleRows.Any(row => row.CanRevealTitle);
+        /// <summary>
+        /// The column headers' summary of the rows on screen, recomputed as a single pass by
+        /// <see cref="RefreshRevealHeaderState"/> rather than per property.
+        /// </summary>
+        /// <remarks>
+        /// These were nine computed properties over <see cref="VisibleRows"/>, and raising them
+        /// together ran the filter over every row nine times. On a game whose grid lists a whole
+        /// library that is what a filter change was spending its time on.
+        /// </remarks>
+        public bool CanRevealAnyTitle => _canRevealAnyTitle;
 
-        public bool CanRevealAnyDescription => VisibleRows.Any(row => row.CanRevealDescription);
+        public bool CanRevealAnyDescription => _canRevealAnyDescription;
 
-        public bool CanRevealAnyIcon => VisibleRows.Any(row => row.CanReveal);
+        public bool CanRevealAnyIcon => _canRevealAnyIcon;
 
         /// <summary>
         /// Whether nothing maskable is left masked in that column, which is what turns the header
         /// toggle back into a re-mask.
         /// </summary>
-        public bool AreAllTitlesRevealed => !VisibleRows.Any(row => row.CanRevealTitle && !row.IsTitleRevealed);
+        public bool AreAllTitlesRevealed => _areAllTitlesRevealed;
 
-        public bool AreAllDescriptionsRevealed => !VisibleRows.Any(row => row.CanRevealDescription && !row.IsDescriptionRevealed);
+        public bool AreAllDescriptionsRevealed => _areAllDescriptionsRevealed;
 
         /// <summary>
         /// The stage the icon column's toggle shows: the most masked one any row on screen is still
         /// at, so the button describes the column rather than whichever row happens to be first.
         /// </summary>
-        public AchievementIconRevealStage IconColumnStage
+        public AchievementIconRevealStage IconColumnStage => _iconColumnStage;
+
+        private AchievementIconRevealStage ComputeIconColumnStage(IReadOnlyList<AchievementEditorRow> visible)
         {
-            get
+            var stage = int.MaxValue;
+            foreach (var row in visible)
             {
-                var stages = VisibleRows
-                    .Where(row => row.CanReveal)
-                    .Select(row => (int)row.IconStage)
-                    .ToList();
-                return stages.Count == 0
-                    ? AchievementIconRevealStage.Unlocked
-                    : (AchievementIconRevealStage)stages.Min();
+                if (row.CanReveal && (int)row.IconStage < stage)
+                {
+                    stage = (int)row.IconStage;
+                }
             }
+
+            return stage == int.MaxValue
+                ? AchievementIconRevealStage.Unlocked
+                : (AchievementIconRevealStage)stage;
         }
 
         public bool IconColumnStageIsCovered => IconColumnStage == AchievementIconRevealStage.Covered;
@@ -393,6 +412,43 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>Re-reads the three column toggles from the rows on screen.</summary>
         private void RefreshRevealHeaderState()
         {
+            // One materialized pass over the filtered rows feeds every summary below. The filter
+            // predicate is the expensive part, so it must run once per refresh, not once per
+            // property.
+            var visible = VisibleRows.ToList();
+            _canRevealAnyTitle = false;
+            _canRevealAnyDescription = false;
+            _canRevealAnyIcon = false;
+            _areAllTitlesRevealed = true;
+            _areAllDescriptionsRevealed = true;
+            foreach (var row in visible)
+            {
+                if (row.CanRevealTitle)
+                {
+                    _canRevealAnyTitle = true;
+                    if (!row.IsTitleRevealed)
+                    {
+                        _areAllTitlesRevealed = false;
+                    }
+                }
+
+                if (row.CanRevealDescription)
+                {
+                    _canRevealAnyDescription = true;
+                    if (!row.IsDescriptionRevealed)
+                    {
+                        _areAllDescriptionsRevealed = false;
+                    }
+                }
+
+                if (row.CanReveal)
+                {
+                    _canRevealAnyIcon = true;
+                }
+            }
+
+            _iconColumnStage = ComputeIconColumnStage(visible);
+
             OnPropertyChanged(nameof(CanRevealAnyTitle));
             OnPropertyChanged(nameof(CanRevealAnyDescription));
             OnPropertyChanged(nameof(CanRevealAnyIcon));
@@ -4597,6 +4653,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _baselineSignature;
         private bool _isProviderRow;
         private AchievementCustomizationFacet _customizationFacets;
+        private string _customizationToolTip;
         private bool _providerBaselinesKnown;
         private string _achievementNote;
         private bool _isGoal;
@@ -5076,6 +5133,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _customizationFacets, value))
                 {
+                    // Built here rather than in the getter: the grid reads it once per row
+                    // realization, and rebuilding it there meant a string lookup per facet every
+                    // time a row scrolled back into view.
+                    _customizationToolTip = BuildCustomizationToolTip(value);
                     OnPropertyChanged(nameof(IsCustomized));
                     OnPropertyChanged(nameof(IsAuthored));
                     OnPropertyChanged(nameof(CustomizationToolTip));
@@ -5097,7 +5158,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// Names what was customized, one facet per line under a heading. Null on an untouched
         /// row, which leaves the marker's cell without a tooltip.
         /// </summary>
-        public string CustomizationToolTip => BuildCustomizationToolTip(CustomizationFacets);
+        public string CustomizationToolTip => _customizationToolTip;
 
         /// <summary>
         /// Recomputes <see cref="CustomizationFacets"/>. Called for the row's own edits through
