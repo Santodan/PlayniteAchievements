@@ -1179,8 +1179,8 @@
                                                  ToolTip="{Binding UnlockedIconPath}"
                                                  AllowDrop="True"
                                                  PreviewDragOver="IconTextBox_PreviewDragOver"
-                                                 Drop="IconTextBox_Drop" />
-                                        <Button Tag="{Binding UnlockedIconPath}"
+                                                 PreviewDrop="IconTextBox_Drop" />
+                                        <Button Tag="{Binding UnlockedIconDisplayText}"
                                                 CommandParameter="Unlocked"
                                                 Style="{StaticResource ClearSearchButtonStyle}"
                                                 Focusable="True"
@@ -1233,8 +1233,8 @@
                                                  ToolTip="{Binding LockedIconPath}"
                                                  AllowDrop="True"
                                                  PreviewDragOver="IconTextBox_PreviewDragOver"
-                                                 Drop="IconTextBox_Drop" />
-                                        <Button Tag="{Binding LockedIconPath}"
+                                                 PreviewDrop="IconTextBox_Drop" />
+                                        <Button Tag="{Binding LockedIconDisplayText}"
                                                 CommandParameter="Locked"
                                                 Style="{StaticResource ClearSearchButtonStyle}"
                                                 Focusable="True"
