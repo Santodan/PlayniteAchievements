@@ -69,6 +69,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private NotificationAppearanceSection _notificationsControl;
         private System.Windows.Threading.DispatcherTimer _iconOverridesChangedDebounce;
         private readonly HashSet<string> _pendingIconOverrideApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private bool _pendingIconOverridesFromEditor;
         private ManualAchievementsViewModel _manualViewModel;
         private ManageAchievementsEditorViewModel _editorViewModel;
         private ManageAchievementsAchievementOrderViewModel _achievementOrderViewModel;
@@ -1015,6 +1016,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 unlinkManualTracking: () => _viewModel.UnlinkManualTrackingCommand?.Execute(null));
             _editorViewModel.CustomAchievementsSaved += CustomViewModel_CustomAchievementsSaved;
             _editorViewModel.AssignmentsChanged += EditorViewModel_CustomizationPersisted;
+            _editorViewModel.IconOverridesSaved += EditorViewModel_IconOverridesSaved;
             _editorViewModel.CapstoneChanged += CustomViewModel_CapstoneChanged;
             _editorControl = new ManageAchievementsEditorTab(_editorViewModel);
             EditorHost.Content = _editorControl;
@@ -1045,6 +1047,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 _editorViewModel.CustomAchievementsSaved -= CustomViewModel_CustomAchievementsSaved;
                 _editorViewModel.AssignmentsChanged -= EditorViewModel_CustomizationPersisted;
+                _editorViewModel.IconOverridesSaved -= EditorViewModel_IconOverridesSaved;
                 _editorViewModel.CapstoneChanged -= CustomViewModel_CapstoneChanged;
                 _editorViewModel.Detach();
             }
@@ -1240,6 +1243,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _editorRefreshPending = true;
         }
 
+        /// <summary>
+        /// The editor's own icon writes take the same apply path as the Icons tab's, but the refresh
+        /// that path sets off arrives after the assignments cascade has already consumed the editor's
+        /// self-write marker. Marking the flush as the editor's own re-arms it, so the editor keeps
+        /// its rows and the selection the user is still editing.
+        /// </summary>
+        private void EditorViewModel_IconOverridesSaved(object sender, IconOverridesSavedEventArgs e)
+        {
+            _pendingIconOverridesFromEditor = true;
+            AchievementIconsControl_IconOverridesSaved(sender, e);
+        }
+
         private void AchievementIconsControl_IconOverridesSaved(object sender, IconOverridesSavedEventArgs e)
         {
             if (!Dispatcher.CheckAccess())
@@ -1279,6 +1294,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var changedApiNames = _pendingIconOverrideApiNames.ToList();
             _pendingIconOverrideApiNames.Clear();
+
+            if (_pendingIconOverridesFromEditor)
+            {
+                _pendingIconOverridesFromEditor = false;
+                if (_editorViewModel != null)
+                {
+                    _editorViewModel.SuppressExternalRefresh = true;
+                }
+            }
+
             _viewModel?.NotifyIconOverridesChanged(changedApiNames);
 
             // Custom achievement icons are written into their definitions, which the Custom
