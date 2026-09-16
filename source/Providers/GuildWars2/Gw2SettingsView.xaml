@@ -1,4 +1,4 @@
-<settings:ProviderSettingsViewBase x:Class="PlayniteAchievements.Providers.Riot.RiotSettingsView"
+<settings:ProviderSettingsViewBase x:Class="PlayniteAchievements.Providers.GuildWars2.Gw2SettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -24,9 +24,9 @@
             <!-- Provider Header -->
             <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
                 <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
-                    <Path Data="{StaticResource GeoRiot}" Fill="{StaticResource PlayAch.Brush.ProviderRiot}"/>
+                    <Path Data="{StaticResource GeoGW2}" Fill="{StaticResource PlayAch.Brush.ProviderGW2}"/>
                 </Viewbox>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Riot}" Style="{StaticResource ProviderTitleTextStyle}"/>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_GW2}" Style="{StaticResource ProviderTitleTextStyle}"/>
             </StackPanel>
 
             <!-- Provider Enable Toggle -->
@@ -45,34 +45,29 @@
                 <StackPanel>
 
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Riot_Help}"
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GW2_Help}"
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                         <TextBlock TextWrapping="Wrap"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"
-                                   helpers:HyperlinkFormatText.Format="{DynamicResource LOCPlayAch_Settings_Riot_SetupStep1}"
-                                   helpers:HyperlinkFormatText.LinkText="Riot Developer Portal"
-                                   helpers:HyperlinkFormatText.NavigateUri="https://developer.riotgames.com/"/>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Riot_SetupStep2}"
+                                   helpers:HyperlinkFormatText.Format="{DynamicResource LOCPlayAch_Settings_GW2_SetupStep1}"
+                                   helpers:HyperlinkFormatText.LinkText="ArenaNet Applications page"
+                                   helpers:HyperlinkFormatText.NavigateUri="https://account.arena.net/applications"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GW2_SetupStep2}"
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Riot_SetupStep3}"
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GW2_SetupStep3}"
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Riot_Expiry}"
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GW2_NoDatesNote}"
                                    Style="{StaticResource MutedTextStyle}"
                                    TextWrapping="Wrap"
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
-                        <TextBlock Style="{StaticResource MutedTextStyle}"
-                                   TextWrapping="Wrap"
-                                   helpers:HyperlinkFormatText.Format="{DynamicResource LOCPlayAch_Settings_Riot_Note}"
-                                   helpers:HyperlinkFormatText.LinkText="application process"
-                                   helpers:HyperlinkFormatText.NavigateUri="https://developer.riotgames.com/application-process.html"/>
                     </StackPanel>
 
                     <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
@@ -120,44 +115,14 @@
                                         BorderThickness="0,1,0,0"
                                         Padding="0,12,0,0">
                                     <StackPanel>
-
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RiotId}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_ApiKey}"
                                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="140"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBox Grid.Column="0"
-                                                     Text="{Binding Settings.RiotGameName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     Padding="4"/>
-                                            <TextBlock Grid.Column="1"
-                                                       Text="#"
-                                                       VerticalAlignment="Center"
-                                                       Margin="6,0,6,0"
-                                                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
-                                            <TextBox Grid.Column="2"
-                                                     Text="{Binding Settings.RiotTagLine, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     Padding="4"/>
-                                        </Grid>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RiotId_Help}"
+                                        <TextBox Text="{Binding Settings.ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Padding="4"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GW2_ApiKey_Help}"
                                                    Style="{StaticResource MutedTextStyle}"
                                                    Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
                                                    TextWrapping="Wrap"/>
-
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_Region}"
-                                                   Margin="0,12,0,8"/>
-                                        <ComboBox x:Name="RegionCombo"
-                                                  DisplayMemberPath="Label"
-                                                  SelectedValuePath="Platform"
-                                                  SelectedValue="{Binding Settings.PlatformRegion, Mode=TwoWay}"
-                                                  Padding="4"/>
-
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_ApiKey}"
-                                                   Margin="0,12,0,8"/>
-                                        <TextBox Text="{Binding Settings.RiotApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 Padding="4"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
