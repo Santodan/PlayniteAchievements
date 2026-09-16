@@ -735,7 +735,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 PromptAndCreateCategory));
             categoryMenu.Items.Add(new Separator());
 
-            foreach (var option in viewModel.CategoryFilterOptions.Where(option => option.IsSelectable))
+            foreach (var option in viewModel.AssignableCategoryPickerOptions.Where(option => option.IsSelectable))
             {
                 var label = option.Label;
                 if (string.IsNullOrWhiteSpace(label))
