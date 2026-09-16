@@ -1750,11 +1750,13 @@ namespace PlayniteAchievements
         private void HandleCustomDataChanged(Guid gameId, bool affectsSummaryData)
         {
             var persisted = _settingsViewModel?.Settings?.Persisted;
-            if (affectsSummaryData &&
-                _tagSyncService != null &&
-                persisted?.TaggingSettings?.EnableTagging == true)
+            if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
             {
-                // Tags carry completion status, which only a summary-affecting change can move.
+                // Any custom-data change at all, not just a summary-affecting one. Completion
+                // status only moves with the summary data, but the Customized tag reports
+                // whether the game carries customization of any kind -- a rename, a note or an
+                // icon override moves it while leaving every count alone. The queue coalesces a
+                // burst of edits into a single sync per game.
                 QueueTagSync(gameId);
             }
 
