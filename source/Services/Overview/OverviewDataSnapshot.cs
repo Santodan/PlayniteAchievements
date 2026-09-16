@@ -11,6 +11,21 @@ namespace PlayniteAchievements.Services.Overview
         public List<AchievementDisplayItem> Achievements { get; set; } = new List<AchievementDisplayItem>();
         public List<GameSummaryItem> GameSummaries { get; set; } = new List<GameSummaryItem>();
         public List<AchievementDisplayItem> RecentAchievements { get; set; } = new List<AchievementDisplayItem>();
+
+        /// <summary>
+        /// Bounded pool of LOCKED achievements the Unlock Next mosaic draws from, kept out of
+        /// <see cref="Achievements"/> so the grid, the search indexes, and the other mosaic
+        /// sources keep seeing unlocked rows only. Empty unless some live widget asks for it;
+        /// <see cref="UnlockNextPoolBuilt"/> distinguishes "not requested" from "nothing found".
+        /// </summary>
+        public List<AchievementDisplayItem> UnlockNextCandidates { get; set; } =
+            new List<AchievementDisplayItem>();
+
+        /// <summary>
+        /// Whether this snapshot was built with the Unlock Next pool populated. A dashboard that
+        /// starts needing the pool triggers a rebuild off this flag.
+        /// </summary>
+        public bool UnlockNextPoolBuilt { get; set; }
         public Dictionary<DateTime, int> GlobalUnlockCountsByDate { get; set; } =
             new Dictionary<DateTime, int>();
 
