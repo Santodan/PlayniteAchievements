@@ -317,6 +317,7 @@ namespace PlayniteAchievements.Models
         private const string PinCollectionId = "PinCollectionId";
         private const string Content = "Content";
         private const string ProfileStats = "ProfileStats";
+        private const string ProfileMedals = "ProfileMedals";
         private const string Sort = "Sort";
         private const string SortDescending = "SortDescending";
 
@@ -446,6 +447,17 @@ namespace PlayniteAchievements.Models
         public static void SetPieSmallSliceMode(
             ShowcaseWidgetInstanceSettings settings,
             OverviewPieSmallSliceMode value) => settings?.SetOption(SmallSliceMode, value);
+
+        /// <summary>
+        /// Which counts the profile medal row shows. Trophy is only meaningful for a library
+        /// holding PlayStation-shaped games; every other library sums to zero and the row hides.
+        /// </summary>
+        public static ShowcaseProfileMedalMode GetProfileMedalMode(ShowcaseWidgetInstanceSettings settings) =>
+            GetEnum(settings, ProfileMedals, ShowcaseProfileMedalMode.Rarity);
+
+        public static void SetProfileMedalMode(
+            ShowcaseWidgetInstanceSettings settings,
+            ShowcaseProfileMedalMode value) => settings?.SetOption(ProfileMedals, value);
 
         public static GameActivityScope GetGameActivityScope(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, ActivityScope, GameActivityScope.All);
@@ -637,6 +649,9 @@ namespace PlayniteAchievements.Models
                     ShowcaseWidgetOptions.SetPieShowCenterPercentage(settings, true);
                     ShowcaseWidgetOptions.SetPieShowLegend(settings, true);
                     ShowcaseWidgetOptions.SetPieSmallSliceMode(settings, OverviewPieSmallSliceMode.Round);
+                    break;
+                case ShowcaseWidgetKind.Profile:
+                    ShowcaseWidgetOptions.SetProfileMedalMode(settings, ShowcaseProfileMedalMode.Rarity);
                     break;
                 case ShowcaseWidgetKind.Timeline:
                     ShowcaseTimelineOptions.SetRange(settings, TimelineRange.ThreeMonths);

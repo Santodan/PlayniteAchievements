@@ -41,6 +41,9 @@ namespace PlayniteAchievements.Views.Showcase
                 ? Localize("LOCPlayAch_Common_None")
                 : EnumValueName("LOCPlayAch_Showcase_ScoreMode_", value);
 
+        public static string ProfileMedalModeName(ShowcaseProfileMedalMode value) =>
+            EnumValueName("LOCPlayAch_Showcase_ProfileMedalMode_", value);
+
         public static string PieModeName(ShowcasePieMode value) =>
             EnumValueName("LOCPlayAch_Showcase_PieMode_", value);
 

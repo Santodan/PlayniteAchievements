@@ -59,6 +59,17 @@ namespace PlayniteAchievements.Models.Settings
         Trophy = 3
     }
 
+    /// <summary>
+    /// Which counts the profile medal row shows. Trophy replaces the rarity tiers and the
+    /// completions medal outright rather than adding to them, so a PlayStation-shaped library
+    /// reads as trophies and nothing else.
+    /// </summary>
+    public enum ShowcaseProfileMedalMode
+    {
+        Rarity = 0,
+        Trophy = 1
+    }
+
     public enum ShowcasePointsGrouping
     {
         Provider = 0,

@@ -5,6 +5,7 @@ using System.Windows;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
 
@@ -40,9 +41,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
     /// <summary>
     /// Backs the Profile widget: avatar, display name, and background resolved from the
-    /// provider identity with manual overrides, plus a medal-count row (rarity, completed,
-    /// trophies) and a stat strip filling the instance's configured stat slots. Density only
-    /// scales the avatar; the same content shows at every size.
+    /// provider identity with manual overrides, plus a medal-count row (rarity tiers and
+    /// completions, or trophy grades) and a stat strip filling the instance's configured stat
+    /// slots. Density only scales the avatar; the same content shows at every size.
     /// </summary>
     public sealed class ProfileWidgetViewModel : ShowcaseWidgetViewModelBase
     {
@@ -119,7 +120,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             Subtitle = resolved.Subtitle;
             ShowSubtitle = !string.IsNullOrWhiteSpace(resolved.Subtitle);
 
-            Medals.ReplaceAll(BuildMedals(snapshot));
+            Medals.ReplaceAll(BuildMedals(
+                snapshot,
+                ShowcaseWidgetOptions.GetProfileMedalMode(Projection?.Instance)));
             ShowMedals = Medals.Count > 0;
 
             Stats.ReplaceAll(BuildStatStrip());
@@ -127,9 +130,21 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             StatColumns = Math.Max(1, Math.Min(4, Stats.Count));
         }
 
-        private static IReadOnlyList<ProfileMedalViewModel> BuildMedals(OverviewDataSnapshot snapshot)
+        private static IReadOnlyList<ProfileMedalViewModel> BuildMedals(
+            OverviewDataSnapshot snapshot,
+            ShowcaseProfileMedalMode mode)
         {
             var medals = new List<ProfileMedalViewModel>();
+            if (mode == ShowcaseProfileMedalMode.Trophy)
+            {
+                // Trophy grades stand alone: they already carry the sense of a finished game
+                // through the platinum, so the completions medal would double-count it.
+                AddMedal(medals, "TrophyPlatinum", snapshot.TotalPlatinum);
+                AddMedal(medals, "TrophyGold", snapshot.TotalGold);
+                AddMedal(medals, "TrophySilver", snapshot.TotalSilver);
+                AddMedal(medals, "TrophyBronze", snapshot.TotalBronze);
+                return medals;
+            }
 
             // Completions, not completed games: a game with several capstones is finished several
             // times over, and the medal sits beside rarity counts that are all totals of things
