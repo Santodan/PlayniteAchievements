@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -206,6 +207,8 @@ namespace PlayniteAchievements.Views.Showcase
                             : Visibility.Collapsed;
 
                     FrameworkElement achievementMosaicCollectionRow = null;
+                    var unlockNextRows = new List<FrameworkElement>();
+                    var achievementSortRows = new List<FrameworkElement>();
                     AddChoice(
                         achievementMosaicPanel,
                         Localize("LOCPlayAch_Showcase_Source"),
@@ -214,7 +217,8 @@ namespace PlayniteAchievements.Views.Showcase
                             ShowcaseMosaicSource.Recent,
                             ShowcaseMosaicSource.Rarest,
                             ShowcaseMosaicSource.Capstones,
-                            ShowcaseMosaicSource.Pinned
+                            ShowcaseMosaicSource.Pinned,
+                            ShowcaseMosaicSource.UnlockNext
                         },
                         ShowcaseWidgetOptions.GetMosaicSource(_settings),
                         value =>
@@ -226,6 +230,8 @@ namespace PlayniteAchievements.Views.Showcase
                                     ? Visibility.Visible
                                     : Visibility.Collapsed;
                             }
+
+                            ApplyUnlockNextVisibility(unlockNextRows, achievementSortRows, value);
                         },
                         MosaicSourceName);
                     achievementMosaicCollectionRow = AddPinCollectionChoice(achievementMosaicPanel, achievementCollection: true);
@@ -233,6 +239,37 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseMosaicSource.Pinned
                         ? Visibility.Visible
                         : Visibility.Collapsed;
+
+                    // Unlock Next ranks during selection, so its criterion replaces the generic
+                    // sort rows rather than stacking with them.
+                    unlockNextRows.Add(AddChoice(
+                        achievementMosaicPanel,
+                        Localize("LOCPlayAch_Showcase_UnlockNextCriterion"),
+                        new[]
+                        {
+                            UnlockNextCriterion.NextInLine,
+                            UnlockNextCriterion.Easiest,
+                            UnlockNextCriterion.ClosestToCompletion
+                        },
+                        ShowcaseWidgetOptions.GetUnlockNextCriterion(_settings),
+                        value => ShowcaseWidgetOptions.SetUnlockNextCriterion(_settings, value),
+                        UnlockNextCriterionName));
+                    unlockNextRows.Add(AddLastPlayedWindowChoice(achievementMosaicPanel));
+                    unlockNextRows.Add(AddChoice(
+                        achievementMosaicPanel,
+                        Localize("LOCPlayAch_Showcase_MaxPerGame"),
+                        ShowcaseWidgetOptions.MaxPerGameChoices.ToArray(),
+                        ShowcaseWidgetOptions.GetMaxPerGame(_settings),
+                        value => ShowcaseWidgetOptions.SetMaxPerGame(_settings, value),
+                        CountLabel));
+                    unlockNextRows.Add(AddChoice(
+                        achievementMosaicPanel,
+                        Localize("LOCPlayAch_Showcase_IncludeHiddenAchievements"),
+                        new[] { true, false },
+                        ShowcaseWidgetOptions.GetIncludeHiddenAchievements(_settings),
+                        value => ShowcaseWidgetOptions.SetIncludeHiddenAchievements(_settings, value),
+                        OnOffLabel));
+
                     AddChoice(
                         achievementMosaicPanel,
                         Localize("LOCPlayAch_Settings_ToastShowRarityGlow"),
@@ -240,7 +277,7 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetMosaicShowRarityGlow(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicShowRarityGlow(_settings, value),
                         OnOffLabel);
-                    AddChoice(
+                    achievementSortRows.Add(AddChoice(
                         achievementMosaicPanel,
                         Localize("LOCPlayAch_Settings_SortBy"),
                         new[]
@@ -251,10 +288,15 @@ namespace PlayniteAchievements.Views.Showcase
                         },
                         ShowcaseWidgetOptions.GetMosaicSort(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicSort(_settings, value),
-                        MosaicSortName);
-                    AddSortDirectionChoice(achievementMosaicPanel);
+                        MosaicSortName));
+                    achievementSortRows.Add(AddSortDirectionChoice(achievementMosaicPanel));
+                    ApplyUnlockNextVisibility(
+                        unlockNextRows,
+                        achievementSortRows,
+                        ShowcaseWidgetOptions.GetMosaicSource(_settings));
 
                     FrameworkElement mosaicGameCollectionRow = null;
+                    FrameworkElement finishNextWindowRow = null;
                     AddChoice(
                         gameMosaicPanel,
                         Localize("LOCPlayAch_Showcase_Source"),
@@ -263,7 +305,8 @@ namespace PlayniteAchievements.Views.Showcase
                             ShowcaseGameMosaicSource.Completed,
                             ShowcaseGameMosaicSource.All,
                             ShowcaseGameMosaicSource.Pinned,
-                            ShowcaseGameMosaicSource.PlayniteFavorites
+                            ShowcaseGameMosaicSource.PlayniteFavorites,
+                            ShowcaseGameMosaicSource.FinishNext
                         },
                         ShowcaseWidgetOptions.GetGameMosaicSource(_settings),
                         value =>
@@ -275,11 +318,23 @@ namespace PlayniteAchievements.Views.Showcase
                                     ? Visibility.Visible
                                     : Visibility.Collapsed;
                             }
+
+                            if (finishNextWindowRow != null)
+                            {
+                                finishNextWindowRow.Visibility = value == ShowcaseGameMosaicSource.FinishNext
+                                    ? Visibility.Visible
+                                    : Visibility.Collapsed;
+                            }
                         },
                         GameMosaicSourceName);
                     mosaicGameCollectionRow = AddPinCollectionChoice(gameMosaicPanel, achievementCollection: false);
                     mosaicGameCollectionRow.Visibility = ShowcaseWidgetOptions.GetGameMosaicSource(_settings) ==
                         ShowcaseGameMosaicSource.Pinned
+                        ? Visibility.Visible
+                        : Visibility.Collapsed;
+                    finishNextWindowRow = AddLastPlayedWindowChoice(gameMosaicPanel);
+                    finishNextWindowRow.Visibility = ShowcaseWidgetOptions.GetGameMosaicSource(_settings) ==
+                        ShowcaseGameMosaicSource.FinishNext
                         ? Visibility.Visible
                         : Visibility.Collapsed;
                     AddChoice(
@@ -782,8 +837,54 @@ namespace PlayniteAchievements.Views.Showcase
             return row;
         }
 
+        // Unlock Next and Finish Next share the "played within" filter, so both panels build it
+        // the same way.
+        private Grid AddLastPlayedWindowChoice(Panel panel) =>
+            AddChoice(
+                panel,
+                Localize("LOCPlayAch_Showcase_LastPlayedWindow"),
+                new[]
+                {
+                    TimelineRange.SevenDays,
+                    TimelineRange.OneMonth,
+                    TimelineRange.ThreeMonths,
+                    TimelineRange.OneYear,
+                    TimelineRange.All
+                },
+                ShowcaseWidgetOptions.GetLastPlayedWindow(_settings),
+                value => ShowcaseWidgetOptions.SetLastPlayedWindow(_settings, value),
+                TimelineRangeName);
+
+        /// <summary>
+        /// Unlock Next's criterion row replaces the generic sort rows: the criterion picks which
+        /// locked achievements are shown, and sorting by unlock time over locked rows - every one
+        /// of which has no unlock time - would only scramble that ranking.
+        /// </summary>
+        private static void ApplyUnlockNextVisibility(
+            IReadOnlyList<FrameworkElement> unlockNextRows,
+            IReadOnlyList<FrameworkElement> sortRows,
+            ShowcaseMosaicSource source)
+        {
+            var unlockNext = source == ShowcaseMosaicSource.UnlockNext;
+            foreach (var row in unlockNextRows)
+            {
+                if (row != null)
+                {
+                    row.Visibility = unlockNext ? Visibility.Visible : Visibility.Collapsed;
+                }
+            }
+
+            foreach (var row in sortRows)
+            {
+                if (row != null)
+                {
+                    row.Visibility = unlockNext ? Visibility.Collapsed : Visibility.Visible;
+                }
+            }
+        }
+
         // Both mosaic contents share the sort-direction option, so both panels get the same row.
-        private void AddSortDirectionChoice(Panel panel) =>
+        private Grid AddSortDirectionChoice(Panel panel) =>
             AddChoice(
                 panel,
                 Localize("LOCMenuSortByDirection"),
