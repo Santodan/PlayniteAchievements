@@ -441,7 +441,14 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             var block = SelectedBlock;
-            if (EditLayoutButton.IsChecked != true || block == null)
+            if (EditLayoutButton.IsChecked != true)
+            {
+                return;
+            }
+
+            AddLatticeLines();
+
+            if (block == null)
             {
                 return;
             }
@@ -480,6 +487,61 @@ namespace PlayniteAchievements.Views.Showcase
                     _suppressedAddButton = state.AddButton;
                 }
             }
+        }
+
+        // The page-wide cell lattice, drawn only while editing. Blocks tile the grid and
+        // span whole cells, so the lattice is the only thing that shows where a block could be
+        // cut before one is selected. Deliberately quieter than the accent dashed cut lines and
+        // below them in ZIndex: this is orientation, not an affordance, and it never takes a hit.
+        private void AddLatticeLines()
+        {
+            var gridSize = ShowcaseLayoutService.NormalizeGridSize(CurrentPage.GridSize);
+            for (var line = 1; line < gridSize; line++)
+            {
+                AddLayoutHandle(CreateLatticeLine(vertical: true, line, gridSize));
+                AddLayoutHandle(CreateLatticeLine(vertical: false, line, gridSize));
+            }
+        }
+
+        private static System.Windows.Shapes.Rectangle CreateLatticeLine(
+            bool vertical,
+            int boundary,
+            int gridSize)
+        {
+            var line = new System.Windows.Shapes.Rectangle
+            {
+                IsHitTestVisible = false,
+                SnapsToDevicePixels = true,
+                Opacity = 0.35
+            };
+            line.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "PlayAch.Brush.Border");
+
+            // Straddles the track edge by half its width so the line sits on the boundary
+            // rather than inside the cell before it.
+            if (vertical)
+            {
+                line.Width = 1;
+                line.HorizontalAlignment = HorizontalAlignment.Right;
+                line.VerticalAlignment = VerticalAlignment.Stretch;
+                line.Margin = new Thickness(0, 0, -0.5, 0);
+                Grid.SetColumn(line, boundary - 1);
+                Grid.SetRow(line, 0);
+                Grid.SetRowSpan(line, gridSize);
+            }
+            else
+            {
+                line.Height = 1;
+                line.HorizontalAlignment = HorizontalAlignment.Stretch;
+                line.VerticalAlignment = VerticalAlignment.Bottom;
+                line.Margin = new Thickness(0, 0, 0, -0.5);
+                Grid.SetRow(line, boundary - 1);
+                Grid.SetColumn(line, 0);
+                Grid.SetColumnSpan(line, gridSize);
+            }
+
+            // Below the cut lines (39) and grippers (40) so both keep visual and hit priority.
+            Panel.SetZIndex(line, 38);
+            return line;
         }
 
         private void AddLayoutHandle(FrameworkElement handle)
