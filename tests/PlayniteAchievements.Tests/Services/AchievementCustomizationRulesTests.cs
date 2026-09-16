@@ -30,10 +30,8 @@ namespace PlayniteAchievements.Services.Tests
                 ProviderUnlockTimeUtc = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc),
                 Category = "Base",
                 ProviderCategory = "Base",
-                ProviderCategorySpecified = true,
                 CategoryType = "Base",
                 ProviderCategoryType = "Base",
-                ProviderCategoryTypeSpecified = true,
                 Note = null,
                 UnlockedIconPath = "icon_cache\\first.png",
                 ProviderUnlockedIconPath = "icon_cache\\first.png",
@@ -77,10 +75,10 @@ namespace PlayniteAchievements.Services.Tests
             inputs.ProviderPoints = null;
             inputs.ProviderTrophyType = null;
             inputs.ProviderUnlockTimeUtc = null;
+            inputs.Category = null;
             inputs.ProviderCategory = null;
-            inputs.ProviderCategorySpecified = false;
+            inputs.CategoryType = null;
             inputs.ProviderCategoryType = null;
-            inputs.ProviderCategoryTypeSpecified = false;
             inputs.ProviderUnlockedIconPath = null;
 
             Assert.AreEqual(
@@ -297,28 +295,30 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void CategoryTheProviderNeverNamed_IsNotAnOverride()
+        public void CategoryAssignedWhereTheProviderNamedNone_IsAnOverride()
         {
-            // Providers commonly supply no category, and the row is filed under the default
-            // bucket on the way to the grid. Reading that derived value as the user's choice
-            // marked every achievement of such a game as customized.
+            // The provider named nothing, so the effective category falls back to the default
+            // bucket; the user filing it elsewhere is exactly the case a marker exists for.
             var inputs = Untouched();
-            inputs.ProviderCategory = null;
-            inputs.ProviderCategorySpecified = false;
-            inputs.Category = "Default";
+            inputs.ProviderCategory = "Default";
+            inputs.Category = "Endgame";
+            inputs.ProviderCategoryType = "Default";
+            inputs.CategoryType = "DLC";
 
             Assert.AreEqual(
-                AchievementCustomizationFacet.None,
+                AchievementCustomizationFacet.Category | AchievementCustomizationFacet.CategoryType,
                 AchievementCustomizationRules.Resolve(inputs));
         }
 
         [TestMethod]
-        public void CategoryTypeTheProviderNeverNamed_IsNotAnOverride()
+        public void UncategorizedOnBothSides_IsNotAnOverride()
         {
+            // Neither side names one, so both resolve to the default bucket and agree.
             var inputs = Untouched();
-            inputs.ProviderCategoryType = null;
-            inputs.ProviderCategoryTypeSpecified = false;
-            inputs.CategoryType = "Base";
+            inputs.Category = "Default";
+            inputs.ProviderCategory = "Default";
+            inputs.CategoryType = "Default";
+            inputs.ProviderCategoryType = "Default";
 
             Assert.AreEqual(
                 AchievementCustomizationFacet.None,
