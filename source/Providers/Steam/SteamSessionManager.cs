@@ -273,126 +273,100 @@ namespace PlayniteAchievements.Providers.Steam
         /// </summary>
         public async Task<(string FinalUrl, string Html)> GetSteamPageAsyncCef(string url, CancellationToken ct)
         {
-            return await InvokeOnUiAsync(async () =>
+            var finalUrl = url;
+            var html = string.Empty;
+            try
             {
-                var finalUrl = url;
-                var html = string.Empty;
-                try
+                ct.ThrowIfCancellationRequested();
+                await _offscreenViews.WithNavigableViewAsync(async view =>
                 {
-                    ct.ThrowIfCancellationRequested();
-                    await _offscreenViews.WithNavigableViewAsync(async view =>
-                    {
-                        await view.NavigateAndWaitAsync(url, timeoutMs: 15000);
-                        finalUrl = view.GetCurrentAddress();
-                        await Task.Delay(2000, ct).ConfigureAwait(true);
-                        html = await view.GetPageSourceAsync().ConfigureAwait(true);
-                        return true;
-                    }, ct).ConfigureAwait(true);
-                }
-                catch (TimeoutException ex)
-                {
-                    _logger?.Warn(ex, $"Offscreen navigation timed out for {url}");
-                    html = string.Empty;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, $"Offscreen navigation failed for {url}");
-                    html = string.Empty;
-                }
+                    await view.NavigateAndWaitAsync(url, timeoutMs: 15000);
+                    finalUrl = view.GetCurrentAddress();
+                    await Task.Delay(2000, ct).ConfigureAwait(false);
+                    html = await view.GetPageSourceAsync().ConfigureAwait(false);
+                    return true;
+                }, ct).ConfigureAwait(false);
+            }
+            catch (TimeoutException ex)
+            {
+                _logger?.Warn(ex, $"Offscreen navigation timed out for {url}");
+                html = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Offscreen navigation failed for {url}");
+                html = string.Empty;
+            }
 
-                return (finalUrl, html);
-            }).ConfigureAwait(false);
+            return (finalUrl, html);
         }
 
         // ---------------------------------------------------------------------
         // Private Helper Methods
         // ---------------------------------------------------------------------
 
-        private Task<T> InvokeOnUiAsync<T>(Func<Task<T>> action)
+        /// <summary>
+        /// Resolves the Steam web auth session from an offscreen CEF view. Runs entirely off the UI
+        /// thread: the navigation, the settle delay, the page-source read and the parse are all
+        /// thread-agnostic per <see cref="OffscreenViewLeaseSource"/>, and marshaling them onto the
+        /// dispatcher blocked it for the whole probe (~1.4 s), which starved the notification
+        /// render loop while a game was running.
+        /// </summary>
+        internal async Task<SteamWebAuthSession> ResolveWebAuthSessionAsync(CancellationToken ct)
         {
-            if (action == null) throw new ArgumentNullException(nameof(action));
-
-            var dispatcher = _api?.MainView?.UIDispatcher;
-            if (dispatcher == null || dispatcher.CheckAccess())
+            try
             {
-                return action();
-            }
-
-            var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-            dispatcher.BeginInvoke(new Action(async () =>
-            {
-                try
+                ct.ThrowIfCancellationRequested();
+                return await _offscreenViews.WithNavigableViewAsync(async view =>
                 {
-                    var result = await action().ConfigureAwait(true);
-                    tcs.TrySetResult(result);
-                }
-                catch (Exception ex)
-                {
-                    tcs.TrySetException(ex);
-                }
-            }));
-
-            return tcs.Task;
-        }
-
-        internal Task<SteamWebAuthSession> ResolveWebAuthSessionAsync(CancellationToken ct)
-        {
-            return InvokeOnUiAsync(async () =>
-            {
-                try
-                {
-                    ct.ThrowIfCancellationRequested();
-                    return await _offscreenViews.WithNavigableViewAsync(async view =>
+                    _logger?.Debug($"[SteamAuth] Navigating to {CommunityEditInfoUrl} to resolve web auth session...");
+                    try
                     {
-                        _logger?.Debug($"[SteamAuth] Navigating to {CommunityEditInfoUrl} to resolve web auth session...");
+                        await view.NavigateAndWaitAsync(CommunityEditInfoUrl, timeoutMs: 15000).ConfigureAwait(false);
+                    }
+                    catch (TimeoutException ex)
+                    {
+                        SteamWebAuthSession session = null;
                         try
                         {
-                            await view.NavigateAndWaitAsync(CommunityEditInfoUrl, timeoutMs: 15000).ConfigureAwait(true);
+                            session = await ResolveWebAuthSessionFromViewAsync(view).ConfigureAwait(false);
                         }
-                        catch (TimeoutException ex)
+                        catch (Exception inspectEx)
                         {
-                            SteamWebAuthSession session = null;
-                            try
-                            {
-                                session = await ResolveWebAuthSessionFromViewAsync(view).ConfigureAwait(true);
-                            }
-                            catch (Exception inspectEx)
-                            {
-                                _logger?.Debug(inspectEx, "[SteamAuth] Failed to inspect timed-out Steam WebView.");
-                            }
-
-                            if (session?.IsComplete == true)
-                            {
-                                _logger?.Warn(
-                                    "[SteamAuth] Steam WebView navigation timed out, but a complete auth session was available from the page/cookies.");
-                                return session;
-                            }
-
-                            _logger?.Warn(ex, "[SteamAuth] Steam WebView navigation timed out before auth could be verified.");
-                            return SteamWebAuthSession.TransientFailure(
-                                AuthOutcome.TimedOut,
-                                session);
+                            _logger?.Debug(inspectEx, "[SteamAuth] Failed to inspect timed-out Steam WebView.");
                         }
 
-                        await Task.Delay(500, ct).ConfigureAwait(true);
-                        return await ResolveWebAuthSessionFromViewAsync(view).ConfigureAwait(true);
-                    }, ct).ConfigureAwait(true);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (TimeoutException ex)
-                {
-                    _logger?.Warn(ex, "[SteamAuth] Steam web auth session resolution timed out before the WebView could be inspected.");
-                    return SteamWebAuthSession.TransientFailure(AuthOutcome.TimedOut);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Warn(ex, "[SteamAuth] Failed to resolve Steam web auth session.");
-                    return SteamWebAuthSession.TransientFailure(AuthOutcome.ProbeFailed);
-                }
-            });
+                        if (session?.IsComplete == true)
+                        {
+                            _logger?.Warn(
+                                "[SteamAuth] Steam WebView navigation timed out, but a complete auth session was available from the page/cookies.");
+                            return session;
+                        }
+
+                        _logger?.Warn(ex, "[SteamAuth] Steam WebView navigation timed out before auth could be verified.");
+                        return SteamWebAuthSession.TransientFailure(
+                            AuthOutcome.TimedOut,
+                            session);
+                    }
+
+                    await Task.Delay(500, ct).ConfigureAwait(false);
+                    return await ResolveWebAuthSessionFromViewAsync(view).ConfigureAwait(false);
+                }, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (TimeoutException ex)
+            {
+                _logger?.Warn(ex, "[SteamAuth] Steam web auth session resolution timed out before the WebView could be inspected.");
+                return SteamWebAuthSession.TransientFailure(AuthOutcome.TimedOut);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[SteamAuth] Failed to resolve Steam web auth session.");
+                return SteamWebAuthSession.TransientFailure(AuthOutcome.ProbeFailed);
+            }
         }
 
         private async Task<SteamWebAuthSession> ResolveWebAuthSessionFromViewAsync(IWebView view)

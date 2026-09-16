@@ -1100,6 +1100,12 @@ namespace PlayniteAchievements.Services
                     return;
                 }
 
+                // The provider refresh below is the most expensive thing the monitor does during a
+                // session - it reaches auth preflight and the network - and unlike the fast prong it
+                // had no gate at all. Placed after the rebuild bookkeeping so only the refresh waits.
+                // Bounded like the fast prong, so a leaked gate cannot hold a fallback back for long.
+                await RenderQuietGate.WhenClearAsync(maxDeferMs: 800).ConfigureAwait(false);
+
                 foreach (var providerGroup in states
                     .Where(state => state.Provider != null)
                     .GroupBy(state => state.Provider.ProviderKey, StringComparer.OrdinalIgnoreCase))
@@ -1210,6 +1216,10 @@ namespace PlayniteAchievements.Services
         {
             try
             {
+                // Friend refresh is network and cache work whose completions fan out to the same
+                // UI-thread subscribers as the progress prong, on the same bounded terms.
+                await RenderQuietGate.WhenClearAsync(maxDeferMs: 800).ConfigureAwait(false);
+
                 var completions = await RunFriendTickAsync(state, token).ConfigureAwait(false);
                 if (!IsTracked(state.Game.Id))
                 {

@@ -204,6 +204,17 @@ namespace PlayniteAchievements.Services.UI
             public bool Measured;
             public int OffsetX;
             public int OffsetY;
+
+            /// <summary>
+            /// The corrected point last handed to <c>SetWindowPos</c>, and whether one has been issued
+            /// yet. Lets the per-frame follow skip a move to the point the window is already at: while
+            /// a game window sits still - the common case for the whole time a toast is on screen - the
+            /// anchor is still read every frame, so a rect change still moves the toast on the same
+            /// frame the game does, but the redundant call on a per-pixel-alpha layered HWND is gone.
+            /// </summary>
+            public bool HasLast;
+            public int LastX;
+            public int LastY;
         }
 
         /// <summary>The process/system device scale (main window's TransformToDevice.M11), or 1.0.</summary>
@@ -760,9 +771,16 @@ namespace PlayniteAchievements.Services.UI
             try
             {
                 var above = GetWindow(gameHwnd, GW_HWNDPREV);
-                while (above == toast && above != IntPtr.Zero)
+
+                // Already immediately above the game, which is the entire goal: re-issuing the call
+                // would land it in the same place while giving DWM a reason to re-evaluate the flip
+                // chain for a per-pixel-alpha layered window over a fullscreen swapchain. This reads
+                // the achieved z-order rather than caching an intent, so the case a cache would miss -
+                // the toast pushed below the game, where GW_HWNDPREV is no longer the toast - still
+                // re-asserts on the very next frame.
+                if (above == toast)
                 {
-                    above = GetWindow(above, GW_HWNDPREV);
+                    return true;
                 }
 
                 var insertAfter = above != IntPtr.Zero
@@ -823,7 +841,28 @@ namespace PlayniteAchievements.Services.UI
             outcome.TargetX = x;
             outcome.TargetY = y;
             outcome.Clamped = clamped;
-            outcome.Moved = MovePhysical(window, x + correction.OffsetX, y + correction.OffsetY);
+
+            var correctedX = x + correction.OffsetX;
+            var correctedY = y + correction.OffsetY;
+
+            // Already there. The anchor was read this frame and resolves to the point the window was
+            // last moved to, so the move is a no-op on the HWND but not on DWM, which recomposes a
+            // per-pixel-alpha layered window for every SetWindowPos. Never skipped on the measure
+            // pass, which has to issue a real move to see where the window actually lands.
+            if (!measure && correction.HasLast && correction.LastX == correctedX && correction.LastY == correctedY)
+            {
+                outcome.Moved = true;
+                return true;
+            }
+
+            outcome.Moved = MovePhysical(window, correctedX, correctedY);
+            if (outcome.Moved)
+            {
+                correction.HasLast = true;
+                correction.LastX = correctedX;
+                correction.LastY = correctedY;
+            }
+
             if (!outcome.Moved || !measure || correction.Measured)
             {
                 return true;
@@ -850,9 +889,15 @@ namespace PlayniteAchievements.Services.UI
             outcome.Mismatched = true;
             correction.OffsetX = dx;
             correction.OffsetY = dy;
-            if (MovePhysical(window, x + dx, y + dy) && TryGetPhysicalRect(window, out var corrected))
+            if (MovePhysical(window, x + dx, y + dy))
             {
-                outcome.Achieved = corrected;
+                correction.HasLast = true;
+                correction.LastX = x + dx;
+                correction.LastY = y + dy;
+                if (TryGetPhysicalRect(window, out var corrected))
+                {
+                    outcome.Achieved = corrected;
+                }
             }
 
             return true;

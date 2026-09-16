@@ -37,8 +37,8 @@ namespace PlayniteAchievements.Views.Showcase
         private const double InfoPanelMinWidth = 160;
         private const double InfoPanelMaxWidth = 280;
         private const double InfoPanelMinWidgetWidth = 420;
-        // The bottom strip lays its fields out in two columns, so it needs roughly half the height
-        // a single column would have taken.
+        // The bottom strip sizes itself to its details; these only bound how much of the widget it
+        // may take before it starts scrolling instead of growing.
         private const double InfoPanelHeightRatio = 0.3;
         private const double InfoPanelMinHeight = 120;
         private const double InfoPanelMaxHeight = 220;
@@ -738,8 +738,7 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             var bottom = position == ShowcaseInfoPanelPosition.Bottom;
-            var extent = bottom ? ResolveInfoPanelHeight() : ResolveInfoPanelWidth();
-            var showPanel = position != ShowcaseInfoPanelPosition.Off && extent > 0;
+            var showPanel = position != ShowcaseInfoPanelPosition.Off && HasRoomForInfoPanel(bottom);
             _infoPanel.Visibility = showPanel ? Visibility.Visible : Visibility.Collapsed;
             _caption.Visibility = showPanel ? Visibility.Collapsed : Visibility.Visible;
 
@@ -756,42 +755,52 @@ namespace PlayniteAchievements.Views.Showcase
                     break;
             }
 
-            // The docked panel is sized on its docking axis only; the other axis stretches, so it
-            // is left unset rather than pinned.
-            _infoPanel.Width = bottom || !showPanel ? double.NaN : extent;
-            _infoPanel.Height = bottom && showPanel ? extent : double.NaN;
+            // Each axis is sized only where it is the docking one; the other stretches.
+            // A side panel is pinned to a width because a column of fields has no natural one,
+            // while the strip takes the height its details actually need, capped, so the image
+            // keeps whatever they do not use instead of sitting above dead space.
+            _infoPanel.Width = bottom || !showPanel
+                ? double.NaN
+                : ResolveInfoPanelWidth();
+            _infoPanel.Height = double.NaN;
+            _infoPanel.MaxHeight = bottom && showPanel
+                ? ResolveInfoPanelMaxHeight()
+                : double.PositiveInfinity;
 
             // A strip reads across in two columns; a side panel reads down in one.
             _infoPanel.SetWideLayout(bottom);
         }
 
-        /// <summary>Info panel width for the current widget width; 0 means there is no room.</summary>
-        private double ResolveInfoPanelWidth()
+        /// <summary>
+        /// Whether the widget can spare the room for the info panel. Before the first layout pass
+        /// the size is unknown, which reads as no room: staying collapsed avoids showing a panel
+        /// that the following pass would immediately take away.
+        /// </summary>
+        private bool HasRoomForInfoPanel(bool bottom)
         {
-            // Before the first layout pass the size is unknown; staying collapsed avoids showing
-            // a panel that the following pass would immediately take away.
             if (ActualWidth < InfoPanelMinWidgetWidth)
             {
-                return 0;
+                return false;
             }
 
-            return Math.Max(
+            // The strip needs the height as well; the side positions only need the width.
+            return !bottom || ActualHeight >= InfoPanelMinWidgetHeight;
+        }
+
+        /// <summary>Info panel width for the current widget width.</summary>
+        private double ResolveInfoPanelWidth() =>
+            Math.Max(
                 InfoPanelMinWidth,
                 Math.Min(InfoPanelMaxWidth, ActualWidth * InfoPanelWidthRatio));
-        }
 
-        /// <summary>Info panel height for a bottom-docked panel; 0 means there is no room.</summary>
-        private double ResolveInfoPanelHeight()
-        {
-            if (ActualHeight < InfoPanelMinWidgetHeight)
-            {
-                return 0;
-            }
-
-            return Math.Max(
+        /// <summary>
+        /// The most height a bottom-docked panel may claim. It is a ceiling rather than a size:
+        /// the strip sizes to its content and only scrolls once the details exceed this.
+        /// </summary>
+        private double ResolveInfoPanelMaxHeight() =>
+            Math.Max(
                 InfoPanelMinHeight,
                 Math.Min(InfoPanelMaxHeight, ActualHeight * InfoPanelHeightRatio));
-        }
 
         /// <summary>
         /// Builds the capture-to-achievement index off the UI thread, and only while the info panel

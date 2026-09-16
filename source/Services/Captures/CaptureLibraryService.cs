@@ -522,10 +522,14 @@ namespace PlayniteAchievements.Services.Captures
 
                 using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
+                    // None, not OnLoad: the dimensions below come from the header, so decoding the
+                    // pixels would buy nothing. The validation cache is per-session, so on a cold
+                    // start this runs over every capture in the library before the first slide can
+                    // be shown, and OnLoad made that a full decode of each one.
                     var decoder = BitmapDecoder.Create(
                         stream,
                         BitmapCreateOptions.PreservePixelFormat,
-                        BitmapCacheOption.OnLoad);
+                        BitmapCacheOption.None);
                     var readable = decoder.Frames.Count > 0 &&
                         decoder.Frames[0].PixelWidth > 0 &&
                         decoder.Frames[0].PixelHeight > 0;
