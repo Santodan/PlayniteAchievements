@@ -140,6 +140,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _refreshService.GameCacheUpdated += RefreshService_GameCacheUpdated;
             _refreshService.CacheDeltaUpdated += RefreshService_CacheDeltaUpdated;
             Loaded += ManageAchievementsControl_Loaded;
+
+            // A window per game visited, each holding that game's rows and resolved art. If
+            // either of these is still live after Cleanup, working through a list of games cannot
+            // return memory and only a restart will.
+            Common.LeakWatch.Track("ManageAchievementsControl", this);
+            Common.LeakWatch.Track("ManageAchievementsViewModel", _viewModel);
         }
 
         public string WindowTitle
@@ -203,6 +209,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
             CleanupNotes();
             CleanupAchievementIcons();
             CleanupNotifications();
+
+            // Reported after a delay and a forced collection, so the ManageAchievements* live
+            // counts in this line answer directly whether closing the window released it.
+            PlayniteAchievementsPlugin.Instance?.ScheduleRetentionDiagnostics(
+                "manage.closed",
+                delaySeconds: 8);
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -1020,6 +1032,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _editorViewModel.CapstoneChanged += CustomViewModel_CapstoneChanged;
             _editorControl = new ManageAchievementsEditorTab(_editorViewModel);
             EditorHost.Content = _editorControl;
+
+            Common.LeakWatch.Track("ManageAchievementsEditorViewModel", _editorViewModel);
+            Common.LeakWatch.Track("ManageAchievementsEditorTab", _editorControl);
         }
 
         // An edit here changes the same data the per-facet tabs show, so it propagates exactly as
