@@ -106,9 +106,17 @@ namespace PlayniteAchievements.Services.UI
         /// composes inside that scale — so an identical translate would travel a different distance at
         /// every display scale. On the host it is plain window DIPs.
         ///
-        /// Layout rounding and device-pixel snapping are turned off for the same reason the slide moved
-        /// off <c>SetWindowPos</c>: both quantise the rendered position to whole pixels, which is the
-        /// sub-pixel precision this is here to gain.
+        /// Device-pixel snapping is off for the same reason the slide moved off <c>SetWindowPos</c>: it
+        /// quantises the rendered position to whole pixels, which is the sub-pixel precision this is
+        /// here to gain.
+        ///
+        /// Layout rounding is deliberately left ON, unlike snapping. It rounds measure/arrange results,
+        /// not render-time output, and the slide is a <c>RenderTransform</c> on this host — applied
+        /// after layout — so it keeps its sub-pixel travel either way. Turning rounding off here turned
+        /// it off for the whole card, because the property inherits: every text element laid out on
+        /// fractional device pixels, which reads as blurry type for the seconds the card sits at rest.
+        /// The two rows that genuinely need unrounded layout (a clamped description whose last line the
+        /// rounded height would shave) carry their own <c>UseLayoutRounding="False"</c>.
         /// </summary>
         public static Grid BuildSlideHost(ItemsControl surface, out TranslateTransform slide)
         {
@@ -123,7 +131,7 @@ namespace PlayniteAchievements.Services.UI
             var host = new Grid
             {
                 IsHitTestVisible = false,
-                UseLayoutRounding = false,
+                UseLayoutRounding = true,
                 SnapsToDevicePixels = false,
                 RenderTransform = transforms,
                 RenderTransformOrigin = new Point(0.5, 0.5),
