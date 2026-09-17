@@ -709,26 +709,39 @@
                         </DataGridTemplateColumn.Header>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <Image Width="44"
-                                       Height="44"
-                                       Stretch="Uniform"
-                                       RenderOptions.BitmapScalingMode="HighQuality"
-                                       helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                                       helpers:AsyncImage.DecodePixel="96"
-                                       PreviewMouseLeftButtonDown="IconImage_PreviewMouseLeftButtonDown">
-                                    <Image.Style>
-                                        <Style TargetType="Image">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding CanReveal}" Value="True">
-                                                    <Setter Property="Cursor" Value="Hand" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding IsIconCovered}" Value="True">
-                                                    <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Image.Style>
-                                </Image>
+                                <!-- The cell takes a dropped image in its own right, so artwork
+                                     dragged onto an achievement's icon sets that achievement's
+                                     unlocked icon without going by way of the details pane. The
+                                     wrapper carries the drop rather than the image: a uniformly
+                                     stretched image does not hit test its letterbox, and the
+                                     whole cell should accept it. The grid's own drag handler has
+                                     already moved the selection onto this row by then, so the
+                                     pane shows the icon that changed. -->
+                                <Grid Background="Transparent"
+                                      AllowDrop="True"
+                                      PreviewDragOver="IconDropTarget_PreviewDragOver"
+                                      PreviewDrop="IconDropTarget_Drop">
+                                    <Image Width="44"
+                                           Height="44"
+                                           Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           helpers:AsyncImage.Uri="{Binding DisplayIcon}"
+                                           helpers:AsyncImage.DecodePixel="96"
+                                           PreviewMouseLeftButtonDown="IconImage_PreviewMouseLeftButtonDown">
+                                        <Image.Style>
+                                            <Style TargetType="Image">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CanReveal}" Value="True">
+                                                        <Setter Property="Cursor" Value="Hand" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsIconCovered}" Value="True">
+                                                        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
+                                </Grid>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -1711,8 +1724,8 @@
                                              Tag="Unlocked"
                                              ToolTip="{Binding UnlockedIconPath}"
                                              AllowDrop="True"
-                                             PreviewDragOver="IconTextBox_PreviewDragOver"
-                                             PreviewDrop="IconTextBox_Drop" />
+                                             PreviewDragOver="IconDropTarget_PreviewDragOver"
+                                             PreviewDrop="IconDropTarget_Drop" />
 
                                     <Button Grid.Column="3"
                                             Tag="{Binding UnlockedIconDisplayText}"
@@ -1767,8 +1780,8 @@
                                              Tag="Locked"
                                              ToolTip="{Binding LockedIconPath}"
                                              AllowDrop="True"
-                                             PreviewDragOver="IconTextBox_PreviewDragOver"
-                                             PreviewDrop="IconTextBox_Drop" />
+                                             PreviewDragOver="IconDropTarget_PreviewDragOver"
+                                             PreviewDrop="IconDropTarget_Drop" />
 
                                     <Button Grid.Column="3"
                                             Tag="{Binding LockedIconDisplayText}"
