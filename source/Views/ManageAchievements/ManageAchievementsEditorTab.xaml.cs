@@ -1215,6 +1215,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             if (e.Key == Key.Enter)
             {
+                // Shift+Enter is a new line, on the boxes that take one. Left unhandled so the
+                // box inserts it itself, at the caret, rather than this guessing where it goes.
+                if (textBox.AcceptsReturn &&
+                    (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+                {
+                    return;
+                }
+
                 CommitRoutedCellTextBox(textBox);
                 e.Handled = true;
                 return;
