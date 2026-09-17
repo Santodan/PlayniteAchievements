@@ -292,6 +292,23 @@ namespace PlayniteAchievements.Views.Controls
             var clipTop = hasToggleAbove ? -(aboveRadius + 2d) : 0d;
             var clipBottom = height + (drawsOwnToggle ? toggleRadius + 2d : 0d);
 
+            // Sideways as well, for the same reason. The glyph above is drawn on the lane of the
+            // row it belongs to, and the row beneath a collapsed one can sit shallower than it -
+            // a narrower guide, whose own width stops short of that lane. An expanded parent never
+            // reaches this state: its first child is deeper, so the lane is inside the child's
+            // guide. Clipping to the guide's own width is therefore what took the "+" off a
+            // collapsed row whose subtree was the tail of its branch.
+            var clipRight = RenderSize.Width;
+            if (hasToggleAbove)
+            {
+                clipRight = Math.Max(clipRight, aboveCentre.X + GetToggleHitRadius(aboveRadius));
+            }
+
+            if (drawsOwnToggle)
+            {
+                clipRight = Math.Max(clipRight, toggleCentre.X + GetToggleHitRadius(toggleRadius));
+            }
+
             // Half-pixel offsets on a 1px pen, so the lines land on device pixels instead of
             // straddling two and rendering as a soft 2px smear.
             drawingContext.PushGuidelineSet(BuildGuidelines(
@@ -299,7 +316,7 @@ namespace PlayniteAchievements.Views.Controls
                 hasToggle ? toggleCentre.Y : double.NaN,
                 hasToggleAbove ? aboveCentre.X : double.NaN));
             drawingContext.PushClip(new RectangleGeometry(
-                new Rect(0d, clipTop, RenderSize.Width, clipBottom - clipTop)));
+                new Rect(0d, clipTop, clipRight, clipBottom - clipTop)));
 
             // The boundary glyph above occupies this row's top edge on its own stem lane; the stem
             // starts below it so no line runs through the circle's interior.
