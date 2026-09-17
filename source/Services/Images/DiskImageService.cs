@@ -1430,12 +1430,10 @@ namespace PlayniteAchievements.Services.Images
                 return false;
             }
 
-            var fileName = Path.GetFileName(path) ?? string.Empty;
-
             switch (scope)
             {
                 case IconCacheClearScope.LockedOnly:
-                    return fileName.IndexOf(".locked.", StringComparison.OrdinalIgnoreCase) >= 0;
+                    return AchievementIconCachePathBuilder.IsLockedVariantPath(path);
                 default:
                     return true;
             }
