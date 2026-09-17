@@ -4448,6 +4448,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     }
                 }
 
+                // Temporary: the maps are written whole, so what is missing from them is what
+                // gets removed from the store.
+                _logger?.Info(
+                    "[EditorDiag] Writing icon overrides. unlocked=" + unlockedOverrides.Count +
+                    ", locked=" + lockedOverrides.Count +
+                    ", keys=" + string.Join("|", unlockedOverrides.Keys.Take(5)));
+
                 _achievementOverridesService.SetIconOverridesAndCustomAchievementIcons(
                     _gameId,
                     unlockedOverrides,
@@ -4485,6 +4492,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 var current = NormalizeText(ReadIcon(row, variant));
+
+                // Temporary. Which branch this takes is the whole question: the clear branch puts
+                // the provider's art back so the override is omitted from the next write, and the
+                // other re-materializes whatever the row is holding.
+                _logger?.Info(
+                    "[EditorDiag] Icon edit. api=" + row.OriginalApiName +
+                    ", variant=" + variant +
+                    ", current=" + (current ?? "<blank>") +
+                    ", providerBaseline=" + (ReadProviderIcon(row, variant) ?? "<null>") +
+                    ", branch=" + (string.IsNullOrWhiteSpace(current) ? "clear" : "materialize"));
+
                 if (string.IsNullOrWhiteSpace(current))
                 {
                     StageAcross(new[] { row }, target => WriteIcon(target, variant, ReadProviderIcon(target, variant)));
