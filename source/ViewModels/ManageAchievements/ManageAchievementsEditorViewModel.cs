@@ -813,37 +813,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private string _retainedIconRoot;
 
-        /// <summary>The retained copy for each managed path an undo has orphaned.</summary>
-        private readonly Dictionary<string, string> _retainedIconArt =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>How many copies have been taken, so each one gets its own name.</summary>
+        private int _retainedIconCount;
 
         /// <summary>
-        /// Copies art aside if it is this game's managed art and still on disk, so a redo has
-        /// something to restore from.
+        /// The value an icon change should be remembered by: a copy of the art it points at.
         /// </summary>
-        /// <param name="force">
-        /// Copies any art, not only this game's managed art. Used when remembering a change,
-        /// where the source is often a temp file that will not survive to be redone from.
-        /// </param>
-        private void RetainIconArt(string path, bool force = false)
+        /// <remarks>
+        /// The managed path is a slot, not a value. Replacing art writes the new image over the
+        /// same managed filename, so both sides of that change are the same string - which the
+        /// history reads as nothing having happened, and which would leave the old image gone
+        /// regardless. A source path is no better: it is usually a temp file that will not be
+        /// there later.
+        ///
+        /// A fresh copy is taken every time, deliberately. Reusing a copy already taken for the
+        /// same path is what limited this to one level: the managed slot keeps its name while its
+        /// contents change, so every replacement resolved back to the first image copied.
+        /// </remarks>
+        private object RetainIconValue(object value)
         {
-            var normalized = NormalizeText(path);
-            if (string.IsNullOrWhiteSpace(normalized) ||
-                !File.Exists(normalized))
+            var path = NormalizeText(value as string);
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             {
-                return;
-            }
-
-            // Already kept: the same art must map to one copy, or the history would remember two
-            // names for the same image and the slot it came from would be lost.
-            if (_retainedIconArt.ContainsKey(normalized))
-            {
-                return;
-            }
-
-            if (!force && _managedCustomIconService?.IsManagedCustomIconPath(normalized, _gameIdText) != true)
-            {
-                return;
+                // Blank stays blank: that is a clear, and there is nothing to keep.
+                return value;
             }
 
             try
@@ -858,54 +851,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     Directory.CreateDirectory(_retainedIconRoot);
                 }
 
-                // Named by position rather than by the achievement, so two variants of the same
-                // achievement cannot collide.
-                var retained = Path.Combine(
+                var copy = Path.Combine(
                     _retainedIconRoot,
-                    _retainedIconArt.Count.ToString(CultureInfo.InvariantCulture) +
-                        Path.GetExtension(normalized));
-                File.Copy(normalized, retained, overwrite: true);
-                _retainedIconArt[normalized] = retained;
+                    (_retainedIconCount++).ToString(CultureInfo.InvariantCulture) +
+                        Path.GetExtension(path));
+                File.Copy(path, copy, overwrite: true);
+                return copy;
             }
             catch (Exception ex)
             {
-                // A redo that cannot find its art is a worse outcome than a failed copy, but not
-                // one worth failing the undo over.
-                _logger?.Warn(ex, $"Could not retain icon art for redo: {normalized}");
-            }
-        }
-
-        /// <summary>
-        /// The value an icon change should be remembered by: a copy of the art it points at.
-        /// </summary>
-        /// <remarks>
-        /// The managed path is a slot, not a value. Replacing art writes the new image over the
-        /// same managed filename, so both sides of that change are the same string - which the
-        /// history reads as nothing having happened, and which would leave the old image gone
-        /// regardless. A source file is no better: it is often a temp file that will not be there
-        /// later.
-        ///
-        /// Remembering a copy instead makes both sides immutable, so replace, set and clear can
-        /// all be undone and redone.
-        /// </remarks>
-        private object RetainIconValue(object value)
-        {
-            var path = NormalizeText(value as string);
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            {
-                // Blank stays blank: that is a clear, and there is nothing to keep.
+                // A step that cannot restore its art is a poor outcome, but not one worth failing
+                // the edit over. The path is kept, which still restores it while the file lasts.
+                _logger?.Warn(ex, $"Could not keep a copy of icon art for the history: {path}");
                 return value;
             }
-
-            RetainIconArt(path, force: true);
-            return _retainedIconArt.TryGetValue(path, out var retained) && File.Exists(retained)
-                ? retained
-                : value;
         }
 
         private void DiscardRetainedIconArt()
         {
-            _retainedIconArt.Clear();
+            _retainedIconCount = 0;
             if (string.IsNullOrWhiteSpace(_retainedIconRoot))
             {
                 return;
