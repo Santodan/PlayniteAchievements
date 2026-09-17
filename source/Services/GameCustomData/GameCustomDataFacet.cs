@@ -130,7 +130,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                             return a == null && b == null;
                         }
 
-                        return a.Materialized == b.Materialized && JsonEquals(a.Assignments, b.Assignments);
+                        return a.Materialized == b.Materialized &&
+                            SequenceEqual(a.Assignments, b.Assignments, (x, y) => JsonEquals(x, y));
                     },
                     Count = value => ((CapstoneState)value)?.Assignments?.Count ?? 0
                 },
@@ -156,7 +157,13 @@ namespace PlayniteAchievements.Services.GameCustomData
                     Read = data => CloneMap(data.AchievementCategoryImageOverrides, item => item?.Clone()),
                     Write = (data, value) => data.AchievementCategoryImageOverrides =
                         CloneMap((Dictionary<string, CategoryImageOverrideData>)value, item => item?.Clone()),
-                    Equal = (left, right) => JsonEquals(left, right),
+                    // Per entry, not over the whole map: these are rebuilt from the rows, so two
+                    // maps holding the same entries in a different insertion order are the same
+                    // state, and serializing the map whole would call that a change.
+                    Equal = (left, right) => MapEquals(
+                        (Dictionary<string, CategoryImageOverrideData>)left,
+                        (Dictionary<string, CategoryImageOverrideData>)right,
+                        (x, y) => JsonEquals(x, y)),
                     Count = value => ((Dictionary<string, CategoryImageOverrideData>)value)?.Count ?? 0
                 },
 
@@ -177,7 +184,11 @@ namespace PlayniteAchievements.Services.GameCustomData
                     Read = data => CloneMap(data.AchievementOverrides, item => item?.Clone()),
                     Write = (data, value) => data.AchievementOverrides =
                         CloneMap((Dictionary<string, AchievementOverride>)value, item => item?.Clone()),
-                    Equal = (left, right) => JsonEquals(left, right),
+                    // Per entry, for the same reason as the map above.
+                    Equal = (left, right) => MapEquals(
+                        (Dictionary<string, AchievementOverride>)left,
+                        (Dictionary<string, AchievementOverride>)right,
+                        (x, y) => JsonEquals(x, y)),
                     Count = value => ((Dictionary<string, AchievementOverride>)value)?.Count ?? 0
                 },
 
@@ -186,7 +197,11 @@ namespace PlayniteAchievements.Services.GameCustomData
                     Read = data => CloneList(data.CustomAchievements, item => item?.Clone()),
                     Write = (data, value) => data.CustomAchievements =
                         CloneList((List<CustomAchievementDefinition>)value, item => item?.Clone()),
-                    Equal = (left, right) => JsonEquals(left, right),
+                    // A list, so position is part of the state and order is compared with it.
+                    Equal = (left, right) => SequenceEqual(
+                        (List<CustomAchievementDefinition>)left,
+                        (List<CustomAchievementDefinition>)right,
+                        (x, y) => JsonEquals(x, y)),
                     Count = value => ((List<CustomAchievementDefinition>)value)?.Count ?? 0
                 },
 
