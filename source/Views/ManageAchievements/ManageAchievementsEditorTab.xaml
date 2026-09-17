@@ -710,6 +710,7 @@
                                             SortMemberPath="DisplayName"
                                             HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorName"
+                                            IsReadOnly="True"
                                             helpers:EditorCellRouting.RoutesToSelection="True"
                                             helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_AchievementName}">
                         <DataGridTemplateColumn.Header>
@@ -800,6 +801,7 @@
                                             SortMemberPath="Description"
                                             HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorDescription"
+                                            IsReadOnly="True"
                                             helpers:EditorCellRouting.RoutesToSelection="True"
                                             helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Description}">
                         <DataGridTemplateColumn.Header>
