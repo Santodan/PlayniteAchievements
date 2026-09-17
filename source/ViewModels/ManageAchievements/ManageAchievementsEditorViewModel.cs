@@ -1797,8 +1797,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 row.IconFileStem = fileStems.TryGetValue(apiName, out var stem) ? stem : null;
                 if (rawByApiName.TryGetValue(apiName, out var raw))
                 {
-                    row.ProviderUnlockedIconPath = raw.UnlockedIconPath;
-                    row.ProviderLockedIconPath = raw.LockedIconPath;
+                    row.ProviderUnlockedIconPath = ResolveProviderIconBaseline(
+                        raw.UnlockedIconPath,
+                        row.IconFileStem,
+                        AchievementIconVariant.Unlocked);
+                    row.ProviderLockedIconPath = ResolveProviderIconBaseline(
+                        raw.LockedIconPath,
+                        row.IconFileStem,
+                        AchievementIconVariant.Locked);
                     row.ProviderHidden = raw.Hidden;
                     // The hydrated row carries the overridden type, so the provider's own is only
                     // available here. Without it an existing type override would compare equal to
@@ -1825,7 +1831,57 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// The provider's own art for one icon slot, which is not what the cache holds once an
+        /// override has been applied.
+        /// </summary>
+        /// <remarks>
+        /// RefreshRuntime.ApplyAchievementIconOverridesAsync loads the cached game, lets
+        /// AchievementIconService write each override's materialized path onto it, and saves it
+        /// back -- so the cached value for an overridden slot is the user's own file under
+        /// icon_cache/&lt;game&gt;/custom. Read as a baseline it compares equal to the row's current
+        /// path, which made every override read as "no override": the slot's text went blank, the
+        /// whole-map write omitted the entry, and clearing the icon wrote the same custom path
+        /// back, so nothing could be cleared.
+        ///
+        /// The provider's art is still on disk under its own name, so it is read from there. The
+        /// retired compressed folder is probed second, as the icon previews do, for a game not
+        /// refreshed since that mode was removed. A slot with no provider art at all resolves to
+        /// null, which is what "the user's own outright" already means everywhere else.
+        /// </remarks>
+        private string ResolveProviderIconBaseline(
+            string cachedPath,
+            string fileStem,
+            AchievementIconVariant variant)
+        {
+            if (!AchievementIconCachePathBuilder.IsCustomIconPath(cachedPath))
+            {
+                return cachedPath;
+            }
+
+            if (string.IsNullOrWhiteSpace(fileStem))
+            {
+                return null;
+            }
+
+            var disk = PlayniteAchievementsPlugin.Instance?.DiskImageService;
+            if (disk == null)
+            {
+                return null;
+            }
+
+            var cached = disk.FindExistingAchievementIconCachePath(_gameIdText, fileStem, variant);
+            if (!string.IsNullOrWhiteSpace(cached))
+            {
+                return cached;
+            }
+
+            var legacy = disk.GetLegacyCompressedAchievementIconCachePath(_gameIdText, fileStem, variant);
+            return !string.IsNullOrWhiteSpace(legacy) && System.IO.File.Exists(legacy) ? legacy : null;
+        }
+
         public void RefreshData()
+
         {
             if (!HasChanges)
             {
