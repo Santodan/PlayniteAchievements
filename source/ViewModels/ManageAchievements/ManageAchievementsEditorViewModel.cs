@@ -1704,6 +1704,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 row.IconFileStem = fileStems.TryGetValue(apiName, out var stem) ? stem : null;
+
+                // From the icon cache on disk, keyed by the file stem. The cached achievement's
+                // own icon field is not usable for this: an applied override replaces it, so it
+                // reports the custom art as the provider's.
+                StampProviderDefaultIcons(row);
+
                 if (rawByApiName.TryGetValue(apiName, out var raw))
                 {
                     row.ProviderUnlockedIconPath = raw.UnlockedIconPath;
@@ -1785,6 +1791,37 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             SetSelectedRows(Array.Empty<AchievementEditorRow>());
             AchievementRows.Clear();
             _searchIndex.Clear();
+        }
+
+        /// <summary>
+        /// Records where the provider's own art for a row sits in the icon cache.
+        /// </summary>
+        /// <remarks>
+        /// The same lookup the icon service uses to restore a cleared override, so the editor and
+        /// the restore agree on what "the provider's art" means. An authored row has no provider
+        /// art and is left with none.
+        /// </remarks>
+        private void StampProviderDefaultIcons(AchievementEditorRow row)
+        {
+            if (row == null || !row.IsProviderRow || string.IsNullOrWhiteSpace(row.IconFileStem))
+            {
+                return;
+            }
+
+            var disk = PlayniteAchievementsPlugin.Instance?.DiskImageService;
+            if (disk == null)
+            {
+                return;
+            }
+
+            row.ProviderDefaultUnlockedIconPath = disk.FindExistingAchievementIconCachePath(
+                _gameIdText,
+                row.IconFileStem,
+                AchievementIconVariant.Unlocked);
+            row.ProviderDefaultLockedIconPath = disk.FindExistingAchievementIconCachePath(
+                _gameIdText,
+                row.IconFileStem,
+                AchievementIconVariant.Locked);
         }
 
         private void RefreshCustomProviderState()
@@ -4429,16 +4466,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         continue;
                     }
 
+                    // Against the provider's art on disk, not the cached achievement's icon field.
+                    // That field holds the custom path once an override has been applied, so
+                    // comparing with it read every overridden row as unchanged - and since these
+                    // maps are written whole, one icon edit dropped every other icon override the
+                    // game had.
                     var unlocked = NormalizeText(row.UnlockedIconPath);
                     if (!string.IsNullOrWhiteSpace(unlocked) &&
-                        !string.Equals(unlocked, NormalizeText(row.ProviderUnlockedIconPath), StringComparison.OrdinalIgnoreCase))
+                        !string.Equals(unlocked, NormalizeText(row.ProviderDefaultUnlockedIconPath), StringComparison.OrdinalIgnoreCase))
                     {
                         unlockedOverrides[apiName] = unlocked;
                     }
 
                     var locked = NormalizeText(row.LockedIconPath);
                     if (!string.IsNullOrWhiteSpace(locked) &&
-                        !string.Equals(locked, NormalizeText(row.ProviderLockedIconPath), StringComparison.OrdinalIgnoreCase))
+                        !string.Equals(locked, NormalizeText(row.ProviderDefaultLockedIconPath), StringComparison.OrdinalIgnoreCase))
                     {
                         lockedOverrides[apiName] = locked;
                     }
@@ -4539,8 +4581,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private static string ReadIcon(AchievementEditorRow row, AchievementIconVariant variant) =>
             variant == AchievementIconVariant.Locked ? row.LockedIconPath : row.UnlockedIconPath;
 
+        /// <summary>
+        /// The provider's art for a row, as it sits in the icon cache.
+        /// </summary>
+        /// <remarks>
+        /// Not the cached achievement's icon field: an applied override replaces that, so reading
+        /// it made clearing an icon put the custom art straight back.
+        ///
+        /// Null when the cache holds no art for this achievement, which is what the icon service's
+        /// own restore returns in that case. Deliberately not falling back to the cached field:
+        /// that is the value that may be the custom path, and falling back to it would be the very
+        /// bug this avoids.
+        /// </remarks>
         private static string ReadProviderIcon(AchievementEditorRow row, AchievementIconVariant variant) =>
-            variant == AchievementIconVariant.Locked ? row.ProviderLockedIconPath : row.ProviderUnlockedIconPath;
+            variant == AchievementIconVariant.Locked
+                ? row.ProviderDefaultLockedIconPath
+                : row.ProviderDefaultUnlockedIconPath;
 
         private static void WriteIcon(AchievementEditorRow row, AchievementIconVariant variant, string value)
         {
@@ -5807,6 +5863,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool CanEditCapstone => CanEditAssignments && (!IsBulkRow || AllowBulkCapstone);
 
         /// <summary>
+        /// The provider's own art as it sits in the icon cache on disk, found by this
+        /// achievement's file stem rather than read from the cached achievement.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="ProviderUnlockedIconPath"/> cannot be trusted for this. Applying an icon
+        /// override writes the custom path into the cached achievement's only icon field, and the
+        /// baseline is read from that cache - so once an override has been applied, the "provider"
+        /// path is the custom one. Everything that has to tell an override from the provider's art
+        /// compares against this instead: the display text, the override write, and the restore a
+        /// clear performs.
+        ///
+        /// Null when the game has no cached art for the achievement, which is the same thing the
+        /// restore treats as "nothing to go back to".
+        /// </remarks>
+        public string ProviderDefaultUnlockedIconPath { get; internal set; }
+
+        /// <inheritdoc cref="ProviderDefaultUnlockedIconPath"/>
+        public string ProviderDefaultLockedIconPath { get; internal set; }
+
+        /// <summary>
         /// The icons the provider supplies, captured before any override is applied over them.
         /// A row shows its effective icon, so this is the only way to tell an override apart from
         /// the provider's own art, and the only thing to fall back to when one is cleared.
@@ -6027,9 +6103,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 ProviderCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(ProviderCategoryTypeValue),
                 Note = AchievementNote,
                 UnlockedIconPath = NormalizeRowText(UnlockedIconPath),
-                ProviderUnlockedIconPath = NormalizeRowText(ProviderUnlockedIconPath),
+                ProviderUnlockedIconPath = NormalizeRowText(ProviderDefaultUnlockedIconPath),
                 LockedIconPath = NormalizeRowText(LockedIconPath),
-                ProviderLockedIconPath = NormalizeRowText(ProviderLockedIconPath),
+                ProviderLockedIconPath = NormalizeRowText(ProviderDefaultLockedIconPath),
                 Hidden = Hidden,
                 ProviderHidden = ProviderHidden,
                 IsFiltered = IsFiltered,
@@ -6813,7 +6889,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         public string UnlockedIconDisplayText
         {
-            get => IsIconOverride(UnlockedIconPath, ProviderUnlockedIconPath)
+            get => IsIconOverride(UnlockedIconPath, ProviderDefaultUnlockedIconPath)
                 ? ToIconDisplayText(UnlockedIconPath)
                 : string.Empty;
             set => UnlockedIconPath = FromIconDisplayText(value);
@@ -6822,7 +6898,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <inheritdoc cref="UnlockedIconDisplayText"/>
         public string LockedIconDisplayText
         {
-            get => IsIconOverride(LockedIconPath, ProviderLockedIconPath)
+            get => IsIconOverride(LockedIconPath, ProviderDefaultLockedIconPath)
                 ? ToIconDisplayText(LockedIconPath)
                 : string.Empty;
             set => LockedIconPath = FromIconDisplayText(value);
