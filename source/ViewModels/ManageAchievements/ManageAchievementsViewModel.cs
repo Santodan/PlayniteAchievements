@@ -1448,7 +1448,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void NotifyCustomDataChangedCore(bool requiresRefresh, bool forceIconRefresh)
         {
             _gameDataSnapshotProvider?.Invalidate();
-            _refreshService?.Cache?.NotifyCacheInvalidated(new[] { _gameId });
+
+            // No cache invalidation is raised here. Every caller reaches this after a custom-data
+            // store write, and the store already raises CustomDataChanged for that write carrying
+            // AffectsSummaryData. Every consumer that has to react subscribes to that event -- the
+            // overview's per-game fragment path, the summary memo, the library projection, the
+            // theme view items, and the plugin's coalesced start-page/tag-sync/theme fan-out -- and
+            // each honours the flag. Raising NotifyCacheInvalidated on top of it notified the same
+            // consumers again with the scope discarded, so one edit dropped the whole-library
+            // projection and forced a full summary re-read. Edits still appear immediately; they
+            // arrive on the filtered path instead of the unfiltered one.
 
             if (_settings?.SelectedGame?.Id == _gameId)
             {
