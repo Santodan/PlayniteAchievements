@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
@@ -25,6 +27,8 @@ namespace PlayniteAchievements.Views.Controls
         private bool _isAttached;
         private PersistedSettingsSubscription _persistedSubscription;
         private GameSummaryGridOptions _subscribedShowcaseOptions;
+        private INotifyCollectionChanged _watchedRows;
+        private bool _tailSlackPending;
         private const double DefaultCoverColumnWidth = 96;
         private const double DefaultPlatformColumnWidth = 44;
         private const double DefaultCapturesColumnWidth = 56;
@@ -274,13 +278,16 @@ namespace PlayniteAchievements.Views.Controls
         /// category-mode list turns this on; the drill header and every game-summary surface leave
         /// it off, and the host also drops it while a name search or column sort suspends
         /// collapsing so the glyphs revert to plain beads there.
+        ///
+        /// Re-runs the realized rows because the last one carries the scroll slack the bottom
+        /// glyph needs (see <see cref="ApplyTailToggleSlack"/>), which this flag turns on and off.
         /// </summary>
         public static readonly DependencyProperty ShowCategoryCollapseTogglesProperty =
             DependencyProperty.Register(
                 nameof(ShowCategoryCollapseToggles),
                 typeof(bool),
                 typeof(GameSummariesGridControl),
-                new PropertyMetadata(false));
+                new PropertyMetadata(false, OnRowSizingChanged));
 
         public bool ShowCategoryCollapseToggles
         {
@@ -651,6 +658,16 @@ namespace PlayniteAchievements.Views.Controls
 
             UpdateColumnHeadersVisibility();
             UpdateRealizedRowHeights();
+            // The category list mutates its visible-rows collection in place as subtrees collapse
+            // and expand, so the row that used to be last is not re-prepared when the tail moves
+            // and would keep - or lack - the slack under the bottom glyph. Watching the item
+            // collection re-applies it whichever way the rows changed.
+            if (_watchedRows == null)
+            {
+                _watchedRows = GameSummariesGrid.Items;
+                _watchedRows.CollectionChanged += OnRowsCollectionChanged;
+            }
+
             MirrorAppearanceResources();
             ApplyCategoryHeaderOverride();
 
@@ -771,6 +788,28 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        /// <summary>
+        /// Re-applies the tail slack after the rows change, once the containers for whatever was
+        /// added exist. Coalesced: a collapse pass can raise a long run of single-row changes, and
+        /// each sweep walks every row.
+        /// </summary>
+        private void OnRowsCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (!ShowCategoryCollapseToggles || _tailSlackPending || Dispatcher == null)
+            {
+                return;
+            }
+
+            _tailSlackPending = true;
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    _tailSlackPending = false;
+                    UpdateRealizedRowHeights();
+                }),
+                DispatcherPriority.Loaded);
+        }
+
         private static void OnRowSizingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is GameSummariesGridControl control)
@@ -782,6 +821,7 @@ namespace PlayniteAchievements.Views.Controls
         private void GameSummariesGrid_LoadingRow(object sender, DataGridRowEventArgs e)
         {
             ApplyFixedRowHeight(e.Row);
+            ApplyTailToggleSlack(e.Row);
         }
 
         private void UpdateRealizedRowHeights()
@@ -796,8 +836,40 @@ namespace PlayniteAchievements.Views.Controls
                 if (GameSummariesGrid.ItemContainerGenerator.ContainerFromItem(item) is DataGridRow row)
                 {
                     ApplyFixedRowHeight(row);
+                    ApplyTailToggleSlack(row);
                 }
             }
+        }
+
+        /// <summary>
+        /// Scroll room under the last row, so a collapse toggle sitting on the grid's bottom edge
+        /// stays reachable.
+        ///
+        /// The glyph is centred on a row boundary, and the last row has no row beneath it to paint
+        /// it, so that row draws its own circle past its bottom edge. Scrolled to the end, that
+        /// edge is where the panel stops clipping, and the glyph lands outside it. A bottom margin
+        /// on the last row counts toward the scroll extent while leaving the row itself its normal
+        /// height, so the final stretch of scrolling uncovers the glyph rather than stopping flush
+        /// against it. Only the surface that shows the toggles pays for it; every other grid
+        /// clears the margin back to the row style's own.
+        /// </summary>
+        private void ApplyTailToggleSlack(DataGridRow row)
+        {
+            if (row == null || GameSummariesGrid == null)
+            {
+                return;
+            }
+
+            var isTail = ShowCategoryCollapseToggles &&
+                row.GetIndex() == GameSummariesGrid.Items.Count - 1;
+            if (isTail)
+            {
+                row.Margin = new Thickness(
+                    0d, 0d, 0d, CategoryTreeGuideMetrics.BoundaryToggleOverhang);
+                return;
+            }
+
+            row.ClearValue(FrameworkElement.MarginProperty);
         }
 
         private void ApplyFixedRowHeight(DataGridRow row)
@@ -1875,6 +1947,13 @@ namespace PlayniteAchievements.Views.Controls
                 _subscribedShowcaseOptions.PropertyChanged -= OnShowcaseOptionsChanged;
                 _subscribedShowcaseOptions = null;
             }
+
+            if (_watchedRows != null)
+            {
+                _watchedRows.CollectionChanged -= OnRowsCollectionChanged;
+                _watchedRows = null;
+            }
+
             RarityAppearanceHelper.AppearanceChanged -= RarityAppearanceHelper_AppearanceChanged;
             DataGridAlignmentBehavior.SetColumnCellAlignmentOverridesProvider(GameSummariesGrid, null);
             DataGridAlignmentBehavior.SetColumnCellVerticalAlignmentOverridesProvider(GameSummariesGrid, null);
