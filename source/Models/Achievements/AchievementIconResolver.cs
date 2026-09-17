@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using PlayniteAchievements.Services.Images;
 
 namespace PlayniteAchievements.Models.Achievements
 {
@@ -11,12 +12,6 @@ namespace PlayniteAchievements.Models.Achievements
         private const string DefaultIconPackUri = "pack://application:,,,/PlayniteAchievements;component/Resources/HiddenAchIcon.png";
         private const string GrayPrefix = "gray:";
         private const string CacheBustPrefix = "cachebust|";
-
-        // The icon cache's own naming, which is what says whether a cached locked icon is art
-        // of its own. Kept here as text rather than taken from the builder that writes it: this
-        // class is pure, and reading a name needs no filesystem work.
-        private const string IconCacheFolderName = "icon_cache";
-        private const string LockedFileNameSuffix = ".locked";
 
         /// <summary>
         /// Supplies the user's custom locked cover image path, or null/blank for the built-in
@@ -188,9 +183,9 @@ namespace PlayniteAchievements.Models.Achievements
                 return false;
             }
 
-            if (IsCachedIconPath(normalizedLockedIconPath))
+            if (AchievementIconCachePathBuilder.IsCachedIconPath(normalizedLockedIconPath))
             {
-                return HasLockedFileName(normalizedLockedIconPath);
+                return AchievementIconCachePathBuilder.IsLockedVariantPath(normalizedLockedIconPath);
             }
 
             var normalizedUnlockedIconPath = NormalizeDisplaySource(unlockedIconPath);
@@ -203,33 +198,6 @@ namespace PlayniteAchievements.Models.Achievements
                 NormalizeIcon(normalizedLockedIconPath),
                 NormalizeIcon(normalizedUnlockedIconPath),
                 StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// Whether a path names a file the plugin's icon cache wrote, and so carries its naming.
-        /// </summary>
-        private static bool IsCachedIconPath(string path)
-        {
-            return !string.IsNullOrWhiteSpace(path) &&
-                path.IndexOf(IconCacheFolderName, StringComparison.OrdinalIgnoreCase) >= 0;
-        }
-
-        /// <summary>
-        /// Whether a cached icon is the locked one of its pair. Both folders name it the same way:
-        /// the unlocked icon is the stem, the locked icon is the stem plus this suffix.
-        /// </summary>
-        private static bool HasLockedFileName(string path)
-        {
-            try
-            {
-                var fileName = System.IO.Path.GetFileNameWithoutExtension(path);
-                return !string.IsNullOrWhiteSpace(fileName) &&
-                    fileName.EndsWith(LockedFileNameSuffix, StringComparison.OrdinalIgnoreCase);
-            }
-            catch
-            {
-                return false;
-            }
         }
 
         /// <summary>
