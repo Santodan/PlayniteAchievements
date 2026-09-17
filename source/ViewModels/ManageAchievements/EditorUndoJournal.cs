@@ -1,0 +1,399 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.GameCustomData;
+
+namespace PlayniteAchievements.ViewModels.ManageAchievements
+{
+    /// <summary>
+    /// What kind of gesture a write belongs to. Writes carrying the same intent are one undo step.
+    /// </summary>
+    public enum EditorEditKind
+    {
+        /// <summary>A field edited in the grid or the details pane.</summary>
+        FieldEdit,
+
+        /// <summary>A command or menu pick, named by <see cref="EditorEditIntent.Name"/>.</summary>
+        Command,
+
+        /// <summary>
+        /// A gesture that writes several facets in sequence and must stay one step, such as
+        /// reverting or resetting. Never merges with the gesture before or after it.
+        /// </summary>
+        Atomic
+    }
+
+    /// <summary>
+    /// The gesture a write belongs to: its kind, and a name that distinguishes one gesture of that
+    /// kind from another.
+    /// </summary>
+    public sealed class EditorEditIntent : IEquatable<EditorEditIntent>
+    {
+        public EditorEditIntent(EditorEditKind kind, string name, string labelKey)
+        {
+            Kind = kind;
+            Name = name ?? string.Empty;
+            LabelKey = labelKey;
+        }
+
+        public EditorEditKind Kind { get; }
+
+        /// <summary>
+        /// What separates two gestures of the same kind - the property name for a field edit, the
+        /// command for a command. Editing points and then trophy is two steps, not one.
+        /// </summary>
+        public string Name { get; }
+
+        /// <summary>The localization key naming this gesture on the undo button.</summary>
+        public string LabelKey { get; }
+
+        public bool Equals(EditorEditIntent other)
+        {
+            return other != null &&
+                Kind == other.Kind &&
+                string.Equals(Name, other.Name, StringComparison.Ordinal);
+        }
+
+        public override bool Equals(object obj) => Equals(obj as EditorEditIntent);
+
+        public override int GetHashCode()
+        {
+            return ((int)Kind * 397) ^ (Name?.GetHashCode() ?? 0);
+        }
+
+        public static EditorEditIntent FieldEdit(string propertyName, string labelKey)
+        {
+            return new EditorEditIntent(EditorEditKind.FieldEdit, propertyName, labelKey);
+        }
+
+        public static EditorEditIntent Command(string name, string labelKey)
+        {
+            return new EditorEditIntent(EditorEditKind.Command, name, labelKey);
+        }
+
+        public static EditorEditIntent Atomic(string name, string labelKey)
+        {
+            return new EditorEditIntent(EditorEditKind.Atomic, name, labelKey);
+        }
+    }
+
+    /// <summary>
+    /// One undoable step: the facets a gesture moved, and the flags to report when it is reversed.
+    /// </summary>
+    /// <remarks>
+    /// Holds plain data only - a localization key, two booleans, deep-copied facet values and a
+    /// set of ApiNames. No delegates and no reference to a row or a view model, which is what lets
+    /// a history outlive a grid without keeping the grid alive. A command-object history could not
+    /// make that promise, because its undo closures would capture the rows they were built from.
+    /// </remarks>
+    public sealed class EditorUndoEntry
+    {
+        internal EditorUndoEntry(
+            string labelKey,
+            IReadOnlyList<GameCustomDataFacetPatch> facets,
+            bool affectsSummaryData,
+            bool affectsOverrideMirror,
+            IReadOnlyList<string> affectedApiNames)
+        {
+            LabelKey = labelKey;
+            Facets = facets ?? new List<GameCustomDataFacetPatch>();
+            AffectsSummaryData = affectsSummaryData;
+            AffectsOverrideMirror = affectsOverrideMirror;
+            AffectedApiNames = affectedApiNames ?? new List<string>();
+        }
+
+        /// <summary>The localization key naming the gesture, for the undo button's tooltip.</summary>
+        public string LabelKey { get; }
+
+        public IReadOnlyList<GameCustomDataFacetPatch> Facets { get; }
+
+        /// <summary>
+        /// The flags to repeat when this step is reversed. Folded across the writes in the step,
+        /// so a reversal reports a change at least as significant as the original - never less,
+        /// which would leave a mirror stale.
+        /// </summary>
+        public bool AffectsSummaryData { get; }
+
+        public bool AffectsOverrideMirror { get; }
+
+        /// <summary>
+        /// The achievements this step touched, for reselecting them after it is reversed. Names
+        /// rather than rows, so the entry holds nothing that could keep a grid alive.
+        /// </summary>
+        public IReadOnlyList<string> AffectedApiNames { get; }
+
+        public int ElementCount => Facets.Sum(patch => patch.ElementCount);
+
+        /// <summary>The facets this step would rewrite, for deciding whether a foreign write invalidates it.</summary>
+        internal IEnumerable<GameCustomDataFacet> TouchedFacets => Facets.Select(patch => patch.Facet);
+    }
+
+    /// <summary>
+    /// The achievement editor's undo history.
+    /// </summary>
+    /// <remarks>
+    /// The editor persists as it goes - there is no Save or Revert on this window - so undo here
+    /// rewinds state that is already stored rather than discarding a buffer. Every write funnels
+    /// through one place in the store, which hands over the record before and after it, so the
+    /// history is built by recording those pairs rather than by each edit site describing its own
+    /// inverse.
+    ///
+    /// Writes are grouped into steps by the gesture they came from: a fan-out edit writes once per
+    /// selected row and a reset writes several facets in turn, and each has to undo in one press.
+    /// A step stays open until a different gesture arrives or the caller closes it.
+    ///
+    /// Pure by design - no dispatcher, no WPF, no plugin services - so the grouping rules can be
+    /// tested directly. The caller owns the timer that closes an idle step.
+    /// </remarks>
+    public sealed class EditorUndoJournal
+    {
+        /// <summary>
+        /// How many steps to keep. Matches the dashboard's own history depth.
+        /// </summary>
+        public const int MaxDepth = 50;
+
+        /// <summary>
+        /// A ceiling on what the history holds, counted in list and map entries across both sides
+        /// of every step. The depth cap alone is not a memory bound, because one step can carry a
+        /// heavily customized game's whole override map.
+        /// </summary>
+        public const int MaxElements = 20000;
+
+        private readonly List<EditorUndoEntry> _undo = new List<EditorUndoEntry>();
+        private readonly List<EditorUndoEntry> _redo = new List<EditorUndoEntry>();
+
+        private EditorEditIntent _openIntent;
+        private GameCustomDataFile _openBefore;
+        private GameCustomDataFile _openAfter;
+        private bool _openAffectsSummaryData;
+        private bool _openAffectsOverrideMirror;
+        private readonly List<string> _openApiNames = new List<string>();
+
+        public bool CanUndo => _undo.Count > 0;
+
+        public bool CanRedo => _redo.Count > 0;
+
+        /// <summary>Whether a step is being collected, so a caller knows an idle timer is wanted.</summary>
+        public bool HasOpenStep => _openIntent != null;
+
+        public string UndoLabelKey => _undo.Count > 0 ? _undo[_undo.Count - 1].LabelKey : null;
+
+        public string RedoLabelKey => _redo.Count > 0 ? _redo[_redo.Count - 1].LabelKey : null;
+
+        /// <summary>
+        /// Records a write against the gesture it came from.
+        /// </summary>
+        /// <remarks>
+        /// A null <paramref name="previous"/> means the state before the write is unknown rather
+        /// than empty, so nothing can be said about how to reverse it: the history is dropped
+        /// rather than left holding a step that would restore the wrong thing.
+        /// </remarks>
+        public void Record(
+            GameCustomDataFile previous,
+            GameCustomDataFile persisted,
+            bool affectsSummaryData,
+            bool affectsOverrideMirror,
+            EditorEditIntent intent,
+            IEnumerable<string> affectedApiNames = null)
+        {
+            if (persisted == null)
+            {
+                return;
+            }
+
+            if (previous == null)
+            {
+                Clear();
+                return;
+            }
+
+            if (intent == null)
+            {
+                // A write nobody claimed: something outside the editor, or an edit site that was
+                // never labelled. Either way it is not ours to undo.
+                NoteForeignWrite(previous, persisted);
+                return;
+            }
+
+            // An atomic gesture stands alone, and any change of gesture closes what was open.
+            if (_openIntent != null &&
+                (!_openIntent.Equals(intent) ||
+                    _openIntent.Kind == EditorEditKind.Atomic ||
+                    intent.Kind == EditorEditKind.Atomic))
+            {
+                CommitOpenStep();
+            }
+
+            if (_openIntent == null)
+            {
+                _openIntent = intent;
+
+                // Cloned, not held: the store caches the record it just wrote and the next write
+                // mutates that same instance in place, so a reference here would drift under us
+                // before the step is closed.
+                _openBefore = previous.Clone();
+                _openAffectsSummaryData = affectsSummaryData;
+                _openAffectsOverrideMirror = affectsOverrideMirror;
+                _openApiNames.Clear();
+            }
+            else
+            {
+                // Folded, never narrowed: a reversal has to resync everything the gesture did.
+                _openAffectsSummaryData |= affectsSummaryData;
+                _openAffectsOverrideMirror |= affectsOverrideMirror;
+            }
+
+            // The step spans from the first write's starting point to the latest write's result,
+            // which is what makes a fan-out across many rows one entry.
+            _openAfter = persisted.Clone();
+
+            if (affectedApiNames != null)
+            {
+                foreach (var apiName in affectedApiNames)
+                {
+                    if (!string.IsNullOrWhiteSpace(apiName) &&
+                        !_openApiNames.Contains(apiName, StringComparer.OrdinalIgnoreCase))
+                    {
+                        _openApiNames.Add(apiName);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Closes the step being collected and puts it on the history. Called when the writes stop
+        /// arriving, and before an undo or redo so the step just made is on the stack.
+        /// </summary>
+        public void CommitOpenStep()
+        {
+            if (_openIntent == null)
+            {
+                return;
+            }
+
+            var facets = GameCustomDataFacetDiffer.Diff(_openBefore, _openAfter);
+            var labelKey = _openIntent.LabelKey;
+            var summary = _openAffectsSummaryData;
+            var mirror = _openAffectsOverrideMirror;
+            var apiNames = new List<string>(_openApiNames);
+
+            ClearOpenStep();
+
+            // A gesture that ended where it started is not a step. Typing a value and typing it
+            // back is the ordinary way this happens.
+            if (facets.Count == 0)
+            {
+                return;
+            }
+
+            _undo.Add(new EditorUndoEntry(labelKey, facets, summary, mirror, apiNames));
+
+            // A new step makes the forward history unreachable, as it does in any editor.
+            _redo.Clear();
+
+            Trim();
+        }
+
+        /// <summary>
+        /// Takes the most recent step off the history. The caller applies its before-values and
+        /// then reports the write, and the step moves to the redo side.
+        /// </summary>
+        public EditorUndoEntry Undo()
+        {
+            CommitOpenStep();
+            if (_undo.Count == 0)
+            {
+                return null;
+            }
+
+            var entry = _undo[_undo.Count - 1];
+            _undo.RemoveAt(_undo.Count - 1);
+            _redo.Add(entry);
+            return entry;
+        }
+
+        /// <summary>
+        /// Takes the most recently undone step back off the redo side, for the caller to re-apply.
+        /// </summary>
+        public EditorUndoEntry Redo()
+        {
+            CommitOpenStep();
+            if (_redo.Count == 0)
+            {
+                return null;
+            }
+
+            var entry = _redo[_redo.Count - 1];
+            _redo.RemoveAt(_redo.Count - 1);
+            _undo.Add(entry);
+            return entry;
+        }
+
+        /// <summary>
+        /// Accounts for a write this journal did not record - another tab, a refresh, the Overview.
+        /// </summary>
+        /// <remarks>
+        /// Only the steps that overlap it are in doubt, because every step assumes it knows what
+        /// the facets it holds contained. Clearing on any foreign write at all would empty the
+        /// history on almost every refresh, since most writes touch nothing the editor edits.
+        /// </remarks>
+        public void NoteForeignWrite(GameCustomDataFile previous, GameCustomDataFile persisted)
+        {
+            if (previous == null || persisted == null)
+            {
+                Clear();
+                return;
+            }
+
+            var moved = GameCustomDataFacetDiffer.Diff(previous, persisted)
+                .Select(patch => patch.Facet)
+                .ToList();
+            if (moved.Count == 0)
+            {
+                return;
+            }
+
+            if (_undo.Any(entry => entry.TouchedFacets.Any(moved.Contains)) ||
+                _redo.Any(entry => entry.TouchedFacets.Any(moved.Contains)))
+            {
+                Clear();
+            }
+        }
+
+        public void Clear()
+        {
+            ClearOpenStep();
+            _undo.Clear();
+            _redo.Clear();
+        }
+
+        private void ClearOpenStep()
+        {
+            _openIntent = null;
+            _openBefore = null;
+            _openAfter = null;
+            _openAffectsSummaryData = false;
+            _openAffectsOverrideMirror = false;
+            _openApiNames.Clear();
+        }
+
+        /// <summary>
+        /// Drops the oldest steps until the history is inside both caps.
+        /// </summary>
+        private void Trim()
+        {
+            while (_undo.Count > MaxDepth)
+            {
+                _undo.RemoveAt(0);
+            }
+
+            var elements = _undo.Sum(entry => entry.ElementCount);
+            while (_undo.Count > 1 && elements > MaxElements)
+            {
+                elements -= _undo[0].ElementCount;
+                _undo.RemoveAt(0);
+            }
+        }
+    }
+}
