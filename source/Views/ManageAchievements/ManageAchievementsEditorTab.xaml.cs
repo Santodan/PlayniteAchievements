@@ -41,6 +41,43 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private const string DragDataFormat = "PlayniteAchievements.ManageAchievementsEditorRows";
 
+        /// <summary>
+        /// The columns locked to the left edge, in order. Not hideable either, so they also seed
+        /// the layout service's excluded-visibility set. The first of them is the drag handle, and
+        /// <see cref="DataGridRowReorderBehavior"/> recognises that handle by its display index,
+        /// which is what makes pinning it load-bearing rather than cosmetic.
+        /// </summary>
+        private static readonly string[] PinnedColumnKeys = { "EditorOrder", "EditorStatus", "EditorUnlocked" };
+
+        /// <summary>
+        /// Which columns a config that has never been touched shows. Merged over the persisted map
+        /// on read, so a column added later appears at its default without a migration while an
+        /// explicit hide still persists.
+        /// </summary>
+        private static readonly Dictionary<string, bool> DefaultColumnVisibility =
+            new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["EditorIcon"] = true,
+                ["EditorName"] = true,
+                ["EditorDescription"] = true,
+                ["EditorUnlockTime"] = true
+            };
+
+        /// <summary>
+        /// Starting widths for columns the user has never resized, matching the widths declared in
+        /// the XAML so a fresh install looks the way the markup reads.
+        /// </summary>
+        private static readonly Dictionary<string, double> DefaultColumnWidthSeeds =
+            new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["EditorIcon"] = 58,
+                ["EditorName"] = 240,
+                ["EditorDescription"] = 320,
+                ["EditorUnlockTime"] = 320
+            };
+
+        private DataGridColumnLayoutService _columnPersistence;
+
         private AchievementEditorRow _categoryPickerRow;
 
         private string _categoryPickerLabel;
@@ -95,6 +132,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 RestoreSelection = RestoreSelectionByApiNames
             });
 
+            AttachColumnPersistence();
+
             // Confirms the behavior attached at all: if no reorder line ever appears in the log,
             // this says whether the wiring ran or the drop is being lost before it reaches us.
             LogManager.GetLogger().Debug(
@@ -114,6 +153,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// </remarks>
         public void Cleanup()
         {
+            // First, while the grid, the view model and the settings object are all still alive:
+            // disposing flushes the pending width writes, which needs all three.
+            _columnPersistence?.Dispose();
+            _columnPersistence = null;
+
             AchievementNavigation_Unloaded(null, null);
             Loaded -= AchievementNavigation_Loaded;
             Unloaded -= AchievementNavigation_Unloaded;
@@ -1421,6 +1465,141 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private static string TrimTrailingUrlPunctuation(string value)
         {
             return (value ?? string.Empty).Trim().TrimEnd('.', ',', ';', ')', ']', '}');
+        }
+
+        /// <summary>
+        /// Gives the achievements grid the same persisted column layout the render grids have:
+        /// show/hide from the header menu, drag to reorder, drag to resize, all remembered.
+        /// </summary>
+        private void AttachColumnPersistence()
+        {
+            _columnPersistence = new DataGridColumnLayoutService(
+                CustomAchievementsGrid,
+                LogManager.GetLogger(),
+                getWidths: () => GetColumnLayout()?.Widths,
+                setWidths: map =>
+                {
+                    var columns = GetColumnLayout();
+                    if (columns != null)
+                    {
+                        columns.Widths = map;
+                    }
+                },
+                getVisibility: GetColumnVisibility,
+                setVisibility: map =>
+                {
+                    var columns = GetColumnLayout();
+                    if (columns != null)
+                    {
+                        columns.Visibility = map;
+                    }
+                },
+                saveSettings: SaveColumnSettings,
+                defaultWidthSeeds: DefaultColumnWidthSeeds,
+                getOrder: () => GetColumnLayout()?.Order,
+                setOrder: map =>
+                {
+                    var columns = GetColumnLayout();
+                    if (columns != null)
+                    {
+                        columns.Order = map;
+                    }
+                });
+
+            _columnPersistence.PinnedLeadingKeys = PinnedColumnKeys;
+            foreach (var key in PinnedColumnKeys)
+            {
+                _columnPersistence.ExcludedVisibilityKeys.Add(key);
+            }
+
+            _columnPersistence.Attach();
+        }
+
+        private GridColumnLayoutOptions GetColumnLayout()
+        {
+            return ViewModel?.Settings?.Persisted?.GridOptions
+                ?.GetManageAchievements(GridOptionKeys.ManageAchievements.Editor)
+                ?.Columns;
+        }
+
+        /// <summary>
+        /// The persisted visibility map with any column it says nothing about filled in from the
+        /// defaults, so a column added in a later version starts where it should.
+        /// </summary>
+        private Dictionary<string, bool> GetColumnVisibility()
+        {
+            var columns = GetColumnLayout();
+            if (columns == null)
+            {
+                return null;
+            }
+
+            var map = columns.Visibility;
+            if (map == null)
+            {
+                map = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                columns.Visibility = map;
+                map = columns.Visibility;
+            }
+
+            foreach (var pair in DefaultColumnVisibility)
+            {
+                if (!map.ContainsKey(pair.Key))
+                {
+                    map[pair.Key] = pair.Value;
+                }
+            }
+
+            return map;
+        }
+
+        private void SaveColumnSettings()
+        {
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            var settings = ViewModel?.Settings;
+            if (plugin == null || settings == null)
+            {
+                return;
+            }
+
+            try
+            {
+                plugin.SavePluginSettings(settings);
+            }
+            catch (Exception ex)
+            {
+                LogManager.GetLogger().Warn(ex, "Failed to persist the achievement editor column settings.");
+            }
+        }
+
+        /// <summary>
+        /// Opens the column show/hide menu for a right-clicked header.
+        /// </summary>
+        /// <remarks>
+        /// Tunnelling, so it runs before the row's own right-button handlers. Anything that is not
+        /// a header is left entirely alone - unhandled and with nothing opened - because those
+        /// handlers own the row menu.
+        /// </remarks>
+        private void CustomAchievementsGrid_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            var header = VisualTreeHelpers.FindVisualParent<DataGridColumnHeader>(e.OriginalSource as DependencyObject);
+            if (header?.Column == null)
+            {
+                return;
+            }
+
+            e.Handled = true;
+
+            var menu = _columnPersistence?.BuildColumnVisibilityMenu(header.Column);
+            if (menu == null || menu.Items.Count == 0)
+            {
+                return;
+            }
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(header, menu);
+            menu.Placement = PlacementMode.Bottom;
+            menu.PlacementTarget = header;
+            menu.IsOpen = true;
         }
     }
 }
