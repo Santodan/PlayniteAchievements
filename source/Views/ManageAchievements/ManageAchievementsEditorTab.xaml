@@ -1170,21 +1170,19 @@
                                      is what that style would have drawn. -->
                                 <Button ToolTip="{Binding TrophyType}"
                                         Click="TrophyCell_Click"
-                                        MinHeight="22"
+                                        MinHeight="26"
                                         Margin="4,0"
                                         Padding="6,1"
                                         HorizontalAlignment="Stretch"
                                         VerticalAlignment="Center"
-                                        HorizontalContentAlignment="Stretch">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <Image Grid.Column="0"
-                                               Width="16"
+                                        HorizontalContentAlignment="Center">
+                                    <!-- Badge and chevron centre as a pair, so the badge reads as
+                                         centred in the cell the way the status glyphs do. -->
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center">
+                                        <Image Width="16"
                                                Height="16"
-                                               HorizontalAlignment="Left"
                                                VerticalAlignment="Center">
                                             <Image.Style>
                                                 <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
@@ -1210,14 +1208,13 @@
                                                 </Style>
                                             </Image.Style>
                                         </Image>
-                                        <TextBlock Grid.Column="1"
-                                                   Text="&#x25BC;"
+                                        <TextBlock Text="&#x25BC;"
                                                    FontSize="10"
                                                    Opacity="0.85"
                                                    VerticalAlignment="Center"
                                                    Margin="4,0,0,0"
                                                    Foreground="{DynamicResource PlayAch.Brush.Text}" />
-                                    </Grid>
+                                    </StackPanel>
                                 </Button>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
