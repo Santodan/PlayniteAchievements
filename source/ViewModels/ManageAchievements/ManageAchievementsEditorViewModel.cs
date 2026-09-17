@@ -461,10 +461,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // Before the write, not after it. The host skips the refresh its own cascade brings
+            // back only if this marker is already set when it arrives, and the cascade starts
+            // inside the write below - so leaving it to the debounced notification the way an
+            // ordinary edit does would let a second rebuild of every row through per press.
+            SuppressExternalRefresh = true;
+
             _isApplyingUndo = true;
             try
             {
-                _gameCustomDataStore.Update(
+                using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Write", thresholdMs: 10))
+                {
+                    _gameCustomDataStore.Update(
                     _gameId,
                     data =>
                     {
@@ -485,6 +493,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     },
                     entry.AffectsSummaryData,
                     entry.AffectsOverrideMirror);
+                }
             }
             catch (Exception ex)
             {
@@ -499,7 +508,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _isApplyingUndo = false;
             }
 
-            ReloadData();
+            // A full reload re-hydrates the game and rebuilds every row, which is most of what a
+            // press of the shortcut costs. It is only needed when the step moved something the
+            // rows cannot be re-seeded from in place.
+            if (RequiresReloadAfterHistoryStep(entry))
+            {
+                using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Reload", thresholdMs: 10))
+                {
+                    ReloadData();
+                }
+            }
+            else
+            {
+                using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Reseed", thresholdMs: 10))
+                {
+                    ReseedRowsAfterHistoryStep();
+                }
+            }
+
             RaiseAssignmentsChanged();
             RaiseHistoryState();
 
@@ -507,6 +533,83 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 RestoreSelectionRequested?.Invoke(this, entry.AffectedApiNames.ToList());
             }
+        }
+
+        /// <summary>
+        /// Whether reversing this step needs the game reloaded, or whether the rows already on
+        /// screen can be re-seeded in place.
+        /// </summary>
+        /// <remarks>
+        /// The rows carry their own values while the tab is open - that is why an ordinary edit
+        /// never reloads - so a facet the rows can be re-seeded from is cheap to reverse. Three
+        /// kinds are not: the authored definitions add and remove rows, the two orders decide
+        /// which row sits where, and the rest are game-level state the rows do not carry.
+        ///
+        /// The per-achievement override record is on the reload side as well. Its values reach a
+        /// row through hydration rather than through a seeder, so re-seeding it here would mean
+        /// restating that mapping and going stale the next time a field is added to it.
+        /// </remarks>
+        private static bool RequiresReloadAfterHistoryStep(EditorUndoEntry entry)
+        {
+            foreach (var patch in entry.Facets)
+            {
+                switch (patch.Facet)
+                {
+                    case GameCustomDataFacet.Capstones:
+                    case GameCustomDataFacet.CategoryOverrides:
+                    case GameCustomDataFacet.CategoryTypeOverrides:
+                    case GameCustomDataFacet.GoalApiNames:
+                    case GameCustomDataFacet.FilteredApiNames:
+                    case GameCustomDataFacet.SummaryFilteredApiNames:
+                        continue;
+
+                    default:
+                        return true;
+                }
+            }
+
+            return entry.Facets.Count == 0;
+        }
+
+        /// <summary>
+        /// Puts the rows back in step with the store without reloading the game.
+        /// </summary>
+        private void ReseedRowsAfterHistoryStep()
+        {
+            var resolved = ResolveCurrentCustomData();
+            var goals = new HashSet<string>(
+                resolved?.GoalAchievementApiNames ?? Enumerable.Empty<string>(),
+                StringComparer.OrdinalIgnoreCase);
+            var filtered = new HashSet<string>(
+                resolved?.FilteredAchievementApiNames ?? Enumerable.Empty<string>(),
+                StringComparer.OrdinalIgnoreCase);
+            var summaryFiltered = new HashSet<string>(
+                resolved?.SummaryFilteredAchievementApiNames ?? Enumerable.Empty<string>(),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var row in AchievementRows)
+            {
+                var apiName = NormalizeText(row?.OriginalApiName);
+                if (row == null || string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                // From the source, so putting a value back does not read as a fresh edit and
+                // write itself out again.
+                row.SetGoalFromSource(goals.Contains(apiName));
+                row.SetFilterScopeFromSource(
+                    filtered.Contains(apiName)
+                        ? AchievementFilterScope.All
+                        : summaryFiltered.Contains(apiName)
+                            ? AchievementFilterScope.Summary
+                            : AchievementFilterScope.None);
+            }
+
+            // Covers the category, the type and the capstone, and refreshes the pickers with them.
+            RefreshAssignmentState();
+            RefreshComputedState();
+            SyncBulkRowFromSelection();
         }
 
         private void RaiseHistoryState()
