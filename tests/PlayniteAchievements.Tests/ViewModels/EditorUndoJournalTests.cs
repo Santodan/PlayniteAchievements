@@ -330,7 +330,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             var journal = new EditorUndoJournal();
 
             journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
-            journal.RecordRowValue("one", "PointsText", "10", "20");
+            journal.RecordRowValue("one", "PointsText", "10", "20", PointsEdit);
             journal.CommitOpenStep();
 
             var entry = journal.Undo();
@@ -353,8 +353,8 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             // One gesture can write the same field more than once - a commit that raises several
             // changes, or a save that re-runs.
-            journal.RecordRowValue("one", "PointsText", "10", "20");
-            journal.RecordRowValue("one", "PointsText", "20", "30");
+            journal.RecordRowValue("one", "PointsText", "10", "20", PointsEdit);
+            journal.RecordRowValue("one", "PointsText", "20", "30", PointsEdit);
             journal.CommitOpenStep();
 
             var change = journal.Undo().RowValues.Single();
@@ -369,9 +369,9 @@ namespace PlayniteAchievements.Tests.ViewModels
             var journal = new EditorUndoJournal();
             journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
 
-            journal.RecordRowValue("one", "PointsText", "1", "50");
-            journal.RecordRowValue("two", "PointsText", "2", "50");
-            journal.RecordRowValue("three", "PointsText", "3", "50");
+            journal.RecordRowValue("one", "PointsText", "1", "50", PointsEdit);
+            journal.RecordRowValue("two", "PointsText", "2", "50", PointsEdit);
+            journal.RecordRowValue("three", "PointsText", "3", "50", PointsEdit);
             journal.CommitOpenStep();
 
             var entry = journal.Undo();
@@ -389,8 +389,8 @@ namespace PlayniteAchievements.Tests.ViewModels
             var journal = new EditorUndoJournal();
             journal.Record(Order("a"), Order("a"), true, true, PointsEdit);
 
-            journal.RecordRowValue("one", "PointsText", "10", "20");
-            journal.RecordRowValue("one", "PointsText", "20", "10");
+            journal.RecordRowValue("one", "PointsText", "10", "20", PointsEdit);
+            journal.RecordRowValue("one", "PointsText", "20", "10", PointsEdit);
             journal.CommitOpenStep();
 
             Assert.IsFalse(journal.CanUndo, "It ended where it started, so nothing moved.");
@@ -404,7 +404,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             // A reset rewrites several whole records at once, so a single field is not the unit
             // it can be reversed at.
             journal.Record(Order("a"), Order("b"), true, true, ResetAll);
-            journal.RecordRowValue("one", "PointsText", "10", "20");
+            journal.RecordRowValue("one", "PointsText", "10", "20", ResetAll);
             journal.CommitOpenStep();
 
             var entry = journal.Undo();
@@ -418,7 +418,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var journal = new EditorUndoJournal();
             journal.Record(Order("a"), Order("b"), true, true, PointsEdit, new[] { "one" });
-            journal.RecordRowValue("one", "DisplayName", "before", "after");
+            journal.RecordRowValue("one", "DisplayName", "before", "after", PointsEdit);
             journal.CommitOpenStep();
 
             var entry = journal.Undo();
