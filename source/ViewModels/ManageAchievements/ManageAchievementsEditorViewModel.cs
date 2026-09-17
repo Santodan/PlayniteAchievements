@@ -457,6 +457,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var intent = EditorEditIntent.FieldEdit(ResolveFieldGesture(propertyName), "LOCPlayAch_Common_Edit");
             MarkUndoIntent(intent);
+
+            if (IsIconField(propertyName))
+            {
+                // Remembered as copies of the art, not as the paths. Replacing art writes over
+                // the same managed filename, so the paths on both sides are identical and the
+                // image on the old side is gone - neither side is a value that survives.
+                oldValue = RetainIconValue(oldValue);
+                newValue = RetainIconValue(newValue);
+            }
+
             _undoJournal.RecordRowValue(row.OriginalApiName, propertyName, oldValue, newValue, intent);
         }
 
@@ -762,6 +772,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                             continue;
                         }
 
+                        // An icon step already holds copies of the art on both sides, taken when
+                        // the change was recorded, so there is nothing to resolve here: writing
+                        // the copy re-materializes it exactly as picking a file would.
                         property.SetValue(row, reverse ? change.OldValue : change.NewValue);
                     }
                 }
@@ -783,6 +796,143 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // so re-applying the selection would only make the highlight flicker on a row that
             // was already selected.
         }
+
+        #region Retained icon art
+
+        /// <summary>
+        /// Where art that an undo is about to orphan is kept for the rest of the session.
+        /// </summary>
+        /// <remarks>
+        /// Icons are the one thing in the history that is a file rather than a value. Undoing an
+        /// icon override removes the record, and the store prunes the managed art along with it -
+        /// so a redo that only replayed the path would be pointing at a file that no longer
+        /// exists, which is what made redo silently do nothing.
+        ///
+        /// A copy is taken before the undo writes, and redo materializes from that copy. It lives
+        /// under the system temp directory for the life of this editor, and goes with it.
+        /// </remarks>
+        private string _retainedIconRoot;
+
+        /// <summary>The retained copy for each managed path an undo has orphaned.</summary>
+        private readonly Dictionary<string, string> _retainedIconArt =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Copies art aside if it is this game's managed art and still on disk, so a redo has
+        /// something to restore from.
+        /// </summary>
+        /// <param name="force">
+        /// Copies any art, not only this game's managed art. Used when remembering a change,
+        /// where the source is often a temp file that will not survive to be redone from.
+        /// </param>
+        private void RetainIconArt(string path, bool force = false)
+        {
+            var normalized = NormalizeText(path);
+            if (string.IsNullOrWhiteSpace(normalized) ||
+                !File.Exists(normalized))
+            {
+                return;
+            }
+
+            // Already kept: the same art must map to one copy, or the history would remember two
+            // names for the same image and the slot it came from would be lost.
+            if (_retainedIconArt.ContainsKey(normalized))
+            {
+                return;
+            }
+
+            if (!force && _managedCustomIconService?.IsManagedCustomIconPath(normalized, _gameIdText) != true)
+            {
+                return;
+            }
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(_retainedIconRoot))
+                {
+                    _retainedIconRoot = Path.Combine(
+                        Path.GetTempPath(),
+                        "PlayniteAchievements",
+                        "undo-icons",
+                        Guid.NewGuid().ToString("N"));
+                    Directory.CreateDirectory(_retainedIconRoot);
+                }
+
+                // Named by position rather than by the achievement, so two variants of the same
+                // achievement cannot collide.
+                var retained = Path.Combine(
+                    _retainedIconRoot,
+                    _retainedIconArt.Count.ToString(CultureInfo.InvariantCulture) +
+                        Path.GetExtension(normalized));
+                File.Copy(normalized, retained, overwrite: true);
+                _retainedIconArt[normalized] = retained;
+            }
+            catch (Exception ex)
+            {
+                // A redo that cannot find its art is a worse outcome than a failed copy, but not
+                // one worth failing the undo over.
+                _logger?.Warn(ex, $"Could not retain icon art for redo: {normalized}");
+            }
+        }
+
+        /// <summary>
+        /// The value an icon change should be remembered by: a copy of the art it points at.
+        /// </summary>
+        /// <remarks>
+        /// The managed path is a slot, not a value. Replacing art writes the new image over the
+        /// same managed filename, so both sides of that change are the same string - which the
+        /// history reads as nothing having happened, and which would leave the old image gone
+        /// regardless. A source file is no better: it is often a temp file that will not be there
+        /// later.
+        ///
+        /// Remembering a copy instead makes both sides immutable, so replace, set and clear can
+        /// all be undone and redone.
+        /// </remarks>
+        private object RetainIconValue(object value)
+        {
+            var path = NormalizeText(value as string);
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                // Blank stays blank: that is a clear, and there is nothing to keep.
+                return value;
+            }
+
+            RetainIconArt(path, force: true);
+            return _retainedIconArt.TryGetValue(path, out var retained) && File.Exists(retained)
+                ? retained
+                : value;
+        }
+
+        private void DiscardRetainedIconArt()
+        {
+            _retainedIconArt.Clear();
+            if (string.IsNullOrWhiteSpace(_retainedIconRoot))
+            {
+                return;
+            }
+
+            try
+            {
+                if (Directory.Exists(_retainedIconRoot))
+                {
+                    Directory.Delete(_retainedIconRoot, recursive: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"Could not remove retained icon art at {_retainedIconRoot}.");
+            }
+
+            _retainedIconRoot = null;
+        }
+
+        private static bool IsIconField(string propertyName)
+        {
+            return string.Equals(propertyName, nameof(AchievementEditorRow.UnlockedIconPath), StringComparison.Ordinal) ||
+                string.Equals(propertyName, nameof(AchievementEditorRow.LockedIconPath), StringComparison.Ordinal);
+        }
+
+        #endregion
 
         private void RaiseHistoryState()
         {
@@ -1750,6 +1900,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // history could introduce.
             _gameCustomDataStore.CustomDataWritten -= GameCustomDataStore_CustomDataWritten;
             _undoJournal.Clear();
+
+            // The history is session-scoped, so the art it was holding for a redo goes with it.
+            DiscardRetainedIconArt();
 
             // The rows outnumber everything else this view model holds, and each one points back
             // at it. Dropping them here means a window that is still rooted somewhere costs one
