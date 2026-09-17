@@ -71,7 +71,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly List<AchievementEditorRow> _selectedRows = new List<AchievementEditorRow>();
         private bool _isApplyingBulk;
         private bool _providerBaselinesResolved;
-        private int _iconDiagnosticsLogged;
+        private bool _iconDiagnosticLogged;
         private bool _isTogglingReveal;
         private bool _hasCustomOrder;
         private DispatcherTimer _assignmentsChangedDebounce;
@@ -235,19 +235,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// (the grid's column layout) rather than anything the rows carry.
         /// </summary>
         internal PlayniteAchievementsSettings Settings => _settings;
-
-        /// <summary>
-        /// Writes a line to the plugin's own log on a caller's behalf.
-        /// </summary>
-        /// <remarks>
-        /// Temporary, for working out why a gesture is not doing what it looks like it should.
-        /// The view's own LogManager logger goes to Playnite's log rather than this plugin's, so a
-        /// diagnostic written there is not where anyone looks for it.
-        /// </remarks>
-        internal void LogDiagnostic(string message)
-        {
-            _logger?.Info("[EditorDiag] " + message);
-        }
 
         #region Undo history
 
@@ -472,10 +459,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var intent = EditorEditIntent.FieldEdit(ResolveFieldGesture(propertyName), "LOCPlayAch_Common_Edit");
             MarkUndoIntent(intent);
             _undoJournal.RecordRowValue(row.OriginalApiName, propertyName, oldValue, newValue, intent);
-            _logger?.Info(
-                "[EditorDiag] Field change recorded. property=" + propertyName +
-                ", api=" + row.OriginalApiName +
-                ", gesture=" + intent.Name);
         }
 
         private void GameCustomDataStore_CustomDataWritten(object sender, GameCustomDataWrittenEventArgs e)
@@ -574,12 +557,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 return;
             }
-
-            _logger?.Info(
-                "[EditorDiag] History step applied. rowValues=" + entry.RowValues.Count +
-                ", facets=" + entry.Facets.Count +
-                ", reverse=" + reverse +
-                ", label=" + (entry.LabelKey ?? "<none>"));
 
             // A field edit is reversed by setting the field back, through the same setter the
             // edit used. That makes the undo an edit: it writes what an edit writes, costs what
@@ -1706,24 +1683,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 row.IconFileStem = fileStems.TryGetValue(apiName, out var stem) ? stem : null;
 
-                // Temporary: comparing a row's icon against the provider art on disk read every
-                // row as overridden, so the two paths evidently do not match textually. This
-                // reports both for the first few rows so the difference can be seen rather than
-                // guessed at.
-                if (_iconDiagnosticsLogged < 3 && row.IsProviderRow)
+                // Temporary. The store cannot be read from outside the plugin (the payload is not
+                // plain text on disk), and every inference about where a row's custom icon comes
+                // from has been wrong so far. This reports, for a row that shows a custom icon,
+                // what the stored override actually says and whether the managed file is present -
+                // which separates "the record is still there" from "the record is gone but the
+                // file is driving it".
+                if (!_iconDiagnosticLogged && row.IsProviderRow &&
+                    (row.UnlockedIconPath ?? string.Empty).IndexOf(
+                        "\\custom\\", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    _iconDiagnosticsLogged++;
-                    var disk = PlayniteAchievementsPlugin.Instance?.DiskImageService;
+                    _iconDiagnosticLogged = true;
+                    var resolved = ResolveCurrentCustomData();
+                    var overrides = resolved?.AchievementOverrides;
+                    var stored = overrides != null && overrides.TryGetValue(apiName, out var entry)
+                        ? entry
+                        : null;
                     _logger?.Info(
-                        "[EditorDiag] Icon paths. api=" + apiName +
-                        ", stem=" + (row.IconFileStem ?? "<null>") +
-                        ", gameIdText=" + _gameIdText +
+                        "[EditorDiag] Stored icon override. api=" + apiName +
+                        ", overrideEntries=" + (overrides?.Count.ToString() ?? "<null map>") +
+                        ", thisEntry=" + (stored == null ? "<absent>" : "present") +
+                        ", storedUnlocked=" + (stored?.UnlockedIconPath ?? "<null>") +
+                        ", storedLocked=" + (stored?.LockedIconPath ?? "<null>") +
                         ", rowEffective=" + (row.UnlockedIconPath ?? "<null>") +
-                        ", cachedProvider=" + (rawByApiName.TryGetValue(apiName, out var probe) ? probe.UnlockedIconPath ?? "<null>" : "<no raw>") +
-                        ", onDisk=" + (disk?.FindExistingAchievementIconCachePath(
-                            _gameIdText,
-                            row.IconFileStem,
-                            AchievementIconVariant.Unlocked) ?? "<null>"));
+                        ", managedFileExists=" + System.IO.File.Exists(row.UnlockedIconPath ?? string.Empty));
                 }
                 if (rawByApiName.TryGetValue(apiName, out var raw))
                 {
