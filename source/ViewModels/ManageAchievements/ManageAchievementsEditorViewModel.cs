@@ -563,16 +563,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     case GameCustomDataFacet.SummaryFilteredApiNames:
                         continue;
 
+                    // The per-achievement override record reloads, and must keep doing so.
+                    //
+                    // Re-seeding it from the row looks possible - the row carries the provider's
+                    // value beside its own - but writing the provider's value into the row's own
+                    // field makes the row claim it as the user's. The icon maps are then rebuilt
+                    // from the rows on the next write, which stamps every provider icon in as an
+                    // override and marks the whole game customized. Hydration is what knows the
+                    // difference between a value a row holds and one it merely displays.
                     case GameCustomDataFacet.AchievementOverrides:
-                        // Re-seeding a field the override no longer carries falls back to the
-                        // provider's value, so without the baselines it would blank the row
-                        // instead. Until they are known, reload.
-                        if (!_providerBaselinesResolved)
-                        {
-                            return true;
-                        }
-
-                        continue;
+                        return true;
 
                     default:
                         return true;
@@ -597,7 +597,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var summaryFiltered = new HashSet<string>(
                 resolved?.SummaryFilteredAchievementApiNames ?? Enumerable.Empty<string>(),
                 StringComparer.OrdinalIgnoreCase);
-            var overrides = resolved?.AchievementOverrides;
 
             foreach (var row in AchievementRows)
             {
@@ -617,7 +616,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                             ? AchievementFilterScope.Summary
                             : AchievementFilterScope.None);
 
-                ReseedRowFromOverride(row, overrides, apiName);
             }
 
             // Covers the category, the type and the capstone, and refreshes the pickers with them.
@@ -625,66 +623,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             RefreshAssignmentState(resolved);
             RefreshComputedState();
             SyncBulkRowFromSelection();
-        }
-
-        /// <summary>
-        /// Puts one row's editable fields back to what the stored override says, falling back to
-        /// the provider's own value where the override no longer carries one.
-        /// </summary>
-        /// <remarks>
-        /// The fallback is the whole point of re-seeding rather than only applying what the record
-        /// holds: undoing an edit usually means the override entry for that field is gone, and the
-        /// row then has to show the provider's value again rather than keep the edited one.
-        ///
-        /// Notifications are suppressed for the same reason the load suppresses them - these are
-        /// the properties the row's own hook persists, so seeding them live would write the value
-        /// straight back out and the undo would appear to do nothing.
-        ///
-        /// An authored row is skipped: its values live on its own definition, which is a facet
-        /// that reloads.
-        /// </remarks>
-        private static void ReseedRowFromOverride(
-            AchievementEditorRow row,
-            Dictionary<string, AchievementOverride> overrides,
-            string apiName)
-        {
-            if (!row.IsProviderRow)
-            {
-                return;
-            }
-
-            AchievementOverride stored = null;
-            overrides?.TryGetValue(apiName, out stored);
-
-            row.SuppressNotifications = true;
-            try
-            {
-                row.DisplayName = stored?.DisplayName ?? row.ProviderDisplayName;
-                row.Description = stored?.Description ?? row.ProviderDescription;
-                row.TrophyType = stored?.TrophyType ?? row.ProviderTrophyType;
-                row.AchievementNote = stored?.Note;
-                row.UnlockedIconPath = stored?.UnlockedIconPath ?? row.ProviderUnlockedIconPath;
-                row.LockedIconPath = stored?.LockedIconPath ?? row.ProviderLockedIconPath;
-
-                var points = stored?.Points ?? row.ProviderPoints;
-                row.PointsText = points?.ToString(CultureInfo.InvariantCulture);
-
-                row.SetHiddenFromSource(stored?.Hidden ?? row.ProviderHidden);
-
-                // A cleared time is stored as a flag rather than as a null, so an override that
-                // says "no time" is not the same as one that says nothing about it.
-                row.UnlockTime = stored != null && stored.ClearUnlockTime
-                    ? null
-                    : stored?.UnlockTimeUtc ?? row.ProviderUnlockTimeUtc;
-            }
-            finally
-            {
-                row.SuppressNotifications = false;
-            }
-
-            // Raised once, after the block, so the grid repaints the row without any of the
-            // setters above having looked like an edit.
-            row.RaiseReseededFromStore();
         }
 
         private void RaiseHistoryState()
@@ -5831,42 +5769,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// the property-changed hook, and by the loader once the provider baselines are stamped --
         /// those are plain setters, and the load runs with notifications suppressed.
         /// </summary>
-        /// <summary>
-        /// Tells the grid that this row's stored values were replaced underneath it.
-        /// </summary>
-        /// <remarks>
-        /// The load path needs nothing like this, because it builds fresh rows and the grid binds
-        /// them anew. Re-seeding an existing row does need it: the setters ran with notifications
-        /// suppressed, so that they would not read as edits and be written straight back out, and
-        /// the bindings therefore never heard about any of it.
-        /// </remarks>
-        public void RaiseReseededFromStore()
-        {
-            OnPropertyChanged(nameof(DisplayName));
-            OnPropertyChanged(nameof(Description));
-            OnPropertyChanged(nameof(TrophyType));
-            OnPropertyChanged(nameof(PointsText));
-            OnPropertyChanged(nameof(Hidden));
-            OnPropertyChanged(nameof(HiddenState));
-            OnPropertyChanged(nameof(AchievementNote));
-            OnPropertyChanged(nameof(HasAchievementNote));
-            OnPropertyChanged(nameof(NotePreview));
-            OnPropertyChanged(nameof(UnlockedIconPath));
-            OnPropertyChanged(nameof(LockedIconPath));
-            OnPropertyChanged(nameof(UnlockedIconDisplayText));
-            OnPropertyChanged(nameof(LockedIconDisplayText));
-            OnPropertyChanged(nameof(DisplayIcon));
-            OnPropertyChanged(nameof(UnlockTime));
-            OnPropertyChanged(nameof(UnlockTimeLocal));
-            OnPropertyChanged(nameof(UnlockDate));
-            OnPropertyChanged(nameof(TimeText));
-            OnPropertyChanged(nameof(HasUnlockTime));
-            OnPropertyChanged(nameof(SelectedTimeModeText));
-
-            // Re-derives the customization markers from the values just restored, so the marker
-            // beside the row agrees with what it now shows.
-            RefreshCustomizationState();
-        }
 
         public void RefreshCustomizationState()
         {
