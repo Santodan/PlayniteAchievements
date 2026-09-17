@@ -614,18 +614,24 @@
                                             CanUserResize="False"
                                             CanUserReorder="False"
                                             SortMemberPath="Unlocked"
+                                            IsReadOnly="True"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorUnlocked"
+                                            helpers:EditorCellRouting.RoutesToSelection="True"
                                             CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <!-- Disabled on a provider row: unlock status is provider-owned, so
-                                     only an authored achievement defines its own. -->
-                                <CheckBox IsChecked="{Binding Unlocked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     only an authored achievement defines its own. Routed like the
+                                     facet columns, so ticking it means the same thing here as it
+                                     does on the details pane's own tick. -->
+                                <CheckBox IsChecked="{Binding UnlockedState, Mode=OneWay}"
                                           IsEnabled="{Binding CanEditUnlocked}"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
                                           Focusable="False"
-                                          IsTabStop="False" />
+                                          IsTabStop="False"
+                                          Click="RoutedCheckBox_Click"
+                                          helpers:EditorCellRouting.Field="UnlockedState" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -704,6 +710,7 @@
                                             SortMemberPath="DisplayName"
                                             HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorName"
+                                            helpers:EditorCellRouting.RoutesToSelection="True"
                                             helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_AchievementName}">
                         <DataGridTemplateColumn.Header>
                             <Grid>
@@ -747,10 +754,12 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBox Grid.Column="0"
-                                             Text="{Binding DisplayName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             Text="{Binding DisplayName, Mode=OneWay}"
                                              Style="{StaticResource GridEditorTextBoxStyle}"
                                              Visibility="{Binding IsTitleHidden, Converter={StaticResource InverseBoolToVis}}"
-                                             KeyDown="EditorTextBox_KeyDown" />
+                                             LostFocus="RoutedCellTextBox_Commit"
+                                             KeyDown="RoutedCellTextBox_KeyDown"
+                                             helpers:EditorCellRouting.Field="DisplayName" />
                                     <Border Grid.Column="0"
                                             Background="Transparent"
                                             HorizontalAlignment="Stretch"
@@ -791,6 +800,7 @@
                                             SortMemberPath="Description"
                                             HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorDescription"
+                                            helpers:EditorCellRouting.RoutesToSelection="True"
                                             helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Description}">
                         <DataGridTemplateColumn.Header>
                             <Grid>
@@ -834,11 +844,13 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBox Grid.Column="0"
-                                             Text="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             Text="{Binding Description, Mode=OneWay}"
                                              Style="{StaticResource GridEditorTextBoxStyle}"
                                              Visibility="{Binding IsDescriptionHidden, Converter={StaticResource InverseBoolToVis}}"
                                              TextWrapping="Wrap"
-                                             AcceptsReturn="True" />
+                                             AcceptsReturn="True"
+                                             LostFocus="RoutedCellTextBox_Commit"
+                                             helpers:EditorCellRouting.Field="Description" />
                                     <Border Grid.Column="0"
                                             Background="Transparent"
                                             HorizontalAlignment="Stretch"
@@ -956,7 +968,6 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <CheckBox IsChecked="{Binding HiddenState, Mode=OneWay}"
-                                          IsThreeState="False"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
                                           Focusable="False"
@@ -979,7 +990,6 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <CheckBox IsChecked="{Binding IsGoalState, Mode=OneWay}"
-                                          IsThreeState="False"
                                           IsEnabled="{Binding CanEditAssignments}"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
