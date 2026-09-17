@@ -3207,16 +3207,31 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     continue;
                 }
 
+                // Read before the unlocked slot is materialized, while the two are still in the
+                // same terms: the question is whether the locked slot is art of its own or a copy
+                // of the unlocked one, and a row seeded from a projection carries a copy whenever
+                // the game has separate locked icons off.
+                var hasOwnLockedArt = AchievementIconResolver.HasExplicitLockedIcon(
+                    definition.LockedIconPath,
+                    definition.UnlockedIconPath);
+
                 definition.UnlockedIconPath = await MaterializeIconSourceAsync(
                     definition.UnlockedIconPath,
                     fileStem,
                     AchievementIconVariant.Unlocked,
                     errors).ConfigureAwait(true);
-                definition.LockedIconPath = await MaterializeIconSourceAsync(
-                    definition.LockedIconPath,
-                    fileStem,
-                    AchievementIconVariant.Locked,
-                    errors).ConfigureAwait(true);
+
+                // A copy is not materialized. Doing so minted a real locked file out of the
+                // unlocked art, which every reader then takes for a locked icon somebody chose --
+                // pinning that art in full colour for good, and for this achievement only, since
+                // nothing afterwards can tell it from a locked icon that was authored.
+                definition.LockedIconPath = hasOwnLockedArt
+                    ? await MaterializeIconSourceAsync(
+                        definition.LockedIconPath,
+                        fileStem,
+                        AchievementIconVariant.Locked,
+                        errors).ConfigureAwait(true)
+                    : null;
             }
         }
 
@@ -4590,7 +4605,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 if (!isOverride)
                 {
-                    StageAcross(new[] { row }, target => WriteIcon(target, variant, ReadProviderIcon(target, variant)));
+                    // The locked slot clears to blank rather than to the provider's path. Blank is
+                    // how "no locked icon of its own" is said everywhere else, and the locked look
+                    // is then derived from whatever the unlocked slot holds -- so clearing a locked
+                    // icon over a custom unlocked one grays that custom icon, instead of putting
+                    // the provider's original back in full colour. The unlocked slot has nothing to
+                    // derive from, so it still carries the provider's own art back.
+                    StageAcross(new[] { row }, target => WriteIcon(
+                        target,
+                        variant,
+                        variant == AchievementIconVariant.Locked ? null : ReadProviderIcon(target, variant)));
                     touched.Add(row);
                     continue;
                 }
