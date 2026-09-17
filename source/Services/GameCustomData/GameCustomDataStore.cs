@@ -282,11 +282,20 @@ namespace PlayniteAchievements.Services.GameCustomData
                 throw new ArgumentNullException(nameof(mutate));
             }
 
-            var data = LoadOrDefault(playniteGameId);
+            // The mutation runs on the normalized record, not the record as stored.
+            //
+            // Normalization is what folds the legacy per-field maps into AchievementOverrides,
+            // and writers treat that record as authoritative: AchievementOverridesService rebuilds
+            // it and drops the mirrors, on the grounds that the fold already happened. Mutating
+            // the stored shape instead left that only true for a record whose mirrors were
+            // already projections of it -- for one carrying a value the record did not, from an
+            // older schema or an import, the write read past it and then dropped it.
+            GameCustomDataFile data;
             GameCustomDataFile previous;
             using (PerfScope.Start(_logger, "GameCustomData.Update.NormalizePrevious", thresholdMs: 10))
             {
-                previous = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
+                data = GameCustomDataNormalizer.NormalizeInternal(LoadOrDefault(playniteGameId), playniteGameId);
+                previous = data.Clone();
             }
 
             mutate(data);
