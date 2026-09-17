@@ -1461,7 +1461,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void HandleCustomDataRevisionChanged()
         {
-            _gameDataSnapshotProvider?.Invalidate();
+            // Deliberately does not invalidate the snapshot. The revision is bumped in exactly one
+            // place -- ManageAchievementsViewModel.NotifyCustomDataChanged -- which invalidates and
+            // then reloads immediately before bumping it. Invalidating here threw that reload away
+            // one line after it finished, so every edit paid a second full hydration of the game's
+            // achievements before the visible tab then paid a third. On a game with hundreds of
+            // achievements that is the UI thread stalling on each edit.
             _manualRefreshPending = true;
             _editorRefreshPending = !ConsumeEditorSelfWrite();
             _capstoneRefreshPending = true;
