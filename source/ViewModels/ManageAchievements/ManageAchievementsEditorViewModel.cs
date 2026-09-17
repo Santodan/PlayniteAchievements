@@ -522,7 +522,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Reseed", thresholdMs: 10))
                 {
-                    ReseedRowsAfterHistoryStep();
+                    ReseedRowsAfterHistoryStep(entry);
                 }
             }
 
@@ -563,16 +563,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     case GameCustomDataFacet.SummaryFilteredApiNames:
                         continue;
 
-                    // The per-achievement override record reloads, and must keep doing so.
-                    //
-                    // Re-seeding it from the row looks possible - the row carries the provider's
-                    // value beside its own - but writing the provider's value into the row's own
-                    // field makes the row claim it as the user's. The icon maps are then rebuilt
-                    // from the rows on the next write, which stamps every provider icon in as an
-                    // override and marks the whole game customized. Hydration is what knows the
-                    // difference between a value a row holds and one it merely displays.
+                    // Re-applied from hydration onto the rows it names, rather than worked out
+                    // from the row. Deriving it here is what made an undo write the provider's
+                    // icon path into rows as though the user had chosen it.
                     case GameCustomDataFacet.AchievementOverrides:
-                        return true;
+                        continue;
 
                     default:
                         return true;
@@ -585,8 +580,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>
         /// Puts the rows back in step with the store without reloading the game.
         /// </summary>
-        private void ReseedRowsAfterHistoryStep()
+        private void ReseedRowsAfterHistoryStep(EditorUndoEntry entry)
         {
+            ReapplyHydratedRows(entry);
+
             var resolved = ResolveCurrentCustomData();
             var goals = new HashSet<string>(
                 resolved?.GoalAchievementApiNames ?? Enumerable.Empty<string>(),
@@ -623,6 +620,63 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             RefreshAssignmentState(resolved);
             RefreshComputedState();
             SyncBulkRowFromSelection();
+        }
+
+        /// <summary>
+        /// Re-reads the achievements a history step named and loads the rows on screen from them.
+        /// </summary>
+        /// <remarks>
+        /// This is what keeps an undo as cheap as the edit it reverses. Rebuilding the collection
+        /// costs the same for one changed achievement as for the whole game - the measured cost of
+        /// a press, and work the edit itself never does, because an edit leaves the value on the
+        /// row it already has.
+        ///
+        /// The values come from hydration, which has already decided what each field should read.
+        /// Working them out here instead is what previously wrote provider icon paths into rows as
+        /// though the user had picked them.
+        /// </remarks>
+        private void ReapplyHydratedRows(EditorUndoEntry entry)
+        {
+            var apiNames = entry?.AffectedApiNames;
+            if (apiNames == null || apiNames.Count == 0)
+            {
+                return;
+            }
+
+            var wanted = new HashSet<string>(apiNames, StringComparer.OrdinalIgnoreCase);
+
+            // The snapshot was invalidated by the write, so this re-reads the game once. It is
+            // cheap next to rebuilding the rows, which is the point of doing it this way.
+            var hydrated = _gameDataSnapshotProvider?.GetHydratedGameData();
+            var byApiName = hydrated?.Achievements
+                ?.Where(achievement => achievement != null &&
+                    !string.IsNullOrWhiteSpace(achievement.ApiName) &&
+                    wanted.Contains(achievement.ApiName))
+                .GroupBy(achievement => achievement.ApiName, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+            if (byApiName == null || byApiName.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var row in AchievementRows)
+            {
+                var apiName = NormalizeText(row?.OriginalApiName);
+                if (row == null ||
+                    string.IsNullOrWhiteSpace(apiName) ||
+                    !byApiName.TryGetValue(apiName, out var achievement))
+                {
+                    continue;
+                }
+
+                // The same load the collection build uses, so there is one mapping from a
+                // hydrated achievement to a row rather than two that can drift.
+                row.ApplyAchievementDetail(achievement);
+
+                // The load suppresses notifications, which is right for a new row nobody is bound
+                // to yet and wrong for one already on screen.
+                row.RaiseLoadedFromStore();
+            }
         }
 
         private void RaiseHistoryState()
@@ -5771,6 +5825,63 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string CustomizationToolTip => _customizationToolTip;
 
         /// <summary>
+        /// Tells the bindings that this row was loaded from the store underneath them.
+        /// </summary>
+        /// <remarks>
+        /// The loader needs nothing like this: it builds rows before anything is bound to them.
+        /// A row already on screen does, because the load runs with notifications suppressed - it
+        /// has to, or the properties the row's own hook persists would be written straight back
+        /// out and the undo would appear to do nothing.
+        ///
+        /// Every field <see cref="ApplyAchievementDetail"/> writes is raised here. A field added
+        /// there and missed here shows a stale value until something else repaints the row.
+        /// </remarks>
+        public void RaiseLoadedFromStore()
+        {
+            OnPropertyChanged(nameof(DisplayName));
+            OnPropertyChanged(nameof(Description));
+            OnPropertyChanged(nameof(Unlocked));
+            OnPropertyChanged(nameof(UnlockedState));
+            OnPropertyChanged(nameof(UnlockTime));
+            OnPropertyChanged(nameof(UnlockTimeLocal));
+            OnPropertyChanged(nameof(UnlockDate));
+            OnPropertyChanged(nameof(TimeText));
+            OnPropertyChanged(nameof(HasUnlockTime));
+            OnPropertyChanged(nameof(SelectedTimeModeText));
+            OnPropertyChanged(nameof(UnlockedIconPath));
+            OnPropertyChanged(nameof(LockedIconPath));
+            OnPropertyChanged(nameof(UnlockedIconDisplayText));
+            OnPropertyChanged(nameof(LockedIconDisplayText));
+            OnPropertyChanged(nameof(DisplayIcon));
+            OnPropertyChanged(nameof(PointsText));
+            OnPropertyChanged(nameof(TrophyType));
+            OnPropertyChanged(nameof(Hidden));
+            OnPropertyChanged(nameof(HiddenState));
+            OnPropertyChanged(nameof(Rarity));
+            OnPropertyChanged(nameof(RarityInput));
+            OnPropertyChanged(nameof(GlobalPercentUnlockedText));
+            OnPropertyChanged(nameof(ProgressNumText));
+            OnPropertyChanged(nameof(ProgressDenomText));
+            OnPropertyChanged(nameof(CategoryLabel));
+            OnPropertyChanged(nameof(EffectiveCategoryLabel));
+            OnPropertyChanged(nameof(CategoryTypeValue));
+            OnPropertyChanged(nameof(CategoryTypeDisplayText));
+            OnPropertyChanged(nameof(EffectiveCategoryTypeValue));
+            OnPropertyChanged(nameof(IsCapstone));
+            OnPropertyChanged(nameof(AchievementNote));
+            OnPropertyChanged(nameof(HasAchievementNote));
+            OnPropertyChanged(nameof(NotePreview));
+            OnPropertyChanged(nameof(IsGoal));
+            OnPropertyChanged(nameof(IsGoalState));
+            OnPropertyChanged(nameof(IsFiltered));
+            OnPropertyChanged(nameof(IsSummaryFiltered));
+            OnPropertyChanged(nameof(FilterScope));
+            OnPropertyChanged(nameof(FilterScopeDisplayText));
+
+            RefreshCustomizationState();
+        }
+
+        /// <summary>
         /// Recomputes <see cref="CustomizationFacets"/>. Called for the row's own edits through
         /// the property-changed hook, and by the loader once the provider baselines are stamped --
         /// those are plain setters, and the load runs with notifications suppressed.
@@ -7030,6 +7141,28 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             var row = new AchievementEditorRow();
+            row.ApplyAchievementDetail(achievement);
+            return row;
+        }
+
+        /// <summary>
+        /// Loads this row from a hydrated achievement.
+        /// </summary>
+        /// <remarks>
+        /// Shared by the loader, which applies it to a new row, and by an undo, which applies it
+        /// to the rows already on screen. Hydration has already resolved what each field should
+        /// read - the user's override where there is one and the provider's value otherwise - so
+        /// reusing it is what keeps an undo from having to work that out for itself, which is
+        /// where a row ends up claiming a provider value as the user's own.
+        /// </remarks>
+        public void ApplyAchievementDetail(AchievementDetail achievement)
+        {
+            if (achievement == null)
+            {
+                return;
+            }
+
+            var row = this;
             row.SuppressNotifications = true;
             row.IsProviderRow = !achievement.IsCustom;
             row.Id = achievement.IsCustom &&
@@ -7067,7 +7200,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.ProviderCategoryLabel = achievement.ProviderCategory ?? achievement.Category;
             row.IsNew = false;
             row.CaptureBaseline();
-            return row;
         }
 
         public static AchievementEditorRow FromDefinition(CustomAchievementDefinition definition)
