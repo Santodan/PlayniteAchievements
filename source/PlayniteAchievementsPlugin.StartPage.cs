@@ -321,6 +321,12 @@ namespace PlayniteAchievements
                 detail.Append(
                     "appearanceSubs=" +
                     Models.Achievements.RarityAppearanceHelper.AppearanceChangedSubscriberCount + " ");
+                // Broken down by owning type: these handlers are instance methods on visual
+                // elements, so a stranded one roots its whole ancestor chain and DataContext. The
+                // count alone cannot say which type to go and look at.
+                detail.Append(
+                    "appearanceSubsBy=" +
+                    Models.Achievements.RarityAppearanceHelper.DescribeAppearanceChangedSubscribers() + " ");
                 detail.Append(
                     "raySubs=" + Views.Helpers.RayAnimationDriver.SubscriberCount + " ");
             }

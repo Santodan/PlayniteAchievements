@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -29,6 +30,40 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         internal static int AppearanceChangedSubscriberCount =>
             AppearanceChanged?.GetInvocationList()?.Length ?? 0;
+
+        /// <summary>
+        /// The subscriber count broken down by declaring type, as "Type:n" joined by "+". A bare
+        /// count says the event has subscribers but not which ones, and because these handlers are
+        /// instance methods on visual elements, a stranded one roots that element's whole ancestor
+        /// chain and its DataContext. The breakdown names the type to go and look at. Diagnostics
+        /// only.
+        /// </summary>
+        internal static string DescribeAppearanceChangedSubscribers()
+        {
+            var handlers = AppearanceChanged?.GetInvocationList();
+            if (handlers == null || handlers.Length == 0)
+            {
+                return "none";
+            }
+
+            var byType = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var handler in handlers)
+            {
+                // A static handler has no target; name it by the method's declaring type so a
+                // deliberately permanent subscriber stays distinguishable from a stranded one.
+                var owner = handler?.Target?.GetType()
+                    ?? handler?.Method?.DeclaringType;
+                var name = owner?.Name ?? "unknown";
+                byType.TryGetValue(name, out var count);
+                byType[name] = count + 1;
+            }
+
+            return string.Join(
+                "+",
+                byType.OrderByDescending(pair => pair.Value)
+                    .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+                    .Select(pair => pair.Key + ":" + pair.Value));
+        }
 
         private static PersistedSettings _activeSettings;
 

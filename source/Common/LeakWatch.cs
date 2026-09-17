@@ -20,6 +20,12 @@ namespace PlayniteAchievements.Common
         private static readonly Dictionary<string, List<WeakReference>> Tracked =
             new Dictionary<string, List<WeakReference>>(StringComparer.Ordinal);
 
+        // Total ever tracked per kind. The weak-reference list is trimmed at
+        // MaxTrackedPerKind, so its length stops being the number created as soon as a kind
+        // passes the cap -- a leaking kind would read "256/256" and hide how fast it grows.
+        private static readonly Dictionary<string, long> SeenTotals =
+            new Dictionary<string, long>(StringComparer.Ordinal);
+
         public static void Track(string kind, object instance)
         {
             if (!MemoryDiagnostics.Enabled || instance == null || string.IsNullOrWhiteSpace(kind))
@@ -36,6 +42,8 @@ namespace PlayniteAchievements.Common
                 }
 
                 list.Add(new WeakReference(instance));
+                SeenTotals.TryGetValue(kind, out var seen);
+                SeenTotals[kind] = seen + 1;
                 if (list.Count <= MaxTrackedPerKind)
                 {
                     return;
@@ -53,7 +61,8 @@ namespace PlayniteAchievements.Common
         }
 
         /// <summary>
-        /// Live instance count per tracked kind, as "kind:live/seen". Call after forcing a
+        /// Live instance count per tracked kind, as "kind:live/created", where created is the
+        /// running total ever tracked rather than the trimmed list length. Call after forcing a
         /// collection so the counts mean "still rooted" rather than "not yet collected".
         /// </summary>
         public static string DescribeLive()
@@ -74,7 +83,8 @@ namespace PlayniteAchievements.Common
                 foreach (var pair in Tracked.OrderBy(entry => entry.Key, StringComparer.Ordinal))
                 {
                     var live = pair.Value.Count(reference => reference.IsAlive);
-                    parts.Add($"{pair.Key}:{live}/{pair.Value.Count}");
+                    SeenTotals.TryGetValue(pair.Key, out var seen);
+                    parts.Add($"{pair.Key}:{live}/{seen}");
                 }
 
                 return string.Join(",", parts);
