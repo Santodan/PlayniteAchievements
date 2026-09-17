@@ -288,6 +288,20 @@
                     <WrapPanel HorizontalAlignment="Right">
                     <StackPanel Margin="0,0,16,0">
                     <StackPanel Orientation="Horizontal">
+                        <!-- Ahead of the edits they reverse. Disabled rather than hidden when
+                             there is nothing to undo, like the other conditional buttons here:
+                             hiding them would reflow the row as the user works. The tooltip names
+                             the edit, since the label cannot. -->
+                        <Button x:Name="UndoButton"
+                                Content="{DynamicResource LOCPlayAch_Common_Undo}"
+                                ToolTip="{Binding UndoDescription}"
+                                Command="{Binding UndoCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}" />
+                        <Button x:Name="RedoButton"
+                                Content="{DynamicResource LOCPlayAch_Common_Redo}"
+                                ToolTip="{Binding RedoDescription}"
+                                Command="{Binding RedoCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}" />
                         <Button x:Name="AddButton"
                                 Content="{DynamicResource LOCPlayAch_Common_Add}"
                                 Command="{Binding AddCommand}"
