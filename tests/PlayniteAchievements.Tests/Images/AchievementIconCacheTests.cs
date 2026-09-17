@@ -1578,6 +1578,41 @@ namespace PlayniteAchievements.Services.Images.Tests
                     @"C:\Pictures\just-picked.png", useSeparateLockedIcons: false));
         }
 
+        [TestMethod]
+        public async Task GetOrCopyLocalIconToPathAsync_ReturnsTheSourceWhenItIsAlreadyTheTarget()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
+                {
+                    // The shape from a real failure: the stored custom icon is a .jpg while the
+                    // canonical target path is .png, so the resolved target lands back on the
+                    // source. A forced re-apply skips both existence short-circuits and used to
+                    // reach File.Copy(source, source), which throws and yielded a null path --
+                    // dropping the icon the caller was re-applying.
+                    var stored = Path.Combine(tempDir, "custom", "DRINK_COFFEE.jpg");
+                    WritePlaceholderFile(stored);
+                    var canonicalTarget = Path.Combine(tempDir, "custom", "DRINK_COFFEE.png");
+
+                    var resolved = await diskImageService.GetOrCopyLocalIconToPathAsync(
+                        stored,
+                        canonicalTarget,
+                        decodeSize: 0,
+                        CancellationToken.None,
+                        overwriteExistingTarget: true);
+
+                    Assert.AreEqual(stored, resolved);
+                    Assert.IsTrue(File.Exists(stored), "The source must survive a re-apply.");
+                }
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
         private static string CreateTempDirectory()
         {
             var path = Path.Combine(Path.GetTempPath(), "PlayniteAchievementsTests", Guid.NewGuid().ToString("N"));
