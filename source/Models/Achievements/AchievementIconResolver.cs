@@ -12,6 +12,12 @@ namespace PlayniteAchievements.Models.Achievements
         private const string GrayPrefix = "gray:";
         private const string CacheBustPrefix = "cachebust|";
 
+        // The icon cache's own naming, which is what says whether a cached locked icon is art
+        // of its own. Kept here as text rather than taken from the builder that writes it: this
+        // class is pure, and reading a name needs no filesystem work.
+        private const string IconCacheFolderName = "icon_cache";
+        private const string LockedFileNameSuffix = ".locked";
+
         /// <summary>
         /// Supplies the user's custom locked cover image path, or null/blank for the built-in
         /// placeholder. Assigned once at plugin startup. Read through on every call so a settings
@@ -149,6 +155,26 @@ namespace PlayniteAchievements.Models.Achievements
             return string.IsNullOrWhiteSpace(candidate) ? DefaultIconPackUri : candidate;
         }
 
+        /// <summary>
+        /// Whether the locked slot holds a locked icon of its own, as opposed to a copy of the
+        /// unlocked one that the locked look should be derived from instead.
+        /// </summary>
+        /// <remarks>
+        /// Answered from the file name, because that is where the answer is kept: every locked
+        /// icon is stored under the locked name, the provider's own art and a custom one alike,
+        /// and nothing else is. Comparing the two paths instead gets both of the cases that matter
+        /// wrong.
+        ///
+        /// One image chosen for both slots is one image in two files, so comparing the paths reads
+        /// it as no locked icon and grays an icon somebody picked. And a game with separate locked
+        /// icons off stores the unlocked path in both slots, so a custom unlocked icon leaves that
+        /// copy behind pointing at the art it replaced -- which compares as different, and showed
+        /// the provider's original back in full colour for everything still locked.
+        ///
+        /// The comparison is kept for a path from outside the icon cache, which carries no name of
+        /// ours to read: a locked path typed by hand counts while it differs from the unlocked one,
+        /// as it always has.
+        /// </remarks>
         public static bool HasExplicitLockedIcon(string lockedIconPath, string unlockedIconPath)
         {
             var normalizedLockedIconPath = NormalizeDisplaySource(lockedIconPath);
@@ -162,6 +188,11 @@ namespace PlayniteAchievements.Models.Achievements
                 return false;
             }
 
+            if (IsCachedIconPath(normalizedLockedIconPath))
+            {
+                return HasLockedFileName(normalizedLockedIconPath);
+            }
+
             var normalizedUnlockedIconPath = NormalizeDisplaySource(unlockedIconPath);
             if (string.IsNullOrWhiteSpace(normalizedUnlockedIconPath))
             {
@@ -172,6 +203,33 @@ namespace PlayniteAchievements.Models.Achievements
                 NormalizeIcon(normalizedLockedIconPath),
                 NormalizeIcon(normalizedUnlockedIconPath),
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Whether a path names a file the plugin's icon cache wrote, and so carries its naming.
+        /// </summary>
+        private static bool IsCachedIconPath(string path)
+        {
+            return !string.IsNullOrWhiteSpace(path) &&
+                path.IndexOf(IconCacheFolderName, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        /// <summary>
+        /// Whether a cached icon is the locked one of its pair. Both folders name it the same way:
+        /// the unlocked icon is the stem, the locked icon is the stem plus this suffix.
+        /// </summary>
+        private static bool HasLockedFileName(string path)
+        {
+            try
+            {
+                var fileName = System.IO.Path.GetFileNameWithoutExtension(path);
+                return !string.IsNullOrWhiteSpace(fileName) &&
+                    fileName.EndsWith(LockedFileNameSuffix, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
