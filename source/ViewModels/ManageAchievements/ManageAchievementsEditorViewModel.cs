@@ -235,6 +235,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         internal PlayniteAchievementsSettings Settings => _settings;
 
+        /// <summary>
+        /// Writes a line to the plugin's own log on a caller's behalf.
+        /// </summary>
+        /// <remarks>
+        /// Temporary, for working out why a gesture is not doing what it looks like it should.
+        /// The view's own LogManager logger goes to Playnite's log rather than this plugin's, so a
+        /// diagnostic written there is not where anyone looks for it.
+        /// </remarks>
+        internal void LogDiagnostic(string message)
+        {
+            _logger?.Info("[EditorDiag] " + message);
+        }
+
         #region Undo history
 
         private readonly EditorUndoJournal _undoJournal = new EditorUndoJournal();
@@ -420,6 +433,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var intent = EditorEditIntent.FieldEdit(ResolveFieldGesture(propertyName), "LOCPlayAch_Common_Edit");
             MarkUndoIntent(intent);
             _undoJournal.RecordRowValue(row.OriginalApiName, propertyName, oldValue, newValue, intent);
+            _logger?.Info(
+                "[EditorDiag] Field change recorded. property=" + propertyName +
+                ", api=" + row.OriginalApiName +
+                ", gesture=" + intent.Name);
         }
 
         private void GameCustomDataStore_CustomDataWritten(object sender, GameCustomDataWrittenEventArgs e)
@@ -518,6 +535,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 return;
             }
+
+            _logger?.Info(
+                "[EditorDiag] History step applied. rowValues=" + entry.RowValues.Count +
+                ", facets=" + entry.Facets.Count +
+                ", reverse=" + reverse +
+                ", label=" + (entry.LabelKey ?? "<none>"));
 
             // A field edit is reversed by setting the field back, through the same setter the
             // edit used. That makes the undo an edit: it writes what an edit writes, costs what

@@ -1221,6 +1221,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             if (e.Key == Key.Enter)
             {
+                ViewModel?.LogDiagnostic(
+                    $"Enter in cell box. field={EditorCellRouting.GetField(textBox) ?? "<none>"}, " +
+                    $"acceptsReturn={textBox.AcceptsReturn}, " +
+                    $"shift={(Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift}, " +
+                    $"row={(EditorCellRouting.ResolveRow(textBox)?.OriginalApiName ?? "<null>")}");
+
                 // Shift+Enter is a new line, on the boxes that take one. Left unhandled so the
                 // box inserts it itself, at the caret, rather than this guessing where it goes.
                 if (textBox.AcceptsReturn &&
