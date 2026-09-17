@@ -1135,6 +1135,34 @@ namespace PlayniteAchievements.ViewModels
                 var newGameId = value?.PlayniteGameId;
                 var keepDisplayedContent = newGameId.HasValue && IsSelectedGameContentReady;
 
+                // A rebuild mints a fresh GameSummaryItem per game, and the selection restore
+                // after a filter or sort pass re-assigns the same game as a different instance.
+                // GameSummaryItem carries no value equality, so SetValueAndReturn read that as a
+                // selection change and ran the whole load again: a reported session logged 276
+                // loads of one unchanged game, and each one also cleared the user's per-game
+                // filters through ResetFilters below. Adopt the new instance so the bindings and
+                // the header see its updated counts, but skip the selection work.
+                //
+                // This cannot swallow a real data change. A per-game delta updates the selected
+                // game's own rows through ApplySelectedGameIconOverrides and, when that cannot
+                // re-stamp them in place, sets _selectedGameReloadRequested and reloads through
+                // ReloadSelectedGameIfRequestedAsync -- neither of which comes through here.
+                if (!ReferenceEquals(_selectedGame, value)
+                    && previousGameId.HasValue
+                    && newGameId.HasValue
+                    && previousGameId == newGameId)
+                {
+                    _selectedGame = value;
+                    OnPropertyChanged(nameof(SelectedGame));
+                    if (_displayedSelectedGame != null)
+                    {
+                        SetDisplayedSelectedGame(value);
+                    }
+
+                    RefreshSelectedGameHeaderCounts();
+                    return;
+                }
+
                 if (SetValueAndReturn(ref _selectedGame, value))
                 {
                     if (previousGameId != newGameId)
@@ -1907,6 +1935,15 @@ namespace PlayniteAchievements.ViewModels
             }
 
             SyncRecentAchievementsDisplay();
+
+            // A full snapshot replaces every game's rows, so the selected game's own rows are
+            // stale too. This used to happen by accident: the selection restore in
+            // ApplyLeftFilters re-assigned a freshly built GameSummaryItem, and the setter read
+            // the new instance as a selection change and reloaded. The setter now adopts a
+            // same-game instance without reloading, so the reload this path genuinely needs is
+            // asked for explicitly, through the same flag the per-game delta path uses.
+            _selectedGameReloadRequested = SelectedGame?.PlayniteGameId != null;
+            _ = ReloadSelectedGameIfRequestedAsync();
 
             RefreshSelectedGameHeaderCounts();
             UpdateFilteredStatus();
