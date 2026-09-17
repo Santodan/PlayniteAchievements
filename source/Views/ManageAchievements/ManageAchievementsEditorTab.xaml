@@ -296,12 +296,17 @@
                             Margin="12,0,0,0">
                     <!-- Three groups: row edits, transfer, and the destructive reset kept apart on the right. -->
                     <WrapPanel HorizontalAlignment="Right">
-                    <StackPanel Margin="0,0,16,0">
-                    <StackPanel Orientation="Horizontal">
-                        <!-- Ahead of the edits they reverse. Disabled rather than hidden when
-                             there is nothing to undo, like the other conditional buttons here:
-                             hiding them would reflow the row as the user works. The tooltip names
-                             the edit, since the label cannot. -->
+                    <!-- The history, in a group of its own rather than at the head of the row of
+                         per-achievement actions. It applies to everything in this tab, not only
+                         to those, and the second row below centres under that row - counting
+                         these two would push it off the buttons it belongs under.
+
+                         Disabled rather than hidden when there is nothing to undo, like the other
+                         conditional buttons here: hiding them would reflow the row as the user
+                         works. The tooltip names the edit, since the label cannot. -->
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Top"
+                                Margin="0,0,16,0">
                         <Button x:Name="UndoButton"
                                 Content="{DynamicResource LOCPlayAch_Common_Undo}"
                                 ToolTip="{Binding UndoDescription}"
@@ -312,6 +317,10 @@
                                 ToolTip="{Binding RedoDescription}"
                                 Command="{Binding RedoCommand}"
                                 Style="{StaticResource ToolbarButtonStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Margin="0,0,16,0">
+                    <StackPanel Orientation="Horizontal">
                         <Button x:Name="AddButton"
                                 Content="{DynamicResource LOCPlayAch_Common_Add}"
                                 Command="{Binding AddCommand}"
