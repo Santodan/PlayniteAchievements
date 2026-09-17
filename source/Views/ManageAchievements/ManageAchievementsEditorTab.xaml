@@ -768,10 +768,16 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
+                                    <!-- Wraps rather than scrolling sideways: a long name is
+                                         readable at the column's width instead of only where the
+                                         caret happens to be. Enter commits and Shift+Enter starts
+                                         a line, which is what AcceptsReturn is here for. -->
                                     <TextBox Grid.Column="0"
                                              Text="{Binding DisplayName, Mode=OneWay}"
                                              Style="{StaticResource GridEditorTextBoxStyle}"
                                              Visibility="{Binding IsTitleHidden, Converter={StaticResource InverseBoolToVis}}"
+                                             TextWrapping="Wrap"
+                                             AcceptsReturn="True"
                                              LostFocus="RoutedCellTextBox_Commit"
                                              KeyDown="RoutedCellTextBox_KeyDown"
                                              helpers:EditorCellRouting.Field="DisplayName" />
@@ -866,6 +872,7 @@
                                              TextWrapping="Wrap"
                                              AcceptsReturn="True"
                                              LostFocus="RoutedCellTextBox_Commit"
+                                             KeyDown="RoutedCellTextBox_KeyDown"
                                              helpers:EditorCellRouting.Field="Description" />
                                     <Border Grid.Column="0"
                                             Background="Transparent"
