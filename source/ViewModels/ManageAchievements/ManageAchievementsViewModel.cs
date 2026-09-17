@@ -673,16 +673,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             private set => SetValue(ref _customDataRevision, value);
         }
 
+        // Both of these are cache hits once the snapshot is warm and a full load when it is not,
+        // and they run on the UI thread. On a game with hundreds of achievements a cold call is
+        // the freeze the user sees, so the scope reports which edits are paying for one.
         private GameAchievementData GetHydratedGameData()
         {
-            return _gameDataSnapshotProvider?.GetHydratedGameData() ??
-                   _plugin?.AchievementDataService?.GetGameAchievementData(_gameId);
+            using (PerfScope.Start(_logger, "Manage.GetHydratedGameData", thresholdMs: 25))
+            {
+                return _gameDataSnapshotProvider?.GetHydratedGameData() ??
+                       _plugin?.AchievementDataService?.GetGameAchievementData(_gameId);
+            }
         }
 
         private GameAchievementData GetRawGameData()
         {
-            return _gameDataSnapshotProvider?.GetRawGameData() ??
-                   _plugin?.AchievementDataService?.GetRawGameAchievementData(_gameId);
+            using (PerfScope.Start(_logger, "Manage.GetRawGameData", thresholdMs: 25))
+            {
+                return _gameDataSnapshotProvider?.GetRawGameData() ??
+                       _plugin?.AchievementDataService?.GetRawGameAchievementData(_gameId);
+            }
         }
 
         /// <summary>
@@ -716,6 +725,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         public void Reload()
+        {
+            using (PerfScope.Start(_logger, "Manage.Reload", thresholdMs: 25))
+            {
+                ReloadCore();
+            }
+        }
+
+        private void ReloadCore()
         {
             try
             {
@@ -1419,6 +1436,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         internal void NotifyCustomDataChanged(
             bool requiresRefresh,
             bool forceIconRefresh = false)
+        {
+            // The whole cost of one edit burst reaching the window: the reload below plus every
+            // tab the revision bump marks stale, all of it on the UI thread.
+            using (PerfScope.Start(_logger, "Manage.NotifyCustomDataChanged", thresholdMs: 25))
+            {
+                NotifyCustomDataChangedCore(requiresRefresh, forceIconRefresh);
+            }
+        }
+
+        private void NotifyCustomDataChangedCore(bool requiresRefresh, bool forceIconRefresh)
         {
             _gameDataSnapshotProvider?.Invalidate();
             _refreshService?.Cache?.NotifyCacheInvalidated(new[] { _gameId });
