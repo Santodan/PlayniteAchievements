@@ -2083,8 +2083,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(header, menu);
-            menu.Placement = PlacementMode.Bottom;
-            menu.PlacementTarget = header;
+
+            // Anchored to the grid rather than the header: the menu stays open across toggles, and
+            // the header it was opened from is gone the moment its own column is unticked.
+            _columnPersistence.PlaceColumnVisibilityMenu(menu, header);
             menu.IsOpen = true;
         }
     }
