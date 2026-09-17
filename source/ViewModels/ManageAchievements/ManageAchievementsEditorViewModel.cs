@@ -22,6 +22,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -364,6 +365,63 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>
+        /// The per-achievement fields an undo can put back one at a time.
+        /// </summary>
+        /// <remarks>
+        /// Only the fields that live on the per-achievement override record. The assignments -
+        /// category, type, goal, filter, capstone - are written as whole lists rebuilt from every
+        /// row, so a single field is not the unit there and they are reversed from the record.
+        /// </remarks>
+        private static readonly IReadOnlyDictionary<string, PropertyInfo> UndoableRowFields =
+            new[]
+            {
+                nameof(AchievementEditorRow.DisplayName),
+                nameof(AchievementEditorRow.Description),
+                nameof(AchievementEditorRow.PointsText),
+                nameof(AchievementEditorRow.TrophyType),
+                nameof(AchievementEditorRow.Hidden),
+                nameof(AchievementEditorRow.AchievementNote),
+                nameof(AchievementEditorRow.RarityInput),
+                nameof(AchievementEditorRow.ProgressNumText),
+                nameof(AchievementEditorRow.ProgressDenomText),
+                nameof(AchievementEditorRow.UnlockedIconPath),
+                nameof(AchievementEditorRow.LockedIconPath),
+                nameof(AchievementEditorRow.Unlocked),
+                nameof(AchievementEditorRow.UnlockTime)
+            }
+            .ToDictionary(
+                name => name,
+                name => typeof(AchievementEditorRow).GetProperty(name),
+                StringComparer.Ordinal);
+
+        /// <summary>
+        /// Notes what a field held before an edit replaced it.
+        /// </summary>
+        /// <remarks>
+        /// Runs from the row's setter, which is earlier than the property-changed hook and the
+        /// only point where the old value still exists. It therefore also names the gesture: by
+        /// the time the property-changed hook runs the value is already gone.
+        /// </remarks>
+        private void RecordRowValueChange(
+            AchievementEditorRow row,
+            string propertyName,
+            object oldValue,
+            object newValue)
+        {
+            if (_isApplyingUndo ||
+                row == null ||
+                string.IsNullOrWhiteSpace(row.OriginalApiName) ||
+                !UndoableRowFields.ContainsKey(propertyName ?? string.Empty))
+            {
+                return;
+            }
+
+            MarkUndoIntent(
+                EditorEditIntent.FieldEdit(ResolveFieldGesture(propertyName), "LOCPlayAch_Common_Edit"));
+            _undoJournal.RecordRowValue(row.OriginalApiName, propertyName, oldValue, newValue);
+        }
+
         private void GameCustomDataStore_CustomDataWritten(object sender, GameCustomDataWrittenEventArgs e)
         {
             if (e == null || e.PlayniteGameId != _gameId)
@@ -458,6 +516,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             if (entry == null)
             {
+                return;
+            }
+
+            // A field edit is reversed by setting the field back, through the same setter the
+            // edit used. That makes the undo an edit: it writes what an edit writes, costs what
+            // an edit costs, and cannot disturb a field it did not record.
+            if (entry.IsRowValueStep)
+            {
+                ApplyRowValueStep(entry, reverse);
                 return;
             }
 
@@ -623,6 +690,61 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             RefreshAssignmentState(resolved);
             RefreshComputedState();
             SyncBulkRowFromSelection();
+        }
+
+        /// <summary>
+        /// Puts each field in a step back to the value it held, one row at a time.
+        /// </summary>
+        /// <remarks>
+        /// No store write and no reload here: assigning the property runs the row's own hook,
+        /// which persists it exactly as it does for an edit. That is the whole point - an undo
+        /// that is the same operation as the edit is the same cost by construction, rather than
+        /// being made fast by a second mechanism that has to be kept in step with the first.
+        /// </remarks>
+        private void ApplyRowValueStep(EditorUndoEntry entry, bool reverse)
+        {
+            var byApiName = AchievementRows
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .GroupBy(row => row.OriginalApiName, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+            // Set while the values go back, so the writes this causes are not recorded as a new
+            // step and the gesture label is left alone.
+            _isApplyingUndo = true;
+            try
+            {
+                using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.RowValues", thresholdMs: 5))
+                {
+                    foreach (var change in entry.RowValues)
+                    {
+                        if (!byApiName.TryGetValue(change.ApiName, out var row) ||
+                            !UndoableRowFields.TryGetValue(change.PropertyName, out var property) ||
+                            property == null)
+                        {
+                            continue;
+                        }
+
+                        property.SetValue(row, reverse ? change.OldValue : change.NewValue);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed to {(reverse ? "undo" : "redo")} a field edit for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+                _undoJournal.Clear();
+            }
+            finally
+            {
+                _isApplyingUndo = false;
+            }
+
+            RaiseHistoryState();
+
+            if (entry.AffectedApiNames.Count > 0)
+            {
+                RestoreSelectionRequested?.Invoke(this, entry.AffectedApiNames.ToList());
+            }
         }
 
         private void RaiseHistoryState()
@@ -3479,6 +3601,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             row.PropertyChanged -= Row_PropertyChanged;
             row.RevealStateChanged -= Row_RevealStateChanged;
+            row.ValueChanging = null;
             _searchIndex.Invalidate(row);
         }
 
@@ -3502,6 +3625,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.PropertyChanged += Row_PropertyChanged;
             row.RevealStateChanged -= Row_RevealStateChanged;
             row.RevealStateChanged += Row_RevealStateChanged;
+
+            // The value a field is about to replace only exists inside the setter, so the history
+            // is told from there rather than reconstructing it afterwards.
+            row.ValueChanging = RecordRowValueChange;
         }
 
         private void Row_RevealStateChanged(object sender, EventArgs e)
@@ -5544,6 +5671,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// headers -- reads them once per change rather than once per property.
         /// </summary>
         public event EventHandler RevealStateChanged;
+
+        /// <summary>
+        /// Told the property name, the value being replaced and the value replacing it, just
+        /// before each change. Set by the view model while the row is attached so its history can
+        /// remember what a field was; a plain field rather than an event because exactly one
+        /// observer is meaningful and it has to come off with the row.
+        /// </summary>
+        internal Action<AchievementEditorRow, string, object, object> ValueChanging { get; set; }
+
+        protected override void OnValueChanging(string propertyName, object oldValue, object newValue)
+        {
+            // Suppressed while the row is being loaded from the store, which is when its values
+            // are being restated rather than edited.
+            if (!SuppressNotifications)
+            {
+                ValueChanging?.Invoke(this, propertyName, oldValue, newValue);
+            }
+        }
 
         private void NotifyRevealStateChanged()
         {
