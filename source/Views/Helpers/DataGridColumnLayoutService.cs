@@ -1713,6 +1713,38 @@ namespace PlayniteAchievements.Views.Helpers
             return menu;
         }
 
+        /// <summary>
+        /// Places an open column menu under a header, anchored so that hiding a column from it
+        /// does not move the menu.
+        /// </summary>
+        /// <remarks>
+        /// Anchoring to the header itself looks right until the first toggle: unticking a column
+        /// collapses it, its header leaves the visual tree, and the menu loses the element it was
+        /// positioned against and jumps. The anchor is therefore the grid, which outlives every
+        /// column, with the header's position baked into the offsets at open time - so the menu
+        /// stays exactly where it was opened however many columns are switched off.
+        /// </remarks>
+        public void PlaceColumnVisibilityMenu(ContextMenu menu, FrameworkElement header)
+        {
+            if (menu == null || _grid == null)
+            {
+                return;
+            }
+
+            if (header == null || !header.IsDescendantOf(_grid))
+            {
+                menu.PlacementTarget = _grid;
+                menu.Placement = PlacementMode.MousePoint;
+                return;
+            }
+
+            var anchor = header.TranslatePoint(new Point(0, header.ActualHeight), _grid);
+            menu.PlacementTarget = _grid;
+            menu.Placement = PlacementMode.RelativePoint;
+            menu.HorizontalOffset = anchor.X;
+            menu.VerticalOffset = anchor.Y;
+        }
+
         private bool AddAlignmentSection(ContextMenu menu, DataGridColumn contextColumn)
         {
             if (menu == null || !CanShowAlignmentSection(contextColumn))
