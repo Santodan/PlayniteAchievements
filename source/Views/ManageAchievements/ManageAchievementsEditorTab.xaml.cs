@@ -740,9 +740,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             if (dialog.DialogResult == true)
             {
-                // Assigning the row's note raises the change that persists it, the same path a
-                // checkbox or committed text box takes.
-                row.AchievementNote = dialog.SavedNote;
+                // Assigning the note raises the change that persists it, the same path a checkbox
+                // or committed text box takes. Routed, so a note edited from a cell reaches the
+                // whole selection the way the details pane's Edit button does; from the pane the
+                // row already is the edit target, so this resolves to the same object.
+                var target = EditorCellRouting.ResolveTarget(ViewModel, row) ?? row;
+                target.AchievementNote = dialog.SavedNote;
             }
         }
 
@@ -873,7 +876,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var menu = ItemsControl.ItemsControlFromItemContainer(menuItem) as ContextMenu;
             if ((menu?.PlacementTarget as FrameworkElement)?.DataContext is AchievementEditorRow row)
             {
-                row.RarityInput = option.DisplayName;
+                // Routed, so a tier picked from a cell reaches the whole selection. From the
+                // details pane the placement target's row already is the edit target.
+                var target = EditorCellRouting.ResolveTarget(ViewModel, row) ?? row;
+                target.RarityInput = option.DisplayName;
             }
         }
 
@@ -1112,6 +1118,292 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 viewModel.DeleteCommand));
 
             return menu;
+        }
+
+        /// <summary>
+        /// A tick in a routed cell. Writes through the routed target, then pulls the binding back
+        /// from the source so a write the row refused cannot leave the tick showing a state
+        /// nothing actually holds.
+        /// </summary>
+        private void RoutedCheckBox_Click(object sender, RoutedEventArgs e)
+        {
+            var checkBox = sender as CheckBox;
+            var row = EditorCellRouting.ResolveRow(sender);
+            var field = EditorCellRouting.GetField(checkBox);
+            if (row == null || string.IsNullOrEmpty(field))
+            {
+                return;
+            }
+
+            var target = EditorCellRouting.ResolveTarget(ViewModel, row);
+            switch (field)
+            {
+                case nameof(AchievementEditorRow.HiddenState):
+                    // The row's own value, not the tick's: the proxy's is blank for a selection
+                    // that disagrees, and a blank is a display state rather than a value to apply.
+                    target.HiddenState = !row.Hidden;
+                    break;
+
+                case nameof(AchievementEditorRow.UnlockedState):
+                    target.UnlockedState = !row.Unlocked;
+                    break;
+
+                default:
+                    return;
+            }
+
+            checkBox?.GetBindingExpression(ToggleButton.IsCheckedProperty)?.UpdateTarget();
+        }
+
+        /// <summary>
+        /// Commits a routed cell's text box on focus loss, which is when every editable box in
+        /// this tab commits.
+        /// </summary>
+        private void RoutedCellTextBox_Commit(object sender, RoutedEventArgs e)
+        {
+            CommitRoutedCellTextBox(sender as TextBox);
+        }
+
+        /// <summary>
+        /// Enter commits a routed cell's text box and Escape abandons the edit, matching the
+        /// in-grid name and description boxes.
+        /// </summary>
+        private void RoutedCellTextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (!(sender is TextBox textBox))
+            {
+                return;
+            }
+
+            if (e.Key == Key.Enter)
+            {
+                CommitRoutedCellTextBox(textBox);
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Escape)
+            {
+                // One way, so re-reading the source is what puts the box back.
+                textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateTarget();
+                e.Handled = true;
+            }
+        }
+
+        private void CommitRoutedCellTextBox(TextBox textBox)
+        {
+            var row = EditorCellRouting.ResolveRow(textBox);
+            var field = EditorCellRouting.GetField(textBox);
+            if (textBox == null || row == null || string.IsNullOrEmpty(field))
+            {
+                return;
+            }
+
+            var target = EditorCellRouting.ResolveTarget(ViewModel, row);
+            var value = textBox.Text;
+            switch (field)
+            {
+                case nameof(AchievementEditorRow.RarityInput):
+                    target.RarityInput = value;
+                    break;
+
+                case nameof(AchievementEditorRow.PointsText):
+                    target.PointsText = value;
+                    break;
+
+                case nameof(AchievementEditorRow.ProgressNumText):
+                    target.ProgressNumText = value;
+                    break;
+
+                case nameof(AchievementEditorRow.ProgressDenomText):
+                    target.ProgressDenomText = value;
+                    break;
+
+                default:
+                    return;
+            }
+
+            // The setters normalize and can refuse, so the box shows what was stored rather than
+            // what was typed.
+            textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateTarget();
+        }
+
+        /// <summary>
+        /// The rows a cell's edit applies to, for building a menu that reflects all of them.
+        /// </summary>
+        private IReadOnlyList<AchievementEditorRow> ResolveCellMenuSelection(AchievementEditorRow row)
+        {
+            if (row == null)
+            {
+                return new List<AchievementEditorRow>();
+            }
+
+            if (ViewModel?.IsRowInSelection(row) == true)
+            {
+                var selection = CustomAchievementsGrid.SelectedItems
+                    .OfType<AchievementEditorRow>()
+                    .ToList();
+                if (selection.Count > 0)
+                {
+                    return selection;
+                }
+            }
+
+            return new List<AchievementEditorRow> { row };
+        }
+
+        /// <summary>
+        /// Opens a menu built for this gesture and dropped when it closes, rather than one
+        /// declared in the cell template: a template-declared menu would be realized per row and
+        /// would outlive the container it was recycled from.
+        /// </summary>
+        private void OpenCellMenu(object sender, Action<ItemCollection, IReadOnlyList<AchievementEditorRow>> append)
+        {
+            var button = sender as Button;
+            var row = EditorCellRouting.ResolveRow(sender);
+            if (button == null || row == null || append == null)
+            {
+                return;
+            }
+
+            var menu = new ContextMenu();
+            append(menu.Items, ResolveCellMenuSelection(row));
+            if (menu.Items.Count == 0)
+            {
+                return;
+            }
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
+            SelectorContextMenuHelper.Open(button, menu);
+        }
+
+        private void GoalCell_Click(object sender, RoutedEventArgs e)
+        {
+            var row = EditorCellRouting.ResolveRow(sender);
+            if (row == null)
+            {
+                return;
+            }
+
+            // The selection setter, so this is the row menu's Goal item by another route and gets
+            // its single write rather than one per row.
+            ViewModel?.SetGoalForSelection(!row.IsGoal);
+            (sender as CheckBox)?.GetBindingExpression(ToggleButton.IsCheckedProperty)?.UpdateTarget();
+        }
+
+        /// <summary>
+        /// The capstone action for a cell. Always takes its direction from the clicked row, so the
+        /// button does what its own label says; the pane's handler reads the edit target instead,
+        /// whose value is a shared one that can disagree with this row.
+        /// </summary>
+        private void CapstoneCell_Click(object sender, RoutedEventArgs e)
+        {
+            var row = EditorCellRouting.ResolveRow(sender);
+            if (row == null || ViewModel == null)
+            {
+                return;
+            }
+
+            ViewModel.SetCapstoneForSelection(!row.IsCapstone);
+        }
+
+        private void TrophyCell_Click(object sender, RoutedEventArgs e)
+        {
+            OpenCellMenu(sender, AppendTrophyTypeItems);
+        }
+
+        private void FilterCell_Click(object sender, RoutedEventArgs e)
+        {
+            OpenCellMenu(sender, AppendFilterScopeItems);
+        }
+
+        private void CategoryCell_Click(object sender, RoutedEventArgs e)
+        {
+            OpenCellMenu(sender, AppendCategoryItems);
+        }
+
+        private void TypeCell_Click(object sender, RoutedEventArgs e)
+        {
+            OpenCellMenu(sender, AppendCategoryTypeItems);
+        }
+
+        private void NoteCell_Click(object sender, RoutedEventArgs e)
+        {
+            var row = EditorCellRouting.ResolveRow(sender);
+            if (row != null)
+            {
+                // Seeded from the clicked row - its name, art and note - because that is the one
+                // the user pointed at; the save is routed to the selection inside EditNote.
+                EditNote(row);
+            }
+        }
+
+        private void RarityMenuButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenCellMenu(sender, AppendRarityTierItems);
+        }
+
+        /// <summary>
+        /// The rarity tiers, as the details pane's chevron menu offers them.
+        /// </summary>
+        private void AppendRarityTierItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
+        {
+            var viewModel = ViewModel;
+            if (items == null || viewModel == null || selection == null || selection.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var option in ManageAchievementsEditorViewModel.RarityOptions)
+            {
+                var captured = option;
+                var item = new MenuItem
+                {
+                    Header = captured.DisplayName,
+                    IsCheckable = true,
+                    IsChecked = selection.All(row =>
+                        string.Equals(row.Rarity, captured.Value, StringComparison.OrdinalIgnoreCase)),
+                    IsEnabled = selection.All(row => row.CanEditRarity)
+                };
+                item.Click += (_, __) =>
+                {
+                    var target = EditorCellRouting.ResolveTarget(viewModel, selection[0]);
+                    target.RarityInput = captured.DisplayName;
+                };
+                items.Add(item);
+            }
+        }
+
+        /// <summary>
+        /// The trophy types. A menu rather than a per-cell ComboBox: a recycled selector
+        /// re-resolves its selection when its container is re-bound and can push that value at the
+        /// row, which for a routed cell would write the whole selection with no user gesture.
+        /// </summary>
+        private void AppendTrophyTypeItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
+        {
+            var viewModel = ViewModel;
+            if (items == null || viewModel == null || selection == null || selection.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var option in viewModel.TrophyTypeOptions)
+            {
+                var captured = option;
+                var item = new MenuItem
+                {
+                    Header = captured.DisplayName,
+                    IsCheckable = true,
+                    IsChecked = selection.All(row =>
+                        string.Equals(row.TrophyType, captured.Value, StringComparison.OrdinalIgnoreCase))
+                };
+                item.Click += (_, __) =>
+                {
+                    var target = EditorCellRouting.ResolveTarget(viewModel, selection[0]);
+                    target.TrophyType = captured.Value;
+                };
+                items.Add(item);
+            }
         }
 
         /// <summary>
