@@ -71,7 +71,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly List<AchievementEditorRow> _selectedRows = new List<AchievementEditorRow>();
         private bool _isApplyingBulk;
         private bool _providerBaselinesResolved;
-        private bool _iconDiagnosticLogged;
         private bool _isTogglingReveal;
         private bool _hasCustomOrder;
         private DispatcherTimer _assignmentsChangedDebounce;
@@ -1682,32 +1681,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 row.IconFileStem = fileStems.TryGetValue(apiName, out var stem) ? stem : null;
-
-                // Temporary. The store cannot be read from outside the plugin (the payload is not
-                // plain text on disk), and every inference about where a row's custom icon comes
-                // from has been wrong so far. This reports, for a row that shows a custom icon,
-                // what the stored override actually says and whether the managed file is present -
-                // which separates "the record is still there" from "the record is gone but the
-                // file is driving it".
-                if (!_iconDiagnosticLogged && row.IsProviderRow &&
-                    (row.UnlockedIconPath ?? string.Empty).IndexOf(
-                        "\\custom\\", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    _iconDiagnosticLogged = true;
-                    var resolved = ResolveCurrentCustomData();
-                    var overrides = resolved?.AchievementOverrides;
-                    var stored = overrides != null && overrides.TryGetValue(apiName, out var entry)
-                        ? entry
-                        : null;
-                    _logger?.Info(
-                        "[EditorDiag] Stored icon override. api=" + apiName +
-                        ", overrideEntries=" + (overrides?.Count.ToString() ?? "<null map>") +
-                        ", thisEntry=" + (stored == null ? "<absent>" : "present") +
-                        ", storedUnlocked=" + (stored?.UnlockedIconPath ?? "<null>") +
-                        ", storedLocked=" + (stored?.LockedIconPath ?? "<null>") +
-                        ", rowEffective=" + (row.UnlockedIconPath ?? "<null>") +
-                        ", managedFileExists=" + System.IO.File.Exists(row.UnlockedIconPath ?? string.Empty));
-                }
                 if (rawByApiName.TryGetValue(apiName, out var raw))
                 {
                     row.ProviderUnlockedIconPath = raw.UnlockedIconPath;
@@ -4448,13 +4421,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     }
                 }
 
-                // Temporary: the maps are written whole, so what is missing from them is what
-                // gets removed from the store.
-                _logger?.Info(
-                    "[EditorDiag] Writing icon overrides. unlocked=" + unlockedOverrides.Count +
-                    ", locked=" + lockedOverrides.Count +
-                    ", keys=" + string.Join("|", unlockedOverrides.Keys.Take(5)));
-
                 _achievementOverridesService.SetIconOverridesAndCustomAchievementIcons(
                     _gameId,
                     unlockedOverrides,
@@ -4493,17 +4459,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 var current = NormalizeText(ReadIcon(row, variant));
 
-                // Temporary. Which branch this takes is the whole question: the clear branch puts
-                // the provider's art back so the override is omitted from the next write, and the
-                // other re-materializes whatever the row is holding.
-                _logger?.Info(
-                    "[EditorDiag] Icon edit. api=" + row.OriginalApiName +
-                    ", variant=" + variant +
-                    ", current=" + (current ?? "<blank>") +
-                    ", providerBaseline=" + (ReadProviderIcon(row, variant) ?? "<null>") +
-                    ", branch=" + (string.IsNullOrWhiteSpace(current) ? "clear" : "materialize"));
+                // Blank is not the only way a row says "no override": holding the provider's own
+                // path says it too, and that is the form an undo restores and a clear leaves
+                // behind. Reading only the blank case made both look like a fresh custom icon, so
+                // undoing one materialized the provider's art into the managed folder as an
+                // override rather than removing it. Same test as IsIconOverride, which is the
+                // definition the display text and the override write already use.
+                var isOverride = !string.IsNullOrWhiteSpace(current) &&
+                    !string.Equals(
+                        current,
+                        NormalizeText(ReadProviderIcon(row, variant)),
+                        StringComparison.OrdinalIgnoreCase);
 
-                if (string.IsNullOrWhiteSpace(current))
+                if (!isOverride)
                 {
                     StageAcross(new[] { row }, target => WriteIcon(target, variant, ReadProviderIcon(target, variant)));
                     touched.Add(row);
