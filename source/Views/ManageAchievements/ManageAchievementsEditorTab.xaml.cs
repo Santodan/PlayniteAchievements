@@ -1478,6 +1478,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 var item = new MenuItem
                 {
                     Header = captured.DisplayName,
+                    Icon = CreateTrophyBadge(captured.Value),
                     IsCheckable = true,
                     IsChecked = selection.All(row =>
                         string.Equals(row.TrophyType, captured.Value, StringComparison.OrdinalIgnoreCase))
@@ -1489,6 +1490,39 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 };
                 items.Add(item);
             }
+        }
+
+        /// <summary>
+        /// The badge for a trophy type, so the menu reads the way the cell and the details pane's
+        /// picker do. Null for the None option, which has no badge.
+        /// </summary>
+        private static Image CreateTrophyBadge(string trophyType)
+        {
+            string resourceKey;
+            switch ((trophyType ?? string.Empty).ToLowerInvariant())
+            {
+                case "platinum":
+                    resourceKey = "TrophyPlatinum";
+                    break;
+                case "gold":
+                    resourceKey = "TrophyGold";
+                    break;
+                case "silver":
+                    resourceKey = "TrophySilver";
+                    break;
+                case "bronze":
+                    resourceKey = "TrophyBronze";
+                    break;
+                default:
+                    return null;
+            }
+
+            var image = new Image { Width = 16, Height = 16 };
+
+            // By reference, not resolved now: the badges come from the theme, so they have to
+            // follow a theme change like every other themed brush and image here.
+            image.SetResourceReference(Image.SourceProperty, resourceKey);
+            return image;
         }
 
         /// <summary>
