@@ -389,6 +389,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public void ReloadData()
         {
+            // Rebuilds every achievement row and the category tree behind them, on the UI thread.
+            // This is the tab a bulk category session lives in, so it is the scope most likely to
+            // name the stall.
+            using (PerfScope.Start(_logger, "Manage.Category.ReloadData", thresholdMs: 25))
+            {
+                ReloadDataCore();
+            }
+        }
+
+        private void ReloadDataCore()
+        {
             try
             {
                 var selectedApiNames = new HashSet<string>(
