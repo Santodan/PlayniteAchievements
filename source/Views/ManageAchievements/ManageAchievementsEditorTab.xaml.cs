@@ -163,6 +163,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             AttachColumnPersistence();
 
+            // On this control, not the window: stepping achievements with the arrows is what the
+            // whole window is for, but Ctrl+Z is not - a window-wide handler would fight the other
+            // tabs and every text box in them.
+            PreviewKeyDown += EditorTab_PreviewKeyDown;
+
             // Confirms the behavior attached at all: if no reorder line ever appears in the log,
             // this says whether the wiring ran or the drop is being lost before it reaches us.
             LogManager.GetLogger().Debug(
@@ -187,6 +192,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _columnPersistence?.Dispose();
             _columnPersistence = null;
 
+            PreviewKeyDown -= EditorTab_PreviewKeyDown;
             AchievementNavigation_Unloaded(null, null);
             Loaded -= AchievementNavigation_Loaded;
             Unloaded -= AchievementNavigation_Unloaded;
@@ -1920,6 +1926,73 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private static string TrimTrailingUrlPunctuation(string value)
         {
             return (value ?? string.Empty).Trim().TrimEnd('.', ',', ';', ')', ']', '}');
+        }
+
+        /// <summary>
+        /// Undo and redo for the editor.
+        /// </summary>
+        /// <remarks>
+        /// A focused text box keeps its own Ctrl+Z, and that is the correct split rather than a
+        /// compromise: every editable box in this tab commits on losing focus, so while one has
+        /// focus nothing has reached the store and there is nothing for the editor's history to
+        /// reverse. WPF's in-box undo is exactly what the user wants at that moment.
+        ///
+        /// The window's arrow-key handler is unaffected: it returns unless the key is Up or Down
+        /// and never marks Ctrl+Z handled, so the two do not interact whatever order they run in.
+        /// </remarks>
+        private void EditorTab_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Handled || (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+            {
+                return;
+            }
+
+            if (Keyboard.FocusedElement is TextBoxBase)
+            {
+                return;
+            }
+
+            var viewModel = ViewModel;
+            if (viewModel == null)
+            {
+                return;
+            }
+
+            switch (e.Key)
+            {
+                case Key.Z:
+                    if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+                    {
+                        Execute(viewModel.RedoCommand);
+                    }
+                    else
+                    {
+                        Execute(viewModel.UndoCommand);
+                    }
+
+                    break;
+
+                case Key.Y:
+                    Execute(viewModel.RedoCommand);
+                    break;
+
+                default:
+                    return;
+            }
+
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Runs a command only when it is currently allowed, so a shortcut cannot reach past the
+        /// guard its button respects.
+        /// </summary>
+        private static void Execute(System.Windows.Input.ICommand command)
+        {
+            if (command?.CanExecute(null) == true)
+            {
+                command.Execute(null);
+            }
         }
 
         /// <summary>
