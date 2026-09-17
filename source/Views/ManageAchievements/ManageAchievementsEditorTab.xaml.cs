@@ -41,6 +41,71 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private const string DragDataFormat = "PlayniteAchievements.ManageAchievementsEditorRows";
 
+        /// <summary>
+        /// The columns locked to the left edge, in order. Not hideable either, so they also seed
+        /// the layout service's excluded-visibility set. The first of them is the drag handle, and
+        /// <see cref="DataGridRowReorderBehavior"/> recognises that handle by its display index,
+        /// which is what makes pinning it load-bearing rather than cosmetic.
+        /// </summary>
+        private static readonly string[] PinnedColumnKeys = { "EditorOrder", "EditorStatus", "EditorUnlocked" };
+
+        /// <summary>
+        /// Which columns a config that has never been touched shows. Merged over the persisted map
+        /// on read, so a column added later appears at its default without a migration while an
+        /// explicit hide still persists.
+        /// </summary>
+        private static readonly Dictionary<string, bool> DefaultColumnVisibility =
+            new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["EditorIcon"] = true,
+                ["EditorName"] = true,
+                ["EditorDescription"] = true,
+                ["EditorUnlockTime"] = true,
+
+                // The facet columns are opt-in. Every one of them is also on the details pane, so
+                // nothing is out of reach, and showing all eleven by default would squeeze the
+                // description column under its minimum and put a horizontal scrollbar on every
+                // install. A key left out of this map keeps whatever the markup declared, which
+                // for these is visible - so they have to be named here, not merely omitted.
+                ["EditorHidden"] = false,
+                ["EditorGoal"] = false,
+                ["EditorCapstone"] = false,
+                ["EditorRarity"] = false,
+                ["EditorTrophy"] = false,
+                ["EditorPoints"] = false,
+                ["EditorProgress"] = false,
+                ["EditorCategory"] = false,
+                ["EditorType"] = false,
+                ["EditorFilter"] = false,
+                ["EditorNote"] = false
+            };
+
+        /// <summary>
+        /// Starting widths for columns the user has never resized, matching the widths declared in
+        /// the XAML so a fresh install looks the way the markup reads.
+        /// </summary>
+        private static readonly Dictionary<string, double> DefaultColumnWidthSeeds =
+            new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["EditorIcon"] = 58,
+                ["EditorName"] = 240,
+                ["EditorDescription"] = 320,
+                ["EditorUnlockTime"] = 320,
+                ["EditorHidden"] = 64,
+                ["EditorGoal"] = 64,
+                ["EditorCapstone"] = 124,
+                ["EditorRarity"] = 150,
+                ["EditorTrophy"] = 118,
+                ["EditorPoints"] = 76,
+                ["EditorProgress"] = 124,
+                ["EditorCategory"] = 168,
+                ["EditorType"] = 144,
+                ["EditorFilter"] = 124,
+                ["EditorNote"] = 210
+            };
+
+        private DataGridColumnLayoutService _columnPersistence;
+
         private AchievementEditorRow _categoryPickerRow;
 
         private string _categoryPickerLabel;
@@ -92,8 +157,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     target is AchievementEditorRow targetRow &&
                     ViewModel?.MoveItemsByApiName(apiNames, targetRow.OriginalApiName, insertAfter) == true,
                 MoveItemsToEnd = apiNames => ViewModel?.MoveItemsToEndByApiName(apiNames) == true,
-                RestoreSelection = RestoreSelectionByApiNames
+                RestoreSelection = RestoreSelectionByApiNames,
+                RowPressOutsideDragHandle = NormalizeSelectionForRoutedCell
             });
+
+            AttachColumnPersistence();
 
             // Confirms the behavior attached at all: if no reorder line ever appears in the log,
             // this says whether the wiring ran or the drop is being lost before it reaches us.
@@ -114,6 +182,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// </remarks>
         public void Cleanup()
         {
+            // First, while the grid, the view model and the settings object are all still alive:
+            // disposing flushes the pending width writes, which needs all three.
+            _columnPersistence?.Dispose();
+            _columnPersistence = null;
+
             AchievementNavigation_Unloaded(null, null);
             Loaded -= AchievementNavigation_Loaded;
             Unloaded -= AchievementNavigation_Unloaded;
@@ -695,9 +768,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             if (dialog.DialogResult == true)
             {
-                // Assigning the row's note raises the change that persists it, the same path a
-                // checkbox or committed text box takes.
-                row.AchievementNote = dialog.SavedNote;
+                // Assigning the note raises the change that persists it, the same path a checkbox
+                // or committed text box takes. Routed, so a note edited from a cell reaches the
+                // whole selection the way the details pane's Edit button does; from the pane the
+                // row already is the edit target, so this resolves to the same object.
+                var target = EditorCellRouting.ResolveTarget(ViewModel, row) ?? row;
+                target.AchievementNote = dialog.SavedNote;
             }
         }
 
@@ -828,7 +904,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var menu = ItemsControl.ItemsControlFromItemContainer(menuItem) as ContextMenu;
             if ((menu?.PlacementTarget as FrameworkElement)?.DataContext is AchievementEditorRow row)
             {
-                row.RarityInput = option.DisplayName;
+                // Routed, so a tier picked from a cell reaches the whole selection. From the
+                // details pane the placement target's row already is the edit target.
+                var target = EditorCellRouting.ResolveTarget(ViewModel, row) ?? row;
+                target.RarityInput = option.DisplayName;
             }
         }
 
@@ -1028,6 +1107,436 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 Header = ResourceProvider.GetString("LOCPlayAch_Menu_Filters"),
                 IsEnabled = selection.All(row => row.CanEditAssignments)
             };
+            AppendFilterScopeItems(filterMenu.Items, selection);
+            menu.Items.Add(filterMenu);
+
+            // Category and type, the same two the Category tab's row menu offers.
+            var categoryMenu = new MenuItem
+            {
+                Header = ResourceProvider.GetString("LOCPlayAch_Common_Label_Category"),
+                IsEnabled = selection.All(row => row.CanEditAssignments)
+            };
+
+            AppendCategoryItems(categoryMenu.Items, selection);
+            menu.Items.Add(categoryMenu);
+
+            var typeMenu = new MenuItem
+            {
+                Header = ResourceProvider.GetString("LOCPlayAch_Common_Label_Type"),
+                IsEnabled = selection.All(row => row.CanEditAssignments)
+            };
+            AppendCategoryTypeItems(typeMenu.Items, selection);
+            menu.Items.Add(typeMenu);
+
+            menu.Items.Add(CreateMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Notes_Note"),
+                () => EditNoteForSelectedRow(),
+                selection.Count == 1 && selection[0].CanEditAssignments));
+
+            menu.Items.Add(new Separator());
+
+            menu.Items.Add(CreateCommandMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_Common_Duplicate"),
+                viewModel.DuplicateCommand));
+            menu.Items.Add(CreateCommandMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Editor_Revert"),
+                viewModel.RevertCommand));
+            menu.Items.Add(CreateCommandMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_Button_Delete"),
+                viewModel.DeleteCommand));
+
+            return menu;
+        }
+
+        /// <summary>
+        /// A tick in a routed cell. Writes through the routed target, then pulls the binding back
+        /// from the source so a write the row refused cannot leave the tick showing a state
+        /// nothing actually holds.
+        /// </summary>
+        private void RoutedCheckBox_Click(object sender, RoutedEventArgs e)
+        {
+            var checkBox = sender as CheckBox;
+            var row = EditorCellRouting.ResolveRow(sender);
+            var field = EditorCellRouting.GetField(checkBox);
+            if (row == null || string.IsNullOrEmpty(field))
+            {
+                return;
+            }
+
+            var target = EditorCellRouting.ResolveTarget(ViewModel, row);
+            switch (field)
+            {
+                case nameof(AchievementEditorRow.HiddenState):
+                    // The row's own value, not the tick's: the proxy's is blank for a selection
+                    // that disagrees, and a blank is a display state rather than a value to apply.
+                    target.HiddenState = !row.Hidden;
+                    break;
+
+                case nameof(AchievementEditorRow.UnlockedState):
+                    target.UnlockedState = !row.Unlocked;
+                    break;
+
+                case nameof(AchievementEditorRow.HasUnlockTime):
+                    target.HasUnlockTime = !row.HasUnlockTime;
+                    break;
+
+                default:
+                    return;
+            }
+
+            checkBox?.GetBindingExpression(ToggleButton.IsCheckedProperty)?.UpdateTarget();
+        }
+
+        /// <summary>
+        /// Commits a routed cell's text box on focus loss, which is when every editable box in
+        /// this tab commits.
+        /// </summary>
+        private void RoutedCellTextBox_Commit(object sender, RoutedEventArgs e)
+        {
+            CommitRoutedCellTextBox(sender as TextBox);
+        }
+
+        /// <summary>
+        /// Enter commits a routed cell's text box and Escape abandons the edit, matching the
+        /// in-grid name and description boxes.
+        /// </summary>
+        private void RoutedCellTextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (!(sender is TextBox textBox))
+            {
+                return;
+            }
+
+            if (e.Key == Key.Enter)
+            {
+                CommitRoutedCellTextBox(textBox);
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Escape)
+            {
+                // One way, so re-reading the source is what puts the box back.
+                textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateTarget();
+                e.Handled = true;
+            }
+        }
+
+        private void CommitRoutedCellTextBox(TextBox textBox)
+        {
+            var row = EditorCellRouting.ResolveRow(textBox);
+            var field = EditorCellRouting.GetField(textBox);
+            if (textBox == null || row == null || string.IsNullOrEmpty(field))
+            {
+                return;
+            }
+
+            var target = EditorCellRouting.ResolveTarget(ViewModel, row);
+            var value = textBox.Text;
+            switch (field)
+            {
+                case nameof(AchievementEditorRow.DisplayName):
+                    target.DisplayName = value;
+                    break;
+
+                case nameof(AchievementEditorRow.Description):
+                    target.Description = value;
+                    break;
+
+                case nameof(AchievementEditorRow.TimeText):
+                    target.TimeText = value;
+                    break;
+
+                case nameof(AchievementEditorRow.RarityInput):
+                    target.RarityInput = value;
+                    break;
+
+                case nameof(AchievementEditorRow.PointsText):
+                    target.PointsText = value;
+                    break;
+
+                case nameof(AchievementEditorRow.ProgressNumText):
+                    target.ProgressNumText = value;
+                    break;
+
+                case nameof(AchievementEditorRow.ProgressDenomText):
+                    target.ProgressDenomText = value;
+                    break;
+
+                default:
+                    return;
+            }
+
+            // The setters normalize and can refuse, so the box shows what was stored rather than
+            // what was typed.
+            textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateTarget();
+        }
+
+        /// <summary>
+        /// A date picked in a routed cell.
+        /// </summary>
+        /// <remarks>
+        /// The guard compares against the cell's own row, not against the edit target. That is
+        /// what makes it safe under container recycling: a recycled cell is re-bound to its new
+        /// row and the one-way binding pushes that row's own date in, which compares equal and
+        /// writes nothing. Comparing against the edit target would let such a refresh through and
+        /// stamp one row's date across the whole selection.
+        /// </remarks>
+        private void UnlockDateCell_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var picker = sender as DatePicker;
+            var row = EditorCellRouting.ResolveRow(sender);
+            if (picker == null || row == null || picker.SelectedDate == row.UnlockDate)
+            {
+                return;
+            }
+
+            EditorCellRouting.ResolveTarget(ViewModel, row).UnlockDate = picker.SelectedDate;
+        }
+
+        /// <summary>
+        /// A time mode picked in a routed cell. Guarded against the cell's own row for the reason
+        /// given on <see cref="UnlockDateCell_SelectedDateChanged"/>.
+        /// </summary>
+        private void TimeModeCell_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var combo = sender as ComboBox;
+            var row = EditorCellRouting.ResolveRow(sender);
+            var mode = combo?.SelectedItem as string;
+            if (row == null ||
+                string.IsNullOrEmpty(mode) ||
+                string.Equals(mode, row.SelectedTimeModeText, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            EditorCellRouting.ResolveTarget(ViewModel, row).SelectedTimeModeText = mode;
+        }
+
+        /// <summary>
+        /// The rows a cell's edit applies to, for building a menu that reflects all of them.
+        /// </summary>
+        private IReadOnlyList<AchievementEditorRow> ResolveCellMenuSelection(AchievementEditorRow row)
+        {
+            if (row == null)
+            {
+                return new List<AchievementEditorRow>();
+            }
+
+            if (ViewModel?.IsRowInSelection(row) == true)
+            {
+                var selection = CustomAchievementsGrid.SelectedItems
+                    .OfType<AchievementEditorRow>()
+                    .ToList();
+                if (selection.Count > 0)
+                {
+                    return selection;
+                }
+            }
+
+            return new List<AchievementEditorRow> { row };
+        }
+
+        /// <summary>
+        /// Opens a menu built for this gesture and dropped when it closes, rather than one
+        /// declared in the cell template: a template-declared menu would be realized per row and
+        /// would outlive the container it was recycled from.
+        /// </summary>
+        private void OpenCellMenu(object sender, Action<ItemCollection, IReadOnlyList<AchievementEditorRow>> append)
+        {
+            var button = sender as Button;
+            var row = EditorCellRouting.ResolveRow(sender);
+            if (button == null || row == null || append == null)
+            {
+                return;
+            }
+
+            var menu = new ContextMenu();
+            append(menu.Items, ResolveCellMenuSelection(row));
+            if (menu.Items.Count == 0)
+            {
+                return;
+            }
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
+            SelectorContextMenuHelper.Open(button, menu);
+        }
+
+        private void GoalCell_Click(object sender, RoutedEventArgs e)
+        {
+            var row = EditorCellRouting.ResolveRow(sender);
+            if (row == null)
+            {
+                return;
+            }
+
+            // The selection setter, so this is the row menu's Goal item by another route and gets
+            // its single write rather than one per row.
+            ViewModel?.SetGoalForSelection(!row.IsGoal);
+            (sender as CheckBox)?.GetBindingExpression(ToggleButton.IsCheckedProperty)?.UpdateTarget();
+        }
+
+        /// <summary>
+        /// The capstone action for a cell. Always takes its direction from the clicked row, so the
+        /// button does what its own label says; the pane's handler reads the edit target instead,
+        /// whose value is a shared one that can disagree with this row.
+        /// </summary>
+        private void CapstoneCell_Click(object sender, RoutedEventArgs e)
+        {
+            var row = EditorCellRouting.ResolveRow(sender);
+            if (row == null || ViewModel == null)
+            {
+                return;
+            }
+
+            ViewModel.SetCapstoneForSelection(!row.IsCapstone);
+        }
+
+        private void TrophyCell_Click(object sender, RoutedEventArgs e)
+        {
+            OpenCellMenu(sender, AppendTrophyTypeItems);
+        }
+
+        private void FilterCell_Click(object sender, RoutedEventArgs e)
+        {
+            OpenCellMenu(sender, AppendFilterScopeItems);
+        }
+
+        private void CategoryCell_Click(object sender, RoutedEventArgs e)
+        {
+            OpenCellMenu(sender, AppendCategoryItems);
+        }
+
+        private void TypeCell_Click(object sender, RoutedEventArgs e)
+        {
+            OpenCellMenu(sender, AppendCategoryTypeItems);
+        }
+
+        private void NoteCell_Click(object sender, RoutedEventArgs e)
+        {
+            var row = EditorCellRouting.ResolveRow(sender);
+            if (row != null)
+            {
+                // Seeded from the clicked row - its name, art and note - because that is the one
+                // the user pointed at; the save is routed to the selection inside EditNote.
+                EditNote(row);
+            }
+        }
+
+        private void RarityMenuButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenCellMenu(sender, AppendRarityTierItems);
+        }
+
+        /// <summary>
+        /// The rarity tiers, as the details pane's chevron menu offers them.
+        /// </summary>
+        private void AppendRarityTierItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
+        {
+            var viewModel = ViewModel;
+            if (items == null || viewModel == null || selection == null || selection.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var option in ManageAchievementsEditorViewModel.RarityOptions)
+            {
+                var captured = option;
+                var item = new MenuItem
+                {
+                    Header = captured.DisplayName,
+                    IsCheckable = true,
+                    IsChecked = selection.All(row =>
+                        string.Equals(row.Rarity, captured.Value, StringComparison.OrdinalIgnoreCase)),
+                    IsEnabled = selection.All(row => row.CanEditRarity)
+                };
+                item.Click += (_, __) =>
+                {
+                    var target = EditorCellRouting.ResolveTarget(viewModel, selection[0]);
+                    target.RarityInput = captured.DisplayName;
+                };
+                items.Add(item);
+            }
+        }
+
+        /// <summary>
+        /// The trophy types. A menu rather than a per-cell ComboBox: a recycled selector
+        /// re-resolves its selection when its container is re-bound and can push that value at the
+        /// row, which for a routed cell would write the whole selection with no user gesture.
+        /// </summary>
+        private void AppendTrophyTypeItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
+        {
+            var viewModel = ViewModel;
+            if (items == null || viewModel == null || selection == null || selection.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var option in viewModel.TrophyTypeOptions)
+            {
+                var captured = option;
+                var item = new MenuItem
+                {
+                    Header = captured.DisplayName,
+                    Icon = CreateTrophyBadge(captured.Value),
+                    IsCheckable = true,
+                    IsChecked = selection.All(row =>
+                        string.Equals(row.TrophyType, captured.Value, StringComparison.OrdinalIgnoreCase))
+                };
+                item.Click += (_, __) =>
+                {
+                    var target = EditorCellRouting.ResolveTarget(viewModel, selection[0]);
+                    target.TrophyType = captured.Value;
+                };
+                items.Add(item);
+            }
+        }
+
+        /// <summary>
+        /// The badge for a trophy type, so the menu reads the way the cell and the details pane's
+        /// picker do. Null for the None option, which has no badge.
+        /// </summary>
+        private static Image CreateTrophyBadge(string trophyType)
+        {
+            string resourceKey;
+            switch ((trophyType ?? string.Empty).ToLowerInvariant())
+            {
+                case "platinum":
+                    resourceKey = "TrophyPlatinum";
+                    break;
+                case "gold":
+                    resourceKey = "TrophyGold";
+                    break;
+                case "silver":
+                    resourceKey = "TrophySilver";
+                    break;
+                case "bronze":
+                    resourceKey = "TrophyBronze";
+                    break;
+                default:
+                    return null;
+            }
+
+            var image = new Image { Width = 16, Height = 16 };
+
+            // By reference, not resolved now: the badges come from the theme, so they have to
+            // follow a theme change like every other themed brush and image here.
+            image.SetResourceReference(Image.SourceProperty, resourceKey);
+            return image;
+        }
+
+        /// <summary>
+        /// The filter-scope choices for a selection. Shared by the row menu and the Filter
+        /// column's cell menu so both offer the same scopes and apply them the same way.
+        /// </summary>
+        private void AppendFilterScopeItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
+        {
+            var viewModel = ViewModel;
+            if (items == null || viewModel == null || selection == null)
+            {
+                return;
+            }
+
             foreach (var option in viewModel.FilterScopeOptions)
             {
                 var scope = option.Value;
@@ -1038,24 +1547,28 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     IsChecked = selection.All(row => row.FilterScope == scope)
                 };
                 scopeItem.Click += (_, __) => viewModel.SetFilterScopeForSelection(scope);
-                filterMenu.Items.Add(scopeItem);
+                items.Add(scopeItem);
             }
+        }
 
-            menu.Items.Add(filterMenu);
-
-            // Category and type, the same two the Category tab's row menu offers.
-            var categoryMenu = new MenuItem
+        /// <summary>
+        /// The category choices for a selection, with creating one above the list and clearing
+        /// below it. Shared by the row menu and the Category column's cell menu.
+        /// </summary>
+        private void AppendCategoryItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
+        {
+            var viewModel = ViewModel;
+            if (items == null || viewModel == null || selection == null)
             {
-                Header = ResourceProvider.GetString("LOCPlayAch_Common_Label_Category"),
-                IsEnabled = selection.All(row => row.CanEditAssignments)
-            };
+                return;
+            }
 
             // Creating one sits above the categories that exist, the same place the picker offers
             // it, so the gesture is in reach without going to the Categories tab.
-            categoryMenu.Items.Add(CreateMenuItem(
+            items.Add(CreateMenuItem(
                 ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis"),
                 PromptAndCreateCategory));
-            categoryMenu.Items.Add(new Separator());
+            items.Add(new Separator());
 
             foreach (var option in viewModel.AssignableCategoryPickerOptions.Where(option => option.IsSelectable))
             {
@@ -1074,24 +1587,31 @@ namespace PlayniteAchievements.Views.ManageAchievements
                         string.Equals(row.EffectiveCategoryLabel, label, StringComparison.OrdinalIgnoreCase))
                 };
                 categoryItem.Click += (_, __) => viewModel.SetCategoryForSelection(label);
-                categoryMenu.Items.Add(categoryItem);
+                items.Add(categoryItem);
             }
 
-            if (!(categoryMenu.Items[categoryMenu.Items.Count - 1] is Separator))
+            if (!(items[items.Count - 1] is Separator))
             {
-                categoryMenu.Items.Add(new Separator());
+                items.Add(new Separator());
             }
 
-            categoryMenu.Items.Add(CreateMenuItem(
+            items.Add(CreateMenuItem(
                 ResourceProvider.GetString("LOCPlayAch_Button_Clear"),
                 () => viewModel.SetCategoryForSelection(null)));
-            menu.Items.Add(categoryMenu);
+        }
 
-            var typeMenu = new MenuItem
+        /// <summary>
+        /// The category-type ticks for a selection. Shared by the row menu and the Type column's
+        /// cell menu.
+        /// </summary>
+        private void AppendCategoryTypeItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
+        {
+            var viewModel = ViewModel;
+            if (items == null || viewModel == null || selection == null)
             {
-                Header = ResourceProvider.GetString("LOCPlayAch_Common_Label_Type"),
-                IsEnabled = selection.All(row => row.CanEditAssignments)
-            };
+                return;
+            }
+
             // Kept so a click can read every tick, not just its own: the menu stays open, and the
             // set the user leaves it in is what the whole selection takes.
             var typeItems = new List<MenuItem>();
@@ -1114,29 +1634,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 typeItem.Click += (_, __) => viewModel.SetCategoryTypesForSelection(
                     typeItems.Where(item => item.IsChecked).Select(item => item.Tag as string));
                 typeItems.Add(typeItem);
-                typeMenu.Items.Add(typeItem);
+                items.Add(typeItem);
             }
-
-            menu.Items.Add(typeMenu);
-
-            menu.Items.Add(CreateMenuItem(
-                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Notes_Note"),
-                () => EditNoteForSelectedRow(),
-                selection.Count == 1 && selection[0].CanEditAssignments));
-
-            menu.Items.Add(new Separator());
-
-            menu.Items.Add(CreateCommandMenuItem(
-                ResourceProvider.GetString("LOCPlayAch_Common_Duplicate"),
-                viewModel.DuplicateCommand));
-            menu.Items.Add(CreateCommandMenuItem(
-                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Editor_Revert"),
-                viewModel.RevertCommand));
-            menu.Items.Add(CreateCommandMenuItem(
-                ResourceProvider.GetString("LOCPlayAch_Button_Delete"),
-                viewModel.DeleteCommand));
-
-            return menu;
         }
 
         private static MenuItem CreateMenuItem(string header, Action onClick, bool isEnabled = true)
@@ -1421,6 +1920,174 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private static string TrimTrailingUrlPunctuation(string value)
         {
             return (value ?? string.Empty).Trim().TrimEnd('.', ',', ';', ')', ']', '}');
+        }
+
+        /// <summary>
+        /// Settles the selection before a cell's own control swallows the click.
+        /// </summary>
+        /// <remarks>
+        /// A DataGridCell selects its row from the bubbling mouse-down, and a CheckBox, Button or
+        /// TextBox inside the cell marks that event handled, so pressing a control in an unselected
+        /// row leaves the selection where it was. For a column whose edits route to the selection
+        /// that is actively wrong: the click would write the previously selected rows and leave the
+        /// row under the pointer alone.
+        ///
+        /// Runs on the grid's tunnelling press, ahead of the control, and deliberately does not
+        /// mark the event handled so the control still receives its click. A Ctrl or Shift press is
+        /// a selection gesture and belongs to the grid; a row already in the selection is left
+        /// alone so editing one cell of a multi-row selection still applies to all of it.
+        /// </remarks>
+        private void NormalizeSelectionForRoutedCell(object item, MouseButtonEventArgs e)
+        {
+            if (!(item is AchievementEditorRow) ||
+                (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != 0 ||
+                !EditorCellRouting.IsRoutedCellHit(e?.OriginalSource as DependencyObject) ||
+                CustomAchievementsGrid.SelectedItems.Contains(item))
+            {
+                return;
+            }
+
+            // Synchronous, so the view model's selection - and therefore the edit target the
+            // control is about to commit through - is correct by the time its handler runs.
+            CustomAchievementsGrid.SelectedItems.Clear();
+            CustomAchievementsGrid.SelectedItem = item;
+        }
+
+        /// <summary>
+        /// Gives the achievements grid the same persisted column layout the render grids have:
+        /// show/hide from the header menu, drag to reorder, drag to resize, all remembered.
+        /// </summary>
+        private void AttachColumnPersistence()
+        {
+            _columnPersistence = new DataGridColumnLayoutService(
+                CustomAchievementsGrid,
+                LogManager.GetLogger(),
+                getWidths: () => GetColumnLayout()?.Widths,
+                setWidths: map =>
+                {
+                    var columns = GetColumnLayout();
+                    if (columns != null)
+                    {
+                        columns.Widths = map;
+                    }
+                },
+                getVisibility: GetColumnVisibility,
+                setVisibility: map =>
+                {
+                    var columns = GetColumnLayout();
+                    if (columns != null)
+                    {
+                        columns.Visibility = map;
+                    }
+                },
+                saveSettings: SaveColumnSettings,
+                defaultWidthSeeds: DefaultColumnWidthSeeds,
+                getOrder: () => GetColumnLayout()?.Order,
+                setOrder: map =>
+                {
+                    var columns = GetColumnLayout();
+                    if (columns != null)
+                    {
+                        columns.Order = map;
+                    }
+                });
+
+            _columnPersistence.PinnedLeadingKeys = PinnedColumnKeys;
+            foreach (var key in PinnedColumnKeys)
+            {
+                _columnPersistence.ExcludedVisibilityKeys.Add(key);
+            }
+
+            _columnPersistence.Attach();
+        }
+
+        private GridColumnLayoutOptions GetColumnLayout()
+        {
+            return ViewModel?.Settings?.Persisted?.GridOptions
+                ?.GetManageAchievements(GridOptionKeys.ManageAchievements.Editor)
+                ?.Columns;
+        }
+
+        /// <summary>
+        /// The persisted visibility map with any column it says nothing about filled in from the
+        /// defaults, so a column added in a later version starts where it should.
+        /// </summary>
+        private Dictionary<string, bool> GetColumnVisibility()
+        {
+            var columns = GetColumnLayout();
+            if (columns == null)
+            {
+                return null;
+            }
+
+            var map = columns.Visibility;
+            if (map == null)
+            {
+                map = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                columns.Visibility = map;
+                map = columns.Visibility;
+            }
+
+            foreach (var pair in DefaultColumnVisibility)
+            {
+                if (!map.ContainsKey(pair.Key))
+                {
+                    map[pair.Key] = pair.Value;
+                }
+            }
+
+            return map;
+        }
+
+        private void SaveColumnSettings()
+        {
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            var settings = ViewModel?.Settings;
+            if (plugin == null || settings == null)
+            {
+                return;
+            }
+
+            try
+            {
+                plugin.SavePluginSettings(settings);
+            }
+            catch (Exception ex)
+            {
+                LogManager.GetLogger().Warn(ex, "Failed to persist the achievement editor column settings.");
+            }
+        }
+
+        /// <summary>
+        /// Opens the column show/hide menu for a right-clicked header.
+        /// </summary>
+        /// <remarks>
+        /// Tunnelling, so it runs before the row's own right-button handlers. Anything that is not
+        /// a header is left entirely alone - unhandled and with nothing opened - because those
+        /// handlers own the row menu.
+        /// </remarks>
+        private void CustomAchievementsGrid_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            var header = VisualTreeHelpers.FindVisualParent<DataGridColumnHeader>(e.OriginalSource as DependencyObject);
+            if (header?.Column == null)
+            {
+                return;
+            }
+
+            e.Handled = true;
+
+            var menu = _columnPersistence?.BuildColumnVisibilityMenu(header.Column);
+            if (menu == null || menu.Items.Count == 0)
+            {
+                return;
+            }
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(header, menu);
+
+            // Anchored to the grid rather than the header: the menu stays open across toggles, and
+            // the header it was opened from is gone the moment its own column is unticked.
+            _columnPersistence.PlaceColumnVisibilityMenu(menu, header);
+            menu.IsOpen = true;
         }
     }
 }

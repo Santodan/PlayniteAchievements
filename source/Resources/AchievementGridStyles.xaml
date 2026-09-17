@@ -370,6 +370,15 @@
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
     </Style>
 
+    <!-- The Manage Achievements header, plus the hint that right-clicking it shows the column
+         list. A separate style rather than a setter on the one above, because eight grids share
+         that one and only the editor has a column menu. -->
+    <Style x:Key="ManageAchievementsColumnHeaderWithMenuStyle"
+        TargetType="{x:Type DataGridColumnHeader}"
+        BasedOn="{StaticResource ManageAchievementsColumnHeaderStyle}">
+        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Tooltip_RightClickShowHide}"/>
+    </Style>
+
     <Style x:Key="ManageAchievementsControllerCellStyle"
            TargetType="DataGridCell"
            BasedOn="{StaticResource PlayAch.StretchDataGridCellStyle}">

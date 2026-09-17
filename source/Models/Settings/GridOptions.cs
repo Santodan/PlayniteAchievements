@@ -42,6 +42,11 @@ namespace PlayniteAchievements.Models.Settings
             public const string ViewFriendsAchievements = "ViewFriendsAchievements";
         }
 
+        public static class ManageAchievements
+        {
+            public const string Editor = "ManageAchievementsEditor";
+        }
+
         public static class CategorySummaries
         {
             public const string ViewAchievements = "ViewAchievements";
@@ -489,6 +494,26 @@ namespace PlayniteAchievements.Models.Settings
         }
     }
 
+    /// <summary>
+    /// Column layout for an editing grid in the Manage Achievements window.
+    /// </summary>
+    /// <remarks>
+    /// A family of its own rather than an <see cref="AchievementGridOptions"/> surface: the render
+    /// grids already use the bare column names (Icon, Status, Note, Rarity, Trophy, Points) at
+    /// their own widths, so sharing a surface would make hiding a column in the editor hide one in
+    /// a render grid. Only the inherited <see cref="GridCommonOptions.Columns"/> is used; the
+    /// editor has no control bar, row-height chrome or sort mode of its own.
+    /// </remarks>
+    public sealed class ManageAchievementsGridOptions : GridCommonOptions
+    {
+        public ManageAchievementsGridOptions Clone()
+        {
+            var clone = new ManageAchievementsGridOptions();
+            CopyCommonTo(clone);
+            return clone;
+        }
+    }
+
     public sealed class CategorySummaryGridOptions : PlayniteAchievements.Common.ObservableObject
     {
         private GridColumnLayoutOptions _columns = GridColumnLayoutOptions.CreateWithProgressRightAlignment();
@@ -577,6 +602,7 @@ namespace PlayniteAchievements.Models.Settings
         internal const string GameSummariesKindName = "GameSummaries";
         internal const string FriendSummariesKindName = "FriendSummaries";
         internal const string CategorySummariesKindName = "CategorySummaries";
+        internal const string ManageAchievementsKindName = "ManageAchievements";
 
         public const int DefaultShowcaseRecentMaxRows = 15;
         public const int DefaultShowcaseGameSummariesMaxRows = 50;
@@ -589,6 +615,8 @@ namespace PlayniteAchievements.Models.Settings
             new Dictionary<string, FriendSummaryGridOptions>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, CategorySummaryGridOptions> _categorySummaries =
             new Dictionary<string, CategorySummaryGridOptions>(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, ManageAchievementsGridOptions> _manageAchievements =
+            new Dictionary<string, ManageAchievementsGridOptions>(StringComparer.OrdinalIgnoreCase);
 
         private readonly Dictionary<PlayniteAchievements.Common.ObservableObject, PropertyChangedEventHandler> _optionSubscriptions =
             new Dictionary<PlayniteAchievements.Common.ObservableObject, PropertyChangedEventHandler>();
@@ -664,6 +692,35 @@ namespace PlayniteAchievements.Models.Settings
                 SetValue(ref _categorySummaries, Normalize(value, item => item?.Clone()));
                 EnsureDefaults();
             }
+        }
+
+        public Dictionary<string, ManageAchievementsGridOptions> ManageAchievements
+        {
+            get
+            {
+                EnsureDefaults();
+                return _manageAchievements;
+            }
+            set
+            {
+                DetachOptions(_manageAchievements);
+                SetValue(ref _manageAchievements, Normalize(value, item => item?.Clone()));
+                EnsureDefaults();
+            }
+        }
+
+        public ManageAchievementsGridOptions GetManageAchievements(string id)
+        {
+            var key = string.IsNullOrWhiteSpace(id) ? GridOptionKeys.ManageAchievements.Editor : id;
+            EnsureDefaults();
+            if (!_manageAchievements.TryGetValue(key, out var options) || options == null)
+            {
+                options = new ManageAchievementsGridOptions();
+                _manageAchievements[key] = options;
+                AttachOptions(ManageAchievementsKindName, key, options);
+            }
+
+            return options;
         }
 
         public AchievementGridOptions GetAchievement(string id)
@@ -797,7 +854,8 @@ namespace PlayniteAchievements.Models.Settings
                 Achievement = Achievement,
                 GameSummaries = GameSummaries,
                 FriendSummaries = FriendSummaries,
-                CategorySummaries = CategorySummaries
+                CategorySummaries = CategorySummaries,
+                ManageAchievements = ManageAchievements
             };
         }
 
@@ -975,6 +1033,8 @@ namespace PlayniteAchievements.Models.Settings
             Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.ViewFriendsAchievements, () => new CategorySummaryGridOptions());
             Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.DesktopTheme, () => new CategorySummaryGridOptions());
 
+            Ensure(_manageAchievements, GridOptionKeys.ManageAchievements.Editor, () => new ManageAchievementsGridOptions());
+
             RefreshOptionSubscriptions();
         }
 
@@ -990,8 +1050,9 @@ namespace PlayniteAchievements.Models.Settings
             AttachOptionsAll(GameSummariesKindName, _gameSummaries);
             AttachOptionsAll(FriendSummariesKindName, _friendSummaries);
             AttachOptionsAll(CategorySummariesKindName, _categorySummaries);
+            AttachOptionsAll(ManageAchievementsKindName, _manageAchievements);
 
-            var liveCount = _achievement.Count + _gameSummaries.Count + _friendSummaries.Count + _categorySummaries.Count;
+            var liveCount = _achievement.Count + _gameSummaries.Count + _friendSummaries.Count + _categorySummaries.Count + _manageAchievements.Count;
             if (_optionSubscriptions.Count > liveCount)
             {
                 PruneStaleSubscriptions();
@@ -1044,6 +1105,7 @@ namespace PlayniteAchievements.Models.Settings
             foreach (var value in _gameSummaries.Values) { live.Add(value); }
             foreach (var value in _friendSummaries.Values) { live.Add(value); }
             foreach (var value in _categorySummaries.Values) { live.Add(value); }
+            foreach (var value in _manageAchievements.Values) { live.Add(value); }
 
             foreach (var stale in _optionSubscriptions.Keys.Where(key => !live.Contains(key)).ToList())
             {

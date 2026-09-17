@@ -75,7 +75,7 @@
             <!-- Centered header content would leave these sitting under the middle of the column;
                  the row toggles are at the right edge of their cell, so the header stretches and
                  puts its own toggle in the same place. -->
-            <Style x:Key="RevealColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource ManageAchievementsColumnHeaderStyle}">
+            <Style x:Key="RevealColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource ManageAchievementsColumnHeaderWithMenuStyle}">
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             </Style>
 
@@ -499,7 +499,7 @@
                       CanUserDeleteRows="False"
                       CanUserResizeRows="False"
                       CanUserResizeColumns="True"
-                      CanUserReorderColumns="False"
+                      CanUserReorderColumns="True"
                       CanUserSortColumns="False"
                       EnableRowVirtualization="True"
                       EnableColumnVirtualization="True"
@@ -508,10 +508,11 @@
                       ScrollViewer.CanContentScroll="True"
                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                      ColumnHeaderStyle="{StaticResource ManageAchievementsColumnHeaderStyle}"
+                      ColumnHeaderStyle="{StaticResource ManageAchievementsColumnHeaderWithMenuStyle}"
                       helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                       helpers:DataGridAlignmentBehavior.IsEnabled="True"
                       KeyboardNavigation.DirectionalNavigation="Continue"
+                      PreviewMouseRightButtonUp="CustomAchievementsGrid_PreviewMouseRightButtonUp"
                       Tag="ControllerCellFocus">
                 <DataGrid.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}" />
@@ -532,7 +533,8 @@
                     <!-- Row order is the achievement order, so the list is dragged directly.
                          Custom achievements take part like any other row, which is what lets an
                          authored one sit between two provider ones. -->
-                    <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False" IsReadOnly="True">
+                    <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False" CanUserReorder="False" IsReadOnly="True"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorOrder">
                         <DataGridTemplateColumn.CellStyle>
                             <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
                                 <Setter Property="Cursor" Value="SizeAll" />
@@ -599,33 +601,46 @@
                                             MinWidth="36"
                                             MaxWidth="36"
                                             CanUserResize="False"
+                                            CanUserReorder="False"
                                             IsReadOnly="True"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorStatus"
                                             CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
                                             CellTemplate="{StaticResource AchievementStatusTemplate}" />
 
                     <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Unlocked}"
                                             Width="78"
+                                            MinWidth="78"
+                                            MaxWidth="78"
+                                            CanUserResize="False"
+                                            CanUserReorder="False"
                                             SortMemberPath="Unlocked"
+                                            IsReadOnly="True"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorUnlocked"
+                                            helpers:EditorCellRouting.RoutesToSelection="True"
                                             CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <!-- Disabled on a provider row: unlock status is provider-owned, so
-                                     only an authored achievement defines its own. -->
-                                <CheckBox IsChecked="{Binding Unlocked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     only an authored achievement defines its own. Routed like the
+                                     facet columns, so ticking it means the same thing here as it
+                                     does on the details pane's own tick. -->
+                                <CheckBox IsChecked="{Binding UnlockedState, Mode=OneWay}"
                                           IsEnabled="{Binding CanEditUnlocked}"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
                                           Focusable="False"
-                                          IsTabStop="False" />
+                                          IsTabStop="False"
+                                          Click="RoutedCheckBox_Click"
+                                          helpers:EditorCellRouting.Field="UnlockedState" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
                     <DataGridTemplateColumn Width="58"
-                                            MinWidth="58"
-                                            MaxWidth="58"
-                                            CanUserResize="False"
-                                            CellStyle="{StaticResource ManageAchievementsIconCellStyle}">
+                                            MinWidth="44"
+                                            CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorIcon"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Icon}">
                         <!-- The column's own toggle, reaching every masked icon on screen at once
                              rather than one click per row. Shown only while something is maskable,
                              like the per-row toggles. -->
@@ -693,7 +708,11 @@
                          settings already reveal that facet carries no button at all. -->
                     <DataGridTemplateColumn Width="240"
                                             SortMemberPath="DisplayName"
-                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}">
+                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorName"
+                                            IsReadOnly="True"
+                                            helpers:EditorCellRouting.RoutesToSelection="True"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_AchievementName}">
                         <DataGridTemplateColumn.Header>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -736,10 +755,12 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBox Grid.Column="0"
-                                             Text="{Binding DisplayName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             Text="{Binding DisplayName, Mode=OneWay}"
                                              Style="{StaticResource GridEditorTextBoxStyle}"
                                              Visibility="{Binding IsTitleHidden, Converter={StaticResource InverseBoolToVis}}"
-                                             KeyDown="EditorTextBox_KeyDown" />
+                                             LostFocus="RoutedCellTextBox_Commit"
+                                             KeyDown="RoutedCellTextBox_KeyDown"
+                                             helpers:EditorCellRouting.Field="DisplayName" />
                                     <Border Grid.Column="0"
                                             Background="Transparent"
                                             HorizontalAlignment="Stretch"
@@ -770,11 +791,19 @@
                     </DataGridTemplateColumn>
 
                     <!-- Star-sized so the cells cover the full row width: a click beyond the last
-                         column lands on no cell and would not select the row. -->
+                         column lands on no cell and would not select the row. The star governs
+                         only the frame before the first normalization pass; from then on
+                         ColumnWidthNormalization plans the resizable columns to fill the viewport,
+                         and it picks the last visible resizable column as the absorber, so hiding
+                         this one still leaves the row covered. -->
                     <DataGridTemplateColumn Width="*"
                                             MinWidth="180"
                                             SortMemberPath="Description"
-                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}">
+                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorDescription"
+                                            IsReadOnly="True"
+                                            helpers:EditorCellRouting.RoutesToSelection="True"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Description}">
                         <DataGridTemplateColumn.Header>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -817,11 +846,13 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBox Grid.Column="0"
-                                             Text="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             Text="{Binding Description, Mode=OneWay}"
                                              Style="{StaticResource GridEditorTextBoxStyle}"
                                              Visibility="{Binding IsDescriptionHidden, Converter={StaticResource InverseBoolToVis}}"
                                              TextWrapping="Wrap"
-                                             AcceptsReturn="True" />
+                                             AcceptsReturn="True"
+                                             LostFocus="RoutedCellTextBox_Commit"
+                                             helpers:EditorCellRouting.Field="Description" />
                                     <Border Grid.Column="0"
                                             Background="Transparent"
                                             HorizontalAlignment="Stretch"
@@ -853,7 +884,11 @@
 
                     <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_UnlockTime}"
                                             Width="320"
-                                            SortMemberPath="UnlockTime">
+                                            SortMemberPath="UnlockTime"
+                                            MinWidth="120"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorUnlockTime"
+                                            helpers:EditorCellRouting.RoutesToSelection="True"
+                                            IsReadOnly="True">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Grid VerticalAlignment="Center"
@@ -864,12 +899,14 @@
                                     </Grid.ColumnDefinitions>
 
                                     <CheckBox Grid.Column="0"
-                                              IsChecked="{Binding HasUnlockTime, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsChecked="{Binding HasUnlockTime, Mode=OneWay}"
                                               IsEnabled="{Binding Unlocked}"
                                               HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
                                               Focusable="False"
-                                              IsTabStop="False" />
+                                              IsTabStop="False"
+                                              Click="RoutedCheckBox_Click"
+                                              helpers:EditorCellRouting.Field="HasUnlockTime" />
 
                                     <Grid Grid.Column="1"
                                           Margin="8,0,0,0"
@@ -883,11 +920,18 @@
                                                     HorizontalAlignment="Center"
                                                     VerticalAlignment="Center"
                                                     Visibility="{Binding CanEditUnlockTime, Converter={StaticResource BoolToVis}}">
-                                            <DatePicker SelectedDate="{Binding UnlockDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            <!-- One way with the pick applied in code, like the
+                                                 rest of the routed cells: a two-way binding here
+                                                 would write on the refresh a recycled container
+                                                 gets, not only on a pick. -->
+                                            <DatePicker SelectedDate="{Binding UnlockDate, Mode=OneWay}"
+                                                        SelectedDateChanged="UnlockDateCell_SelectedDateChanged"
                                                         Padding="4,2"
                                                         Margin="0,0,6,0" />
-                                            <TextBox Text="{Binding TimeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                                     KeyDown="EditorTextBox_KeyDown"
+                                            <TextBox Text="{Binding TimeText, Mode=OneWay}"
+                                                     LostFocus="RoutedCellTextBox_Commit"
+                                                     KeyDown="RoutedCellTextBox_KeyDown"
+                                                     helpers:EditorCellRouting.Field="TimeText"
                                                      Width="62"
                                                      VerticalContentAlignment="Center"
                                                      HorizontalContentAlignment="Center"
@@ -905,7 +949,8 @@
                                                 </TextBox.Style>
                                             </TextBox>
                                             <ComboBox ItemsSource="{Binding AvailableTimeModes}"
-                                                      SelectedItem="{Binding SelectedTimeModeText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      SelectedItem="{Binding SelectedTimeModeText, Mode=OneWay}"
+                                                      SelectionChanged="TimeModeCell_SelectionChanged"
                                                       Width="74"
                                                       VerticalContentAlignment="Center"
                                                       Padding="4,0"
@@ -917,6 +962,445 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
+
+                    <!-- The facet columns below carry the same editors as the details pane, so a
+                         facet can be read and changed down the list instead of one selection at a
+                         time. Each is IsReadOnly so the grid's own edit mode stays out of the way
+                         and the live control in the cell takes the click, and each routes its edit
+                         to the selection the way the pane does. All start hidden; the header's
+                         right-click menu is where they are turned on. -->
+
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Custom_Hidden}"
+                                            Width="64"
+                                            MinWidth="52"
+                                            IsReadOnly="True"
+                                            CanUserSort="False"
+                                            SortMemberPath="Hidden"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorHidden"
+                                            helpers:EditorCellRouting.RoutesToSelection="True"
+                                            CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding HiddenState, Mode=OneWay}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Focusable="False"
+                                          IsTabStop="False"
+                                          Click="RoutedCheckBox_Click"
+                                          helpers:EditorCellRouting.Field="HiddenState" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}"
+                                            Width="64"
+                                            MinWidth="52"
+                                            IsReadOnly="True"
+                                            CanUserSort="False"
+                                            SortMemberPath="IsGoal"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorGoal"
+                                            helpers:EditorCellRouting.RoutesToSelection="True"
+                                            CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsGoalState, Mode=OneWay}"
+                                          IsEnabled="{Binding CanEditAssignments}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Focusable="False"
+                                          IsTabStop="False"
+                                          Click="GoalCell_Click" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- The tick reports, the button acts: only the button can say whether acting
+                         adds a capstone or replaces the one the game already has, which is what
+                         its label carries. -->
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
+                                            Width="124"
+                                            MinWidth="96"
+                                            IsReadOnly="True"
+                                            CanUserSort="False"
+                                            SortMemberPath="IsCapstone"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorCapstone"
+                                            helpers:EditorCellRouting.RoutesToSelection="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <!-- IsEnabled on the wrapper ANDs the selection-wide rule with the
+                                     row's own, by inheritance, rather than through a converter. -->
+                                <Grid VerticalAlignment="Center"
+                                      Margin="4,0"
+                                      IsEnabled="{Binding DataContext.IsCapstoneEditableForSelection, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox Grid.Column="0"
+                                              IsChecked="{Binding IsCapstone, Mode=OneWay}"
+                                              IsHitTestVisible="False"
+                                              Focusable="False"
+                                              IsTabStop="False"
+                                              Opacity="{StaticResource PlayAch.Opacity.Secondary}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,6,0" />
+                                    <Button Grid.Column="1"
+                                            Content="{Binding CapstoneActionText}"
+                                            ToolTip="{Binding CapstoneActionToolTip}"
+                                            IsEnabled="{Binding CanEditCapstone}"
+                                            Click="CapstoneCell_Click"
+                                            Padding="8,1"
+                                            MinHeight="22"
+                                            VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Rarity}"
+                                            Width="150"
+                                            MinWidth="112"
+                                            IsReadOnly="True"
+                                            CanUserSort="False"
+                                            SortMemberPath="Rarity"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorRarity"
+                                            helpers:EditorCellRouting.RoutesToSelection="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid VerticalAlignment="Center" Margin="4,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Image Grid.Column="0"
+                                           Width="14"
+                                           Height="14"
+                                           Margin="0,0,4,0"
+                                           VerticalAlignment="Center"
+                                           ToolTip="{Binding RarityInput}">
+                                        <Image.Style>
+                                            <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Rarity}" Value="UltraRare">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Setter Property="Source" Value="{DynamicResource BadgeRarityUltraRare}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Rarity}" Value="Rare">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Setter Property="Source" Value="{DynamicResource BadgeRarityRare}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Rarity}" Value="Uncommon">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Setter Property="Source" Value="{DynamicResource BadgeRarityUncommon}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Rarity}" Value="Common">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Setter Property="Source" Value="{DynamicResource BadgeRarityCommon}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
+                                    <TextBox Grid.Column="1"
+                                             Text="{Binding RarityInput, Mode=OneWay}"
+                                             Style="{StaticResource GridEditorTextBoxStyle}"
+                                             IsEnabled="{Binding CanEditRarity}"
+                                             LostFocus="RoutedCellTextBox_Commit"
+                                             KeyDown="RoutedCellTextBox_KeyDown"
+                                             helpers:EditorCellRouting.Field="RarityInput" />
+                                    <!-- The placeholder keys off the bound value rather than the
+                                         box by name: an ElementName reference cannot resolve
+                                         inside a cell template. -->
+                                    <TextBlock Grid.Column="1"
+                                               Text="100%"
+                                               IsHitTestVisible="False"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Opacity="0.4">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RarityInput}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding RarityInput}" Value="">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <Button Grid.Column="2"
+                                            Content="&#x25BE;"
+                                            Style="{StaticResource DropdownButtonStyle}"
+                                            IsEnabled="{Binding CanEditRarity}"
+                                            Click="RarityMenuButton_Click" />
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- A button and a menu rather than a combo box: a recycled selector
+                         re-resolves its selection when its container is re-bound and can push that
+                         value back at the row, which for a column that writes the selection would
+                         file every selected achievement under a type nobody picked. -->
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Trophy}"
+                                            Width="118"
+                                            MinWidth="90"
+                                            IsReadOnly="True"
+                                            CanUserSort="False"
+                                            SortMemberPath="TrophyType"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorTrophy"
+                                            helpers:EditorCellRouting.RoutesToSelection="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <!-- The badge rather than the type's name, the way every other grid
+                                     shows a trophy. A row with no trophy type matches no trigger
+                                     and shows an empty button, which is what opens the menu to set
+                                     one.
+
+                                     Deliberately not AchievementSelectorButtonStyle, which the
+                                     Category, Type and Filter cells use: that template renders its
+                                     Content through a TextBlock's Text, so it can only show a
+                                     string and drops an image without complaint. The chevron below
+                                     is what that style would have drawn. -->
+                                <Button ToolTip="{Binding TrophyType}"
+                                        Click="TrophyCell_Click"
+                                        MinHeight="26"
+                                        Margin="4,0"
+                                        Padding="6,1"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Center"
+                                        HorizontalContentAlignment="Center">
+                                    <!-- Badge and chevron centre as a pair, so the badge reads as
+                                         centred in the cell the way the status glyphs do. -->
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center">
+                                        <Image Width="16"
+                                               Height="16"
+                                               VerticalAlignment="Center">
+                                            <Image.Style>
+                                                <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding TrophyType}" Value="platinum">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding TrophyType}" Value="gold">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Setter Property="Source" Value="{DynamicResource TrophyGold}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding TrophyType}" Value="silver">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Setter Property="Source" Value="{DynamicResource TrophySilver}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding TrophyType}" Value="bronze">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Setter Property="Source" Value="{DynamicResource TrophyBronze}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Image.Style>
+                                        </Image>
+                                        <TextBlock Text="&#x25BC;"
+                                                   FontSize="10"
+                                                   Opacity="0.85"
+                                                   VerticalAlignment="Center"
+                                                   Margin="4,0,0,0"
+                                                   Foreground="{DynamicResource PlayAch.Brush.Text}" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Points}"
+                                            Width="76"
+                                            MinWidth="56"
+                                            IsReadOnly="True"
+                                            CanUserSort="False"
+                                            SortMemberPath="PointsText"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorPoints"
+                                            helpers:EditorCellRouting.RoutesToSelection="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding PointsText, Mode=OneWay}"
+                                         Style="{StaticResource GridEditorTextBoxStyle}"
+                                         Margin="4,0"
+                                         VerticalAlignment="Center"
+                                         Tag="NonNegativeInt"
+                                         PreviewTextInput="NumericTextBox_PreviewTextInput"
+                                         DataObject.Pasting="NumericTextBox_Pasting"
+                                         LostFocus="RoutedCellTextBox_Commit"
+                                         KeyDown="RoutedCellTextBox_KeyDown"
+                                         helpers:EditorCellRouting.Field="PointsText" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Numerator and denominator in one column, as the pane has them. The slash
+                         is punctuation rather than text to translate. -->
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Progress}"
+                                            Width="124"
+                                            MinWidth="104"
+                                            IsReadOnly="True"
+                                            CanUserSort="False"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorProgress"
+                                            helpers:EditorCellRouting.RoutesToSelection="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid VerticalAlignment="Center" Margin="4,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding ProgressNumText, Mode=OneWay}"
+                                             Style="{StaticResource GridEditorTextBoxStyle}"
+                                             IsEnabled="{Binding CanEditProgress}"
+                                             Tag="NonNegativeInt"
+                                             PreviewTextInput="NumericTextBox_PreviewTextInput"
+                                             DataObject.Pasting="NumericTextBox_Pasting"
+                                             LostFocus="RoutedCellTextBox_Commit"
+                                             KeyDown="RoutedCellTextBox_KeyDown"
+                                             helpers:EditorCellRouting.Field="ProgressNumText" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="/"
+                                               Margin="4,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Opacity="{StaticResource PlayAch.Opacity.Secondary}" />
+                                    <TextBox Grid.Column="2"
+                                             Text="{Binding ProgressDenomText, Mode=OneWay}"
+                                             Style="{StaticResource GridEditorTextBoxStyle}"
+                                             IsEnabled="{Binding CanEditProgress}"
+                                             Tag="PositiveInt"
+                                             PreviewTextInput="NumericTextBox_PreviewTextInput"
+                                             DataObject.Pasting="NumericTextBox_Pasting"
+                                             LostFocus="RoutedCellTextBox_Commit"
+                                             KeyDown="RoutedCellTextBox_KeyDown"
+                                             helpers:EditorCellRouting.Field="ProgressDenomText" />
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- A button and a menu rather than the pane's picker control: the picker
+                         watches the shared category collection and is driven by single fields that
+                         cannot stand in for one cell per row. The menu is a superset of it, since
+                         clearing the category is offered here too. -->
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Label_Category}"
+                                            Width="168"
+                                            MinWidth="110"
+                                            IsReadOnly="True"
+                                            CanUserSort="False"
+                                            SortMemberPath="EffectiveCategoryLabel"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorCategory"
+                                            helpers:EditorCellRouting.RoutesToSelection="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding EffectiveCategoryLabel}"
+                                        ToolTip="{Binding EffectiveCategoryLabel}"
+                                        Style="{StaticResource AchievementSelectorButtonStyle}"
+                                        IsEnabled="{Binding CanEditAssignments}"
+                                        Click="CategoryCell_Click"
+                                        MinHeight="22"
+                                        Margin="4,0"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Label_Type}"
+                                            Width="144"
+                                            MinWidth="100"
+                                            IsReadOnly="True"
+                                            CanUserSort="False"
+                                            SortMemberPath="CategoryTypeDisplayText"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorType"
+                                            helpers:EditorCellRouting.RoutesToSelection="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding CategoryTypeDisplayText}"
+                                        ToolTip="{Binding CategoryTypeDisplayText}"
+                                        Style="{StaticResource AchievementSelectorButtonStyle}"
+                                        IsEnabled="{Binding CanEditAssignments}"
+                                        Click="TypeCell_Click"
+                                        MinHeight="22"
+                                        Margin="4,0"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Menu_Filters}"
+                                            Width="124"
+                                            MinWidth="90"
+                                            IsReadOnly="True"
+                                            CanUserSort="False"
+                                            SortMemberPath="FilterScope"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorFilter"
+                                            helpers:EditorCellRouting.RoutesToSelection="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding FilterScopeDisplayText}"
+                                        ToolTip="{Binding FilterScopeDisplayText}"
+                                        Style="{StaticResource AchievementSelectorButtonStyle}"
+                                        IsEnabled="{Binding CanEditAssignments}"
+                                        Click="FilterCell_Click"
+                                        MinHeight="22"
+                                        Margin="4,0"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManageAchievements_Notes_Note}"
+                                            Width="210"
+                                            MinWidth="120"
+                                            IsReadOnly="True"
+                                            CanUserSort="False"
+                                            SortMemberPath="HasAchievementNote"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorNote"
+                                            helpers:EditorCellRouting.RoutesToSelection="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid VerticalAlignment="Center" Margin="4,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Single line, unlike the pane's wrapped preview: the row is
+                                         34px and the full note is on the tooltip. -->
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding NotePreview}"
+                                               ToolTip="{Binding AchievementNote}"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center"
+                                               Opacity="0.8"
+                                               Foreground="{DynamicResource TextBrush}" />
+                                    <Button Grid.Column="1"
+                                            Content="{DynamicResource LOCPlayAch_Common_Edit}"
+                                            IsEnabled="{Binding CanEditAssignments}"
+                                            Click="NoteCell_Click"
+                                            Padding="8,1"
+                                            MinHeight="22"
+                                            Margin="6,0,0,0"
+                                            VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
 

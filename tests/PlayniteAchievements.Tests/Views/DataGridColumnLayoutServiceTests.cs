@@ -370,6 +370,218 @@ namespace PlayniteAchievements.Tests.Views
             });
         }
 
+        [TestMethod]
+        public void PinnedColumns_StayLeadingAgainstHostilePersistedOrder()
+        {
+            RunOnStaThread(() =>
+            {
+                // A map that puts a customizable column first and names two columns that no longer
+                // exist: what a layout saved by an older build looks like.
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["C"] = 0,
+                    ["Gone"] = 1,
+                    ["AlsoGone"] = 2
+                };
+
+                var grid = CreateGridWithPinnedColumns();
+                var service = CreateService(grid, order, () => { });
+                service.PinnedLeadingKeys = new List<string> { "P0", "P1" };
+
+                service.Attach();
+
+                Assert.AreEqual(0, ColumnByKey(grid, "P0").DisplayIndex);
+                Assert.AreEqual(1, ColumnByKey(grid, "P1").DisplayIndex);
+                Assert.IsTrue(
+                    ColumnByKey(grid, "C").DisplayIndex >= 2,
+                    "A saved index of 0 must not pull a customizable column ahead of the pinned block.");
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void PinnedColumns_ClampAfterReorderAndPersistTheClampedLayout()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGridWithPinnedColumns();
+                var service = CreateService(grid, order, () => { });
+                service.PinnedLeadingKeys = new List<string> { "P0", "P1" };
+                service.Attach();
+
+                // What a drop to the left of the pinned block leaves behind.
+                ColumnByKey(grid, "C").DisplayIndex = 0;
+
+                InvokeColumnReordered(service, grid);
+                DrainDispatcher();
+
+                Assert.AreEqual(0, ColumnByKey(grid, "P0").DisplayIndex);
+                Assert.AreEqual(1, ColumnByKey(grid, "P1").DisplayIndex);
+
+                // The stored map must describe what the grid is showing, never the dropped state.
+                if (order.TryGetValue("P0", out var savedPinned))
+                {
+                    Assert.AreEqual(0, savedPinned);
+                }
+
+                if (order.TryGetValue("C", out var savedMoved))
+                {
+                    Assert.AreEqual(
+                        ColumnByKey(grid, "C").DisplayIndex,
+                        savedMoved,
+                        "The persisted index must match the clamped display index.");
+                }
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void PinnedColumns_AreExcludedFromTheVisibilityMenu()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGridWithPinnedColumns();
+                var service = CreateService(grid, order, () => { });
+                service.PinnedLeadingKeys = new List<string> { "P0", "P1" };
+                service.ExcludedVisibilityKeys.Add("P0");
+                service.ExcludedVisibilityKeys.Add("P1");
+                service.Attach();
+
+                var menu = service.BuildColumnVisibilityMenu(ColumnByKey(grid, "C"));
+
+                Assert.IsNotNull(menu);
+                var headers = new List<string>();
+                foreach (var item in menu.Items)
+                {
+                    if (item is MenuItem menuItem && menuItem.IsCheckable)
+                    {
+                        headers.Add(menuItem.Header as string);
+                    }
+                }
+
+                CollectionAssert.DoesNotContain(headers, "P0");
+                CollectionAssert.DoesNotContain(headers, "P1");
+                CollectionAssert.Contains(headers, "C");
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void EmptyOrderMap_ClampsPinnedColumnsWithoutPersisting()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var saveCount = 0;
+                var grid = CreateGridWithPinnedColumns();
+
+                // Declared out of order, so the clamp has something to do on a fresh install.
+                ColumnByKey(grid, "P1").DisplayIndex = 3;
+
+                var service = CreateService(grid, order, () => saveCount++);
+                service.PinnedLeadingKeys = new List<string> { "P0", "P1" };
+
+                service.Attach();
+                DrainDispatcher();
+
+                Assert.AreEqual(0, ColumnByKey(grid, "P0").DisplayIndex);
+                Assert.AreEqual(1, ColumnByKey(grid, "P1").DisplayIndex);
+                Assert.AreEqual(0, order.Count, "Applying a layout is not a user edit and must not persist one.");
+                Assert.AreEqual(0, saveCount);
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void ResolveColumnDisplayName_PrefersTheDeclaredNameOverAControlHeader()
+        {
+            RunOnStaThread(() =>
+            {
+                var column = new DataGridTextColumn { Header = new Grid() };
+                ColumnVisibilityHelper.SetColumnKey(column, "EditorName");
+                ColumnVisibilityHelper.SetColumnDisplayName(column, "Achievement Name");
+
+                var resolved = InvokeStaticPrivate<string>(
+                    typeof(DataGridColumnLayoutService),
+                    "ResolveColumnDisplayName",
+                    column);
+
+                Assert.AreEqual("Achievement Name", resolved);
+            });
+        }
+
+        [TestMethod]
+        public void ResolveColumnDisplayName_FallsBackToTheHeaderWhenNoNameIsDeclared()
+        {
+            RunOnStaThread(() =>
+            {
+                var column = new DataGridTextColumn { Header = "Points" };
+                ColumnVisibilityHelper.SetColumnKey(column, "EditorPoints");
+
+                var resolved = InvokeStaticPrivate<string>(
+                    typeof(DataGridColumnLayoutService),
+                    "ResolveColumnDisplayName",
+                    column);
+
+                Assert.AreEqual("Points", resolved);
+            });
+        }
+
+        /// <summary>
+        /// Two pinned columns ahead of three customizable ones, shaped like the achievement editor:
+        /// the pinned pair is fixed width and undraggable, the rest resize and reorder.
+        /// </summary>
+        private static DataGrid CreateGridWithPinnedColumns()
+        {
+            var grid = new DataGrid();
+            grid.Columns.Add(CreatePinnedColumn("P0"));
+            grid.Columns.Add(CreatePinnedColumn("P1"));
+            grid.Columns.Add(CreateColumn("A"));
+            grid.Columns.Add(CreateColumn("B"));
+            grid.Columns.Add(CreateColumn("C"));
+            return grid;
+        }
+
+        private static DataGridColumn CreatePinnedColumn(string key)
+        {
+            var column = new DataGridTextColumn
+            {
+                Header = key,
+                CanUserResize = false,
+                CanUserReorder = false,
+                Width = new DataGridLength(40, DataGridLengthUnitType.Pixel)
+            };
+            ColumnVisibilityHelper.SetColumnKey(column, key);
+            return column;
+        }
+
+        private static DataGridColumn ColumnByKey(DataGrid grid, string key)
+        {
+            foreach (var column in grid.Columns)
+            {
+                if (string.Equals(ColumnVisibilityHelper.GetColumnKey(column), key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return column;
+                }
+            }
+
+            Assert.Fail($"No column with key {key}.");
+            return null;
+        }
+
+        private static T InvokeStaticPrivate<T>(Type type, string methodName, params object[] args)
+        {
+            var method = type.GetMethod(methodName, BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.IsNotNull(method);
+            return (T)method.Invoke(null, args);
+        }
+
         private static DataGridColumnLayoutService CreateService(
             DataGrid grid,
             Dictionary<string, int> order,

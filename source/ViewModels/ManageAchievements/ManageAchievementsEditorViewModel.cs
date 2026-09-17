@@ -222,6 +222,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>Raised after the game's manual capstone was changed from this tab.</summary>
         public event EventHandler<CapstoneChangedEventArgs> CapstoneChanged;
 
+        /// <summary>
+        /// The plugin settings this tab was built against, for the view's own persisted state
+        /// (the grid's column layout) rather than anything the rows carry.
+        /// </summary>
+        internal PlayniteAchievementsSettings Settings => _settings;
+
         public ObservableCollection<AchievementEditorRow> AchievementRows { get; }
 
         /// <summary>Every category the Category tab shows, in tree order, for the details picker.</summary>
@@ -545,6 +551,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     OnPropertyChanged(nameof(HasSelection));
                     OnPropertyChanged(nameof(HasEditTarget));
                     OnPropertyChanged(nameof(EditTarget));
+                    OnPropertyChanged(nameof(IsCapstoneEditableForSelection));
                     SyncTypeOptionsToEditTarget();
                     RaiseCommandStates();
                 }
@@ -577,6 +584,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// are selected.
         /// </summary>
         public AchievementEditorRow EditTarget => IsBulkEditing ? BulkRow : SelectedRow;
+
+        /// <summary>
+        /// Whether this row is one of the rows an edit would currently apply to. A cell asks
+        /// before routing its edit to <see cref="EditTarget"/>, because a control can keep focus
+        /// after its own row has dropped out of the selection.
+        /// </summary>
+        public bool IsRowInSelection(AchievementEditorRow row)
+        {
+            return row != null && (_selectedRows.Contains(row) || ReferenceEquals(row, SelectedRow));
+        }
+
+        /// <summary>
+        /// Whether a capstone edit would be accepted for the current selection.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="SetCapstoneForSelection"/> refuses a selection that spans categories, since
+        /// one capstone cannot stand for several. A cell's button reads this so the refusal shows
+        /// as a disabled control rather than a click that silently does nothing.
+        /// </remarks>
+        public bool IsCapstoneEditableForSelection => EditTarget?.CanEditCapstone == true;
 
         /// <summary>
         /// A stand-in row the details pane binds to while several achievements are selected. Fields
@@ -648,6 +675,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(BulkEditHeader));
             OnPropertyChanged(nameof(EditTarget));
             OnPropertyChanged(nameof(HasEditTarget));
+            OnPropertyChanged(nameof(IsCapstoneEditableForSelection));
         }
 
         /// <summary>
@@ -5507,6 +5535,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _isFiltered, value))
                 {
                     OnPropertyChanged(nameof(FilterScope));
+                    OnPropertyChanged(nameof(FilterScopeDisplayText));
                 }
             }
         }
@@ -5520,6 +5549,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     OnPropertyChanged(nameof(IsFilteredFromSummaries));
                     OnPropertyChanged(nameof(FilterScope));
+                    OnPropertyChanged(nameof(FilterScopeDisplayText));
                 }
             }
         }
@@ -5574,6 +5604,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 OnPropertyChanged(nameof(IsSummaryFiltered));
             OnPropertyChanged(nameof(IsFilteredFromSummaries));
                 OnPropertyChanged(nameof(FilterScope));
+                OnPropertyChanged(nameof(FilterScopeDisplayText));
+            }
+        }
+
+        /// <summary>
+        /// The scope's name, for the Filter column's button face. Uses the same strings the
+        /// details pane's list offers, and is blank for the proxy's mixed state, which stands for
+        /// disagreement rather than for a scope.
+        /// </summary>
+        public string FilterScopeDisplayText
+        {
+            get
+            {
+                switch (FilterScope)
+                {
+                    case AchievementFilterScope.All:
+                        return ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Filters_FilterOut");
+                    case AchievementFilterScope.Summary:
+                        return ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries");
+                    case AchievementFilterScope.None:
+                        return ResourceProvider.GetString("LOCPlayAch_Common_None");
+                    default:
+                        return string.Empty;
+                }
             }
         }
 
@@ -5822,6 +5876,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(IsSummaryFiltered));
             OnPropertyChanged(nameof(IsFilteredFromSummaries));
             OnPropertyChanged(nameof(FilterScope));
+            OnPropertyChanged(nameof(FilterScopeDisplayText));
         }
 
         /// <summary>
