@@ -1439,6 +1439,28 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
+        // Whether two paths name the same file on disk, compared as full paths so a differing but
+        // equivalent spelling does not read as two files.
+        private static bool IsSameFilePath(string first, string second)
+        {
+            if (string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(second))
+            {
+                return false;
+            }
+
+            try
+            {
+                return string.Equals(
+                    Path.GetFullPath(first),
+                    Path.GetFullPath(second),
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return string.Equals(first.Trim(), second.Trim(), StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
         private static bool IsPathWithinDirectory(string candidatePath, string directoryPath)
         {
             if (string.IsNullOrWhiteSpace(candidatePath) || string.IsNullOrWhiteSpace(directoryPath))
@@ -1588,6 +1610,19 @@ namespace PlayniteAchievements.Services.Images
 
             var preserveOriginalFormat = ShouldPreserveOriginalFormat(decodeSize);
             var resolvedTargetPath = ResolveTargetPathForSource(targetPath, localPath, decodeSize);
+
+            // The source can already BE the target. The resolved target takes the source's
+            // extension, so a value that was materialized here before resolves back onto itself
+            // whenever the canonical extension differs from the stored one -- a .jpg custom icon
+            // against a canonical .png target. File.Copy refuses a self-copy, and with
+            // overwriteExistingTarget set both early returns below are skipped, so re-applying an
+            // icon threw and the caller took the resulting null for "no icon", dropping the very
+            // art it was re-applying.
+            if (IsSameFilePath(localPath, resolvedTargetPath))
+            {
+                return resolvedTargetPath;
+            }
+
             EnsureTargetDirectory(resolvedTargetPath);
 
             var pathLock = await AcquirePathWriteLockAsync(targetPath, cancel).ConfigureAwait(false);
