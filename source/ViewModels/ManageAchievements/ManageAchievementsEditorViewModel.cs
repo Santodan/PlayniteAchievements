@@ -417,9 +417,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            MarkUndoIntent(
-                EditorEditIntent.FieldEdit(ResolveFieldGesture(propertyName), "LOCPlayAch_Common_Edit"));
-            _undoJournal.RecordRowValue(row.OriginalApiName, propertyName, oldValue, newValue);
+            var intent = EditorEditIntent.FieldEdit(ResolveFieldGesture(propertyName), "LOCPlayAch_Common_Edit");
+            MarkUndoIntent(intent);
+            _undoJournal.RecordRowValue(row.OriginalApiName, propertyName, oldValue, newValue, intent);
         }
 
         private void GameCustomDataStore_CustomDataWritten(object sender, GameCustomDataWrittenEventArgs e)
