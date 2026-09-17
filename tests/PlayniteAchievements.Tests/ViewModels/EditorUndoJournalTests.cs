@@ -324,6 +324,111 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "The names are what reselects the rows after an undo, without holding them.");
         }
 
+        [TestMethod]
+        public void AFieldEdit_IsHeldAsTheFieldRatherThanTheRecord()
+        {
+            var journal = new EditorUndoJournal();
+
+            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.RecordRowValue("one", "PointsText", "10", "20");
+            journal.CommitOpenStep();
+
+            var entry = journal.Undo();
+
+            Assert.IsTrue(
+                entry.IsRowValueStep,
+                "Reversing the field is an edit; restoring the record it lives in is not.");
+            var change = entry.RowValues.Single();
+            Assert.AreEqual("one", change.ApiName);
+            Assert.AreEqual("PointsText", change.PropertyName);
+            Assert.AreEqual("10", change.OldValue);
+            Assert.AreEqual("20", change.NewValue);
+        }
+
+        [TestMethod]
+        public void AFieldWrittenRepeatedly_ReversesToWhereTheGestureStarted()
+        {
+            var journal = new EditorUndoJournal();
+            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+
+            // One gesture can write the same field more than once - a commit that raises several
+            // changes, or a save that re-runs.
+            journal.RecordRowValue("one", "PointsText", "10", "20");
+            journal.RecordRowValue("one", "PointsText", "20", "30");
+            journal.CommitOpenStep();
+
+            var change = journal.Undo().RowValues.Single();
+
+            Assert.AreEqual("10", change.OldValue, "The value it started at is what undo restores.");
+            Assert.AreEqual("30", change.NewValue, "The value it ended at is what redo restores.");
+        }
+
+        [TestMethod]
+        public void AFanOutFieldEdit_HoldsOneChangePerRow()
+        {
+            var journal = new EditorUndoJournal();
+            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+
+            journal.RecordRowValue("one", "PointsText", "1", "50");
+            journal.RecordRowValue("two", "PointsText", "2", "50");
+            journal.RecordRowValue("three", "PointsText", "3", "50");
+            journal.CommitOpenStep();
+
+            var entry = journal.Undo();
+
+            Assert.AreEqual(3, entry.RowValues.Count, "One press reverses every row the edit touched.");
+            Assert.IsFalse(journal.CanUndo);
+            CollectionAssert.AreEquivalent(
+                new[] { "1", "2", "3" },
+                entry.RowValues.Select(change => change.OldValue).ToArray());
+        }
+
+        [TestMethod]
+        public void AFieldPutBackWithinOneGesture_IsNotAStep()
+        {
+            var journal = new EditorUndoJournal();
+            journal.Record(Order("a"), Order("a"), true, true, PointsEdit);
+
+            journal.RecordRowValue("one", "PointsText", "10", "20");
+            journal.RecordRowValue("one", "PointsText", "20", "10");
+            journal.CommitOpenStep();
+
+            Assert.IsFalse(journal.CanUndo, "It ended where it started, so nothing moved.");
+        }
+
+        [TestMethod]
+        public void AFieldChange_IsOnlyRecordedForAFieldEdit()
+        {
+            var journal = new EditorUndoJournal();
+
+            // A reset rewrites several whole records at once, so a single field is not the unit
+            // it can be reversed at.
+            journal.Record(Order("a"), Order("b"), true, true, ResetAll);
+            journal.RecordRowValue("one", "PointsText", "10", "20");
+            journal.CommitOpenStep();
+
+            var entry = journal.Undo();
+
+            Assert.IsFalse(entry.IsRowValueStep);
+            Assert.AreEqual(1, entry.Facets.Count);
+        }
+
+        [TestMethod]
+        public void AFieldEditStep_StillHoldsNoRowsAndNoDelegates()
+        {
+            var journal = new EditorUndoJournal();
+            journal.Record(Order("a"), Order("b"), true, true, PointsEdit, new[] { "one" });
+            journal.RecordRowValue("one", "DisplayName", "before", "after");
+            journal.CommitOpenStep();
+
+            var entry = journal.Undo();
+
+            var offenders = new List<string>();
+            WalkForOffenders(entry, new HashSet<object>(ReferenceEqualityComparer.Instance), offenders, depth: 0);
+
+            Assert.AreEqual(0, offenders.Count, "A step must hold only plain data: " + string.Join(", ", offenders));
+        }
+
         private static GameCustomDataFile Order(params string[] apiNames)
         {
             return new GameCustomDataFile { AchievementOrder = new List<string>(apiNames) };
