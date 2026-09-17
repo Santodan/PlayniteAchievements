@@ -386,6 +386,44 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// category, type, goal, filter, capstone - are written as whole lists rebuilt from every
         /// row, so a single field is not the unit there and they are reversed from the record.
         /// </remarks>
+        /// <summary>
+        /// The row properties a change to which is actually stored.
+        /// </summary>
+        /// <remarks>
+        /// A gesture is only named for these. An edit also raises derived properties - whether the
+        /// row has changes, what its customization markers are - and naming a gesture after one of
+        /// those closed the real step and opened a second under a name nothing meant, which the
+        /// write that followed then landed in. One edit became two undo steps, the second of them
+        /// record-shaped and slow.
+        /// </remarks>
+        private static readonly HashSet<string> PersistedRowProperties =
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                nameof(AchievementEditorRow.DisplayName),
+                nameof(AchievementEditorRow.Description),
+                nameof(AchievementEditorRow.PointsText),
+                nameof(AchievementEditorRow.TrophyType),
+                nameof(AchievementEditorRow.Hidden),
+                nameof(AchievementEditorRow.AchievementNote),
+                nameof(AchievementEditorRow.RarityInput),
+                nameof(AchievementEditorRow.ProgressNumText),
+                nameof(AchievementEditorRow.ProgressDenomText),
+                nameof(AchievementEditorRow.UnlockedIconPath),
+                nameof(AchievementEditorRow.LockedIconPath),
+                nameof(AchievementEditorRow.Unlocked),
+                nameof(AchievementEditorRow.UnlockTime),
+                nameof(AchievementEditorRow.HasUnlockTime),
+                nameof(AchievementEditorRow.UnlockDate),
+                nameof(AchievementEditorRow.TimeText),
+                nameof(AchievementEditorRow.SelectedTimeModeText),
+                nameof(AchievementEditorRow.CategoryLabel),
+                nameof(AchievementEditorRow.CategoryTypeValue),
+                nameof(AchievementEditorRow.IsCapstone),
+                nameof(AchievementEditorRow.IsGoal),
+                nameof(AchievementEditorRow.IsFiltered),
+                nameof(AchievementEditorRow.IsSummaryFiltered)
+            };
+
         private static readonly IReadOnlyDictionary<string, PropertyInfo> UndoableRowFields =
             new[]
             {
@@ -764,10 +802,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             RaiseHistoryState();
 
-            if (entry.AffectedApiNames.Count > 0)
-            {
-                RestoreSelectionRequested?.Invoke(this, entry.AffectedApiNames.ToList());
-            }
+            // Deliberately no reselection. The rows never moved - only values on them changed -
+            // so re-applying the selection would only make the highlight flicker on a row that
+            // was already selected.
         }
 
         private void RaiseHistoryState()
@@ -3687,10 +3724,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            // Past the guards that return without writing, so the gesture is named only for a
-            // change that will actually reach the store. A field edit already open under the
-            // same property keeps its step, which is what makes a fan-out one entry.
-            MarkUndoIntent(EditorEditIntent.FieldEdit(ResolveFieldGesture(e.PropertyName), "LOCPlayAch_Common_Edit"));
+            // Only for a property that is actually stored. An edit also raises derived ones, and
+            // naming a gesture after those closed the real step and opened another that the
+            // write which followed landed in.
+            if (PersistedRowProperties.Contains(e.PropertyName ?? string.Empty))
+            {
+                MarkUndoIntent(
+                    EditorEditIntent.FieldEdit(ResolveFieldGesture(e.PropertyName), "LOCPlayAch_Common_Edit"));
+            }
 
             if (e.PropertyName == nameof(AchievementEditorRow.IsCapstone))
             {
