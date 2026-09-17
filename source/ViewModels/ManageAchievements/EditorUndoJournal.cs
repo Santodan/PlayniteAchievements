@@ -79,6 +79,42 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     }
 
     /// <summary>
+    /// One field on one achievement, and what it held on each side of a change.
+    /// </summary>
+    /// <remarks>
+    /// The grain a field edit actually has. Reversing one is setting the property back through the
+    /// same setter the edit used, which makes the undo an edit - the same cost, the same write
+    /// path, and no way for it to disturb a field it never recorded.
+    ///
+    /// The values are whatever the row held: a string, a number, a bool, a date. Nothing here
+    /// refers to a row or a view model, so a history still holds only data.
+    /// </remarks>
+    public sealed class EditorRowValueChange
+    {
+        public EditorRowValueChange(string apiName, string propertyName, object oldValue, object newValue)
+        {
+            ApiName = apiName;
+            PropertyName = propertyName;
+            OldValue = oldValue;
+            NewValue = newValue;
+        }
+
+        public string ApiName { get; }
+
+        public string PropertyName { get; }
+
+        public object OldValue { get; }
+
+        /// <summary>What the field became, for redo.</summary>
+        public object NewValue { get; }
+
+        internal EditorRowValueChange WithNewValue(object newValue)
+        {
+            return new EditorRowValueChange(ApiName, PropertyName, OldValue, newValue);
+        }
+    }
+
+    /// <summary>
     /// One undoable step: the facets a gesture moved, and the flags to report when it is reversed.
     /// </summary>
     /// <remarks>
@@ -94,14 +130,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             IReadOnlyList<GameCustomDataFacetPatch> facets,
             bool affectsSummaryData,
             bool affectsOverrideMirror,
-            IReadOnlyList<string> affectedApiNames)
+            IReadOnlyList<string> affectedApiNames,
+            IReadOnlyList<EditorRowValueChange> rowValues = null)
         {
             LabelKey = labelKey;
             Facets = facets ?? new List<GameCustomDataFacetPatch>();
             AffectsSummaryData = affectsSummaryData;
             AffectsOverrideMirror = affectsOverrideMirror;
             AffectedApiNames = affectedApiNames ?? new List<string>();
+            RowValues = rowValues ?? new List<EditorRowValueChange>();
         }
+
+        /// <summary>
+        /// The fields this step changed, when it was a field edit. Reversed by setting each one
+        /// back, rather than by restoring a whole stored record and reloading the grid.
+        /// </summary>
+        public IReadOnlyList<EditorRowValueChange> RowValues { get; }
+
+        /// <summary>Whether this step is reversed field by field rather than record by record.</summary>
+        public bool IsRowValueStep => RowValues.Count > 0;
 
         /// <summary>The localization key naming the gesture, for the undo button's tooltip.</summary>
         public string LabelKey { get; }
@@ -123,10 +170,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public IReadOnlyList<string> AffectedApiNames { get; }
 
-        public int ElementCount => Facets.Sum(patch => patch.ElementCount);
+        public int ElementCount => Facets.Sum(patch => patch.ElementCount) + RowValues.Count;
 
         /// <summary>The facets this step would rewrite, for deciding whether a foreign write invalidates it.</summary>
-        internal IEnumerable<GameCustomDataFacet> TouchedFacets => Facets.Select(patch => patch.Facet);
+        internal IEnumerable<GameCustomDataFacet> TouchedFacets =>
+            IsRowValueStep
+                // A field edit lands in the per-achievement record, so a write from elsewhere that
+                // moves it puts this step in doubt just the same.
+                ? new[] { GameCustomDataFacet.AchievementOverrides }
+                : Facets.Select(patch => patch.Facet);
     }
 
     /// <summary>
@@ -162,6 +214,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private readonly List<EditorUndoEntry> _undo = new List<EditorUndoEntry>();
         private readonly List<EditorUndoEntry> _redo = new List<EditorUndoEntry>();
+
+        /// <summary>
+        /// The fields changed in the open step, keyed by achievement and property so the earliest
+        /// value each one held survives a gesture that writes it more than once.
+        /// </summary>
+        private readonly Dictionary<string, EditorRowValueChange> _openRowValues =
+            new Dictionary<string, EditorRowValueChange>(StringComparer.OrdinalIgnoreCase);
 
         private EditorEditIntent _openIntent;
         private GameCustomDataFile _openBefore;
@@ -262,6 +321,33 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
+        /// Records one field's change against the open step.
+        /// </summary>
+        /// <remarks>
+        /// Only for a field edit. The other gestures rewrite whole stored records - a reset clears
+        /// several at once, a reorder rewrites a list - and are reversed from those records
+        /// instead.
+        ///
+        /// The first value a field held in the step is the one kept, so a gesture that writes the
+        /// same field repeatedly still reverses to where it started.
+        /// </remarks>
+        public void RecordRowValue(string apiName, string propertyName, object oldValue, object newValue)
+        {
+            if (_openIntent == null ||
+                _openIntent.Kind != EditorEditKind.FieldEdit ||
+                string.IsNullOrWhiteSpace(apiName) ||
+                string.IsNullOrWhiteSpace(propertyName))
+            {
+                return;
+            }
+
+            var key = apiName + " " + propertyName;
+            _openRowValues[key] = _openRowValues.TryGetValue(key, out var existing)
+                ? existing.WithNewValue(newValue)
+                : new EditorRowValueChange(apiName, propertyName, oldValue, newValue);
+        }
+
+        /// <summary>
         /// Closes the step being collected and puts it on the history. Called when the writes stop
         /// arriving, and before an undo or redo so the step just made is on the stack.
         /// </summary>
@@ -278,16 +364,27 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var mirror = _openAffectsOverrideMirror;
             var apiNames = new List<string>(_openApiNames);
 
+            // A field edit is held as the fields it moved. Reversing those is an edit, where
+            // restoring the record they live in and reloading is not, and costs the same whether
+            // one achievement changed or the whole game.
+            var rowValues = _openRowValues.Count > 0
+                ? _openRowValues.Values
+                    .Where(change => !Equals(change.OldValue, change.NewValue))
+                    .ToList()
+                : new List<EditorRowValueChange>();
+
             ClearOpenStep();
 
             // A gesture that ended where it started is not a step. Typing a value and typing it
             // back is the ordinary way this happens.
-            if (facets.Count == 0)
+            if (rowValues.Count == 0 && facets.Count == 0)
             {
                 return;
             }
 
-            _undo.Add(new EditorUndoEntry(labelKey, facets, summary, mirror, apiNames));
+            _undo.Add(rowValues.Count > 0
+                ? new EditorUndoEntry(labelKey, null, summary, mirror, apiNames, rowValues)
+                : new EditorUndoEntry(labelKey, facets, summary, mirror, apiNames));
 
             // A new step makes the forward history unreachable, as it does in any editor.
             _redo.Clear();
@@ -376,6 +473,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _openAffectsSummaryData = false;
             _openAffectsOverrideMirror = false;
             _openApiNames.Clear();
+            _openRowValues.Clear();
         }
 
         /// <summary>
