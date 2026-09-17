@@ -129,7 +129,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     target is AchievementEditorRow targetRow &&
                     ViewModel?.MoveItemsByApiName(apiNames, targetRow.OriginalApiName, insertAfter) == true,
                 MoveItemsToEnd = apiNames => ViewModel?.MoveItemsToEndByApiName(apiNames) == true,
-                RestoreSelection = RestoreSelectionByApiNames
+                RestoreSelection = RestoreSelectionByApiNames,
+                RowPressOutsideDragHandle = NormalizeSelectionForRoutedCell
             });
 
             AttachColumnPersistence();
@@ -1072,6 +1073,59 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 Header = ResourceProvider.GetString("LOCPlayAch_Menu_Filters"),
                 IsEnabled = selection.All(row => row.CanEditAssignments)
             };
+            AppendFilterScopeItems(filterMenu.Items, selection);
+            menu.Items.Add(filterMenu);
+
+            // Category and type, the same two the Category tab's row menu offers.
+            var categoryMenu = new MenuItem
+            {
+                Header = ResourceProvider.GetString("LOCPlayAch_Common_Label_Category"),
+                IsEnabled = selection.All(row => row.CanEditAssignments)
+            };
+
+            AppendCategoryItems(categoryMenu.Items, selection);
+            menu.Items.Add(categoryMenu);
+
+            var typeMenu = new MenuItem
+            {
+                Header = ResourceProvider.GetString("LOCPlayAch_Common_Label_Type"),
+                IsEnabled = selection.All(row => row.CanEditAssignments)
+            };
+            AppendCategoryTypeItems(typeMenu.Items, selection);
+            menu.Items.Add(typeMenu);
+
+            menu.Items.Add(CreateMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Notes_Note"),
+                () => EditNoteForSelectedRow(),
+                selection.Count == 1 && selection[0].CanEditAssignments));
+
+            menu.Items.Add(new Separator());
+
+            menu.Items.Add(CreateCommandMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_Common_Duplicate"),
+                viewModel.DuplicateCommand));
+            menu.Items.Add(CreateCommandMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Editor_Revert"),
+                viewModel.RevertCommand));
+            menu.Items.Add(CreateCommandMenuItem(
+                ResourceProvider.GetString("LOCPlayAch_Button_Delete"),
+                viewModel.DeleteCommand));
+
+            return menu;
+        }
+
+        /// <summary>
+        /// The filter-scope choices for a selection. Shared by the row menu and the Filter
+        /// column's cell menu so both offer the same scopes and apply them the same way.
+        /// </summary>
+        private void AppendFilterScopeItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
+        {
+            var viewModel = ViewModel;
+            if (items == null || viewModel == null || selection == null)
+            {
+                return;
+            }
+
             foreach (var option in viewModel.FilterScopeOptions)
             {
                 var scope = option.Value;
@@ -1082,24 +1136,28 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     IsChecked = selection.All(row => row.FilterScope == scope)
                 };
                 scopeItem.Click += (_, __) => viewModel.SetFilterScopeForSelection(scope);
-                filterMenu.Items.Add(scopeItem);
+                items.Add(scopeItem);
             }
+        }
 
-            menu.Items.Add(filterMenu);
-
-            // Category and type, the same two the Category tab's row menu offers.
-            var categoryMenu = new MenuItem
+        /// <summary>
+        /// The category choices for a selection, with creating one above the list and clearing
+        /// below it. Shared by the row menu and the Category column's cell menu.
+        /// </summary>
+        private void AppendCategoryItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
+        {
+            var viewModel = ViewModel;
+            if (items == null || viewModel == null || selection == null)
             {
-                Header = ResourceProvider.GetString("LOCPlayAch_Common_Label_Category"),
-                IsEnabled = selection.All(row => row.CanEditAssignments)
-            };
+                return;
+            }
 
             // Creating one sits above the categories that exist, the same place the picker offers
             // it, so the gesture is in reach without going to the Categories tab.
-            categoryMenu.Items.Add(CreateMenuItem(
+            items.Add(CreateMenuItem(
                 ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Category_NewCategoryEllipsis"),
                 PromptAndCreateCategory));
-            categoryMenu.Items.Add(new Separator());
+            items.Add(new Separator());
 
             foreach (var option in viewModel.AssignableCategoryPickerOptions.Where(option => option.IsSelectable))
             {
@@ -1118,24 +1176,31 @@ namespace PlayniteAchievements.Views.ManageAchievements
                         string.Equals(row.EffectiveCategoryLabel, label, StringComparison.OrdinalIgnoreCase))
                 };
                 categoryItem.Click += (_, __) => viewModel.SetCategoryForSelection(label);
-                categoryMenu.Items.Add(categoryItem);
+                items.Add(categoryItem);
             }
 
-            if (!(categoryMenu.Items[categoryMenu.Items.Count - 1] is Separator))
+            if (!(items[items.Count - 1] is Separator))
             {
-                categoryMenu.Items.Add(new Separator());
+                items.Add(new Separator());
             }
 
-            categoryMenu.Items.Add(CreateMenuItem(
+            items.Add(CreateMenuItem(
                 ResourceProvider.GetString("LOCPlayAch_Button_Clear"),
                 () => viewModel.SetCategoryForSelection(null)));
-            menu.Items.Add(categoryMenu);
+        }
 
-            var typeMenu = new MenuItem
+        /// <summary>
+        /// The category-type ticks for a selection. Shared by the row menu and the Type column's
+        /// cell menu.
+        /// </summary>
+        private void AppendCategoryTypeItems(ItemCollection items, IReadOnlyList<AchievementEditorRow> selection)
+        {
+            var viewModel = ViewModel;
+            if (items == null || viewModel == null || selection == null)
             {
-                Header = ResourceProvider.GetString("LOCPlayAch_Common_Label_Type"),
-                IsEnabled = selection.All(row => row.CanEditAssignments)
-            };
+                return;
+            }
+
             // Kept so a click can read every tick, not just its own: the menu stays open, and the
             // set the user leaves it in is what the whole selection takes.
             var typeItems = new List<MenuItem>();
@@ -1158,29 +1223,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 typeItem.Click += (_, __) => viewModel.SetCategoryTypesForSelection(
                     typeItems.Where(item => item.IsChecked).Select(item => item.Tag as string));
                 typeItems.Add(typeItem);
-                typeMenu.Items.Add(typeItem);
+                items.Add(typeItem);
             }
-
-            menu.Items.Add(typeMenu);
-
-            menu.Items.Add(CreateMenuItem(
-                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Notes_Note"),
-                () => EditNoteForSelectedRow(),
-                selection.Count == 1 && selection[0].CanEditAssignments));
-
-            menu.Items.Add(new Separator());
-
-            menu.Items.Add(CreateCommandMenuItem(
-                ResourceProvider.GetString("LOCPlayAch_Common_Duplicate"),
-                viewModel.DuplicateCommand));
-            menu.Items.Add(CreateCommandMenuItem(
-                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Editor_Revert"),
-                viewModel.RevertCommand));
-            menu.Items.Add(CreateCommandMenuItem(
-                ResourceProvider.GetString("LOCPlayAch_Button_Delete"),
-                viewModel.DeleteCommand));
-
-            return menu;
         }
 
         private static MenuItem CreateMenuItem(string header, Action onClick, bool isEnabled = true)
@@ -1465,6 +1509,37 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private static string TrimTrailingUrlPunctuation(string value)
         {
             return (value ?? string.Empty).Trim().TrimEnd('.', ',', ';', ')', ']', '}');
+        }
+
+        /// <summary>
+        /// Settles the selection before a cell's own control swallows the click.
+        /// </summary>
+        /// <remarks>
+        /// A DataGridCell selects its row from the bubbling mouse-down, and a CheckBox, Button or
+        /// TextBox inside the cell marks that event handled, so pressing a control in an unselected
+        /// row leaves the selection where it was. For a column whose edits route to the selection
+        /// that is actively wrong: the click would write the previously selected rows and leave the
+        /// row under the pointer alone.
+        ///
+        /// Runs on the grid's tunnelling press, ahead of the control, and deliberately does not
+        /// mark the event handled so the control still receives its click. A Ctrl or Shift press is
+        /// a selection gesture and belongs to the grid; a row already in the selection is left
+        /// alone so editing one cell of a multi-row selection still applies to all of it.
+        /// </remarks>
+        private void NormalizeSelectionForRoutedCell(object item, MouseButtonEventArgs e)
+        {
+            if (!(item is AchievementEditorRow) ||
+                (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != 0 ||
+                !EditorCellRouting.IsRoutedCellHit(e?.OriginalSource as DependencyObject) ||
+                CustomAchievementsGrid.SelectedItems.Contains(item))
+            {
+                return;
+            }
+
+            // Synchronous, so the view model's selection - and therefore the edit target the
+            // control is about to commit through - is correct by the time its handler runs.
+            CustomAchievementsGrid.SelectedItems.Clear();
+            CustomAchievementsGrid.SelectedItem = item;
         }
 
         /// <summary>
