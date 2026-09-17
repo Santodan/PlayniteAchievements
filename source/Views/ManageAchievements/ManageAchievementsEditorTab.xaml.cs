@@ -1236,6 +1236,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 }
 
                 CommitRoutedCellTextBox(textBox);
+
+                // Focus back to the grid, so Enter reads as finishing with the field rather than
+                // leaving the caret in it. It also puts the arrow keys back to stepping rows.
+                CustomAchievementsGrid.Focus();
+
                 e.Handled = true;
                 return;
             }
