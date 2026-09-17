@@ -222,6 +222,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>Raised after the game's manual capstone was changed from this tab.</summary>
         public event EventHandler<CapstoneChangedEventArgs> CapstoneChanged;
 
+        /// <summary>
+        /// The plugin settings this tab was built against, for the view's own persisted state
+        /// (the grid's column layout) rather than anything the rows carry.
+        /// </summary>
+        internal PlayniteAchievementsSettings Settings => _settings;
+
         public ObservableCollection<AchievementEditorRow> AchievementRows { get; }
 
         /// <summary>Every category the Category tab shows, in tree order, for the details picker.</summary>
