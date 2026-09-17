@@ -108,6 +108,16 @@
                 <Setter Property="Margin" Value="6,0" />
             </Style>
 
+            <!-- The clear button for an icon slot, beside its box rather than over it. The shared
+                 style is built for a search field, where the box is wide and its text short; an
+                 icon path fills the box, so the button sat on top of the text and could not be
+                 picked out. Only the placement changes - the look, and the rule that hides it when
+                 there is nothing to clear, come from the shared style. -->
+            <Style x:Key="IconClearButtonStyle" TargetType="Button" BasedOn="{StaticResource ClearSearchButtonStyle}">
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="Margin" Value="4,0,0,0" />
+            </Style>
+
             <Style x:Key="DropdownButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                 <Setter Property="Width" Value="22" />
                 <Setter Property="MinHeight" Value="26" />
@@ -1660,6 +1670,7 @@
                                         <ColumnDefinition Width="46" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
                                     <Border Grid.Column="0"
@@ -1683,24 +1694,25 @@
                                                helpers:AsyncImage.DecodePixel="72" />
                                     </Border>
 
-                                    <Grid Grid.Column="2"
-                                          Margin="8,0,0,0">
-                                        <TextBox Text="{Binding UnlockedIconDisplayText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                                 Style="{StaticResource GridEditorTextBoxStyle}"
-                                                 KeyDown="EditorTextBox_KeyDown"
-                                                 Tag="Unlocked"
-                                                 ToolTip="{Binding UnlockedIconPath}"
-                                                 AllowDrop="True"
-                                                 PreviewDragOver="IconTextBox_PreviewDragOver"
-                                                 PreviewDrop="IconTextBox_Drop" />
-                                        <Button Tag="{Binding UnlockedIconDisplayText}"
-                                                CommandParameter="Unlocked"
-                                                Style="{StaticResource ClearSearchButtonStyle}"
-                                                Focusable="True"
-                                                Click="ClearIconButton_Click" />
-                                    </Grid>
+                                    <TextBox Grid.Column="2"
+                                             Margin="8,0,0,0"
+                                             Text="{Binding UnlockedIconDisplayText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             Style="{StaticResource GridEditorTextBoxStyle}"
+                                             KeyDown="EditorTextBox_KeyDown"
+                                             Tag="Unlocked"
+                                             ToolTip="{Binding UnlockedIconPath}"
+                                             AllowDrop="True"
+                                             PreviewDragOver="IconTextBox_PreviewDragOver"
+                                             PreviewDrop="IconTextBox_Drop" />
 
                                     <Button Grid.Column="3"
+                                            Tag="{Binding UnlockedIconDisplayText}"
+                                            CommandParameter="Unlocked"
+                                            Style="{StaticResource IconClearButtonStyle}"
+                                            Focusable="True"
+                                            Click="ClearIconButton_Click" />
+
+                                    <Button Grid.Column="4"
                                             Content="..."
                                             Tag="Unlocked"
                                             ToolTip="{DynamicResource LOCPlayAch_Button_Browse}"
@@ -1713,6 +1725,7 @@
                                         <ColumnDefinition Width="24" />
                                         <ColumnDefinition Width="46" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
@@ -1737,24 +1750,25 @@
                                                helpers:AsyncImage.DecodePixel="72" />
                                     </Border>
 
-                                    <Grid Grid.Column="2"
-                                          Margin="8,0,0,0">
-                                        <TextBox Text="{Binding LockedIconDisplayText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                                 Style="{StaticResource GridEditorTextBoxStyle}"
-                                                 KeyDown="EditorTextBox_KeyDown"
-                                                 Tag="Locked"
-                                                 ToolTip="{Binding LockedIconPath}"
-                                                 AllowDrop="True"
-                                                 PreviewDragOver="IconTextBox_PreviewDragOver"
-                                                 PreviewDrop="IconTextBox_Drop" />
-                                        <Button Tag="{Binding LockedIconDisplayText}"
-                                                CommandParameter="Locked"
-                                                Style="{StaticResource ClearSearchButtonStyle}"
-                                                Focusable="True"
-                                                Click="ClearIconButton_Click" />
-                                    </Grid>
+                                    <TextBox Grid.Column="2"
+                                             Margin="8,0,0,0"
+                                             Text="{Binding LockedIconDisplayText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             Style="{StaticResource GridEditorTextBoxStyle}"
+                                             KeyDown="EditorTextBox_KeyDown"
+                                             Tag="Locked"
+                                             ToolTip="{Binding LockedIconPath}"
+                                             AllowDrop="True"
+                                             PreviewDragOver="IconTextBox_PreviewDragOver"
+                                             PreviewDrop="IconTextBox_Drop" />
 
                                     <Button Grid.Column="3"
+                                            Tag="{Binding LockedIconDisplayText}"
+                                            CommandParameter="Locked"
+                                            Style="{StaticResource IconClearButtonStyle}"
+                                            Focusable="True"
+                                            Click="ClearIconButton_Click" />
+
+                                    <Button Grid.Column="4"
                                             Content="..."
                                             Tag="Locked"
                                             ToolTip="{DynamicResource LOCPlayAch_Button_Browse}"
