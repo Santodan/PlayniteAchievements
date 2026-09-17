@@ -1158,44 +1158,66 @@
                                             helpers:EditorCellRouting.RoutesToSelection="True">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <!-- The badge rather than the type's name, the way every other
-                                     grid shows a trophy. A row with no trophy type matches no
-                                     trigger and shows an empty button, which is what opens the
-                                     menu to set one. -->
-                                <Button Style="{StaticResource AchievementSelectorButtonStyle}"
-                                        ToolTip="{Binding TrophyType}"
+                                <!-- The badge rather than the type's name, the way every other grid
+                                     shows a trophy. A row with no trophy type matches no trigger
+                                     and shows an empty button, which is what opens the menu to set
+                                     one.
+
+                                     Deliberately not AchievementSelectorButtonStyle, which the
+                                     Category, Type and Filter cells use: that template renders its
+                                     Content through a TextBlock's Text, so it can only show a
+                                     string and drops an image without complaint. The chevron below
+                                     is what that style would have drawn. -->
+                                <Button ToolTip="{Binding TrophyType}"
                                         Click="TrophyCell_Click"
                                         MinHeight="22"
                                         Margin="4,0"
+                                        Padding="6,1"
                                         HorizontalAlignment="Stretch"
-                                        VerticalAlignment="Center">
-                                    <Image Width="16"
-                                           Height="16"
-                                           VerticalAlignment="Center">
-                                        <Image.Style>
-                                            <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding TrophyType}" Value="platinum">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                        <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding TrophyType}" Value="gold">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                        <Setter Property="Source" Value="{DynamicResource TrophyGold}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding TrophyType}" Value="silver">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                        <Setter Property="Source" Value="{DynamicResource TrophySilver}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding TrophyType}" Value="bronze">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                        <Setter Property="Source" Value="{DynamicResource TrophyBronze}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Image.Style>
-                                    </Image>
+                                        VerticalAlignment="Center"
+                                        HorizontalContentAlignment="Stretch">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Grid.Column="0"
+                                               Width="16"
+                                               Height="16"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center">
+                                            <Image.Style>
+                                                <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding TrophyType}" Value="platinum">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding TrophyType}" Value="gold">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Setter Property="Source" Value="{DynamicResource TrophyGold}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding TrophyType}" Value="silver">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Setter Property="Source" Value="{DynamicResource TrophySilver}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding TrophyType}" Value="bronze">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Setter Property="Source" Value="{DynamicResource TrophyBronze}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Image.Style>
+                                        </Image>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="&#x25BC;"
+                                                   FontSize="10"
+                                                   Opacity="0.85"
+                                                   VerticalAlignment="Center"
+                                                   Margin="4,0,0,0"
+                                                   Foreground="{DynamicResource PlayAch.Brush.Text}" />
+                                    </Grid>
                                 </Button>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
