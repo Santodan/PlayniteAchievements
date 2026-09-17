@@ -150,6 +150,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // return memory and only a restart will.
             Common.LeakWatch.Track("ManageAchievementsControl", this);
             Common.LeakWatch.Track("ManageAchievementsViewModel", _viewModel);
+            Common.LeakWatch.Track("ManageAchievementsSnapshotProvider", _gameDataSnapshotProvider);
         }
 
         public string WindowTitle
@@ -846,6 +847,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _settings);
             _capstoneControl.CapstoneChanged += CapstoneControl_CapstoneChanged;
             CapstoneHost.Content = _capstoneControl;
+            Common.LeakWatch.Track("ManageAchievementsCapstonesTab", _capstoneControl);
             _capstoneRefreshPending = false;
         }
 
@@ -937,6 +939,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _manualControl = new ManageAchievementsManualTrackingTab(_manualViewModel);
             _manualControl.UnlinkCommand = _viewModel.UnlinkManualTrackingCommand;
             ManualHost.Content = _manualControl;
+            Common.LeakWatch.Track("ManageAchievementsManualTrackingTab", _manualControl);
+            Common.LeakWatch.Track("ManageAchievementsManualTrackingTabViewModel", _manualViewModel);
         }
 
         /// <summary>
@@ -1140,6 +1144,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _logger);
             _achievementOrderControl = new ManageAchievementsAchievementOrderTab(_achievementOrderViewModel);
             AchievementOrderHost.Content = _achievementOrderControl;
+            Common.LeakWatch.Track("ManageAchievementsAchievementOrderTab", _achievementOrderControl);
+            Common.LeakWatch.Track("ManageAchievementsAchievementOrderTabViewModel", _achievementOrderViewModel);
         }
 
         private void EnsureGoalsControl(bool forceRecreate)
@@ -1159,6 +1165,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _logger);
             _goalsControl = new ManageAchievementsGoalsTab(_goalsViewModel);
             GoalsHost.Content = _goalsControl;
+            Common.LeakWatch.Track("ManageAchievementsGoalsTab", _goalsControl);
+            Common.LeakWatch.Track("ManageAchievementsGoalsTabViewModel", _goalsViewModel);
         }
 
         private void EnsureCategoryControl(bool forceRecreate)
@@ -1181,6 +1189,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _categoryViewModel.DeferredLibraryRefreshRequired += CategoryViewModel_DeferredLibraryRefreshRequired;
             _categoryControl = new ManageAchievementsCategoryTab(_categoryViewModel);
             CategoryHost.Content = _categoryControl;
+            Common.LeakWatch.Track("ManageAchievementsCategoryTab", _categoryControl);
+            Common.LeakWatch.Track("ManageAchievementsCategoryTabViewModel", _categoryViewModel);
         }
 
         private void ApplyPendingCategorySubTabSelection()
@@ -1211,6 +1221,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _logger);
             _filtersControl = new ManageAchievementsFiltersTab(_filtersViewModel);
             FiltersHost.Content = _filtersControl;
+            Common.LeakWatch.Track("ManageAchievementsFiltersTab", _filtersControl);
+            Common.LeakWatch.Track("ManageAchievementsFiltersTabViewModel", _filtersViewModel);
         }
 
         private void EnsureNotesControl(bool forceRecreate)
@@ -1230,6 +1242,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _logger);
             _notesControl = new ManageAchievementsNotesTab(_notesViewModel);
             NotesHost.Content = _notesControl;
+            Common.LeakWatch.Track("ManageAchievementsNotesTab", _notesControl);
+            Common.LeakWatch.Track("ManageAchievementsNotesTabViewModel", _notesViewModel);
         }
 
         private void EnsureAchievementIconsControl(bool forceRecreate)
@@ -1251,6 +1265,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _achievementIconsControl = new ManageAchievementsAchievementIconsTab(_achievementIconsViewModel);
             _achievementIconsControl.IconOverridesSaved += AchievementIconsControl_IconOverridesSaved;
             AchievementIconsHost.Content = _achievementIconsControl;
+            Common.LeakWatch.Track("ManageAchievementsAchievementIconsTab", _achievementIconsControl);
+            Common.LeakWatch.Track("ManageAchievementsAchievementIconsTabViewModel", _achievementIconsViewModel);
         }
 
         private void EnsureNotificationsControl(bool forceRecreate)
