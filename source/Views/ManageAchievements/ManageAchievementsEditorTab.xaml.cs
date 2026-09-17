@@ -364,18 +364,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         /// <summary>
-        /// Brings a row the editor picked into view, after the grid has had a chance to realize it:
-        /// a row added a moment ago has no container yet, and scrolling to one that does not exist
-        /// does nothing.
-        /// </summary>
-        /// <summary>
         /// Selects the achievement under the pointer while an image is being dragged over the
         /// grid, so the drag can be carried on into one of that achievement's icon slots.
         /// </summary>
         /// <remarks>
-        /// The grid itself is not a drop target for artwork -- the slots are -- so this only moves
-        /// the selection and leaves the event alone. A row reorder carries the grid's own format
-        /// and is left untouched.
+        /// The grid as a whole is not a drop target for artwork -- the individual slots are, being
+        /// the icon column's cells and the details pane's two boxes -- so this only moves the
+        /// selection and leaves the event alone. Moving it is what puts the row a cell drop lands
+        /// on in front of the pane as well. A row reorder carries the grid's own format and is
+        /// left untouched.
         /// </remarks>
         private void EditorTab_PreviewDragOver(object sender, DragEventArgs e)
         {
@@ -599,6 +596,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ScrollRowIntoView(rows[next]);
         }
 
+        /// <summary>
+        /// Brings a row the editor picked into view, after the grid has had a chance to realize it:
+        /// a row added a moment ago has no container yet, and scrolling to one that does not exist
+        /// does nothing.
+        /// </summary>
         private void ScrollRowIntoView(AchievementEditorRow row)
         {
             if (row == null)
@@ -950,14 +952,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
             e.Handled = true;
         }
 
-        private void IconTextBox_PreviewDragOver(object sender, DragEventArgs e)
+        private void IconDropTarget_PreviewDragOver(object sender, DragEventArgs e)
         {
             var hasDropPayload = TryGetFirstImageFilePath(e.Data, out _) || TryGetFirstBrowserUrl(e.Data, out _);
             e.Effects = hasDropPayload ? DragDropEffects.Copy : DragDropEffects.None;
             e.Handled = true;
         }
 
-        private void IconTextBox_Drop(object sender, DragEventArgs e)
+        private void IconDropTarget_Drop(object sender, DragEventArgs e)
         {
             if (!TryResolveRowAndVariant(sender as FrameworkElement, out var row, out var variant))
             {
