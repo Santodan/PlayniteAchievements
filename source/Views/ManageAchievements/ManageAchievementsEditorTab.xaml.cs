@@ -60,7 +60,24 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 ["EditorIcon"] = true,
                 ["EditorName"] = true,
                 ["EditorDescription"] = true,
-                ["EditorUnlockTime"] = true
+                ["EditorUnlockTime"] = true,
+
+                // The facet columns are opt-in. Every one of them is also on the details pane, so
+                // nothing is out of reach, and showing all eleven by default would squeeze the
+                // description column under its minimum and put a horizontal scrollbar on every
+                // install. A key left out of this map keeps whatever the markup declared, which
+                // for these is visible - so they have to be named here, not merely omitted.
+                ["EditorHidden"] = false,
+                ["EditorGoal"] = false,
+                ["EditorCapstone"] = false,
+                ["EditorRarity"] = false,
+                ["EditorTrophy"] = false,
+                ["EditorPoints"] = false,
+                ["EditorProgress"] = false,
+                ["EditorCategory"] = false,
+                ["EditorType"] = false,
+                ["EditorFilter"] = false,
+                ["EditorNote"] = false
             };
 
         /// <summary>
@@ -73,7 +90,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 ["EditorIcon"] = 58,
                 ["EditorName"] = 240,
                 ["EditorDescription"] = 320,
-                ["EditorUnlockTime"] = 320
+                ["EditorUnlockTime"] = 320,
+                ["EditorHidden"] = 64,
+                ["EditorGoal"] = 64,
+                ["EditorCapstone"] = 124,
+                ["EditorRarity"] = 150,
+                ["EditorTrophy"] = 118,
+                ["EditorPoints"] = 76,
+                ["EditorProgress"] = 124,
+                ["EditorCategory"] = 168,
+                ["EditorType"] = 144,
+                ["EditorFilter"] = 124,
+                ["EditorNote"] = 210
             };
 
         private DataGridColumnLayoutService _columnPersistence;
@@ -1148,6 +1176,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     target.UnlockedState = !row.Unlocked;
                     break;
 
+                case nameof(AchievementEditorRow.HasUnlockTime):
+                    target.HasUnlockTime = !row.HasUnlockTime;
+                    break;
+
                 default:
                     return;
             }
@@ -1211,6 +1243,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     target.Description = value;
                     break;
 
+                case nameof(AchievementEditorRow.TimeText):
+                    target.TimeText = value;
+                    break;
+
                 case nameof(AchievementEditorRow.RarityInput):
                     target.RarityInput = value;
                     break;
@@ -1234,6 +1270,47 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // The setters normalize and can refuse, so the box shows what was stored rather than
             // what was typed.
             textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateTarget();
+        }
+
+        /// <summary>
+        /// A date picked in a routed cell.
+        /// </summary>
+        /// <remarks>
+        /// The guard compares against the cell's own row, not against the edit target. That is
+        /// what makes it safe under container recycling: a recycled cell is re-bound to its new
+        /// row and the one-way binding pushes that row's own date in, which compares equal and
+        /// writes nothing. Comparing against the edit target would let such a refresh through and
+        /// stamp one row's date across the whole selection.
+        /// </remarks>
+        private void UnlockDateCell_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var picker = sender as DatePicker;
+            var row = EditorCellRouting.ResolveRow(sender);
+            if (picker == null || row == null || picker.SelectedDate == row.UnlockDate)
+            {
+                return;
+            }
+
+            EditorCellRouting.ResolveTarget(ViewModel, row).UnlockDate = picker.SelectedDate;
+        }
+
+        /// <summary>
+        /// A time mode picked in a routed cell. Guarded against the cell's own row for the reason
+        /// given on <see cref="UnlockDateCell_SelectedDateChanged"/>.
+        /// </summary>
+        private void TimeModeCell_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var combo = sender as ComboBox;
+            var row = EditorCellRouting.ResolveRow(sender);
+            var mode = combo?.SelectedItem as string;
+            if (row == null ||
+                string.IsNullOrEmpty(mode) ||
+                string.Equals(mode, row.SelectedTimeModeText, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            EditorCellRouting.ResolveTarget(ViewModel, row).SelectedTimeModeText = mode;
         }
 
         /// <summary>
