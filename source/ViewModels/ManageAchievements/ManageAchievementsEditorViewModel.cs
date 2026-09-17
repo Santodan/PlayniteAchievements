@@ -551,6 +551,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     OnPropertyChanged(nameof(HasSelection));
                     OnPropertyChanged(nameof(HasEditTarget));
                     OnPropertyChanged(nameof(EditTarget));
+                    OnPropertyChanged(nameof(IsCapstoneEditableForSelection));
                     SyncTypeOptionsToEditTarget();
                     RaiseCommandStates();
                 }
@@ -583,6 +584,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// are selected.
         /// </summary>
         public AchievementEditorRow EditTarget => IsBulkEditing ? BulkRow : SelectedRow;
+
+        /// <summary>
+        /// Whether this row is one of the rows an edit would currently apply to. A cell asks
+        /// before routing its edit to <see cref="EditTarget"/>, because a control can keep focus
+        /// after its own row has dropped out of the selection.
+        /// </summary>
+        public bool IsRowInSelection(AchievementEditorRow row)
+        {
+            return row != null && (_selectedRows.Contains(row) || ReferenceEquals(row, SelectedRow));
+        }
+
+        /// <summary>
+        /// Whether a capstone edit would be accepted for the current selection.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="SetCapstoneForSelection"/> refuses a selection that spans categories, since
+        /// one capstone cannot stand for several. A cell's button reads this so the refusal shows
+        /// as a disabled control rather than a click that silently does nothing.
+        /// </remarks>
+        public bool IsCapstoneEditableForSelection => EditTarget?.CanEditCapstone == true;
 
         /// <summary>
         /// A stand-in row the details pane binds to while several achievements are selected. Fields
@@ -654,6 +675,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(BulkEditHeader));
             OnPropertyChanged(nameof(EditTarget));
             OnPropertyChanged(nameof(HasEditTarget));
+            OnPropertyChanged(nameof(IsCapstoneEditableForSelection));
         }
 
         /// <summary>
