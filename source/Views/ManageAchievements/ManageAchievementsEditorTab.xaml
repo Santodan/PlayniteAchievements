@@ -884,7 +884,9 @@
                                             Width="320"
                                             SortMemberPath="UnlockTime"
                                             MinWidth="120"
-                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorUnlockTime">
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorUnlockTime"
+                                            helpers:EditorCellRouting.RoutesToSelection="True"
+                                            IsReadOnly="True">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Grid VerticalAlignment="Center"
@@ -895,12 +897,14 @@
                                     </Grid.ColumnDefinitions>
 
                                     <CheckBox Grid.Column="0"
-                                              IsChecked="{Binding HasUnlockTime, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsChecked="{Binding HasUnlockTime, Mode=OneWay}"
                                               IsEnabled="{Binding Unlocked}"
                                               HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
                                               Focusable="False"
-                                              IsTabStop="False" />
+                                              IsTabStop="False"
+                                              Click="RoutedCheckBox_Click"
+                                              helpers:EditorCellRouting.Field="HasUnlockTime" />
 
                                     <Grid Grid.Column="1"
                                           Margin="8,0,0,0"
@@ -914,11 +918,18 @@
                                                     HorizontalAlignment="Center"
                                                     VerticalAlignment="Center"
                                                     Visibility="{Binding CanEditUnlockTime, Converter={StaticResource BoolToVis}}">
-                                            <DatePicker SelectedDate="{Binding UnlockDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            <!-- One way with the pick applied in code, like the
+                                                 rest of the routed cells: a two-way binding here
+                                                 would write on the refresh a recycled container
+                                                 gets, not only on a pick. -->
+                                            <DatePicker SelectedDate="{Binding UnlockDate, Mode=OneWay}"
+                                                        SelectedDateChanged="UnlockDateCell_SelectedDateChanged"
                                                         Padding="4,2"
                                                         Margin="0,0,6,0" />
-                                            <TextBox Text="{Binding TimeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                                     KeyDown="EditorTextBox_KeyDown"
+                                            <TextBox Text="{Binding TimeText, Mode=OneWay}"
+                                                     LostFocus="RoutedCellTextBox_Commit"
+                                                     KeyDown="RoutedCellTextBox_KeyDown"
+                                                     helpers:EditorCellRouting.Field="TimeText"
                                                      Width="62"
                                                      VerticalContentAlignment="Center"
                                                      HorizontalContentAlignment="Center"
@@ -936,7 +947,8 @@
                                                 </TextBox.Style>
                                             </TextBox>
                                             <ComboBox ItemsSource="{Binding AvailableTimeModes}"
-                                                      SelectedItem="{Binding SelectedTimeModeText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      SelectedItem="{Binding SelectedTimeModeText, Mode=OneWay}"
+                                                      SelectionChanged="TimeModeCell_SelectionChanged"
                                                       Width="74"
                                                       VerticalContentAlignment="Center"
                                                       Padding="4,0"
