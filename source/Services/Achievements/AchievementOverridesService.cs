@@ -606,6 +606,22 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             customData.AchievementOverrides = pruned.Count > 0 ? pruned : null;
+
+            // The legacy mirror maps are dropped, not left as they were.
+            //
+            // Normalization republishes them from this record, which is what makes the record
+            // authoritative - but it merges them INTO the record first, so that only holds for a
+            // value the record still carries. A value cleared here stayed in its mirror and the
+            // next save folded it straight back, which is why clearing an icon override never
+            // stuck: the write reported no entries and the old path reappeared on reload.
+            //
+            // Safe to drop because nothing writes a mirror on its own; the only other place that
+            // touches them rewrites their keys alongside the record during an ApiName migration.
+            customData.AchievementCategoryOverrides = null;
+            customData.AchievementCategoryTypeOverrides = null;
+            customData.AchievementNotes = null;
+            customData.AchievementUnlockedIconOverrides = null;
+            customData.AchievementLockedIconOverrides = null;
         }
 
         /// <summary>
