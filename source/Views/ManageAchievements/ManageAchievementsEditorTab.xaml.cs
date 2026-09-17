@@ -1203,6 +1203,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var value = textBox.Text;
             switch (field)
             {
+                case nameof(AchievementEditorRow.DisplayName):
+                    target.DisplayName = value;
+                    break;
+
+                case nameof(AchievementEditorRow.Description):
+                    target.Description = value;
+                    break;
+
                 case nameof(AchievementEditorRow.RarityInput):
                     target.RarityInput = value;
                     break;
