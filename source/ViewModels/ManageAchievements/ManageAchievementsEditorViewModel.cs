@@ -71,6 +71,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly List<AchievementEditorRow> _selectedRows = new List<AchievementEditorRow>();
         private bool _isApplyingBulk;
         private bool _providerBaselinesResolved;
+        private int _iconDiagnosticsLogged;
         private bool _isTogglingReveal;
         private bool _hasCustomOrder;
         private DispatcherTimer _assignmentsChangedDebounce;
@@ -1704,6 +1705,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 row.IconFileStem = fileStems.TryGetValue(apiName, out var stem) ? stem : null;
+
+                // Temporary: comparing a row's icon against the provider art on disk read every
+                // row as overridden, so the two paths evidently do not match textually. This
+                // reports both for the first few rows so the difference can be seen rather than
+                // guessed at.
+                if (_iconDiagnosticsLogged < 3 && row.IsProviderRow)
+                {
+                    _iconDiagnosticsLogged++;
+                    var disk = PlayniteAchievementsPlugin.Instance?.DiskImageService;
+                    _logger?.Info(
+                        "[EditorDiag] Icon paths. api=" + apiName +
+                        ", stem=" + (row.IconFileStem ?? "<null>") +
+                        ", gameIdText=" + _gameIdText +
+                        ", rowEffective=" + (row.UnlockedIconPath ?? "<null>") +
+                        ", cachedProvider=" + (rawByApiName.TryGetValue(apiName, out var probe) ? probe.UnlockedIconPath ?? "<null>" : "<no raw>") +
+                        ", onDisk=" + (disk?.FindExistingAchievementIconCachePath(
+                            _gameIdText,
+                            row.IconFileStem,
+                            AchievementIconVariant.Unlocked) ?? "<null>"));
+                }
                 if (rawByApiName.TryGetValue(apiName, out var raw))
                 {
                     row.ProviderUnlockedIconPath = raw.UnlockedIconPath;
