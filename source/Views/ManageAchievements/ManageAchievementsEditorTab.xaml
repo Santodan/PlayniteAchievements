@@ -789,7 +789,7 @@
                                              TextWrapping="Wrap"
                                              AcceptsReturn="True"
                                              LostFocus="RoutedCellTextBox_Commit"
-                                             KeyDown="RoutedCellTextBox_KeyDown"
+                                             PreviewKeyDown="RoutedCellTextBox_KeyDown"
                                              helpers:EditorCellRouting.Field="DisplayName" />
                                     <Border Grid.Column="0"
                                             Background="Transparent"
@@ -882,7 +882,7 @@
                                              TextWrapping="Wrap"
                                              AcceptsReturn="True"
                                              LostFocus="RoutedCellTextBox_Commit"
-                                             KeyDown="RoutedCellTextBox_KeyDown"
+                                             PreviewKeyDown="RoutedCellTextBox_KeyDown"
                                              helpers:EditorCellRouting.Field="Description" />
                                     <Border Grid.Column="0"
                                             Background="Transparent"
@@ -961,7 +961,7 @@
                                                         Margin="0,0,6,0" />
                                             <TextBox Text="{Binding TimeText, Mode=OneWay}"
                                                      LostFocus="RoutedCellTextBox_Commit"
-                                                     KeyDown="RoutedCellTextBox_KeyDown"
+                                                     PreviewKeyDown="RoutedCellTextBox_KeyDown"
                                                      helpers:EditorCellRouting.Field="TimeText"
                                                      Width="62"
                                                      VerticalContentAlignment="Center"
@@ -1146,7 +1146,7 @@
                                              Style="{StaticResource GridEditorTextBoxStyle}"
                                              IsEnabled="{Binding CanEditRarity}"
                                              LostFocus="RoutedCellTextBox_Commit"
-                                             KeyDown="RoutedCellTextBox_KeyDown"
+                                             PreviewKeyDown="RoutedCellTextBox_KeyDown"
                                              helpers:EditorCellRouting.Field="RarityInput" />
                                     <!-- The placeholder keys off the bound value rather than the
                                          box by name: an ElementName reference cannot resolve
@@ -1276,7 +1276,7 @@
                                          PreviewTextInput="NumericTextBox_PreviewTextInput"
                                          DataObject.Pasting="NumericTextBox_Pasting"
                                          LostFocus="RoutedCellTextBox_Commit"
-                                         KeyDown="RoutedCellTextBox_KeyDown"
+                                         PreviewKeyDown="RoutedCellTextBox_KeyDown"
                                          helpers:EditorCellRouting.Field="PointsText" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
@@ -1307,7 +1307,7 @@
                                              PreviewTextInput="NumericTextBox_PreviewTextInput"
                                              DataObject.Pasting="NumericTextBox_Pasting"
                                              LostFocus="RoutedCellTextBox_Commit"
-                                             KeyDown="RoutedCellTextBox_KeyDown"
+                                             PreviewKeyDown="RoutedCellTextBox_KeyDown"
                                              helpers:EditorCellRouting.Field="ProgressNumText" />
                                     <TextBlock Grid.Column="1"
                                                Text="/"
@@ -1323,7 +1323,7 @@
                                              PreviewTextInput="NumericTextBox_PreviewTextInput"
                                              DataObject.Pasting="NumericTextBox_Pasting"
                                              LostFocus="RoutedCellTextBox_Commit"
-                                             KeyDown="RoutedCellTextBox_KeyDown"
+                                             PreviewKeyDown="RoutedCellTextBox_KeyDown"
                                              helpers:EditorCellRouting.Field="ProgressDenomText" />
                                 </Grid>
                             </DataTemplate>

@@ -1203,9 +1203,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         /// <summary>
-        /// Enter commits a routed cell's text box and Escape abandons the edit, matching the
-        /// in-grid name and description boxes.
+        /// Enter commits a routed cell's text box, Shift+Enter starts a line, and Escape abandons
+        /// the edit.
         /// </summary>
+        /// <remarks>
+        /// On the tunnelling event, which matters for the boxes that accept returns: a TextBox
+        /// consumes Enter in its own class handler to insert the line break, and a class handler
+        /// runs before an instance one, so a plain KeyDown handler never sees the key on those
+        /// boxes at all.
+        /// </remarks>
         private void RoutedCellTextBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (!(sender is TextBox textBox))
