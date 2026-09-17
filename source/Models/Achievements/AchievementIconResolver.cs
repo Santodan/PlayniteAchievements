@@ -151,6 +151,31 @@ namespace PlayniteAchievements.Models.Achievements
         }
 
         /// <summary>
+        /// The locked slot's art to draw, or null when the locked look should be derived from the
+        /// unlocked icon instead.
+        /// </summary>
+        /// <remarks>
+        /// "Use separate locked icons" is about the provider's second image, so turning it off
+        /// derives the locked look from the unlocked icon. A locked icon the user chose is not
+        /// that image and survives the toggle either way.
+        ///
+        /// Applied where the icon is drawn rather than only where the cache is written, so the
+        /// toggle takes effect immediately instead of waiting for the next refresh to re-resolve
+        /// every path.
+        /// </remarks>
+        public static string ResolveLockedArtPath(string lockedIconPath, bool useSeparateLockedIcons)
+        {
+            if (useSeparateLockedIcons || string.IsNullOrWhiteSpace(lockedIconPath))
+            {
+                return lockedIconPath;
+            }
+
+            return AchievementIconCachePathBuilder.IsCustomIconPath(NormalizeDisplaySource(lockedIconPath))
+                ? lockedIconPath
+                : null;
+        }
+
+        /// <summary>
         /// Whether the locked slot holds a locked icon of its own, as opposed to a copy of the
         /// unlocked one that the locked look should be derived from instead.
         /// </summary>

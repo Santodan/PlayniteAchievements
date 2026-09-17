@@ -730,7 +730,6 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (SetValueAndReturn(ref _useSeparateLockedIconsWhenAvailable, value))
                 {
-                    OnPropertyChanged(nameof(UsesExplicitLockedIcon));
                     NotifyIconDisplayChanged();
                     OnPropertyChanged(nameof(ImageLocked));
                 }
@@ -1298,9 +1297,6 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        public bool UsesExplicitLockedIcon =>
-            AchievementIconResolver.HasExplicitLockedIcon(LockedIconPath, UnlockedIconPath);
-
         /// <summary>
         /// The unlock time for sorting purposes.
         /// </summary>
@@ -1709,7 +1705,6 @@ namespace PlayniteAchievements.ViewModels.Items
             NotifyIconDisplayChanged();
             OnPropertyChanged(nameof(ImageUnlocked));
             OnPropertyChanged(nameof(ImageLocked));
-            OnPropertyChanged(nameof(UsesExplicitLockedIcon));
         }
 
         private void NotifyRevealStateChanged()
@@ -1740,7 +1735,9 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             return AchievementIconResolver.GetLockedDisplayIcon(
                 UnlockedIconPath,
-                LockedIconPath);
+                AchievementIconResolver.ResolveLockedArtPath(
+                    LockedIconPath,
+                    UseSeparateLockedIconsWhenAvailable));
         }
 
         /// <summary>

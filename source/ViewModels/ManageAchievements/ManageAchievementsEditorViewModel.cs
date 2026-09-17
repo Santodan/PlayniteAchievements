@@ -3787,6 +3787,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.ShowLockedIcon = _settings?.Persisted?.ShowLockedIcon ?? true;
             row.ShowHiddenTitle = _settings?.Persisted?.ShowHiddenTitle ?? false;
             row.ShowHiddenDescription = _settings?.Persisted?.ShowHiddenDescription ?? false;
+            row.UseSeparateLockedIcons = GameCustomDataLookup.ShouldUseSeparateLockedIcons(
+                _gameId,
+                _settings?.Persisted);
             row.ConfigureIconPathDisplay(
                 path => _managedCustomIconService?.GetManagedDisplayPath(path, _gameIdText) ?? path,
                 text => _managedCustomIconService?.ResolveManagedDisplayPath(text, _gameIdText) ?? text);
@@ -7316,7 +7319,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                             : AchievementIconResolver.GetLockedFallbackIcon();
 
                     case AchievementIconRevealStage.Locked:
-                        return AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, LockedIconPath);
+                        return AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, OwnLockedArtPath);
 
                     default:
                         return AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath);
@@ -7324,9 +7327,36 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        private bool _useSeparateLockedIcons;
+
+        /// <summary>
+        /// Whether this game shows the provider's separate locked art, seeded from the same
+        /// per-game setting the grids read, so the editor previews what the grids will draw.
+        /// </summary>
+        public bool UseSeparateLockedIcons
+        {
+            get => _useSeparateLockedIcons;
+            set
+            {
+                if (SetValueAndReturn(ref _useSeparateLockedIcons, value))
+                {
+                    OnPropertyChanged(nameof(LockedPreviewPath));
+                    OnPropertyChanged(nameof(DisplayIcon));
+                }
+            }
+        }
+
         public string UnlockedPreviewPath => AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath);
 
-        public string LockedPreviewPath => AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, LockedIconPath);
+        public string LockedPreviewPath => AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, OwnLockedArtPath);
+
+        /// <summary>
+        /// The locked art this row should draw from, or null to derive the locked look from the
+        /// unlocked icon.
+        /// </summary>
+        private string OwnLockedArtPath =>
+            AchievementIconResolver.ResolveLockedArtPath(LockedIconPath, UseSeparateLockedIcons);
+
 
         public RarityTier RarityTier =>
             RarityTierExtensions.TryParse(Rarity, out var rarity) ? rarity : RarityTier.Common;
