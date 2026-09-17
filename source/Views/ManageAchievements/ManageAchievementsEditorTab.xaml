@@ -1158,13 +1158,45 @@
                                             helpers:EditorCellRouting.RoutesToSelection="True">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <Button Content="{Binding TrophyType}"
-                                        Style="{StaticResource AchievementSelectorButtonStyle}"
+                                <!-- The badge rather than the type's name, the way every other
+                                     grid shows a trophy. A row with no trophy type matches no
+                                     trigger and shows an empty button, which is what opens the
+                                     menu to set one. -->
+                                <Button Style="{StaticResource AchievementSelectorButtonStyle}"
+                                        ToolTip="{Binding TrophyType}"
                                         Click="TrophyCell_Click"
                                         MinHeight="22"
                                         Margin="4,0"
                                         HorizontalAlignment="Stretch"
-                                        VerticalAlignment="Center" />
+                                        VerticalAlignment="Center">
+                                    <Image Width="16"
+                                           Height="16"
+                                           VerticalAlignment="Center">
+                                        <Image.Style>
+                                            <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding TrophyType}" Value="platinum">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding TrophyType}" Value="gold">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Setter Property="Source" Value="{DynamicResource TrophyGold}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding TrophyType}" Value="silver">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Setter Property="Source" Value="{DynamicResource TrophySilver}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding TrophyType}" Value="bronze">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Setter Property="Source" Value="{DynamicResource TrophyBronze}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
+                                </Button>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
