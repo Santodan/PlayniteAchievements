@@ -275,26 +275,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            // An atomic gesture stands alone, and any change of gesture closes what was open.
-            if (_openIntent != null &&
-                (!_openIntent.Equals(intent) ||
-                    _openIntent.Kind == EditorEditKind.Atomic ||
-                    intent.Kind == EditorEditKind.Atomic))
+            var opened = EnsureOpenStep(intent);
+            if (opened || _openBefore == null)
             {
-                CommitOpenStep();
-            }
-
-            if (_openIntent == null)
-            {
-                _openIntent = intent;
-
                 // Cloned, not held: the store caches the record it just wrote and the next write
                 // mutates that same instance in place, so a reference here would drift under us
-                // before the step is closed.
+                // before the step is closed. Also set when the step was opened by a field change,
+                // which happens before any write.
                 _openBefore = previous.Clone();
                 _openAffectsSummaryData = affectsSummaryData;
                 _openAffectsOverrideMirror = affectsOverrideMirror;
-                _openApiNames.Clear();
             }
             else
             {
@@ -321,6 +311,36 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
+        /// Makes sure a step is open for this gesture, closing a different one first. Returns
+        /// whether a new step was opened.
+        /// </summary>
+        /// <remarks>
+        /// Either kind of recording can be the first thing a gesture does: a field change is seen
+        /// in the setter, before the write it causes, while everything else is only seen when the
+        /// write lands.
+        /// </remarks>
+        private bool EnsureOpenStep(EditorEditIntent intent)
+        {
+            // An atomic gesture stands alone, and any change of gesture closes what was open.
+            if (_openIntent != null &&
+                (!_openIntent.Equals(intent) ||
+                    _openIntent.Kind == EditorEditKind.Atomic ||
+                    intent.Kind == EditorEditKind.Atomic))
+            {
+                CommitOpenStep();
+            }
+
+            if (_openIntent != null)
+            {
+                return false;
+            }
+
+            _openIntent = intent;
+            _openApiNames.Clear();
+            return true;
+        }
+
+        /// <summary>
         /// Records one field's change against the open step.
         /// </summary>
         /// <remarks>
@@ -331,15 +351,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// The first value a field held in the step is the one kept, so a gesture that writes the
         /// same field repeatedly still reverses to where it started.
         /// </remarks>
-        public void RecordRowValue(string apiName, string propertyName, object oldValue, object newValue)
+        public void RecordRowValue(
+            string apiName,
+            string propertyName,
+            object oldValue,
+            object newValue,
+            EditorEditIntent intent)
         {
-            if (_openIntent == null ||
-                _openIntent.Kind != EditorEditKind.FieldEdit ||
+            if (intent == null ||
+                intent.Kind != EditorEditKind.FieldEdit ||
                 string.IsNullOrWhiteSpace(apiName) ||
                 string.IsNullOrWhiteSpace(propertyName))
             {
                 return;
             }
+
+            // Opens the step itself rather than waiting for one. The setter runs before the write
+            // it causes, so this is the first the history hears of the gesture - requiring an open
+            // step here is what made every field edit fall through to the record-level path.
+            EnsureOpenStep(intent);
 
             var key = apiName + " " + propertyName;
             _openRowValues[key] = _openRowValues.TryGetValue(key, out var existing)
