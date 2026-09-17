@@ -1563,10 +1563,19 @@ namespace PlayniteAchievements.Services.Images.Tests
             Assert.IsNull(
                 AchievementIconResolver.ResolveLockedArtPath(providerLocked, useSeparateLockedIcons: false));
 
-            // A locked icon the user chose is not the provider's second image the setting is about.
+            // A locked icon the user chose is not the provider's second image the setting is about,
+            // in whatever form the slot holds it.
             Assert.AreEqual(
                 customLocked,
                 AchievementIconResolver.ResolveLockedArtPath(customLocked, useSeparateLockedIcons: false));
+            Assert.AreEqual(
+                "https://example.test/locked.png",
+                AchievementIconResolver.ResolveLockedArtPath(
+                    "https://example.test/locked.png", useSeparateLockedIcons: false));
+            Assert.AreEqual(
+                @"C:\Pictures\just-picked.png",
+                AchievementIconResolver.ResolveLockedArtPath(
+                    @"C:\Pictures\just-picked.png", useSeparateLockedIcons: false));
         }
 
         private static string CreateTempDirectory()

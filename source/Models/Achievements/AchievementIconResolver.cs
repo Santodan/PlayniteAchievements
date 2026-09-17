@@ -159,6 +159,10 @@ namespace PlayniteAchievements.Models.Achievements
         /// derives the locked look from the unlocked icon. A locked icon the user chose is not
         /// that image and survives the toggle either way.
         ///
+        /// So only the provider's own cached locked file is dropped, rather than keeping what sits
+        /// in the custom folder: a locked override can also be a URL, or the path just picked and
+        /// not yet copied in, and the setting has no business discarding either.
+        ///
         /// Applied where the icon is drawn rather than only where the cache is written, so the
         /// toggle takes effect immediately instead of waiting for the next refresh to re-resolve
         /// every path.
@@ -170,9 +174,12 @@ namespace PlayniteAchievements.Models.Achievements
                 return lockedIconPath;
             }
 
-            return AchievementIconCachePathBuilder.IsCustomIconPath(NormalizeDisplaySource(lockedIconPath))
-                ? lockedIconPath
-                : null;
+            var normalized = NormalizeDisplaySource(lockedIconPath);
+            var isProviderCachedLockedArt =
+                AchievementIconCachePathBuilder.IsCachedIconPath(normalized) &&
+                !AchievementIconCachePathBuilder.IsCustomIconPath(normalized);
+
+            return isProviderCachedLockedArt ? null : lockedIconPath;
         }
 
         /// <summary>
