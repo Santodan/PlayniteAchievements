@@ -5707,6 +5707,31 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
+        /// The same action as a single character, for the grid cell, where a word would need most
+        /// of the column. The details pane keeps <see cref="CapstoneActionText"/>: there the width
+        /// is free and the word is clearer.
+        /// </summary>
+        /// <remarks>
+        /// Plain characters rather than icon-font codepoints, so the glyph survives a theme that
+        /// substitutes the font: a plus adds, a minus removes, and a double arrow replaces, with
+        /// <see cref="CapstoneActionToolTip"/> still naming what will happen.
+        /// </remarks>
+        public string CapstoneActionGlyph
+        {
+            get
+            {
+                if (IsCapstone)
+                {
+                    return "−";
+                }
+
+                return string.IsNullOrWhiteSpace(CapstoneReplacesDisplayName)
+                    ? "+"
+                    : "↔";
+            }
+        }
+
+        /// <summary>
         /// The capstone that acting on this achievement would displace, named on the button tooltip
         /// so a replacement is never a surprise. Null when nothing would be displaced.
         /// </summary>
@@ -5718,6 +5743,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _capstoneReplacesDisplayName, value))
                 {
                     OnPropertyChanged(nameof(CapstoneActionText));
+                    OnPropertyChanged(nameof(CapstoneActionGlyph));
                     OnPropertyChanged(nameof(CapstoneActionToolTip));
                 }
             }
@@ -5804,6 +5830,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             OnPropertyChanged(nameof(CapstoneActionText));
             OnPropertyChanged(nameof(CapstoneActionToolTip));
+            OnPropertyChanged(nameof(CapstoneActionGlyph));
             OnPropertyChanged(nameof(CurrentCategoryCapstoneText));
             OnPropertyChanged(nameof(CurrentGameCapstoneText));
             OnPropertyChanged(nameof(ShowCurrentCategoryCapstone));
