@@ -5535,6 +5535,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _isFiltered, value))
                 {
                     OnPropertyChanged(nameof(FilterScope));
+                    OnPropertyChanged(nameof(FilterScopeDisplayText));
                 }
             }
         }
@@ -5548,6 +5549,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     OnPropertyChanged(nameof(IsFilteredFromSummaries));
                     OnPropertyChanged(nameof(FilterScope));
+                    OnPropertyChanged(nameof(FilterScopeDisplayText));
                 }
             }
         }
@@ -5602,6 +5604,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 OnPropertyChanged(nameof(IsSummaryFiltered));
             OnPropertyChanged(nameof(IsFilteredFromSummaries));
                 OnPropertyChanged(nameof(FilterScope));
+                OnPropertyChanged(nameof(FilterScopeDisplayText));
+            }
+        }
+
+        /// <summary>
+        /// The scope's name, for the Filter column's button face. Uses the same strings the
+        /// details pane's list offers, and is blank for the proxy's mixed state, which stands for
+        /// disagreement rather than for a scope.
+        /// </summary>
+        public string FilterScopeDisplayText
+        {
+            get
+            {
+                switch (FilterScope)
+                {
+                    case AchievementFilterScope.All:
+                        return ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Filters_FilterOut");
+                    case AchievementFilterScope.Summary:
+                        return ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries");
+                    case AchievementFilterScope.None:
+                        return ResourceProvider.GetString("LOCPlayAch_Common_None");
+                    default:
+                        return string.Empty;
+                }
             }
         }
 
@@ -5850,6 +5876,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(IsSummaryFiltered));
             OnPropertyChanged(nameof(IsFilteredFromSummaries));
             OnPropertyChanged(nameof(FilterScope));
+            OnPropertyChanged(nameof(FilterScopeDisplayText));
         }
 
         /// <summary>
