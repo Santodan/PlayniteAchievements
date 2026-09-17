@@ -75,7 +75,7 @@
             <!-- Centered header content would leave these sitting under the middle of the column;
                  the row toggles are at the right edge of their cell, so the header stretches and
                  puts its own toggle in the same place. -->
-            <Style x:Key="RevealColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource ManageAchievementsColumnHeaderStyle}">
+            <Style x:Key="RevealColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource ManageAchievementsColumnHeaderWithMenuStyle}">
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             </Style>
 
@@ -499,7 +499,7 @@
                       CanUserDeleteRows="False"
                       CanUserResizeRows="False"
                       CanUserResizeColumns="True"
-                      CanUserReorderColumns="False"
+                      CanUserReorderColumns="True"
                       CanUserSortColumns="False"
                       EnableRowVirtualization="True"
                       EnableColumnVirtualization="True"
@@ -508,10 +508,11 @@
                       ScrollViewer.CanContentScroll="True"
                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                      ColumnHeaderStyle="{StaticResource ManageAchievementsColumnHeaderStyle}"
+                      ColumnHeaderStyle="{StaticResource ManageAchievementsColumnHeaderWithMenuStyle}"
                       helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                       helpers:DataGridAlignmentBehavior.IsEnabled="True"
                       KeyboardNavigation.DirectionalNavigation="Continue"
+                      PreviewMouseRightButtonUp="CustomAchievementsGrid_PreviewMouseRightButtonUp"
                       Tag="ControllerCellFocus">
                 <DataGrid.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}" />
@@ -532,7 +533,8 @@
                     <!-- Row order is the achievement order, so the list is dragged directly.
                          Custom achievements take part like any other row, which is what lets an
                          authored one sit between two provider ones. -->
-                    <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False" IsReadOnly="True">
+                    <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False" CanUserReorder="False" IsReadOnly="True"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorOrder">
                         <DataGridTemplateColumn.CellStyle>
                             <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
                                 <Setter Property="Cursor" Value="SizeAll" />
@@ -599,13 +601,20 @@
                                             MinWidth="36"
                                             MaxWidth="36"
                                             CanUserResize="False"
+                                            CanUserReorder="False"
                                             IsReadOnly="True"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorStatus"
                                             CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
                                             CellTemplate="{StaticResource AchievementStatusTemplate}" />
 
                     <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Unlocked}"
                                             Width="78"
+                                            MinWidth="78"
+                                            MaxWidth="78"
+                                            CanUserResize="False"
+                                            CanUserReorder="False"
                                             SortMemberPath="Unlocked"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorUnlocked"
                                             CellStyle="{StaticResource ManageAchievementsCheckBoxCellStyle}">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
@@ -622,10 +631,10 @@
                     </DataGridTemplateColumn>
 
                     <DataGridTemplateColumn Width="58"
-                                            MinWidth="58"
-                                            MaxWidth="58"
-                                            CanUserResize="False"
-                                            CellStyle="{StaticResource ManageAchievementsIconCellStyle}">
+                                            MinWidth="44"
+                                            CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorIcon"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Icon}">
                         <!-- The column's own toggle, reaching every masked icon on screen at once
                              rather than one click per row. Shown only while something is maskable,
                              like the per-row toggles. -->
@@ -693,7 +702,9 @@
                          settings already reveal that facet carries no button at all. -->
                     <DataGridTemplateColumn Width="240"
                                             SortMemberPath="DisplayName"
-                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}">
+                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorName"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_AchievementName}">
                         <DataGridTemplateColumn.Header>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -770,11 +781,17 @@
                     </DataGridTemplateColumn>
 
                     <!-- Star-sized so the cells cover the full row width: a click beyond the last
-                         column lands on no cell and would not select the row. -->
+                         column lands on no cell and would not select the row. The star governs
+                         only the frame before the first normalization pass; from then on
+                         ColumnWidthNormalization plans the resizable columns to fill the viewport,
+                         and it picks the last visible resizable column as the absorber, so hiding
+                         this one still leaves the row covered. -->
                     <DataGridTemplateColumn Width="*"
                                             MinWidth="180"
                                             SortMemberPath="Description"
-                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}">
+                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorDescription"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Description}">
                         <DataGridTemplateColumn.Header>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -853,7 +870,9 @@
 
                     <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_UnlockTime}"
                                             Width="320"
-                                            SortMemberPath="UnlockTime">
+                                            SortMemberPath="UnlockTime"
+                                            MinWidth="120"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorUnlockTime">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Grid VerticalAlignment="Center"
