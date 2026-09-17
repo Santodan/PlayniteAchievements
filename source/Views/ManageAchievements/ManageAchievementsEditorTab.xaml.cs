@@ -93,7 +93,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 ["EditorUnlockTime"] = 320,
                 ["EditorHidden"] = 64,
                 ["EditorGoal"] = 64,
-                ["EditorCapstone"] = 124,
+                ["EditorCapstone"] = 84,
                 ["EditorRarity"] = 150,
                 ["EditorTrophy"] = 118,
                 ["EditorPoints"] = 76,

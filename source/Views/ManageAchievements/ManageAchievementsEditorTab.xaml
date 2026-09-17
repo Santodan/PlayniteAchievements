@@ -1018,8 +1018,8 @@
                          adds a capstone or replaces the one the game already has, which is what
                          its label carries. -->
                     <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
-                                            Width="124"
-                                            MinWidth="96"
+                                            Width="84"
+                                            MinWidth="64"
                                             IsReadOnly="True"
                                             CanUserSort="False"
                                             SortMemberPath="IsCapstone"
@@ -1044,13 +1044,20 @@
                                               Opacity="{StaticResource PlayAch.Opacity.Secondary}"
                                               VerticalAlignment="Center"
                                               Margin="0,0,6,0" />
+                                    <!-- The action as a glyph rather than its name: plus adds,
+                                         double arrow replaces, minus removes, and the tooltip
+                                         still says which in words. The details pane keeps the
+                                         worded button, where the width is free. -->
                                     <Button Grid.Column="1"
-                                            Content="{Binding CapstoneActionText}"
+                                            Content="{Binding CapstoneActionGlyph}"
                                             ToolTip="{Binding CapstoneActionToolTip}"
                                             IsEnabled="{Binding CanEditCapstone}"
                                             Click="CapstoneCell_Click"
-                                            Padding="8,1"
-                                            MinHeight="22"
+                                            FontSize="13"
+                                            Padding="0"
+                                            Width="24"
+                                            MinHeight="24"
+                                            HorizontalAlignment="Left"
                                             VerticalAlignment="Center" />
                                 </Grid>
                             </DataTemplate>
