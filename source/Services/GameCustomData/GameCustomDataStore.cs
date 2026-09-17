@@ -58,6 +58,51 @@ namespace PlayniteAchievements.Services.GameCustomData
     }
 
     /// <summary>
+    /// A completed write, carrying the record as it stood before and after.
+    /// </summary>
+    /// <remarks>
+    /// Raised alongside <see cref="GameCustomDataChangedEventArgs"/> but for a different purpose:
+    /// that one says something changed, this one says what it was. Every writer already produces
+    /// both images on its way through the save, so a subscriber that wants to reverse a write -
+    /// the achievement editor's undo - can record them without loading anything itself.
+    ///
+    /// <see cref="Previous"/> is null when the write came through the overload that does not
+    /// compute a pre-image, which means the state before it is unknown rather than empty.
+    /// </remarks>
+    public sealed class GameCustomDataWrittenEventArgs : EventArgs
+    {
+        public GameCustomDataWrittenEventArgs(
+            Guid playniteGameId,
+            GameCustomDataFile previous,
+            GameCustomDataFile persisted,
+            bool affectsSummaryData,
+            bool affectsOverrideMirror)
+        {
+            PlayniteGameId = playniteGameId;
+            Previous = previous;
+            Persisted = persisted;
+            AffectsSummaryData = affectsSummaryData;
+            AffectsOverrideMirror = affectsOverrideMirror;
+        }
+
+        public Guid PlayniteGameId { get; }
+
+        /// <summary>The normalized record before the write, or null when it was not computed.</summary>
+        public GameCustomDataFile Previous { get; }
+
+        /// <summary>The record as it was stored.</summary>
+        public GameCustomDataFile Persisted { get; }
+
+        /// <summary>
+        /// The flags this write reported. A reversal has to repeat them, or the mirrors that key
+        /// off them resync for the original change and not for the one that undid it.
+        /// </summary>
+        public bool AffectsSummaryData { get; }
+
+        public bool AffectsOverrideMirror { get; }
+    }
+
+    /// <summary>
     /// Orchestrates per-game custom data persistence and migration.
     /// </summary>
     public sealed partial class GameCustomDataStore
@@ -111,6 +156,13 @@ namespace PlayniteAchievements.Services.GameCustomData
         private HashSet<Guid> _missingGameIds;
 
         public event EventHandler<GameCustomDataChangedEventArgs> CustomDataChanged;
+
+        /// <summary>
+        /// Raised for a write that reached the repository, with the record before and after it.
+        /// Raised just before <see cref="CustomDataChanged"/>, so a subscriber has recorded the
+        /// write before anything reacts to it.
+        /// </summary>
+        public event EventHandler<GameCustomDataWrittenEventArgs> CustomDataWritten;
 
         public GameCustomDataStore(string pluginUserDataPath, ILogger logger = null)
         {
@@ -476,6 +528,25 @@ namespace PlayniteAchievements.Services.GameCustomData
                 _notificationImageStore?.PruneGameImages(
                     playniteGameId,
                     normalized.NotificationAppearanceOverride?.Style);
+                // Before the change event, so a recorder has the write in hand before the
+                // subscribers that rebuild from it run. In its own guard because this is
+                // bookkeeping: a listener that throws must not fail a write that already landed.
+                try
+                {
+                    CustomDataWritten?.Invoke(
+                        this,
+                        new GameCustomDataWrittenEventArgs(
+                            playniteGameId,
+                            previousData,
+                            persisted,
+                            affectsSummaryData,
+                            affectsOverrideMirror));
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"A custom-data write subscriber failed for game {playniteGameId}.");
+                }
+
                 using (PerfScope.Start(_logger, "GameCustomData.Save.RaiseChanged", thresholdMs: 10))
                 {
                     RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror);
