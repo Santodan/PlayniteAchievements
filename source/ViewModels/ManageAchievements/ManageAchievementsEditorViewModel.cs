@@ -149,6 +149,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _customProviderStore.Changed += CustomProviderStore_Changed;
             }
 
+            // Every edit this tab makes is already stored by the time the user sees it, so the
+            // history is built from the writes themselves rather than from an uncommitted buffer.
+            _gameCustomDataStore.CustomDataWritten += GameCustomDataStore_CustomDataWritten;
+            UndoCommand = new RelayCommand(_ => Undo(), _ => CanUndo && !IsSaving);
+            RedoCommand = new RelayCommand(_ => Redo(), _ => CanRedo && !IsSaving);
+
             CustomProviderOptions = new ObservableCollection<CustomProviderOption>();
             AddCustomProviderCommand = new RelayCommand(_ => AddCustomProvider(), _ => IsCustomOnlyGame && _customProviderStore != null && !IsSaving);
             EditCustomProviderCommand = new RelayCommand(_ => EditCustomProvider(), _ => HasSelectedCustomProvider && _showEditor != null && !IsSaving);
@@ -227,6 +233,292 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// (the grid's column layout) rather than anything the rows carry.
         /// </summary>
         internal PlayniteAchievementsSettings Settings => _settings;
+
+        #region Undo history
+
+        private readonly EditorUndoJournal _undoJournal = new EditorUndoJournal();
+
+        /// <summary>
+        /// The gesture the writes arriving right now belong to. Set at each user-facing entry
+        /// point and cleared when the step is closed, so the history can tell a fan-out across
+        /// twenty rows from twenty separate edits.
+        /// </summary>
+        private EditorEditIntent _currentUndoIntent;
+
+        /// <summary>
+        /// The achievements the current gesture is touching, for reselecting them after an undo.
+        /// </summary>
+        private readonly List<string> _currentUndoApiNames = new List<string>();
+
+        private DispatcherTimer _undoStepTimer;
+
+        /// <summary>
+        /// Set while a step is being reversed, so the write that reverses it is not itself
+        /// recorded as a new step.
+        /// </summary>
+        private bool _isApplyingUndo;
+
+        public RelayCommand UndoCommand { get; }
+
+        public RelayCommand RedoCommand { get; }
+
+        public bool CanUndo => _undoJournal.CanUndo || _undoJournal.HasOpenStep;
+
+        public bool CanRedo => _undoJournal.CanRedo;
+
+        /// <summary>The gesture undo would reverse, for the button's tooltip.</summary>
+        public string UndoDescription => DescribeHistoryStep(
+            "LOCPlayAch_ManageAchievements_Editor_UndoFormat",
+            _undoJournal.UndoLabelKey,
+            "LOCPlayAch_Common_Undo");
+
+        public string RedoDescription => DescribeHistoryStep(
+            "LOCPlayAch_ManageAchievements_Editor_RedoFormat",
+            _undoJournal.RedoLabelKey,
+            "LOCPlayAch_Common_Redo");
+
+        /// <summary>
+        /// Names the gesture a history button would act on. Falls back to the bare verb while the
+        /// step being collected has no name yet.
+        /// </summary>
+        private static string DescribeHistoryStep(string formatKey, string labelKey, string fallbackKey)
+        {
+            var verb = ResourceProvider.GetString(fallbackKey);
+            if (string.IsNullOrWhiteSpace(labelKey))
+            {
+                return verb;
+            }
+
+            var label = ResourceProvider.GetString(labelKey);
+            return string.IsNullOrWhiteSpace(label)
+                ? verb
+                : string.Format(ResourceProvider.GetString(formatKey), label);
+        }
+
+        /// <summary>
+        /// Says which gesture the writes that follow belong to.
+        /// </summary>
+        /// <remarks>
+        /// A label and a grouping boundary, never a capture: the writes themselves are recorded by
+        /// the store's own event, so a site that forgets to call this splits one gesture into two
+        /// undo steps rather than losing it. That asymmetry is the point - the history cannot be
+        /// made wrong by a missing call here.
+        ///
+        /// Not an IDisposable scope, because the saves this tab issues are fire-and-forget: a
+        /// using block would close before the write it was labelling had happened.
+        /// </remarks>
+        /// <summary>
+        /// The gesture a changed property belongs to.
+        /// </summary>
+        /// <remarks>
+        /// Usually the property itself, so editing points and then trophy is two steps. The
+        /// exception is the unlock timestamp: setting it raises the date, the time text, the mode
+        /// and the has-a-time flag together, and those are one gesture rather than four.
+        /// </remarks>
+        private static string ResolveFieldGesture(string propertyName)
+        {
+            switch (propertyName)
+            {
+                case nameof(AchievementEditorRow.UnlockTime):
+                case nameof(AchievementEditorRow.UnlockDate):
+                case nameof(AchievementEditorRow.TimeText):
+                case nameof(AchievementEditorRow.SelectedTimeModeText):
+                case nameof(AchievementEditorRow.HasUnlockTime):
+                    return nameof(AchievementEditorRow.UnlockTime);
+
+                // Both sides of the progress pair read as one edit.
+                case nameof(AchievementEditorRow.ProgressNumText):
+                case nameof(AchievementEditorRow.ProgressDenomText):
+                    return "Progress";
+
+                default:
+                    return propertyName;
+            }
+        }
+
+        private void MarkUndoIntent(EditorEditIntent intent, IEnumerable<string> apiNames = null)
+        {
+            if (_isApplyingUndo)
+            {
+                return;
+            }
+
+            if (intent != null && !intent.Equals(_currentUndoIntent))
+            {
+                // A new gesture closes the one before it, so the step boundary is the gesture
+                // boundary rather than a matter of timing.
+                CommitUndoStep();
+            }
+
+            _currentUndoIntent = intent;
+            _currentUndoApiNames.Clear();
+            if (apiNames != null)
+            {
+                _currentUndoApiNames.AddRange(apiNames.Where(name => !string.IsNullOrWhiteSpace(name)));
+            }
+
+            if (_currentUndoApiNames.Count == 0)
+            {
+                _currentUndoApiNames.AddRange(
+                    ResolveSelectionTargets().Select(row => row.OriginalApiName));
+            }
+        }
+
+        private void GameCustomDataStore_CustomDataWritten(object sender, GameCustomDataWrittenEventArgs e)
+        {
+            if (e == null || e.PlayniteGameId != _gameId)
+            {
+                return;
+            }
+
+            if (_isApplyingUndo)
+            {
+                // The write that reverses a step is not a step of its own.
+                return;
+            }
+
+            _undoJournal.Record(
+                e.Previous,
+                e.Persisted,
+                e.AffectsSummaryData,
+                e.AffectsOverrideMirror,
+                _currentUndoIntent,
+                _currentUndoApiNames);
+
+            RestartUndoStepTimer();
+            RaiseHistoryState();
+        }
+
+        /// <summary>
+        /// Closes the open step once the writes stop arriving.
+        /// </summary>
+        /// <remarks>
+        /// The delay matches the one the plugin already coalesces custom-data notifications on, so
+        /// an undo boundary lands where the rest of the plugin already treats a burst as finished.
+        /// It also covers the gap a fire-and-forget save leaves between the override write and the
+        /// definition write that follows it.
+        /// </remarks>
+        private void RestartUndoStepTimer()
+        {
+            if (_undoStepTimer == null)
+            {
+                _undoStepTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(400)
+                };
+                _undoStepTimer.Tick += UndoStepTimer_Tick;
+            }
+
+            _undoStepTimer.Stop();
+            _undoStepTimer.Start();
+        }
+
+        private void UndoStepTimer_Tick(object sender, EventArgs e)
+        {
+            _undoStepTimer?.Stop();
+            if (IsSaving)
+            {
+                // A save still in flight means more writes are coming for this gesture.
+                RestartUndoStepTimer();
+                return;
+            }
+
+            CommitUndoStep();
+        }
+
+        private void CommitUndoStep()
+        {
+            _undoStepTimer?.Stop();
+            _undoJournal.CommitOpenStep();
+            _currentUndoIntent = null;
+            _currentUndoApiNames.Clear();
+            RaiseHistoryState();
+        }
+
+        private void Undo()
+        {
+            ApplyHistoryStep(_undoJournal.Undo(), reverse: true);
+        }
+
+        private void Redo()
+        {
+            ApplyHistoryStep(_undoJournal.Redo(), reverse: false);
+        }
+
+        /// <summary>
+        /// Writes a history step's values back through the store.
+        /// </summary>
+        /// <remarks>
+        /// Through the store's own update, with the flags the original write reported, so the
+        /// whole downstream cascade - the cache mirror, the theme state, the tag sync, the
+        /// overview projections - runs for the reversal exactly as it ran for the edit. Writing
+        /// the repository directly would put the record back and leave every one of those stale.
+        /// </remarks>
+        private void ApplyHistoryStep(EditorUndoEntry entry, bool reverse)
+        {
+            if (entry == null)
+            {
+                return;
+            }
+
+            _isApplyingUndo = true;
+            try
+            {
+                _gameCustomDataStore.Update(
+                    _gameId,
+                    data =>
+                    {
+                        // Reverse order when undoing: a gesture that wrote several facets in turn
+                        // may have derived a later one from an earlier one.
+                        var facets = reverse ? entry.Facets.Reverse() : entry.Facets;
+                        foreach (var patch in facets)
+                        {
+                            if (reverse)
+                            {
+                                patch.ApplyBefore(data);
+                            }
+                            else
+                            {
+                                patch.ApplyAfter(data);
+                            }
+                        }
+                    },
+                    entry.AffectsSummaryData,
+                    entry.AffectsOverrideMirror);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed to {(reverse ? "undo" : "redo")} an editor change for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+                _undoJournal.Clear();
+                RaiseHistoryState();
+                return;
+            }
+            finally
+            {
+                _isApplyingUndo = false;
+            }
+
+            ReloadData();
+            RaiseAssignmentsChanged();
+            RaiseHistoryState();
+
+            if (entry.AffectedApiNames.Count > 0)
+            {
+                RestoreSelectionRequested?.Invoke(this, entry.AffectedApiNames.ToList());
+            }
+        }
+
+        private void RaiseHistoryState()
+        {
+            OnPropertyChanged(nameof(CanUndo));
+            OnPropertyChanged(nameof(CanRedo));
+            OnPropertyChanged(nameof(UndoDescription));
+            OnPropertyChanged(nameof(RedoDescription));
+            RaiseCommandStates();
+        }
+
+        #endregion
 
         public ObservableCollection<AchievementEditorRow> AchievementRows { get; }
 
@@ -1165,6 +1457,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _customProviderStore.Changed -= CustomProviderStore_Changed;
             }
 
+            // A running DispatcherTimer is rooted by the dispatcher and holds its handler, so it
+            // would keep this view model - and through it every row - alive for the process.
+            if (_undoStepTimer != null)
+            {
+                _undoStepTimer.Stop();
+                _undoStepTimer.Tick -= UndoStepTimer_Tick;
+                _undoStepTimer = null;
+            }
+
+            // The store outlives every window, so a missed unsubscribe here is the one leak this
+            // history could introduce.
+            _gameCustomDataStore.CustomDataWritten -= GameCustomDataStore_CustomDataWritten;
+            _undoJournal.Clear();
+
             // The rows outnumber everything else this view model holds, and each one points back
             // at it. Dropping them here means a window that is still rooted somewhere costs one
             // view model rather than a whole game's worth of rows and resolved art.
@@ -1255,6 +1561,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void ApplyCustomProviderAssignment(string customProviderId)
         {
+            MarkUndoIntent(EditorEditIntent.Command("CustomProvider", "LOCPlayAch_Common_Label_Platform"));
+
             try
             {
                 _achievementOverridesService.SetCustomProvider(_gameId, customProviderId);
@@ -1381,6 +1689,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void AddRow()
         {
+            MarkUndoIntent(EditorEditIntent.Command("Add", "LOCPlayAch_Common_Add"));
+
             var row = AchievementEditorRow.CreateNew(AchievementRows.Count + 1);
             AssignStableId(row);
             AttachRow(row);
@@ -1418,6 +1728,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void DuplicateSelected()
         {
+            MarkUndoIntent(EditorEditIntent.Command("Duplicate", "LOCPlayAch_Common_Duplicate"));
+
             var targets = ResolveSelectionTargets();
             if (targets.Count == 0)
             {
@@ -1452,6 +1764,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetCategoryForSelection(string categoryLabel)
         {
+            MarkUndoIntent(EditorEditIntent.Command("Category", "LOCPlayAch_Common_Label_Category"));
+
             var targets = ResolveSelectionTargets()
                 .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .ToList();
@@ -1543,6 +1857,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         public void SetCategoryTypesForSelection(IEnumerable<string> categoryTypes)
         {
+            MarkUndoIntent(EditorEditIntent.Command("CategoryType", "LOCPlayAch_Common_Label_Type"));
+
             var targets = ResolveSelectionTargets()
                 .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .ToList();
@@ -1569,6 +1885,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetCategoryTypeForSelection(string categoryType, bool isSelected)
         {
+            MarkUndoIntent(EditorEditIntent.Command("CategoryType", "LOCPlayAch_Common_Label_Type"));
+
             var targets = ResolveSelectionTargets()
                 .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .ToList();
@@ -1601,6 +1919,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         public void SetCapstoneForSelection(bool isCapstone)
         {
+            MarkUndoIntent(EditorEditIntent.Command("Capstone", "LOCPlayAch_Dynamic_Capstone"));
+
             var targets = ResolveSelectionTargets();
             if (targets.Count == 0)
             {
@@ -1640,6 +1960,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetGoalForSelection(bool isGoal)
         {
+            MarkUndoIntent(EditorEditIntent.Command("Goal", "LOCPlayAch_ManageAchievements_Editor_Goal"));
+
             var targets = ResolveSelectionTargets();
             if (targets.Count == 0)
             {
@@ -1656,6 +1978,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetFilterScopeForSelection(AchievementFilterScope scope)
         {
+            MarkUndoIntent(EditorEditIntent.Command("FilterScope", "LOCPlayAch_Menu_Filters"));
+
             var targets = ResolveSelectionTargets();
             if (targets.Count == 0)
             {
@@ -1703,6 +2027,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+
+            MarkUndoIntent(
+                EditorEditIntent.Atomic("Revert", "LOCPlayAch_ManageAchievements_Editor_Revert"),
+                targets.Select(row => row.OriginalApiName));
             ResetCustomizations(targets, deleteAuthored: false);
         }
 
@@ -1720,6 +2048,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 return;
             }
+
+            MarkUndoIntent(EditorEditIntent.Atomic("ResetAll", "LOCPlayAch_Button_ResetAll"));
 
             ResetCustomizations(
                 AchievementRows
@@ -1825,6 +2155,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private async Task ApplyAutoCapstoneAsync()
         {
+            MarkUndoIntent(EditorEditIntent.Atomic("AutoCapstone", "LOCPlayAch_ManageAchievements_Custom_AutoCapstone"));
+
             try
             {
                 // One capstone stands for one category, so the first thing to settle is which. A
@@ -2143,6 +2475,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void ResetOrder()
         {
+            MarkUndoIntent(EditorEditIntent.Command("ResetOrder", "LOCPlayAch_ManageAchievements_Order_Reset"));
+
             try
             {
                 _achievementOverridesService.SetAchievementOrderOverride(_gameId, Array.Empty<string>());
@@ -2195,6 +2529,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void DeleteSelected()
         {
+            MarkUndoIntent(EditorEditIntent.Command("Delete", "LOCPlayAch_Button_Delete"));
+
             var targets = ResolveSelectionTargets()
                 .Where(row => !row.IsProviderRow)
                 .ToList();
@@ -2247,6 +2583,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 SetStatus(string.Join(Environment.NewLine, result.Errors.Take(8)), true);
                 return;
             }
+
+            MarkUndoIntent(EditorEditIntent.Atomic("Import", "LOCPlayAch_Common_Import"));
 
             if (result.Definitions.Count == 0)
             {
@@ -3073,6 +3411,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // Past the guards that return without writing, so the gesture is named only for a
+            // change that will actually reach the store. A field edit already open under the
+            // same property keeps its step, which is what makes a fan-out one entry.
+            MarkUndoIntent(EditorEditIntent.FieldEdit(ResolveFieldGesture(e.PropertyName), "LOCPlayAch_Common_Edit"));
+
             if (e.PropertyName == nameof(AchievementEditorRow.IsCapstone))
             {
                 // The row re-seeds itself from the store after every write, and that re-seed sets
@@ -3391,6 +3734,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             int targetIndex,
             bool insertAfterTarget)
         {
+            // Marked here rather than at the order write, which the add flow also goes through
+            // under its own gesture.
+            MarkUndoIntent(EditorEditIntent.Command(
+                "Reorder",
+                "LOCPlayAch_Common_Reorder"));
+
             if (source == null ||
                 source.Count == 0 ||
                 selectedIndexes == null ||
@@ -3483,6 +3832,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 return;
             }
+
+            // A bulk edit writes once per selected row; naming the gesture here keeps all of
+            // those writes in one undo step.
+            MarkUndoIntent(EditorEditIntent.FieldEdit(ResolveFieldGesture(property), "LOCPlayAch_Common_Edit"));
 
             _isApplyingBulk = true;
             try
@@ -3638,6 +3991,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void ApplyIconEditAcrossSelection(Action<AchievementEditorRow> apply, AchievementIconVariant variant)
         {
             var targets = _selectedRows.ToList();
+            MarkUndoIntent(
+                EditorEditIntent.Command("Icon:" + variant, "LOCPlayAch_Column_Icon"),
+                targets.Select(row => row.OriginalApiName));
             StageAcross(targets, apply);
             _ = ApplyIconEditAsync(targets, variant);
             if (targets.Any(row => !row.IsProviderRow))
@@ -5707,6 +6063,31 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
+        /// The same action as a single character, for the grid cell, where a word would need most
+        /// of the column. The details pane keeps <see cref="CapstoneActionText"/>: there the width
+        /// is free and the word is clearer.
+        /// </summary>
+        /// <remarks>
+        /// Plain characters rather than icon-font codepoints, so the glyph survives a theme that
+        /// substitutes the font: a plus adds, a minus removes, and a double arrow replaces, with
+        /// <see cref="CapstoneActionToolTip"/> still naming what will happen.
+        /// </remarks>
+        public string CapstoneActionGlyph
+        {
+            get
+            {
+                if (IsCapstone)
+                {
+                    return "−";
+                }
+
+                return string.IsNullOrWhiteSpace(CapstoneReplacesDisplayName)
+                    ? "+"
+                    : "↔";
+            }
+        }
+
+        /// <summary>
         /// The capstone that acting on this achievement would displace, named on the button tooltip
         /// so a replacement is never a surprise. Null when nothing would be displaced.
         /// </summary>
@@ -5718,6 +6099,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _capstoneReplacesDisplayName, value))
                 {
                     OnPropertyChanged(nameof(CapstoneActionText));
+                    OnPropertyChanged(nameof(CapstoneActionGlyph));
                     OnPropertyChanged(nameof(CapstoneActionToolTip));
                 }
             }
@@ -5804,6 +6186,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             OnPropertyChanged(nameof(CapstoneActionText));
             OnPropertyChanged(nameof(CapstoneActionToolTip));
+            OnPropertyChanged(nameof(CapstoneActionGlyph));
             OnPropertyChanged(nameof(CurrentCategoryCapstoneText));
             OnPropertyChanged(nameof(CurrentGameCapstoneText));
             OnPropertyChanged(nameof(ShowCurrentCategoryCapstone));

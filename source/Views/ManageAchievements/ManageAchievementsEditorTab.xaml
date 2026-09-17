@@ -288,6 +288,20 @@
                     <WrapPanel HorizontalAlignment="Right">
                     <StackPanel Margin="0,0,16,0">
                     <StackPanel Orientation="Horizontal">
+                        <!-- Ahead of the edits they reverse. Disabled rather than hidden when
+                             there is nothing to undo, like the other conditional buttons here:
+                             hiding them would reflow the row as the user works. The tooltip names
+                             the edit, since the label cannot. -->
+                        <Button x:Name="UndoButton"
+                                Content="{DynamicResource LOCPlayAch_Common_Undo}"
+                                ToolTip="{Binding UndoDescription}"
+                                Command="{Binding UndoCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}" />
+                        <Button x:Name="RedoButton"
+                                Content="{DynamicResource LOCPlayAch_Common_Redo}"
+                                ToolTip="{Binding RedoDescription}"
+                                Command="{Binding RedoCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}" />
                         <Button x:Name="AddButton"
                                 Content="{DynamicResource LOCPlayAch_Common_Add}"
                                 Command="{Binding AddCommand}"
@@ -1018,8 +1032,8 @@
                          adds a capstone or replaces the one the game already has, which is what
                          its label carries. -->
                     <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Dynamic_Capstone}"
-                                            Width="124"
-                                            MinWidth="96"
+                                            Width="84"
+                                            MinWidth="64"
                                             IsReadOnly="True"
                                             CanUserSort="False"
                                             SortMemberPath="IsCapstone"
@@ -1044,13 +1058,20 @@
                                               Opacity="{StaticResource PlayAch.Opacity.Secondary}"
                                               VerticalAlignment="Center"
                                               Margin="0,0,6,0" />
+                                    <!-- The action as a glyph rather than its name: plus adds,
+                                         double arrow replaces, minus removes, and the tooltip
+                                         still says which in words. The details pane keeps the
+                                         worded button, where the width is free. -->
                                     <Button Grid.Column="1"
-                                            Content="{Binding CapstoneActionText}"
+                                            Content="{Binding CapstoneActionGlyph}"
                                             ToolTip="{Binding CapstoneActionToolTip}"
                                             IsEnabled="{Binding CanEditCapstone}"
                                             Click="CapstoneCell_Click"
-                                            Padding="8,1"
-                                            MinHeight="22"
+                                            FontSize="13"
+                                            Padding="0"
+                                            Width="24"
+                                            MinHeight="24"
+                                            HorizontalAlignment="Left"
                                             VerticalAlignment="Center" />
                                 </Grid>
                             </DataTemplate>

@@ -123,6 +123,8 @@
     <Compile Include="..\..\source\Services\Achievements\AchievementNoteHelper.cs" Link="Source\Services\Achievements\AchievementNoteHelper.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataLegacyMigration.cs" Link="Source\Services\GameCustomData\GameCustomDataLegacyMigration.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataNormalizer.cs" Link="Source\Services\GameCustomData\GameCustomDataNormalizer.cs" />
+    <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataFacet.cs" Link="Source\Services\GameCustomData\GameCustomDataFacet.cs" />
+    <Compile Include="..\..\source\ViewModels\ManageAchievements\EditorUndoJournal.cs" Link="Source\ViewModels\ManageAchievements\EditorUndoJournal.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataRepository.cs" Link="Source\Services\GameCustomData\GameCustomDataRepository.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataRuntimeProjector.cs" Link="Source\Services\GameCustomData\GameCustomDataRuntimeProjector.cs" />
     <Compile Include="..\..\source\Services\Hydration\AchievementDetailHydrator.cs" Link="Source\Services\Hydration\AchievementDetailHydrator.cs" />
