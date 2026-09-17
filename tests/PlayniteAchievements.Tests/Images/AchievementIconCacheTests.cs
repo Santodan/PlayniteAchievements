@@ -1432,6 +1432,143 @@ namespace PlayniteAchievements.Services.Images.Tests
             }
         }
 
+        [TestMethod]
+        public void HasExplicitLockedIcon_ReadsACachedIconsVariantFromItsName()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var root = Path.Combine(tempDir, "icon_cache", "game-123");
+                var customUnlocked = Path.Combine(root, "custom", "boss_win.png");
+                var customLocked = Path.Combine(root, "custom", "boss_win.locked.png");
+                var providerUnlocked = Path.Combine(root, "original", "boss_win.png");
+                WritePlaceholderFile(customUnlocked);
+                WritePlaceholderFile(customLocked);
+                WritePlaceholderFile(providerUnlocked);
+
+                // A locked icon somebody chose is its own art whatever the unlocked slot holds.
+                Assert.IsTrue(
+                    AchievementIconResolver.HasExplicitLockedIcon(customLocked, customUnlocked),
+                    "A file under the locked name is locked art of its own.");
+
+                // The mirror a game with separate locked icons off stores: the provider's unlocked
+                // file left in the locked slot. It differs from a custom unlocked path, which is
+                // exactly what comparing the two paths got wrong.
+                Assert.IsFalse(
+                    AchievementIconResolver.HasExplicitLockedIcon(providerUnlocked, customUnlocked),
+                    "A cached file that is not the locked one of its pair is a copy, not own art.");
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void GetLockedDisplayIcon_GraysACustomUnlockedIconWhenTheLockedSlotIsAMirror()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var root = Path.Combine(tempDir, "icon_cache", "game-123");
+                var customUnlocked = Path.Combine(root, "custom", "boss_win.png");
+                var providerUnlocked = Path.Combine(root, "original", "boss_win.png");
+                WritePlaceholderFile(customUnlocked);
+                WritePlaceholderFile(providerUnlocked);
+
+                var displayPath = AchievementIconResolver.GetLockedDisplayIcon(
+                    customUnlocked,
+                    providerUnlocked);
+
+                StringAssert.Contains(displayPath, "gray:");
+                StringAssert.EndsWith(displayPath, customUnlocked);
+                Assert.IsFalse(
+                    displayPath.Contains(Path.Combine("original", "boss_win.png")),
+                    "Setting a custom unlocked icon must not show the provider's original back.");
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void HasExplicitLockedIcon_ComparesPathsForASourceOutsideTheCache()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var unlocked = Path.Combine(tempDir, "unlocked.png");
+                var typed = Path.Combine(tempDir, "typed-by-hand.png");
+                WritePlaceholderFile(unlocked);
+                WritePlaceholderFile(typed);
+
+                Assert.IsTrue(AchievementIconResolver.HasExplicitLockedIcon(typed, unlocked));
+                Assert.IsFalse(AchievementIconResolver.HasExplicitLockedIcon(unlocked, unlocked));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void IsLockedVariantPath_AgreesWithEveryPathTheBuilderWrites()
+        {
+            var stems = AchievementIconCachePathBuilder.BuildFileStems(new[] { "boss:win" });
+            var stem = stems["boss:win"];
+
+            foreach (var built in new[]
+            {
+                AchievementIconCachePathBuilder.BuildRelativePath("g", stem, AchievementIconVariant.Locked),
+                AchievementIconCachePathBuilder.BuildCustomRelativePath("g", stem, AchievementIconVariant.Locked)
+            })
+            {
+                Assert.IsTrue(AchievementIconCachePathBuilder.IsCachedIconPath(built), built);
+                Assert.IsTrue(AchievementIconCachePathBuilder.IsLockedVariantPath(built), built);
+            }
+
+            foreach (var built in new[]
+            {
+                AchievementIconCachePathBuilder.BuildRelativePath("g", stem, AchievementIconVariant.Unlocked),
+                AchievementIconCachePathBuilder.BuildCustomRelativePath("g", stem, AchievementIconVariant.Unlocked)
+            })
+            {
+                Assert.IsTrue(AchievementIconCachePathBuilder.IsCachedIconPath(built), built);
+                Assert.IsFalse(AchievementIconCachePathBuilder.IsLockedVariantPath(built), built);
+            }
+
+            Assert.IsTrue(AchievementIconCachePathBuilder.IsCustomIconPath(
+                AchievementIconCachePathBuilder.BuildCustomRelativePath("g", stem, AchievementIconVariant.Locked)));
+            Assert.IsFalse(AchievementIconCachePathBuilder.IsCustomIconPath(
+                AchievementIconCachePathBuilder.BuildRelativePath("g", stem, AchievementIconVariant.Locked)));
+        }
+
+        [TestMethod]
+        public void ResolveLockedArtPath_DropsProviderLockedArtOnlyWhileTheSettingIsOff()
+        {
+            var stems = AchievementIconCachePathBuilder.BuildFileStems(new[] { "boss:win" });
+            var stem = stems["boss:win"];
+            var providerLocked = AchievementIconCachePathBuilder.BuildRelativePath(
+                "g", stem, AchievementIconVariant.Locked);
+            var customLocked = AchievementIconCachePathBuilder.BuildCustomRelativePath(
+                "g", stem, AchievementIconVariant.Locked);
+
+            Assert.AreEqual(
+                providerLocked,
+                AchievementIconResolver.ResolveLockedArtPath(providerLocked, useSeparateLockedIcons: true));
+            Assert.IsNull(
+                AchievementIconResolver.ResolveLockedArtPath(providerLocked, useSeparateLockedIcons: false));
+
+            // A locked icon the user chose is not the provider's second image the setting is about.
+            Assert.AreEqual(
+                customLocked,
+                AchievementIconResolver.ResolveLockedArtPath(customLocked, useSeparateLockedIcons: false));
+        }
+
         private static string CreateTempDirectory()
         {
             var path = Path.Combine(Path.GetTempPath(), "PlayniteAchievementsTests", Guid.NewGuid().ToString("N"));
