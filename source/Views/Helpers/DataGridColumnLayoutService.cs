@@ -89,6 +89,15 @@ namespace PlayniteAchievements.Views.Helpers
         public ISet<string> ExcludedHeaderAlignmentKeys { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
+        /// Column keys locked to the leading display indexes, in this order. They are never moved
+        /// by a persisted order map, and a column dropped to their left is put back.
+        /// Set before calling Attach(). Pair with CanUserReorder="False" on the columns themselves
+        /// so the common case is prevented rather than corrected, and with
+        /// <see cref="ExcludedVisibilityKeys"/> when they should not be hideable either.
+        /// </summary>
+        public IList<string> PinnedLeadingKeys { get; set; } = new List<string>();
+
+        /// <summary>
         /// Column keys that should be forced to collapsed visibility.
         /// These columns will be collapsed during ApplyPersistedVisibility to prevent flicker.
         /// </summary>
@@ -656,6 +665,9 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
+            // Before the save, so the persisted map records the clamped layout rather than the
+            // one the drop briefly produced.
+            ApplyPinnedLeadingClamp();
             QueueColumnOrderSave();
         }
 
@@ -825,7 +837,11 @@ namespace PlayniteAchievements.Views.Helpers
         private void ApplyPersistedOrder()
         {
             var map = _getOrder?.Invoke();
-            if (_grid == null || map == null || map.Count == 0)
+
+            // With pinned columns the pass still has work to do on a fresh install and against a
+            // map that says nothing about them: the clamp is what holds them at the left edge.
+            var hasPinned = PinnedLeadingKeys != null && PinnedLeadingKeys.Count > 0;
+            if (_grid == null || (!hasPinned && (map == null || map.Count == 0)))
             {
                 return;
             }
@@ -842,9 +858,10 @@ namespace PlayniteAchievements.Views.Helpers
                 {
                     entry.Column,
                     entry.OriginalDisplayIndex,
-                    SavedDisplayIndex = !string.IsNullOrWhiteSpace(entry.Key) && map.TryGetValue(entry.Key, out var displayIndex)
-                        ? Math.Max(0, displayIndex)
-                        : int.MaxValue
+                    // A pinned column scores its slot in the pinned list and ignores any saved
+                    // index, so a stale or hostile map cannot move it. Everyone else is offset
+                    // past the pinned block, which is what keeps them from landing to its left.
+                    SavedDisplayIndex = ResolveOrderScore(entry.Key, map, hasPinned)
                 })
                 .OrderBy(entry => entry.SavedDisplayIndex)
                 .ThenBy(entry => entry.OriginalDisplayIndex)
@@ -870,6 +887,119 @@ namespace PlayniteAchievements.Views.Helpers
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "Failed to apply persisted column order.");
+            }
+            finally
+            {
+                _isApplyingOrder = false;
+            }
+        }
+
+        /// <summary>
+        /// Where a column sorts when the persisted order is applied. Pinned keys take their slot
+        /// in <see cref="PinnedLeadingKeys"/>; everything else is offset past the pinned block so
+        /// no saved index can place it to their left. An unknown key sorts last and falls back to
+        /// declaration order through the caller's tiebreak.
+        /// </summary>
+        private int ResolveOrderScore(string key, Dictionary<string, int> map, bool hasPinned)
+        {
+            if (hasPinned && !string.IsNullOrWhiteSpace(key))
+            {
+                var pinnedSlot = IndexOfPinnedKey(key);
+                if (pinnedSlot >= 0)
+                {
+                    return pinnedSlot;
+                }
+            }
+
+            var offset = hasPinned ? PinnedLeadingKeys.Count : 0;
+            if (!string.IsNullOrWhiteSpace(key) && map != null && map.TryGetValue(key, out var displayIndex))
+            {
+                return offset + Math.Max(0, displayIndex);
+            }
+
+            return int.MaxValue;
+        }
+
+        private int IndexOfPinnedKey(string key)
+        {
+            if (PinnedLeadingKeys == null || string.IsNullOrWhiteSpace(key))
+            {
+                return -1;
+            }
+
+            for (var index = 0; index < PinnedLeadingKeys.Count; index++)
+            {
+                if (string.Equals(PinnedLeadingKeys[index], key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Puts the pinned columns back at the left edge after a user reorder.
+        ///
+        /// Marking a pinned column CanUserReorder="False" stops it being dragged but does not stop
+        /// another column being dropped to its left, so the drop is allowed and then corrected.
+        /// Runs before the order is persisted, so the stored map never describes a layout the grid
+        /// is not showing. Reassigning a DisplayIndex shifts the rest along, which is why the
+        /// pinned columns are assigned in order.
+        /// </summary>
+        private void ApplyPinnedLeadingClamp()
+        {
+            if (_grid == null || PinnedLeadingKeys == null || PinnedLeadingKeys.Count == 0)
+            {
+                return;
+            }
+
+            var pinnedColumns = new List<DataGridColumn>();
+            foreach (var pinnedKey in PinnedLeadingKeys)
+            {
+                var match = _grid.Columns.FirstOrDefault(
+                    column => column != null &&
+                        string.Equals(GetColumnKey(column), pinnedKey, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    pinnedColumns.Add(match);
+                }
+            }
+
+            if (pinnedColumns.Count == 0)
+            {
+                return;
+            }
+
+            var alreadySeated = true;
+            for (var index = 0; index < pinnedColumns.Count; index++)
+            {
+                if (pinnedColumns[index].DisplayIndex != index)
+                {
+                    alreadySeated = false;
+                    break;
+                }
+            }
+
+            if (alreadySeated)
+            {
+                return;
+            }
+
+            _isApplyingOrder = true;
+            try
+            {
+                for (var index = 0; index < pinnedColumns.Count; index++)
+                {
+                    if (pinnedColumns[index].DisplayIndex != index)
+                    {
+                        pinnedColumns[index].DisplayIndex = index;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to clamp pinned columns to the leading display indexes.");
             }
             finally
             {
@@ -2486,6 +2616,14 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static string ResolveColumnDisplayName(DataGridColumn column)
         {
+            // A declared name wins: resolving a Header that is a control falls through to
+            // ToString(), which reads as the control's type name.
+            var declaredName = ColumnVisibilityHelper.GetColumnDisplayName(column);
+            if (!string.IsNullOrWhiteSpace(declaredName))
+            {
+                return declaredName;
+            }
+
             var headerText = ResolveHeaderText(column?.Header);
             if (!string.IsNullOrWhiteSpace(headerText))
             {
