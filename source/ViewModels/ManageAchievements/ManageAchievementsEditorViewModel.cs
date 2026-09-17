@@ -1409,7 +1409,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     // applied here or a saved reorder would persist and then be ignored on reload.
                     // Custom and provider achievements sort together, which is what lets an
                     // authored achievement sit between two provider ones.
-                    var hydrated = _gameDataSnapshotProvider?.GetHydratedGameData();
+                    GameAchievementData hydrated;
+                    using (Common.PerfScope.Start(_logger, "Editor.ReloadData.Hydrate", thresholdMs: 5))
+                    {
+                        hydrated = _gameDataSnapshotProvider?.GetHydratedGameData();
+                    }
+
                     var achievements = (hydrated?.Achievements ?? new List<AchievementDetail>())
                         .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
                         .ToList();
@@ -3038,6 +3043,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void ReplaceRows(IEnumerable<AchievementEditorRow> rows)
         {
+            using var replaceScope = Common.PerfScope.Start(_logger, "Editor.ReplaceRows", thresholdMs: 5);
             var previousSelectedId = SelectedRow?.NormalizedId;
             var previousSelectedApiNames = _selectedRows
                 .Where(row => !string.IsNullOrWhiteSpace(row?.OriginalApiName))
