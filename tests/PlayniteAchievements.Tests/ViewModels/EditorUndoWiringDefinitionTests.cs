@@ -154,6 +154,24 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "Another game's write is not this editor's history.");
         }
 
+        [TestMethod]
+        public void AnIconChange_IsRememberedByAFreshCopyEachTime()
+        {
+            // The managed icon path is a slot whose contents change while its name stays the
+            // same. Keying kept copies by that path returns the first image copied for every
+            // later change, which is what limited the history to a single level.
+            var retain = ExtractMethod(ReadViewModel(), "private object RetainIconValue(object value)");
+
+            StringAssert.Contains(
+                retain,
+                "File.Copy(",
+                "A path alone does not survive the art behind it being replaced.");
+            Assert.IsFalse(
+                retain.Contains("ContainsKey") || retain.Contains("TryGetValue"),
+                "Reusing a copy already taken for this path is the one-level bug: the slot " +
+                "keeps its name while its contents change.");
+        }
+
         /// <summary>
         /// A method body, by its signature line, matched to the closing brace at its own indent.
         /// </summary>
