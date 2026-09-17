@@ -80,6 +80,68 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void AMapHoldingTheSameEntriesInAnotherOrder_IsNotAChange()
+        {
+            // The assignment maps are rebuilt from the rows on every write, so their insertion
+            // order is incidental. Comparing them as serialized state would call a reordering a
+            // change and record an undo step for a write that moved nothing.
+            var before = new GameCustomDataFile
+            {
+                AchievementOverrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["one"] = new AchievementOverride { Points = 10 },
+                    ["two"] = new AchievementOverride { Points = 20 }
+                }
+            };
+            var after = new GameCustomDataFile
+            {
+                AchievementOverrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["two"] = new AchievementOverride { Points = 20 },
+                    ["one"] = new AchievementOverride { Points = 10 }
+                }
+            };
+
+            Assert.AreEqual(0, GameCustomDataFacetDiffer.Diff(before, after).Count);
+        }
+
+        [TestMethod]
+        public void AListReordered_IsAChange()
+        {
+            // Unlike a map, position is part of what a list means here.
+            var before = new GameCustomDataFile { AchievementOrder = new List<string> { "a", "b" } };
+            var after = new GameCustomDataFile { AchievementOrder = new List<string> { "b", "a" } };
+
+            Assert.AreEqual(1, GameCustomDataFacetDiffer.Diff(before, after).Count);
+        }
+
+        [TestMethod]
+        public void AFieldAddedToAnOverride_IsStillNoticed()
+        {
+            // Compared as serialized values per entry, so a field added to the override record
+            // later is covered without this differ being updated. A hand-written field-by-field
+            // comparison is what would quietly stop noticing.
+            var before = new GameCustomDataFile
+            {
+                AchievementOverrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["one"] = new AchievementOverride { Note = "same", TrophyType = "gold" }
+                }
+            };
+            var after = new GameCustomDataFile
+            {
+                AchievementOverrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["one"] = new AchievementOverride { Note = "same", TrophyType = "silver" }
+                }
+            };
+
+            CollectionAssert.AreEqual(
+                new[] { GameCustomDataFacet.AchievementOverrides },
+                GameCustomDataFacetDiffer.Diff(before, after).Select(patch => patch.Facet).ToArray());
+        }
+
+        [TestMethod]
         public void MaterializingCapstones_YieldsOneFacetCoveringTheFlag()
         {
             // The flag is what separates "no capstones" from "fall back to the provider", so it
