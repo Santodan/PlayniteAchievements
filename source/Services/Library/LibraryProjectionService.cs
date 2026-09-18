@@ -23,6 +23,14 @@ namespace PlayniteAchievements.Services.Library
         private const int WarmDebounceMs = 1500;
         private static readonly TimeSpan MinEagerWarmInterval = TimeSpan.FromSeconds(30);
 
+        // A scoped change waits for the library to actually go quiet before precomputing. A
+        // single-game refresh or edit arrives far more often than a whole-library rebuild takes,
+        // so warming after each one is work that the next change throws away. Longer than any
+        // routine cadence (the in-game refresh runs ~15s apart), and _warmGeneration collapses a
+        // burst to its last member, so a steady stream never fires this while a genuine idle
+        // period does.
+        private static readonly TimeSpan ScopedWarmIdleDelay = TimeSpan.FromSeconds(20);
+
         private readonly object _sync = new object();
         private readonly AchievementDataService _achievementDataService;
         private readonly IReadOnlyList<IDataProvider> _providers;
@@ -70,8 +78,8 @@ namespace PlayniteAchievements.Services.Library
 
             if (_cacheManager != null)
             {
-                _cacheManager.CacheInvalidated += OnProjectionSourceChanged;
-                _cacheManager.CacheDeltaUpdated += OnProjectionSourceChanged;
+                _cacheManager.CacheInvalidated += OnCacheInvalidatedForProjection;
+                _cacheManager.CacheDeltaUpdated += OnCacheDeltaForProjection;
             }
 
             if (_customDataStore != null)
@@ -134,13 +142,20 @@ namespace PlayniteAchievements.Services.Library
 
         public void Invalidate()
         {
+            InvalidateCore(scopedChange: false);
+        }
+
+        private void InvalidateCore(bool scopedChange)
+        {
             lock (_sync)
             {
                 _cacheGeneration++;
                 _cache.Clear();
             }
 
-            ScheduleWarm();
+            // The cache is cleared either way, so no consumer can be served a projection built
+            // before this change. What a scoped change changes is only when the precompute runs.
+            ScheduleWarm(scopedChange ? ScopedWarmIdleDelay : TimeSpan.Zero);
         }
 
         /// <summary>Cached projection keys retained right now, for memory diagnostics.</summary>
@@ -157,7 +172,7 @@ namespace PlayniteAchievements.Services.Library
         // a populated game database rather than baking in blank values during early startup.
         public void Warm()
         {
-            ScheduleWarm();
+            ScheduleWarm(TimeSpan.Zero);
         }
 
         // While a game session is active the background warm is skipped: the in-game poller's
@@ -186,8 +201,8 @@ namespace PlayniteAchievements.Services.Library
 
             if (_cacheManager != null)
             {
-                _cacheManager.CacheInvalidated -= OnProjectionSourceChanged;
-                _cacheManager.CacheDeltaUpdated -= OnProjectionSourceChanged;
+                _cacheManager.CacheInvalidated -= OnCacheInvalidatedForProjection;
+                _cacheManager.CacheDeltaUpdated -= OnCacheDeltaForProjection;
             }
 
             if (_customDataStore != null)
@@ -359,9 +374,24 @@ namespace PlayniteAchievements.Services.Library
             };
         }
 
-        private void OnProjectionSourceChanged(object sender, EventArgs e)
+        // Both of these were one handler typed (object, EventArgs), which bound to either event
+        // precisely because it took the base class -- and so could not read the scope either one
+        // carries. Every single-game change therefore scheduled a whole-library rebuild.
+        //
+        // A scoped change still clears the cache, so nothing stale can be served; only the
+        // precompute is skipped, and an on-demand consumer rebuilds from fresh data exactly as
+        // before. Both handlers have to do this: one refresh write raises the delta as well as
+        // the invalidation, so leaving either on the unconditional path would keep warming.
+        private void OnCacheInvalidatedForProjection(object sender, CacheInvalidatedEventArgs e)
         {
-            Invalidate();
+            var scoped = e != null && !e.IsFull && e.ChangedGameIds != null && e.ChangedGameIds.Count > 0;
+            InvalidateCore(scoped);
+        }
+
+        private void OnCacheDeltaForProjection(object sender, CacheDeltaEventArgs e)
+        {
+            var scoped = e != null && !e.IsFullReset && !string.IsNullOrEmpty(e.Key);
+            InvalidateCore(scoped);
         }
 
         // A reorder-only change (goals) cannot move anything the library projection derives, so
@@ -381,7 +411,7 @@ namespace PlayniteAchievements.Services.Library
             Invalidate();
         }
 
-        private void ScheduleWarm()
+        private void ScheduleWarm(TimeSpan minimumDelay)
         {
             lock (_sync)
             {
@@ -414,10 +444,10 @@ namespace PlayniteAchievements.Services.Library
             }
 
             var generation = Interlocked.Increment(ref _warmGeneration);
-            _ = WarmAfterDelayAsync(generation);
+            _ = WarmAfterDelayAsync(generation, minimumDelay);
         }
 
-        private async Task WarmAfterDelayAsync(int generation)
+        private async Task WarmAfterDelayAsync(int generation, TimeSpan minimumDelay)
         {
             try
             {
@@ -430,6 +460,11 @@ namespace PlayniteAchievements.Services.Library
                 // the precompute is deferred until the interval elapses, and the trailing
                 // warm still runs after the last invalidation.
                 var delay = TimeSpan.FromMilliseconds(WarmDebounceMs);
+                if (minimumDelay > delay)
+                {
+                    delay = minimumDelay;
+                }
+
                 lock (_sync)
                 {
                     var untilNextWarm = MinEagerWarmInterval - (DateTime.UtcNow - _lastWarmStartedUtc);
