@@ -6180,7 +6180,33 @@ namespace PlayniteAchievements.Services.Database
                 SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX);
             _readDb.EnableStatementsCache = true;
             _readDb.BusyTimeout = ReadConnectionBusyTimeoutMs;
+
+            // Pragmas are per-connection, so the ones EnsureSchema applies to the write
+            // connection never reached this one -- and this is the connection that runs the
+            // whole-library window-function, GROUP BY and sort work. It was running on SQLite's
+            // 2 MB default page cache. Negative means KiB, so this is 16 MB.
+            //
+            // Deliberately not temp_store = MEMORY here, unlike the write connection: that moves
+            // large sorts off disk and into the heap, and this process has to keep working in a
+            // 32-bit address space, where a big library's sort could turn a slow read into an
+            // out-of-memory one. Revisit once the per-query scopes report the real sort volumes.
+            // mmap_size is out for the same reason.
+            TryExecuteReadPragma("PRAGMA cache_size = -16384;");
+
             _readInitialized = true;
+        }
+
+        // A pragma is a tuning hint: if the provider rejects one, the read must still work.
+        private void TryExecuteReadPragma(string pragma)
+        {
+            try
+            {
+                _readDb.ExecuteNonQuery(pragma);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to apply read-connection pragma: {pragma}");
+            }
         }
 
         private void DisposeReadConnection()
