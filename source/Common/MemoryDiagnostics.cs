@@ -129,11 +129,18 @@ namespace PlayniteAchievements.Common
             var safePoint = string.IsNullOrWhiteSpace(point) ? "unknown" : point.Trim();
             var message = string.Format(
                 CultureInfo.InvariantCulture,
-                "[MemPerf] point={0} workingSetMb={1:F1} privateMb={2:F1} managedMb={3:F1} gen0={4} gen1={5} gen2={6}",
+                // nativeMb is privateMb minus managedMb: everything the process committed that
+                // the GC heap does not account for -- decoded bitmap backing stores, SQLite page
+                // caches, WPF's unmanaged side. It is derived rather than measured, but without it
+                // this line cannot distinguish a managed leak from a native one, and a reported
+                // session grew private bytes by ~300 MB while managedMb stayed flat, which read as
+                // "no leak" against every counter here.
+                "[MemPerf] point={0} workingSetMb={1:F1} privateMb={2:F1} managedMb={3:F1} nativeMb={4:F1} gen0={5} gen1={6} gen2={7}",
                 safePoint,
                 snapshot.WorkingSetBytes / BytesPerMb,
                 snapshot.PrivateBytes / BytesPerMb,
                 snapshot.ManagedBytes / BytesPerMb,
+                Math.Max(0, snapshot.PrivateBytes - snapshot.ManagedBytes) / BytesPerMb,
                 snapshot.Gen0,
                 snapshot.Gen1,
                 snapshot.Gen2);
@@ -142,9 +149,11 @@ namespace PlayniteAchievements.Common
             {
                 message += string.Format(
                     CultureInfo.InvariantCulture,
-                    " deltaWorkingSetMb={0:+0.0;-0.0;+0.0} deltaManagedMb={1:+0.0;-0.0;+0.0} deltaGen2={2:+0;-0;+0}",
+                    " deltaWorkingSetMb={0:+0.0;-0.0;+0.0} deltaManagedMb={1:+0.0;-0.0;+0.0} deltaNativeMb={2:+0.0;-0.0;+0.0} deltaGen2={3:+0;-0;+0}",
                     (snapshot.WorkingSetBytes - baseline.WorkingSetBytes) / BytesPerMb,
                     (snapshot.ManagedBytes - baseline.ManagedBytes) / BytesPerMb,
+                    ((snapshot.PrivateBytes - snapshot.ManagedBytes)
+                        - (baseline.PrivateBytes - baseline.ManagedBytes)) / BytesPerMb,
                     snapshot.Gen2 - baseline.Gen2);
             }
 
