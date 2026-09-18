@@ -40,7 +40,19 @@ namespace PlayniteAchievements.Common
         /// </summary>
         internal static readonly bool MemoryTracingEnabled = false;
 
+#if TEST
+        /// <summary>
+        /// Test-only seam. The real switches are compile-time constants, so without this the
+        /// retention counters cannot be exercised at all. Does not exist outside the test
+        /// compilation, so production behaviour is unchanged.
+        /// </summary>
+        internal static bool? TestEnabledOverride;
+
+        public static bool Enabled =>
+            TestEnabledOverride ?? (MemoryTracingEnabled || PerfScope.PerfTracingEnabled);
+#else
         public static bool Enabled => MemoryTracingEnabled || PerfScope.PerfTracingEnabled;
+#endif
 
         /// <summary>
         /// Captures current process memory counters. Never throws; returns an invalid snapshot

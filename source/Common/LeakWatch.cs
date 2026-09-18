@@ -33,6 +33,18 @@ namespace PlayniteAchievements.Common
         /// is how the canary for a replaced row set stayed silent through a session that grew the
         /// heap by 790 MB.
         /// </summary>
+#if TEST
+        /// <summary>Test-only: clears the static tracking state so cases do not bleed.</summary>
+        internal static void ResetForTests()
+        {
+            lock (Sync)
+            {
+                Tracked.Clear();
+                SeenTotals.Clear();
+            }
+        }
+#endif
+
         public static void TrackAll(string kind, System.Collections.IEnumerable instances)
         {
             if (!MemoryDiagnostics.Enabled || instances == null || string.IsNullOrWhiteSpace(kind))
