@@ -28,6 +28,13 @@ namespace PlayniteAchievements.Models.Achievements
         /// the process, so a count that climbs run over run means subscribers are being stranded
         /// (and rooted) instead of detaching. Diagnostics only.
         /// </summary>
+        /// <remarks>
+        /// Checked and cleared as a leak suspect: across a reported session that grew the managed
+        /// heap by 790 MB, this count oscillated between 19 and 39 and ended where it began. Flat,
+        /// not climbing, so stranded appearance handlers were not the retainer. Worth re-reading
+        /// per session rather than assuming -- the failure mode is real, it just did not happen
+        /// there -- but do not start a hunt from this number alone.
+        /// </remarks>
         internal static int AppearanceChangedSubscriberCount =>
             AppearanceChanged?.GetInvocationList()?.Length ?? 0;
 

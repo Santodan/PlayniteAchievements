@@ -54,6 +54,11 @@ namespace PlayniteAchievements.Services.Images
         {
             _logger = logger ?? StaticLogger;
             _images = images ?? throw new ArgumentNullException(nameof(images));
+            // Capped by count, not bytes, and not reported in the retention line. That was checked
+            // as a suspect for a reported ~300 MB of native growth and cleared: a RayTrack is 128
+            // points plus 128 vectors, so the floor of 128 entries is well under a megabyte. Any
+            // real growth here would be in the bitmaps it derives from, which the image cache
+            // bounds separately.
             _maxItems = Math.Max(128, maxItems);
 
             // Follow the bitmap cache's own invalidation rather than being called by name from inside
