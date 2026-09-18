@@ -26,6 +26,32 @@ namespace PlayniteAchievements.Common
         private static readonly Dictionary<string, long> SeenTotals =
             new Dictionary<string, long>(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Tracks every instance in a set under one kind, taking the lock once. Use where the
+        /// interesting question is "did any of these survive", not "did this one survive": a
+        /// single-instance canary reports nothing at all when the set it sampled is empty, which
+        /// is how the canary for a replaced row set stayed silent through a session that grew the
+        /// heap by 790 MB.
+        /// </summary>
+        public static void TrackAll(string kind, System.Collections.IEnumerable instances)
+        {
+            if (!MemoryDiagnostics.Enabled || instances == null || string.IsNullOrWhiteSpace(kind))
+            {
+                return;
+            }
+
+            lock (Sync)
+            {
+                foreach (var instance in instances)
+                {
+                    if (instance != null)
+                    {
+                        AddLocked(kind, instance);
+                    }
+                }
+            }
+        }
+
         public static void Track(string kind, object instance)
         {
             if (!MemoryDiagnostics.Enabled || instance == null || string.IsNullOrWhiteSpace(kind))
@@ -35,28 +61,33 @@ namespace PlayniteAchievements.Common
 
             lock (Sync)
             {
-                if (!Tracked.TryGetValue(kind, out var list))
-                {
-                    list = new List<WeakReference>();
-                    Tracked[kind] = list;
-                }
+                AddLocked(kind, instance);
+            }
+        }
 
-                list.Add(new WeakReference(instance));
-                SeenTotals.TryGetValue(kind, out var seen);
-                SeenTotals[kind] = seen + 1;
-                if (list.Count <= MaxTrackedPerKind)
-                {
-                    return;
-                }
+        private static void AddLocked(string kind, object instance)
+        {
+            if (!Tracked.TryGetValue(kind, out var list))
+            {
+                list = new List<WeakReference>();
+                Tracked[kind] = list;
+            }
 
-                // Drop collected entries first; only trim live ones if still over budget, and
-                // from the oldest end (an old instance still alive is the interesting one, but
-                // an unbounded list would itself become a memory problem).
-                list.RemoveAll(reference => !reference.IsAlive);
-                if (list.Count > MaxTrackedPerKind)
-                {
-                    list.RemoveRange(0, list.Count - MaxTrackedPerKind);
-                }
+            list.Add(new WeakReference(instance));
+            SeenTotals.TryGetValue(kind, out var seen);
+            SeenTotals[kind] = seen + 1;
+            if (list.Count <= MaxTrackedPerKind)
+            {
+                return;
+            }
+
+            // Drop collected entries first; only trim live ones if still over budget, and
+            // from the oldest end (an old instance still alive is the interesting one, but
+            // an unbounded list would itself become a memory problem).
+            list.RemoveAll(reference => !reference.IsAlive);
+            if (list.Count > MaxTrackedPerKind)
+            {
+                list.RemoveRange(0, list.Count - MaxTrackedPerKind);
             }
         }
 

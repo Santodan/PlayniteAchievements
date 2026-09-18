@@ -1884,11 +1884,20 @@ namespace PlayniteAchievements.ViewModels
 
             _selectedGamePipeline.InvalidateAll();
 
-            // Canary on the OUTGOING full row set. A full rebuild replaces every row at once,
+            // Canaries on the OUTGOING full row sets. A full rebuild replaces every row at once,
             // unlike the per-game delta swap, so retention here is invisible to the delta
-            // canaries. A live count that grows per refresh means the previous library-wide
-            // set (and the grid containers and bindings attached to it) is still rooted.
-            Common.LeakWatch.Track("Row.replacedFullSet", _allAchievements?.FirstOrDefault());
+            // canaries. A live count that grows per refresh means the previous library-wide set
+            // (and the grid containers and bindings attached to it) is still rooted.
+            //
+            // The list objects, not a sampled row: the previous form took _allAchievements
+            // .FirstOrDefault(), and Track ignores null, so on the summary-only path -- where
+            // _allAchievements is empty -- this canary reported nothing at all. It stayed silent
+            // through a reported session that grew the managed heap from 122 MB to 912 MB, which
+            // is the one thing it existed to catch. Tracking the container also answers the
+            // sharper question: if the outgoing list is still rooted, so is every row in it.
+            Common.LeakWatch.Track("Row.replacedFullSet", _allAchievements);
+            Common.LeakWatch.Track("Row.replacedGameSummarySet", _allGameSummaries);
+            Common.LeakWatch.Track("Row.replacedRecentSet", _allRecentAchievements);
 
             _latestSnapshot = snapshot;
             _allAchievements = snapshot.Achievements ?? new List<AchievementDisplayItem>();
@@ -2017,12 +2026,18 @@ namespace PlayniteAchievements.ViewModels
             // Canaries on the rows this delta discards. Nothing should reference them once the
             // swap completes, so a rising live count localizes retention to whoever still holds
             // replaced rows (grid, chart, projection) rather than to a growing cache.
-            Common.LeakWatch.Track(
+            //
+            // Every discarded row, not the first one: a single sample answers "did this row
+            // survive", which reports nothing when the set is empty and says nothing about rate.
+            // LeakWatch caps each kind at 256 entries and drops collected ones first, so a set
+            // that is being released stays near zero live while one that is leaking saturates --
+            // and the denominator is a true creation count, so the rate stays readable.
+            Common.LeakWatch.TrackAll(
                 "Row.discardedAchievement",
-                _allAchievements.FirstOrDefault(a => a?.PlayniteGameId == gameId));
-            Common.LeakWatch.Track(
+                _allAchievements.Where(a => a?.PlayniteGameId == gameId));
+            Common.LeakWatch.TrackAll(
                 "Row.discardedGameSummary",
-                _allGameSummaries.FirstOrDefault(g => g?.PlayniteGameId == gameId));
+                _allGameSummaries.Where(g => g?.PlayniteGameId == gameId));
 
             RemoveGameRows(_allAchievements, gameId, _globalAchievementSearchIndex);
             RemoveGameRows(_allGameSummaries, gameId, _gameSummarySearchIndex);
