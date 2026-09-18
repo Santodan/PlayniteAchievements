@@ -335,6 +335,23 @@ namespace PlayniteAchievements
                 _logger?.Debug(ex, "Failed to read appearance subscriber count.");
             }
 
+            // What each live surface is holding, reported by the surface itself. The caches above
+            // are the ones this file can reach; a reported session grew the managed heap by
+            // 790 MB with every one of them flat, so the surfaces that could not be reached were
+            // exactly where the retained memory had to be.
+            try
+            {
+                var probes = Common.RetentionProbes.Describe();
+                if (!string.IsNullOrWhiteSpace(probes))
+                {
+                    detail.Append(probes + " ");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to read retention probes.");
+            }
+
             // Live instance counts come last: they are the discriminator when every cache
             // above reads flat but the heap still grows.
             detail.Append($"live={Common.LeakWatch.DescribeLive()}");

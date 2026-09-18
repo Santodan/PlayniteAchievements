@@ -68,6 +68,13 @@ namespace PlayniteAchievements.Services.Search
             }
         }
 
+        /// <summary>
+        /// Entries currently held. GetText fills this lazily and only LoadEntries/Clear empties
+        /// it, and the keys are the display items themselves, so the count is a retention figure
+        /// as much as a cache-occupancy one.
+        /// </summary>
+        public int Count => _textByItem.Count;
+
         public void Clear()
         {
             _textByItem.Clear();

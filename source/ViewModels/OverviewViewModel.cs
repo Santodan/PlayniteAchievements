@@ -35,7 +35,7 @@ using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels
 {
-    public class OverviewViewModel : ObservableObject, IDisposable, IOverviewRefreshHeaderViewModel
+    public class OverviewViewModel : ObservableObject, IDisposable, IOverviewRefreshHeaderViewModel, Common.IRetentionProbe
     {
         /// <summary>
         /// Returns true if unplayed games are included during refreshes.
@@ -284,6 +284,39 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
+            // The retention report cannot reach in here, and the managed growth in a reported
+            // session correlated with this surface being open, so the surface reports itself.
+            // The registration is weak, so it does not root this instance.
+            Common.RetentionProbes.Register(this);
+        }
+
+        public string RetentionProbeName => "overview";
+
+        /// <summary>
+        /// What this surface is holding. Everything here was invisible to the retention report:
+        /// a session grew the managed heap from 122 MB to 912 MB with every tracked count flat,
+        /// and these are the collections in the path that correlated with it.
+        /// </summary>
+        public string DescribeRetention()
+        {
+            _selectedGamePipeline.GetRetentionStats(out var pipelineGames, out var pipelineRows);
+
+            return string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "rows={0}ach/{1}games/{2}recent selPipeline={3}games/{4}rows " +
+                "searchIdx={5}/{6}/{7} selRows={8}/{9} display={10}ach/{11}games",
+                _allAchievements?.Count ?? 0,
+                _allGameSummaries?.Count ?? 0,
+                _allRecentAchievements?.Count ?? 0,
+                pipelineGames,
+                pipelineRows,
+                _globalAchievementSearchIndex.Count,
+                _gameSummarySearchIndex.Count,
+                _recentAchievementSearchIndex.Count,
+                _allSelectedGameAchievements?.Count ?? 0,
+                _filteredSelectedGameAchievements?.Count ?? 0,
+                AllAchievements?.Count ?? 0,
+                GameSummaries?.Count ?? 0);
         }
 
         private void InitializeTimelineRangePersistence()
@@ -4501,6 +4534,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _disposed = true;
+            Common.RetentionProbes.Unregister(this);
             SetActive(false);
             CancelSelectedGameLoad();
             _refreshDebounceTimer?.Stop();
