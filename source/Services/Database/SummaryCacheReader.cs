@@ -1,3 +1,4 @@
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Services.Achievements;
@@ -107,16 +108,55 @@ namespace PlayniteAchievements.Services.Database
         {
             return _store.WithReadDb(db =>
             {
-                var gameRows = LoadCachedGameSummaryRows(db);
-                var scoreTotalsByCacheKey = LoadCachedScoreTotals(db, unlockedOnly: true);
-                var possibleScoreTotalsByCacheKey = LoadCachedScoreTotals(db, unlockedOnly: false);
-                var timelineRows = LoadCachedUnlockTimelineRows(db);
+                // One scope per query. This read is five whole-library queries and only its
+                // total was ever measured, so which of them owns a multi-second read was a
+                // guess. Each scope carries its row count, because the duration alone cannot
+                // separate "slow because of volume" from "slow because of a sort".
+                var logger = _store._logger;
+
+                List<CachedGameSummaryRow> gameRows;
+                using (var scope = PerfScope.Start(logger, "Cache.Summary.GameRows", thresholdMs: 25))
+                {
+                    gameRows = LoadCachedGameSummaryRows(db);
+                    scope?.SetContext("rows=" + gameRows.Count);
+                }
+
+                Dictionary<string, (int CollectionScore, int PrestigeScore, int Points)> scoreTotalsByCacheKey;
+                using (var scope = PerfScope.Start(logger, "Cache.Summary.ScoreTotalsUnlocked", thresholdMs: 25))
+                {
+                    scoreTotalsByCacheKey = LoadCachedScoreTotals(db, unlockedOnly: true);
+                    scope?.SetContext("games=" + scoreTotalsByCacheKey.Count);
+                }
+
+                Dictionary<string, (int CollectionScore, int PrestigeScore, int Points)> possibleScoreTotalsByCacheKey;
+                using (var scope = PerfScope.Start(logger, "Cache.Summary.ScoreTotalsPossible", thresholdMs: 25))
+                {
+                    possibleScoreTotalsByCacheKey = LoadCachedScoreTotals(db, unlockedOnly: false);
+                    scope?.SetContext("games=" + possibleScoreTotalsByCacheKey.Count);
+                }
+
+                List<CachedUnlockTimelineRow> timelineRows;
+                using (var scope = PerfScope.Start(logger, "Cache.Summary.UnlockTimeline", thresholdMs: 25))
+                {
+                    timelineRows = LoadCachedUnlockTimelineRows(db);
+                    scope?.SetContext("rows=" + timelineRows.Count);
+                }
+
                 var requestedRecentLimit = recentAchievementDetailLimit > 0 ? recentAchievementDetailLimit : 0;
                 var boundedRecentLimit = requestedRecentLimit > 0 ? requestedRecentLimit + 1 : 0;
-                var recentRows = LoadCachedRecentUnlockRows(
-                    db,
-                    boundedRecentLimit,
-                    includeAllUnlockedAchievements: requestedRecentLimit == 0);
+
+                List<CachedRecentUnlockRow> recentRows;
+                using (var scope = PerfScope.Start(logger, "Cache.Summary.RecentUnlocks", thresholdMs: 25))
+                {
+                    recentRows = LoadCachedRecentUnlockRows(
+                        db,
+                        boundedRecentLimit,
+                        includeAllUnlockedAchievements: requestedRecentLimit == 0);
+                    // limit=0 is the overview's request and takes the unbounded variant: every
+                    // unlocked row with all definition columns and no LIMIT. The row count is the
+                    // point of this scope.
+                    scope?.SetContext("rows=" + recentRows.Count + " limit=" + boundedRecentLimit);
+                }
 
                 var result = new CachedSummaryData();
 

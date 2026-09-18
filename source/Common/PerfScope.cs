@@ -18,7 +18,7 @@ namespace PlayniteAchievements.Common
         private readonly ILogger _logger;
         private readonly string _tag;
         private readonly int _thresholdMs;
-        private readonly string _context;
+        private string _context;
         private readonly bool _startupVariant;
         private readonly Stopwatch _stopwatch;
         private bool _disposed;
@@ -31,6 +31,19 @@ namespace PlayniteAchievements.Common
             _context = context ?? string.Empty;
             _startupVariant = startupVariant;
             _stopwatch = Stopwatch.StartNew();
+        }
+
+        /// <summary>
+        /// Replaces the context detail emitted with this scope's line. A method rather than a
+        /// property because Start returns null when tracing is off, and C# cannot assign through
+        /// a null-conditional -- so callers write scope?.SetContext(...) and pay nothing when
+        /// disabled. Use it for something known only once the work finishes, typically a result
+        /// count: the duration alone cannot say whether a query is slow because of its volume or
+        /// because of a sort.
+        /// </summary>
+        public void SetContext(string context)
+        {
+            _context = context ?? string.Empty;
         }
 
         public static PerfScope Start(ILogger logger, string tag, int thresholdMs = 50, string context = null)
