@@ -5078,7 +5078,7 @@ index 74142cefe3d95fd6239a8707138076239e604e9d..052849496848b35fcdc879629ce78beb
              IDictionary<string, long> existingDefinitionIdsByApiName,
              IEnumerable<string> incomingApiNames)
 diff --git a/source/Services/Database/SqlNadoCacheStore.cs b/source/Services/Database/SqlNadoCacheStore.cs
-index d52041c3a255b9a31fb4ae1ad8c3cfd25239d462..aa72ed8d9f28af806d1191bbb4d18b25013c1787 100644
+index d52041c3a255b9a31fb4ae1ad8c3cfd25239d462..2bed58e06391e3a0858237ca3de274b38bee8e31 100644
 --- a/source/Services/Database/SqlNadoCacheStore.cs
 +++ b/source/Services/Database/SqlNadoCacheStore.cs
 @@ -40,6 +40,14 @@ internal sealed class SqlNadoCacheStore : IDisposable
@@ -5174,7 +5174,54 @@ index d52041c3a255b9a31fb4ae1ad8c3cfd25239d462..aa72ed8d9f28af806d1191bbb4d18b25
  
                      var existingRows = db.Load<UserAchievementRow>(
                          @"SELECT Id, UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc, ProgressNum, ProgressDenom, LastUpdatedUtc, CreatedUtc
-@@ -6804,8 +6818,10 @@ FROM AchievementDefinitions
+@@ -5589,6 +5603,16 @@ FROM UserAchievements
+ 
+                         existingRows.Remove(definitionId);
+ 
++                        // GSE can expose an incomplete save while it is being rewritten. A Local
++                        // refresh must not turn an earned achievement back into a locked one:
++                        // the next file-watch read would otherwise announce the whole backlog.
++                        if (string.Equals(effectiveProviderKey, "Local", StringComparison.OrdinalIgnoreCase) &&
++                            existing.Unlocked != 0 && unlocked == 0)
++                        {
++                            unlocked = 1;
++                            unlockIso = NormalizeStoredIso(existing.UnlockTimeUtc);
++                        }
++
+                         // Progress is monotonic and null-preserving, matching the in-game fast
+                         // writer (InGameProgressSqlWriter). Steam progress stats are increment-only,
+                         // and a refresh can legitimately carry no progress (a community page that has
+@@ -5628,12 +5652,29 @@ FROM UserAchievements
+ 
+                     foreach (var stale in existingRows.Values)
+                     {
++                        if (string.Equals(effectiveProviderKey, "Local", StringComparison.OrdinalIgnoreCase))
++                        {
++                            continue;
++                        }
++
+                         db.ExecuteNonQuery(
+                             @"DELETE FROM UserAchievements
+                               WHERE Id = ?;",
+                             stale.Id);
+                     }
+ 
++
++                    if (string.Equals(effectiveProviderKey, "Local", StringComparison.OrdinalIgnoreCase))
++                    {
++                        var actualUnlockedCount = db.ExecuteScalar<long>(
++                            "SELECT COUNT(1) FROM UserAchievements WHERE UserGameProgressId = ? AND Unlocked = 1;",
++                            userProgressId);
++                        db.ExecuteNonQuery(
++                            "UPDATE UserGameProgress SET AchievementsUnlocked = ? WHERE Id = ?;",
++                            actualUnlockedCount,
++                            userProgressId);
++                    }
++
+                     // Deduplication: When saving real provider data, remove Unmapped stubs for the same game
+                     if (!string.Equals(effectiveProviderKey, "Unmapped", StringComparison.OrdinalIgnoreCase))
+                     {
+@@ -6804,8 +6845,10 @@ FROM AchievementDefinitions
              // ambiguous, the count invariant never allows the prune, and legacy keys defer friend
              // saves forever. Friend unlock rows attached to pruned rows are re-derived from the next
              // earned fetch; current-user saves never pass authoritativeSource.
@@ -5187,7 +5234,7 @@ index d52041c3a255b9a31fb4ae1ad8c3cfd25239d462..aa72ed8d9f28af806d1191bbb4d18b25
                  staleDefinitionIds.Count > 0)
              {
                  for (int i = 0; i < staleDefinitionIds.Count; i++)
-@@ -7042,6 +7058,12 @@ private ResolvedUser ResolveCurrentUser(string providerKey)
+@@ -7042,6 +7085,12 @@ private ResolvedUser ResolveCurrentUser(string providerKey)
              {
                  externalId = ProviderRegistry.Settings<RetroAchievementsSettings>().RaUsername;
              }
@@ -5539,7 +5586,7 @@ index 87100899b54a94bd7c188199394f10e3e46a31ee..6a6887ea2671272759c954d6cb0217eb
  
      /// <summary>
 diff --git a/source/Services/InGameAchievementMonitor.cs b/source/Services/InGameAchievementMonitor.cs
-index 6f05dcf7d23caa5b509e53018ec19790036c3773..6f5eea228c6299cc88c39eb87fd09dd0ffd60e82 100644
+index 6f05dcf7d23caa5b509e53018ec19790036c3773..73a193bac7e87889a81d52ec6828bf9347c9b606 100644
 --- a/source/Services/InGameAchievementMonitor.cs
 +++ b/source/Services/InGameAchievementMonitor.cs
 @@ -12,12 +12,14 @@
@@ -5575,7 +5622,47 @@ index 6f05dcf7d23caa5b509e53018ec19790036c3773..6f5eea228c6299cc88c39eb87fd09dd0
              public DateTime NextFriendDueUtc;
              public DateTime RecoveryCooldownUtc;
              public IDataProvider Provider;
-@@ -847,6 +853,8 @@ provider is IInGameProgressSource candidate &&
+@@ -701,7 +707,8 @@ private void ApplyProgressResult(
+                 primed,
+                 sessionStartUtc,
+                 after,
+-                write.NewlyUnlockedKeys);
++                write.NewlyUnlockedKeys,
++                state.Provider?.ProviderKey);
+             AchievementUnlockedEventArgs completion = null;
+             if (emittableKeys.Count > 0)
+             {
+@@ -739,14 +746,15 @@ private static IReadOnlyList<string> SelectEmittableKeys(
+             bool primed,
+             DateTime sessionStartUtc,
+             GameAchievementData after,
+-            IReadOnlyList<string> newlyUnlockedKeys)
++            IReadOnlyList<string> newlyUnlockedKeys,
++            string providerKey)
+         {
+             if (newlyUnlockedKeys == null || newlyUnlockedKeys.Count == 0)
+             {
+                 return Array.Empty<string>();
+             }
+ 
+-            if (primed)
++            if (primed && !string.Equals(providerKey, "Local", StringComparison.OrdinalIgnoreCase))
+             {
+                 return newlyUnlockedKeys;
+             }
+@@ -764,7 +772,10 @@ private static IReadOnlyList<string> SelectEmittableKeys(
+                 .Where(key =>
+                     !string.IsNullOrWhiteSpace(key) &&
+                     unlockTimeByKey.TryGetValue(key, out var unlockTimeUtc) &&
+-                    InGameUnlockEmissionPolicy.ShouldEmit(false, sessionStartUtc, unlockTimeUtc))
++                    InGameUnlockEmissionPolicy.ShouldEmit(primed, sessionStartUtc, unlockTimeUtc) &&
++                    (!string.Equals(providerKey, "Local", StringComparison.OrdinalIgnoreCase) ||
++                     !unlockTimeUtc.HasValue ||
++                     unlockTimeUtc.Value.ToUniversalTime() >= sessionStartUtc))
+                 .ToList();
+         }
+ 
+@@ -847,6 +858,8 @@ provider is IInGameProgressSource candidate &&
                  state.Registration?.UnlockAnchorBias == registration?.UnlockAnchorBias;
  
              List<IDisposable> oldSubscriptions = null;
@@ -5584,7 +5671,7 @@ index 6f05dcf7d23caa5b509e53018ec19790036c3773..6f5eea228c6299cc88c39eb87fd09dd0
              int generation;
              lock (_stateLock)
              {
-@@ -882,6 +890,14 @@ provider is IInGameProgressSource candidate &&
+@@ -882,6 +895,14 @@ provider is IInGameProgressSource candidate &&
                  {
                      state.NextFriendDueUtc = configuredFriendDue;
                  }
@@ -5599,7 +5686,7 @@ index 6f05dcf7d23caa5b509e53018ec19790036c3773..6f5eea228c6299cc88c39eb87fd09dd0
              }
  
              DisposeSubscriptions(oldSubscriptions);
-@@ -918,9 +934,13 @@ provider is IInGameProgressSource candidate &&
+@@ -918,9 +939,13 @@ provider is IInGameProgressSource candidate &&
                  DisposeSubscriptions(subscriptions);
              }
  
@@ -5616,7 +5703,7 @@ index 6f05dcf7d23caa5b509e53018ec19790036c3773..6f5eea228c6299cc88c39eb87fd09dd0
              return true;
          }
  
-@@ -986,28 +1006,33 @@ private async Task RunFallbackBatchAsync(
+@@ -986,28 +1011,33 @@ private async Task RunFallbackBatchAsync(
                          state => _cacheManager?.LoadGameData(state.Game.Id.ToString()));
                      var gameIds = batch.Select(state => state.Game.Id).ToList();
                      var timer = Stopwatch.StartNew();
@@ -5671,7 +5758,19 @@ index 6f05dcf7d23caa5b509e53018ec19790036c3773..6f5eea228c6299cc88c39eb87fd09dd0
                      timer.Stop();
  
                      foreach (var state in batch)
-@@ -1052,6 +1077,13 @@ await _executeRefreshAsync(
+@@ -1028,7 +1058,10 @@ await _executeRefreshAsync(
+                                 InGameUnlockEmissionPolicy.ShouldEmit(
+                                     primed,
+                                     state.SessionStartUtc,
+-                                    achievement.UnlockTimeUtc))
++                                    achievement.UnlockTimeUtc) &&
++                                (!string.Equals(state.Provider.ProviderKey, "Local", StringComparison.OrdinalIgnoreCase) ||
++                                 !achievement.UnlockTimeUtc.HasValue ||
++                                 achievement.UnlockTimeUtc.Value.ToUniversalTime() >= state.SessionStartUtc))
+                             .Select(achievement => achievement.ApiName)
+                             .ToList();
+ 
+@@ -1052,6 +1085,13 @@ await _executeRefreshAsync(
                                  // Refresh-prong unlocks carry the same provider stamps the fast
                                  // source reports, so a registered bias applies here too.
                                  state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero);
@@ -5685,7 +5784,7 @@ index 6f05dcf7d23caa5b509e53018ec19790036c3773..6f5eea228c6299cc88c39eb87fd09dd0
                          if (completion != null)
                          {
                              _notifyUnlocked?.Invoke(completion);
-@@ -1493,7 +1525,9 @@ private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarge
+@@ -1493,7 +1533,9 @@ private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarge
          private bool ShouldPollGame(Game game, bool logReason)
          {
              var persisted = _settings?.Persisted;
@@ -5696,7 +5795,7 @@ index 6f05dcf7d23caa5b509e53018ec19790036c3773..6f5eea228c6299cc88c39eb87fd09dd0
              {
                  if (logReason) _logger?.Debug("[InGameMonitor] Disabled in settings.");
                  return false;
-@@ -1525,6 +1559,17 @@ private bool ShouldRunFriendRefresh()
+@@ -1525,6 +1567,17 @@ private bool ShouldRunFriendRefresh()
  
          private TimeSpan GetPollInterval()
          {

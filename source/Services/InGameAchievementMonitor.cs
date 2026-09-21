@@ -707,7 +707,8 @@ namespace PlayniteAchievements.Services
                 primed,
                 sessionStartUtc,
                 after,
-                write.NewlyUnlockedKeys);
+                write.NewlyUnlockedKeys,
+                state.Provider?.ProviderKey);
             AchievementUnlockedEventArgs completion = null;
             if (emittableKeys.Count > 0)
             {
@@ -745,14 +746,15 @@ namespace PlayniteAchievements.Services
             bool primed,
             DateTime sessionStartUtc,
             GameAchievementData after,
-            IReadOnlyList<string> newlyUnlockedKeys)
+            IReadOnlyList<string> newlyUnlockedKeys,
+            string providerKey)
         {
             if (newlyUnlockedKeys == null || newlyUnlockedKeys.Count == 0)
             {
                 return Array.Empty<string>();
             }
 
-            if (primed)
+            if (primed && !string.Equals(providerKey, "Local", StringComparison.OrdinalIgnoreCase))
             {
                 return newlyUnlockedKeys;
             }
@@ -770,7 +772,10 @@ namespace PlayniteAchievements.Services
                 .Where(key =>
                     !string.IsNullOrWhiteSpace(key) &&
                     unlockTimeByKey.TryGetValue(key, out var unlockTimeUtc) &&
-                    InGameUnlockEmissionPolicy.ShouldEmit(false, sessionStartUtc, unlockTimeUtc))
+                    InGameUnlockEmissionPolicy.ShouldEmit(primed, sessionStartUtc, unlockTimeUtc) &&
+                    (!string.Equals(providerKey, "Local", StringComparison.OrdinalIgnoreCase) ||
+                     !unlockTimeUtc.HasValue ||
+                     unlockTimeUtc.Value.ToUniversalTime() >= sessionStartUtc))
                 .ToList();
         }
 
@@ -1053,7 +1058,10 @@ namespace PlayniteAchievements.Services
                                 InGameUnlockEmissionPolicy.ShouldEmit(
                                     primed,
                                     state.SessionStartUtc,
-                                    achievement.UnlockTimeUtc))
+                                    achievement.UnlockTimeUtc) &&
+                                (!string.Equals(state.Provider.ProviderKey, "Local", StringComparison.OrdinalIgnoreCase) ||
+                                 !achievement.UnlockTimeUtc.HasValue ||
+                                 achievement.UnlockTimeUtc.Value.ToUniversalTime() >= state.SessionStartUtc))
                             .Select(achievement => achievement.ApiName)
                             .ToList();
 

@@ -99,6 +99,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- Fixed Local achievement replay and screenshot floods 
+
 ## 2026-09-14 - v3.2.1.1
 
 - v3.2.1 merge

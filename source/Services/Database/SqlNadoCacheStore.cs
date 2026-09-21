@@ -5603,6 +5603,16 @@ namespace PlayniteAchievements.Services.Database
 
                         existingRows.Remove(definitionId);
 
+                        // GSE can expose an incomplete save while it is being rewritten. A Local
+                        // refresh must not turn an earned achievement back into a locked one:
+                        // the next file-watch read would otherwise announce the whole backlog.
+                        if (string.Equals(effectiveProviderKey, "Local", StringComparison.OrdinalIgnoreCase) &&
+                            existing.Unlocked != 0 && unlocked == 0)
+                        {
+                            unlocked = 1;
+                            unlockIso = NormalizeStoredIso(existing.UnlockTimeUtc);
+                        }
+
                         // Progress is monotonic and null-preserving, matching the in-game fast
                         // writer (InGameProgressSqlWriter). Steam progress stats are increment-only,
                         // and a refresh can legitimately carry no progress (a community page that has
@@ -5642,10 +5652,27 @@ namespace PlayniteAchievements.Services.Database
 
                     foreach (var stale in existingRows.Values)
                     {
+                        if (string.Equals(effectiveProviderKey, "Local", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
                         db.ExecuteNonQuery(
                             @"DELETE FROM UserAchievements
                               WHERE Id = ?;",
                             stale.Id);
+                    }
+
+
+                    if (string.Equals(effectiveProviderKey, "Local", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var actualUnlockedCount = db.ExecuteScalar<long>(
+                            "SELECT COUNT(1) FROM UserAchievements WHERE UserGameProgressId = ? AND Unlocked = 1;",
+                            userProgressId);
+                        db.ExecuteNonQuery(
+                            "UPDATE UserGameProgress SET AchievementsUnlocked = ? WHERE Id = ?;",
+                            actualUnlockedCount,
+                            userProgressId);
                     }
 
                     // Deduplication: When saving real provider data, remove Unmapped stubs for the same game
