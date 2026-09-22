@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d" d:DesignHeight="600" d:DesignWidth="700">
 
     <UserControl.Resources>
@@ -20,20 +21,19 @@
             <!-- Provider Header -->
             <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Exophase}" Style="{StaticResource ProviderTitleOnlyTextStyle}"/>
 
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}">
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                          IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
-                          FontWeight="SemiBold" FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
+            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
+                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
+                                     Hint="{DynamicResource LOCPlayAch_Settings_Exophase_EnableProvider_Help}"
+                                     FontWeight="SemiBold"
+                                     Margin="0">
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
+                </controls:SettingRow>
             </Border>
 
             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
 
             <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Exophase_EnableProvider_Help}"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
-                               TextWrapping="Wrap"/>
                     <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Exophase_Help}"

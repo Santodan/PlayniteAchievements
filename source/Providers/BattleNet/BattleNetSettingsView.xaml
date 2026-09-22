@@ -44,11 +44,12 @@
                 <TextBlock Text="{DynamicResource LOCPlayAch_Provider_BattleNet}" Style="{StaticResource ProviderTitleTextStyle}"/>
             </StackPanel>
 
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}">
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                          IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
-                          FontWeight="SemiBold"
-                          FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
+            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
+                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
+                                     FontWeight="SemiBold"
+                                     Margin="0">
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
+                </controls:SettingRow>
             </Border>
 
             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
@@ -269,15 +270,15 @@
                         </StackPanel>
                     </Border>
 
-                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity}"
-                              IsChecked="{Binding Settings.UseDataForAzerothForWowRarity, Mode=TwoWay}"
-                              FontWeight="SemiBold"
-                              FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                              Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity_Help}"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                               TextWrapping="Wrap"/>
+                    <StackPanel Margin="{StaticResource PlayAch.Thickness.Top.Md}"
+                                Grid.IsSharedSizeScope="True">
+                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity}"
+                                             Hint="{DynamicResource LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity_Help}"
+                                             FontWeight="SemiBold"
+                                             Margin="0">
+                            <CheckBox IsChecked="{Binding Settings.UseDataForAzerothForWowRarity, Mode=TwoWay}"/>
+                        </controls:SettingRow>
+                    </StackPanel>
 
                     <controls:AuthStatusCard Margin="24,12,0,0"
                                              IsEnabled="{Binding Settings.UseDataForAzerothForWowRarity}"
