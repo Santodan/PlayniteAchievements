@@ -366,8 +366,42 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private int _layoutPassCount;
         private int _renderFrameCount;
         private bool _renderHooked;
+        private ScrollViewer _gridScrollViewer;
+        private double _extentMin = double.MaxValue;
+        private double _extentMax = double.MinValue;
 
-        private void AchievementsGrid_LayoutUpdated(object sender, EventArgs e) => _layoutPassCount++;
+        /// <summary>
+        /// Samples the scrolled extent on every layout pass. Over a list whose length does not
+        /// change, a settled extent is one number; pixel scrolling over rows of differing heights
+        /// instead keeps re-estimating it from the rows measured so far, and each correction moves
+        /// the scrollbar, which invalidates layout again. The spread within one batch is what
+        /// separates that cascade from a row template that is simply expensive.
+        /// </summary>
+        private void AchievementsGrid_LayoutUpdated(object sender, EventArgs e)
+        {
+            _layoutPassCount++;
+
+            if (_gridScrollViewer == null)
+            {
+                _gridScrollViewer = VisualTreeHelpers.FindVisualChild<ScrollViewer>(CustomAchievementsGrid);
+            }
+
+            var extent = _gridScrollViewer?.ExtentHeight ?? 0;
+            if (extent <= 0)
+            {
+                return;
+            }
+
+            if (extent < _extentMin)
+            {
+                _extentMin = extent;
+            }
+
+            if (extent > _extentMax)
+            {
+                _extentMax = extent;
+            }
+        }
 
         private void AchievementsGrid_Rendering(object sender, EventArgs e) => _renderFrameCount++;
 
@@ -445,11 +479,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var layouts = _layoutPassCount;
             var frames = _renderFrameCount;
+            var extentLow = _extentMin == double.MaxValue ? 0 : _extentMin;
+            var extentHigh = _extentMax == double.MinValue ? 0 : _extentMax;
+            var viewport = _gridScrollViewer?.ViewportHeight ?? 0;
 
             _realizedRowCount = 0;
             _freshRowCount = 0;
             _layoutPassCount = 0;
             _renderFrameCount = 0;
+            _extentMin = double.MaxValue;
+            _extentMax = double.MinValue;
             _rowRealizationWindow.Restart();
             // The plugin's own logger, not LogManager.GetLogger(). That one writes to
             // playnite.log and its Debug output is not persisted, so the first two attempts at
@@ -459,7 +498,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 $"[UiBlockRisk] tag=Editor.RowRealization ms={(long)elapsed} ui=true " +
                 $"thread={System.Threading.Thread.CurrentThread.ManagedThreadId} " +
                 $"context=realized={realized} fresh={fresh} containers={containers} cells={cells} " +
-                $"layouts={layouts} frames={frames} rows={rows}");
+                $"layouts={layouts} frames={frames} extent={extentLow:F0}-{extentHigh:F0} " +
+                $"viewport={viewport:F0} rows={rows}");
         }
 
         private void RestoreSelectionByApiNames(IReadOnlyList<string> apiNames)
