@@ -309,53 +309,13 @@
         </Image>
     </DataTemplate>
 
-    <!-- Achievement Trophy Template. While the trophy mask applies the grade badge is replaced by
-         the same trophy silhouette in the neutral glyph brush with a "?" over its bowl, so the row
-         still shows that a trophy exists without giving away which grade it is. -->
+    <!-- Achievement Trophy Template. While the trophy mask applies the grade badge is swapped for
+         the TrophyUnknown badge, so the row still shows that a trophy exists without giving away
+         which grade it is. It is the same Image with a different Source, so the masked badge is
+         sized, shadowed and aligned exactly like a real grade. -->
     <DataTemplate x:Key="AchievementTrophyTemplate">
         <Grid VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
               HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
-            <Grid ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
-                  Cursor="Hand">
-                <Grid.Width>
-                    <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,24,18,20">
-                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
-                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
-                    </MultiBinding>
-                </Grid.Width>
-                <Grid.Height>
-                    <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,24,18,20">
-                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
-                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
-                    </MultiBinding>
-                </Grid.Height>
-                <Grid.Style>
-                    <Style TargetType="Grid">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsTrophyHidden}" Value="True">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Grid.Style>
-                <!-- The bowl occupies the upper part of the geometry, so the mark is centred in the
-                     top row rather than over the whole cup. -->
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="42*"/>
-                    <RowDefinition Height="58*"/>
-                </Grid.RowDefinitions>
-                <Viewbox Grid.Row="0" Grid.RowSpan="2" Stretch="Uniform">
-                    <Path Data="{StaticResource GeoTrophy}"
-                          Fill="{DynamicResource PlayAch.Brush.Glyph}"
-                          Opacity="{StaticResource PlayAch.Opacity.Muted}"/>
-                </Viewbox>
-                <Viewbox Grid.Row="0" Stretch="Uniform" Margin="0,2,0,0">
-                    <TextBlock Text="?"
-                               FontWeight="Bold"
-                               Foreground="{DynamicResource PlayAch.Brush.Glyph}"/>
-                </Viewbox>
-            </Grid>
             <Image Effect="{StaticResource BadgeShadow}">
                 <Image.Width>
                     <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,24,18,20">
@@ -388,10 +348,12 @@
                             <DataTrigger Binding="{Binding TrophyType}" Value="bronze">
                                 <Setter Property="Source" Value="{DynamicResource TrophyBronze}"/>
                             </DataTrigger>
-                            <!-- Last, so it outranks the grade triggers above and the badge cannot
-                                 show through while the mask applies. -->
+                            <!-- Last, so it outranks the grade triggers above and the real grade
+                                 cannot show through while the mask applies. -->
                             <DataTrigger Binding="{Binding IsTrophyHidden}" Value="True">
-                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Setter Property="Source" Value="{DynamicResource TrophyUnknown}"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
