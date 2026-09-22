@@ -2384,14 +2384,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         .ToList();
                     order.Add(label);
 
-                    // Per-game display state, scoped out of the library-wide passes like every
-                    // other category order write.
-                    _achievementOverridesService.SetAchievementCategoryMetadata(
-                        _gameId,
-                        order,
-                        GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted),
-                        GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted),
-                        affectsSummaryData: false);
+                    // Staged rather than written: the assignment below folds it into the same
+                    // store update. Per-game display state, scoped out of the library-wide
+                    // passes like every other category order write.
+                    _pendingCategoryOrderWrite = order;
                 }
                 else
                 {
@@ -2400,9 +2396,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 SetCategoryForSelection(label);
 
-                // SetCategoryForSelection does nothing without a selection, and the refresh it would
-                // have run is what puts a freshly created category into the picker.
-                RefreshAssignmentState();
+                // SetCategoryForSelection does nothing without a selection, so a staged order
+                // that nothing consumed still has to be written -- creating a category with no
+                // rows selected is a real gesture, and the refresh is what puts it in the picker.
+                var unconsumedOrder = _pendingCategoryOrderWrite;
+                _pendingCategoryOrderWrite = null;
+                if (unconsumedOrder != null)
+                {
+                    _achievementOverridesService.SetAchievementCategoryMetadata(
+                        _gameId,
+                        unconsumedOrder,
+                        GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted),
+                        GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted),
+                        affectsSummaryData: false);
+                    RefreshAssignmentState();
+                }
+
                 return label;
             }
             catch (Exception ex)
@@ -3782,13 +3791,36 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .Select(candidate => candidate.Value));
         }
 
+        // Set when a gesture creates a category and assigns it in one go. The new order rides
+        // along with the assignment write instead of taking a store update of its own.
+        private List<string> _pendingCategoryOrderWrite;
+
         private void PersistAssignmentMaps(
             IReadOnlyDictionary<string, string> categoryOverrides,
             IReadOnlyDictionary<string, string> categoryTypeOverrides)
         {
             try
             {
-                _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrides, categoryTypeOverrides);
+                var pendingOrder = _pendingCategoryOrderWrite;
+                _pendingCategoryOrderWrite = null;
+                if (pendingOrder != null)
+                {
+                    // One update for the assignment and the order together. Creating a category
+                    // and assigning it used to be two writes -- each a deep clone of the game's
+                    // record, three normalizations, a serialize and a SQLite open and close.
+                    _achievementOverridesService.SetAchievementCategoryAssignmentAndMetadata(
+                        _gameId,
+                        categoryOverrides,
+                        categoryTypeOverrides,
+                        pendingOrder,
+                        GameCustomDataLookup.GetAchievementCategoryImageOverrides(_gameId, _settings?.Persisted),
+                        GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted),
+                        affectsSummaryData: false);
+                }
+                else
+                {
+                    _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrides, categoryTypeOverrides);
+                }
                 RefreshAssignmentState();
 
                 // Through the debounce, not raised directly: only its flush marks the notification

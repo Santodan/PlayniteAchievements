@@ -87,13 +87,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .Select(row => new { Source = row.CategoryLabel, Target = row.ProviderCategoryLabel })
                 .ToList();
 
-            var renamed = false;
+            // One batch, not one rename at a time. Each ApplyCategoryMoves is a store write plus
+            // a row rebuild, and the rebuild re-probes every category's art on disk -- the same
+            // cost that made a multi-row indent slow before it was batched. The moves are still
+            // planned and chained in order inside ApplyCategoryMoves, so a rename whose target is
+            // a later rename's source resolves exactly as it did sequentially.
+            var moves = new List<KeyValuePair<string, string>>();
             foreach (var rename in renames)
             {
-                renamed |= RenameCategoryLabel(rename.Source, rename.Target);
+                if (TryPlanCategoryRename(rename.Source, rename.Target, out var move))
+                {
+                    moves.Add(move);
+                }
             }
 
-            return renamed;
+            return moves.Count > 0 && ApplyCategoryMoves(moves);
         }
 
         public bool ResetCategoryArt()
@@ -317,6 +325,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public bool RenameCategoryLabel(string sourceCategoryLabel, string targetCategoryLabel)
         {
+            return TryPlanCategoryRename(sourceCategoryLabel, targetCategoryLabel, out var move) &&
+                   ApplyCategoryMoves(new[] { move });
+        }
+
+        /// <summary>
+        /// Validates one rename and yields the move it becomes, so a run of renames can be
+        /// applied as a single batch instead of one store write and row rebuild each.
+        /// </summary>
+        private bool TryPlanCategoryRename(
+            string sourceCategoryLabel,
+            string targetCategoryLabel,
+            out KeyValuePair<string, string> move)
+        {
+            move = default(KeyValuePair<string, string>);
             var normalizedSourceCategory = AchievementCategoryTypeHelper.NormalizeCategory(sourceCategoryLabel);
             if (string.IsNullOrWhiteSpace(normalizedSourceCategory) ||
                 string.Equals(
@@ -348,10 +370,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            return ApplyCategoryMoves(new[]
-            {
-                new KeyValuePair<string, string>(normalizedSourceCategory, normalizedTargetCategory)
-            });
+            move = new KeyValuePair<string, string>(normalizedSourceCategory, normalizedTargetCategory);
+            return true;
         }
 
         /// <summary>
