@@ -273,6 +273,15 @@ namespace PlayniteAchievements.Services.Database
                 {
                     result.RecentUnlocks = mappedAchievements;
                 }
+
+                // Canary on the whole-library summary set. This is the largest object the read
+                // produces -- thousands of rows, and on a reported library about the size of the
+                // ~2.7 MB that each whole-library warm was measured to retain after a forced full
+                // collection. The snapshot built from it is already tracked and reads zero alive,
+                // so if a live count climbs here the retainer is holding the source data rather
+                // than the projection. One entry per read, not per row.
+                Common.LeakWatch.Track("CachedSummaryData", result);
+
                 return result;
             });
         }

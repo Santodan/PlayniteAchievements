@@ -335,10 +335,24 @@ namespace PlayniteAchievements.Services.Library
                 _logger,
                 _currentUserIdentityLoader);
 
-            return new LibraryProjectionSnapshot
+            var overview = builder.Build(settings, token);
+            var projection = new LibraryProjectionSnapshot
             {
-                OverviewSnapshot = builder.Build(settings, token)
+                OverviewSnapshot = overview
             };
+
+            // Canaries on what one warm produces. The snapshot object itself is already tracked
+            // by the builder and reads zero alive, yet each warm was measured to retain ~2.7 MB
+            // that survives a forced full collection -- so the retainer is holding something the
+            // snapshot points at rather than the snapshot. These name the row containers
+            // separately from the envelope: a rooted list keeps every row in it alive, so
+            // whichever of these climbs says which collection to chase.
+            Common.LeakWatch.Track("Warm.ProjectionEnvelope", projection);
+            Common.LeakWatch.Track("Warm.OverviewRows", overview?.Achievements);
+            Common.LeakWatch.Track("Warm.GameSummaryRows", overview?.GameSummaries);
+            Common.LeakWatch.Track("Warm.RecentRows", overview?.RecentAchievements);
+
+            return projection;
         }
 
         private LibraryProjectionSnapshot BuildThemeLight(int recentUnlockLimit, CancellationToken token)
