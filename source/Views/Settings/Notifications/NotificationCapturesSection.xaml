@@ -61,15 +61,15 @@
                             <CheckBox IsChecked="{Binding Persisted.EnableUnlockScreenshots}"/>
                         </controls:SettingRow>
 
-                        <StackPanel Margin="18,0,0,0"
+                        <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
                                     IsEnabled="{Binding Persisted.EnableUnlockScreenshots}"
                                     Grid.IsSharedSizeScope="True">
                             <!-- Clean variant: independent rarity threshold + completion bypass -->
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
-                                                 Margin="0,0,0,4">
+                                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
                                 <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotClean}"/>
                             </controls:SettingRow>
-                            <StackPanel Margin="18,0,0,10"
+                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
                                         IsEnabled="{Binding Persisted.UnlockScreenshotClean}"
                                         Grid.IsSharedSizeScope="True">
                                 <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
@@ -85,18 +85,17 @@
                                         </Button.ContextMenu>
                                     </Button>
                                 </controls:SettingRow>
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
-                                                     Margin="0">
+                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
                                     <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotCleanAlwaysCaptureCompletion}"/>
                                 </controls:SettingRow>
                             </StackPanel>
 
                             <!-- With-notification variant: independent rarity threshold + completion bypass -->
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantWithToast}"
-                                                 Margin="0,0,0,4">
+                                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
                                 <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotWithToast}"/>
                             </controls:SettingRow>
-                            <StackPanel Margin="18,0,0,10"
+                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
                                         IsEnabled="{Binding Persisted.UnlockScreenshotWithToast}"
                                         Grid.IsSharedSizeScope="True">
                                 <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
@@ -112,18 +111,17 @@
                                         </Button.ContextMenu>
                                     </Button>
                                 </controls:SettingRow>
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
-                                                     Margin="0">
+                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
                                     <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotWithToastAlwaysCaptureCompletion}"/>
                                 </controls:SettingRow>
                             </StackPanel>
 
                             <!-- Framed variant: independent rarity threshold + completion bypass -->
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
-                                                 Margin="0,0,0,4">
+                                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
                                 <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotFramed}"/>
                             </controls:SettingRow>
-                            <StackPanel Margin="18,0,0,10"
+                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
                                         IsEnabled="{Binding Persisted.UnlockScreenshotFramed}"
                                         Grid.IsSharedSizeScope="True">
                                 <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
@@ -139,16 +137,15 @@
                                         </Button.ContextMenu>
                                     </Button>
                                 </controls:SettingRow>
-                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
-                                                     Margin="0">
+                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}">
                                     <CheckBox IsChecked="{Binding Persisted.UnlockScreenshotFramedAlwaysCaptureCompletion}"/>
                                 </controls:SettingRow>
                             </StackPanel>
 
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotSuffixes}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
-                                       Margin="0,6,0,4"/>
-                            <StackPanel Margin="18,0,0,0" Grid.IsSharedSizeScope="True">
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}" Grid.IsSharedSizeScope="True">
                                 <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}">
                                     <TextBox Text="{Binding Persisted.UnlockScreenshotSuffixClean, UpdateSourceTrigger=PropertyChanged}"
                                              Width="160"/>
@@ -175,7 +172,7 @@
 
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotDirectory}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       Margin="0,0,0,4"/>
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -206,7 +203,7 @@
                             <CheckBox IsChecked="{Binding Persisted.EnableUnlockRecordings}"/>
                         </controls:SettingRow>
 
-                        <StackPanel Margin="18,0,0,0"
+                        <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
                                     IsEnabled="{Binding Persisted.EnableUnlockRecordings}"
                                     Grid.IsSharedSizeScope="True">
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
@@ -228,7 +225,7 @@
 
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingDirectory}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       Margin="0,6,0,4"/>
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -245,7 +242,7 @@
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingDirectoryHint}"
                                        Style="{StaticResource MutedTextStyle}"
                                        TextWrapping="Wrap"
-                                       Margin="0,6,0,10"/>
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.SettingRow}"/>
 
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RecordingClipSeconds}">
                                 <TextBox Text="{Binding Persisted.RecordingClipSeconds, UpdateSourceTrigger=LostFocus}"
@@ -278,10 +275,10 @@
                             </controls:SettingRow>
 
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RecordingIncludeAudio}"
-                                                 Margin="0,10,0,6">
+                                                 Margin="{StaticResource PlayAch.Thickness.Bottom.SettingRow}">
                                 <CheckBox IsChecked="{Binding Persisted.RecordingIncludeAudio}"/>
                             </controls:SettingRow>
-                            <StackPanel Margin="18,0,0,0"
+                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
                                         IsEnabled="{Binding Persisted.RecordingIncludeAudio}"
                                         Grid.IsSharedSizeScope="True">
                                 <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RecordingAudioSource}">

@@ -59,13 +59,13 @@ namespace PlayniteAchievements.Views.Settings.Display
                 new SettingsNavigationItem(
                     "Colors",
                     ResourceProvider.GetString("LOCPlayAch_Settings_Display_Colors"),
-                    iconGlyph: "\uEDE7",
+                    iconGlyph: "\uEDE8",
                     viewFactory: () => _colorsSection =
                         new ColorsSection(settings, plugin.ProviderRegistry, pickColor)),
                 new SettingsNavigationItem(
                     "Spoilers",
                     ResourceProvider.GetString("LOCPlayAch_Settings_Spoilers"),
-                    iconGlyph: "\uEF53",
+                    iconGlyph: "\uEF22",
                     viewFactory: () => _spoilersSection =
                         new SpoilersSection(settings, plugin, logger)),
                 // Deliberately also listed on the Themes tab. Both entries bind the same

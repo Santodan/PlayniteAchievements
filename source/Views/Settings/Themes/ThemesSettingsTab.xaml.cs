@@ -60,13 +60,13 @@ namespace PlayniteAchievements.Views.Settings.Themes
                     "CompactList",
                     ResourceProvider.GetString("LOCPlayAch_Settings_CompactListPreview"),
                     groupName: themeControlsGroup,
-                    iconGlyph: "\uEF72",
+                    iconGlyph: "\uEF75",
                     viewFactory: () => new CompactListThemePage(settings, _previewState)),
                 new SettingsNavigationItem(
                     "CompactUnlockedList",
                     ResourceProvider.GetString("LOCPlayAch_Settings_CompactUnlockedListPreview"),
                     groupName: themeControlsGroup,
-                    iconGlyph: "\uF01A",
+                    iconGlyph: "\uF01B",
                     viewFactory: () => new CompactUnlockedListThemePage(settings, _previewState)),
                 new SettingsNavigationItem(
                     "CompactLockedList",
@@ -78,7 +78,7 @@ namespace PlayniteAchievements.Views.Settings.Themes
                     "ProgressBar",
                     ResourceProvider.GetString("LOCPlayAch_Settings_ProgressBarPreview"),
                     groupName: themeControlsGroup,
-                    iconGlyph: "\uE979",
+                    iconGlyph: "\uEEB3",
                     viewFactory: () => new ProgressBarThemePage(_previewState)),
                 new SettingsNavigationItem(
                     "Stats",
@@ -90,13 +90,13 @@ namespace PlayniteAchievements.Views.Settings.Themes
                     "Button",
                     ResourceProvider.GetString("LOCPlayAch_Settings_ButtonPreview"),
                     groupName: themeControlsGroup,
-                    iconGlyph: "\uEFB0",
+                    iconGlyph: "\uEA70",
                     viewFactory: () => new ButtonThemePage(_previewState)),
                 new SettingsNavigationItem(
                     "ViewItem",
                     ResourceProvider.GetString("LOCPlayAch_Settings_ViewItemPreview"),
                     groupName: themeControlsGroup,
-                    iconGlyph: "\uEF24",
+                    iconGlyph: "\uEF4B",
                     viewFactory: () => new ViewItemThemePage(_previewState)),
                 new SettingsNavigationItem(
                     "PieChart",

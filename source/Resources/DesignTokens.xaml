@@ -205,6 +205,11 @@
     <Thickness x:Key="PlayAch.Thickness.Right.Compact">0,0,6,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Right.Sm">0,0,8,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Right.Md">0,0,12,0</Thickness>
+    <!-- Indent for a group of settings rows that only applies when the row above it is on. One
+         value so every dependent group on every settings page steps in by the same amount; the
+         rows inside keep their own Bottom.SettingRow gap, so the group adds no vertical space. -->
+    <Thickness x:Key="PlayAch.Thickness.SettingRow.Indent">18,0,0,0</Thickness>
+
     <Thickness x:Key="PlayAch.Thickness.Left.Xs">4,0,0,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Left.Sm">8,0,0,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Left.Md">12,0,0,0</Thickness>
