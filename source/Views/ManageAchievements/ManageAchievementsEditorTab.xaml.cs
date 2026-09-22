@@ -171,6 +171,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // instead of guessing a third time.
             CustomAchievementsGrid.LoadingRow += AchievementsGrid_LoadingRow;
 
+            // Layout passes and rendered frames, alongside the realization count. The realization
+            // measure is a wall clock between LoadingRow events, so it charges a row for whatever
+            // else the UI thread did in the meantime; these two say what that was. Layout passes
+            // climbing per realized row is a measure-invalidation cascade, which pixel scrolling
+            // over variable-height rows produces as the estimated extent keeps moving.
+            if (Common.PerfScope.PerfTracingEnabled)
+            {
+                CustomAchievementsGrid.LayoutUpdated += AchievementsGrid_LayoutUpdated;
+                System.Windows.Media.CompositionTarget.Rendering += AchievementsGrid_Rendering;
+                _renderHooked = true;
+            }
+
             // On this control, not the window: stepping achievements with the arrows is what the
             // whole window is for, but Ctrl+Z is not - a window-wide handler would fight the other
             // tabs and every text box in them.
@@ -199,6 +211,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // disposing flushes the pending width writes, which needs all three.
             _columnPersistence?.Dispose();
             _columnPersistence = null;
+
+            if (_renderHooked)
+            {
+                CustomAchievementsGrid.LayoutUpdated -= AchievementsGrid_LayoutUpdated;
+                System.Windows.Media.CompositionTarget.Rendering -= AchievementsGrid_Rendering;
+                _renderHooked = false;
+            }
 
             PreviewKeyDown -= EditorTab_PreviewKeyDown;
             AchievementNavigation_Unloaded(null, null);
@@ -344,6 +363,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private int _realizedRowCount;
         private int _freshRowCount;
+        private int _layoutPassCount;
+        private int _renderFrameCount;
+        private bool _renderHooked;
+
+        private void AchievementsGrid_LayoutUpdated(object sender, EventArgs e) => _layoutPassCount++;
+
+        private void AchievementsGrid_Rendering(object sender, EventArgs e) => _renderFrameCount++;
+
         private System.Diagnostics.Stopwatch _rowRealizationWindow;
         private DataGridRowsPresenter _rowsPresenter;
 
@@ -416,8 +443,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 ? -1
                 : (VisualTreeHelpers.FindVisualChild<DataGridCellsPanel>(e.Row)?.Children?.Count ?? -1);
 
+            var layouts = _layoutPassCount;
+            var frames = _renderFrameCount;
+
             _realizedRowCount = 0;
             _freshRowCount = 0;
+            _layoutPassCount = 0;
+            _renderFrameCount = 0;
             _rowRealizationWindow.Restart();
             // The plugin's own logger, not LogManager.GetLogger(). That one writes to
             // playnite.log and its Debug output is not persisted, so the first two attempts at
@@ -426,7 +458,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             PlayniteAchievements.Services.Logging.PluginLogger.GetLogger(nameof(ManageAchievementsEditorTab)).Debug(
                 $"[UiBlockRisk] tag=Editor.RowRealization ms={(long)elapsed} ui=true " +
                 $"thread={System.Threading.Thread.CurrentThread.ManagedThreadId} " +
-                $"context=realized={realized} fresh={fresh} containers={containers} cells={cells} rows={rows}");
+                $"context=realized={realized} fresh={fresh} containers={containers} cells={cells} " +
+                $"layouts={layouts} frames={frames} rows={rows}");
         }
 
         private void RestoreSelectionByApiNames(IReadOnlyList<string> apiNames)
