@@ -42,12 +42,17 @@ namespace PlayniteAchievements.Services.Capture
         public bool AlignBottom { get; set; }
 
         /// <summary>
-        /// The corner inset in DIPs (the visible-body gap less the card's glow margin), as the live
-        /// placer uses it; scaled by <see cref="MonitorScale"/> in the corner math.
+        /// The horizontal corner inset in DIPs (the visible-body gap less the room the card
+        /// reserves on the edge it sits against), as the live placer uses it; scaled by
+        /// <see cref="MonitorScale"/> in the corner math. Separate from
+        /// <see cref="GapYDip"/> because a template's root margin need not be uniform.
         /// </summary>
-        public double GapDip { get; set; }
+        public double GapXDip { get; set; }
 
-        /// <summary>The anchor monitor's scale, for turning <see cref="GapDip"/> physical.</summary>
+        /// <summary>See <see cref="GapXDip"/>.</summary>
+        public double GapYDip { get; set; }
+
+        /// <summary>The anchor monitor's scale, for turning the gaps physical.</summary>
         public double MonitorScale { get; set; }
 
         /// <summary>

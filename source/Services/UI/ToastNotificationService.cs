@@ -61,9 +61,9 @@ namespace PlayniteAchievements.Services.UI
         private const int HoldPollIntervalMs = 1000;
         private const int MinHoldPollDelayMs = 15;
         // Target gap (DIP) from the screen/game-window corner to the visible card body, held
-        // constant regardless of the card's ToastGlowMargin: the window margin is derived as
-        // CornerGapDip - glow so the body sits here whether or not the border glow is on (with the
-        // glow on, the glow itself may reach the screen edge). Tunable.
+        // constant regardless of the room the card reserves around itself: the window margin is
+        // derived as CornerGapDip less that room, so the body sits here whether or not the border
+        // glow is on (with the glow on, the glow itself may reach the screen edge). Tunable.
         private const double CornerGapDip = 24d;
         // Gap between asking the sound host for the sound and the toast slide-in / controller
         // pulse, so the audible onset and the reveal land together. Derived from the host's path:
@@ -87,9 +87,13 @@ namespace PlayniteAchievements.Services.UI
         // The corner the current wave uses, resolved once per wave (theme override or plugin
         // setting). Read by the per-frame positioning path so it isn't re-resolved every frame.
         private ToastScreenCorner _activePosition = ToastScreenCorner.BottomRight;
-        // The wave cards' uniform ToastGlowMargin, resolved once per wave. Positioning subtracts it
-        // from CornerGapDip so the visible card body sits a constant distance from the corner.
-        private double _activeCardGlow;
+        // The transparent room the wave's stack reserves outside its card bodies, measured from
+        // the laid-out cards once per wave (ToastSurfaceFactory.ApplyMeasuredCardGaps).
+        // Positioning subtracts the two edges the active corner uses from CornerGapDip, so the
+        // visible body sits a constant distance from the corner whatever the template reserves.
+        // The two axes differ for a template whose root margin is not uniform, so the gap is
+        // carried per axis rather than as one number.
+        private Thickness _activeCardInset;
         private bool _activeToastThemeStylingEnabled = true;
         // The game the current wave belongs to, resolved once per wave. Screenshot capture and
         // toast placement key window resolution off this game so a wave from one running game
@@ -758,7 +762,8 @@ namespace PlayniteAchievements.Services.UI
                         {
                             ToastWindowPlacer.ComputeCorner(
                                 anchorPhys, physSize.Width, physSize.Height, _activeMonitorScale,
-                                AlignRight(), AlignBottom(), EffectiveGapDip(), out var ix, out var iy);
+                                AlignRight(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
+                                out var ix, out var iy);
                             rect = new System.Drawing.Rectangle(ix, iy, physSize.Width, physSize.Height);
                         }
                     }
@@ -1869,7 +1874,8 @@ namespace PlayniteAchievements.Services.UI
 
             ToastWindowPlacer.ComputeCorner(
                 clientPhys, physW, physH, _activeMonitorScale,
-                AlignRight(), AlignBottom(), EffectiveGapDip(), out var cornerX, out var cornerY);
+                AlignRight(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
+                out var cornerX, out var cornerY);
             WarnOnSettledCardDrift(toastItems.Count, cornerX - clientPhys.X, cornerY - clientPhys.Y,
                 settledRelX, settledRelY);
         }
@@ -2271,7 +2277,9 @@ namespace PlayniteAchievements.Services.UI
             // previous wave's. Only the storyboards' shape is resolved here; each is bound to this
             // wave's slide host at the slide itself, since the window does not exist yet.
             ResolveWaveSlideTiming();
-            _activeCardGlow = wave[0].ToastGlowMargin.Top;
+            // Zero until the cards are laid out and measured; the pre-show placement pass has no
+            // card to measure either, so the two agree.
+            _activeCardInset = default(Thickness);
             // Placement state is per-wave: the correction is measured on this wave's first settled
             // placement, and the anomaly warning is emitted at most once for it.
             _placementCorrection = default(ToastWindowPlacer.PlacementCorrection);
@@ -2611,6 +2619,15 @@ namespace PlayniteAchievements.Services.UI
                 // actual render scale, snap to the corner, and (for a visible wave) reveal.
                 ApplyDpiCompensation(window, items, fitScale);
 
+                // Collapse the room between stacked cards, and learn the stack's outer inset, from
+                // the cards as they actually laid out. Both are properties of the active template,
+                // so they cannot be known before this point and must not be guessed from the view
+                // model: only the bundled template reserves ToastGlowMargin, and deriving the
+                // layout from it pulled a theme card into the one above it and sat the stack too
+                // close to the corner. Before ReserveSlideTravel, whose travel distance is the
+                // card surface's laid-out height.
+                _activeCardInset = ToastSurfaceFactory.ApplyMeasuredCardGaps(items);
+
                 // Reserve the slide's travel now that the card has its final laid-out size, so the
                 // window is large enough to hold the card at both ends of the slide. Placed between the
                 // compensation and the settled placement because it changes the window's size, and the
@@ -2660,7 +2677,8 @@ namespace PlayniteAchievements.Services.UI
                 {
                     trackRecorder = new ToastOverlayTrackRecorder(
                         _logger, TrackSampleIntervalMs(),
-                        AlignRight(), AlignBottom(), EffectiveGapDip(), _activeMonitorScale);
+                        AlignRight(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
+                        _activeMonitorScale);
                     _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
                     trackSampleCount = 0;
                     _waveShadowCaptureCount = 0;
@@ -3546,11 +3564,17 @@ namespace PlayniteAchievements.Services.UI
             return _activePosition == ToastScreenCorner.BottomLeft || _activePosition == ToastScreenCorner.BottomRight;
         }
 
-        // The window-edge gap in DIPs: the visible-body gap (CornerGapDip) less the card's own glow
-        // margin, so the body sits a constant distance from the corner whether or not the glow is on.
-        private double EffectiveGapDip()
+        // The window-edge gap in DIPs on each axis: the visible-body gap (CornerGapDip) less the
+        // room the stack reserves on the edge the active corner sits against, so the body sits a
+        // constant distance from the corner whatever the template reserves there.
+        private double EffectiveGapDipX()
         {
-            return CornerGapDip - _activeCardGlow;
+            return CornerGapDip - (AlignRight() ? _activeCardInset.Right : _activeCardInset.Left);
+        }
+
+        private double EffectiveGapDipY()
+        {
+            return CornerGapDip - (AlignBottom() ? _activeCardInset.Bottom : _activeCardInset.Top);
         }
 
         /// <summary>
@@ -3597,7 +3621,8 @@ namespace PlayniteAchievements.Services.UI
             var renderScale = ToastWindowPlacer.RenderScale(window);
             var placed = ToastWindowPlacer.PositionPhysical(
                 window, _activeCardSurface, SlideOffsetDipX(), SlideOffsetDipY(),
-                anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
+                anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(),
+                EffectiveGapDipX(), EffectiveGapDipY(),
                 measure, ref _placementCorrection, out outcome);
             LogPlacementAnomaly(window, anchorPhys, renderScale, outcome);
 
