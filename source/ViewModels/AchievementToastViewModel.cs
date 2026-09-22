@@ -87,7 +87,12 @@ namespace PlayniteAchievements.ViewModels
                 _args.ProviderKey,
                 _args.PlayniteGameId,
                 gameCustomDataStore);
-            _style = styleOverride ?? resolved.Style;
+            // The scope's style first, then the kind's own copy when it has one. The settings
+            // mockup passes the style it is editing as styleOverride and goes through the same
+            // narrowing, so the preview and a live notification cannot disagree.
+            _style = NotificationStyleResolver.ApplyKind(
+                styleOverride ?? resolved.Style,
+                NotificationKindResolver.Resolve(_args));
             ToastUseThemeStyling =
                 toastUseThemeStylingOverride ?? resolved.ToastUseThemeStyling;
             FrameUseThemeStyling =
