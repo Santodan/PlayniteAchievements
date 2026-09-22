@@ -634,14 +634,46 @@ namespace PlayniteAchievements.Services.Achievements
             string apiName,
             Action<AchievementOverride> apply)
         {
-            var overrides = CloneOverrides(customData);
-            if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
+            MutateOverrides(customData, new[] { apiName }, apply);
+        }
+
+        /// <summary>
+        /// Applies the same edit to many achievements' override records, cloning and storing the
+        /// override map once for the whole set rather than once per achievement.
+        /// </summary>
+        /// <remarks>
+        /// The singular form clones the map, mutates one entry and stores it back, so calling it
+        /// in a loop re-cloned every override the game has for each achievement touched. That is
+        /// the inner half of what made applying a field across a selection quadratic; the outer
+        /// half was one whole store write per row.
+        /// </remarks>
+        private static void MutateOverrides(
+            GameCustomDataFile customData,
+            IReadOnlyCollection<string> apiNames,
+            Action<AchievementOverride> apply)
+        {
+            if (apiNames == null || apiNames.Count == 0)
             {
-                entry = new AchievementOverride();
+                return;
             }
 
-            apply(entry);
-            overrides[apiName] = entry;
+            var overrides = CloneOverrides(customData);
+            foreach (var apiName in apiNames)
+            {
+                if (string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
+                {
+                    entry = new AchievementOverride();
+                }
+
+                apply(entry);
+                overrides[apiName] = entry;
+            }
+
             StoreOverrides(customData, overrides);
         }
 
@@ -701,13 +733,45 @@ namespace PlayniteAchievements.Services.Achievements
             AchievementEditableField field,
             object value)
         {
-            if (gameId == Guid.Empty)
+            SetAchievementFieldOverride(gameId, new[] { achievementApiName }, field, value);
+        }
+
+        /// <summary>
+        /// Sets one field across many achievements in a single store update.
+        /// </summary>
+        /// <remarks>
+        /// The per-achievement form costs a whole store write -- several deep clones of the
+        /// game's record, three normalizations, a serialize, a SQLite open and close, and for a
+        /// mirrored field a delete and re-insert of every override row. Applying a value across a
+        /// selection by calling it in a loop paid all of that once per row. This batches the same
+        /// edit into one write, matching the shape ClearAchievementOverrides already uses.
+        ///
+        /// Ordering and partial failure differ deliberately: the whole set now lands or none of
+        /// it does, where a loop could leave the first rows written and the rest not.
+        /// </remarks>
+        public void SetAchievementFieldOverride(
+            Guid gameId,
+            IEnumerable<string> achievementApiNames,
+            AchievementEditableField field,
+            object value)
+        {
+            if (gameId == Guid.Empty || achievementApiNames == null)
             {
                 return;
             }
 
-            var apiName = AchievementNoteHelper.NormalizeApiName(achievementApiName);
-            if (string.IsNullOrWhiteSpace(apiName))
+            var targets = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in achievementApiNames)
+            {
+                var normalized = AchievementNoteHelper.NormalizeApiName(name);
+                if (!string.IsNullOrWhiteSpace(normalized) && seen.Add(normalized))
+                {
+                    targets.Add(normalized);
+                }
+            }
+
+            if (targets.Count == 0)
             {
                 return;
             }
@@ -728,7 +792,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             _gameCustomDataStore.Update(
                 gameId,
-                customData => MutateOverride(customData, apiName, entry =>
+                customData => MutateOverrides(customData, targets, entry =>
                 {
                     switch (field)
                     {

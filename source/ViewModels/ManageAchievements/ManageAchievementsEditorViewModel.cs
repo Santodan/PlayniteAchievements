@@ -4783,19 +4783,38 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void ApplyPerRow(Action<AchievementEditorRow> apply, string propertyName)
         {
-            foreach (var row in _selectedRows)
+            // Reveal state is recomputed once for the whole gesture, not once per row. Setting a
+            // trophy type marks that row revealed, which raises RevealStateChanged, which used to
+            // run RefreshRevealHeaderState -- two passes over the filtered rows plus a
+            // materialized list -- for every row in the selection. Applying a grade across a
+            // selection of N rows in a game of N was therefore quadratic on its own, before any
+            // of the store writes. This is the same suppression the reveal-all commands already
+            // use, and the single refresh afterwards leaves the header in the same state.
+            _isTogglingReveal = true;
+            _batchedFieldWrites = new List<(string, AchievementEditableField, object)>();
+            try
             {
-                apply(row);
-                if (PersistSharedFacet(row, propertyName))
+                foreach (var row in _selectedRows)
                 {
-                    continue;
-                }
+                    apply(row);
+                    if (PersistSharedFacet(row, propertyName))
+                    {
+                        continue;
+                    }
 
-                if (row.IsProviderRow)
-                {
-                    PersistProviderRowField(row, propertyName);
+                    if (row.IsProviderRow)
+                    {
+                        PersistProviderRowField(row, propertyName);
+                    }
                 }
             }
+            finally
+            {
+                _isTogglingReveal = false;
+                FlushBatchedFieldWrites();
+            }
+
+            RefreshRevealHeaderState();
 
             // Authored rows are stored as one definition list, so a single save covers all of them.
             if (_selectedRows.Any(row => !row.IsProviderRow))
@@ -5725,6 +5744,41 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// timestamp raises the date, the time and the meridiem -- so without this each click paid
         /// for that rebuild more than once.
         /// </remarks>
+        // Set while a gesture writes the same field across a selection. Writes are collected here
+        // and flushed as one store update instead of one per row. Each store update costs several
+        // deep clones of the game's record, three normalizations, a serialize, a SQLite open and
+        // close, and for a mirrored field a delete and re-insert of every override row -- so a
+        // selection of N rows used to pay all of that N times.
+        private List<(string ApiName, AchievementEditableField Field, object Value)> _batchedFieldWrites;
+
+        /// <summary>
+        /// Flushes the writes collected during a batch: one store update per distinct field and
+        /// value, and one assignments notification for the whole gesture.
+        /// </summary>
+        private void FlushBatchedFieldWrites()
+        {
+            var pending = _batchedFieldWrites;
+            _batchedFieldWrites = null;
+            if (pending == null || pending.Count == 0)
+            {
+                return;
+            }
+
+            // A bulk gesture sets one value across the selection, so this is normally a single
+            // group. Grouping rather than assuming keeps it correct if a caller ever batches a
+            // value computed per row.
+            foreach (var group in pending.GroupBy(write => new { write.Field, write.Value }))
+            {
+                _achievementOverridesService.SetAchievementFieldOverride(
+                    _gameId,
+                    group.Select(write => write.ApiName).ToList(),
+                    group.Key.Field,
+                    group.Key.Value);
+            }
+
+            RaiseAssignmentsChanged();
+        }
+
         private void WriteProviderField(string apiName, AchievementEditableField field, object value)
         {
             var key = apiName + " " + field;
@@ -5734,6 +5788,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             _lastWrittenOverrides[key] = value;
+            // The dedupe above still runs per row, so a batch writes only the rows that
+            // actually change -- the same set the unbatched path would have written.
+            if (_batchedFieldWrites != null)
+            {
+                _batchedFieldWrites.Add((apiName, field, value));
+                return;
+            }
+
             _achievementOverridesService.SetAchievementFieldOverride(_gameId, apiName, field, value);
             RaiseAssignmentsChanged();
         }
