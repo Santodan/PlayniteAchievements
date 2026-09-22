@@ -81,6 +81,9 @@ namespace PlayniteAchievements.Views.Controls
             new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Default"] = CreateAchievementVisibility(captures: true),
+                // The Spoilers settings preview: every column the reveal matrix can mask has to be
+                // on screen, including the two that are hidden by default everywhere else.
+                ["SpoilersPreview"] = CreateAchievementVisibility(trophy: true, points: true),
                 ["SingleGame"] = CreateAchievementVisibility(captures: true),
                 ["DesktopTheme"] = CreateAchievementVisibility(captures: true),
                 ["OverviewSelectedGameAchievements"] = CreateAchievementVisibility(captures: true),

@@ -82,6 +82,41 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         }
 
         /// <summary>
+        /// Identifies the ColumnSettingsKeyOverride dependency property.
+        /// </summary>
+        public static readonly DependencyProperty ColumnSettingsKeyOverrideProperty =
+            DependencyProperty.Register(nameof(ColumnSettingsKeyOverride), typeof(string),
+                typeof(AchievementDataGridControl), new PropertyMetadata(null, OnColumnSettingsKeyOverrideChanged));
+
+        /// <summary>
+        /// Swaps the inner grid's column settings key, so a settings preview can show a column set
+        /// of its own without disturbing the shared DesktopTheme surface. Previews run with layout
+        /// persistence off, so the key only selects which columns start visible.
+        /// </summary>
+        public string ColumnSettingsKeyOverride
+        {
+            get => (string)GetValue(ColumnSettingsKeyOverrideProperty);
+            set => SetValue(ColumnSettingsKeyOverrideProperty, value);
+        }
+
+        private static void OnColumnSettingsKeyOverrideChanged(
+            DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            (d as AchievementDataGridControl)?.ApplyColumnSettingsKeyOverride();
+        }
+
+        private void ApplyColumnSettingsKeyOverride()
+        {
+            var key = ColumnSettingsKeyOverride;
+            if (AchievementsGrid == null || string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+
+            AchievementsGrid.ColumnSettingsKey = key;
+        }
+
+        /// <summary>
         /// Identifies the PreviewMinimumMaxHeight dependency property.
         /// When set, preview controls clamp persisted max height up to this minimum.
         /// </summary>
@@ -760,6 +795,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             var isPreview = ThemeDataOverride != null;
             AchievementsGrid.AllowLayoutPersistence = !isPreview;
             AchievementsGrid.AllowColumnVisibilityMenu = !isPreview;
+            // The override is applied here too: the inner grid may not have existed yet when the
+            // property was set from XAML.
+            ApplyColumnSettingsKeyOverride();
         }
 
         private string GetPreviewKind()
