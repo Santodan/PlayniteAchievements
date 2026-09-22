@@ -1242,9 +1242,24 @@ namespace PlayniteAchievements.ViewModels.Items
         public string PointsTextResolved => IsPointsHidden ? MaskedValuePlaceholder : PointsText;
 
         /// <summary>
-        /// Stands in for a masked trophy grade or point value.
+        /// Stands in for a masked point value.
         /// </summary>
         public const string MaskedValuePlaceholder = "?";
+
+        /// <summary>
+        /// Trophy grade for display, replaced by <see cref="MaskedTrophyType"/> while the trophy
+        /// mask applies. Cell templates switch on this rather than on <see cref="TrophyType"/>, so
+        /// the masked badge and the grade badges are chosen by one property instead of by the
+        /// relative order of competing triggers -- the same shape as <see cref="DisplayIcon"/> and
+        /// <see cref="DisplayNameResolved"/>.
+        /// </summary>
+        public string TrophyTypeResolved => IsTrophyHidden ? MaskedTrophyType : TrophyType;
+
+        /// <summary>
+        /// Stands in for a masked trophy grade. Not a grade any provider reports, so it cannot
+        /// collide with a real one.
+        /// </summary>
+        public const string MaskedTrophyType = "unknown";
 
         /// <summary>
         /// Toggles the revealed state if the achievement can be revealed.
@@ -1571,14 +1586,10 @@ namespace PlayniteAchievements.ViewModels.Items
             clone.SortingName = _sortingName;
             clone.PlayniteGameId = _playniteGameId;
             clone.PointsValue = _pointsValue;
-            clone.ShowHiddenIcon = _showHiddenIcon;
-            clone.ShowHiddenTitle = _showHiddenTitle;
-            clone.ShowHiddenDescription = _showHiddenDescription;
-            clone.ShowHiddenSuffix = _showHiddenSuffix;
-            clone.ShowLockedIcon = _showLockedIcon;
-            clone.UseSeparateLockedIconsWhenAvailable = _useSeparateLockedIconsWhenAvailable;
-            clone.ShowRarityBar = _showRarityBar;
-            clone.ShowFriendSpoilers = _showFriendSpoilers;
+            // Through the snapshot rather than field by field: a hand-kept list here silently
+            // reset any appearance setting that was added to the item but not added to the list,
+            // and the grids clone before they render, so the reset is what the user sees.
+            clone.ApplyAppearanceSettings(CaptureAppearanceSettings());
             clone.CategoryType = _categoryType;
             clone.CategoryLabel = _categoryLabel;
             clone.GameIconPath = _gameIconPath;
@@ -1917,6 +1928,7 @@ namespace PlayniteAchievements.ViewModels.Items
         private void NotifyTrophyDisplayChanged()
         {
             OnPropertyChanged(nameof(IsTrophyHidden));
+            OnPropertyChanged(nameof(TrophyTypeResolved));
         }
 
         private void NotifyPointsDisplayChanged()

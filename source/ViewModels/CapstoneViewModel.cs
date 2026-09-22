@@ -384,7 +384,7 @@ namespace PlayniteAchievements.ViewModels
                 return null;
             }
 
-            return new CapstoneOptionItem
+            var option = new CapstoneOptionItem
             {
                 ProviderKey = projected.ProviderKey,
                 GameName = projected.GameName,
@@ -404,13 +404,6 @@ namespace PlayniteAchievements.ViewModels
                 TrophyType = projected.TrophyType,
                 Unlocked = projected.Unlocked,
                 Hidden = projected.Hidden,
-                ShowHiddenIcon = projected.ShowHiddenIcon,
-                ShowHiddenTitle = projected.ShowHiddenTitle,
-                ShowHiddenDescription = projected.ShowHiddenDescription,
-                ShowRarityBar = projected.ShowRarityBar,
-                ShowHiddenSuffix = projected.ShowHiddenSuffix,
-                ShowLockedIcon = projected.ShowLockedIcon,
-                UseSeparateLockedIconsWhenAvailable = projected.UseSeparateLockedIconsWhenAvailable,
                 IsRevealed = projected.IsRevealed,
                 IsCapstone = sourceAchievement.IsCapstone,
                 IsCurrentMarker = string.Equals(
@@ -418,6 +411,11 @@ namespace PlayniteAchievements.ViewModels
                     currentCapstoneApiName,
                     StringComparison.OrdinalIgnoreCase)
             };
+
+            // Through the snapshot, so an appearance setting added to the display item reaches the
+            // capstone rows too instead of quietly falling back to the item's own defaults.
+            option.ApplyAppearanceSettings(projected.CaptureAppearanceSettings());
+            return option;
         }
 
         private string ResolveErrorMessage(CacheWriteResult result)

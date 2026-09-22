@@ -901,13 +901,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 TrophyType = projected.TrophyType,
                 Unlocked = projected.Unlocked,
                 Hidden = projected.Hidden,
-                ShowHiddenIcon = projected.ShowHiddenIcon,
-                ShowHiddenTitle = projected.ShowHiddenTitle,
-                ShowHiddenDescription = projected.ShowHiddenDescription,
-                ShowRarityBar = projected.ShowRarityBar,
-                ShowHiddenSuffix = projected.ShowHiddenSuffix,
-                ShowLockedIcon = projected.ShowLockedIcon,
-                UseSeparateLockedIconsWhenAvailable = projected.UseSeparateLockedIconsWhenAvailable,
                 IsRevealed = projected.IsRevealed,
                 CategoryType = projected.CategoryType,
                 CategoryLabel = projected.CategoryLabel,
@@ -916,6 +909,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _originalUnlockedPreviewPath = NormalizePreviewSourceValue(originalUnlockedPreviewPath),
                 _originalLockedPreviewPath = NormalizePreviewSourceValue(originalLockedPreviewPath)
             };
+
+            // Through the snapshot rather than field by field, so an appearance setting added to
+            // the display item reaches these rows instead of falling back to their own defaults.
+            row.ApplyAppearanceSettings(projected.CaptureAppearanceSettings());
 
             var normalizedUnlockedOverride = NormalizeOverrideValue(unlockedOverride);
             var normalizedLockedOverride = NormalizeOverrideValue(lockedOverride);
@@ -956,13 +953,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             TrophyType = source.TrophyType;
             Unlocked = source.Unlocked;
             Hidden = source.Hidden;
-            ShowHiddenIcon = source.ShowHiddenIcon;
-            ShowHiddenTitle = source.ShowHiddenTitle;
-            ShowHiddenDescription = source.ShowHiddenDescription;
-            ShowRarityBar = source.ShowRarityBar;
-            ShowHiddenSuffix = source.ShowHiddenSuffix;
-            ShowLockedIcon = source.ShowLockedIcon;
-            UseSeparateLockedIconsWhenAvailable = source.UseSeparateLockedIconsWhenAvailable;
+            ApplyAppearanceSettings(source.CaptureAppearanceSettings());
             CategoryType = source.CategoryType;
             CategoryLabel = source.CategoryLabel;
             GameIconPath = source.GameIconPath;
