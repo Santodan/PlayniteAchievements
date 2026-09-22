@@ -50,9 +50,7 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         {
             if (_settings?.Persisted == null) return;
 
-            _previewThemeData?.RefreshDisplayItems(
-                PlayniteAchievements.ViewModels.Items.AchievementDisplayItem
-                    .CreateAppearanceSettingsSnapshot(_settings, null, null));
+            _previewThemeData?.RefreshDisplayItems(_settings);
         }
 
         private void OnPersistedPropertyChanged(object sender, PropertyChangedEventArgs e)

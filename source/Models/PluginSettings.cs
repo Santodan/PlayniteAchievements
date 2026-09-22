@@ -2458,14 +2458,12 @@ namespace PlayniteAchievements.Models
 
         private void RefreshThemeDisplayItemsFromPersisted()
         {
-            var persisted = Persisted;
-            if (persisted == null)
+            if (Persisted == null)
             {
                 return;
             }
 
-            ModernTheme.RefreshDisplayItems(
-                ViewModels.Items.AchievementDisplayItem.CreateAppearanceSettingsSnapshot(this, null, null));
+            ModernTheme.RefreshDisplayItems(this);
         }
 
         /// <summary>

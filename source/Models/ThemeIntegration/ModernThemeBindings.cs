@@ -570,6 +570,16 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             }
         }
 
+        /// <summary>
+        /// Rebuilds the display items from the current settings. Callers outside this namespace use
+        /// this rather than building the snapshot themselves.
+        /// </summary>
+        public void RefreshDisplayItems(PlayniteAchievementsSettings settings)
+        {
+            RefreshDisplayItems(
+                AchievementDisplayItem.CreateAppearanceSettingsSnapshot(settings, null, null));
+        }
+
         public void RefreshDisplayItems(AchievementDisplayItem.AppearanceSettingsSnapshot appearance)
         {
             _allAchievementDisplayItems = BuildDisplayItems(appearance);

@@ -13,7 +13,6 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Services.Images;
-using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views.Settings.Display
@@ -252,8 +251,7 @@ namespace PlayniteAchievements.Views.Settings.Display
         {
             if (_settings?.Persisted == null) return;
 
-            _achievementVisibilityPreviewThemeData?.RefreshDisplayItems(
-                AchievementDisplayItem.CreateAppearanceSettingsSnapshot(_settings, null, null));
+            _achievementVisibilityPreviewThemeData?.RefreshDisplayItems(_settings);
         }
 
         private void OnPersistedPropertyChanged(object sender, PropertyChangedEventArgs e)
