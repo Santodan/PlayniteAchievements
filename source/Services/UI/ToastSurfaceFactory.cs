@@ -17,11 +17,13 @@ namespace PlayniteAchievements.Services.UI
     /// </summary>
     internal static class ToastSurfaceFactory
     {
-        // Visible gap (DIP) between stacked cards in a wave. Without adjustment the gap is the sum
-        // of the two touching cards' ToastGlowMargins (2 * glow), which reads as too far apart; a
-        // negative container margin collapses that reserved glow room (translucent glows blend) to
-        // this small gap. Tunable.
-        private const double DesiredCardGapDip = 8d;
+        /// <summary>
+        /// Visible gap (DIP) between the bodies of two stacked cards in a wave. Without adjustment
+        /// the gap is the sum of the transparent room the two touching cards reserve around
+        /// themselves, which reads as too far apart; a negative container margin collapses that
+        /// room (translucent glows blend) to this small gap. Tunable.
+        /// </summary>
+        public const double DesiredCardGapDip = 8d;
 
         /// <summary>
         /// The one template decision shared by the wave and the preview: a fire-test view model
@@ -66,34 +68,108 @@ namespace PlayniteAchievements.Services.UI
                 control.ItemTemplate = itemTemplate;
             }
 
-            // A multi-card wave stacks cards in the default vertical StackPanel; the inter-card gap
-            // is the sum of both cards' ToastGlowMargins. Pull every card after the first up by that
-            // doubled glow room minus the desired gap, so bodies sit DesiredCardGapDip apart while
-            // the first card's top and last card's bottom keep full glow room (no outer clipping).
-            // A single-item wave and the inline preview keep the untouched natural layout.
-            if (items.Count > 1)
+            // A multi-card wave stacks cards in the default vertical StackPanel. The inter-card gap
+            // is whatever transparent room the two touching cards reserve, which is a property of
+            // the template and cannot be known before layout; ApplyMeasuredCardGaps collapses it
+            // once the containers are realized. A single-item wave and the inline preview keep the
+            // untouched natural layout.
+            return control;
+        }
+
+        /// <summary>
+        /// The transparent room a realized card reserves inside its container: the offset of the
+        /// template's root element on each side. For the bundled template this is
+        /// <c>ToastGlowMargin</c>, the room the border glow and the ray burst reach into; for a
+        /// theme template it is whatever margin that template's root carries.
+        ///
+        /// Measured rather than read off the view model because only the bundled template binds
+        /// <c>ToastGlowMargin</c>. Deriving the layout from a value the active template may simply
+        /// ignore is what let a theme card be pulled into the one above it.
+        ///
+        /// An empty thickness when the container is not realized, has no visual child, or is not
+        /// connected to it — every caller then falls back to "no reserved room", which is the
+        /// natural layout.
+        /// </summary>
+        public static Thickness MeasureCardInset(FrameworkElement container)
+        {
+            if (container == null ||
+                container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0 ||
+                VisualTreeHelper.GetChildrenCount(container) == 0)
             {
-                var glow = items[0].ToastGlowMargin.Top; // uniform; every card in a wave shares one style
-                var pull = DesiredCardGapDip - (2 * glow);
-
-                control.AlternationCount = items.Count; // assigns AlternationIndex per container
-                var containerStyle = new Style(typeof(ContentPresenter));
-                containerStyle.Setters.Add(
-                    new Setter(FrameworkElement.MarginProperty, new Thickness(0, pull, 0, 0)));
-
-                var firstCard = new Trigger
-                {
-                    Property = ItemsControl.AlternationIndexProperty,
-                    Value = 0,
-                };
-                firstCard.Setters.Add(
-                    new Setter(FrameworkElement.MarginProperty, new Thickness(0)));
-                containerStyle.Triggers.Add(firstCard);
-
-                control.ItemContainerStyle = containerStyle;
+                return default(Thickness);
             }
 
-            return control;
+            var root = VisualTreeHelper.GetChild(container, 0) as FrameworkElement;
+            if (root == null || root.RenderSize.Width <= 0 || root.RenderSize.Height <= 0)
+            {
+                return default(Thickness);
+            }
+
+            try
+            {
+                var bounds = root.TransformToAncestor(container)
+                    .TransformBounds(new Rect(root.RenderSize));
+                return new Thickness(
+                    bounds.Left,
+                    bounds.Top,
+                    container.RenderSize.Width - bounds.Right,
+                    container.RenderSize.Height - bounds.Bottom);
+            }
+            catch
+            {
+                // TransformToAncestor throws while the tree is being torn down or re-templated.
+                return default(Thickness);
+            }
+        }
+
+        /// <summary>
+        /// Collapses the reserved room between stacked cards to <see cref="DesiredCardGapDip"/>,
+        /// measured from the cards themselves: every container after the first is pulled up by the
+        /// room its own top and its predecessor's bottom reserve, less the desired gap. The first
+        /// card's top and the last card's bottom keep their full room, so nothing outside the
+        /// bodies is clipped and the corner inset stays derivable from the same measurement.
+        ///
+        /// Runs after the surface has been laid out, since the room is a laid-out quantity. One
+        /// pass converges: a container's own Margin sits outside the inset it was derived from, so
+        /// re-measuring after the pull would return the same numbers.
+        ///
+        /// Returns the outer inset of the whole stack — the first card's left/top and the last
+        /// card's right/bottom — which is what the corner placement insets by.
+        /// </summary>
+        public static Thickness ApplyMeasuredCardGaps(ItemsControl surface)
+        {
+            if (surface == null || surface.Items.Count == 0)
+            {
+                return default(Thickness);
+            }
+
+            var containers = new FrameworkElement[surface.Items.Count];
+            var insets = new Thickness[surface.Items.Count];
+            for (var i = 0; i < containers.Length; i++)
+            {
+                containers[i] = surface.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
+                insets[i] = MeasureCardInset(containers[i]);
+            }
+
+            for (var i = 1; i < containers.Length; i++)
+            {
+                if (containers[i] == null)
+                {
+                    continue;
+                }
+
+                containers[i].Margin = new Thickness(
+                    0, DesiredCardGapDip - (insets[i - 1].Bottom + insets[i].Top), 0, 0);
+            }
+
+            if (containers.Length > 1)
+            {
+                surface.UpdateLayout();
+            }
+
+            var first = insets[0];
+            var last = insets[insets.Length - 1];
+            return new Thickness(first.Left, first.Top, last.Right, last.Bottom);
         }
 
         /// <summary>
