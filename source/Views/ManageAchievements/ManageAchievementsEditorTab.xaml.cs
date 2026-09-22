@@ -180,6 +180,17 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 CustomAchievementsGrid.LayoutUpdated += AchievementsGrid_LayoutUpdated;
                 System.Windows.Media.CompositionTarget.Rendering += AchievementsGrid_Rendering;
+
+                // Counted with handledEventsToo, because the DataGrid handles its own requests.
+                // A focused element inside a virtualized row asks to be brought back into view as
+                // the scroll carries it out, and the scroll then carries it out again: the two
+                // fight, and each round is a layout pass. This says whether that is what the
+                // layout storms are made of.
+                CustomAchievementsGrid.AddHandler(
+                    FrameworkElement.RequestBringIntoViewEvent,
+                    new RequestBringIntoViewEventHandler(AchievementsGrid_RequestBringIntoView),
+                    true);
+
                 _renderHooked = true;
             }
 
@@ -216,6 +227,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 CustomAchievementsGrid.LayoutUpdated -= AchievementsGrid_LayoutUpdated;
                 System.Windows.Media.CompositionTarget.Rendering -= AchievementsGrid_Rendering;
+                CustomAchievementsGrid.RemoveHandler(
+                    FrameworkElement.RequestBringIntoViewEvent,
+                    new RequestBringIntoViewEventHandler(AchievementsGrid_RequestBringIntoView));
                 _renderHooked = false;
             }
 
@@ -405,6 +419,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void AchievementsGrid_Rendering(object sender, EventArgs e) => _renderFrameCount++;
 
+        private int _bringIntoViewCount;
+
+        private void AchievementsGrid_RequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)
+            => _bringIntoViewCount++;
+
         private System.Diagnostics.Stopwatch _rowRealizationWindow;
         private DataGridRowsPresenter _rowsPresenter;
 
@@ -482,7 +501,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var extentLow = _extentMin == double.MaxValue ? 0 : _extentMin;
             var extentHigh = _extentMax == double.MinValue ? 0 : _extentMax;
             var viewport = _gridScrollViewer?.ViewportHeight ?? 0;
+            var brings = _bringIntoViewCount;
+            var focused = (System.Windows.Input.Keyboard.FocusedElement as DependencyObject)?.GetType().Name ?? "none";
 
+            _bringIntoViewCount = 0;
             _realizedRowCount = 0;
             _freshRowCount = 0;
             _layoutPassCount = 0;
@@ -499,7 +521,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 $"thread={System.Threading.Thread.CurrentThread.ManagedThreadId} " +
                 $"context=realized={realized} fresh={fresh} containers={containers} cells={cells} " +
                 $"layouts={layouts} frames={frames} extent={extentLow:F0}-{extentHigh:F0} " +
-                $"viewport={viewport:F0} rows={rows}");
+                $"viewport={viewport:F0} brings={brings} focus={focused} rows={rows}");
         }
 
         private void RestoreSelectionByApiNames(IReadOnlyList<string> apiNames)
