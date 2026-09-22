@@ -4601,12 +4601,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            // One Reset rather than a run of individual moves. Synchronizing item by item raised
-            // a collection change per displaced row, and the grid's filtered view re-ran for each
-            // one, so dragging a row far through a long list cost a pass per position it crossed.
-            // The reorder behavior restores the selection by api name after the move, so losing
-            // it to the Reset costs nothing.
-            AchievementRows.ReplaceAll(reordered);
+            // Synchronized item by item, deliberately, even though a Reset would raise one
+            // collection change instead of one per displaced row. A Reset sends the DataGrid back
+            // to the top, and the reorder behavior's RestoreSelection only reselects the moved
+            // rows -- it does not scroll to them -- so the user would lose their place on every
+            // drag. The per-move cost is bounded by how far the rows travel, not by the list
+            // length, so a normal drag pays little; restoring scroll offset explicitly is what a
+            // Reset here would need first.
+            CollectionHelper.SynchronizeCollection(AchievementRows, reordered);
             PersistCurrentOrder();
             return true;
         }
