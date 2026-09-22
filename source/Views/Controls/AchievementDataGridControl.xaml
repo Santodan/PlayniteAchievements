@@ -467,39 +467,23 @@
             <DataGridTemplateColumn Width="72" MinWidth="32" MaxWidth="160" Header="{DynamicResource LOCPlayAch_Column_Trophy}" CanUserResize="True" SortMemberPath="TrophyType" helpers:ColumnVisibilityHelper.ColumnKey="Trophy"
                                     CellTemplate="{StaticResource AchievementTrophyTemplate}">
                 <DataGridTemplateColumn.CellStyle>
-                    <!-- Each grade tooltip is conditioned on the trophy mask being off: naming the
-                         grade here would give away exactly what the masked badge is hiding. -->
+                    <!-- Switches on TrophyTypeResolved like the cell template does, so a masked
+                         grade cannot be read off the tooltip and the two cannot disagree. -->
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
                         <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding TrophyType}" Value="platinum"/>
-                                    <Condition Binding="{Binding IsTrophyHidden}" Value="False"/>
-                                </MultiDataTrigger.Conditions>
+                            <DataTrigger Binding="{Binding TrophyTypeResolved}" Value="platinum">
                                 <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Trophy_Platinum}"/>
-                            </MultiDataTrigger>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding TrophyType}" Value="gold"/>
-                                    <Condition Binding="{Binding IsTrophyHidden}" Value="False"/>
-                                </MultiDataTrigger.Conditions>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding TrophyTypeResolved}" Value="gold">
                                 <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Trophy_Gold}"/>
-                            </MultiDataTrigger>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding TrophyType}" Value="silver"/>
-                                    <Condition Binding="{Binding IsTrophyHidden}" Value="False"/>
-                                </MultiDataTrigger.Conditions>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding TrophyTypeResolved}" Value="silver">
                                 <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Trophy_Silver}"/>
-                            </MultiDataTrigger>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding TrophyType}" Value="bronze"/>
-                                    <Condition Binding="{Binding IsTrophyHidden}" Value="False"/>
-                                </MultiDataTrigger.Conditions>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding TrophyTypeResolved}" Value="bronze">
                                 <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Trophy_Bronze}"/>
-                            </MultiDataTrigger>
-                            <DataTrigger Binding="{Binding IsTrophyHidden}" Value="True">
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding TrophyTypeResolved}" Value="unknown">
                                 <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"/>
                             </DataTrigger>
                         </Style.Triggers>

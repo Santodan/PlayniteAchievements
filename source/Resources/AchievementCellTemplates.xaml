@@ -336,21 +336,22 @@
                             <DataTrigger Binding="{Binding HasTrophyType}" Value="True">
                                 <Setter Property="Visibility" Value="Visible"/>
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding TrophyType}" Value="platinum">
+                            <!-- All five switch on TrophyTypeResolved, which already returns the
+                                 masked sentinel, so exactly one of them can match and no trigger
+                                 has to outrank another to keep a grade from showing through. -->
+                            <DataTrigger Binding="{Binding TrophyTypeResolved}" Value="platinum">
                                 <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}"/>
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding TrophyType}" Value="gold">
+                            <DataTrigger Binding="{Binding TrophyTypeResolved}" Value="gold">
                                 <Setter Property="Source" Value="{DynamicResource TrophyGold}"/>
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding TrophyType}" Value="silver">
+                            <DataTrigger Binding="{Binding TrophyTypeResolved}" Value="silver">
                                 <Setter Property="Source" Value="{DynamicResource TrophySilver}"/>
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding TrophyType}" Value="bronze">
+                            <DataTrigger Binding="{Binding TrophyTypeResolved}" Value="bronze">
                                 <Setter Property="Source" Value="{DynamicResource TrophyBronze}"/>
                             </DataTrigger>
-                            <!-- Last, so it outranks the grade triggers above and the real grade
-                                 cannot show through while the mask applies. -->
-                            <DataTrigger Binding="{Binding IsTrophyHidden}" Value="True">
+                            <DataTrigger Binding="{Binding TrophyTypeResolved}" Value="unknown">
                                 <Setter Property="Source" Value="{DynamicResource TrophyUnknown}"/>
                                 <Setter Property="Cursor" Value="Hand"/>
                                 <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"/>
