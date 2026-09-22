@@ -6155,23 +6155,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>
         /// Whether this row has a field worth masking at all, and only while the display setting
         /// says not to reveal it -- with the setting on there is nothing to reveal, so the toggle
-        /// beside it is not shown either. A hidden achievement is also locked, so it takes the
-        /// hidden setting and a merely locked one takes the locked setting, matching the grid.
+        /// beside it is not shown either. A hidden achievement is also locked, so either column can
+        /// mask it: the locked toggle covers every locked row and the hidden toggle adds the hidden
+        /// ones, matching the grid.
         /// </summary>
-        public bool CanRevealTitle => !Unlocked && (Hidden ? !ShowHiddenTitle : !ShowLockedTitle);
+        public bool CanRevealTitle => !Unlocked && (!ShowLockedTitle || (Hidden && !ShowHiddenTitle));
 
         public bool CanRevealDescription =>
-            !Unlocked && (Hidden ? !ShowHiddenDescription : !ShowLockedDescription);
+            !Unlocked && (!ShowLockedDescription || (Hidden && !ShowHiddenDescription));
 
         /// <summary>
         /// Trophy and points additionally require the row to carry one, so a row with no grade or
         /// no point value never offers a toggle that would reveal nothing.
         /// </summary>
         public bool CanRevealTrophy =>
-            !Unlocked && HasTrophyType && (Hidden ? !ShowHiddenTrophy : !ShowLockedTrophy);
+            !Unlocked && HasTrophyType && (!ShowLockedTrophy || (Hidden && !ShowHiddenTrophy));
 
         public bool CanRevealPoints =>
-            !Unlocked && HasPoints && (Hidden ? !ShowHiddenPoints : !ShowLockedPoints);
+            !Unlocked && HasPoints && (!ShowLockedPoints || (Hidden && !ShowHiddenPoints));
 
         /// <summary>True when the row carries a trophy grade at all.</summary>
         public bool HasTrophyType => !string.IsNullOrWhiteSpace(TrophyType);

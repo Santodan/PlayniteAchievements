@@ -1111,21 +1111,25 @@ namespace PlayniteAchievements.ViewModels.Items
             || (Hidden && !ShowHiddenIcon));
 
         /// <summary>
-        /// A hidden achievement is also locked, so the hidden toggle governs every field it covers
-        /// and the locked toggle governs the rest. These say whether a mask is configured for this
-        /// row at all, before the reveal state is taken into account.
+        /// Whether a mask is configured for this row's field at all, before the reveal state is
+        /// taken into account. A hidden achievement is also locked, so either column can mask it:
+        /// the locked toggle covers every locked row and the hidden toggle adds the hidden ones.
+        /// This mirrors <see cref="IsLockedIconHidden"/>, which has always applied the locked icon
+        /// setting to hidden rows too.
         /// </summary>
-        private bool TitleMaskApplies => Hidden ? !ShowHiddenTitle : !ShowLockedTitle;
+        private bool TitleMaskApplies => !ShowLockedTitle || (Hidden && !ShowHiddenTitle);
 
-        private bool DescriptionMaskApplies => Hidden ? !ShowHiddenDescription : !ShowLockedDescription;
+        private bool DescriptionMaskApplies => !ShowLockedDescription || (Hidden && !ShowHiddenDescription);
 
         /// <summary>
         /// Trophy and points only mask when the row actually carries one, so an achievement with no
         /// trophy grade or no point value is never made revealable by these toggles.
         /// </summary>
-        private bool TrophyMaskApplies => HasTrophyType && (Hidden ? !ShowHiddenTrophy : !ShowLockedTrophy);
+        private bool TrophyMaskApplies =>
+            HasTrophyType && (!ShowLockedTrophy || (Hidden && !ShowHiddenTrophy));
 
-        private bool PointsMaskApplies => HasPoints && (Hidden ? !ShowHiddenPoints : !ShowLockedPoints);
+        private bool PointsMaskApplies =>
+            HasPoints && (!ShowLockedPoints || (Hidden && !ShowHiddenPoints));
 
         /// <summary>
         /// True if the achievement details are currently hidden (can reveal and not yet revealed).
