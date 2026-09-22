@@ -380,7 +380,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var rows = ViewModel?.AchievementRows?.Count ?? 0;
             _realizedRowCount = 0;
             _rowRealizationWindow.Restart();
-            LogManager.GetLogger().Debug(
+            // The plugin's own logger, not LogManager.GetLogger(). That one writes to
+            // playnite.log and its Debug output is not persisted, so the first two attempts at
+            // this measurement produced no lines in either file and read as "the editor was
+            // never opened" -- it had been.
+            PlayniteAchievements.Services.Logging.PluginLogger.GetLogger(nameof(ManageAchievementsEditorTab)).Debug(
                 $"[UiBlockRisk] tag=Editor.RowRealization ms={(long)elapsed} ui=true " +
                 $"thread={System.Threading.Thread.CurrentThread.ManagedThreadId} " +
                 $"context=realized={realized} rows={rows}");
