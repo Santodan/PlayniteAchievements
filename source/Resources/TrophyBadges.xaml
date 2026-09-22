@@ -48,40 +48,20 @@
   </RadialGradientBrush>
 
   <!-- Unknown-grade trophy, shown in place of a grade badge while the trophy spoiler mask applies.
-       Built like the graded trophies (opaque fill, bright rim, shine) rather than as a flat
-       silhouette, because a low-contrast placeholder turns to mush at the ~20px the column renders
-       at. Neutral slate plus a diagonal hatch and a question mark keep it clearly distinct from
-       silver, which is the grade it would otherwise be confused with. -->
-  <LinearGradientBrush x:Key="FillTrophyUnknown" StartPoint="0,0" EndPoint="1,1">
-    <GradientStop Offset="0.00" Color="#2A2F38"/>
-    <GradientStop Offset="0.35" Color="#767F8C"/>
-    <GradientStop Offset="0.55" Color="#98A2AF"/>
-    <GradientStop Offset="1.00" Color="#39404A"/>
+       Deliberately styled after the built-in hidden cover (Resources/HiddenAchIcon.png) rather than
+       after the graded trophies: the same left-to-right slate gradient and the same glyph tone, so
+       a masked trophy and a masked icon on the same row read as one treatment. No shine and no
+       hatch, for the same reason: the cover has neither.
+
+       The rim is the one addition the cover does not need. The cover is a filled square that always
+       reads; a trophy silhouette in these colours would otherwise dissolve into a dark grid at the
+       ~20px this column renders at. -->
+  <LinearGradientBrush x:Key="FillTrophyUnknown" StartPoint="0,0" EndPoint="1,0">
+    <GradientStop Offset="0" Color="#3B414A"/>
+    <GradientStop Offset="1" Color="#2C3138"/>
   </LinearGradientBrush>
 
-  <SolidColorBrush x:Key="RimTrophyUnknown" Color="#B3E8EDF5"/>
-
-  <!-- The tile carries three parallel lines so the diagonal runs unbroken across tile seams. -->
-  <DrawingBrush x:Key="HatchTrophyUnknown"
-                TileMode="Tile"
-                Viewport="0,0,18,18"
-                ViewportUnits="Absolute"
-                Stretch="None">
-    <DrawingBrush.Drawing>
-      <GeometryDrawing>
-        <GeometryDrawing.Pen>
-          <Pen Brush="#40121620" Thickness="5"/>
-        </GeometryDrawing.Pen>
-        <GeometryDrawing.Geometry>
-          <GeometryGroup>
-            <LineGeometry StartPoint="-18,18" EndPoint="18,-18"/>
-            <LineGeometry StartPoint="0,18" EndPoint="18,0"/>
-            <LineGeometry StartPoint="0,36" EndPoint="36,0"/>
-          </GeometryGroup>
-        </GeometryDrawing.Geometry>
-      </GeometryDrawing>
-    </DrawingBrush.Drawing>
-  </DrawingBrush>
+  <SolidColorBrush x:Key="RimTrophyUnknown" Color="#8A939F"/>
 
   <DrawingImage x:Key="TrophyUnknown">
     <DrawingImage.Drawing>
@@ -91,18 +71,8 @@
             <Pen Brush="{StaticResource RimTrophyUnknown}" Thickness="3" LineJoin="Round"/>
           </GeometryDrawing.Pen>
         </GeometryDrawing>
-        <GeometryDrawing Geometry="{StaticResource GeoTrophy}" Brush="{StaticResource HatchTrophyUnknown}"/>
-        <GeometryDrawing Geometry="{StaticResource GeoTrophy}" Brush="{StaticResource ShineOverlay}"/>
-        <!-- Question mark last, so the shine does not wash it out. The outline is the real Segoe UI
-             Bold glyph converted to a path, so the mark has a typographic question mark's shape
-             rather than a hand-drawn arc. The dark pass behind it widens the glyph slightly, which
-             keeps it legible over the hatch. -->
-        <GeometryDrawing Geometry="{StaticResource GeoQuestionMark}" Brush="#B3141922">
-          <GeometryDrawing.Pen>
-            <Pen Brush="#B3141922" Thickness="5" LineJoin="Round"/>
-          </GeometryDrawing.Pen>
-        </GeometryDrawing>
-        <GeometryDrawing Geometry="{StaticResource GeoQuestionMark}" Brush="#FAFCFFFF"/>
+        <!-- The real Segoe UI Bold glyph as a path, in the cover's own glyph colour. -->
+        <GeometryDrawing Geometry="{StaticResource GeoQuestionMark}" Brush="#CACBCD"/>
       </DrawingGroup>
     </DrawingImage.Drawing>
   </DrawingImage>
