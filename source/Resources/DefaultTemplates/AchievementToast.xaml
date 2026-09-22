@@ -171,9 +171,11 @@
                     <StackPanel VerticalAlignment="Center"
                                 HorizontalAlignment="Center"
                                 Visibility="{Binding ShowRightBadge, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <!-- Center the badge (not the badge+percent group): top spacer = the
-                             percent's height balances the percent hanging below. -->
+                        <!-- Center the badge (not the badge+percent group): the top spacer
+                             mirrors the percent block hanging below, gap included, so the badge
+                             lands on the row's true center. Both sides read percent height + 2. -->
                         <Border Height="{Binding ActualHeight, ElementName=ToastRightPercent}"
+                                Margin="0,0,0,2"
                                 IsHitTestVisible="False"/>
                         <!-- Reuses the shared badge source, so animated GIF badges animate. -->
                         <Image helpers:AsyncImage.Uri="{Binding ToastBadgeSource}"
@@ -184,12 +186,12 @@
                                HorizontalAlignment="Center"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                Effect="{Binding ToastImageShadow}"/>
-                        <Grid Effect="{Binding ToastContentShadow}"
+                        <Grid x:Name="ToastRightPercent"
+                              Effect="{Binding ToastContentShadow}"
                               HorizontalAlignment="Center"
                               Margin="0,2,0,0"
                               Visibility="{Binding ShowRightPercent, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock x:Name="ToastRightPercent"
-                                       Text="{Binding PercentText}"
+                            <TextBlock Text="{Binding PercentText}"
                                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        FontSize="{Binding ToastRarityText.FontSize}"
