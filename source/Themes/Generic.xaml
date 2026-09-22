@@ -16,13 +16,15 @@
         <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
-    <!-- One settings row: description left, control right, hint on a hover/focus (i) rather than a
-         second line under the control. The control column shares a size group so every row in one
-         Grid.IsSharedSizeScope card starts its controls at the same x. A page only writes
+    <!-- One settings row: description left, control immediately to its right, hint on a
+         hover/focus (i) rather than a second line under the control. The label column shares a size
+         group so every row in one Grid.IsSharedSizeScope section agrees on where the controls start
+         — sized to the widest label rather than stretched to the panel's full width, so a short
+         label does not leave its control stranded at the far edge. A page only writes
          <controls:SettingRow Label="..." Hint="...">{the control}</controls:SettingRow>. -->
     <Style TargetType="{x:Type controls:SettingRow}">
         <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.SettingRow}"/>
-        <Setter Property="HorizontalContentAlignment" Value="Right"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
         <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
@@ -32,20 +34,23 @@
                 <ControlTemplate TargetType="{x:Type controls:SettingRow}">
                     <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="PlayAch.SettingRow.Label"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto" SharedSizeGroup="PlayAch.SettingRow.Control"/>
                         </Grid.ColumnDefinitions>
 
                         <Grid Grid.Column="0"
                               VerticalAlignment="Center"
                               Margin="{StaticResource PlayAch.Thickness.Right.Md}">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
+                            <!-- MaxWidth so one long label wraps instead of widening the shared
+                                 label column, which would push every row's control to the right. -->
                             <TextBlock Grid.Column="0"
                                        Text="{TemplateBinding Label}"
                                        TextWrapping="Wrap"
+                                       MaxWidth="320"
                                        VerticalAlignment="Center"
                                        Foreground="{TemplateBinding Foreground}"
                                        FontSize="{TemplateBinding FontSize}"
