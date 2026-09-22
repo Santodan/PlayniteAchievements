@@ -51,25 +51,6 @@
         <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
     </Style>
 
-    <Style x:Key="OverviewPieModeRadioButtonStyle" TargetType="RadioButton">
-        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Margin" Value="0,0,0,6"/>
-        <Setter Property="VerticalContentAlignment" Value="Center"/>
-        <Setter Property="HorizontalAlignment" Value="Left"/>
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-            </Trigger>
-            <Trigger Property="IsChecked" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-            </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
-            </Trigger>
-        </Style.Triggers>
-    </Style>
-
     <Style x:Key="AccentTextStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
         <Setter Property="FontWeight" Value="Medium"/>
@@ -154,7 +135,6 @@
 
     <Style x:Key="SectionBorderStyle" TargetType="Border" BasedOn="{StaticResource PlayAch.SectionBorderStyle}"/>
 
-    <Style x:Key="SettingRowStyle" TargetType="Grid" BasedOn="{StaticResource PlayAch.SettingRowStyle}"/>
 
     <Style x:Key="MutedTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.MutedTextStyle}"/>
 

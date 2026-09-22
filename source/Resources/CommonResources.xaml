@@ -1259,10 +1259,6 @@
         <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
     </Style>
 
-    <Style x:Key="PlayAch.SettingRowStyle" TargetType="Grid">
-        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.SettingRow}"/>
-    </Style>
-
     <Style x:Key="SearchPlaceholderTextStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
         <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
