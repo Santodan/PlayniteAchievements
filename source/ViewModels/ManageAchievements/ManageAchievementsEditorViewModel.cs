@@ -165,7 +165,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             AddCustomProviderCommand = new RelayCommand(_ => AddCustomProvider(), _ => IsCustomOnlyGame && _customProviderStore != null && !IsSaving);
             EditCustomProviderCommand = new RelayCommand(_ => EditCustomProvider(), _ => HasSelectedCustomProvider && _showEditor != null && !IsSaving);
 
-            AchievementRows = new ObservableCollection<AchievementEditorRow>();
+            AchievementRows = new BulkObservableCollection<AchievementEditorRow>();
             CategoryFilter = BuildCategoryFilter();
             TypeFilter = BuildTypeFilter();
             CustomizationFilter = BuildCustomizationFilter();
@@ -916,7 +916,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         #endregion
 
-        public ObservableCollection<AchievementEditorRow> AchievementRows { get; }
+        /// <summary>
+        /// The editor's rows. A bulk collection, not a plain observable one: the grid's default
+        /// view carries a filter predicate, so every individual insert, move or remove costs a
+        /// pass over the filtered set. Rebuilding row by row therefore scaled quadratically with
+        /// the achievement count, which is what a load or a reorder on a game with hundreds of
+        /// them paid.
+        /// </summary>
+        public BulkObservableCollection<AchievementEditorRow> AchievementRows { get; }
 
         /// <summary>Every category the Category tab shows, in tree order, for the details picker.</summary>
         public ObservableCollection<string> AssignableCategoryOptions { get; }
@@ -3593,7 +3600,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // written out of a collection that no longer contains them.
             SetSelectedRows(Array.Empty<AchievementEditorRow>());
 
-            AchievementRows.Clear();
             var useSeparateLockedIcons = ResolveUseSeparateLockedIcons();
 
             // Materialized after the clear, exactly where the old lazy enumeration ran, so the
@@ -3617,8 +3623,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 foreach (var row in materializedRows)
                 {
                     AttachRow(row, useSeparateLockedIcons);
-                    AchievementRows.Add(row);
                 }
+
+                // One Reset for the whole set. The clear plus per-row add this replaces raised a
+                // collection change per row, and the grid's filtered view re-ran for each one.
+                AchievementRows.ReplaceAll(materializedRows);
             }
 
             // Keep the user's place: a save or reload rebuilds the rows, and the details pane
@@ -4579,7 +4588,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            CollectionHelper.SynchronizeCollection(AchievementRows, reordered);
+            // One Reset rather than a run of individual moves. Synchronizing item by item raised
+            // a collection change per displaced row, and the grid's filtered view re-ran for each
+            // one, so dragging a row far through a long list cost a pass per position it crossed.
+            // The reorder behavior restores the selection by api name after the move, so losing
+            // it to the Reset costs nothing.
+            AchievementRows.ReplaceAll(reordered);
             PersistCurrentOrder();
             return true;
         }
