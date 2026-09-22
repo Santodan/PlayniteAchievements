@@ -53,19 +53,19 @@ namespace PlayniteAchievements.Views.Settings.Display
                 new SettingsNavigationItem(
                     "General",
                     ResourceProvider.GetString("LOCPlayAch_Common_General"),
-                    iconGlyph: "",
+                    iconGlyph: "\uEFE2",
                     viewFactory: () => _generalSection =
                         new DisplayGeneralSection(settings, plugin, logger, OnDisplaySettingsReset)),
                 new SettingsNavigationItem(
                     "Colors",
                     ResourceProvider.GetString("LOCPlayAch_Settings_Display_Colors"),
-                    iconGlyph: "",
+                    iconGlyph: "\uEDE7",
                     viewFactory: () => _colorsSection =
                         new ColorsSection(settings, plugin.ProviderRegistry, pickColor)),
                 new SettingsNavigationItem(
                     "Spoilers",
                     ResourceProvider.GetString("LOCPlayAch_Settings_Spoilers"),
-                    iconGlyph: "",
+                    iconGlyph: "\uEF53",
                     viewFactory: () => _spoilersSection =
                         new SpoilersSection(settings, plugin, logger)),
                 // Deliberately also listed on the Themes tab. Both entries bind the same
@@ -73,7 +73,7 @@ namespace PlayniteAchievements.Views.Settings.Display
                 new SettingsNavigationItem(
                     "Migration",
                     ResourceProvider.GetString("LOCPlayAch_ThemeMigration_Title"),
-                    iconGlyph: "",
+                    iconGlyph: "\uEF18",
                     viewFactory: () => _migrationPage = new MigrationThemePage(themeMigrationController))
             };
 
