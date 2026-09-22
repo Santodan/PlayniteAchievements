@@ -49,6 +49,10 @@ namespace PlayniteAchievements.Views.Settings.General
         private string _selectedProviderKey;
         private readonly string _fallbackSampleProviderKey;
         private NotificationStyleSettings _currentStyle;
+        // The scope's own style (global / provider / game). _currentStyle narrows to a kind's
+        // copy when one is active; this stays the object that owns the kind styles, which is
+        // what a game snapshot has to persist.
+        private NotificationStyleSettings _currentScopeStyle;
         private bool _currentToastUseThemeStyling = true;
         private bool _currentFrameUseThemeStyling = true;
         private bool _suppressCustomizeEvents;
@@ -158,6 +162,90 @@ namespace PlayniteAchievements.Views.Settings.General
             IsGameMode
                 ? ResolveGameProviderKey() ?? _fallbackSampleProviderKey
                 : _selectedProviderKey ?? _fallbackSampleProviderKey;
+
+        /// <summary>
+        /// The kind whose style the editors are pointed at: the one named by the active tab's
+        /// sample dropdown, or Base for the plain rarity samples, which always follow the
+        /// scope's shared style.
+        /// </summary>
+        private NotificationKind ActiveKind => ResolveSampleKind(ActiveSampleTag);
+
+        private string ActiveSampleTag =>
+            (FrameTabItem?.IsSelected == true ? FrameSampleSelector : NotificationSampleSelector)
+                ?.SelectedValue as string;
+
+        private static NotificationKind ResolveSampleKind(string sampleTag)
+        {
+            switch (sampleTag)
+            {
+                case "capstone":
+                    return NotificationKind.Capstone;
+                case "complete":
+                    return NotificationKind.Completion;
+                case "friend":
+                    return NotificationKind.Friend;
+                case "progress":
+                    return NotificationKind.Progress;
+                default:
+                    return NotificationKind.Base;
+            }
+        }
+
+        private static string GetKindDisplayName(NotificationKind kind)
+        {
+            switch (kind)
+            {
+                case NotificationKind.Capstone:
+                    return L("LOCPlayAch_Settings_ToastPreviewCapstone");
+                case NotificationKind.Completion:
+                    return L("LOCPlayAch_Settings_ToastPreviewComplete");
+                case NotificationKind.Friend:
+                    return L("LOCPlayAch_Settings_ToastPreviewFriend");
+                case NotificationKind.Progress:
+                    return L("LOCPlayAch_Settings_Style_HeaderProgress");
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// Narrows the scope's style to the active kind's own copy when it has one, and brings
+        /// the kind row in line with what that means. Returns the style the editors should edit.
+        /// </summary>
+        private NotificationStyleSettings ApplyKindSelection(
+            NotificationStyleSettings scopeStyle,
+            bool scopeEditable)
+        {
+            var kind = ActiveKind;
+            if (KindStylePanel == null)
+            {
+                return scopeStyle?.ResolveKind(kind) ?? scopeStyle;
+            }
+
+            if (kind == NotificationKind.Base || scopeStyle == null)
+            {
+                KindStylePanel.Visibility = Visibility.Collapsed;
+                return scopeStyle;
+            }
+
+            var hasKindStyle = scopeStyle.HasKindStyle(kind);
+            KindStylePanel.Visibility = Visibility.Visible;
+            KindStyleCheckBox.Content = string.Format(
+                L("LOCPlayAch_Settings_Style_Kind_Customize"),
+                GetKindDisplayName(kind));
+            KindStyleCheckBox.IsEnabled = scopeEditable;
+            _suppressCustomizeEvents = true;
+            KindStyleCheckBox.IsChecked = hasKindStyle;
+            _suppressCustomizeEvents = false;
+            ResetKindStyleButton.Visibility = hasKindStyle && scopeEditable
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            KindStyleHint.Text = hasKindStyle
+                ? L("LOCPlayAch_Settings_Style_Kind_CustomHint")
+                : L("LOCPlayAch_Settings_Style_Kind_FollowHint");
+
+            return hasKindStyle ? scopeStyle.ResolveKind(kind) : scopeStyle;
+        }
 
         private string ResolveGameProviderKey()
         {
@@ -274,12 +362,15 @@ namespace PlayniteAchievements.Views.Settings.General
                 FollowDefaultHint.Visibility = editable ? Visibility.Collapsed : Visibility.Visible;
             }
 
-            _currentStyle = style;
+            _currentScopeStyle = style;
+            var kindStyle = ApplyKindSelection(style, editable);
+            var editingKind = !ReferenceEquals(kindStyle, style);
+            _currentStyle = kindStyle;
             _currentToastUseThemeStyling = persisted.ToastUseThemeStyling;
             _currentFrameUseThemeStyling = persisted.FrameUseThemeStyling;
             ApplyThemeStylingControls(editable: true);
-            _toastEditorViewModel.SetStyle(style, editable ? option.Key : null, editable);
-            _frameEditorViewModel.SetStyle(style, editable ? option.Key : null, editable);
+            _toastEditorViewModel.SetStyle(kindStyle, editable ? option.Key : null, editable, !editingKind);
+            _frameEditorViewModel.SetStyle(kindStyle, editable ? option.Key : null, editable, !editingKind);
             UpdateMockups();
         }
 
@@ -325,8 +416,13 @@ namespace PlayniteAchievements.Views.Settings.General
             Action<NotificationStyleSettings> persist = hasOverride
                 ? PersistGameStyle
                 : (Action<NotificationStyleSettings>)null;
-            _toastEditorViewModel.SetStyle(_currentStyle, owner, hasOverride, persist);
-            _frameEditorViewModel.SetStyle(_currentStyle, owner, hasOverride, persist);
+            var scopeStyle = _currentStyle;
+            _currentScopeStyle = scopeStyle;
+            var kindStyle = ApplyKindSelection(scopeStyle, hasOverride);
+            var editingKind = !ReferenceEquals(kindStyle, scopeStyle);
+            _currentStyle = kindStyle;
+            _toastEditorViewModel.SetStyle(kindStyle, owner, hasOverride, persist, !editingKind);
+            _frameEditorViewModel.SetStyle(kindStyle, owner, hasOverride, persist, !editingKind);
             UpdateMockups();
         }
 
@@ -360,7 +456,14 @@ namespace PlayniteAchievements.Views.Settings.General
         private string BuildSourceSummary(bool isFrame, bool useThemeStyling)
         {
             string scope;
-            if (IsGameMode)
+            // A kind with its own style is the narrowest thing on screen, so it names the
+            // scope; the platform card below still says which platform it belongs to.
+            if (!ReferenceEquals(_currentStyle, _currentScopeStyle) &&
+                GetKindDisplayName(ActiveKind) is string kindName)
+            {
+                scope = string.Format(L("LOCPlayAch_Settings_Style_SourceScope_Kind"), kindName);
+            }
+            else if (IsGameMode)
             {
                 scope = L("LOCPlayAch_Settings_Style_SourceScope_Game");
             }
@@ -395,8 +498,14 @@ namespace PlayniteAchievements.Views.Settings.General
             return string.Format(L("LOCPlayAch_Settings_Style_SourceSummary"), scope, look);
         }
 
+        /// <summary>
+        /// Writes the game snapshot. The editor hands back whichever style it holds, which is a
+        /// kind's copy while one is active; the snapshot always stores the scope style that owns
+        /// the kind copies, so persisting a kind edit cannot flatten the snapshot onto it.
+        /// </summary>
         private void PersistGameStyle(NotificationStyleSettings style)
         {
+            style = _currentScopeStyle ?? style;
             if (!IsGameMode || style == null)
             {
                 return;
@@ -842,7 +951,112 @@ namespace PlayniteAchievements.Views.Settings.General
         // mirrors whatever a fire-test would show.
         private void SampleSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            UpdateMockups();
+            // The sample also names the kind being styled, so a change can swap which style
+            // object the editors edit; ApplySelection refreshes the mockups on its way out.
+            ApplySelection();
+        }
+
+        /// <summary>
+        /// Opts the active kind out of the scope's shared style into its own copy, or drops
+        /// that copy after confirmation. The copy is seeded from the scope style as it stands,
+        /// so the kind starts out looking exactly as it did.
+        /// </summary>
+        private void KindStyleCheckBox_Click(object sender, RoutedEventArgs e)
+        {
+            if (_suppressCustomizeEvents)
+            {
+                return;
+            }
+
+            var kind = ActiveKind;
+            var scopeStyle = _currentScopeStyle;
+            if (kind == NotificationKind.Base || scopeStyle == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _toastEditorViewModel?.FlushPendingPersist();
+                _frameEditorViewModel?.FlushPendingPersist();
+
+                if (KindStyleCheckBox.IsChecked == true)
+                {
+                    scopeStyle.EnableKindStyle(kind);
+                }
+                else if (!ConfirmDropKindStyle())
+                {
+                    _suppressCustomizeEvents = true;
+                    KindStyleCheckBox.IsChecked = true;
+                    _suppressCustomizeEvents = false;
+                    return;
+                }
+                else
+                {
+                    scopeStyle.ClearKindStyle(kind);
+                }
+
+                PersistScopeStyle();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed to toggle the {kind} notification style.");
+            }
+
+            ApplySelection();
+        }
+
+        /// <summary>
+        /// Re-seeds the active kind's style from the scope's shared style, discarding the
+        /// separate design while keeping the kind opted out.
+        /// </summary>
+        private void ResetKindStyle_Click(object sender, RoutedEventArgs e)
+        {
+            var kind = ActiveKind;
+            var scopeStyle = _currentScopeStyle;
+            if (kind == NotificationKind.Base || scopeStyle == null || !ConfirmDropKindStyle())
+            {
+                return;
+            }
+
+            try
+            {
+                _toastEditorViewModel?.FlushPendingPersist();
+                _frameEditorViewModel?.FlushPendingPersist();
+                scopeStyle.ClearKindStyle(kind);
+                scopeStyle.EnableKindStyle(kind);
+                PersistScopeStyle();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed to reset the {kind} notification style.");
+            }
+
+            ApplySelection();
+        }
+
+        private bool ConfirmDropKindStyle()
+        {
+            return _plugin.PlayniteApi.Dialogs.ShowMessage(
+                L("LOCPlayAch_Settings_Style_Kind_RevertConfirm"),
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question) == MessageBoxResult.Yes;
+        }
+
+        /// <summary>
+        /// Commits a change made to the scope style itself (rather than through the surface
+        /// editors), which for a game snapshot means rewriting it in custom data.
+        /// </summary>
+        private void PersistScopeStyle()
+        {
+            if (IsGameMode)
+            {
+                PersistGameStyle(_currentScopeStyle);
+                return;
+            }
+
+            _plugin.PersistSettingsForUi();
         }
 
         private void FireNotification_Click(object sender, RoutedEventArgs e)
@@ -1521,6 +1735,10 @@ namespace PlayniteAchievements.Views.Settings.General
             }
 
             RefreshPresetOptions();
+
+            // Each tab carries its own sample dropdown, so the tab switch can change the kind
+            // being styled along with the surface.
+            ApplySelection();
         }
 
         private void PresetSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
