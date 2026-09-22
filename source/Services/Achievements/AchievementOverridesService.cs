@@ -44,7 +44,34 @@ namespace PlayniteAchievements.Services.Achievements
         /// </remarks>
         public CacheWriteResult SetCapstone(Guid playniteGameId, string apiName, bool isCapstone)
         {
-            if (playniteGameId == Guid.Empty || string.IsNullOrWhiteSpace(apiName))
+            return SetCapstones(playniteGameId, new[] { (apiName, isCapstone) });
+        }
+
+        /// <summary>
+        /// Applies several capstone edits in a single store update.
+        /// </summary>
+        /// <remarks>
+        /// Setting capstones across a selection used to call the single-achievement form in a
+        /// loop, and each call re-read the record, re-cloned the override map, re-indexed every
+        /// achievement and took its own store write. The edits are applied here in order against
+        /// one in-memory set, so displacement still resolves exactly as it would sequentially --
+        /// one capstone stands for a category, and a later edit still displaces an earlier one.
+        /// </remarks>
+        public CacheWriteResult SetCapstones(
+            Guid playniteGameId,
+            IReadOnlyList<(string ApiName, bool IsCapstone)> edits)
+        {
+            var normalizedEdits = new List<(string ApiName, bool IsCapstone)>();
+            foreach (var edit in edits ?? Array.Empty<(string, bool)>())
+            {
+                var trimmed = (edit.ApiName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                {
+                    normalizedEdits.Add((trimmed, edit.IsCapstone));
+                }
+            }
+
+            if (playniteGameId == Guid.Empty || normalizedEdits.Count == 0)
             {
                 return CacheWriteResult.CreateFailure(
                     string.Empty,
@@ -74,8 +101,7 @@ namespace PlayniteAchievements.Services.Achievements
                 var next = BuildNextCapstones(
                     playniteGameId,
                     achievements ?? new List<AchievementDetail>(),
-                    apiName.Trim(),
-                    isCapstone);
+                    normalizedEdits);
 
                 // Summary rows carry the capstone counts the completion badge shows, so the rebuild
                 // is warranted whenever the edit moves either that count or completion.
@@ -143,8 +169,7 @@ namespace PlayniteAchievements.Services.Achievements
         private List<CapstoneAssignment> BuildNextCapstones(
             Guid playniteGameId,
             IReadOnlyList<AchievementDetail> achievements,
-            string apiName,
-            bool isCapstone)
+            IReadOnlyList<(string ApiName, bool IsCapstone)> edits)
         {
             // One load of the record, not three: resolving it clones the whole graph, including the
             // per-achievement override map, which is the bulk of a heavily customized game.
@@ -174,32 +199,42 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
-            var category = ResolveCategory(byApiName, categoryOverrides, apiName);
-            var next = new List<CapstoneAssignment>();
-            foreach (var assignment in current)
+            // Folded in order, so a batch lands exactly where the same edits applied one at a
+            // time would: a later edit still displaces an earlier one that shares its category.
+            var next = current;
+            foreach (var edit in edits)
             {
-                if (assignment.Matches(apiName))
+                var apiName = edit.ApiName;
+                var isCapstone = edit.IsCapstone;
+                var category = ResolveCategory(byApiName, categoryOverrides, apiName);
+                var folded = new List<CapstoneAssignment>();
+                foreach (var assignment in next)
                 {
-                    continue;
+                    if (assignment.Matches(apiName))
+                    {
+                        continue;
+                    }
+
+                    // One capstone stands for a category, so nominating one displaces whatever
+                    // stood for that category before.
+                    if (isCapstone &&
+                        string.Equals(
+                            ResolveCategory(byApiName, categoryOverrides, assignment.ApiName),
+                            category,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    folded.Add(assignment);
                 }
 
-                // One capstone stands for a category, so nominating one displaces whatever stood
-                // for that category before.
-                if (isCapstone &&
-                    string.Equals(
-                        ResolveCategory(byApiName, categoryOverrides, assignment.ApiName),
-                        category,
-                        StringComparison.OrdinalIgnoreCase))
+                if (isCapstone)
                 {
-                    continue;
+                    folded.Add(new CapstoneAssignment { ApiName = apiName });
                 }
 
-                next.Add(assignment);
-            }
-
-            if (isCapstone)
-            {
-                next.Add(new CapstoneAssignment { ApiName = apiName });
+                next = folded;
             }
 
             // Drop entries whose achievement the provider no longer sends, so readers can trust the

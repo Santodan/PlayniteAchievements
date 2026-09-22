@@ -2528,10 +2528,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            foreach (var target in targets)
-            {
-                SetCapstoneForRow(target, isCapstone);
-            }
+            // One store write, one re-seed, one invalidation for the whole selection. Looping
+            // SetCapstoneForRow paid a full store write per row -- and each of those re-read the
+            // record, re-cloned the override map and re-indexed every achievement -- then ran
+            // RefreshAssignmentState, dropped the snapshot and raised CapstoneChanged per row on
+            // top. The batched write folds the edits in order, so displacement still resolves as
+            // it would one at a time.
+            SetCapstonesForRows(targets, isCapstone);
 
             SyncBulkRowFromSelection();
         }
@@ -3920,6 +3923,55 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             capstones.ByApiName.TryGetValue(apiName.Trim(), out var match);
             return match;
+        }
+
+        /// <summary>
+        /// Applies one capstone state across many rows in a single store write, then re-seeds the
+        /// assignment state once.
+        /// </summary>
+        private void SetCapstonesForRows(IReadOnlyList<AchievementEditorRow> rows, bool isCapstone)
+        {
+            var edits = new List<(string ApiName, bool IsCapstone)>();
+            AchievementEditorRow lastRow = null;
+            foreach (var row in rows ?? Array.Empty<AchievementEditorRow>())
+            {
+                var apiName = NormalizeText(row?.OriginalApiName);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    edits.Add((apiName, isCapstone));
+                    lastRow = row;
+                }
+            }
+
+            if (edits.Count == 0)
+            {
+                RefreshAssignmentState();
+                return;
+            }
+
+            try
+            {
+                _achievementOverridesService.SetCapstones(_gameId, edits);
+
+                // Same ordering as the single-row path: re-seed from the store before dropping the
+                // snapshot, so this pays for no re-hydration of its own.
+                RefreshAssignmentState();
+                _gameDataSnapshotProvider?.Invalidate();
+
+                // Raised once for the gesture, carrying the state the set ends in -- the same
+                // value the last of N sequential writes would have reported.
+                CapstoneChanged?.Invoke(
+                    this,
+                    new CapstoneChangedEventArgs(
+                        isCapstone ? NormalizeText(lastRow?.OriginalApiName) : null,
+                        isCapstone ? lastRow?.DisplayName : null));
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed saving capstones for gameId={_gameId}.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+                RefreshAssignmentState();
+            }
         }
 
         private void SetCapstoneForRow(AchievementEditorRow row, bool isCapstone)
