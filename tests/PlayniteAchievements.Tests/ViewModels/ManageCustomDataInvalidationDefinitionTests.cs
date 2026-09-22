@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Tests.ViewModels
     public class ManageCustomDataInvalidationDefinitionTests
     {
         [TestMethod]
-        public void AnEdit_DoesNotAlsoRaiseALibraryWideCacheInvalidation()
+        public void AnEdit_RaisesTheScopedInvalidationTheOverviewNeeds()
         {
             var source = ReadManageViewModel();
             var core = Between(
@@ -27,14 +27,37 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "private void NotifyCustomDataChangedCore(",
                 "internal void NotifyIconOverridesChanged(");
 
-            Assert.IsFalse(
-                core.Contains("NotifyCacheInvalidated("),
-                "The store's own CustomDataChanged already reaches every consumer for this write, " +
-                "and it carries the scope and the AffectsSummaryData flag that this call dropped.");
+            // This was once removed as redundant with the store's own CustomDataChanged. It is
+            // not, and the reason is the flag: the editor's category, category-type, filter and
+            // icon writes pass affectsSummaryData false, and OverviewViewModel.OnCustomDataChanged
+            // returns early on exactly that. The scoped invalidation is the only thing that routes
+            // those edits to the overview's per-game fragment path.
+            StringAssert.Contains(
+                core,
+                "NotifyCacheInvalidated(new[] { _gameId })",
+                "Scoped to this game -- without it, an editor category or icon edit reaches the " +
+                "store and nothing on screen re-reads it.");
             StringAssert.Contains(
                 core,
                 "Reload();",
                 "The window still reloads per edit -- that is what shows the user their own edit.");
+        }
+
+        [TestMethod]
+        public void TheOverviewStillDropsChangesThatClaimNoSummaryImpact()
+        {
+            // The other half of the contract above. If this filter ever goes, the scoped
+            // invalidation becomes genuinely redundant -- and if the flag on those writes ever
+            // becomes true, the projection stops deferring and the whole-library rebuilds come
+            // back. Either way the pair has to be read together.
+            var overview = ReadRepoFile("source", "ViewModels", "OverviewViewModel.cs");
+            var handler = Between(
+                overview,
+                "private void OnCustomDataChanged(object sender, GameCustomDataChangedEventArgs e)",
+                "private void QueueOverviewDelta(");
+
+            StringAssert.Contains(handler, "!e.AffectsSummaryData");
+            StringAssert.Contains(handler, "return;");
         }
 
         [TestMethod]

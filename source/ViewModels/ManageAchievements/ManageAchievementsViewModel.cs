@@ -1449,15 +1449,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             _gameDataSnapshotProvider?.Invalidate();
 
-            // No cache invalidation is raised here. Every caller reaches this after a custom-data
-            // store write, and the store already raises CustomDataChanged for that write carrying
-            // AffectsSummaryData. Every consumer that has to react subscribes to that event -- the
-            // overview's per-game fragment path, the summary memo, the library projection, the
-            // theme view items, and the plugin's coalesced start-page/tag-sync/theme fan-out -- and
-            // each honours the flag. Raising NotifyCacheInvalidated on top of it notified the same
-            // consumers again with the scope discarded, so one edit dropped the whole-library
-            // projection and forced a full summary re-read. Edits still appear immediately; they
-            // arrive on the filtered path instead of the unfiltered one.
+            // Scoped to this game, and it has to stay. The store already raised CustomDataChanged
+            // for this write, but the consumers that matter honour AffectsSummaryData -- and the
+            // editor's category, category-type, filter and icon writes all pass false, so the
+            // overview drops them: OnCustomDataChanged returns early on that flag so a
+            // reorder-only change cannot rebuild the selected game and discard the user's
+            // filters. Without this invalidation those edits reached the store and nothing on
+            // screen re-read them.
+            //
+            // This was briefly removed as redundant. It is not: it is the only thing that routes
+            // a named game to the overview's per-game fragment path for a write that does not
+            // claim to move a summary. What made it expensive was the projection treating a
+            // scoped invalidation as a full one and rebuilding the whole library eagerly; that is
+            // fixed at the projection instead, where a scoped change now defers its warm.
+            _refreshService?.Cache?.NotifyCacheInvalidated(new[] { _gameId });
 
             if (_settings?.SelectedGame?.Id == _gameId)
             {
