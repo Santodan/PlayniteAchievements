@@ -19,6 +19,7 @@ namespace PlayniteAchievements.Models.Settings
         private NotificationSurfaceStyle _toast;
         private NotificationSurfaceStyle _frame;
         private string _toastBackgroundImagePath;
+        private Dictionary<string, NotificationStyleSettings> _kindStyles;
 
         /// <summary>
         /// Style for the on-screen toast surface. Lazily initialized; never null.
@@ -49,14 +50,104 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _toastBackgroundImagePath, value);
         }
 
+        /// <summary>
+        /// Separate whole styles for individual notification kinds, keyed by
+        /// <see cref="NotificationKind"/> name. A kind with no entry here follows this style.
+        /// An entry is seeded by cloning this style at the moment the user opts the kind out,
+        /// so it does not track later edits to this one. A kind style is a leaf: it never
+        /// carries kind styles of its own.
+        /// </summary>
+        public Dictionary<string, NotificationStyleSettings> KindStyles
+        {
+            get => _kindStyles ?? (_kindStyles =
+                new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase));
+            set => SetValue(ref _kindStyles, value);
+        }
+
+        /// <summary>
+        /// This style's own copy for the kind, or this style when the kind follows it.
+        /// </summary>
+        public NotificationStyleSettings ResolveKind(NotificationKind kind)
+        {
+            return HasKindStyle(kind) ? _kindStyles[kind.ToString()] : this;
+        }
+
+        public bool HasKindStyle(NotificationKind kind)
+        {
+            return kind != NotificationKind.Base &&
+                   _kindStyles != null &&
+                   _kindStyles.TryGetValue(kind.ToString(), out var style) &&
+                   style != null;
+        }
+
+        /// <summary>
+        /// Seeds the kind's own style from a clone of this one and returns it, or returns the
+        /// existing copy when the kind already has one.
+        /// </summary>
+        public NotificationStyleSettings EnableKindStyle(NotificationKind kind)
+        {
+            if (kind == NotificationKind.Base)
+            {
+                return this;
+            }
+
+            if (HasKindStyle(kind))
+            {
+                return KindStyles[kind.ToString()];
+            }
+
+            var seeded = Clone();
+            seeded.KindStyles.Clear();
+            KindStyles[kind.ToString()] = seeded;
+            OnPropertyChanged(nameof(KindStyles));
+            return seeded;
+        }
+
+        /// <summary>
+        /// Drops the kind's own style so it follows this one again. Returns whether an entry
+        /// was removed.
+        /// </summary>
+        public bool ClearKindStyle(NotificationKind kind)
+        {
+            if (kind == NotificationKind.Base || _kindStyles == null ||
+                !_kindStyles.Remove(kind.ToString()))
+            {
+                return false;
+            }
+
+            OnPropertyChanged(nameof(KindStyles));
+            return true;
+        }
+
         public NotificationStyleSettings Clone()
         {
-            return new NotificationStyleSettings
+            var clone = new NotificationStyleSettings
             {
                 Toast = Toast.Clone(),
                 Frame = Frame.Clone(),
                 ToastBackgroundImagePath = ToastBackgroundImagePath
             };
+
+            if (_kindStyles == null)
+            {
+                return clone;
+            }
+
+            foreach (var pair in _kindStyles)
+            {
+                if (pair.Value == null)
+                {
+                    continue;
+                }
+
+                // One level only. Clearing the nested copy's own kinds keeps a kind style a
+                // leaf, so Clone cannot recurse through a hand-edited settings file.
+                var nested = pair.Value.Clone();
+                nested.KindStyles.Clear();
+                clone.KindStyles[pair.Key] = nested;
+            }
+
+            return clone;
         }
 
         public static NotificationStyleSettings CreateDefault()
