@@ -673,6 +673,12 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_CustomizeForPlatform">Customize for this platform</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FollowDefaultHint">This platform follows the default appearance until customized.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_RevertConfirm">Revert this platform to the default notification appearance? Its custom images will be deleted.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Kind_Customize">Style "{0}" notifications separately</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Kind_FollowHint">These notifications follow the style above. Give them their own to design them apart from every other notification.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Kind_CustomHint">These notifications have their own style, started from a copy of the shared one. Later changes to the shared style no longer reach them. Custom images and templates still come from the shared style.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Kind_ResetToBase">Reset to Shared Style</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Kind_RevertConfirm">Drop the separate style for these notifications and follow the shared one again? The separate design is discarded.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_SourceScope_Kind">the "{0}" style</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ExportButton">Export Style</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ExportBothButton">Export Both</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportButton">Import Style</sys:String>
