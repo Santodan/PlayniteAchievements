@@ -47,6 +47,9 @@ namespace PlayniteAchievements.Tests.Views
                 "public bool IsTrophyHidden => IsHidden && TrophyMaskApplies;",
                 "public bool IsPointsHidden => IsHidden && PointsMaskApplies;",
                 "public string PointsTextResolved => IsPointsHidden ? MaskedValuePlaceholder : PointsText;",
+                // The trophy resolves to a sentinel like the other fields resolve to placeholders,
+                // so the cell template switches on one property instead of racing triggers.
+                "public string TrophyTypeResolved => IsTrophyHidden ? MaskedTrophyType : TrophyType;",
                 // Every new toggle defaults to revealing, so an existing profile masks nothing new.
                 "ShowLockedTitle = persisted?.ShowLockedTitle ?? true",
                 "ShowLockedDescription = persisted?.ShowLockedDescription ?? true",
@@ -98,6 +101,42 @@ namespace PlayniteAchievements.Tests.Views
             }
 
             CollectionAssert.AreEqual(new List<string>(), missing);
+        }
+
+        [TestMethod]
+        public void EverySiteThatCopiesAppearanceGoesThroughTheSnapshot()
+        {
+            // Hand-kept field lists are how the trophy and points masks were lost: the grids clone
+            // every row before rendering, and Clone() copied five of the appearance fields by hand,
+            // so the ones added later silently reverted to the item's defaults on screen. Each of
+            // these sites must route through the snapshot so there is one list, not four.
+            var copySites = new[]
+            {
+                new[] { "source", "ViewModels", "Items", "AchievementDisplayItem.cs" },
+                new[] { "source", "ViewModels", "CapstoneViewModel.cs" },
+                new[] { "source", "ViewModels", "ManageAchievements", "ManageAchievementsAchievementIconsViewModel.cs" }
+            };
+
+            var offenders = new List<string>();
+            foreach (var parts in copySites)
+            {
+                var path = FindRepoFile(parts);
+                var code = File.ReadAllText(path);
+                var name = Path.GetFileName(path);
+
+                Assert.IsTrue(
+                    code.Contains("CaptureAppearanceSettings()"),
+                    $"{name} copies appearance state but never uses the snapshot.");
+
+                // A per-field assignment of any masking setting means the list came back.
+                foreach (Match m in Regex.Matches(
+                    code, @"\b(?:Show(?:Hidden|Locked)\w+|UseSeparateLockedIconsWhenAvailable|ShowRarityBar|ShowFriendSpoilers)\s*=\s*(?:projected|source|sourceItem|clone)\."))
+                {
+                    offenders.Add($"{name}: {m.Value.Trim()}");
+                }
+            }
+
+            CollectionAssert.AreEqual(new List<string>(), offenders);
         }
 
         private static string Between(string content, string start, string end)
@@ -206,21 +245,21 @@ namespace PlayniteAchievements.Tests.Views
             var xaml = File.ReadAllText(
                 FindRepoFile("source", "Views", "Controls", "AchievementDataGridControl.xaml"));
 
-            // Each grade tooltip must be conditioned on the mask being off. A bare DataTrigger on
-            // TrophyType would print "Platinum" over the placeholder.
+            // Every grade tooltip must read the resolved grade, never the raw one: binding
+            // TrophyType here would print "Platinum" over the masked placeholder.
             foreach (var grade in new[] { "platinum", "gold", "silver", "bronze" })
             {
-                var trigger =
-                    "<Condition Binding=\"{Binding TrophyType}\" Value=\"" + grade + "\"/>" +
-                    Environment.NewLine +
-                    "                                    <Condition Binding=\"{Binding IsTrophyHidden}\" Value=\"False\"/>";
                 Assert.IsTrue(
-                    xaml.Contains(trigger),
-                    $"Trophy tooltip for '{grade}' is not gated on IsTrophyHidden.");
+                    xaml.Contains("<DataTrigger Binding=\"{Binding TrophyTypeResolved}\" Value=\"" + grade + "\">"),
+                    $"Trophy tooltip for '{grade}' does not switch on TrophyTypeResolved.");
             }
 
+            Assert.IsFalse(
+                xaml.Contains("<Condition Binding=\"{Binding TrophyType}\""),
+                "The trophy column still reads the raw grade somewhere.");
+
             Assert.IsTrue(
-                xaml.Contains("<DataTrigger Binding=\"{Binding IsTrophyHidden}\" Value=\"True\">"),
+                xaml.Contains("<DataTrigger Binding=\"{Binding TrophyTypeResolved}\" Value=\"unknown\">"),
                 "Masked trophy cell has no click-to-reveal tooltip.");
         }
 
