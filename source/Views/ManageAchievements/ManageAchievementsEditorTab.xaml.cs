@@ -377,6 +377,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private int _realizedRowCount;
         private int _freshRowCount;
+        /// <summary>
+        /// Layout passes in one batch beyond which the batch counts as a storm. Ordinary scrolling
+        /// runs one to ten; the bursts run twenty to a hundred and fifty.
+        /// </summary>
+        private const int StormStackThreshold = 15;
+
         private int _layoutPassCount;
         private int _renderFrameCount;
         private bool _renderHooked;
@@ -394,6 +400,35 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private void AchievementsGrid_LayoutUpdated(object sender, EventArgs e)
         {
             _layoutPassCount++;
+
+            // One stack per storm, at the point a batch passes a count no ordinary scroll reaches.
+            // Nine mechanisms have now been proposed and refuted from the markup and the counters,
+            // so this stops proposing a tenth and asks the runtime instead. LayoutUpdated is raised
+            // after the pass, so a synchronous driver -- anything calling UpdateLayout in a loop --
+            // is still on the stack, while a pass driven by the render loop shows only dispatcher
+            // frames. Either answer narrows it: the first names the caller, the second rules the
+            // whole category out.
+            if (_layoutPassCount == StormStackThreshold)
+            {
+                var frames = new System.Diagnostics.StackTrace(fNeedFileInfo: false).GetFrames();
+                var sb = new System.Text.StringBuilder();
+                var depth = 0;
+
+                for (var i = 0; frames != null && i < frames.Length && depth < 28; i++)
+                {
+                    var method = frames[i].GetMethod();
+                    if (method == null)
+                    {
+                        continue;
+                    }
+
+                    sb.Append(method.DeclaringType?.Name).Append('.').Append(method.Name).Append(" <- ");
+                    depth++;
+                }
+
+                PlayniteAchievements.Services.Logging.PluginLogger.GetLogger(nameof(ManageAchievementsEditorTab)).Debug(
+                    $"[UiBlockRisk] tag=Editor.LayoutStorm context=passes={_layoutPassCount} stack={sb}");
+            }
 
             if (_gridScrollViewer == null)
             {
