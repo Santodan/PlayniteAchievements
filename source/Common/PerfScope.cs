@@ -9,11 +9,22 @@ namespace PlayniteAchievements.Common
     internal sealed class PerfScope : IDisposable
     {
         private const int SevereThresholdMs = 250;
-        // Diagnostic toggle for perf tracing. Flip to true and rebuild to emit timing logs; set
-        // back to false to disable (Start/StartStartup then return null, so `using` scopes are a
-        // no-op with zero overhead). Kept runtime-evaluated to avoid constant-folded unreachable
-        // branches. Also gates MemoryDiagnostics [MemPerf] lines.
-        internal static readonly bool PerfTracingEnabled = false;
+        // Diagnostic toggle for perf tracing. Kept runtime-evaluated to avoid constant-folded
+        // unreachable branches.
+        //
+        // Currently ON so any build emits diagnostics without editing this file first.
+        //
+        // SET THIS BACK TO false BEFORE PACKING A RELEASE. On is not merely chatty:
+        //   - It also turns on MemoryDiagnostics (Enabled ORs the two flags), and the retention
+        //     report forces a full blocking collection every time the cache is invalidated. One
+        //     measured session took ~82 forced gen2 collections that way, each freezing every
+        //     thread including the UI.
+        //   - LeakWatch.Track then runs per editor row behind a global lock, so row construction
+        //     costs measurably more than it does in a shipped build.
+        //   - It gates far more than the scopes: toast capture probes, toast placement
+        //     diagnostics, the ray animation driver, the compact list controls, and a
+        //     developer-only main-menu item that would otherwise be hidden from users.
+        internal static readonly bool PerfTracingEnabled = true;
 
         private readonly ILogger _logger;
         private readonly string _tag;
