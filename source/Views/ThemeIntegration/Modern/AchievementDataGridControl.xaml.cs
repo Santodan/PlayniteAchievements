@@ -162,11 +162,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// page handles the tunnelling wheel to scroll its details view, which otherwise leaves
         /// the grid standing still while the page moves underneath it.
         /// </summary>
-        private readonly WindowWheelScrollClaim _wheelScrollClaim;
+        protected override WheelScrollAxis? WheelClaimAxis => WheelScrollAxis.Vertical;
 
         public AchievementDataGridControl()
         {
-            _wheelScrollClaim = new WindowWheelScrollClaim(this, WheelScrollAxis.Vertical);
             _controlBarAdapter = new AchievementGridControlBarAdapter();
             _controlBarAdapter.FilterChanged += (_, __) => LoadData(forceReload: true);
             _friendCompare = new FriendCompareController(
@@ -295,7 +294,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             UpdatePreviewBehavior();
             UpdateMaxHeight();
             LoadData();
-            _wheelScrollClaim.Attach();
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -304,8 +302,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             {
                 CaptureLibrary.CapturesChanged -= OnCapturesChanged;
             }
-
-            _wheelScrollClaim.Detach();
         }
 
         private void UpdateMaxHeight()
