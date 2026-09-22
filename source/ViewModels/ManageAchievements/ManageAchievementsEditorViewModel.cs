@@ -1762,16 +1762,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // achievements lags" could not be attributed to any of them: only the hydrate and
                 // the row swap were measured, and the whole of ReloadData was not. The row count
                 // rides on the outer scope so cost per row is readable.
+                // Resolved once for the rest of the load. Each resolve deep-clones this game's
+                // whole record and rebuilds a dozen collections, and the load used to pay for two
+                // of them -- one here and one for HasCustomOrder below. RefreshAssignmentState
+                // already takes a pre-resolved record for exactly this reason.
+                var resolvedCustomData = ResolveCurrentCustomData();
+
                 Row("CaptureCollectionBaseline", CaptureCollectionBaseline);
                 Row("ApplyAutoCapstoneMarker", () => ApplyAutoCapstoneMarker(data));
                 Row("ApplyProviderBaselines", ApplyProviderBaselines);
-                Row("RefreshAssignmentState", () => RefreshAssignmentState());
+                Row("RefreshAssignmentState", () => RefreshAssignmentState(resolvedCustomData));
                 Row("RefreshCustomProviderState", RefreshCustomProviderState);
                 Row("ApplyManualTrackingToRows", ApplyManualTrackingToRows);
                 Row("RebuildSearchIndex", RebuildSearchIndex);
                 Row("RebuildFilterOptions", RebuildFilterOptions);
                 Row("SeedOverrideWriteCache", SeedOverrideWriteCache);
-                HasCustomOrder = ResolveCurrentCustomData()?.AchievementOrder?.Count > 0;
+                HasCustomOrder = resolvedCustomData?.AchievementOrder?.Count > 0;
                 Row("RefreshRevealHeaderState", RefreshRevealHeaderState);
                 SetStatus(null, false);
                 Row("RefreshComputedState", RefreshComputedState);
