@@ -231,27 +231,24 @@
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_PieIncludeLocked}">
                         <CheckBox IsChecked="{Binding Persisted.OverviewPieIncludeLocked}"/>
                     </controls:SettingRow>
+                    <!-- Each mode's own explanation rides on its item's tooltip; the row's hint
+                         carries the note that applies to all three. -->
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode}"
                                          Hint="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Note}"
-                                         VerticalContentAlignment="Top"
                                          Margin="0">
-                        <StackPanel HorizontalAlignment="Left">
-                            <RadioButton Content="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact}"
-                                         GroupName="OverviewPieSmallSliceMode"
-                                         Style="{StaticResource OverviewPieModeRadioButtonStyle}"
-                                         ToolTip="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact_Description}"
-                                         IsChecked="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Exact}"/>
-                            <RadioButton Content="{DynamicResource LOCPlayAch_Common_Hide}"
-                                         GroupName="OverviewPieSmallSliceMode"
-                                         Style="{StaticResource OverviewPieModeRadioButtonStyle}"
-                                         ToolTip="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Hide_Description}"
-                                         IsChecked="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Hide}"/>
-                            <RadioButton Content="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round}"
-                                         GroupName="OverviewPieSmallSliceMode"
-                                         Style="{StaticResource OverviewPieModeRadioButtonStyle}"
-                                         ToolTip="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round_Description}"
-                                         IsChecked="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Round}"/>
-                        </StackPanel>
+                        <ComboBox SelectedValue="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Tag"
+                                  MinWidth="140">
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact}"
+                                          ToolTip="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact_Description}"
+                                          Tag="{x:Static settings:OverviewPieSmallSliceMode.Exact}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Hide}"
+                                          ToolTip="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Hide_Description}"
+                                          Tag="{x:Static settings:OverviewPieSmallSliceMode.Hide}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round}"
+                                          ToolTip="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round_Description}"
+                                          Tag="{x:Static settings:OverviewPieSmallSliceMode.Round}"/>
+                        </ComboBox>
                     </controls:SettingRow>
                 </StackPanel>
             </Border>
