@@ -67,11 +67,13 @@
 
                     <!-- Icon column: icon with rarity glow, badge + percent centered below -->
                     <StackPanel Grid.Column="0"
-                                VerticalAlignment="Center">
+                                VerticalAlignment="Center"
+                                Visibility="{Binding FrameShowIconColumn, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Grid Width="{Binding FrameIconSize}"
                               Height="{Binding FrameIconSize}"
                               ClipToBounds="False"
-                              HorizontalAlignment="Center">
+                              HorizontalAlignment="Center"
+                              Visibility="{Binding FrameShowIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <!-- Rays glow style: arrows riding the icon's own silhouette, behind its
                                  soft halo, which keeps rendering under both styles. Deliberately not
                                  animated — the frame is rendered offscreen to a still image, so the
@@ -151,7 +153,8 @@
                         </Grid>
                         <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Center"
-                                    Margin="0,6,0,0">
+                                    Margin="0,6,0,0"
+                                    Visibility="{Binding FrameHasIconFooter, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <!-- Sync-loaded custom badge image (offscreen render contract);
                                  animated GIF badges contribute their first frame here. -->
                             <Image Source="{Binding FrameBadgeImage}"
