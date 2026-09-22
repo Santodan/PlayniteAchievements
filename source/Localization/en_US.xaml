@@ -613,7 +613,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_Display_Alignment">Alignment</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_Colors">Colors</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_Formatting">Formatting</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Display_GridDefaults">Grid Defaults</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_OverviewCharts">Overview Charts</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_ThemeIntegration">Desktop Theme Integration</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_Themes">Themes</sys:String>

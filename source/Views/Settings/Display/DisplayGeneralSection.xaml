@@ -28,236 +28,231 @@
                            Margin="0"/>
             </Border>
 
-            <Border Style="{StaticResource SectionBorderStyle}">
+            <!-- Ungrouped: plugin chrome, not a formatting choice. -->
+            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}"
+                                     Margin="0">
+                    <CheckBox IsChecked="{Binding Persisted.ShowTopMenuBarButton}"/>
+                </controls:SettingRow>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_GridDefaults}"
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_Alignment}"
                                Style="{StaticResource SectionHeaderStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                     <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                    <!-- Ungrouped: plugin chrome, not a formatting choice. -->
-                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
-                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}"
-                                             Margin="0">
-                            <CheckBox IsChecked="{Binding Persisted.ShowTopMenuBarButton}"/>
-                        </controls:SettingRow>
-                    </Border>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_GridColumnHeaderAlignment}">
+                        <ComboBox SelectedValue="{Binding Persisted.GridColumnHeaderAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Tag"
+                                  MinWidth="140">
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Left}" Tag="{x:Static settings:GridAlignment.Left}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Center}" Tag="{x:Static settings:GridAlignment.Center}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Right}" Tag="{x:Static settings:GridAlignment.Right}"/>
+                        </ComboBox>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_GridCellAlignment}">
+                        <ComboBox SelectedValue="{Binding Persisted.GridCellAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Tag"
+                                  MinWidth="140">
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Left}" Tag="{x:Static settings:GridAlignment.Left}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Center}" Tag="{x:Static settings:GridAlignment.Center}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Right}" Tag="{x:Static settings:GridAlignment.Right}"/>
+                        </ComboBox>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_GridCellVerticalAlignment}"
+                                         Margin="0">
+                        <ComboBox SelectedValue="{Binding Persisted.GridCellVerticalAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Tag"
+                                  MinWidth="140">
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridVerticalAlignment_Top}" Tag="{x:Static settings:GridVerticalAlignment.Top}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridVerticalAlignment_Center}" Tag="{x:Static settings:GridVerticalAlignment.Center}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridVerticalAlignment_Bottom}" Tag="{x:Static settings:GridVerticalAlignment.Bottom}"/>
+                        </ComboBox>
+                    </controls:SettingRow>
+                </StackPanel>
+            </Border>
 
-                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_Alignment}"
-                                       Style="{StaticResource SubSectionHeaderStyle}"/>
-                            <Border Style="{StaticResource SubSectionRuleStyle}"/>
+            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_Formatting}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_GridColumnHeaderAlignment}">
-                                <ComboBox SelectedValue="{Binding Persisted.GridColumnHeaderAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag"
-                                          MinWidth="140">
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Left}" Tag="{x:Static settings:GridAlignment.Left}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Center}" Tag="{x:Static settings:GridAlignment.Center}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Right}" Tag="{x:Static settings:GridAlignment.Right}"/>
-                                </ComboBox>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_GridCellAlignment}">
-                                <ComboBox SelectedValue="{Binding Persisted.GridCellAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag"
-                                          MinWidth="140">
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Left}" Tag="{x:Static settings:GridAlignment.Left}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Center}" Tag="{x:Static settings:GridAlignment.Center}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Right}" Tag="{x:Static settings:GridAlignment.Right}"/>
-                                </ComboBox>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_GridCellVerticalAlignment}"
-                                                 Margin="0">
-                                <ComboBox SelectedValue="{Binding Persisted.GridCellVerticalAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag"
-                                          MinWidth="140">
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridVerticalAlignment_Top}" Tag="{x:Static settings:GridVerticalAlignment.Top}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridVerticalAlignment_Center}" Tag="{x:Static settings:GridVerticalAlignment.Center}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridVerticalAlignment_Bottom}" Tag="{x:Static settings:GridVerticalAlignment.Bottom}"/>
-                                </ComboBox>
-                            </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_UnlockDateDisplay}">
+                        <ComboBox SelectedValue="{Binding Persisted.UnlockDateDisplayMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Tag"
+                                  MinWidth="140">
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateAndTime}" Tag="{x:Static settings:DateDisplayMode.DateAndTime}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateOnly}" Tag="{x:Static settings:DateDisplayMode.DateOnly}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_Relative}" Tag="{x:Static settings:DateDisplayMode.Relative}"/>
+                        </ComboBox>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_PlaytimeDisplay}">
+                        <ComboBox SelectedValue="{Binding Persisted.PlaytimeDisplayMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Tag"
+                                  MinWidth="140">
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_PlaytimeDisplayMode_HoursMinutes}" Tag="{x:Static settings:PlaytimeDisplayMode.HoursAndMinutes}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_PlaytimeDisplayMode_HoursOnly}" Tag="{x:Static settings:PlaytimeDisplayMode.HoursOnly}"/>
+                        </ComboBox>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowCompletedProgressColoring}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_ShowCompletedProgressColoring_Help}">
+                        <CheckBox IsChecked="{Binding Persisted.ShowCompletedProgressColoring}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge_Help}"
+                                         Margin="0">
+                        <ComboBox SelectedValue="{Binding Persisted.CategoryCompletionBadgeMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Tag"
+                                  MinWidth="140">
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static settings:CategoryCompletionBadgeMode.All}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadgeMode_First}" Tag="{x:Static settings:CategoryCompletionBadgeMode.First}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static settings:CategoryCompletionBadgeMode.None}"/>
+                        </ComboBox>
+                    </controls:SettingRow>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Column_Rarity}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_UseUniformRarityBadges}">
+                        <CheckBox IsChecked="{Binding Persisted.UseUniformRarityBadges}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_UseTrophiesForRarity}">
+                        <CheckBox IsChecked="{Binding Persisted.UseTrophiesForRarity}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RoundRarityPercentages}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_RoundRarityPercentages_Help}">
+                        <CheckBox IsChecked="{Binding Persisted.RoundRarityPercentages}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProgressBadgeSource}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_ProgressBadgeSource_Help}">
+                        <ComboBox SelectedValue="{Binding Persisted.ProgressBadgeSource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Tag"
+                                  MinWidth="140">
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_ProgressBadgeSource_TrophyWhenAvailable}" Tag="{x:Static settings:ProgressBadgeSource.TrophyWhenAvailable}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:ProgressBadgeSource.Rarity}"/>
+                        </ComboBox>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_SoftGlowTiers}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_GlowTiers_Help}">
+                        <Button x:Name="SoftGlowTiersButton"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding SoftGlowTiersText, ElementName=DisplayGeneralSectionRoot}"
+                                Click="SoftGlowTiersButton_Click"
+                                MinWidth="140"
+                                Height="{StaticResource PlayAch.Size.Control.Height}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                            </Button.ContextMenu>
+                        </Button>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RayGlowTiers}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_GlowTiers_Help}">
+                        <Button x:Name="RayGlowTiersButton"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding RayGlowTiersText, ElementName=DisplayGeneralSectionRoot}"
+                                Click="RayGlowTiersButton_Click"
+                                MinWidth="140"
+                                Height="{StaticResource PlayAch.Size.Control.Height}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                            </Button.ContextMenu>
+                        </Button>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowHardcoreBorder}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_ShowHardcoreBorder_Help}">
+                        <CheckBox IsChecked="{Binding Persisted.ShowHardcoreBorder}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AnimateRarityGlows}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_AnimateRarityGlows_Help}">
+                        <CheckBox IsChecked="{Binding Persisted.AnimateRarityGlows}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RarityGlowPulseMinOpacity}"
+                                         IsEnabled="{Binding Persisted.AnimateRarityGlows}">
+                        <TextBox helpers:UnitIntervalInput.Value="{Binding Persisted.RarityGlowPulseMinOpacity, Mode=TwoWay}"
+                                 Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                 TextAlignment="Right"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RarityGlowPulseMaxOpacity}"
+                                         IsEnabled="{Binding Persisted.AnimateRarityGlows}">
+                        <TextBox helpers:UnitIntervalInput.Value="{Binding Persisted.RarityGlowPulseMaxOpacity, Mode=TwoWay}"
+                                 Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                 TextAlignment="Right"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RarityGlowPulseSpeed}"
+                                         IsEnabled="{Binding Persisted.AnimateRarityGlows}"
+                                         Margin="0">
+                        <TextBox helpers:UnitIntervalInput.Value="{Binding Persisted.RarityGlowPulseSpeed, Mode=TwoWay}"
+                                 Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                 TextAlignment="Right"/>
+                    </controls:SettingRow>
+                </StackPanel>
+            </Border>
+
+            <!-- Which panels the Overview window shows, and how its pies render. These
+                 govern the Overview only; showcase and start page widgets carry their own
+                 per-widget equivalents. -->
+            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_OverviewCharts}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewGamesPieChart}">
+                        <CheckBox IsChecked="{Binding Persisted.ShowOverviewGamesPieChart}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewProviderPieChart}">
+                        <CheckBox IsChecked="{Binding Persisted.ShowOverviewProviderPieChart}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewRarityPieChart}">
+                        <CheckBox IsChecked="{Binding Persisted.ShowOverviewRarityPieChart}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewTrophyPieChart}">
+                        <CheckBox IsChecked="{Binding Persisted.ShowOverviewTrophyPieChart}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewBarCharts}">
+                        <CheckBox IsChecked="{Binding Persisted.ShowOverviewBarCharts}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewPiePercentages}">
+                        <CheckBox IsChecked="{Binding Persisted.ShowOverviewPiePercentages}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_PieIncludeLocked}">
+                        <CheckBox IsChecked="{Binding Persisted.OverviewPieIncludeLocked}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Note}"
+                                         VerticalContentAlignment="Top"
+                                         Margin="0">
+                        <StackPanel HorizontalAlignment="Left">
+                            <RadioButton Content="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact}"
+                                         GroupName="OverviewPieSmallSliceMode"
+                                         Style="{StaticResource OverviewPieModeRadioButtonStyle}"
+                                         ToolTip="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact_Description}"
+                                         IsChecked="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Exact}"/>
+                            <RadioButton Content="{DynamicResource LOCPlayAch_Common_Hide}"
+                                         GroupName="OverviewPieSmallSliceMode"
+                                         Style="{StaticResource OverviewPieModeRadioButtonStyle}"
+                                         ToolTip="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Hide_Description}"
+                                         IsChecked="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Hide}"/>
+                            <RadioButton Content="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round}"
+                                         GroupName="OverviewPieSmallSliceMode"
+                                         Style="{StaticResource OverviewPieModeRadioButtonStyle}"
+                                         ToolTip="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round_Description}"
+                                         IsChecked="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Round}"/>
                         </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_Formatting}"
-                                       Style="{StaticResource SubSectionHeaderStyle}"/>
-                            <Border Style="{StaticResource SubSectionRuleStyle}"/>
-
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_UnlockDateDisplay}">
-                                <ComboBox SelectedValue="{Binding Persisted.UnlockDateDisplayMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag"
-                                          MinWidth="140">
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateAndTime}" Tag="{x:Static settings:DateDisplayMode.DateAndTime}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateOnly}" Tag="{x:Static settings:DateDisplayMode.DateOnly}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_Relative}" Tag="{x:Static settings:DateDisplayMode.Relative}"/>
-                                </ComboBox>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_PlaytimeDisplay}">
-                                <ComboBox SelectedValue="{Binding Persisted.PlaytimeDisplayMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag"
-                                          MinWidth="140">
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_PlaytimeDisplayMode_HoursMinutes}" Tag="{x:Static settings:PlaytimeDisplayMode.HoursAndMinutes}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_PlaytimeDisplayMode_HoursOnly}" Tag="{x:Static settings:PlaytimeDisplayMode.HoursOnly}"/>
-                                </ComboBox>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowCompletedProgressColoring}"
-                                                 Hint="{DynamicResource LOCPlayAch_Settings_ShowCompletedProgressColoring_Help}">
-                                <CheckBox IsChecked="{Binding Persisted.ShowCompletedProgressColoring}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge}"
-                                                 Hint="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadge_Help}"
-                                                 Margin="0">
-                                <ComboBox SelectedValue="{Binding Persisted.CategoryCompletionBadgeMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag"
-                                          MinWidth="140">
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static settings:CategoryCompletionBadgeMode.All}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_CategoryCompletionBadgeMode_First}" Tag="{x:Static settings:CategoryCompletionBadgeMode.First}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static settings:CategoryCompletionBadgeMode.None}"/>
-                                </ComboBox>
-                            </controls:SettingRow>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Column_Rarity}"
-                                       Style="{StaticResource SubSectionHeaderStyle}"/>
-                            <Border Style="{StaticResource SubSectionRuleStyle}"/>
-
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_UseUniformRarityBadges}">
-                                <CheckBox IsChecked="{Binding Persisted.UseUniformRarityBadges}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_UseTrophiesForRarity}">
-                                <CheckBox IsChecked="{Binding Persisted.UseTrophiesForRarity}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RoundRarityPercentages}"
-                                                 Hint="{DynamicResource LOCPlayAch_Settings_RoundRarityPercentages_Help}">
-                                <CheckBox IsChecked="{Binding Persisted.RoundRarityPercentages}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProgressBadgeSource}"
-                                                 Hint="{DynamicResource LOCPlayAch_Settings_ProgressBadgeSource_Help}">
-                                <ComboBox SelectedValue="{Binding Persisted.ProgressBadgeSource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag"
-                                          MinWidth="140">
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_ProgressBadgeSource_TrophyWhenAvailable}" Tag="{x:Static settings:ProgressBadgeSource.TrophyWhenAvailable}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:ProgressBadgeSource.Rarity}"/>
-                                </ComboBox>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_SoftGlowTiers}"
-                                                 Hint="{DynamicResource LOCPlayAch_Settings_GlowTiers_Help}">
-                                <Button x:Name="SoftGlowTiersButton"
-                                        Style="{StaticResource AchievementSelectorButtonStyle}"
-                                        Content="{Binding SoftGlowTiersText, ElementName=DisplayGeneralSectionRoot}"
-                                        Click="SoftGlowTiersButton_Click"
-                                        MinWidth="140"
-                                        Height="{StaticResource PlayAch.Size.Control.Height}">
-                                    <Button.ContextMenu>
-                                        <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                                     ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                                    </Button.ContextMenu>
-                                </Button>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RayGlowTiers}"
-                                                 Hint="{DynamicResource LOCPlayAch_Settings_GlowTiers_Help}">
-                                <Button x:Name="RayGlowTiersButton"
-                                        Style="{StaticResource AchievementSelectorButtonStyle}"
-                                        Content="{Binding RayGlowTiersText, ElementName=DisplayGeneralSectionRoot}"
-                                        Click="RayGlowTiersButton_Click"
-                                        MinWidth="140"
-                                        Height="{StaticResource PlayAch.Size.Control.Height}">
-                                    <Button.ContextMenu>
-                                        <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                                     ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                                    </Button.ContextMenu>
-                                </Button>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowHardcoreBorder}"
-                                                 Hint="{DynamicResource LOCPlayAch_Settings_ShowHardcoreBorder_Help}">
-                                <CheckBox IsChecked="{Binding Persisted.ShowHardcoreBorder}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AnimateRarityGlows}"
-                                                 Hint="{DynamicResource LOCPlayAch_Settings_AnimateRarityGlows_Help}">
-                                <CheckBox IsChecked="{Binding Persisted.AnimateRarityGlows}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RarityGlowPulseMinOpacity}"
-                                                 IsEnabled="{Binding Persisted.AnimateRarityGlows}">
-                                <TextBox helpers:UnitIntervalInput.Value="{Binding Persisted.RarityGlowPulseMinOpacity, Mode=TwoWay}"
-                                         Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
-                                         TextAlignment="Right"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RarityGlowPulseMaxOpacity}"
-                                                 IsEnabled="{Binding Persisted.AnimateRarityGlows}">
-                                <TextBox helpers:UnitIntervalInput.Value="{Binding Persisted.RarityGlowPulseMaxOpacity, Mode=TwoWay}"
-                                         Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
-                                         TextAlignment="Right"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RarityGlowPulseSpeed}"
-                                                 IsEnabled="{Binding Persisted.AnimateRarityGlows}"
-                                                 Margin="0">
-                                <TextBox helpers:UnitIntervalInput.Value="{Binding Persisted.RarityGlowPulseSpeed, Mode=TwoWay}"
-                                         Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
-                                         TextAlignment="Right"/>
-                            </controls:SettingRow>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Which panels the Overview window shows, and how its pies render. These
-                         govern the Overview only; showcase and start page widgets carry their own
-                         per-widget equivalents. -->
-                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_OverviewCharts}"
-                                       Style="{StaticResource SubSectionHeaderStyle}"/>
-                            <Border Style="{StaticResource SubSectionRuleStyle}"/>
-
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewGamesPieChart}">
-                                <CheckBox IsChecked="{Binding Persisted.ShowOverviewGamesPieChart}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewProviderPieChart}">
-                                <CheckBox IsChecked="{Binding Persisted.ShowOverviewProviderPieChart}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewRarityPieChart}">
-                                <CheckBox IsChecked="{Binding Persisted.ShowOverviewRarityPieChart}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewTrophyPieChart}">
-                                <CheckBox IsChecked="{Binding Persisted.ShowOverviewTrophyPieChart}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewBarCharts}">
-                                <CheckBox IsChecked="{Binding Persisted.ShowOverviewBarCharts}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewPiePercentages}">
-                                <CheckBox IsChecked="{Binding Persisted.ShowOverviewPiePercentages}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_PieIncludeLocked}">
-                                <CheckBox IsChecked="{Binding Persisted.OverviewPieIncludeLocked}"/>
-                            </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode}"
-                                                 Hint="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Note}"
-                                                 VerticalContentAlignment="Top"
-                                                 Margin="0">
-                                <StackPanel HorizontalAlignment="Left">
-                                    <RadioButton Content="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact}"
-                                                 GroupName="OverviewPieSmallSliceMode"
-                                                 Style="{StaticResource OverviewPieModeRadioButtonStyle}"
-                                                 ToolTip="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact_Description}"
-                                                 IsChecked="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Exact}"/>
-                                    <RadioButton Content="{DynamicResource LOCPlayAch_Common_Hide}"
-                                                 GroupName="OverviewPieSmallSliceMode"
-                                                 Style="{StaticResource OverviewPieModeRadioButtonStyle}"
-                                                 ToolTip="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Hide_Description}"
-                                                 IsChecked="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Hide}"/>
-                                    <RadioButton Content="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round}"
-                                                 GroupName="OverviewPieSmallSliceMode"
-                                                 Style="{StaticResource OverviewPieModeRadioButtonStyle}"
-                                                 ToolTip="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round_Description}"
-                                                 IsChecked="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Round}"/>
-                                </StackPanel>
-                            </controls:SettingRow>
-                        </StackPanel>
-                    </Border>
+                    </controls:SettingRow>
                 </StackPanel>
             </Border>
 
