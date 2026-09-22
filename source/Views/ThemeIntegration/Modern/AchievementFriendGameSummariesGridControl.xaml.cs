@@ -3,6 +3,7 @@ using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
 using System;
 using System.Collections.Generic;
@@ -47,6 +48,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         protected override bool EnableAutomaticThemeDataUpdates => true;
         protected override bool UsesThemeBindings => true;
+        protected override WheelScrollAxis? WheelClaimAxis => WheelScrollAxis.Vertical;
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
