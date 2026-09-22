@@ -235,7 +235,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         protected AchievementCompactListControlBase()
         {
-            _wheelScrollClaim = new WindowWheelScrollClaim(this, WheelScrollAxis.PreferHorizontal);
             DataContext = this;
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
@@ -246,10 +245,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         }
 
         /// <summary>
-        /// Keeps the wheel on this strip while the pointer is over it. Shared with the theme's
-        /// achievement grid, which meets the same page-level wheel handling.
+        /// Keeps the wheel on this strip while the pointer is over it, scrolling it sideways.
+        /// Shared with the theme's grids, which meet the same page-level wheel handling.
         /// </summary>
-        private readonly WindowWheelScrollClaim _wheelScrollClaim;
+        protected override WheelScrollAxis? WheelClaimAxis => WheelScrollAxis.PreferHorizontal;
 
         /// <summary>
         /// Whether the wheel hooks are registered. Loaded can fire again without an intervening
@@ -283,7 +282,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             // control is reached and the wheel silently does nothing here. Registering this way is
             // what lets the list scroll its own viewport regardless of what sits above it.
             AddHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel), true);
-            _wheelScrollClaim.Attach();
             _wheelHooksAttached = true;
             if (Common.PerfScope.PerfTracingEnabled)
             {
@@ -300,7 +298,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             }
 
             RemoveHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel));
-            _wheelScrollClaim.Detach();
             _wheelHooksAttached = false;
         }
 
