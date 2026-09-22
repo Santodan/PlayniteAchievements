@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Views.Settings.Display
     /// Display settings: Appearance section. Hosts rarity color, completed badge, trophy and
     /// resource override editors plus palette presets.
     /// </summary>
-    public partial class AppearanceSection : UserControl, IDisposable
+    public partial class ColorsSection : UserControl, IDisposable
     {
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ProviderRegistry _providerRegistry;
@@ -33,12 +33,12 @@ namespace PlayniteAchievements.Views.Settings.Display
         private ObservableCollection<ProviderAppearanceItem> _providerAppearanceItems;
         private ObservableCollection<RarityPalettePreset> _rarityPalettePresets;
 
-        public AppearanceSection()
+        public ColorsSection()
         {
             InitializeComponent();
         }
 
-        internal AppearanceSection(
+        internal ColorsSection(
             PlayniteAchievementsSettings settings,
             ProviderRegistry providerRegistry,
             Func<Window, string, string> pickColor)

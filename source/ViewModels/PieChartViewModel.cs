@@ -269,11 +269,16 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Sets the pie chart data for Rarity distribution (Ultra Rare, Rare, Uncommon, Common, Locked).
         /// </summary>
+        /// <remarks>
+        /// Slices and legend entries carry the <c>BadgeRarity*</c> alias rather than a resolved
+        /// shape key, so the global uniform-badge and trophy settings apply to every surface's
+        /// rarity pie without a caller having to pass them. Resolution happens once, where
+        /// <see cref="RarityAppearanceHelper.ApplyBadgeResources"/> repoints the aliases.
+        /// </remarks>
         public void SetRarityData(
             int commonUnlocked, int uncommonUnlocked, int rareUnlocked, int ultraRareUnlocked, int locked,
             int commonTotal, int uncommonTotal, int rareTotal, int ultraRareTotal,
-            string commonLabel, string uncommonLabel, string rareLabel, string ultraRareLabel, string lockedLabel,
-            bool useUniformRarityBadges = false)
+            string commonLabel, string uncommonLabel, string rareLabel, string ultraRareLabel, string lockedLabel)
         {
             var dataPoints = new List<PieSliceInputData>();
 
@@ -283,7 +288,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Label = ultraRareLabel,
                     Count = ultraRareUnlocked,
-                    IconKey = RarityTier.UltraRare.ToIconKey(useUniformRarityBadges),
+                    IconKey = RarityTier.UltraRare.ToDynamicIconKey(),
                     Color = RarityAppearanceHelper.GetPieColor(RarityTier.UltraRare),
                     OriginalColorHex = string.Empty,
                     UnlockedCount = ultraRareUnlocked,
@@ -298,7 +303,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Label = rareLabel,
                     Count = rareUnlocked,
-                    IconKey = RarityTier.Rare.ToIconKey(useUniformRarityBadges),
+                    IconKey = RarityTier.Rare.ToDynamicIconKey(),
                     Color = RarityAppearanceHelper.GetPieColor(RarityTier.Rare),
                     OriginalColorHex = string.Empty,
                     UnlockedCount = rareUnlocked,
@@ -313,7 +318,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Label = uncommonLabel,
                     Count = uncommonUnlocked,
-                    IconKey = RarityTier.Uncommon.ToIconKey(useUniformRarityBadges),
+                    IconKey = RarityTier.Uncommon.ToDynamicIconKey(),
                     Color = RarityAppearanceHelper.GetPieColor(RarityTier.Uncommon),
                     OriginalColorHex = string.Empty,
                     UnlockedCount = uncommonUnlocked,
@@ -328,7 +333,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Label = commonLabel,
                     Count = commonUnlocked,
-                    IconKey = RarityTier.Common.ToIconKey(useUniformRarityBadges),
+                    IconKey = RarityTier.Common.ToDynamicIconKey(),
                     Color = RarityAppearanceHelper.GetPieColor(RarityTier.Common),
                     OriginalColorHex = string.Empty,
                     UnlockedCount = commonUnlocked,

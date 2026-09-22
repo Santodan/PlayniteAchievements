@@ -34,6 +34,18 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
             };
         }
 
+        /// <summary>
+        /// Unhooks from the controller. The controller outlives the page and is shared by the
+        /// Display and Themes copies of this page, so each copy has to release its own handler.
+        /// </summary>
+        internal void Detach()
+        {
+            if (_controller != null)
+            {
+                _controller.PropertyChanged -= OnControllerPropertyChanged;
+            }
+        }
+
         private void OnControllerPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (string.Equals(e.PropertyName, nameof(ThemeMigrationController.SelectedThemePath), StringComparison.Ordinal) ||

@@ -9,5 +9,5 @@
              d:DesignWidth="700">
     <nav:SettingsMasterDetailControl x:Name="MasterDetail"
                                      ShowSearch="True"
-                                     EnableGrouping="True"/>
+                                     EnableGrouping="False"/>
 </UserControl>

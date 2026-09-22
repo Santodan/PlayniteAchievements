@@ -42,6 +42,7 @@
     <converters:HiddenAchievementConverter x:Key="HiddenIconConverter" ConversionMode="Icon"/>
     <converters:HiddenAchievementConverter x:Key="HiddenTitleConverter" ConversionMode="Title"/>
     <converters:HiddenAchievementConverter x:Key="HiddenDescriptionConverter" ConversionMode="Description"/>
+    <converters:StringToVisibilityConverter x:Key="StringToVisibility"/>
 
     <!-- PlayAch theme tokens are populated at runtime by PlayAchResourceService. -->
     <Style x:Key="PlayAch.TextBlock.BaseStyle" TargetType="TextBlock">

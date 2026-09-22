@@ -26,7 +26,7 @@ using PlayniteAchievements.ViewModels.Settings;
 using PlayniteAchievements.Views.Dialogs;
 using PlayniteAchievements.Views.Helpers;
 
-namespace PlayniteAchievements.Views.Settings.General
+namespace PlayniteAchievements.Views.Settings.Notifications
 {
     /// <summary>
     /// General settings: Notification appearance section. Hosts the platform selector (global

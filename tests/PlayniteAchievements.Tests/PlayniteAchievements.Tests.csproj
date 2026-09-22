@@ -347,6 +347,7 @@
     <Compile Include="..\..\source\ViewModels\AchievementToastViewModel.cs" Link="Source\ViewModels\AchievementToastViewModel.cs" />
     <Compile Include="..\..\source\ViewModels\ToastLineDescriptor.cs" Link="Source\ViewModels\ToastLineDescriptor.cs" />
     <Compile Include="..\..\source\ViewModels\ToastImageResolver.cs" Link="Source\ViewModels\ToastImageResolver.cs" />
+    <Compile Include="..\..\source\Views\Converters\BooleanAggregateConverter.cs" Link="Source\Views\Converters\BooleanAggregateConverter.cs" />
     <Compile Include="..\..\source\Views\Converters\PercentToRarityGlowConverter.cs" Link="Source\Views\Converters\PercentToRarityGlowConverter.cs" />
     <Compile Include="..\..\source\Views\Converters\WholePercentToTextConverter.cs" Link="Source\Views\Converters\WholePercentToTextConverter.cs" />
     <Compile Include="..\..\source\Views\Converters\ImageFitDimensionConverter.cs" Link="Source\Views\Converters\ImageFitDimensionConverter.cs" />
@@ -483,6 +484,7 @@
     <Compile Include="..\..\source\Services\ThemeIntegration\DynamicThemeOptionFactory.cs" Link="Source\Services\ThemeIntegration\DynamicThemeOptionFactory.cs" />
     <Compile Include="..\..\source\Services\ThemeIntegration\ThemeDelegatedPropertyCatalog.cs" Link="Source\Services\ThemeIntegration\ThemeDelegatedPropertyCatalog.cs" />
     <Compile Include="..\..\source\Services\ThemeIntegration\ThemeIntegrationService.cs" Link="Source\Services\ThemeIntegration\ThemeIntegrationService.cs" />
+    <Compile Include="..\..\source\Views\Helpers\WindowWheelScrollClaim.cs" Link="Source\Views\Helpers\WindowWheelScrollClaim.cs" />
     <Compile Include="..\..\source\Views\ThemeIntegration\Base\ThemeControlBase.cs" Link="Source\Views\ThemeIntegration\Base\ThemeControlBase.cs" />
     <Compile Include="..\..\source\Services\Cache\ICacheManager.cs" Link="Source\Services\Cache\ICacheManager.cs" />
     <Compile Include="..\..\source\Services\Cache\CachedSummaryData.cs" Link="Source\Services\Cache\CachedSummaryData.cs" />

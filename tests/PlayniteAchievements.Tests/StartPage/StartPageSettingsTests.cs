@@ -163,8 +163,6 @@ namespace PlayniteAchievements.Tests.StartPage
             source.StartPageFriendsRecentUnlocksGrid.SortMode = CompactListSortMode.None;
             source.StartPageFriendsRecentUnlocksGrid.SortDescending = false;
 
-            source.StartPagePieCharts.ShowCenterPercentage = false;
-            source.StartPagePieCharts.SmallSliceMode = OverviewPieSmallSliceMode.Hide;
             source.StartPageActivityScope = GameActivityScope.All;
             source.StartPageProgressScope = GameProgressScope.NoProgress;
 
@@ -211,10 +209,6 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.IsFalse(copy.StartPageFriendsRecentUnlocksGrid.SortDescending);
             Assert.IsTrue(clone.StartPageFriendsRecentUnlocksGrid.ShowControlBar);
 
-            Assert.IsFalse(clone.StartPagePieCharts.ShowCenterPercentage);
-            Assert.AreEqual(OverviewPieSmallSliceMode.Hide, clone.StartPagePieCharts.SmallSliceMode);
-            Assert.IsFalse(copy.StartPagePieCharts.ShowCenterPercentage);
-            Assert.AreEqual(OverviewPieSmallSliceMode.Hide, copy.StartPagePieCharts.SmallSliceMode);
             Assert.AreEqual(GameActivityScope.All, clone.StartPageActivityScope);
             Assert.AreEqual(GameProgressScope.NoProgress, clone.StartPageProgressScope);
             Assert.AreEqual(GameActivityScope.All, copy.StartPageActivityScope);
@@ -223,8 +217,6 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.AreNotSame(source.StartPageGameSummariesGrid, clone.StartPageGameSummariesGrid);
             Assert.AreNotSame(source.StartPageRecentUnlocksGrid, copy.StartPageRecentUnlocksGrid);
             Assert.AreNotSame(source.StartPageFriendsRecentUnlocksGrid, copy.StartPageFriendsRecentUnlocksGrid);
-            Assert.AreNotSame(source.StartPagePieCharts, clone.StartPagePieCharts);
-            Assert.AreNotSame(source.StartPagePieCharts, copy.StartPagePieCharts);
         }
 
         [TestMethod]

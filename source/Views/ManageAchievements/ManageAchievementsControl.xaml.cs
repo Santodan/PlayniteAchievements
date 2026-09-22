@@ -23,7 +23,7 @@ using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.ViewModels.ManageAchievements;
 using PlayniteAchievements.Views.Dialogs;
 using PlayniteAchievements.Views.Helpers;
-using PlayniteAchievements.Views.Settings.General;
+using PlayniteAchievements.Views.Settings.Notifications;
 
 namespace PlayniteAchievements.Views.ManageAchievements
 {
