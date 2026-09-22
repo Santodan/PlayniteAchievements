@@ -2238,11 +2238,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             insertIndex = Math.Max(0, insertIndex);
 
             AchievementEditorRow lastCopy = null;
+            var duplicateUseSeparateLockedIcons = ResolveUseSeparateLockedIcons();
             foreach (var source in targets.OrderBy(row => AchievementRows.IndexOf(row)))
             {
                 var row = source.CloneForDuplicate();
                 AssignStableId(row);
-                AttachRow(row);
+                AttachRow(row, duplicateUseSeparateLockedIcons);
                 AchievementRows.Insert(Math.Min(insertIndex, AchievementRows.Count), row);
                 insertIndex++;
                 lastCopy = row;
@@ -3143,6 +3144,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .GroupBy(row => row.NormalizedId, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
+            var importUseSeparateLockedIcons = ResolveUseSeparateLockedIcons();
             foreach (var definition in result.Definitions)
             {
                 var id = CustomAchievementProjectionService.NormalizeId(definition.Id);
@@ -3155,7 +3157,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 var row = AchievementEditorRow.FromDefinition(definition);
                 row.MarkAsNewImport();
-                AttachRow(row);
+                AttachRow(row, importUseSeparateLockedIcons);
                 AchievementRows.Add(row);
                 added++;
             }
@@ -3505,9 +3507,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             SetSelectedRows(Array.Empty<AchievementEditorRow>());
 
             AchievementRows.Clear();
+            var useSeparateLockedIcons = ResolveUseSeparateLockedIcons();
             foreach (var row in rows ?? Enumerable.Empty<AchievementEditorRow>())
             {
-                AttachRow(row);
+                AttachRow(row, useSeparateLockedIcons);
                 AchievementRows.Add(row);
             }
 
@@ -3927,7 +3930,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _searchIndex.Invalidate(row);
         }
 
-        private void AttachRow(AchievementEditorRow row)
+        private bool ResolveUseSeparateLockedIcons()
+        {
+            return GameCustomDataLookup.ShouldUseSeparateLockedIcons(_gameId, _settings?.Persisted);
+        }
+
+        /// <param name="useSeparateLockedIcons">
+        /// Pre-resolved by callers that attach more than one row. Resolving it builds an entire
+        /// ResolvedGameCustomData -- a deep clone of this game's record plus a dozen collection
+        /// rebuilds, taking the store's lock -- to read a single bool, so doing it per row
+        /// multiplied the achievement count by the game's customization size every time the
+        /// editor opened. Null keeps the original inline resolve for single-row callers.
+        /// </param>
+        private void AttachRow(AchievementEditorRow row, bool? useSeparateLockedIcons = null)
         {
             if (row == null)
             {
@@ -3940,9 +3955,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.ShowLockedIcon = _settings?.Persisted?.ShowLockedIcon ?? true;
             row.ShowHiddenTitle = _settings?.Persisted?.ShowHiddenTitle ?? false;
             row.ShowHiddenDescription = _settings?.Persisted?.ShowHiddenDescription ?? false;
-            row.UseSeparateLockedIcons = GameCustomDataLookup.ShouldUseSeparateLockedIcons(
-                _gameId,
-                _settings?.Persisted);
+            row.UseSeparateLockedIcons = useSeparateLockedIcons
+                ?? ResolveUseSeparateLockedIcons();
             row.ConfigureIconPathDisplay(
                 path => _managedCustomIconService?.GetManagedDisplayPath(path, _gameIdText) ?? path,
                 text => _managedCustomIconService?.ResolveManagedDisplayPath(text, _gameIdText) ?? text);
