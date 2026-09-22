@@ -33,13 +33,15 @@ namespace PlayniteAchievements.Tests.Views
 
             AssertContainsAll(
                 code,
-                // A hidden achievement is also locked, so each field picks its toggle off Hidden.
-                "private bool TitleMaskApplies => Hidden ? !ShowHiddenTitle : !ShowLockedTitle;",
-                "private bool DescriptionMaskApplies => Hidden ? !ShowHiddenDescription : !ShowLockedDescription;",
+                // A hidden achievement is also locked, so either column masks it. This matches
+                // IsLockedIconHidden, which has always applied the locked icon setting to hidden
+                // rows; the other four fields must not disagree with the icon beside them.
+                "private bool TitleMaskApplies => !ShowLockedTitle || (Hidden && !ShowHiddenTitle);",
+                "private bool DescriptionMaskApplies => !ShowLockedDescription || (Hidden && !ShowHiddenDescription);",
                 // Trophy and points additionally require the row to carry the field, so a row with
                 // nothing to hide is never made revealable by these toggles.
-                "private bool TrophyMaskApplies => HasTrophyType && (Hidden ? !ShowHiddenTrophy : !ShowLockedTrophy);",
-                "private bool PointsMaskApplies => HasPoints && (Hidden ? !ShowHiddenPoints : !ShowLockedPoints);",
+                "HasTrophyType && (!ShowLockedTrophy || (Hidden && !ShowHiddenTrophy));",
+                "HasPoints && (!ShowLockedPoints || (Hidden && !ShowHiddenPoints));",
                 "public bool IsTitleHidden => IsHidden && TitleMaskApplies;",
                 "public bool IsDescriptionHidden => IsHidden && DescriptionMaskApplies;",
                 "public bool IsTrophyHidden => IsHidden && TrophyMaskApplies;",
@@ -117,11 +119,11 @@ namespace PlayniteAchievements.Tests.Views
             // page means the same thing in both places.
             AssertContainsAll(
                 vm,
-                "public bool CanRevealTitle => !Unlocked && (Hidden ? !ShowHiddenTitle : !ShowLockedTitle);",
+                "public bool CanRevealTitle => !Unlocked && (!ShowLockedTitle || (Hidden && !ShowHiddenTitle));",
                 "public bool CanRevealTrophy =>",
-                "!Unlocked && HasTrophyType && (Hidden ? !ShowHiddenTrophy : !ShowLockedTrophy);",
+                "!Unlocked && HasTrophyType && (!ShowLockedTrophy || (Hidden && !ShowHiddenTrophy));",
                 "public bool CanRevealPoints =>",
-                "!Unlocked && HasPoints && (Hidden ? !ShowHiddenPoints : !ShowLockedPoints);",
+                "!Unlocked && HasPoints && (!ShowLockedPoints || (Hidden && !ShowHiddenPoints));",
                 "public bool IsTrophyHidden => CanRevealTrophy && !IsTrophyRevealed;",
                 "public bool IsPointsHidden => CanRevealPoints && !IsPointsRevealed;");
 
