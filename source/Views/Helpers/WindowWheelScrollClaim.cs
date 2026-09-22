@@ -7,7 +7,7 @@ using System.Windows.Media;
 namespace PlayniteAchievements.Views.Helpers
 {
     /// <summary>The axis a claim scrolls first.</summary>
-    internal enum WheelScrollAxis
+    public enum WheelScrollAxis
     {
         /// <summary>Scroll vertically; ignore the wheel when there is no vertical room.</summary>
         Vertical,
