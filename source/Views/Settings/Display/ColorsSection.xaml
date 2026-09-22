@@ -6,6 +6,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -38,25 +39,12 @@
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                     <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
                         <StackPanel>
-                            <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_Appearance_Preset}"
-                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           FontWeight="SemiBold"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,10,0"/>
-
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Appearance_Preset}"
+                                                 Margin="0">
+                              <StackPanel Orientation="Horizontal">
                                 <ComboBox x:Name="RarityPalettePresetComboBox"
-                                          Grid.Column="1"
                                           MinWidth="240"
                                           ItemsSource="{Binding RarityPalettePresets, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                     <ComboBox.ItemTemplate>
@@ -87,18 +75,17 @@
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
 
-                                <Button Grid.Column="2"
-                                        Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
                                         Margin="8,0,0,0"
                                         MinWidth="58"
                                         Click="ApplySelectedRarityPalettePreset_Click"/>
 
-                                <Button Grid.Column="3"
-                                        Content="{DynamicResource LOCPlayAch_Button_ResetAll}"
+                                <Button Content="{DynamicResource LOCPlayAch_Button_ResetAll}"
                                         Margin="8,0,0,0"
                                         MinWidth="78"
                                         Click="ResetAllRarityColors_Click"/>
-                            </Grid>
+                              </StackPanel>
+                            </controls:SettingRow>
                         </StackPanel>
                     </Border>
 
@@ -314,7 +301,7 @@
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance_ProviderColors}"
                                Style="{StaticResource SectionHeaderStyle}"
-                               Margin="0,16,0,0"/>
+                               Margin="{StaticResource PlayAch.Thickness.Top.Lg}"/>
                     <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <Border Style="{StaticResource SettingGroupCardStyle}">
@@ -406,7 +393,7 @@
                               Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
                               BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                               BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                              Margin="0,16,0,0"
+                              Margin="{StaticResource PlayAch.Thickness.Top.Lg}"
                               Padding="12,10,12,12">
                         <Expander.Header>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Advanced}"
