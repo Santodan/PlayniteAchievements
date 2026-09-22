@@ -664,6 +664,57 @@ namespace PlayniteAchievements.Services.Achievements
         /// left on it. The record is authoritative: normalization republishes the legacy mirror
         /// maps from it, so writing only a mirror map would have the change discarded.
         /// </summary>
+        /// <summary>
+        /// Sets a note on many achievements in a single store update.
+        /// </summary>
+        /// <remarks>
+        /// Per-entry values, so this cannot use ReplaceOverrideField: that clears the field on
+        /// every override row absent from the map, which for notes would erase the notes on rows
+        /// the gesture never touched. Only the named achievements are altered.
+        /// </remarks>
+        public void SetAchievementNotes(Guid gameId, IReadOnlyDictionary<string, string> notesByApiName)
+        {
+            if (gameId == Guid.Empty || notesByApiName == null || notesByApiName.Count == 0)
+            {
+                return;
+            }
+
+            var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in notesByApiName)
+            {
+                var apiName = AchievementNoteHelper.NormalizeApiName(pair.Key);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    normalized[apiName] = AchievementNoteHelper.NormalizeNote(pair.Value);
+                }
+            }
+
+            if (normalized.Count == 0)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    var overrides = CloneOverrides(customData);
+                    foreach (var pair in normalized)
+                    {
+                        if (!overrides.TryGetValue(pair.Key, out var entry) || entry == null)
+                        {
+                            entry = new AchievementOverride();
+                        }
+
+                        entry.Note = pair.Value;
+                        overrides[pair.Key] = entry;
+                    }
+
+                    StoreOverrides(customData, overrides);
+                },
+                affectsSummaryData: false);
+        }
+
         private static void MutateOverride(
             GameCustomDataFile customData,
             string apiName,

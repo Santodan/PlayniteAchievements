@@ -2724,14 +2724,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 PersistGoalsFromRows();
 
                 // Reverting drops each reverted row's own capstone and leaves the rest of the set
-                // alone, so reverting one achievement cannot clear a capstone elsewhere.
-                foreach (var capstoneRow in targets.Where(row => row.IsCapstone))
+                // alone, so reverting one achievement cannot clear a capstone elsewhere. Cleared
+                // in one write: a clear never displaces another category's capstone, so folding
+                // them is the same result the loop produced, at one store write instead of one
+                // per reverted capstone.
+                var clearedCapstones = targets
+                    .Where(row => row.IsCapstone)
+                    .Select(row => NormalizeText(row.OriginalApiName))
+                    .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
+                    .Select(apiName => (apiName, false))
+                    .ToList();
+                if (clearedCapstones.Count > 0)
                 {
-                    var capstoneApiName = NormalizeText(capstoneRow.OriginalApiName);
-                    if (!string.IsNullOrWhiteSpace(capstoneApiName))
-                    {
-                        _achievementOverridesService.SetCapstone(_gameId, capstoneApiName, false);
-                    }
+                    _achievementOverridesService.SetCapstones(_gameId, clearedCapstones);
                 }
 
                 if (deleteAuthored)
@@ -4342,6 +4347,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 switch (propertyName)
                 {
                     case nameof(AchievementEditorRow.AchievementNote):
+                        // Collected while a selection gesture is open, so writing a note across
+                        // a selection costs one store update rather than one per row.
+                        if (_batchedNoteWrites != null)
+                        {
+                            _batchedNoteWrites[apiName] = row.AchievementNote;
+                            return true;
+                        }
+
                         _achievementOverridesService.SetAchievementNote(_gameId, apiName, row.AchievementNote);
                         RaiseAssignmentsChanged();
                         return true;
@@ -4890,6 +4903,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // use, and the single refresh afterwards leaves the header in the same state.
             _isTogglingReveal = true;
             _batchedFieldWrites = new List<(string, AchievementEditableField, object)>();
+            _batchedNoteWrites = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             try
             {
                 foreach (var row in _selectedRows)
@@ -5849,6 +5863,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         // selection of N rows used to pay all of that N times.
         private List<(string ApiName, AchievementEditableField Field, object Value)> _batchedFieldWrites;
 
+        // Notes collected during the same batch. Kept separate because a note is not an
+        // AchievementEditableField and takes its own service call.
+        private Dictionary<string, string> _batchedNoteWrites;
+
         /// <summary>
         /// Flushes the writes collected during a batch: one store update per distinct field and
         /// value, and one assignments notification for the whole gesture.
@@ -5856,9 +5874,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void FlushBatchedFieldWrites()
         {
             var pending = _batchedFieldWrites;
+            var pendingNotes = _batchedNoteWrites;
             _batchedFieldWrites = null;
+            _batchedNoteWrites = null;
+
+            if (pendingNotes != null && pendingNotes.Count > 0)
+            {
+                _achievementOverridesService.SetAchievementNotes(_gameId, pendingNotes);
+            }
+
             if (pending == null || pending.Count == 0)
             {
+                if (pendingNotes != null && pendingNotes.Count > 0)
+                {
+                    RaiseAssignmentsChanged();
+                }
+
                 return;
             }
 
