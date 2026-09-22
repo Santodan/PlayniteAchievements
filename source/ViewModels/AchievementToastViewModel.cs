@@ -315,6 +315,15 @@ namespace PlayniteAchievements.ViewModels
         // Drives the footer container's visibility so it collapses cleanly and the icon-centering
         // spacer mirrors zero height when there is no footer.
         public bool HasIconFooter => ShowBadge || ShowPercent;
+        public bool FrameHasIconFooter => FrameShowBadge || FrameShowPercent;
+
+        // The achievement artwork itself. With it hidden the icon column still carries the
+        // footer badge and percent when either is on; with nothing left to draw the column
+        // collapses whole, so no empty gutter is left before the text lines.
+        public bool ShowIcon => _style.Toast.ShowIcon;
+        public bool FrameShowIcon => _style.Frame.ShowIcon;
+        public bool ShowIconColumn => ShowIcon || HasIconFooter;
+        public bool FrameShowIconColumn => FrameShowIcon || FrameHasIconFooter;
 
         // The rarity/trophy badge drawn inline before the achievement name (an alternative to
         // the icon-column footer badge). Shares the same badge image sources.
