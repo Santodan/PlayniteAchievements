@@ -816,7 +816,7 @@
 
         <!-- Badge images: this surface's own custom rarity badge art. -->
         <Border Style="{StaticResource EditorCardStyle}">
-            <StackPanel IsEnabled="{Binding IsImageEditingEnabled}">
+            <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BadgeImages}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BadgeImagesHint}"
@@ -1039,7 +1039,7 @@
         <!-- Background image (toast only; frames never get a background). -->
         <Border Style="{StaticResource EditorCardStyle}"
                 Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}">
-            <StackPanel IsEnabled="{Binding IsImageEditingEnabled}">
+            <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BackgroundImage}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BackgroundImageHint}"
