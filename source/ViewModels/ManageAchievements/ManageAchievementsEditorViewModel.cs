@@ -23,6 +23,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -3557,9 +3558,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .Where(row => !string.IsNullOrWhiteSpace(row?.OriginalApiName))
                 .Select(row => row.OriginalApiName)
                 .ToList();
-            foreach (var row in AchievementRows)
+            // Split three ways. The one number this used to report covered detaching the old
+            // rows, constructing the new ones and attaching them, and the construction was
+            // invisible inside it because the caller hands this a lazy Select that only runs
+            // when the attach loop enumerates it. A slow open could not be attributed to any of
+            // the three.
+            using (Common.PerfScope.Start(
+                _logger,
+                "Editor.ReplaceRows.Detach",
+                thresholdMs: 5,
+                context: "rows=" + AchievementRows.Count))
             {
-                DetachRow(row);
+                foreach (var row in AchievementRows)
+                {
+                    DetachRow(row);
+                }
             }
 
             // The multi-selection is made of the rows being replaced, and the grid only echoes a
@@ -3570,10 +3583,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             AchievementRows.Clear();
             var useSeparateLockedIcons = ResolveUseSeparateLockedIcons();
-            foreach (var row in rows ?? Enumerable.Empty<AchievementEditorRow>())
+
+            // Materialized after the clear, exactly where the old lazy enumeration ran, so the
+            // ordering is unchanged and this scope measures row construction on its own.
+            List<AchievementEditorRow> materializedRows;
+            using (var buildScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.ReplaceRows.BuildRows",
+                thresholdMs: 5))
             {
-                AttachRow(row, useSeparateLockedIcons);
-                AchievementRows.Add(row);
+                materializedRows = (rows ?? Enumerable.Empty<AchievementEditorRow>()).ToList();
+                buildScope?.SetContext("rows=" + materializedRows.Count);
+            }
+
+            using (Common.PerfScope.Start(
+                _logger,
+                "Editor.ReplaceRows.Attach",
+                thresholdMs: 5,
+                context: "rows=" + materializedRows.Count))
+            {
+                foreach (var row in materializedRows)
+                {
+                    AttachRow(row, useSeparateLockedIcons);
+                    AchievementRows.Add(row);
+                }
             }
 
             // Keep the user's place: a save or reload rebuilds the rows, and the details pane
@@ -8067,26 +8100,54 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(HasChanges));
         }
 
+        /// <summary>
+        /// A change-detection signature for this row. Only ever compared with another signature
+        /// by ordinal equality -- never parsed, stored or shown -- so it does not need to be JSON.
+        /// </summary>
+        /// <remarks>
+        /// It used to be a Newtonsoft serialization of a fifteen-field anonymous object, built
+        /// once per row when the editor loads and again whenever the collection signature is
+        /// taken. Reflection and a writer per row is a lot to pay for a string that only ever
+        /// feeds string.Equals, on a surface whose reported symptom is opening a game with
+        /// hundreds of achievements.
+        ///
+        /// Each field is length-prefixed rather than separator-delimited. A separator would be
+        /// ambiguous if an achievement's own text contained it, and the failure that causes is
+        /// the bad one: two different rows hashing alike reads as "unchanged" and silently drops
+        /// the user's edit. A length prefix cannot collide whatever the content, and null is
+        /// distinguished from empty.
+        /// </remarks>
         private string BuildSignature()
         {
-            return JsonConvert.SerializeObject(new
+            var builder = new StringBuilder(256);
+            AppendField(builder, Id);
+            AppendField(builder, DisplayName);
+            AppendField(builder, Description);
+            AppendField(builder, Unlocked ? "1" : "0");
+            AppendField(builder, FormatDate(UnlockTime));
+            AppendField(builder, UnlockedIconPath);
+            AppendField(builder, LockedIconPath);
+            AppendField(builder, PointsText);
+            AppendField(builder, TrophyType);
+            AppendField(builder, Hidden ? "1" : "0");
+            AppendField(builder, Rarity);
+            AppendField(builder, GlobalPercentUnlockedText);
+            AppendField(builder, RarityInput);
+            AppendField(builder, ProgressNumText);
+            AppendField(builder, ProgressDenomText);
+            return builder.ToString();
+        }
+
+        private static void AppendField(StringBuilder builder, object value)
+        {
+            var text = value?.ToString();
+            if (text == null)
             {
-                Id,
-                DisplayName,
-                Description,
-                Unlocked,
-                UnlockTimeUtc = FormatDate(UnlockTime),
-                UnlockedIconPath,
-                LockedIconPath,
-                PointsText,
-                TrophyType,
-                Hidden,
-                Rarity,
-                GlobalPercentUnlockedText,
-                RarityInput,
-                ProgressNumText,
-                ProgressDenomText
-            });
+                builder.Append("-1|");
+                return;
+            }
+
+            builder.Append(text.Length).Append('|').Append(text);
         }
 
         private void ValidateAndApplyTimeText()
