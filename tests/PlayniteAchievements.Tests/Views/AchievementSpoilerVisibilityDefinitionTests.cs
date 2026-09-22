@@ -139,6 +139,60 @@ namespace PlayniteAchievements.Tests.Views
             CollectionAssert.AreEqual(new List<string>(), offenders);
         }
 
+        [TestMethod]
+        public void EditorRevealHeaders_BindThroughTheProxyNotRelativeSource()
+        {
+            var xaml = File.ReadAllText(FindRepoFile(
+                "source", "Views", "ManageAchievements", "ManageAchievementsEditorTab.xaml"));
+
+            Assert.IsTrue(
+                xaml.Contains("<helpers:BindingProxy x:Key=\"EditorTabContext\" Data=\"{Binding}\" />"),
+                "The editor tab no longer declares the binding proxy its column headers use.");
+
+            // A DataGridColumn is outside the visual tree, so a FindAncestor binding in its header
+            // resolves only if that header is realized while the tree is complete. A column that
+            // starts hidden is realized later and its Command binding lands on null, leaving a
+            // reveal-all button that renders but does nothing.
+            var stragglers = Regex.Matches(
+                xaml,
+                @"Binding DataContext\.(CanRevealAny\w+|AreAll\w+Revealed|ToggleAll\w+Command|CycleAllIconStagesCommand|IconColumnStage\w*), RelativeSource")
+                .Cast<Match>()
+                .Select(m => m.Groups[1].Value)
+                .Distinct()
+                .ToList();
+
+            CollectionAssert.AreEqual(new List<string>(), stragglers);
+
+            // Every column that offers a reveal-all toggle must go through the proxy.
+            foreach (var path in new[]
+            {
+                "CycleAllIconStagesCommand", "ToggleAllTitlesRevealCommand", "ToggleAllDescriptionsRevealCommand",
+                "ToggleAllTrophiesRevealCommand", "ToggleAllPointsRevealCommand"
+            })
+            {
+                Assert.IsTrue(
+                    xaml.Contains("{Binding Data." + path + ", Source={StaticResource EditorTabContext}}"),
+                    $"{path} is not bound through the editor tab's binding proxy.");
+            }
+        }
+
+        [TestMethod]
+        public void EditorRevealsATrophyOrPointValueTheUserJustEntered()
+        {
+            var vm = File.ReadAllText(FindRepoFile(
+                "source", "ViewModels", "ManageAchievements", "ManageAchievementsEditorViewModel.cs"));
+
+            // Masking a value the instant it is typed hides the user's own edit. The hook sits in
+            // Row_PropertyChanged, which only sees attached rows, so a load does not trip it.
+            var handler = Between(vm, "private void Row_PropertyChanged", "private void RefreshComputedState");
+            AssertContainsAll(
+                handler,
+                "e.PropertyName == nameof(AchievementEditorRow.TrophyType) && valueEditedRow.HasTrophyType",
+                "valueEditedRow.IsTrophyRevealed = true;",
+                "e.PropertyName == nameof(AchievementEditorRow.PointsText) && valueEditedRow.HasPoints",
+                "valueEditedRow.IsPointsRevealed = true;");
+        }
+
         private static string Between(string content, string start, string end)
         {
             var from = content.IndexOf(start, StringComparison.Ordinal);
@@ -214,11 +268,12 @@ namespace PlayniteAchievements.Tests.Views
 
             AssertContainsAll(
                 xaml,
-                // Reveal-all header toggles.
-                "DataContext.ToggleAllTrophiesRevealCommand",
-                "DataContext.ToggleAllPointsRevealCommand",
-                "DataContext.CanRevealAnyTrophy",
-                "DataContext.CanRevealAnyPoints",
+                // Reveal-all header toggles, reached through the proxy rather than FindAncestor
+                // so they still work for a column that was hidden when the window opened.
+                "Data.ToggleAllTrophiesRevealCommand",
+                "Data.ToggleAllPointsRevealCommand",
+                "Data.CanRevealAnyTrophy",
+                "Data.CanRevealAnyPoints",
                 // Per-row toggles and the masked overlays they clear.
                 "Click=\"ToggleTrophyRevealButton_Click\"",
                 "Click=\"TogglePointsRevealButton_Click\"",
