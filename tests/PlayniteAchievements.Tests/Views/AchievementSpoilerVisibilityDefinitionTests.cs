@@ -340,19 +340,23 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void DisplaySettings_RoundRarityPercentagesLivesInGridDefaults()
+        public void DisplaySettings_RoundRarityPercentagesLivesUnderRarity()
         {
             var general = File.ReadAllText(FindRepoFile("source", "Views", "Settings", "Display", "DisplayGeneralSection.xaml"));
-            var appearance = File.ReadAllText(FindRepoFile("source", "Views", "Settings", "Display", "ColorsSection.xaml"));
+            var colors = File.ReadAllText(FindRepoFile("source", "Views", "Settings", "Display", "ColorsSection.xaml"));
             var previewProperties = File.ReadAllText(FindRepoFile("source", "Views", "Settings", "Display", "DisplayPreviewProperties.cs"));
 
-            var gridDefaultsIndex = general.IndexOf("LOCPlayAch_Settings_Display_GridDefaults", StringComparison.Ordinal);
+            // The Rarity heading reuses the Rarity column string; the Formatting heading above it
+            // is the nearest preceding section, so ordering pins which one the setting sits under.
+            var formattingIndex = general.IndexOf("LOCPlayAch_Settings_Display_Formatting", StringComparison.Ordinal);
+            var rarityHeadingIndex = general.IndexOf("LOCPlayAch_Column_Rarity", StringComparison.Ordinal);
             var roundRarityIndex = general.IndexOf("LOCPlayAch_Settings_RoundRarityPercentages", StringComparison.Ordinal);
 
-            Assert.IsTrue(gridDefaultsIndex >= 0, "Grid Defaults section missing.");
-            Assert.IsTrue(roundRarityIndex > gridDefaultsIndex, "Round rarity setting must live under Grid Defaults.");
-            Assert.IsFalse(appearance.Contains("LOCPlayAch_Settings_RoundRarityPercentages"),
-                "Round rarity setting should not live in Appearance.");
+            Assert.IsTrue(formattingIndex >= 0, "Formatting section missing.");
+            Assert.IsTrue(rarityHeadingIndex > formattingIndex, "Rarity section must follow Formatting.");
+            Assert.IsTrue(roundRarityIndex > rarityHeadingIndex, "Round rarity setting must live under Rarity.");
+            Assert.IsFalse(colors.Contains("LOCPlayAch_Settings_RoundRarityPercentages"),
+                "Round rarity setting should not live in Colors.");
             AssertContainsAll(
                 general,
                 "IsChecked=\"{Binding Persisted.RoundRarityPercentages}\"",
