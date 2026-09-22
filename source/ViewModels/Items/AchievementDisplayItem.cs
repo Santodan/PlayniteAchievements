@@ -36,6 +36,20 @@ namespace PlayniteAchievements.ViewModels.Items
 
             public bool ShowLockedIcon { get; set; }
 
+            // These six default to "reveal", matching their persisted defaults, so a
+            // default-constructed snapshot never masks a field that the settings leave visible.
+            public bool ShowLockedTitle { get; set; } = true;
+
+            public bool ShowLockedDescription { get; set; } = true;
+
+            public bool ShowHiddenTrophy { get; set; } = true;
+
+            public bool ShowHiddenPoints { get; set; } = true;
+
+            public bool ShowLockedTrophy { get; set; } = true;
+
+            public bool ShowLockedPoints { get; set; } = true;
+
             public bool UseSeparateLockedIconsWhenAvailable { get; set; }
 
             public bool ShowRarityBar { get; set; }
@@ -465,6 +479,9 @@ namespace PlayniteAchievements.ViewModels.Items
                 {
                     OnPropertyChanged(nameof(Points));
                     OnPropertyChanged(nameof(PointsText));
+                    OnPropertyChanged(nameof(HasPoints));
+                    NotifyRevealStateChanged();
+                    NotifyPointsDisplayChanged();
                 }
             }
         }
@@ -702,6 +719,92 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
+        private bool _showLockedTitle = true;
+        public bool ShowLockedTitle
+        {
+            get => _showLockedTitle;
+            set
+            {
+                if (SetValueAndReturn(ref _showLockedTitle, value))
+                {
+                    NotifyRevealStateChanged();
+                    OnPropertyChanged(nameof(IsTitleHidden));
+                    NotifyTitleDisplayChanged();
+                }
+            }
+        }
+
+        private bool _showLockedDescription = true;
+        public bool ShowLockedDescription
+        {
+            get => _showLockedDescription;
+            set
+            {
+                if (SetValueAndReturn(ref _showLockedDescription, value))
+                {
+                    NotifyRevealStateChanged();
+                    OnPropertyChanged(nameof(IsDescriptionHidden));
+                    NotifyDescriptionDisplayChanged();
+                }
+            }
+        }
+
+        private bool _showHiddenTrophy = true;
+        public bool ShowHiddenTrophy
+        {
+            get => _showHiddenTrophy;
+            set
+            {
+                if (SetValueAndReturn(ref _showHiddenTrophy, value))
+                {
+                    NotifyRevealStateChanged();
+                    NotifyTrophyDisplayChanged();
+                }
+            }
+        }
+
+        private bool _showHiddenPoints = true;
+        public bool ShowHiddenPoints
+        {
+            get => _showHiddenPoints;
+            set
+            {
+                if (SetValueAndReturn(ref _showHiddenPoints, value))
+                {
+                    NotifyRevealStateChanged();
+                    NotifyPointsDisplayChanged();
+                }
+            }
+        }
+
+        private bool _showLockedTrophy = true;
+        public bool ShowLockedTrophy
+        {
+            get => _showLockedTrophy;
+            set
+            {
+                if (SetValueAndReturn(ref _showLockedTrophy, value))
+                {
+                    NotifyRevealStateChanged();
+                    NotifyTrophyDisplayChanged();
+                }
+            }
+        }
+
+        private bool _showLockedPoints = true;
+        public bool ShowLockedPoints
+        {
+            get => _showLockedPoints;
+            set
+            {
+                if (SetValueAndReturn(ref _showLockedPoints, value))
+                {
+                    NotifyRevealStateChanged();
+                    NotifyPointsDisplayChanged();
+                }
+            }
+        }
+
         private bool _showFriendSpoilers;
         public bool ShowFriendSpoilers
         {
@@ -718,6 +821,8 @@ namespace PlayniteAchievements.ViewModels.Items
                     NotifyIconDisplayChanged();
                     NotifyTitleDisplayChanged();
                     NotifyDescriptionDisplayChanged();
+                    NotifyTrophyDisplayChanged();
+                    NotifyPointsDisplayChanged();
                 }
             }
         }
@@ -760,13 +865,21 @@ namespace PlayniteAchievements.ViewModels.Items
                     {
                         NotifyIconDisplayChanged();
                     }
-                    if (!ShowHiddenTitle)
+                    if (!ShowHiddenTitle || !ShowLockedTitle)
                     {
                         NotifyTitleDisplayChanged();
                     }
-                    if (!ShowHiddenDescription)
+                    if (!ShowHiddenDescription || !ShowLockedDescription)
                     {
                         NotifyDescriptionDisplayChanged();
+                    }
+                    if (!ShowHiddenTrophy || !ShowLockedTrophy)
+                    {
+                        NotifyTrophyDisplayChanged();
+                    }
+                    if (!ShowHiddenPoints || !ShowLockedPoints)
+                    {
+                        NotifyPointsDisplayChanged();
                     }
                 }
             }
@@ -824,6 +937,8 @@ namespace PlayniteAchievements.ViewModels.Items
                     nameof(TrophyType)))
                 {
                     OnPropertyChanged(nameof(HasTrophyType));
+                    NotifyRevealStateChanged();
+                    NotifyTrophyDisplayChanged();
                 }
             }
         }
@@ -979,7 +1094,29 @@ namespace PlayniteAchievements.ViewModels.Items
         /// True if the achievement can be revealed (is locked and at least one hiding setting is enabled).
         /// Includes both hidden achievements and locked achievements when ShowLockedIcon is false.
         /// </summary>
-        public bool CanReveal => !UnlockedForVisibility && (!ShowLockedIcon || (Hidden && (!ShowHiddenIcon || !ShowHiddenTitle || !ShowHiddenDescription)));
+        public bool CanReveal => !UnlockedForVisibility && (!ShowLockedIcon
+            || TitleMaskApplies
+            || DescriptionMaskApplies
+            || TrophyMaskApplies
+            || PointsMaskApplies
+            || (Hidden && !ShowHiddenIcon));
+
+        /// <summary>
+        /// A hidden achievement is also locked, so the hidden toggle governs every field it covers
+        /// and the locked toggle governs the rest. These say whether a mask is configured for this
+        /// row at all, before the reveal state is taken into account.
+        /// </summary>
+        private bool TitleMaskApplies => Hidden ? !ShowHiddenTitle : !ShowLockedTitle;
+
+        private bool DescriptionMaskApplies => Hidden ? !ShowHiddenDescription : !ShowLockedDescription;
+
+        /// <summary>
+        /// Trophy and points only mask when the row actually carries one, so an achievement with no
+        /// trophy grade or no point value is never made revealable by these toggles.
+        /// </summary>
+        private bool TrophyMaskApplies => HasTrophyType && (Hidden ? !ShowHiddenTrophy : !ShowLockedTrophy);
+
+        private bool PointsMaskApplies => HasPoints && (Hidden ? !ShowHiddenPoints : !ShowLockedPoints);
 
         /// <summary>
         /// True if the achievement details are currently hidden (can reveal and not yet revealed).
@@ -999,18 +1136,36 @@ namespace PlayniteAchievements.ViewModels.Items
         /// <summary>
         /// True if the title is currently being hidden (for XAML styling triggers).
         /// </summary>
-        public bool IsTitleHidden => IsHidden && Hidden && !ShowHiddenTitle;
+        public bool IsTitleHidden => IsHidden && TitleMaskApplies;
 
         /// <summary>
         /// True if the description is currently being hidden (for XAML styling triggers).
         /// </summary>
-        public bool IsDescriptionHidden => IsHidden && !ShowHiddenDescription;
+        public bool IsDescriptionHidden => IsHidden && DescriptionMaskApplies;
+
+        /// <summary>
+        /// True if the trophy grade is currently being hidden (for XAML styling triggers).
+        /// </summary>
+        public bool IsTrophyHidden => IsHidden && TrophyMaskApplies;
+
+        /// <summary>
+        /// True if the point value is currently being hidden (for XAML styling triggers).
+        /// </summary>
+        public bool IsPointsHidden => IsHidden && PointsMaskApplies;
 
         public string DisplayNameResolved
         {
             get
             {
-                if (IsHidden && Hidden && !ShowHiddenTitle) return ResourceProvider.GetString("LOCPlayAch_Achievements_HiddenTitle");
+                // A hidden achievement says what it is; a merely locked one has nothing secret about
+                // its existence, so it advertises the click instead.
+                if (IsTitleHidden)
+                {
+                    return ResourceProvider.GetString(Hidden
+                        ? "LOCPlayAch_Achievements_HiddenTitle"
+                        : "LOCPlayAch_Achievements_ClickToReveal");
+                }
+
                 return DisplayName;
             }
         }
@@ -1053,7 +1208,7 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             get
             {
-                if (IsHidden && Hidden && !ShowHiddenDescription) return ResourceProvider.GetString("LOCPlayAch_Achievements_ClickToReveal");
+                if (IsDescriptionHidden) return ResourceProvider.GetString("LOCPlayAch_Achievements_ClickToReveal");
                 return Description;
             }
         }
@@ -1062,10 +1217,21 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             get
             {
-                if (IsHidden && Hidden && !ShowHiddenDescription) return string.Empty;
+                if (IsDescriptionHidden) return string.Empty;
                 return ApiName;
             }
         }
+
+        /// <summary>
+        /// Point value for display, replaced by a placeholder while the points mask applies. The
+        /// placeholder is a bare symbol so it needs no translation.
+        /// </summary>
+        public string PointsTextResolved => IsPointsHidden ? MaskedValuePlaceholder : PointsText;
+
+        /// <summary>
+        /// Stands in for a masked trophy grade or point value.
+        /// </summary>
+        public const string MaskedValuePlaceholder = "?";
 
         /// <summary>
         /// Toggles the revealed state if the achievement can be revealed.
@@ -1086,13 +1252,7 @@ namespace PlayniteAchievements.ViewModels.Items
             Models.Achievements.AchievementDetail source,
             string gameName,
             Guid? playniteGameId,
-            bool showHiddenIcon,
-            bool showHiddenTitle,
-            bool showHiddenDescription,
-            bool showHiddenSuffix,
-            bool showLockedIcon,
-            bool useSeparateLockedIconsWhenAvailable,
-            bool showRarityBar = true,
+            AppearanceSettingsSnapshot appearance,
             string sortingName = null,
             string gameIconPath = null,
             string gameCoverPath = null,
@@ -1104,14 +1264,7 @@ namespace PlayniteAchievements.ViewModels.Items
             GameName = gameName;
             SortingName = sortingName ?? gameName;
             PlayniteGameId = playniteGameId;
-            ApplyAppearanceSettings(
-                showHiddenIcon,
-                showHiddenTitle,
-                showHiddenDescription,
-                showHiddenSuffix,
-                showLockedIcon,
-                useSeparateLockedIconsWhenAvailable,
-                showRarityBar);
+            ApplyAppearanceSettings(appearance);
             PointsValue = source?.Points;
             CategoryType = source?.CategoryType;
             CategoryLabel = source?.Category;
@@ -1143,13 +1296,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 sourceItem.Source,
                 sourceItem.GameName,
                 sourceItem.PlayniteGameId,
-                sourceItem.ShowHiddenIcon,
-                sourceItem.ShowHiddenTitle,
-                sourceItem.ShowHiddenDescription,
-                sourceItem.ShowHiddenSuffix,
-                sourceItem.ShowLockedIcon,
-                sourceItem.UseSeparateLockedIconsWhenAvailable,
-                sourceItem.ShowRarityBar,
+                sourceItem.CaptureAppearanceSettings(),
                 sourceItem.SortingName,
                 sourceItem.GameIconPath,
                 sourceItem.GameCoverPath,
@@ -1160,33 +1307,12 @@ namespace PlayniteAchievements.ViewModels.Items
             CategoryType = sourceItem.CategoryType;
             CategoryLabel = sourceItem.CategoryLabel;
             IsRevealed = sourceItem.IsRevealed;
-            ShowFriendSpoilers = sourceItem.ShowFriendSpoilers;
             // The marker stamps items, not their Source details, so the detail-based
             // UpdateFrom above would drop paths the source item already carries.
             CleanCapturePath = sourceItem.CleanCapturePath;
             NotificationCapturePath = sourceItem.NotificationCapturePath;
             FramedCapturePath = sourceItem.FramedCapturePath;
             VideoCapturePath = sourceItem.VideoCapturePath;
-        }
-
-        public void ApplyAppearanceSettings(
-            bool showHiddenIcon,
-            bool showHiddenTitle,
-            bool showHiddenDescription,
-            bool showHiddenSuffix,
-            bool showLockedIcon,
-            bool useSeparateLockedIconsWhenAvailable,
-            bool showRarityBar = true)
-        {
-            ShowHiddenIcon = showHiddenIcon;
-            ShowHiddenTitle = showHiddenTitle;
-            ShowHiddenDescription = showHiddenDescription;
-            ShowHiddenSuffix = showHiddenSuffix;
-            ShowLockedIcon = showLockedIcon;
-            UseSeparateLockedIconsWhenAvailable = useSeparateLockedIconsWhenAvailable;
-            ShowRarityBar = showRarityBar;
-            OnPropertyChanged(nameof(RarityBrush));
-            OnPropertyChanged(nameof(RarityNameBrush));
         }
 
         public void ApplyAppearanceSettings(PlayniteAchievementsSettings settings, Guid? playniteGameId = null)
@@ -1200,15 +1326,47 @@ namespace PlayniteAchievements.ViewModels.Items
         public void ApplyAppearanceSettings(AppearanceSettingsSnapshot snapshot)
         {
             var resolved = snapshot ?? new AppearanceSettingsSnapshot();
-            ApplyAppearanceSettings(
-                resolved.ShowHiddenIcon,
-                resolved.ShowHiddenTitle,
-                resolved.ShowHiddenDescription,
-                resolved.ShowHiddenSuffix,
-                resolved.ShowLockedIcon,
-                resolved.UseSeparateLockedIconsWhenAvailable,
-                resolved.ShowRarityBar);
+            ShowHiddenIcon = resolved.ShowHiddenIcon;
+            ShowHiddenTitle = resolved.ShowHiddenTitle;
+            ShowHiddenDescription = resolved.ShowHiddenDescription;
+            ShowHiddenSuffix = resolved.ShowHiddenSuffix;
+            ShowLockedIcon = resolved.ShowLockedIcon;
+            ShowLockedTitle = resolved.ShowLockedTitle;
+            ShowLockedDescription = resolved.ShowLockedDescription;
+            ShowHiddenTrophy = resolved.ShowHiddenTrophy;
+            ShowHiddenPoints = resolved.ShowHiddenPoints;
+            ShowLockedTrophy = resolved.ShowLockedTrophy;
+            ShowLockedPoints = resolved.ShowLockedPoints;
+            UseSeparateLockedIconsWhenAvailable = resolved.UseSeparateLockedIconsWhenAvailable;
+            ShowRarityBar = resolved.ShowRarityBar;
             ShowFriendSpoilers = resolved.ShowFriendSpoilers;
+            OnPropertyChanged(nameof(RarityBrush));
+            OnPropertyChanged(nameof(RarityNameBrush));
+        }
+
+        /// <summary>
+        /// Reads this item's appearance state back out as a snapshot, so another item can be brought
+        /// into line with it without every field being threaded through a parameter list.
+        /// </summary>
+        public AppearanceSettingsSnapshot CaptureAppearanceSettings()
+        {
+            return new AppearanceSettingsSnapshot
+            {
+                ShowHiddenIcon = ShowHiddenIcon,
+                ShowHiddenTitle = ShowHiddenTitle,
+                ShowHiddenDescription = ShowHiddenDescription,
+                ShowHiddenSuffix = ShowHiddenSuffix,
+                ShowLockedIcon = ShowLockedIcon,
+                ShowLockedTitle = ShowLockedTitle,
+                ShowLockedDescription = ShowLockedDescription,
+                ShowHiddenTrophy = ShowHiddenTrophy,
+                ShowHiddenPoints = ShowHiddenPoints,
+                ShowLockedTrophy = ShowLockedTrophy,
+                ShowLockedPoints = ShowLockedPoints,
+                UseSeparateLockedIconsWhenAvailable = UseSeparateLockedIconsWhenAvailable,
+                ShowRarityBar = ShowRarityBar,
+                ShowFriendSpoilers = ShowFriendSpoilers
+            };
         }
 
         /// <summary>
@@ -1236,6 +1394,12 @@ namespace PlayniteAchievements.ViewModels.Items
                 ShowHiddenDescription = persisted?.ShowHiddenDescription ?? false,
                 ShowHiddenSuffix = persisted?.ShowHiddenSuffix ?? true,
                 ShowLockedIcon = persisted?.ShowLockedIcon ?? true,
+                ShowLockedTitle = persisted?.ShowLockedTitle ?? true,
+                ShowLockedDescription = persisted?.ShowLockedDescription ?? true,
+                ShowHiddenTrophy = persisted?.ShowHiddenTrophy ?? true,
+                ShowHiddenPoints = persisted?.ShowHiddenPoints ?? true,
+                ShowLockedTrophy = persisted?.ShowLockedTrophy ?? true,
+                ShowLockedPoints = persisted?.ShowLockedPoints ?? true,
                 UseSeparateLockedIconsWhenAvailable = resolvedUseSeparateLockedIcons ??
                     GameCustomDataLookup.ShouldUseSeparateLockedIcons(resolvedGameId, persisted),
                 ShowRarityBar = persisted?.ShowCompactListRarityBar ?? true,
@@ -1261,9 +1425,15 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public int Points => PointsValue ?? 0;
 
-        public string PointsText => PointsValue.GetValueOrDefault() != 0
+        public string PointsText => HasPoints
             ? PointsValue.Value.ToString("N0", FormattingCulture.Current)
             : string.Empty;
+
+        /// <summary>
+        /// True when the achievement carries a point value worth rendering. A zero value already
+        /// renders blank, so it has nothing to mask.
+        /// </summary>
+        public bool HasPoints => PointsValue.GetValueOrDefault() != 0;
 
         public int CollectionScore => _source?.CollectionScore ?? 0;
 
@@ -1729,6 +1899,17 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             OnPropertyChanged(nameof(DisplayIcon));
             OnPropertyChanged(nameof(Icon));
+        }
+
+        private void NotifyTrophyDisplayChanged()
+        {
+            OnPropertyChanged(nameof(IsTrophyHidden));
+        }
+
+        private void NotifyPointsDisplayChanged()
+        {
+            OnPropertyChanged(nameof(IsPointsHidden));
+            OnPropertyChanged(nameof(PointsTextResolved));
         }
 
         private string GetLockedDisplayIcon()
