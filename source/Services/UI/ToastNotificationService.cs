@@ -1077,8 +1077,10 @@ namespace PlayniteAchievements.Services.UI
                 var ph = Math.Max(1, (int)Math.Ceiling(cardHPhys * scale));
 
                 // Opacity animated on the slide host (a theme may fade the notification in or out
-                // instead of sliding it) lives above the card, so rendering the card alone would miss
-                // it and the clip would show an opaque card while the screen showed a fade.
+                // instead of sliding it) lives above the card, so rendering the card alone misses
+                // it. Only the still-image composites bake it in here; the clip track records it
+                // per sample instead and replays it at export, because its pixels are held frozen
+                // for a slide storyboard's whole span — which is exactly when a fade runs.
                 var hostOpacity = applyHostOpacity ? _activeSlideHost?.Opacity ?? 1d : 1d;
 
                 // The container's offset within its parent panel: zero for a single-card wave and
@@ -1381,13 +1383,13 @@ namespace PlayniteAchievements.Services.UI
                 // A frame primed before the slide substitutes for the first tick's rasterization:
                 // submitting it is only an enqueue, so the slide-in's early frames carry no render
                 // cost. Deliberately ahead of the stagger — no rasterization happens either way.
-                // A fade theme's first tick must not submit opacity-1 pixels primed before the
-                // fade began, so mid-fade the buffer goes back and the live path runs instead.
+                // Valid at any point in a fade, because no render on this path carries the host's
+                // opacity: it is recorded per sample and replayed at export.
                 if (scratch.PrimedPixels != null)
                 {
                     var primed = scratch.PrimedPixels;
                     scratch.PrimedPixels = null;
-                    if (hostOpacity >= 0.999 && recorder.CanAcceptFrame(vm))
+                    if (recorder.CanAcceptFrame(vm))
                     {
                         recorder.Sample(
                             vm, primed, scratch.PrimedW, scratch.PrimedH,
@@ -1452,7 +1454,7 @@ namespace PlayniteAchievements.Services.UI
                 {
                     rendered = TryRenderToastItemBytes(
                         window, container, scratch, len => recorder.RentBuffer(vm, len),
-                        applyHostOpacity: true, captureScale, probeCase: null,
+                        applyHostOpacity: false, captureScale, probeCase: null,
                         out pixels, out pw, out ph, out cardWPhys, out cardHPhys);
                 }
                 finally
@@ -1485,14 +1487,14 @@ namespace PlayniteAchievements.Services.UI
                 // Ray layers refresh on a time budget: rays drift slowly and the export
                 // crossfades adjacent layers, so a modest capture rate plays back smoothly while
                 // each capture's full with-rays render stays rare enough to keep the tick healthy.
-                // Skipped mid-fade — the layer must carry no host opacity of its own, since the
-                // export scales it by the sample's. Computed before the Sample call (which passes
-                // the bare buffer's ownership to the worker), attached after it (the item's time
-                // epoch must exist first).
+                // Both renders the delta comes from exclude host opacity, so a mid-fade capture is
+                // as valid as any other. Computed before the Sample call (which passes the bare
+                // buffer's ownership to the worker), attached after it (the item's time epoch must
+                // exist first).
                 byte[] rayDelta = null;
                 var rayW = 0;
                 var rayH = 0;
-                if (rayBursts.Count > 0 && hostOpacity >= 0.999 &&
+                if (rayBursts.Count > 0 &&
                     _runningSlideStoryboard == null &&
                     elapsedMs - scratch.LastRayCaptureMs >= RayLayerBaseIntervalMs * toastItems.Count)
                 {
@@ -1539,7 +1541,7 @@ namespace PlayniteAchievements.Services.UI
             {
                 rendered = TryRenderToastItemBytes(
                     window, container, scratch: null, len => recorder.RentBuffer(vm, len),
-                    applyHostOpacity: true, captureScale, probeCase: "rays",
+                    applyHostOpacity: false, captureScale, probeCase: "rays",
                     out withRays, out rw, out rh, out _, out _);
             }
             finally
@@ -1603,8 +1605,9 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// The shadow-layer multiplier for this tick: the glow effect's current animated opacity
-        /// relative to the opacity the layer was captured at, times the slide host's opacity (the
-        /// halo must fade with a fade theme even though the card pixels carry that fade already).
+        /// relative to the opacity the layer was captured at, times the slide host's opacity, so
+        /// the halo fades with a fade theme the way the card pixels do (export scales those by the
+        /// sample's host opacity; no render bakes it in).
         /// </summary>
         private static double ComputeGlowScale(CardRenderScratch scratch, double hostOpacity)
         {
@@ -1713,7 +1716,7 @@ namespace PlayniteAchievements.Services.UI
                 {
                     rendered = TryRenderToastItemBytes(
                         window, container, scratch, len => recorder.RentBuffer(vm, len),
-                        applyHostOpacity: true, captureScale, probeCase: null,
+                        applyHostOpacity: false, captureScale, probeCase: null,
                         out pixels, out pw, out ph, out cardWPhys, out cardHPhys);
                 }
                 finally
