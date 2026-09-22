@@ -88,6 +88,36 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
+        /// Scales a premultiplied-BGRA buffer in place: target = target x scale, all four channels.
+        /// Scaling colour and alpha together is what keeps the buffer premultiplied, so the result
+        /// composites as the same image at a lower opacity. This is how a theme's host fade reaches
+        /// the clip: the recorded card pixels carry no opacity of their own, and the fade is
+        /// replayed here per output frame. A scale at or above 1 is a no-op (the recorded pixels are
+        /// already the card at full opacity); a non-positive scale clears the buffer.
+        /// </summary>
+        public static void ScaleAll(byte[] target, double scale)
+        {
+            if (target == null || scale >= 1.0)
+            {
+                return;
+            }
+
+            if (scale <= 0)
+            {
+                Array.Clear(target, 0, target.Length);
+                return;
+            }
+
+            // The same fixed-point 8.8 multiplier AddScaled uses, so the card and the difference
+            // layers added on top of it quantize identically.
+            var factor = (int)Math.Round(scale * 256.0);
+            for (var i = 0; i < target.Length; i++)
+            {
+                target[i] = (byte)((target[i] * factor) >> 8);
+            }
+        }
+
+        /// <summary>
         /// Widens a clipped rectangle to even bounds inside an even-sized frame, so it covers whole
         /// 2x2 chroma blocks of a 4:2:0 image. Empty stays empty.
         /// </summary>
