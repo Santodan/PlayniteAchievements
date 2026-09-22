@@ -1048,6 +1048,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ScanningHashing">Scanning &amp; Hashing</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SetCompletionStatus">Set Completion Status for Completed Games</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompactListRarityBar">Show Rarity Bar</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealWhen">Reveal when</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Spoilers">Spoilers</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SortBy">Sort By</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SortDirection_Tooltip">Toggle sort direction</sys:String>
