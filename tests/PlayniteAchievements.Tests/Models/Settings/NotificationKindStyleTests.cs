@@ -34,6 +34,52 @@ namespace PlayniteAchievements.Tests.Models.Settings
         }
 
         [TestMethod]
+        public void Resolve_FallsThroughToTheRarityTierForAPlainUnlock()
+        {
+            Assert.AreEqual(
+                NotificationKind.Common,
+                NotificationKindResolver.Resolve(
+                    new AchievementUnlockedEventArgs { RarityTier = "Common" }));
+            Assert.AreEqual(
+                NotificationKind.Uncommon,
+                NotificationKindResolver.Resolve(
+                    new AchievementUnlockedEventArgs { RarityTier = "uncommon" }));
+            Assert.AreEqual(
+                NotificationKind.Rare,
+                NotificationKindResolver.Resolve(
+                    new AchievementUnlockedEventArgs { RarityTier = "Rare" }));
+            Assert.AreEqual(
+                NotificationKind.UltraRare,
+                NotificationKindResolver.Resolve(
+                    new AchievementUnlockedEventArgs { RarityTier = "UltraRare" }));
+
+            // No usable tier means the shared style, not a guessed one.
+            Assert.AreEqual(
+                NotificationKind.Base,
+                NotificationKindResolver.Resolve(new AchievementUnlockedEventArgs { RarityTier = "  " }));
+            Assert.AreEqual(
+                NotificationKind.Base,
+                NotificationKindResolver.Resolve(new AchievementUnlockedEventArgs { RarityTier = "legendary" }));
+        }
+
+        [TestMethod]
+        public void Resolve_LetsTheSpecialKindsBeatTheRarityTier()
+        {
+            Assert.AreEqual(
+                NotificationKind.Capstone,
+                NotificationKindResolver.Resolve(
+                    new AchievementUnlockedEventArgs { IsCapstone = true, RarityTier = "Rare" }));
+            Assert.AreEqual(
+                NotificationKind.Friend,
+                NotificationKindResolver.Resolve(
+                    new AchievementUnlockedEventArgs { IsFriendUnlock = true, RarityTier = "Rare" }));
+            Assert.AreEqual(
+                NotificationKind.Completion,
+                NotificationKindResolver.Resolve(
+                    new AchievementUnlockedEventArgs { IsGameCompleted = true, RarityTier = "Common" }));
+        }
+
+        [TestMethod]
         public void Resolve_PrefersCompletionThenCapstoneWhenFlagsOverlap()
         {
             // A friend's 100% is a completion notification, not a friend one.
