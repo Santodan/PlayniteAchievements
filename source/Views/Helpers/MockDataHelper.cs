@@ -243,7 +243,11 @@ namespace PlayniteAchievements.Views.Helpers
                     Unlocked = false,
                     Hidden = false,
                     GlobalPercentUnlocked = 25.0,
-                    Rarity = RarityTier.Uncommon
+                    Rarity = RarityTier.Uncommon,
+                    // A trophy grade and a point value so the trophy and points reveal toggles have
+                    // something to mask in the preview.
+                    TrophyType = "gold",
+                    Points = 30
                 },
                 new AchievementDetail
                 {
@@ -255,7 +259,9 @@ namespace PlayniteAchievements.Views.Helpers
                     Unlocked = false,
                     Hidden = true,
                     GlobalPercentUnlocked = 15.0,
-                    Rarity = RarityTier.Rare
+                    Rarity = RarityTier.Rare,
+                    TrophyType = "platinum",
+                    Points = 90
                 }
             };
 
