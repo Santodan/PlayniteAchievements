@@ -2417,6 +2417,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         GameCustomDataLookup.GetGameSummaryCategory(_gameId, _settings?.Persisted),
                         affectsSummaryData: false);
                     RefreshAssignmentState();
+
+                    // Notified like every other editor write. Without this the category reaches
+                    // the store and the editor's own picker, but CustomDataRevision never bumps,
+                    // so the Categories tab is never marked stale and does not show the new
+                    // category until some later edit happens to bump it. The assignment path
+                    // below already notifies, so only the no-selection branch was silent.
+                    RaiseAssignmentsChanged();
                 }
 
                 return label;
