@@ -4080,6 +4080,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     EditorEditIntent.FieldEdit(ResolveFieldGesture(e.PropertyName), "LOCPlayAch_Common_Edit"));
             }
 
+            // A trophy grade or point value the user just entered stays on screen. Masking it the
+            // moment it is typed hides their own edit, and on a game that had no trophies or points
+            // at all every value they add would appear as a placeholder. This only runs for an
+            // attached row, so a load never trips it: rows are populated before AttachRow
+            // subscribes. Reveal state is per row and never persists.
+            if (sender is AchievementEditorRow valueEditedRow)
+            {
+                if (e.PropertyName == nameof(AchievementEditorRow.TrophyType) && valueEditedRow.HasTrophyType)
+                {
+                    valueEditedRow.IsTrophyRevealed = true;
+                }
+                else if (e.PropertyName == nameof(AchievementEditorRow.PointsText) && valueEditedRow.HasPoints)
+                {
+                    valueEditedRow.IsPointsRevealed = true;
+                }
+            }
+
             if (e.PropertyName == nameof(AchievementEditorRow.IsCapstone))
             {
                 // The row re-seeds itself from the store after every write, and that re-seed sets
