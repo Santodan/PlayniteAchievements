@@ -309,10 +309,53 @@
         </Image>
     </DataTemplate>
 
-    <!-- Achievement Trophy Template -->
+    <!-- Achievement Trophy Template. While the trophy mask applies the grade badge is replaced by
+         the same trophy silhouette in the neutral glyph brush with a "?" over its bowl, so the row
+         still shows that a trophy exists without giving away which grade it is. -->
     <DataTemplate x:Key="AchievementTrophyTemplate">
         <Grid VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
               HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
+            <Grid ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                  Cursor="Hand">
+                <Grid.Width>
+                    <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,24,18,20">
+                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                    </MultiBinding>
+                </Grid.Width>
+                <Grid.Height>
+                    <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,24,18,20">
+                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                    </MultiBinding>
+                </Grid.Height>
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsTrophyHidden}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <!-- The bowl occupies the upper part of the geometry, so the mark is centred in the
+                     top row rather than over the whole cup. -->
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="42*"/>
+                    <RowDefinition Height="58*"/>
+                </Grid.RowDefinitions>
+                <Viewbox Grid.Row="0" Grid.RowSpan="2" Stretch="Uniform">
+                    <Path Data="{StaticResource GeoTrophy}"
+                          Fill="{DynamicResource PlayAch.Brush.Glyph}"
+                          Opacity="{StaticResource PlayAch.Opacity.Muted}"/>
+                </Viewbox>
+                <Viewbox Grid.Row="0" Stretch="Uniform" Margin="0,2,0,0">
+                    <TextBlock Text="?"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource PlayAch.Brush.Glyph}"/>
+                </Viewbox>
+            </Grid>
             <Image Effect="{StaticResource BadgeShadow}">
                 <Image.Width>
                     <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,24,18,20">
@@ -345,6 +388,11 @@
                             <DataTrigger Binding="{Binding TrophyType}" Value="bronze">
                                 <Setter Property="Source" Value="{DynamicResource TrophyBronze}"/>
                             </DataTrigger>
+                            <!-- Last, so it outranks the grade triggers above and the badge cannot
+                                 show through while the mask applies. -->
+                            <DataTrigger Binding="{Binding IsTrophyHidden}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Image.Style>
@@ -352,16 +400,28 @@
         </Grid>
     </DataTemplate>
 
-    <!-- Achievement Points Template -->
+    <!-- Achievement Points Template. PointsTextResolved swaps in the placeholder while the points
+         mask applies; the italic matches how a masked description reads. -->
     <DataTemplate x:Key="AchievementPointsTemplate">
-        <TextBlock Text="{Binding PointsText}"
+        <TextBlock Text="{Binding PointsTextResolved}"
                    HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                    VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                    TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
-                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                    FontWeight="SemiBold"
-                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                   Opacity="{StaticResource PlayAch.Opacity.Secondary}"/>
+                   Foreground="{DynamicResource PlayAch.Brush.Text}">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                    <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Secondary}"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsPointsHidden}" Value="True">
+                            <Setter Property="FontStyle" Value="Italic"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
     </DataTemplate>
 
     <!-- Achievement Game Column Template - Icon or Cover with toggle support.

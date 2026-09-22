@@ -20,6 +20,7 @@ namespace PlayniteAchievements.Views.Settings.Display
         private ObservableCollection<SettingsNavigationItem> _navigationItems;
 
         private DisplayGeneralSection _generalSection;
+        private SpoilersSection _spoilersSection;
         private AppearanceSection _appearanceSection;
         private ThemeControlPreviewState _previewState;
         private ThemeMigrationController _themeMigrationController;
@@ -67,6 +68,12 @@ namespace PlayniteAchievements.Views.Settings.Display
                     ResourceProvider.GetString("LOCPlayAch_Settings_Display_OverviewLayout"),
                     iconGlyph: "",
                     viewFactory: () => new OverviewDisplaySection()),
+                new SettingsNavigationItem(
+                    "Spoilers",
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Spoilers"),
+                    iconGlyph: "",
+                    viewFactory: () => _spoilersSection =
+                        new SpoilersSection(settings, plugin, logger)),
                 new SettingsNavigationItem(
                     "DataGrid",
                     ResourceProvider.GetString("LOCPlayAch_Settings_AchievementDataGridPreview"),
@@ -160,12 +167,14 @@ namespace PlayniteAchievements.Views.Settings.Display
         private void OnDisplaySettingsReset()
         {
             _appearanceSection?.RefreshAppearanceEditorFromPersisted();
+            _spoilersSection?.RefreshVisibilityPreview();
             _previewState?.RefreshMockPreviews();
         }
 
         public void Dispose()
         {
             _generalSection?.Dispose();
+            _spoilersSection?.Dispose();
             _appearanceSection?.Dispose();
             _previewState?.Dispose();
         }

@@ -1419,6 +1419,12 @@ namespace PlayniteAchievements
                    propertyName == nameof(PersistedSettings.ShowHiddenDescription) ||
                    propertyName == nameof(PersistedSettings.ShowHiddenSuffix) ||
                    propertyName == nameof(PersistedSettings.ShowLockedIcon) ||
+                   propertyName == nameof(PersistedSettings.ShowLockedTitle) ||
+                   propertyName == nameof(PersistedSettings.ShowLockedDescription) ||
+                   propertyName == nameof(PersistedSettings.ShowHiddenTrophy) ||
+                   propertyName == nameof(PersistedSettings.ShowHiddenPoints) ||
+                   propertyName == nameof(PersistedSettings.ShowLockedTrophy) ||
+                   propertyName == nameof(PersistedSettings.ShowLockedPoints) ||
                    propertyName == nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable) ||
                    propertyName == nameof(PersistedSettings.SeparateLockedIconEnabledGameIds) ||
                    propertyName == nameof(PersistedSettings.LockedFallbackIconPath) ||

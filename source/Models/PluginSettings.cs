@@ -2458,20 +2458,12 @@ namespace PlayniteAchievements.Models
 
         private void RefreshThemeDisplayItemsFromPersisted()
         {
-            var persisted = Persisted;
-            if (persisted == null)
+            if (Persisted == null)
             {
                 return;
             }
 
-            ModernTheme.RefreshDisplayItems(
-                persisted.ShowHiddenIcon,
-                persisted.ShowHiddenTitle,
-                persisted.ShowHiddenDescription,
-                persisted.ShowHiddenSuffix,
-                persisted.ShowLockedIcon,
-                persisted.UseSeparateLockedIconsWhenAvailable,
-                persisted.ShowCompactListRarityBar);
+            ModernTheme.RefreshDisplayItems(this);
         }
 
         /// <summary>

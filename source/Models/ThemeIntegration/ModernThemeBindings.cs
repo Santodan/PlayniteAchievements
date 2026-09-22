@@ -564,81 +564,77 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 }
 
                 var settings = PlayniteAchievementsPlugin.Instance?.Settings;
-                var persisted = settings?.Persisted;
-                var showHiddenIcon = persisted?.ShowHiddenIcon ?? false;
-                var showHiddenTitle = persisted?.ShowHiddenTitle ?? false;
-                var showHiddenDescription = persisted?.ShowHiddenDescription ?? false;
-                var showHiddenSuffix = persisted?.ShowHiddenSuffix ?? true;
-                var showLockedIcon = persisted?.ShowLockedIcon ?? true;
-                var useSeparateLockedIcons = persisted?.UseSeparateLockedIconsWhenAvailable ?? false;
-                var showRarityBar = persisted?.ShowCompactListRarityBar ?? true;
-
-                var items = new List<AchievementDisplayItem>(_allAchievements.Count);
-                foreach (var achievement in _allAchievements)
-                {
-                    var item = new AchievementDisplayItem();
-                    var gameName = achievement.Game?.Name ?? "Unknown";
-                    var gameId = achievement.Game?.Id;
-                    item.UpdateFrom(
-                        achievement,
-                        gameName,
-                        gameId,
-                        showHiddenIcon,
-                        showHiddenTitle,
-                        showHiddenDescription,
-                        showHiddenSuffix,
-                        showLockedIcon,
-                        ResolveUseSeparateLockedIcons(persisted, gameId, useSeparateLockedIcons),
-                        showRarityBar,
-                        categoryOrderIndex: achievement.CategoryOrderIndex);
-                    items.Add(item);
-                }
-
-                _allAchievementDisplayItems = items;
+                _allAchievementDisplayItems = BuildDisplayItems(
+                    AchievementDisplayItem.CreateAppearanceSettingsSnapshot(settings, null, null));
                 return _allAchievementDisplayItems;
             }
         }
 
-        public void RefreshDisplayItems(
-            bool showHiddenIcon,
-            bool showHiddenTitle,
-            bool showHiddenDescription,
-            bool showHiddenSuffix,
-            bool showLockedIcon,
-            bool useSeparateLockedIconsWhenAvailable,
-            bool showRarityBar)
+        /// <summary>
+        /// Rebuilds the display items from the current settings. Callers outside this namespace use
+        /// this rather than building the snapshot themselves.
+        /// </summary>
+        public void RefreshDisplayItems(PlayniteAchievementsSettings settings)
+        {
+            RefreshDisplayItems(
+                AchievementDisplayItem.CreateAppearanceSettingsSnapshot(settings, null, null));
+        }
+
+        public void RefreshDisplayItems(AchievementDisplayItem.AppearanceSettingsSnapshot appearance)
+        {
+            _allAchievementDisplayItems = BuildDisplayItems(appearance);
+            OnPropertyChanged(nameof(AllAchievementDisplayItems));
+        }
+
+        /// <summary>
+        /// Projects the achievement details into display items under one appearance snapshot. The
+        /// per-game separate-locked-icon override is still resolved per item, since it varies across
+        /// the games in a library-wide list.
+        /// </summary>
+        private List<AchievementDisplayItem> BuildDisplayItems(
+            AchievementDisplayItem.AppearanceSettingsSnapshot appearance)
         {
             if (_allAchievements == null || _allAchievements.Count == 0)
             {
-                _allAchievementDisplayItems = new List<AchievementDisplayItem>();
-                OnPropertyChanged(nameof(AllAchievementDisplayItems));
-                return;
+                return new List<AchievementDisplayItem>();
             }
 
-            var items = new List<AchievementDisplayItem>(_allAchievements.Count);
+            var resolved = appearance ?? new AchievementDisplayItem.AppearanceSettingsSnapshot();
             var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+            var items = new List<AchievementDisplayItem>(_allAchievements.Count);
             foreach (var achievement in _allAchievements)
             {
                 var item = new AchievementDisplayItem();
                 var gameName = achievement.Game?.Name ?? "Unknown";
                 var gameId = achievement.Game?.Id;
+                var perGame = CloneWithSeparateLockedIcons(
+                    resolved,
+                    ResolveUseSeparateLockedIcons(
+                        persisted, gameId, resolved.UseSeparateLockedIconsWhenAvailable));
                 item.UpdateFrom(
                     achievement,
                     gameName,
                     gameId,
-                    showHiddenIcon,
-                    showHiddenTitle,
-                    showHiddenDescription,
-                    showHiddenSuffix,
-                    showLockedIcon,
-                    ResolveUseSeparateLockedIcons(persisted, gameId, useSeparateLockedIconsWhenAvailable),
-                    showRarityBar,
+                    perGame,
                     categoryOrderIndex: achievement.CategoryOrderIndex);
                 items.Add(item);
             }
 
-            _allAchievementDisplayItems = items;
-            OnPropertyChanged(nameof(AllAchievementDisplayItems));
+            return items;
+        }
+
+        private static AchievementDisplayItem.AppearanceSettingsSnapshot CloneWithSeparateLockedIcons(
+            AchievementDisplayItem.AppearanceSettingsSnapshot source,
+            bool useSeparateLockedIcons)
+        {
+            if (source.UseSeparateLockedIconsWhenAvailable == useSeparateLockedIcons)
+            {
+                return source;
+            }
+
+            var clone = source.Clone();
+            clone.UseSeparateLockedIconsWhenAvailable = useSeparateLockedIcons;
+            return clone;
         }
 
         [DontSerialize]

@@ -1216,17 +1216,21 @@ namespace PlayniteAchievements.Services.Achievements
         private static AchievementDisplayItem CreateDetailSortProxy(AchievementDetail detail)
         {
             var item = new AchievementDisplayItem();
+            // A sort proxy is never rendered, so nothing is masked: every field stays visible so the
+            // sort keys read the real values.
             item.UpdateFrom(
                 detail,
                 detail?.Game?.Name ?? string.Empty,
                 detail?.Game?.Id,
-                showHiddenIcon: true,
-                showHiddenTitle: true,
-                showHiddenDescription: true,
-                showHiddenSuffix: true,
-                showLockedIcon: true,
-                useSeparateLockedIconsWhenAvailable: false,
-                showRarityBar: false,
+                new AchievementDisplayItem.AppearanceSettingsSnapshot
+                {
+                    ShowHiddenIcon = true,
+                    ShowHiddenTitle = true,
+                    ShowHiddenDescription = true,
+                    ShowHiddenSuffix = true,
+                    ShowLockedIcon = true,
+                    ShowRarityBar = false
+                },
                 sortingName: detail?.Game?.Name,
                 gameIconPath: null,
                 gameCoverPath: null);
