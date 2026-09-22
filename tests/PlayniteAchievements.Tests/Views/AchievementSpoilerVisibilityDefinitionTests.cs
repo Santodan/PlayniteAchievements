@@ -343,7 +343,7 @@ namespace PlayniteAchievements.Tests.Views
         public void DisplaySettings_RoundRarityPercentagesLivesInGridDefaults()
         {
             var general = File.ReadAllText(FindRepoFile("source", "Views", "Settings", "Display", "DisplayGeneralSection.xaml"));
-            var appearance = File.ReadAllText(FindRepoFile("source", "Views", "Settings", "Display", "AppearanceSection.xaml"));
+            var appearance = File.ReadAllText(FindRepoFile("source", "Views", "Settings", "Display", "ColorsSection.xaml"));
             var previewProperties = File.ReadAllText(FindRepoFile("source", "Views", "Settings", "Display", "DisplayPreviewProperties.cs"));
 
             var gridDefaultsIndex = general.IndexOf("LOCPlayAch_Settings_Display_GridDefaults", StringComparison.Ordinal);

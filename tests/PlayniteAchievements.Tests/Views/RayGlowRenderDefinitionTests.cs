@@ -163,7 +163,7 @@ namespace PlayniteAchievements.Tests.Views
                 "source",
                 "Views",
                 "Settings",
-                "General",
+                "Notifications",
                 "NotificationAppearanceSection.xaml.cs"));
 
             StringAssert.Contains(source, "AsyncImage.AddSourceReadyHandler(");
