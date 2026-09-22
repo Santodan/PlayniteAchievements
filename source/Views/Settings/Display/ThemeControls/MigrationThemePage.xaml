@@ -30,7 +30,7 @@
                                TextWrapping="Wrap"/>
 
                     <!-- Theme Dropdown -->
-                    <Grid Style="{StaticResource SettingRowStyle}">
+                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.SettingRow}">
                         <ComboBox ItemsSource="{Binding AvailableThemes}"
                                   DisplayMemberPath="BestDisplayName"
                                   SelectedValuePath="Path"
@@ -191,7 +191,7 @@
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
                     <!-- Revertable Theme Dropdown and Revert Button -->
-                    <Grid Style="{StaticResource SettingRowStyle}">
+                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.SettingRow}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>

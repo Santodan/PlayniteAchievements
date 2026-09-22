@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -81,46 +82,29 @@
             </Grid>
 
             <!-- ================== FRIENDS ================== -->
-            <Border Style="{StaticResource SectionBorderStyle}">
+            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Friends}"
                                Style="{StaticResource SectionHeaderStyle}"/>
 
-                    <StackPanel>
-                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableFriendsFeatures}"
-                                  IsChecked="{Binding Persisted.EnableFriendsFeatures}"
-                                  VerticalAlignment="Center"/>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_EnableFriendsFeatures_Description}"
-                                   Style="{StaticResource MutedTextStyle}"
-                                   Margin="18,2,0,0"
-                                   TextWrapping="Wrap"/>
-                    </StackPanel>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableFriendsFeatures}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_EnableFriendsFeatures_Description}"
+                                         Margin="0">
+                        <CheckBox IsChecked="{Binding Persisted.EnableFriendsFeatures}"/>
+                    </controls:SettingRow>
                 </StackPanel>
             </Border>
 
             <!-- ================== LANGUAGE ================== -->
-            <Border Style="{StaticResource SectionBorderStyle}">
+            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Language}"
                                Style="{StaticResource SectionHeaderStyle}"/>
 
-                    <Grid Style="{StaticResource SettingRowStyle}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Language}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       FontWeight="SemiBold"
-                                       Margin="0,0,0,2"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LanguageHint}"
-                                       Style="{StaticResource MutedTextStyle}"/>
-                        </StackPanel>
-
-                        <ComboBox Grid.Column="1"
-                                  Width="200"
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Language}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_LanguageHint}"
+                                         Margin="0">
+                        <ComboBox Width="200"
                                   SelectedValuePath="Tag"
                                   SelectedValue="{Binding Persisted.GlobalLanguage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                             <ComboBoxItem Content="English" Tag="english"/>
@@ -152,7 +136,7 @@
                             <ComboBoxItem Content="Traditional Chinese (繁體中文)" Tag="tchinese"/>
                             <ComboBoxItem Content="Arabic (العربية)" Tag="arabic"/>
                         </ComboBox>
-                    </Grid>
+                    </controls:SettingRow>
                 </StackPanel>
             </Border>
 
