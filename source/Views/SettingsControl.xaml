@@ -77,6 +77,17 @@
                 <ContentControl x:Name="DisplaySettingsContent"/>
             </TabItem>
 
+            <!-- ================== TAB: THEMES ================== -->
+            <TabItem x:Name="ThemesTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_Display_Themes}">
+                <TabItem.Header>
+                    <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEFD2;"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_Themes}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <ContentControl x:Name="ThemesSettingsContent"/>
+            </TabItem>
+
             <!-- ================== TAB: NOTIFICATIONS ================== -->
             <TabItem x:Name="NotificationsTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_TabNotifications}">
                 <TabItem.Header>
