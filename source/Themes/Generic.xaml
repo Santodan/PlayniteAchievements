@@ -46,11 +46,14 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <!-- MaxWidth so one long label wraps instead of widening the shared
-                                 label column, which would push every row's control to the right. -->
+                                 label column, which would push every row's control to the right.
+                                 Wide enough for the pages whose labels are whole sentences, such
+                                 as the maintenance actions; the column is Auto, so short labels
+                                 still sit right beside their control. -->
                             <TextBlock Grid.Column="0"
                                        Text="{TemplateBinding Label}"
                                        TextWrapping="Wrap"
-                                       MaxWidth="320"
+                                       MaxWidth="420"
                                        VerticalAlignment="Center"
                                        Foreground="{TemplateBinding Foreground}"
                                        FontSize="{TemplateBinding FontSize}"
