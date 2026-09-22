@@ -481,6 +481,25 @@ namespace PlayniteAchievements
                 Instance = this;
                 _logger.Info("PlayniteAchievementsPlugin initializing...");
 
+                // Stamps which build produced this log. Diagnostic packages are rebuilt far more
+                // often than the version changes, so several materially different builds share
+                // one file name -- and a capture was read against the wrong one because the only
+                // way to tell them apart was which tags happened to be missing. The assembly's
+                // own timestamp distinguishes builds packed minutes apart.
+                try
+                {
+                    var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                    var built = System.IO.File.GetLastWriteTimeUtc(assembly.Location);
+                    _logger.Info(
+                        $"[Build] version={assembly.GetName().Version} " +
+                        $"builtUtc={built:yyyy-MM-dd HH:mm:ss} " +
+                        $"tracing={Common.PerfScope.PerfTracingEnabled}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug(ex, "Could not stamp the build into the log.");
+                }
+
                 // Phase 1: Load settings and chart plumbing used by theme controls.
                 using (PerfScope.StartStartup(_logger, "PluginCtor.SettingsLoad", thresholdMs: 50))
                 {
