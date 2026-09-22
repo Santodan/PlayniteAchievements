@@ -145,6 +145,23 @@ namespace PlayniteAchievements.Services.Library
             InvalidateCore(scopedChange: false);
         }
 
+        /// <summary>
+        /// Invalidates for a change that belongs to one game. The cache is dropped exactly as a
+        /// full invalidation drops it -- nothing stale is ever served -- but the rebuild waits
+        /// for the library to go quiet instead of running immediately.
+        /// </summary>
+        /// <remarks>
+        /// A whole-library rebuild takes hundreds of milliseconds to two seconds and holds the
+        /// store's read connection for all of it, so an eager one blocks every UI-thread read
+        /// behind it. A capture of a single editing session showed 46 of these rebuilds and not
+        /// one provider refresh: every one was a per-game edit or a Playnite field change, and
+        /// the 34 seconds they cost bought nothing, because the next edit invalidated the result.
+        /// </remarks>
+        public void InvalidateForGame()
+        {
+            InvalidateCore(scopedChange: true);
+        }
+
         private void InvalidateCore(bool scopedChange)
         {
             lock (_sync)
@@ -403,7 +420,10 @@ namespace PlayniteAchievements.Services.Library
                 return;
             }
 
-            Invalidate();
+            // This event names one game, so the rebuild waits for quiet. Editing is a burst of
+            // these, and warming after each one meant a run of whole-library rebuilds that each
+            // held the read connection while the user was still typing in the editor.
+            InvalidateForGame();
         }
 
         private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs e)

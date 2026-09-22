@@ -2015,11 +2015,15 @@ namespace PlayniteAchievements
         private void Games_ItemUpdated(object sender, ItemUpdatedEventArgs<Game> e)
         {
             // A game's Playnite-owned fields (playtime, last played, cover, icon, metadata) changed;
-            // invalidate so the cached overview/start-page projection is rebuilt with fresh values.
-            // Invalidate() coalesces bursts (e.g. library scans) via its warm debounce; the
-            // start-page invalidation is coalesced too (playtime ticks fire this continuously
-            // while a game runs).
-            _libraryProjectionService?.Invalidate();
+            // invalidate so the cached overview/start-page projection picks up fresh values.
+            //
+            // Per game, so the rebuild waits for the library to go quiet. Playnite raises this for
+            // playtime ticks and for the plugin's own tag-sync writes, and the previous full
+            // invalidation warmed immediately every time -- a whole-library rebuild that holds the
+            // store's read connection for hundreds of milliseconds, behind which UI-thread reads
+            // queue. The cache is still dropped either way, so an on-demand consumer never sees
+            // stale values; only the precompute waits.
+            _libraryProjectionService?.InvalidateForGame();
             ScheduleStartPageInvalidate();
         }
 
