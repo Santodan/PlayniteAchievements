@@ -42,6 +42,7 @@
     <sys:String x:Key="LOCPlayAch_Common_Label_Category">Category</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Level">Level</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Platform">Platform</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Label_Platforms">Platforms</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Playtime">Playtime</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Region">Region</sys:String>
     <sys:String x:Key="LOCPlayAch_Region_NorthAmerica">North America</sys:String>
@@ -609,10 +610,13 @@
     <sys:String x:Key="LOCPlayAch_Settings_CompressImages_ResultCanceled">Canceled after compressing {0} images.&#10;&#10;Reclaimed {1}.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CompressImages_Title">Compress Cached Images</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Description">Playnite Achievements Settings</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Display_Alignment">Alignment</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Display_Colors">Colors</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Display_Formatting">Formatting</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_GridDefaults">Grid Defaults</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Display_OverviewLayout">Overview Layout</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_OverviewCharts">Overview Charts</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_ThemeIntegration">Desktop Theme Integration</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Display_Themes">Themes</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableArchiveScanning">Enable archive scanning (.zip/.7z/.rar/.rvz/.cso/.ciso)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableDiscHashing">Enable disc hashing (for disc-based consoles)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_DefaultOverviewRefreshMode">Default Overview Refresh Mode</sys:String>
