@@ -171,29 +171,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // instead of guessing a third time.
             CustomAchievementsGrid.LoadingRow += AchievementsGrid_LoadingRow;
 
-            // Layout passes and rendered frames, alongside the realization count. The realization
-            // measure is a wall clock between LoadingRow events, so it charges a row for whatever
-            // else the UI thread did in the meantime; these two say what that was. Layout passes
-            // climbing per realized row is a measure-invalidation cascade, which pixel scrolling
-            // over variable-height rows produces as the estimated extent keeps moving.
-            if (Common.PerfScope.PerfTracingEnabled)
-            {
-                CustomAchievementsGrid.LayoutUpdated += AchievementsGrid_LayoutUpdated;
-                System.Windows.Media.CompositionTarget.Rendering += AchievementsGrid_Rendering;
-
-                // Counted with handledEventsToo, because the DataGrid handles its own requests.
-                // A focused element inside a virtualized row asks to be brought back into view as
-                // the scroll carries it out, and the scroll then carries it out again: the two
-                // fight, and each round is a layout pass. This says whether that is what the
-                // layout storms are made of.
-                CustomAchievementsGrid.AddHandler(
-                    FrameworkElement.RequestBringIntoViewEvent,
-                    new RequestBringIntoViewEventHandler(AchievementsGrid_RequestBringIntoView),
-                    true);
-
-                _renderHooked = true;
-            }
-
             // On this control, not the window: stepping achievements with the arrows is what the
             // whole window is for, but Ctrl+Z is not - a window-wide handler would fight the other
             // tabs and every text box in them.
@@ -222,16 +199,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // disposing flushes the pending width writes, which needs all three.
             _columnPersistence?.Dispose();
             _columnPersistence = null;
-
-            if (_renderHooked)
-            {
-                CustomAchievementsGrid.LayoutUpdated -= AchievementsGrid_LayoutUpdated;
-                System.Windows.Media.CompositionTarget.Rendering -= AchievementsGrid_Rendering;
-                CustomAchievementsGrid.RemoveHandler(
-                    FrameworkElement.RequestBringIntoViewEvent,
-                    new RequestBringIntoViewEventHandler(AchievementsGrid_RequestBringIntoView));
-                _renderHooked = false;
-            }
 
             PreviewKeyDown -= EditorTab_PreviewKeyDown;
             AchievementNavigation_Unloaded(null, null);
@@ -376,104 +343,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         private int _realizedRowCount;
-        private int _freshRowCount;
-        /// <summary>
-        /// Layout passes in one batch beyond which the batch counts as a storm. Ordinary scrolling
-        /// runs one to ten; the bursts run twenty to a hundred and fifty.
-        /// </summary>
-        private const int StormStackThreshold = 15;
-
-        private int _layoutPassCount;
-        private int _renderFrameCount;
-        private bool _renderHooked;
-        private ScrollViewer _gridScrollViewer;
-        private double _extentMin = double.MaxValue;
-        private double _extentMax = double.MinValue;
-
-        /// <summary>
-        /// Samples the scrolled extent on every layout pass. Over a list whose length does not
-        /// change, a settled extent is one number; pixel scrolling over rows of differing heights
-        /// instead keeps re-estimating it from the rows measured so far, and each correction moves
-        /// the scrollbar, which invalidates layout again. The spread within one batch is what
-        /// separates that cascade from a row template that is simply expensive.
-        /// </summary>
-        private void AchievementsGrid_LayoutUpdated(object sender, EventArgs e)
-        {
-            _layoutPassCount++;
-
-            // One stack per storm, at the point a batch passes a count no ordinary scroll reaches.
-            // Nine mechanisms have now been proposed and refuted from the markup and the counters,
-            // so this stops proposing a tenth and asks the runtime instead. LayoutUpdated is raised
-            // after the pass, so a synchronous driver -- anything calling UpdateLayout in a loop --
-            // is still on the stack, while a pass driven by the render loop shows only dispatcher
-            // frames. Either answer narrows it: the first names the caller, the second rules the
-            // whole category out.
-            if (_layoutPassCount == StormStackThreshold)
-            {
-                var frames = new System.Diagnostics.StackTrace(fNeedFileInfo: false).GetFrames();
-                var sb = new System.Text.StringBuilder();
-                var depth = 0;
-
-                for (var i = 0; frames != null && i < frames.Length && depth < 28; i++)
-                {
-                    var method = frames[i].GetMethod();
-                    if (method == null)
-                    {
-                        continue;
-                    }
-
-                    sb.Append(method.DeclaringType?.Name).Append('.').Append(method.Name).Append(" <- ");
-                    depth++;
-                }
-
-                PlayniteAchievements.Services.Logging.PluginLogger.GetLogger(nameof(ManageAchievementsEditorTab)).Debug(
-                    $"[UiBlockRisk] tag=Editor.LayoutStorm context=passes={_layoutPassCount} stack={sb}");
-            }
-
-            if (_gridScrollViewer == null)
-            {
-                _gridScrollViewer = VisualTreeHelpers.FindVisualChild<ScrollViewer>(CustomAchievementsGrid);
-            }
-
-            var extent = _gridScrollViewer?.ExtentHeight ?? 0;
-            if (extent <= 0)
-            {
-                return;
-            }
-
-            if (extent < _extentMin)
-            {
-                _extentMin = extent;
-            }
-
-            if (extent > _extentMax)
-            {
-                _extentMax = extent;
-            }
-        }
-
-        private void AchievementsGrid_Rendering(object sender, EventArgs e) => _renderFrameCount++;
-
-        private int _bringIntoViewCount;
-
-        private void AchievementsGrid_RequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)
-            => _bringIntoViewCount++;
-
         private System.Diagnostics.Stopwatch _rowRealizationWindow;
-        private DataGridRowsPresenter _rowsPresenter;
-
-        /// <summary>
-        /// Marks a row container that has already been through LoadingRow once. Recycling reuses
-        /// the container and swaps only its DataContext, so a second load on the same instance is
-        /// a recycle and a first load is a fresh realization. Held as an attached flag on the
-        /// container rather than in a set, so it dies with the container and cannot itself become
-        /// the growth being measured.
-        /// </summary>
-        private static readonly DependencyProperty RowSeenProperty = DependencyProperty.RegisterAttached(
-            "RowSeen",
-            typeof(bool),
-            typeof(ManageAchievementsEditorTab),
-            new PropertyMetadata(false));
 
         /// <summary>
         /// Counts realized rows and reports in batches. Per-row logging would cost more than the
@@ -494,11 +364,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             _realizedRowCount++;
-            if (e.Row != null && !(bool)e.Row.GetValue(RowSeenProperty))
-            {
-                e.Row.SetValue(RowSeenProperty, true);
-                _freshRowCount++;
-            }
 
             // Reports on whichever comes first: twenty rows, or a quarter second of realizing.
             // A fixed batch of fifty never reported at all on a game of seventy-seven rows,
@@ -512,40 +377,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             var realized = _realizedRowCount;
-            var fresh = _freshRowCount;
             var rows = ViewModel?.AchievementRows?.Count ?? 0;
-
-            // Realized containers held by the rows panel, and realized cells in the row just
-            // loaded. These separate the two explanations for scrolling that gets progressively
-            // worse: recycling that has stopped recycling (containers climbing well past a
-            // viewport, fresh staying high) against a row template that is simply expensive (both
-            // flat while the per-row time still rises). Read off the panels rather than by walking
-            // the tree, so the measurement does not become the cost it reports.
-            if (_rowsPresenter == null)
-            {
-                _rowsPresenter = VisualTreeHelpers.FindVisualChild<DataGridRowsPresenter>(CustomAchievementsGrid);
-            }
-
-            var containers = _rowsPresenter?.Children?.Count ?? -1;
-            var cells = e.Row == null
-                ? -1
-                : (VisualTreeHelpers.FindVisualChild<DataGridCellsPanel>(e.Row)?.Children?.Count ?? -1);
-
-            var layouts = _layoutPassCount;
-            var frames = _renderFrameCount;
-            var extentLow = _extentMin == double.MaxValue ? 0 : _extentMin;
-            var extentHigh = _extentMax == double.MinValue ? 0 : _extentMax;
-            var viewport = _gridScrollViewer?.ViewportHeight ?? 0;
-            var brings = _bringIntoViewCount;
-            var focused = (System.Windows.Input.Keyboard.FocusedElement as DependencyObject)?.GetType().Name ?? "none";
-
-            _bringIntoViewCount = 0;
             _realizedRowCount = 0;
-            _freshRowCount = 0;
-            _layoutPassCount = 0;
-            _renderFrameCount = 0;
-            _extentMin = double.MaxValue;
-            _extentMax = double.MinValue;
             _rowRealizationWindow.Restart();
             // The plugin's own logger, not LogManager.GetLogger(). That one writes to
             // playnite.log and its Debug output is not persisted, so the first two attempts at
@@ -554,9 +387,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             PlayniteAchievements.Services.Logging.PluginLogger.GetLogger(nameof(ManageAchievementsEditorTab)).Debug(
                 $"[UiBlockRisk] tag=Editor.RowRealization ms={(long)elapsed} ui=true " +
                 $"thread={System.Threading.Thread.CurrentThread.ManagedThreadId} " +
-                $"context=realized={realized} fresh={fresh} containers={containers} cells={cells} " +
-                $"layouts={layouts} frames={frames} extent={extentLow:F0}-{extentHigh:F0} " +
-                $"viewport={viewport:F0} brings={brings} focus={focused} rows={rows}");
+                $"context=realized={realized} rows={rows}");
         }
 
         private void RestoreSelectionByApiNames(IReadOnlyList<string> apiNames)
