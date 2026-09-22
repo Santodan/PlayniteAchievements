@@ -1043,6 +1043,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void CycleAllIconStages()
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.CycleAllIconStages",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             var targets = VisibleRows.Where(row => row.CanReveal).ToList();
             if (targets.Count == 0)
             {
@@ -1328,6 +1334,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetSelectedRows(IEnumerable<AchievementEditorRow> rows)
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.SetSelectedRows",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             var incoming = (rows ?? Enumerable.Empty<AchievementEditorRow>())
                 .Where(row => row != null)
                 .ToList();
@@ -1663,6 +1675,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public void ReloadData()
         {
+            using var reloadScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.ReloadData",
+                thresholdMs: 25);
+
+            // Names each post-pass so a slow open points at one of them instead of at the whole
+            // reload. Declared here rather than as a method so it closes over nothing but the
+            // logger, and it costs nothing when tracing is off: PerfScope.Start returns null.
+            void Row(string tag, Action pass)
+            {
+                using (Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ReloadData." + tag,
+                    thresholdMs: 10,
+                    context: "rows=" + AchievementRows.Count))
+                {
+                    pass();
+                }
+            }
+
             // The reload re-reads the cache, so a staged unlock has to be written first or the
             // checkbox the user just ticked visibly reverts.
             FlushManualUnlocks();
@@ -1724,19 +1756,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     ReplaceRows((data?.CustomAchievements ?? new List<CustomAchievementDefinition>())
                         .Select(AchievementEditorRow.FromDefinition));
                 }
-                CaptureCollectionBaseline();
-                ApplyAutoCapstoneMarker(data);
-                ApplyProviderBaselines();
-                RefreshAssignmentState();
-                RefreshCustomProviderState();
-                ApplyManualTrackingToRows();
-                RebuildSearchIndex();
-                RebuildFilterOptions();
-                SeedOverrideWriteCache();
+
+                // One scope per pass. Every one of these walks the row set, so each scales with
+                // the achievement count, and a reported "opening the editor with hundreds of
+                // achievements lags" could not be attributed to any of them: only the hydrate and
+                // the row swap were measured, and the whole of ReloadData was not. The row count
+                // rides on the outer scope so cost per row is readable.
+                Row("CaptureCollectionBaseline", CaptureCollectionBaseline);
+                Row("ApplyAutoCapstoneMarker", () => ApplyAutoCapstoneMarker(data));
+                Row("ApplyProviderBaselines", ApplyProviderBaselines);
+                Row("RefreshAssignmentState", () => RefreshAssignmentState());
+                Row("RefreshCustomProviderState", RefreshCustomProviderState);
+                Row("ApplyManualTrackingToRows", ApplyManualTrackingToRows);
+                Row("RebuildSearchIndex", RebuildSearchIndex);
+                Row("RebuildFilterOptions", RebuildFilterOptions);
+                Row("SeedOverrideWriteCache", SeedOverrideWriteCache);
                 HasCustomOrder = ResolveCurrentCustomData()?.AchievementOrder?.Count > 0;
-                RefreshRevealHeaderState();
+                Row("RefreshRevealHeaderState", RefreshRevealHeaderState);
                 SetStatus(null, false);
-                RefreshComputedState();
+                Row("RefreshComputedState", RefreshComputedState);
             }
             catch (Exception ex)
             {
@@ -1881,8 +1919,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         public void RefreshData()
-
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.RefreshData",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             if (!HasChanges)
             {
                 ReloadData();
@@ -2217,6 +2260,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetCategoryForSelection(string categoryLabel)
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.SetCategoryForSelection",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             MarkUndoIntent(EditorEditIntent.Command("Category", "LOCPlayAch_Common_Label_Category"));
 
             var targets = ResolveSelectionTargets()
@@ -2246,6 +2295,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         public string CreateAndAssignCategory(string leafName)
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.CreateAndAssignCategory",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             var label = CategoryPathHelper.SanitizeSegment(leafName);
             if (string.IsNullOrWhiteSpace(label))
             {
@@ -2310,6 +2365,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         public void SetCategoryTypesForSelection(IEnumerable<string> categoryTypes)
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.SetCategoryTypesForSelection",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             MarkUndoIntent(EditorEditIntent.Command("CategoryType", "LOCPlayAch_Common_Label_Type"));
 
             var targets = ResolveSelectionTargets()
@@ -2338,6 +2399,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetCategoryTypeForSelection(string categoryType, bool isSelected)
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.SetCategoryTypeForSelection",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             MarkUndoIntent(EditorEditIntent.Command("CategoryType", "LOCPlayAch_Common_Label_Type"));
 
             var targets = ResolveSelectionTargets()
@@ -2372,6 +2439,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         public void SetCapstoneForSelection(bool isCapstone)
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.SetCapstoneForSelection",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             MarkUndoIntent(EditorEditIntent.Command("Capstone", "LOCPlayAch_Dynamic_Capstone"));
 
             var targets = ResolveSelectionTargets();
@@ -2413,6 +2486,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetGoalForSelection(bool isGoal)
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.SetGoalForSelection",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             MarkUndoIntent(EditorEditIntent.Command("Goal", "LOCPlayAch_ManageAchievements_Editor_Goal"));
 
             var targets = ResolveSelectionTargets();
@@ -2431,6 +2510,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetFilterScopeForSelection(AchievementFilterScope scope)
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.SetFilterScopeForSelection",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             MarkUndoIntent(EditorEditIntent.Command("FilterScope", "LOCPlayAch_Menu_Filters"));
 
             var targets = ResolveSelectionTargets();
@@ -2928,6 +3013,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void ResetOrder()
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.ResetOrder",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             MarkUndoIntent(EditorEditIntent.Command("ResetOrder", "LOCPlayAch_ManageAchievements_Order_Reset"));
 
             try
@@ -3141,6 +3232,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private async Task SaveAsync()
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.Save",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             if (!CanSave)
             {
                 return;
@@ -4165,6 +4262,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             string targetApiName,
             bool insertAfterTarget)
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.MoveItemsByApiName",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             _logger?.Debug(
                 $"[Editor] Reorder drop onto target: dragged={draggedApiNames?.Count ?? 0} " +
                 $"target='{targetApiName}' after={insertAfterTarget}.");
@@ -4196,6 +4299,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool MoveItemsToEndByApiName(IReadOnlyList<string> draggedApiNames)
         {
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.MoveItemsToEndByApiName",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count);
+
             // Reached when the drop lands outside any row, so it is logged too: without it a drop
             // that misses the rows is indistinguishable from one that never arrived.
             _logger?.Debug(

@@ -121,7 +121,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _logger = logger;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _manualSourceRegistry = manualSourceRegistry ?? throw new ArgumentNullException(nameof(manualSourceRegistry));
-            _gameDataSnapshotProvider = new ManageAchievementsDataSnapshotProvider(gameId, _achievementDataService);
+            _gameDataSnapshotProvider = new ManageAchievementsDataSnapshotProvider(gameId, _achievementDataService, logger);
             _selectManageCategoriesSubTab =
                 initialTab == ManageAchievementsTab.Category && selectManageCategoriesSubTab;
 
