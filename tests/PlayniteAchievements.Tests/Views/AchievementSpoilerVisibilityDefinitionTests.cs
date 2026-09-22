@@ -108,6 +108,97 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void EditorRows_MaskTrophyAndPointsOnTheSameGatesAsTheGrid()
+        {
+            var vm = File.ReadAllText(FindRepoFile(
+                "source", "ViewModels", "ManageAchievements", "ManageAchievementsEditorViewModel.cs"));
+
+            // The editor row derives its gates the same way the grid item does, so the Spoilers
+            // page means the same thing in both places.
+            AssertContainsAll(
+                vm,
+                "public bool CanRevealTitle => !Unlocked && (Hidden ? !ShowHiddenTitle : !ShowLockedTitle);",
+                "public bool CanRevealTrophy =>",
+                "!Unlocked && HasTrophyType && (Hidden ? !ShowHiddenTrophy : !ShowLockedTrophy);",
+                "public bool CanRevealPoints =>",
+                "!Unlocked && HasPoints && (Hidden ? !ShowHiddenPoints : !ShowLockedPoints);",
+                "public bool IsTrophyHidden => CanRevealTrophy && !IsTrophyRevealed;",
+                "public bool IsPointsHidden => CanRevealPoints && !IsPointsRevealed;");
+
+            // Seeded from the persisted settings when the row is attached, or the row would keep
+            // its own defaults and ignore the Spoilers page entirely.
+            AssertContainsAll(
+                vm,
+                "row.ShowLockedTitle = _settings?.Persisted?.ShowLockedTitle ?? true;",
+                "row.ShowLockedDescription = _settings?.Persisted?.ShowLockedDescription ?? true;",
+                "row.ShowHiddenTrophy = _settings?.Persisted?.ShowHiddenTrophy ?? true;",
+                "row.ShowLockedTrophy = _settings?.Persisted?.ShowLockedTrophy ?? true;",
+                "row.ShowHiddenPoints = _settings?.Persisted?.ShowHiddenPoints ?? true;",
+                "row.ShowLockedPoints = _settings?.Persisted?.ShowLockedPoints ?? true;");
+
+            // Reveal state must never mark the editor dirty, so every new reveal property has to be
+            // listed as reveal-only.
+            var guard = Between(vm, "private static bool IsRevealStateProperty", "public RelayCommand AddCustomProviderCommand");
+            AssertContainsAll(
+                guard,
+                "nameof(AchievementEditorRow.IsTrophyRevealed)",
+                "nameof(AchievementEditorRow.IsPointsRevealed)",
+                "nameof(AchievementEditorRow.IsTrophyHidden)",
+                "nameof(AchievementEditorRow.IsPointsHidden)",
+                "nameof(AchievementEditorRow.CanRevealTrophy)",
+                "nameof(AchievementEditorRow.CanRevealPoints)");
+
+            // The header summaries are computed in one pass; a column left out of it would have a
+            // toggle that never updates.
+            var pass = Between(vm, "private void RefreshRevealHeaderState", "private static bool IsRevealStateProperty");
+            AssertContainsAll(
+                pass,
+                "_canRevealAnyTrophy = false;",
+                "_canRevealAnyPoints = false;",
+                "if (row.CanRevealTrophy)",
+                "if (row.CanRevealPoints)",
+                "OnPropertyChanged(nameof(CanRevealAnyTrophy));",
+                "OnPropertyChanged(nameof(CanRevealAnyPoints));",
+                "OnPropertyChanged(nameof(AreAllTrophiesRevealed));",
+                "OnPropertyChanged(nameof(AreAllPointsRevealed));");
+        }
+
+        [TestMethod]
+        public void EditorTrophyAndPointsColumns_OfferTheSameRevealAffordanceAsNameAndDescription()
+        {
+            var xaml = File.ReadAllText(FindRepoFile(
+                "source", "Views", "ManageAchievements", "ManageAchievementsEditorTab.xaml"));
+            var code = File.ReadAllText(FindRepoFile(
+                "source", "Views", "ManageAchievements", "ManageAchievementsEditorTab.xaml.cs"));
+
+            AssertContainsAll(
+                xaml,
+                // Reveal-all header toggles.
+                "DataContext.ToggleAllTrophiesRevealCommand",
+                "DataContext.ToggleAllPointsRevealCommand",
+                "DataContext.CanRevealAnyTrophy",
+                "DataContext.CanRevealAnyPoints",
+                // Per-row toggles and the masked overlays they clear.
+                "Click=\"ToggleTrophyRevealButton_Click\"",
+                "Click=\"TogglePointsRevealButton_Click\"",
+                "PreviewMouseLeftButtonDown=\"MaskedTrophy_PreviewMouseLeftButtonDown\"",
+                "PreviewMouseLeftButtonDown=\"MaskedPoints_PreviewMouseLeftButtonDown\"",
+                // The real value must be hidden while masked, not merely overlaid.
+                "Visibility=\"{Binding IsTrophyHidden, Converter={StaticResource InverseBoolToVis}}\"",
+                "Visibility=\"{Binding IsPointsHidden, Converter={StaticResource InverseBoolToVis}}\"",
+                // Converting Header to a template loses the column-picker caption unless it is set.
+                "helpers:ColumnVisibilityHelper.ColumnDisplayName=\"{DynamicResource LOCPlayAch_Column_Trophy}\"",
+                "helpers:ColumnVisibilityHelper.ColumnDisplayName=\"{DynamicResource LOCPlayAch_Column_Points}\"");
+
+            AssertContainsAll(
+                code,
+                "row.ToggleTrophyReveal();",
+                "row.TogglePointsReveal();",
+                "row.RevealTrophy();",
+                "row.RevealPoints();");
+        }
+
+        [TestMethod]
         public void TrophyColumn_DoesNotNameTheGradeWhileItIsMasked()
         {
             var xaml = File.ReadAllText(
