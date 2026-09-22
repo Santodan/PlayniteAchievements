@@ -93,9 +93,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private List<string> _categoryFilterOptions = new List<string>();
         private bool _canRevealAnyTitle;
         private bool _canRevealAnyDescription;
+        private bool _canRevealAnyTrophy;
+        private bool _canRevealAnyPoints;
         private bool _canRevealAnyIcon;
         private bool _areAllTitlesRevealed = true;
         private bool _areAllDescriptionsRevealed = true;
+        private bool _areAllTrophiesRevealed = true;
+        private bool _areAllPointsRevealed = true;
         private AchievementIconRevealStage _iconColumnStage = AchievementIconRevealStage.Unlocked;
         private SearchQuery _filterQuery;
         private readonly SearchTextIndex<AchievementEditorRow> _searchIndex =
@@ -196,6 +200,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             AutoCapstoneCommand = new RelayCommand(_ => _ = ApplyAutoCapstoneAsync(), _ => HasRows && !IsSaving);
             ToggleAllTitlesRevealCommand = new RelayCommand(_ => ToggleAllTitlesReveal());
             ToggleAllDescriptionsRevealCommand = new RelayCommand(_ => ToggleAllDescriptionsReveal());
+            ToggleAllTrophiesRevealCommand = new RelayCommand(_ => ToggleAllTrophiesReveal());
+            ToggleAllPointsRevealCommand = new RelayCommand(_ => ToggleAllPointsReveal());
             CycleAllIconStagesCommand = new RelayCommand(_ => CycleAllIconStages());
 
             ReloadData();
@@ -965,6 +971,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public RelayCommand ToggleAllDescriptionsRevealCommand { get; }
 
+        public RelayCommand ToggleAllTrophiesRevealCommand { get; }
+
+        public RelayCommand ToggleAllPointsRevealCommand { get; }
+
         /// <summary>
         /// Steps the whole icon column through the hidden placeholder, the locked placeholder and
         /// the achievements' own art, skipping whichever of those the rows on screen do not have.
@@ -988,6 +998,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool CanRevealAnyDescription => _canRevealAnyDescription;
 
+        public bool CanRevealAnyTrophy => _canRevealAnyTrophy;
+
+        public bool CanRevealAnyPoints => _canRevealAnyPoints;
+
         public bool CanRevealAnyIcon => _canRevealAnyIcon;
 
         /// <summary>
@@ -997,6 +1011,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool AreAllTitlesRevealed => _areAllTitlesRevealed;
 
         public bool AreAllDescriptionsRevealed => _areAllDescriptionsRevealed;
+
+        public bool AreAllTrophiesRevealed => _areAllTrophiesRevealed;
+
+        public bool AreAllPointsRevealed => _areAllPointsRevealed;
 
         /// <summary>
         /// The stage the icon column's toggle shows: the most masked one any row on screen is still
@@ -1035,6 +1053,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void ToggleAllDescriptionsReveal() =>
             ToggleAllReveal(row => row.CanRevealDescription, row => row.IsDescriptionRevealed, (row, value) => row.IsDescriptionRevealed = value);
+
+        private void ToggleAllTrophiesReveal() =>
+            ToggleAllReveal(row => row.CanRevealTrophy, row => row.IsTrophyRevealed, (row, value) => row.IsTrophyRevealed = value);
+
+        private void ToggleAllPointsReveal() =>
+            ToggleAllReveal(row => row.CanRevealPoints, row => row.IsPointsRevealed, (row, value) => row.IsPointsRevealed = value);
 
         /// <summary>
         /// Steps every maskable row on screen to the column's next stage. Each row settles on the
@@ -1118,9 +1142,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var visible = VisibleRows.ToList();
             _canRevealAnyTitle = false;
             _canRevealAnyDescription = false;
+            _canRevealAnyTrophy = false;
+            _canRevealAnyPoints = false;
             _canRevealAnyIcon = false;
             _areAllTitlesRevealed = true;
             _areAllDescriptionsRevealed = true;
+            _areAllTrophiesRevealed = true;
+            _areAllPointsRevealed = true;
             foreach (var row in visible)
             {
                 if (row.CanRevealTitle)
@@ -1141,6 +1169,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     }
                 }
 
+                if (row.CanRevealTrophy)
+                {
+                    _canRevealAnyTrophy = true;
+                    if (!row.IsTrophyRevealed)
+                    {
+                        _areAllTrophiesRevealed = false;
+                    }
+                }
+
+                if (row.CanRevealPoints)
+                {
+                    _canRevealAnyPoints = true;
+                    if (!row.IsPointsRevealed)
+                    {
+                        _areAllPointsRevealed = false;
+                    }
+                }
+
                 if (row.CanReveal)
                 {
                     _canRevealAnyIcon = true;
@@ -1151,9 +1197,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             OnPropertyChanged(nameof(CanRevealAnyTitle));
             OnPropertyChanged(nameof(CanRevealAnyDescription));
+            OnPropertyChanged(nameof(CanRevealAnyTrophy));
+            OnPropertyChanged(nameof(CanRevealAnyPoints));
             OnPropertyChanged(nameof(CanRevealAnyIcon));
             OnPropertyChanged(nameof(AreAllTitlesRevealed));
             OnPropertyChanged(nameof(AreAllDescriptionsRevealed));
+            OnPropertyChanged(nameof(AreAllTrophiesRevealed));
+            OnPropertyChanged(nameof(AreAllPointsRevealed));
             OnPropertyChanged(nameof(IconColumnStage));
             OnPropertyChanged(nameof(IconColumnStageIsCovered));
             OnPropertyChanged(nameof(IconColumnStageIsLocked));
@@ -1172,9 +1222,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 case nameof(AchievementEditorRow.IsDescriptionRevealed):
                 case nameof(AchievementEditorRow.IsTitleHidden):
                 case nameof(AchievementEditorRow.IsDescriptionHidden):
+                case nameof(AchievementEditorRow.IsTrophyRevealed):
+                case nameof(AchievementEditorRow.IsPointsRevealed):
+                case nameof(AchievementEditorRow.IsTrophyHidden):
+                case nameof(AchievementEditorRow.IsPointsHidden):
                 case nameof(AchievementEditorRow.CanReveal):
                 case nameof(AchievementEditorRow.CanRevealTitle):
                 case nameof(AchievementEditorRow.CanRevealDescription):
+                case nameof(AchievementEditorRow.CanRevealTrophy):
+                case nameof(AchievementEditorRow.CanRevealPoints):
                     return true;
                 default:
                     return false;
@@ -3961,6 +4017,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.ShowLockedIcon = _settings?.Persisted?.ShowLockedIcon ?? true;
             row.ShowHiddenTitle = _settings?.Persisted?.ShowHiddenTitle ?? false;
             row.ShowHiddenDescription = _settings?.Persisted?.ShowHiddenDescription ?? false;
+            row.ShowLockedTitle = _settings?.Persisted?.ShowLockedTitle ?? true;
+            row.ShowLockedDescription = _settings?.Persisted?.ShowLockedDescription ?? true;
+            row.ShowHiddenTrophy = _settings?.Persisted?.ShowHiddenTrophy ?? true;
+            row.ShowLockedTrophy = _settings?.Persisted?.ShowLockedTrophy ?? true;
+            row.ShowHiddenPoints = _settings?.Persisted?.ShowHiddenPoints ?? true;
+            row.ShowLockedPoints = _settings?.Persisted?.ShowLockedPoints ?? true;
             row.UseSeparateLockedIcons = useSeparateLockedIcons
                 ?? ResolveUseSeparateLockedIcons();
             row.ConfigureIconPathDisplay(
@@ -5783,8 +5845,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _showLockedIcon = true;
         private bool _showHiddenTitle;
         private bool _showHiddenDescription;
+        private bool _showLockedTitle = true;
+        private bool _showLockedDescription = true;
+        private bool _showHiddenTrophy = true;
+        private bool _showLockedTrophy = true;
+        private bool _showHiddenPoints = true;
+        private bool _showLockedPoints = true;
         private bool _isTitleRevealed;
         private bool _isDescriptionRevealed;
+        private bool _isTrophyRevealed;
+        private bool _isPointsRevealed;
 
         public AchievementEditorRow()
         {
@@ -5945,6 +6015,82 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
+        /// Mirrors the grid display settings for a row that is locked but not hidden. These four
+        /// default to revealing, so a row only masks what the Spoilers page says to mask.
+        /// </summary>
+        public bool ShowLockedTitle
+        {
+            get => _showLockedTitle;
+            set
+            {
+                if (SetValueAndReturn(ref _showLockedTitle, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
+        public bool ShowLockedDescription
+        {
+            get => _showLockedDescription;
+            set
+            {
+                if (SetValueAndReturn(ref _showLockedDescription, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
+        public bool ShowHiddenTrophy
+        {
+            get => _showHiddenTrophy;
+            set
+            {
+                if (SetValueAndReturn(ref _showHiddenTrophy, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
+        public bool ShowLockedTrophy
+        {
+            get => _showLockedTrophy;
+            set
+            {
+                if (SetValueAndReturn(ref _showLockedTrophy, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
+        public bool ShowHiddenPoints
+        {
+            get => _showHiddenPoints;
+            set
+            {
+                if (SetValueAndReturn(ref _showHiddenPoints, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
+        public bool ShowLockedPoints
+        {
+            get => _showLockedPoints;
+            set
+            {
+                if (SetValueAndReturn(ref _showLockedPoints, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
+        /// <summary>
         /// Whether the name and the description are revealed. They are tracked apart because each
         /// has its own toggle beside it, and reading one is not a reason to spoil the other.
         /// </summary>
@@ -5972,6 +6118,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        public bool IsTrophyRevealed
+        {
+            get => _isTrophyRevealed;
+            set
+            {
+                if (SetValueAndReturn(ref _isTrophyRevealed, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
+        public bool IsPointsRevealed
+        {
+            get => _isPointsRevealed;
+            set
+            {
+                if (SetValueAndReturn(ref _isPointsRevealed, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
         /// <summary>True while a placeholder is covering the art rather than the art showing.</summary>
         public bool IsIconCovered => IconStage == AchievementIconRevealStage.Covered;
 
@@ -5983,17 +6153,43 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool CanReveal => HasCoveredIconStage || HasLockedIconStage;
 
         /// <summary>
-        /// Whether this row has a name worth masking at all. Only a hidden achievement that is
-        /// still locked does, and only while the display setting says not to reveal it -- with the
-        /// setting on there is nothing to reveal, so the toggle beside it is not shown either.
+        /// Whether this row has a field worth masking at all, and only while the display setting
+        /// says not to reveal it -- with the setting on there is nothing to reveal, so the toggle
+        /// beside it is not shown either. A hidden achievement is also locked, so it takes the
+        /// hidden setting and a merely locked one takes the locked setting, matching the grid.
         /// </summary>
-        public bool CanRevealTitle => Hidden && !Unlocked && !ShowHiddenTitle;
+        public bool CanRevealTitle => !Unlocked && (Hidden ? !ShowHiddenTitle : !ShowLockedTitle);
 
-        public bool CanRevealDescription => Hidden && !Unlocked && !ShowHiddenDescription;
+        public bool CanRevealDescription =>
+            !Unlocked && (Hidden ? !ShowHiddenDescription : !ShowLockedDescription);
+
+        /// <summary>
+        /// Trophy and points additionally require the row to carry one, so a row with no grade or
+        /// no point value never offers a toggle that would reveal nothing.
+        /// </summary>
+        public bool CanRevealTrophy =>
+            !Unlocked && HasTrophyType && (Hidden ? !ShowHiddenTrophy : !ShowLockedTrophy);
+
+        public bool CanRevealPoints =>
+            !Unlocked && HasPoints && (Hidden ? !ShowHiddenPoints : !ShowLockedPoints);
+
+        /// <summary>True when the row carries a trophy grade at all.</summary>
+        public bool HasTrophyType => !string.IsNullOrWhiteSpace(TrophyType);
+
+        /// <summary>
+        /// True when the row carries a point value worth rendering. The editor keeps points as
+        /// entered text, so a blank or a zero has nothing to mask.
+        /// </summary>
+        public bool HasPoints =>
+            AchievementEditorFieldRules.TryParsePoints(PointsText, out var points) && points != 0;
 
         public bool IsTitleHidden => CanRevealTitle && !IsTitleRevealed;
 
         public bool IsDescriptionHidden => CanRevealDescription && !IsDescriptionRevealed;
+
+        public bool IsTrophyHidden => CanRevealTrophy && !IsTrophyRevealed;
+
+        public bool IsPointsHidden => CanRevealPoints && !IsPointsRevealed;
 
         /// <summary>
         /// Steps to the next stage this row has, wrapping from its own art back to the most masked
@@ -6048,6 +6244,40 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>Reveals the trophy grade. See <see cref="RevealTitle"/>.</summary>
+        public void RevealTrophy()
+        {
+            if (CanRevealTrophy)
+            {
+                IsTrophyRevealed = true;
+            }
+        }
+
+        /// <summary>Reveals the point value. See <see cref="RevealTitle"/>.</summary>
+        public void RevealPoints()
+        {
+            if (CanRevealPoints)
+            {
+                IsPointsRevealed = true;
+            }
+        }
+
+        public void ToggleTrophyReveal()
+        {
+            if (CanRevealTrophy)
+            {
+                IsTrophyRevealed = !IsTrophyRevealed;
+            }
+        }
+
+        public void TogglePointsReveal()
+        {
+            if (CanRevealPoints)
+            {
+                IsPointsRevealed = !IsPointsRevealed;
+            }
+        }
+
         /// <summary>
         /// Raised once after any reveal state settles. A single toggle moves several of the
         /// properties below, so a listener that summarizes them over every row -- the column
@@ -6082,8 +6312,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(CanReveal));
             OnPropertyChanged(nameof(CanRevealTitle));
             OnPropertyChanged(nameof(CanRevealDescription));
+            OnPropertyChanged(nameof(CanRevealTrophy));
+            OnPropertyChanged(nameof(CanRevealPoints));
             OnPropertyChanged(nameof(IsTitleHidden));
             OnPropertyChanged(nameof(IsDescriptionHidden));
+            OnPropertyChanged(nameof(IsTrophyHidden));
+            OnPropertyChanged(nameof(IsPointsHidden));
             OnPropertyChanged(nameof(DisplayIcon));
             OnPropertyChanged(nameof(ApiNameResolved));
             OnPropertyChanged(nameof(HasApiName));
@@ -7177,16 +7411,32 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 : _iconPathFromDisplay?.Invoke(normalized) ?? normalized;
         }
 
+        // Both re-raise the reveal state: gaining or losing a value flips whether the row has
+        // anything to mask, and so whether its reveal toggle should be offered at all.
         public string PointsText
         {
             get => _pointsText;
-            set => SetValue(ref _pointsText, value);
+            set
+            {
+                if (SetValueAndReturn(ref _pointsText, value))
+                {
+                    OnPropertyChanged(nameof(HasPoints));
+                    NotifyRevealStateChanged();
+                }
+            }
         }
 
         public string TrophyType
         {
             get => _trophyType;
-            set => SetValue(ref _trophyType, value);
+            set
+            {
+                if (SetValueAndReturn(ref _trophyType, value))
+                {
+                    OnPropertyChanged(nameof(HasTrophyType));
+                    NotifyRevealStateChanged();
+                }
+            }
         }
 
         public bool Hidden

@@ -23,22 +23,35 @@
                         Value="{Binding DataContext, ElementName=SpoilersSectionRoot}"/>
             </Style>
             <!-- One cell of the reveal matrix. The row and column headers carry the meaning, so the
-                 box itself is unlabelled and centred under its column. -->
-            <Style x:Key="RevealMatrixCheckBoxStyle" TargetType="CheckBox">
+                 box itself is unlabelled and centred under its column. BasedOn is required: a keyed
+                 style without it would drop the plugin's checkbox template for the WPF default. -->
+            <Style x:Key="RevealMatrixCheckBoxStyle"
+                   TargetType="CheckBox"
+                   BasedOn="{StaticResource PlayAch.CheckBox.BaseStyle}">
                 <Setter Property="HorizontalAlignment" Value="Center"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
-                <Setter Property="Margin" Value="0,0,0,6"/>
+                <Setter Property="Margin" Value="0,0,0,8"/>
             </Style>
-            <Style x:Key="RevealMatrixRowLabelStyle" TargetType="TextBlock">
+            <Style x:Key="RevealMatrixRowLabelStyle"
+                   TargetType="TextBlock"
+                   BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
-                <Setter Property="Margin" Value="0,0,16,6"/>
+                <Setter Property="Margin" Value="0,0,20,8"/>
             </Style>
-            <Style x:Key="RevealMatrixColumnHeaderStyle" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                <Setter Property="FontWeight" Value="SemiBold"/>
+            <Style x:Key="RevealMatrixColumnHeaderStyle"
+                   TargetType="TextBlock"
+                   BasedOn="{StaticResource SubSectionHeaderStyle}">
                 <Setter Property="HorizontalAlignment" Value="Center"/>
                 <Setter Property="Margin" Value="0,0,0,8"/>
+            </Style>
+            <!-- Spans both columns so the matrix reads "Reveal ... when Hidden / when Locked" and a
+                 ticked box cannot be mistaken for "hide this". -->
+            <Style x:Key="RevealMatrixCaptionStyle"
+                   TargetType="TextBlock"
+                   BasedOn="{StaticResource ContextLabelStyle}">
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,0,0,2"/>
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -71,6 +84,7 @@
                             <modern:AchievementDataGridControl
                                 Style="{StaticResource PreviewThemeControlStyle}"
                                 ThemeDataOverride="{Binding AchievementVisibilityPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                ColumnSettingsKeyOverride="SpoilersPreview"
                                 PreviewMaxHeightOverride="220"
                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
@@ -93,62 +107,67 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Grid.Column="1"
+                                <TextBlock Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                                           Text="{DynamicResource LOCPlayAch_Settings_RevealWhen}"
+                                           Style="{StaticResource RevealMatrixCaptionStyle}"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="1"
                                            Text="{DynamicResource LOCPlayAch_Filter_Hidden}"
                                            Style="{StaticResource RevealMatrixColumnHeaderStyle}"/>
-                                <TextBlock Grid.Row="0" Grid.Column="2"
+                                <TextBlock Grid.Row="1" Grid.Column="2"
                                            Text="{DynamicResource LOCPlayAch_Common_Locked}"
                                            Style="{StaticResource RevealMatrixColumnHeaderStyle}"/>
 
-                                <TextBlock Grid.Row="1" Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Column_Icon}"
-                                           Style="{StaticResource RevealMatrixRowLabelStyle}"/>
-                                <CheckBox Grid.Row="1" Grid.Column="1"
-                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
-                                          IsChecked="{Binding Persisted.ShowHiddenIcon}"/>
-                                <CheckBox Grid.Row="1" Grid.Column="2"
-                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
-                                          IsChecked="{Binding Persisted.ShowLockedIcon}"/>
-
                                 <TextBlock Grid.Row="2" Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Column_Name}"
+                                           Text="{DynamicResource LOCPlayAch_Column_Icon}"
                                            Style="{StaticResource RevealMatrixRowLabelStyle}"/>
                                 <CheckBox Grid.Row="2" Grid.Column="1"
                                           Style="{StaticResource RevealMatrixCheckBoxStyle}"
-                                          IsChecked="{Binding Persisted.ShowHiddenTitle}"/>
+                                          IsChecked="{Binding Persisted.ShowHiddenIcon}"/>
                                 <CheckBox Grid.Row="2" Grid.Column="2"
                                           Style="{StaticResource RevealMatrixCheckBoxStyle}"
-                                          IsChecked="{Binding Persisted.ShowLockedTitle}"/>
+                                          IsChecked="{Binding Persisted.ShowLockedIcon}"/>
 
                                 <TextBlock Grid.Row="3" Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Column_Description}"
+                                           Text="{DynamicResource LOCPlayAch_Column_Name}"
                                            Style="{StaticResource RevealMatrixRowLabelStyle}"/>
                                 <CheckBox Grid.Row="3" Grid.Column="1"
                                           Style="{StaticResource RevealMatrixCheckBoxStyle}"
-                                          IsChecked="{Binding Persisted.ShowHiddenDescription}"/>
+                                          IsChecked="{Binding Persisted.ShowHiddenTitle}"/>
                                 <CheckBox Grid.Row="3" Grid.Column="2"
                                           Style="{StaticResource RevealMatrixCheckBoxStyle}"
-                                          IsChecked="{Binding Persisted.ShowLockedDescription}"/>
+                                          IsChecked="{Binding Persisted.ShowLockedTitle}"/>
 
                                 <TextBlock Grid.Row="4" Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Column_Trophy}"
+                                           Text="{DynamicResource LOCPlayAch_Column_Description}"
                                            Style="{StaticResource RevealMatrixRowLabelStyle}"/>
                                 <CheckBox Grid.Row="4" Grid.Column="1"
                                           Style="{StaticResource RevealMatrixCheckBoxStyle}"
-                                          IsChecked="{Binding Persisted.ShowHiddenTrophy}"/>
+                                          IsChecked="{Binding Persisted.ShowHiddenDescription}"/>
                                 <CheckBox Grid.Row="4" Grid.Column="2"
                                           Style="{StaticResource RevealMatrixCheckBoxStyle}"
-                                          IsChecked="{Binding Persisted.ShowLockedTrophy}"/>
+                                          IsChecked="{Binding Persisted.ShowLockedDescription}"/>
 
                                 <TextBlock Grid.Row="5" Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Column_Points}"
+                                           Text="{DynamicResource LOCPlayAch_Column_Trophy}"
                                            Style="{StaticResource RevealMatrixRowLabelStyle}"/>
                                 <CheckBox Grid.Row="5" Grid.Column="1"
                                           Style="{StaticResource RevealMatrixCheckBoxStyle}"
-                                          IsChecked="{Binding Persisted.ShowHiddenPoints}"/>
+                                          IsChecked="{Binding Persisted.ShowHiddenTrophy}"/>
                                 <CheckBox Grid.Row="5" Grid.Column="2"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowLockedTrophy}"/>
+
+                                <TextBlock Grid.Row="6" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Column_Points}"
+                                           Style="{StaticResource RevealMatrixRowLabelStyle}"/>
+                                <CheckBox Grid.Row="6" Grid.Column="1"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowHiddenPoints}"/>
+                                <CheckBox Grid.Row="6" Grid.Column="2"
                                           Style="{StaticResource RevealMatrixCheckBoxStyle}"
                                           IsChecked="{Binding Persisted.ShowLockedPoints}"/>
                             </Grid>

@@ -890,6 +890,44 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
+        /// <summary>Reveals a masked trophy grade by clicking it.</summary>
+        private void MaskedTrophy_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.RevealTrophy();
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>Reveals a masked point value by clicking it.</summary>
+        private void MaskedPoints_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.RevealPoints();
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>Reveals or re-masks one row's trophy grade.</summary>
+        private void ToggleTrophyRevealButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.ToggleTrophyReveal();
+            }
+        }
+
+        /// <summary>Reveals or re-masks one row's point value.</summary>
+        private void TogglePointsRevealButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.TogglePointsReveal();
+            }
+        }
+
         private void IconImage_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (!((sender as FrameworkElement)?.DataContext is AchievementEditorRow row) || !row.CanReveal)

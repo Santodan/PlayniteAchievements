@@ -1208,14 +1208,45 @@
                          re-resolves its selection when its container is re-bound and can push that
                          value back at the row, which for a column that writes the selection would
                          file every selected achievement under a type nobody picked. -->
-                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Trophy}"
-                                            Width="118"
+                    <DataGridTemplateColumn Width="118"
                                             MinWidth="90"
                                             IsReadOnly="True"
                                             CanUserSort="False"
                                             SortMemberPath="TrophyType"
+                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorTrophy"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Trophy}"
                                             helpers:EditorCellRouting.RoutesToSelection="True">
+                        <DataGridTemplateColumn.Header>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <!-- Balances the toggle so the caption stays centred. -->
+                                <Border Grid.Column="0"
+                                        Width="30"
+                                        Visibility="{Binding DataContext.CanRevealAnyTrophy, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{DynamicResource LOCPlayAch_Column_Trophy}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                                <Button Grid.Column="2"
+                                        Style="{StaticResource RevealHeaderToggleButtonStyle}"
+                                        Visibility="{Binding DataContext.CanRevealAnyTrophy, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding DataContext.ToggleAllTrophiesRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <Grid>
+                                        <TextBlock Text="&#xEF22;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding DataContext.AreAllTrophiesRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}"/>
+                                        <TextBlock Text="&#xEF24;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding DataContext.AreAllTrophiesRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"/>
+                                    </Grid>
+                                </Button>
+                            </Grid>
+                        </DataGridTemplateColumn.Header>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <!-- The badge rather than the type's name, the way every other grid
@@ -1228,11 +1259,18 @@
                                      Content through a TextBlock's Text, so it can only show a
                                      string and drops an image without complaint. The chevron below
                                      is what that style would have drawn. -->
-                                <Button ToolTip="{Binding TrophyType}"
+                                <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0"
+                                        ToolTip="{Binding TrophyType}"
                                         Click="TrophyCell_Click"
                                         MinHeight="26"
                                         Margin="4,0"
                                         Padding="6,1"
+                                        Visibility="{Binding IsTrophyHidden, Converter={StaticResource InverseBoolToVis}}"
                                         HorizontalAlignment="Stretch"
                                         VerticalAlignment="Center"
                                         HorizontalContentAlignment="Center">
@@ -1276,30 +1314,119 @@
                                                    Foreground="{DynamicResource PlayAch.Brush.Text}" />
                                     </StackPanel>
                                 </Button>
+                                <!-- While masked the cell shows the unknown-grade badge instead of
+                                     the picker, so the grade cannot be read and the menu cannot be
+                                     opened on it by accident. -->
+                                <Border Grid.Column="0"
+                                        Background="Transparent"
+                                        Cursor="Hand"
+                                        ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                        Visibility="{Binding IsTrophyHidden, Converter={StaticResource BoolToVis}}"
+                                        PreviewMouseLeftButtonDown="MaskedTrophy_PreviewMouseLeftButtonDown">
+                                    <Image Width="16"
+                                           Height="16"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Source="{DynamicResource TrophyUnknown}"/>
+                                </Border>
+                                <Button Grid.Column="1"
+                                        Style="{StaticResource RevealToggleButtonStyle}"
+                                        Visibility="{Binding CanRevealTrophy, Converter={StaticResource BoolToVis}}"
+                                        Click="ToggleTrophyRevealButton_Click">
+                                    <Grid>
+                                        <TextBlock Text="&#xEF22;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding IsTrophyHidden, Converter={StaticResource BoolToVis}}"/>
+                                        <TextBlock Text="&#xEF24;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding IsTrophyHidden, Converter={StaticResource InverseBoolToVis}}"/>
+                                    </Grid>
+                                </Button>
+                                </Grid>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Points}"
-                                            Width="76"
+                    <DataGridTemplateColumn Width="76"
                                             MinWidth="56"
                                             IsReadOnly="True"
                                             CanUserSort="False"
                                             SortMemberPath="PointsText"
+                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorPoints"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Points}"
                                             helpers:EditorCellRouting.RoutesToSelection="True">
+                        <DataGridTemplateColumn.Header>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0"
+                                        Width="30"
+                                        Visibility="{Binding DataContext.CanRevealAnyPoints, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{DynamicResource LOCPlayAch_Column_Points}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                                <Button Grid.Column="2"
+                                        Style="{StaticResource RevealHeaderToggleButtonStyle}"
+                                        Visibility="{Binding DataContext.CanRevealAnyPoints, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding DataContext.ToggleAllPointsRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <Grid>
+                                        <TextBlock Text="&#xEF22;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding DataContext.AreAllPointsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}"/>
+                                        <TextBlock Text="&#xEF24;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding DataContext.AreAllPointsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"/>
+                                    </Grid>
+                                </Button>
+                            </Grid>
+                        </DataGridTemplateColumn.Header>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBox Text="{Binding PointsText, Mode=OneWay}"
-                                         Style="{StaticResource GridEditorTextBoxStyle}"
-                                         Margin="4,0"
-                                         VerticalAlignment="Center"
-                                         Tag="NonNegativeInt"
-                                         PreviewTextInput="NumericTextBox_PreviewTextInput"
-                                         DataObject.Pasting="NumericTextBox_Pasting"
-                                         LostFocus="RoutedCellTextBox_Commit"
-                                         PreviewKeyDown="RoutedCellTextBox_KeyDown"
-                                         helpers:EditorCellRouting.Field="PointsText" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding PointsText, Mode=OneWay}"
+                                             Style="{StaticResource GridEditorTextBoxStyle}"
+                                             Margin="4,0"
+                                             VerticalAlignment="Center"
+                                             Visibility="{Binding IsPointsHidden, Converter={StaticResource InverseBoolToVis}}"
+                                             Tag="NonNegativeInt"
+                                             PreviewTextInput="NumericTextBox_PreviewTextInput"
+                                             DataObject.Pasting="NumericTextBox_Pasting"
+                                             LostFocus="RoutedCellTextBox_Commit"
+                                             PreviewKeyDown="RoutedCellTextBox_KeyDown"
+                                             helpers:EditorCellRouting.Field="PointsText" />
+                                    <Border Grid.Column="0"
+                                            Background="Transparent"
+                                            Cursor="Hand"
+                                            ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                            Visibility="{Binding IsPointsHidden, Converter={StaticResource BoolToVis}}"
+                                            PreviewMouseLeftButtonDown="MaskedPoints_PreviewMouseLeftButtonDown">
+                                        <TextBlock Text="?"
+                                                   Style="{StaticResource MaskedCellTextStyle}"/>
+                                    </Border>
+                                    <Button Grid.Column="1"
+                                            Style="{StaticResource RevealToggleButtonStyle}"
+                                            Visibility="{Binding CanRevealPoints, Converter={StaticResource BoolToVis}}"
+                                            Click="TogglePointsRevealButton_Click">
+                                        <Grid>
+                                            <TextBlock Text="&#xEF22;"
+                                                       Style="{StaticResource RevealGlyphTextStyle}"
+                                                       Visibility="{Binding IsPointsHidden, Converter={StaticResource BoolToVis}}"/>
+                                            <TextBlock Text="&#xEF24;"
+                                                       Style="{StaticResource RevealGlyphTextStyle}"
+                                                       Visibility="{Binding IsPointsHidden, Converter={StaticResource InverseBoolToVis}}"/>
+                                        </Grid>
+                                    </Button>
+                                </Grid>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
