@@ -97,6 +97,8 @@
                               IsChecked="{Binding Surface.ShowCategory}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_UnlockTime}"
                               IsChecked="{Binding Surface.ShowUnlockTime}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Column_Icon}"
+                              IsChecked="{Binding Surface.ShowIcon}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Platform}"
                               IsEnabled="{Binding IsProviderIconEnabled}"
                               IsChecked="{Binding Surface.ShowProviderIcon}"/>
