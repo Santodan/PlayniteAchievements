@@ -100,6 +100,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _notificationBorderGlow;
         private bool _rarityColoredName = true;
         private bool _showUnlockTime;
+        private bool _showIcon = true;
         private bool _showProviderIcon = true;
         private bool _showAccentStrip = true;
         private bool _showCountdownBar = true;
@@ -261,6 +262,17 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showUnlockTime;
             set => SetValue(ref _showUnlockTime, value);
+        }
+
+        /// <summary>
+        /// Shows the achievement artwork on the left of the surface. With it hidden, the badge
+        /// and percent that sit under it still show when they are enabled.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public bool ShowIcon
+        {
+            get => _showIcon;
+            set => SetValue(ref _showIcon, value);
         }
 
         /// <summary>
@@ -732,6 +744,7 @@ namespace PlayniteAchievements.Models.Settings
                 NotificationBorderGlow = NotificationBorderGlow,
                 RarityColoredName = RarityColoredName,
                 ShowUnlockTime = ShowUnlockTime,
+                ShowIcon = ShowIcon,
                 ShowProviderIcon = ShowProviderIcon,
                 ShowAccentStrip = ShowAccentStrip,
                 ShowCountdownBar = ShowCountdownBar,
