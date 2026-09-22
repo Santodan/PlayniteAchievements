@@ -14,6 +14,17 @@
         <Setter Property="Opacity" Value="0.96"/>
     </Style>
 
+    <!-- Divider above a subsection inside a card, so grouped rows read as groups without needing a
+         second nested card. Narrower and lighter than the section accent rule that sits under a
+         section header. -->
+    <Style x:Key="SubSectionRuleStyle" TargetType="Border">
+        <Setter Property="Height" Value="1"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Border}"/>
+        <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Subtle}"/>
+        <Setter Property="Margin" Value="0,6,0,12"/>
+    </Style>
+
     <Style x:Key="SectionAccentRuleStyle" TargetType="Border">
         <Setter Property="Height" Value="2"/>
         <Setter Property="Width" Value="44"/>
