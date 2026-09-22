@@ -78,20 +78,6 @@ namespace PlayniteAchievements.Models.Achievements
         private const double RareThresholdValue = 20;
         private const double UncommonThresholdValue = 50;
 
-        // Rarity brushes (public for extension method access)
-        public static readonly SolidColorBrush CommonBrush = new SolidColorBrush(Color.FromRgb(0x8B, 0xC3, 0x4A));
-        public static readonly SolidColorBrush UncommonBrush = new SolidColorBrush(Color.FromRgb(0x03, 0xA9, 0xF4));
-        public static readonly SolidColorBrush RareBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x98, 0x00));
-        public static readonly SolidColorBrush UltraRareBrush = new SolidColorBrush(Color.FromRgb(0xE9, 0x1E, 0x63));
-
-        static PercentRarityHelper()
-        {
-            CommonBrush.Freeze();
-            UncommonBrush.Freeze();
-            RareBrush.Freeze();
-            UltraRareBrush.Freeze();
-        }
-
         public static double UltraRareThreshold => UltraRareThresholdValue;
         public static double RareThreshold => RareThresholdValue;
         public static double UncommonThreshold => UncommonThresholdValue;
