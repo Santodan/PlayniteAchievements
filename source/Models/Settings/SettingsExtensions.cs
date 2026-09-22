@@ -157,6 +157,12 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowHiddenDescription = source.ShowHiddenDescription;
             target.ShowHiddenSuffix = source.ShowHiddenSuffix;
             target.ShowLockedIcon = source.ShowLockedIcon;
+            target.ShowLockedTitle = source.ShowLockedTitle;
+            target.ShowLockedDescription = source.ShowLockedDescription;
+            target.ShowHiddenTrophy = source.ShowHiddenTrophy;
+            target.ShowHiddenPoints = source.ShowHiddenPoints;
+            target.ShowLockedTrophy = source.ShowLockedTrophy;
+            target.ShowLockedPoints = source.ShowLockedPoints;
             target.UseSeparateLockedIconsWhenAvailable = source.UseSeparateLockedIconsWhenAvailable;
             target.SeparateLockedIconEnabledGameIds = source.SeparateLockedIconEnabledGameIds != null
                 ? new HashSet<Guid>(source.SeparateLockedIconEnabledGameIds)

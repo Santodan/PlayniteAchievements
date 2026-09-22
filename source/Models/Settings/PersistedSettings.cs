@@ -143,6 +143,12 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showHiddenDescription = false;
         private bool _showHiddenSuffix = true;
         private bool _showLockedIcon = true;
+        private bool _showLockedTitle = true;
+        private bool _showLockedDescription = true;
+        private bool _showHiddenTrophy = true;
+        private bool _showHiddenPoints = true;
+        private bool _showLockedTrophy = true;
+        private bool _showLockedPoints = true;
         private bool _useSeparateLockedIconsWhenAvailable = false;
         private HashSet<Guid> _separateLockedIconEnabledGameIds = new HashSet<Guid>();
         private string _lockedFallbackIconPath = null;
@@ -1692,6 +1698,60 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// When true, locked achievement titles are shown before reveal.
+        /// </summary>
+        public bool ShowLockedTitle
+        {
+            get => _showLockedTitle;
+            set => SetValue(ref _showLockedTitle, value);
+        }
+
+        /// <summary>
+        /// When true, locked achievement descriptions are shown before reveal.
+        /// </summary>
+        public bool ShowLockedDescription
+        {
+            get => _showLockedDescription;
+            set => SetValue(ref _showLockedDescription, value);
+        }
+
+        /// <summary>
+        /// When true, the trophy grade of a hidden achievement is shown before reveal.
+        /// </summary>
+        public bool ShowHiddenTrophy
+        {
+            get => _showHiddenTrophy;
+            set => SetValue(ref _showHiddenTrophy, value);
+        }
+
+        /// <summary>
+        /// When true, the point value of a hidden achievement is shown before reveal.
+        /// </summary>
+        public bool ShowHiddenPoints
+        {
+            get => _showHiddenPoints;
+            set => SetValue(ref _showHiddenPoints, value);
+        }
+
+        /// <summary>
+        /// When true, the trophy grade of a locked achievement is shown before reveal.
+        /// </summary>
+        public bool ShowLockedTrophy
+        {
+            get => _showLockedTrophy;
+            set => SetValue(ref _showLockedTrophy, value);
+        }
+
+        /// <summary>
+        /// When true, the point value of a locked achievement is shown before reveal.
+        /// </summary>
+        public bool ShowLockedPoints
+        {
+            get => _showLockedPoints;
+            set => SetValue(ref _showLockedPoints, value);
+        }
+
+        /// <summary>
         /// When true, providers with distinct locked icons will cache and use them instead of grayscaling the unlocked icon.
         /// Changes apply on the next refresh for newly cached icons.
         /// </summary>
@@ -2949,6 +3009,12 @@ namespace PlayniteAchievements.Models.Settings
                 ShowHiddenDescription = this.ShowHiddenDescription,
                 ShowHiddenSuffix = this.ShowHiddenSuffix,
                 ShowLockedIcon = this.ShowLockedIcon,
+                ShowLockedTitle = this.ShowLockedTitle,
+                ShowLockedDescription = this.ShowLockedDescription,
+                ShowHiddenTrophy = this.ShowHiddenTrophy,
+                ShowHiddenPoints = this.ShowHiddenPoints,
+                ShowLockedTrophy = this.ShowLockedTrophy,
+                ShowLockedPoints = this.ShowLockedPoints,
                 UseSeparateLockedIconsWhenAvailable = this.UseSeparateLockedIconsWhenAvailable,
                 LockedFallbackIconPath = this.LockedFallbackIconPath,
                 HiddenFallbackIconPath = this.HiddenFallbackIconPath,
@@ -3112,6 +3178,12 @@ namespace PlayniteAchievements.Models.Settings
             ShowHiddenDescription = defaults.ShowHiddenDescription;
             ShowHiddenSuffix = defaults.ShowHiddenSuffix;
             ShowLockedIcon = defaults.ShowLockedIcon;
+            ShowLockedTitle = defaults.ShowLockedTitle;
+            ShowLockedDescription = defaults.ShowLockedDescription;
+            ShowHiddenTrophy = defaults.ShowHiddenTrophy;
+            ShowHiddenPoints = defaults.ShowHiddenPoints;
+            ShowLockedTrophy = defaults.ShowLockedTrophy;
+            ShowLockedPoints = defaults.ShowLockedPoints;
             ShowFriendSpoilers = defaults.ShowFriendSpoilers;
             UseSeparateLockedIconsWhenAvailable = defaults.UseSeparateLockedIconsWhenAvailable;
             SeparateLockedIconEnabledGameIds = new HashSet<Guid>();
