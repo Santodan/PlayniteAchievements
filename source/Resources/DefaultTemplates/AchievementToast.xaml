@@ -217,11 +217,13 @@
                 <StackPanel Grid.Column="0"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
-                            Margin="0,0,14,0">
+                            Margin="0,0,14,0"
+                            Visibility="{Binding ShowIconColumn, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Grid Width="{Binding ToastIconSize}"
                           Height="{Binding ToastIconSize}"
                           ClipToBounds="False"
-                          HorizontalAlignment="Center">
+                          HorizontalAlignment="Center"
+                          Visibility="{Binding ShowIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <!-- Rays glow style: arrows riding the icon's own silhouette, behind the soft
                              halo on the backing layer below, which keeps rendering under both styles.
                              PhaseLock is off for live waves so every notification (and its
