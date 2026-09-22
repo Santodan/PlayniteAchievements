@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -26,7 +27,7 @@
                                Style="{StaticResource MutedTextStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}"/>
 
-                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_Title}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
@@ -35,47 +36,24 @@
                                        Style="{StaticResource MutedTextStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_ClearDescription}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_ClearDescription}">
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
                                         Click="WipeCache_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
                                         MinWidth="130"/>
-                            </Grid>
+                            </controls:SettingRow>
 
-                            <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_ClearUnownedFriendData_Description}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ClearUnownedFriendData_Description}"
+                                                 Margin="0">
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
                                         Click="ClearUnownedFriendGameData_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
                                         MinWidth="130"/>
-                            </Grid>
+                            </controls:SettingRow>
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Title}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
@@ -84,47 +62,24 @@
                                        Style="{StaticResource MutedTextStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-                            <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearAllDescription}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_IconCache_ClearAllDescription}">
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
                                         Click="ClearAllIconCache_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
                                         MinWidth="130"/>
-                            </Grid>
+                            </controls:SettingRow>
 
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearLockedDescription}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_IconCache_ClearLockedDescription}"
+                                                 Margin="0">
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
                                         Click="ClearLockedIconCache_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
                                         MinWidth="130"/>
-                            </Grid>
+                            </controls:SettingRow>
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompressImages_Title}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
@@ -134,106 +89,43 @@
                                        TextWrapping="Wrap"
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-                            <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_CompressImages_MaxSize}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           VerticalAlignment="Center"/>
-
-                                <ComboBox Grid.Column="1"
-                                          x:Name="CompressMaxDimensionCombo"
-                                          Margin="16,0,0,0"
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CompressImages_MaxSize}">
+                                <ComboBox x:Name="CompressMaxDimensionCombo"
                                           MinWidth="130"/>
-                            </Grid>
+                            </controls:SettingRow>
 
-                            <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_CompressImages_AchievementIconsDescription}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           TextWrapping="Wrap"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Button_Compress}"
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CompressImages_AchievementIconsDescription}">
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Compress}"
                                         Click="CompressAchievementIcons_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
                                         MinWidth="130"/>
-                            </Grid>
+                            </controls:SettingRow>
 
-                            <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_CompressImages_CategoryArtDescription}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           TextWrapping="Wrap"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Button_Compress}"
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CompressImages_CategoryArtDescription}">
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Compress}"
                                         Click="CompressCategoryArt_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
                                         MinWidth="130"/>
-                            </Grid>
+                            </controls:SettingRow>
 
-                            <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_CompressImages_FriendImagesDescription}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           TextWrapping="Wrap"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Button_Compress}"
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CompressImages_FriendImagesDescription}">
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Compress}"
                                         Click="CompressFriendImages_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
                                         MinWidth="130"/>
-                            </Grid>
+                            </controls:SettingRow>
 
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_CompressImages_CustomIconsDescription}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           TextWrapping="Wrap"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Button_Compress}"
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CompressImages_CustomIconsDescription}"
+                                                 Margin="0">
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Compress}"
                                         Click="CompressCustomIcons_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
                                         MinWidth="130"/>
-                            </Grid>
+                            </controls:SettingRow>
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Utilities_Title}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
@@ -242,62 +134,27 @@
                                        Style="{StaticResource MutedTextStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-                            <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetup}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetupButton}"
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetup}">
+                                <Button Content="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetupButton}"
                                         Click="ResetFirstTimeSetup_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
                                         MinWidth="130"/>
-                            </Grid>
+                            </controls:SettingRow>
 
-                            <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_ExportDatabase}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Settings_ExportDatabaseButton}"
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ExportDatabase}">
+                                <Button Content="{DynamicResource LOCPlayAch_Settings_ExportDatabaseButton}"
                                         Click="ExportDatabase_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
                                         MinWidth="130"/>
-                            </Grid>
+                            </controls:SettingRow>
 
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_OpenDataFolder}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Settings_OpenDataFolderButton}"
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_OpenDataFolder}"
+                                                 Margin="0">
+                                <Button Content="{DynamicResource LOCPlayAch_Settings_OpenDataFolderButton}"
                                         Click="OpenDataFolder_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
                                         MinWidth="130"/>
-                            </Grid>
+                            </controls:SettingRow>
                         </StackPanel>
                     </Border>
                 </StackPanel>
