@@ -1460,6 +1460,12 @@ namespace PlayniteAchievements.Models.Tests
                 },
 
                 ShowHiddenIcon = true,
+                ShowLockedTitle = false,
+                ShowLockedDescription = false,
+                ShowHiddenTrophy = false,
+                ShowHiddenPoints = false,
+                ShowLockedTrophy = false,
+                ShowLockedPoints = false,
                 OverviewRecentAchievementsShowRarityGlow = false,
                 OverviewSelectedGameShowRarityGlow = false,
                 ViewAchievementsAchievementGridShowRarityGlow = false,
@@ -1564,6 +1570,12 @@ namespace PlayniteAchievements.Models.Tests
             settings.ResetDisplaySettingsToDefaults();
 
             Assert.AreEqual(defaults.ShowHiddenIcon, settings.ShowHiddenIcon);
+            Assert.AreEqual(defaults.ShowLockedTitle, settings.ShowLockedTitle);
+            Assert.AreEqual(defaults.ShowLockedDescription, settings.ShowLockedDescription);
+            Assert.AreEqual(defaults.ShowHiddenTrophy, settings.ShowHiddenTrophy);
+            Assert.AreEqual(defaults.ShowHiddenPoints, settings.ShowHiddenPoints);
+            Assert.AreEqual(defaults.ShowLockedTrophy, settings.ShowLockedTrophy);
+            Assert.AreEqual(defaults.ShowLockedPoints, settings.ShowLockedPoints);
             Assert.AreEqual(defaults.OverviewRecentAchievementsShowRarityGlow, settings.OverviewRecentAchievementsShowRarityGlow);
             Assert.AreEqual(defaults.OverviewSelectedGameShowRarityGlow, settings.OverviewSelectedGameShowRarityGlow);
             Assert.AreEqual(defaults.ViewAchievementsAchievementGridShowRarityGlow, settings.ViewAchievementsAchievementGridShowRarityGlow);

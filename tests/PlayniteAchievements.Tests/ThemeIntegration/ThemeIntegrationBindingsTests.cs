@@ -127,13 +127,12 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 detail,
                 "Category Image Game",
                 gameId,
-                showHiddenIcon: false,
-                showHiddenTitle: false,
-                showHiddenDescription: false,
-                showHiddenSuffix: true,
-                showLockedIcon: true,
-                useSeparateLockedIconsWhenAvailable: false,
-                showRarityBar: true);
+                new AchievementDisplayItem.AppearanceSettingsSnapshot
+                {
+                    ShowHiddenSuffix = true,
+                    ShowLockedIcon = true,
+                    ShowRarityBar = true
+                });
 
             Assert.AreEqual("category-art.png", displayItem.CategoryArtPath);
         }
@@ -176,13 +175,12 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                     detail,
                     gameName,
                     gameId,
-                    showHiddenIcon: false,
-                    showHiddenTitle: false,
-                    showHiddenDescription: false,
-                    showHiddenSuffix: true,
-                    showLockedIcon: true,
-                    useSeparateLockedIconsWhenAvailable: false,
-                    showRarityBar: true);
+                    new AchievementDisplayItem.AppearanceSettingsSnapshot
+                    {
+                        ShowHiddenSuffix = true,
+                        ShowLockedIcon = true,
+                        ShowRarityBar = true
+                    });
 
                 Assert.AreEqual(cleanPath, displayItem.CleanCapturePath);
                 Assert.IsNull(displayItem.NotificationCapturePath);
