@@ -126,9 +126,14 @@ namespace PlayniteAchievements.Services.Capture
             public int CardHPhys;
 
             /// <summary>
-            /// The slide host's opacity at this tick. Scales the ray layers at export (a fade
-            /// theme's fade must reach them; the card pixels carry it already, and the shadow
-            /// layer's <see cref="GlowScale"/> folds it in with the pulse).
+            /// The slide host's opacity at this tick. A fade theme animates the host rather than
+            /// the card, and the recorded pixels are captured without it, so export scales the card
+            /// pixels by this and the ray layers by it too; the shadow layer's
+            /// <see cref="GlowScale"/> folds it in with the pulse.
+            ///
+            /// Deliberately metadata rather than baked into the pixels: the recorder holds one
+            /// frame for a slide storyboard's whole span, which is exactly when a fade runs, so a
+            /// baked fade froze at whatever opacity the first live render caught.
             /// </summary>
             public double HostOpacity;
 

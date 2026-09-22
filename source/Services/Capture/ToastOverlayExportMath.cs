@@ -73,7 +73,8 @@ namespace PlayniteAchievements.Services.Capture
 
         /// <summary>
         /// The slide host's opacity at <paramref name="secondsIntoTrack"/>, interpolated like the
-        /// slide offset. Scales the ray layers at export.
+        /// slide offset. Scales the card pixels and the ray layers at export; the glow scale folds
+        /// it in already.
         /// </summary>
         public static double GetHostOpacity(ToastOverlayTrack track, int sampleIndex, double secondsIntoTrack)
         {
