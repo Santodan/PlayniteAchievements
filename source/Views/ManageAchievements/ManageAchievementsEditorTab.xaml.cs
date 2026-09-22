@@ -343,7 +343,22 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         private int _realizedRowCount;
+        private int _freshRowCount;
         private System.Diagnostics.Stopwatch _rowRealizationWindow;
+        private DataGridRowsPresenter _rowsPresenter;
+
+        /// <summary>
+        /// Marks a row container that has already been through LoadingRow once. Recycling reuses
+        /// the container and swaps only its DataContext, so a second load on the same instance is
+        /// a recycle and a first load is a fresh realization. Held as an attached flag on the
+        /// container rather than in a set, so it dies with the container and cannot itself become
+        /// the growth being measured.
+        /// </summary>
+        private static readonly DependencyProperty RowSeenProperty = DependencyProperty.RegisterAttached(
+            "RowSeen",
+            typeof(bool),
+            typeof(ManageAchievementsEditorTab),
+            new PropertyMetadata(false));
 
         /// <summary>
         /// Counts realized rows and reports in batches. Per-row logging would cost more than the
@@ -364,6 +379,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             _realizedRowCount++;
+            if (e.Row != null && !(bool)e.Row.GetValue(RowSeenProperty))
+            {
+                e.Row.SetValue(RowSeenProperty, true);
+                _freshRowCount++;
+            }
 
             // Reports on whichever comes first: twenty rows, or a quarter second of realizing.
             // A fixed batch of fifty never reported at all on a game of seventy-seven rows,
@@ -377,8 +397,27 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             var realized = _realizedRowCount;
+            var fresh = _freshRowCount;
             var rows = ViewModel?.AchievementRows?.Count ?? 0;
+
+            // Realized containers held by the rows panel, and realized cells in the row just
+            // loaded. These separate the two explanations for scrolling that gets progressively
+            // worse: recycling that has stopped recycling (containers climbing well past a
+            // viewport, fresh staying high) against a row template that is simply expensive (both
+            // flat while the per-row time still rises). Read off the panels rather than by walking
+            // the tree, so the measurement does not become the cost it reports.
+            if (_rowsPresenter == null)
+            {
+                _rowsPresenter = VisualTreeHelpers.FindVisualChild<DataGridRowsPresenter>(CustomAchievementsGrid);
+            }
+
+            var containers = _rowsPresenter?.Children?.Count ?? -1;
+            var cells = e.Row == null
+                ? -1
+                : (VisualTreeHelpers.FindVisualChild<DataGridCellsPanel>(e.Row)?.Children?.Count ?? -1);
+
             _realizedRowCount = 0;
+            _freshRowCount = 0;
             _rowRealizationWindow.Restart();
             // The plugin's own logger, not LogManager.GetLogger(). That one writes to
             // playnite.log and its Debug output is not persisted, so the first two attempts at
@@ -387,7 +426,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             PlayniteAchievements.Services.Logging.PluginLogger.GetLogger(nameof(ManageAchievementsEditorTab)).Debug(
                 $"[UiBlockRisk] tag=Editor.RowRealization ms={(long)elapsed} ui=true " +
                 $"thread={System.Threading.Thread.CurrentThread.ManagedThreadId} " +
-                $"context=realized={realized} rows={rows}");
+                $"context=realized={realized} fresh={fresh} containers={containers} cells={cells} rows={rows}");
         }
 
         private void RestoreSelectionByApiNames(IReadOnlyList<string> apiNames)
