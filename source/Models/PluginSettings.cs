@@ -2465,13 +2465,7 @@ namespace PlayniteAchievements.Models
             }
 
             ModernTheme.RefreshDisplayItems(
-                persisted.ShowHiddenIcon,
-                persisted.ShowHiddenTitle,
-                persisted.ShowHiddenDescription,
-                persisted.ShowHiddenSuffix,
-                persisted.ShowLockedIcon,
-                persisted.UseSeparateLockedIconsWhenAvailable,
-                persisted.ShowCompactListRarityBar);
+                ViewModels.Items.AchievementDisplayItem.CreateAppearanceSettingsSnapshot(this, null, null));
         }
 
         /// <summary>
