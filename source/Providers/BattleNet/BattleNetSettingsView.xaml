@@ -132,7 +132,7 @@
                                 <Border BorderBrush="{DynamicResource PopupBorderBrush}"
                                         BorderThickness="0,1,0,0"
                                         Padding="0,12,0,0"
-                                        Margin="0,12,0,0">
+                                        Margin="{StaticResource PlayAch.Thickness.Top.Md}">
                                     <StackPanel>
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BattleNet_ClientId}"
                                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -276,7 +276,7 @@
                               Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity_Help}"
                                Style="{StaticResource MutedTextStyle}"
-                               Margin="24,8,0,0"
+                               Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
                                TextWrapping="Wrap"/>
 
                     <controls:AuthStatusCard Margin="24,12,0,0"
