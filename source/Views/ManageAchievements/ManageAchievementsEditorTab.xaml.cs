@@ -163,6 +163,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             AttachColumnPersistence();
 
+            // Row realization, sampled. Scrolling this grid is reported as slow and the usual
+            // causes are ruled out: virtualization is on with recycling, no DataGrid column is
+            // Auto-width, and the icon decode is already off-thread. What is left is what a
+            // realized row costs and how many realize per scroll, and neither was measured --
+            // two hypotheses read from the markup did not survive checking, so this measures
+            // instead of guessing a third time.
+            CustomAchievementsGrid.LoadingRow += AchievementsGrid_LoadingRow;
+
             // On this control, not the window: stepping achievements with the arrows is what the
             // whole window is for, but Ctrl+Z is not - a window-wide handler would fight the other
             // tabs and every text box in them.
@@ -332,6 +340,41 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private void DeselectAllButton_Click(object sender, RoutedEventArgs e)
         {
             CustomAchievementsGrid.UnselectAll();
+        }
+
+        private int _realizedRowCount;
+        private System.Diagnostics.Stopwatch _rowRealizationWindow;
+
+        /// <summary>
+        /// Counts realized rows and reports in batches. Per-row logging would cost more than the
+        /// realization it measures, so this reports every 50 rows with the elapsed time for that
+        /// run: a burst far larger than a viewport means virtualization is not holding, and a
+        /// slow one means the row template is the cost.
+        /// </summary>
+        private void AchievementsGrid_LoadingRow(object sender, DataGridRowEventArgs e)
+        {
+            if (!Common.PerfScope.PerfTracingEnabled)
+            {
+                return;
+            }
+
+            if (_rowRealizationWindow == null)
+            {
+                _rowRealizationWindow = System.Diagnostics.Stopwatch.StartNew();
+            }
+
+            if (++_realizedRowCount < 50)
+            {
+                return;
+            }
+
+            var elapsed = _rowRealizationWindow.Elapsed.TotalMilliseconds;
+            var rows = ViewModel?.AchievementRows?.Count ?? 0;
+            _realizedRowCount = 0;
+            _rowRealizationWindow.Restart();
+            LogManager.GetLogger().Debug(
+                $"[UiBlockRisk] tag=Editor.RowRealization ms={(long)elapsed} ui=true " +
+                $"thread={System.Threading.Thread.CurrentThread.ManagedThreadId} context=realized=50 rows={rows}");
         }
 
         private void RestoreSelectionByApiNames(IReadOnlyList<string> apiNames)
