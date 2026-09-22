@@ -169,6 +169,35 @@ namespace PlayniteAchievements.Services.Notifications
                 throw new ArgumentNullException(nameof(style));
             }
 
+            var pruned = PruneToSurface(style, isFrame);
+
+            // A pack carries the whole look for the surface: the shared style and every kind
+            // that has been given its own, each pruned the same way.
+            foreach (var pair in style.KindStyles)
+            {
+                if (pair.Value != null)
+                {
+                    pruned.KindStyles[pair.Key] = PruneToSurface(pair.Value, isFrame);
+                }
+            }
+
+            ExportPackageCore(
+                pruned,
+                destinationPath,
+                toastTemplateXaml: isFrame ? null : templateXamlOrNull,
+                frameTemplateXaml: isFrame ? templateXamlOrNull : null,
+                hasToast: !isFrame,
+                hasFrame: isFrame);
+        }
+
+        /// <summary>
+        /// A copy of the style holding only the requested surface (and, for the toast, its
+        /// background path), with no kind styles of its own.
+        /// </summary>
+        private static NotificationStyleSettings PruneToSurface(
+            NotificationStyleSettings style,
+            bool isFrame)
+        {
             var pruned = new NotificationStyleSettings();
             if (isFrame)
             {
@@ -180,13 +209,7 @@ namespace PlayniteAchievements.Services.Notifications
                 pruned.ToastBackgroundImagePath = style.ToastBackgroundImagePath;
             }
 
-            ExportPackageCore(
-                pruned,
-                destinationPath,
-                toastTemplateXaml: isFrame ? null : templateXamlOrNull,
-                frameTemplateXaml: isFrame ? templateXamlOrNull : null,
-                hasToast: !isFrame,
-                hasFrame: isFrame);
+            return pruned;
         }
 
         private void ExportPackageCore(
@@ -206,19 +229,17 @@ namespace PlayniteAchievements.Services.Notifications
 
             var copy = style.Clone();
             var imageSources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var slot in NotificationImageSlotMap.Slots)
-            {
-                var path = NormalizeText(NotificationImageSlotMap.GetPath(copy, slot));
-                if (path == null || !File.Exists(path))
-                {
-                    NotificationImageSlotMap.SetPath(copy, slot, null);
-                    continue;
-                }
+            BundleImages(copy, NotificationKind.Base, imageSources);
 
-                var extension = NormalizeImageExtension(Path.GetExtension(path));
-                var entryName = ImagesFolderName + "/" + EntryStems[slot] + extension;
-                imageSources[entryName] = path;
-                NotificationImageSlotMap.SetPath(copy, slot, entryName);
+            // Each separately styled kind carries its own image overrides under its own entry
+            // stems, so a pack restores the whole look rather than one shared set of images.
+            foreach (var pair in copy.KindStyles)
+            {
+                if (pair.Value != null &&
+                    NotificationImageStore.TryParseNotificationKind(pair.Key, out var notificationKind))
+                {
+                    BundleImages(pair.Value, notificationKind, imageSources);
+                }
             }
 
             EnsureDestinationDirectory(destinationPath);
@@ -249,6 +270,43 @@ namespace PlayniteAchievements.Services.Notifications
                 WriteTemplateEntry(archive, ToastTemplateEntryName, toastTemplateXaml);
                 WriteTemplateEntry(archive, FrameTemplateEntryName, frameTemplateXaml);
             }
+        }
+
+        /// <summary>
+        /// Rewrites one style's slot paths to archive entry names and records which local file
+        /// each entry comes from. Slots whose file is missing are dropped from the copy.
+        /// </summary>
+        private static void BundleImages(
+            NotificationStyleSettings styleCopy,
+            NotificationKind notificationKind,
+            IDictionary<string, string> imageSources)
+        {
+            foreach (var slot in NotificationImageSlotMap.Slots)
+            {
+                var path = NormalizeText(NotificationImageSlotMap.GetPath(styleCopy, slot));
+                if (path == null || !File.Exists(path))
+                {
+                    NotificationImageSlotMap.SetPath(styleCopy, slot, null);
+                    continue;
+                }
+
+                var extension = NormalizeImageExtension(Path.GetExtension(path));
+                var entryName = ImagesFolderName + "/" + BuildEntryStem(notificationKind, slot) + extension;
+                imageSources[entryName] = path;
+                NotificationImageSlotMap.SetPath(styleCopy, slot, entryName);
+            }
+        }
+
+        /// <summary>
+        /// The archive stem for a slot. Kind entries stay flat in the images folder (the kind
+        /// is folded into the stem) so the package path guard can keep rejecting every nested
+        /// path outright.
+        /// </summary>
+        private static string BuildEntryStem(NotificationKind notificationKind, NotificationImageSlot slot)
+        {
+            return notificationKind == NotificationKind.Base
+                ? EntryStems[slot]
+                : "kind_" + notificationKind.ToString().ToLowerInvariant() + "__" + EntryStems[slot];
         }
 
         private static void WriteTemplateEntry(ZipArchive archive, string entryName, string xaml)
@@ -520,10 +578,25 @@ namespace PlayniteAchievements.Services.Notifications
                 Directory.CreateDirectory(tempRoot);
                 try
                 {
-                    foreach (var slot in NotificationImageSlotMap.Slots)
+                    await MaterializeBundledImagesAsync(
+                        style, NotificationKind.Base, entriesByName, targetOwner, tempRoot, cancel)
+                        .ConfigureAwait(false);
+
+                    // Each kind the pack carries lands in its own slot folder under the target
+                    // owner, so its image overrides survive the round trip.
+                    foreach (var pair in style.KindStyles)
                     {
-                        NotificationImageSlotMap.SetPath(style, slot, await MaterializeBundledSlotAsync(
-                            entriesByName, slot, targetOwner, tempRoot, cancel).ConfigureAwait(false));
+                        if (pair.Value != null &&
+                            NotificationImageStore.TryParseNotificationKind(pair.Key, out var notificationKind))
+                        {
+                            await MaterializeBundledImagesAsync(
+                                pair.Value,
+                                notificationKind,
+                                entriesByName,
+                                targetOwner.ForNotificationKind(notificationKind),
+                                tempRoot,
+                                cancel).ConfigureAwait(false);
+                        }
                     }
                 }
                 finally
@@ -535,14 +608,35 @@ namespace PlayniteAchievements.Services.Notifications
             }
         }
 
+        private async Task MaterializeBundledImagesAsync(
+            NotificationStyleSettings style,
+            NotificationKind notificationKind,
+            IReadOnlyDictionary<string, ZipArchiveEntry> entriesByName,
+            NotificationImageOwner targetOwner,
+            string tempRoot,
+            CancellationToken cancel)
+        {
+            foreach (var slot in NotificationImageSlotMap.Slots)
+            {
+                NotificationImageSlotMap.SetPath(style, slot, await MaterializeBundledSlotAsync(
+                    entriesByName,
+                    BuildEntryStem(notificationKind, slot),
+                    slot,
+                    targetOwner,
+                    tempRoot,
+                    cancel).ConfigureAwait(false));
+            }
+        }
+
         private async Task<string> MaterializeBundledSlotAsync(
             IReadOnlyDictionary<string, ZipArchiveEntry> entriesByName,
+            string entryStem,
             NotificationImageSlot slot,
             NotificationImageOwner targetOwner,
             string tempRoot,
             CancellationToken cancel)
         {
-            var entry = FindSlotEntry(entriesByName, EntryStems[slot]);
+            var entry = FindSlotEntry(entriesByName, entryStem);
             if (entry == null)
             {
                 return null;
