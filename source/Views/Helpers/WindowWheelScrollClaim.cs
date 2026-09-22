@@ -26,8 +26,11 @@ namespace PlayniteAchievements.Views.Helpers
     /// moves and the control stays where it is, however much it has left to scroll. Tunnelling runs
     /// root to leaf, so no handler inside the control can get there first; a handler on the window
     /// can. The claim is scoped to events raised inside the owner, so everything else keeps the
-    /// wheel it would otherwise have had, and it is released at the ends of the viewport so a
-    /// surface with nothing left in that direction hands the wheel back rather than trapping it.
+    /// wheel it would otherwise have had.
+    ///
+    /// A surface that can scroll keeps the wheel even once it reaches an end, so running out of
+    /// list stops the scroll rather than carrying it on into the page. A surface whose content
+    /// already fits claims nothing, so the page scrolls as it always did.
     /// </remarks>
     internal sealed class WindowWheelScrollClaim
     {
@@ -83,13 +86,10 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
+            // Claimed whether or not there is room left in the wheel's direction: ScrollTo* clamps,
+            // so an end simply stops rather than spilling the rest of the turn into the page.
             if (_axis == WheelScrollAxis.PreferHorizontal && scrollViewer.ScrollableWidth > 0)
             {
-                if (IsAtEnd(e.Delta, scrollViewer.HorizontalOffset, scrollViewer.ScrollableWidth))
-                {
-                    return;
-                }
-
                 e.Handled = true;
                 scrollViewer.ScrollToHorizontalOffset(
                     scrollViewer.HorizontalOffset - (e.Delta / WheelDeltaDivisor));
@@ -98,20 +98,10 @@ namespace PlayniteAchievements.Views.Helpers
 
             if (scrollViewer.ScrollableHeight > 0)
             {
-                if (IsAtEnd(e.Delta, scrollViewer.VerticalOffset, scrollViewer.ScrollableHeight))
-                {
-                    return;
-                }
-
                 e.Handled = true;
                 scrollViewer.ScrollToVerticalOffset(
                     scrollViewer.VerticalOffset - (e.Delta / WheelDeltaDivisor));
             }
-        }
-
-        private static bool IsAtEnd(int delta, double offset, double scrollable)
-        {
-            return (delta > 0 && offset <= 0) || (delta < 0 && offset >= scrollable);
         }
 
         /// <summary>
