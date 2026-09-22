@@ -15,6 +15,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
@@ -33,6 +34,7 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly ILogger Logger = LogManager.GetLogger();
         private DataGridColumnLayoutService _columnPersistence;
         private bool _isAttached;
+        private bool _wheelDiagnosticsAttached;
         private PersistedSettingsSubscription _persistedSubscription;
         private List<AchievementDisplayItem> _preSortItems;
         private const double DefaultStatusColumnWidth = 40;
@@ -2711,6 +2713,78 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        /// <summary>
+        /// Reports what the wheel meets over this grid: whether the event arrives already claimed,
+        /// what height the grid was actually given, and whether its scroll viewer has anything to
+        /// scroll. A grid measured with unbounded height reports scrollable=0, leaves the wheel
+        /// alone, and the host page scrolls instead -- which reads as the grid ignoring the wheel.
+        /// Registered handledEventsToo so an upstream claim is still visible here. Silent unless
+        /// perf tracing is on.
+        /// </summary>
+        private void AttachWheelDiagnostics()
+        {
+            if (_wheelDiagnosticsAttached || AchievementsDataGrid == null)
+            {
+                return;
+            }
+
+            AchievementsDataGrid.AddHandler(
+                PreviewMouseWheelEvent,
+                new MouseWheelEventHandler(OnGridPreviewMouseWheelDiagnostics),
+                true);
+            _wheelDiagnosticsAttached = true;
+        }
+
+        private void OnGridPreviewMouseWheelDiagnostics(object sender, MouseWheelEventArgs e)
+        {
+            if (!PerfScope.PerfTracingEnabled)
+            {
+                return;
+            }
+
+            var grid = AchievementsDataGrid;
+            var scrollViewer = grid == null ? null : FindDescendantScrollViewer(grid);
+            var logger = PluginLogger.GetLogger(nameof(AchievementDataGridControl));
+            if (scrollViewer == null)
+            {
+                logger?.Debug($"[GridWheel] arrivedHandled={e.Handled}: no ScrollViewer beneath the grid.");
+                return;
+            }
+
+            logger?.Debug(
+                $"[GridWheel] arrivedHandled={e.Handled} key={ColumnSettingsKey} " +
+                $"gridHeight={grid.ActualHeight:F0} maxHeight={grid.MaxHeight:F0} " +
+                $"extent={scrollViewer.ExtentWidth:F0}x{scrollViewer.ExtentHeight:F0} " +
+                $"viewport={scrollViewer.ViewportWidth:F0}x{scrollViewer.ViewportHeight:F0} " +
+                $"scrollable={scrollViewer.ScrollableWidth:F0}x{scrollViewer.ScrollableHeight:F0} " +
+                $"canContentScroll={scrollViewer.CanContentScroll}");
+        }
+
+        private static ScrollViewer FindDescendantScrollViewer(DependencyObject parent)
+        {
+            if (parent == null)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+                if (child is ScrollViewer scrollViewer)
+                {
+                    return scrollViewer;
+                }
+
+                var result = FindDescendantScrollViewer(child);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+
+            return null;
+        }
+
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             UpdateColumnVisibility();
@@ -2719,6 +2793,7 @@ namespace PlayniteAchievements.Views.Controls
             UpdateUnlockDateMode();
             SyncModeToggle();
             ApplyCategoryViewState();
+            AttachWheelDiagnostics();
 
             if (_isAttached)
             {

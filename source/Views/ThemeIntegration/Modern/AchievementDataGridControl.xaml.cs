@@ -157,6 +157,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         private readonly FriendCompareController _friendCompare;
 
+        /// <summary>
+        /// Keeps the wheel on whichever of this control's grids the pointer is over. The theme's
+        /// page handles the tunnelling wheel to scroll its details view, which otherwise leaves
+        /// the grid standing still while the page moves underneath it.
+        /// </summary>
+        protected override WheelScrollAxis? WheelClaimAxis => WheelScrollAxis.Vertical;
+
         public AchievementDataGridControl()
         {
             _controlBarAdapter = new AchievementGridControlBarAdapter();

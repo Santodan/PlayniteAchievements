@@ -16,6 +16,7 @@ using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Base
 {
@@ -392,6 +393,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
         private void ThemeControlBase_Loaded(object sender, RoutedEventArgs e)
         {
+            AttachWheelScrollClaim();
+
             if (RequiresLibraryThemeData || RequiresHeavyLibraryThemeData)
             {
                 Plugin?.ThemeIntegrationService?.EnsureAllGamesThemeDataLoaded(
@@ -409,12 +412,46 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
         private void ThemeControlBase_Unloaded(object sender, RoutedEventArgs e)
         {
+            _wheelScrollClaim?.Detach();
+
             if (!EnableAutomaticThemeDataUpdates)
             {
                 return;
             }
 
             UnsubscribeFromThemeDataUpdates();
+        }
+
+        private WindowWheelScrollClaim _wheelScrollClaim;
+
+        /// <summary>
+        /// The axis this control keeps the wheel on while the pointer is over one of its own
+        /// scrolling surfaces, or null to leave the wheel to normal routing.
+        /// </summary>
+        /// <remarks>
+        /// The theme's page handles the tunnelling wheel to scroll its details view, so a control
+        /// hosted in it does not see the wheel at all: the page moves and the control stands still.
+        /// Overriding this opts a control into claiming the wheel at the window instead. See
+        /// <see cref="WindowWheelScrollClaim"/>. Handled here rather than per control so that the
+        /// claim is always detached again -- a hook left on the main window cannot be removed once
+        /// its owner has dropped the reference.
+        /// </remarks>
+        protected virtual WheelScrollAxis? WheelClaimAxis => null;
+
+        private void AttachWheelScrollClaim()
+        {
+            var axis = WheelClaimAxis;
+            if (axis == null)
+            {
+                return;
+            }
+
+            if (_wheelScrollClaim == null)
+            {
+                _wheelScrollClaim = new WindowWheelScrollClaim(this, axis.Value);
+            }
+
+            _wheelScrollClaim.Attach();
         }
 
         private void SubscribeToThemeDataUpdates()

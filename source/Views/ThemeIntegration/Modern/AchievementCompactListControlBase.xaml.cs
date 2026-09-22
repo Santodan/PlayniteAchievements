@@ -244,8 +244,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             Unloaded += OnUnloaded;
         }
 
-        /// <summary>The window the wheel hook is registered on, so it can be removed again.</summary>
-        private Window _hostWindow;
+        /// <summary>
+        /// Keeps the wheel on this strip while the pointer is over it, scrolling it sideways.
+        /// Shared with the theme's grids, which meet the same page-level wheel handling.
+        /// </summary>
+        protected override WheelScrollAxis? WheelClaimAxis => WheelScrollAxis.PreferHorizontal;
 
         /// <summary>
         /// Whether the wheel hooks are registered. Loaded can fire again without an intervening
@@ -279,8 +282,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             // control is reached and the wheel silently does nothing here. Registering this way is
             // what lets the list scroll its own viewport regardless of what sits above it.
             AddHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel), true);
-            _hostWindow = Window.GetWindow(this);
-            _hostWindow?.AddHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnWindowPreviewMouseWheel));
             _wheelHooksAttached = true;
             if (Common.PerfScope.PerfTracingEnabled)
             {
@@ -297,8 +298,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             }
 
             RemoveHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel));
-            _hostWindow?.RemoveHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnWindowPreviewMouseWheel));
-            _hostWindow = null;
             _wheelHooksAttached = false;
         }
 
@@ -524,64 +523,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         }
 
         /// <summary>
-        /// Handles mouse wheel scrolling, preferring horizontal movement for compact list hosts.
+        /// Scrolls this strip's own viewport when nothing above it has claimed the wheel. The
+        /// window-level claim normally gets there first; this is the fallback for a host where
+        /// there is no window to hook.
         /// </summary>
-        /// <summary>
-        /// Claims the wheel at the window, before the page scroller sees it, and only while the
-        /// pointer is over this strip.
-        /// </summary>
-        /// <remarks>
-        /// Something above this control handles the tunnelling wheel and scrolls the page with it,
-        /// which is why the strip needs handled events to react at all -- and why the page moves at
-        /// the same time. Tunnelling runs root to leaf, so no handler inside the control can get
-        /// there first; a handler on the window can. This hook sees every wheel event in the
-        /// window, so it is scoped to events raised from inside this control: everything else --
-        /// the achievement grid included -- keeps the wheel it would otherwise have had.
-        /// </remarks>
-        private void OnWindowPreviewMouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            if (e.Delta == 0 || !IsLoaded || !ContainsSource(e.OriginalSource as DependencyObject))
-            {
-                return;
-            }
-
-            var scrollViewer = FindScrollViewer(this);
-            if (scrollViewer == null)
-            {
-                return;
-            }
-
-            LogWheelDiagnostics(scrollViewer, "window", e.Handled);
-
-            if (scrollViewer.ScrollableWidth > 0)
-            {
-                var atStart = scrollViewer.HorizontalOffset <= 0;
-                var atEnd = scrollViewer.HorizontalOffset >= scrollViewer.ScrollableWidth;
-                if ((e.Delta > 0 && atStart) || (e.Delta < 0 && atEnd))
-                {
-                    // Nothing left this way: let the page have it rather than trapping the wheel.
-                    return;
-                }
-
-                e.Handled = true;
-                scrollViewer.ScrollToHorizontalOffset(scrollViewer.HorizontalOffset - (e.Delta / 3.0));
-                return;
-            }
-
-            if (scrollViewer.ScrollableHeight > 0)
-            {
-                var atTop = scrollViewer.VerticalOffset <= 0;
-                var atBottom = scrollViewer.VerticalOffset >= scrollViewer.ScrollableHeight;
-                if ((e.Delta > 0 && atTop) || (e.Delta < 0 && atBottom))
-                {
-                    return;
-                }
-
-                e.Handled = true;
-                scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - (e.Delta / 3.0));
-            }
-        }
-
         private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (e.Delta == 0 || e.Handled)
@@ -647,32 +592,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// than by searching downward: a depth-first walk returns whichever ScrollViewer appears
         /// first in the tree, which need not be the one that scrolls these items.
         /// </summary>
-        /// <summary>
-        /// Whether <paramref name="source"/> sits inside this control. Used in place of
-        /// IsMouseOver, which reports on where the pointer is rather than on where the event
-        /// being routed came from, and which a detached control can still report true for.
-        /// </summary>
-        private bool ContainsSource(DependencyObject source)
-        {
-            while (source != null)
-            {
-                if (ReferenceEquals(source, this))
-                {
-                    return true;
-                }
-
-                if (source is Visual)
-                {
-                    source = VisualTreeHelper.GetParent(source);
-                    continue;
-                }
-
-                source = (source as FrameworkContentElement)?.Parent;
-            }
-
-            return false;
-        }
-
         private static ScrollViewer FindScrollViewer(DependencyObject parent)
         {
             if (parent == null)
