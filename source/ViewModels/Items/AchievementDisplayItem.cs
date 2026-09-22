@@ -55,6 +55,15 @@ namespace PlayniteAchievements.ViewModels.Items
             public bool ShowRarityBar { get; set; }
 
             public bool ShowFriendSpoilers { get; set; }
+
+            /// <summary>
+            /// A field-for-field copy. Callers that need to vary one field per game clone rather
+            /// than re-listing every field, so a field added above cannot be silently dropped.
+            /// </summary>
+            public AppearanceSettingsSnapshot Clone()
+            {
+                return (AppearanceSettingsSnapshot)MemberwiseClone();
+            }
         }
 
         private AchievementDetail _source;

@@ -632,23 +632,9 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 return source;
             }
 
-            return new AchievementDisplayItem.AppearanceSettingsSnapshot
-            {
-                ShowHiddenIcon = source.ShowHiddenIcon,
-                ShowHiddenTitle = source.ShowHiddenTitle,
-                ShowHiddenDescription = source.ShowHiddenDescription,
-                ShowHiddenSuffix = source.ShowHiddenSuffix,
-                ShowLockedIcon = source.ShowLockedIcon,
-                ShowLockedTitle = source.ShowLockedTitle,
-                ShowLockedDescription = source.ShowLockedDescription,
-                ShowHiddenTrophy = source.ShowHiddenTrophy,
-                ShowHiddenPoints = source.ShowHiddenPoints,
-                ShowLockedTrophy = source.ShowLockedTrophy,
-                ShowLockedPoints = source.ShowLockedPoints,
-                UseSeparateLockedIconsWhenAvailable = useSeparateLockedIcons,
-                ShowRarityBar = source.ShowRarityBar,
-                ShowFriendSpoilers = source.ShowFriendSpoilers
-            };
+            var clone = source.Clone();
+            clone.UseSeparateLockedIconsWhenAvailable = useSeparateLockedIcons;
+            return clone;
         }
 
         [DontSerialize]

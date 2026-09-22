@@ -382,6 +382,11 @@ namespace PlayniteAchievements.ViewModels
             public bool ShowRarityBar { get; set; }
 
             public bool ShowFriendSpoilers { get; set; }
+
+            public AppearanceSettingsSnapshot Clone()
+            {
+                return (AppearanceSettingsSnapshot)MemberwiseClone();
+            }
         }
 
         public PlayniteAchievements.Models.Achievements.AchievementDetail Source { get; set; }

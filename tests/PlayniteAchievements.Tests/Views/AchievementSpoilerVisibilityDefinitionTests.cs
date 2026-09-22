@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace PlayniteAchievements.Tests.Views
 {
@@ -60,6 +61,50 @@ namespace PlayniteAchievements.Tests.Views
                 "|| DescriptionMaskApplies",
                 "|| TrophyMaskApplies",
                 "|| PointsMaskApplies");
+        }
+
+        [TestMethod]
+        public void AppearanceSnapshot_IsBothAppliedAndCapturedFieldForField()
+        {
+            var code = File.ReadAllText(FindRepoFile("source", "ViewModels", "Items", "AchievementDisplayItem.cs"));
+
+            // The snapshot is the only channel these settings travel on, so a field declared on it
+            // and left out of either direction silently reverts to the item's default.
+            var snapshot = Between(code, "public sealed class AppearanceSettingsSnapshot", "        private AchievementDetail _source;");
+            var apply = Between(code, "public void ApplyAppearanceSettings(AppearanceSettingsSnapshot snapshot)", "public AppearanceSettingsSnapshot CaptureAppearanceSettings()");
+            var capture = Between(code, "public AppearanceSettingsSnapshot CaptureAppearanceSettings()", "public void RefreshIconDisplay()");
+
+            var fields = Regex.Matches(snapshot, @"public bool (\w+) \{ get; set; \}")
+                .Cast<Match>()
+                .Select(m => m.Groups[1].Value)
+                .ToList();
+
+            Assert.IsTrue(fields.Count >= 14, $"Only found {fields.Count} snapshot fields; the parse is probably wrong.");
+
+            var missing = new List<string>();
+            foreach (var field in fields)
+            {
+                if (!apply.Contains("resolved." + field))
+                {
+                    missing.Add(field + " (not applied)");
+                }
+
+                if (!capture.Contains(field + " = " + field))
+                {
+                    missing.Add(field + " (not captured)");
+                }
+            }
+
+            CollectionAssert.AreEqual(new List<string>(), missing);
+        }
+
+        private static string Between(string content, string start, string end)
+        {
+            var from = content.IndexOf(start, StringComparison.Ordinal);
+            Assert.IsTrue(from >= 0, $"Could not find '{start}'.");
+            var to = content.IndexOf(end, from, StringComparison.Ordinal);
+            Assert.IsTrue(to > from, $"Could not find '{end}' after '{start}'.");
+            return content.Substring(from, to - from);
         }
 
         [TestMethod]
