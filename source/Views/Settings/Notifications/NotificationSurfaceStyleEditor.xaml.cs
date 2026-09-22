@@ -10,7 +10,7 @@ using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.ViewModels.Settings;
 using PlayniteAchievements.Views.Helpers;
 
-namespace PlayniteAchievements.Views.Settings.General
+namespace PlayniteAchievements.Views.Settings.Notifications
 {
     /// <summary>
     /// Appearance editor for one notification surface (toast or screenshot frame): shown-field

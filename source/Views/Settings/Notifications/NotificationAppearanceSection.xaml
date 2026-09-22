@@ -1,9 +1,9 @@
-<UserControl x:Class="PlayniteAchievements.Views.Settings.General.NotificationAppearanceSection"
+<UserControl x:Class="PlayniteAchievements.Views.Settings.Notifications.NotificationAppearanceSection"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:general="clr-namespace:PlayniteAchievements.Views.Settings.General"
+             xmlns:notifications="clr-namespace:PlayniteAchievements.Views.Settings.Notifications"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              mc:Ignorable="d"
              d:DesignHeight="700"
@@ -373,10 +373,10 @@
 
                     <!-- The editor for the surface selected in the pinned tabs above. Both exist;
                          each shows only when its tab is active. -->
-                    <general:NotificationSurfaceStyleEditor
+                    <notifications:NotificationSurfaceStyleEditor
                         x:Name="ToastEditor"
                         Visibility="{Binding IsSelected, ElementName=ToastTabItem, Converter={StaticResource BoolToVis}}"/>
-                    <general:NotificationSurfaceStyleEditor
+                    <notifications:NotificationSurfaceStyleEditor
                         x:Name="FrameEditor"
                         Visibility="{Binding IsSelected, ElementName=FrameTabItem, Converter={StaticResource BoolToVis}}"/>
                 </StackPanel>

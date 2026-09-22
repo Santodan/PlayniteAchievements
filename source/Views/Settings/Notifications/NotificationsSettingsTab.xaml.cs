@@ -3,23 +3,25 @@ using System.Collections.ObjectModel;
 using System.Windows.Controls;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
-using PlayniteAchievements.Views.Settings.General;
 using PlayniteAchievements.Views.Settings.Navigation;
 
 namespace PlayniteAchievements.Views.Settings.Notifications
 {
     /// <summary>
-    /// Notifications settings tab: a master-detail navigation over the two notification sections
-    /// (General, Appearance). Sections are created lazily when first selected. The General page
-    /// carries all three unlock-event features as siblings — notifications, screenshots and
-    /// recordings — because none of them depends on the others.
+    /// Notifications settings tab: a master-detail navigation over the four notification concerns
+    /// — Behavior (what fires and how), Captures (screenshots and recordings), Appearance
+    /// (templates and surface styles) and Platforms (per-provider overrides). Sections are created
+    /// lazily when first selected. The three unlock-event features are siblings, each with its own
+    /// master switch, because none of them depends on the others.
     /// </summary>
     public partial class NotificationsSettingsTab : UserControl, IDisposable
     {
         private ObservableCollection<SettingsNavigationItem> _navigationItems;
 
-        private NotificationsSection _generalSection;
+        private NotificationBehaviorSection _behaviorSection;
+        private NotificationCapturesSection _capturesSection;
         private NotificationAppearanceSection _appearanceSection;
+        private NotificationPlatformsSection _platformsSection;
 
         public NotificationsSettingsTab()
         {
@@ -38,17 +40,29 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             _navigationItems = new ObservableCollection<SettingsNavigationItem>
             {
                 new SettingsNavigationItem(
-                    "General",
-                    ResourceProvider.GetString("LOCPlayAch_Common_General"),
-                    iconGlyph: "",
-                    viewFactory: () => _generalSection =
-                        new NotificationsSection(settings, plugin, logger)),
+                    "Behavior",
+                    ResourceProvider.GetString("LOCPlayAch_Settings_ToastBehavior"),
+                    iconGlyph: "",
+                    viewFactory: () => _behaviorSection =
+                        new NotificationBehaviorSection(settings, plugin, logger)),
+                new SettingsNavigationItem(
+                    "Captures",
+                    ResourceProvider.GetString("LOCPlayAch_Column_Captures"),
+                    iconGlyph: "",
+                    viewFactory: () => _capturesSection =
+                        new NotificationCapturesSection(settings, plugin)),
                 new SettingsNavigationItem(
                     "Appearance",
                     ResourceProvider.GetString("LOCPlayAch_Settings_Appearance"),
-                    iconGlyph: "",
+                    iconGlyph: "",
                     viewFactory: () => _appearanceSection =
-                        new NotificationAppearanceSection(settings, plugin, logger))
+                        new NotificationAppearanceSection(settings, plugin, logger)),
+                new SettingsNavigationItem(
+                    "Platforms",
+                    ResourceProvider.GetString("LOCPlayAch_Common_Label_Platforms"),
+                    iconGlyph: "",
+                    viewFactory: () => _platformsSection =
+                        new NotificationPlatformsSection(settings, plugin, logger))
             };
 
             MasterDetail.ItemsSource = _navigationItems;
@@ -57,8 +71,11 @@ namespace PlayniteAchievements.Views.Settings.Notifications
 
         public void Dispose()
         {
-            _generalSection?.Dispose();
+            _behaviorSection?.Dispose();
+            _capturesSection?.Dispose();
             _appearanceSection?.Dispose();
+            // Flushes the overrides grid's debounced persistence.
+            _platformsSection?.Dispose();
         }
     }
 }
