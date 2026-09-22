@@ -248,6 +248,32 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual("BadgeCompletedGame", AchievementRankPresentation.GetBadgeIconKey(AchievementRank.Master5, useUniformRarityBadges: true));
         }
 
+        /// <summary>
+        /// The score card keys are the badge keys under a "Score" prefix. Pinned so the two cannot
+        /// drift apart again now that both resolve through one shape table.
+        /// </summary>
+        [TestMethod]
+        public void RankPresentation_ScoreCardBadgeIconPrefixesTheRarityBadgeIcon()
+        {
+            foreach (var rank in new[]
+            {
+                AchievementRank.Bronze5,
+                AchievementRank.Silver5,
+                AchievementRank.Gold5,
+                AchievementRank.Plat5,
+                AchievementRank.Master1
+            })
+            {
+                foreach (var uniform in new[] { false, true })
+                {
+                    Assert.AreEqual(
+                        "Score" + AchievementRankPresentation.GetBadgeIconKey(rank, uniform),
+                        AchievementRankPresentation.GetScoreCardBadgeIconKey(rank, uniform),
+                        $"{rank}, uniform={uniform}");
+                }
+            }
+        }
+
         private static AchievementDetail Achievement(
             RarityTier rarity,
             bool unlocked,

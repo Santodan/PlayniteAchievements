@@ -94,6 +94,19 @@ namespace PlayniteAchievements.Models.Achievements
             tier = RarityTier.Common;
             return false;
         }
+
+        /// <summary>
+        /// Mirrors the production shape table in PercentRarityHelper, which the test host cannot
+        /// link because it pulls in WPF imaging. AchievementRank delegates to this rather than
+        /// carrying its own copy, so the mapping is asserted here once.
+        /// </summary>
+        public static string ToIconKey(this RarityTier tier, bool useUniformRarityBadges = false) => tier switch
+        {
+            RarityTier.UltraRare => "BadgePlatinumHexagon",
+            RarityTier.Rare => useUniformRarityBadges ? "BadgeGoldHexagon" : "BadgeGoldPentagon",
+            RarityTier.Uncommon => useUniformRarityBadges ? "BadgeSilverHexagon" : "BadgeSilverSquare",
+            _ => useUniformRarityBadges ? "BadgeBronzeHexagon" : "BadgeBronzeTriangle"
+        };
     }
 
     public static class PercentRarityHelper
