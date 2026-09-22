@@ -4290,6 +4290,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void PersistProviderRowField(AchievementEditorRow row, string propertyName)
         {
+            // The common sink for a cell edit: renaming an achievement, retyping its trophy,
+            // rewriting its description. Reported as slow on a game with hundreds of rows, and
+            // until now unmeasured -- the field name rides on the scope so the three gestures
+            // are told apart in a capture rather than averaged together.
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.PersistField",
+                thresholdMs: 10,
+                context: "field=" + propertyName + " rows=" + AchievementRows.Count);
+
             var apiName = row.OriginalApiName;
             if (string.IsNullOrWhiteSpace(apiName))
             {
@@ -4548,6 +4558,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void BulkRow_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
+            // The bulk editor: one gesture writes the same field across every selected row, so
+            // this is the path behind applying a trophy type to a multi-row selection. Carries
+            // the selection size as well as the row count, because the cost should scale with
+            // the former and a capture showing otherwise is itself the finding.
+            using var perfScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.BulkApply",
+                thresholdMs: 10,
+                context: "field=" + e?.PropertyName + " selected=" + _selectedRows.Count
+                    + " rows=" + AchievementRows.Count);
+
             if (_isApplyingBulk || !(sender is AchievementEditorRow bulk) || _selectedRows.Count == 0)
             {
                 return;
