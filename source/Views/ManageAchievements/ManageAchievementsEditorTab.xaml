@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsEditorTab"
+<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsEditorTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -21,6 +21,13 @@
             <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
             <converters:BooleanConverter x:Key="InverseBoolToVis" Mode="InvertedToVisibility" />
             <converters:ProviderIconConverter x:Key="ProviderIconConverter" />
+
+            <!-- Column headers reach the view model through this rather than through
+                 RelativeSource. A DataGridColumn is not in the visual tree, so a FindAncestor
+                 binding in its header only resolves if the header happens to be realized while the
+                 tree is complete. A column that starts hidden is realized later, its Command
+                 binding silently resolves to null, and its reveal-all button then does nothing. -->
+            <helpers:BindingProxy x:Key="EditorTabContext" Data="{Binding}" />
 
             <Style x:Key="CardBorderStyle" TargetType="Border">
                 <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
@@ -678,8 +685,8 @@
                              rather than one click per row. Shown only while something is maskable,
                              like the per-row toggles. -->
                         <DataGridTemplateColumn.Header>
-                            <Button Command="{Binding DataContext.CycleAllIconStagesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    Visibility="{Binding DataContext.CanRevealAnyIcon, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                            <Button Command="{Binding Data.CycleAllIconStagesCommand, Source={StaticResource EditorTabContext}}"
+                                    Visibility="{Binding Data.CanRevealAnyIcon, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource RevealHeaderToggleButtonStyle}">
                                         <Setter Property="Margin" Value="0" />
@@ -689,14 +696,14 @@
                                 <Grid>
                                         <TextBlock Text="&#xEF22;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
-                                                   Visibility="{Binding DataContext.IconColumnStageIsCovered, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                                   Visibility="{Binding Data.IconColumnStageIsCovered, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}" />
                                         <Viewbox Style="{StaticResource RevealGlyphBoxStyle}"
-                                                 Visibility="{Binding DataContext.IconColumnStageIsLocked, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                                                 Visibility="{Binding Data.IconColumnStageIsLocked, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}">
                                             <Path Data="{StaticResource GeoLock}"
                                                   Fill="{DynamicResource PlayAch.Brush.Glyph}" />
                                         </Viewbox>
                                         <Viewbox Style="{StaticResource RevealGlyphBoxStyle}"
-                                                 Visibility="{Binding DataContext.IconColumnStageIsUnlocked, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                                                 Visibility="{Binding Data.IconColumnStageIsUnlocked, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}">
                                             <Path Data="{StaticResource GeoCheck}"
                                                   Stroke="{DynamicResource PlayAch.Brush.Glyph}"
                                                   StrokeThickness="2.3"
@@ -772,7 +779,7 @@
                                      gives the width back when there is no toggle to balance. -->
                                 <Border Grid.Column="0"
                                         Width="30"
-                                        Visibility="{Binding DataContext.CanRevealAnyTitle, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                        Visibility="{Binding Data.CanRevealAnyTitle, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}" />
                                 <TextBlock Grid.Column="1"
                                            Text="{DynamicResource LOCPlayAch_Column_AchievementName}"
                                            HorizontalAlignment="Center"
@@ -780,15 +787,15 @@
                                            TextTrimming="CharacterEllipsis" />
                                 <Button Grid.Column="2"
                                         Style="{StaticResource RevealHeaderToggleButtonStyle}"
-                                        Visibility="{Binding DataContext.CanRevealAnyTitle, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
-                                        Command="{Binding DataContext.ToggleAllTitlesRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                        Visibility="{Binding Data.CanRevealAnyTitle, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding Data.ToggleAllTitlesRevealCommand, Source={StaticResource EditorTabContext}}">
                                     <Grid>
                                         <TextBlock Text="&#xEF22;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
-                                                   Visibility="{Binding DataContext.AreAllTitlesRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}" />
+                                                   Visibility="{Binding Data.AreAllTitlesRevealed, Source={StaticResource EditorTabContext}, Converter={StaticResource InverseBoolToVis}}" />
                                         <TextBlock Text="&#xEF24;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
-                                                   Visibility="{Binding DataContext.AreAllTitlesRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                                   Visibility="{Binding Data.AreAllTitlesRevealed, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}" />
                                     </Grid>
                                 </Button>
                             </Grid>
@@ -869,7 +876,7 @@
                                      gives the width back when there is no toggle to balance. -->
                                 <Border Grid.Column="0"
                                         Width="30"
-                                        Visibility="{Binding DataContext.CanRevealAnyDescription, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                        Visibility="{Binding Data.CanRevealAnyDescription, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}" />
                                 <TextBlock Grid.Column="1"
                                            Text="{DynamicResource LOCPlayAch_Column_Description}"
                                            HorizontalAlignment="Center"
@@ -877,15 +884,15 @@
                                            TextTrimming="CharacterEllipsis" />
                                 <Button Grid.Column="2"
                                         Style="{StaticResource RevealHeaderToggleButtonStyle}"
-                                        Visibility="{Binding DataContext.CanRevealAnyDescription, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
-                                        Command="{Binding DataContext.ToggleAllDescriptionsRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                        Visibility="{Binding Data.CanRevealAnyDescription, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding Data.ToggleAllDescriptionsRevealCommand, Source={StaticResource EditorTabContext}}">
                                     <Grid>
                                         <TextBlock Text="&#xEF22;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
-                                                   Visibility="{Binding DataContext.AreAllDescriptionsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}" />
+                                                   Visibility="{Binding Data.AreAllDescriptionsRevealed, Source={StaticResource EditorTabContext}, Converter={StaticResource InverseBoolToVis}}" />
                                         <TextBlock Text="&#xEF24;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
-                                                   Visibility="{Binding DataContext.AreAllDescriptionsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                                   Visibility="{Binding Data.AreAllDescriptionsRevealed, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}" />
                                     </Grid>
                                 </Button>
                             </Grid>
@@ -1227,22 +1234,22 @@
                                 <!-- Balances the toggle so the caption stays centred. -->
                                 <Border Grid.Column="0"
                                         Width="30"
-                                        Visibility="{Binding DataContext.CanRevealAnyTrophy, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"/>
+                                        Visibility="{Binding Data.CanRevealAnyTrophy, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}"/>
                                 <TextBlock Grid.Column="1"
                                            Text="{DynamicResource LOCPlayAch_Column_Trophy}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
                                 <Button Grid.Column="2"
                                         Style="{StaticResource RevealHeaderToggleButtonStyle}"
-                                        Visibility="{Binding DataContext.CanRevealAnyTrophy, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
-                                        Command="{Binding DataContext.ToggleAllTrophiesRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                        Visibility="{Binding Data.CanRevealAnyTrophy, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding Data.ToggleAllTrophiesRevealCommand, Source={StaticResource EditorTabContext}}">
                                     <Grid>
                                         <TextBlock Text="&#xEF22;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
-                                                   Visibility="{Binding DataContext.AreAllTrophiesRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}"/>
+                                                   Visibility="{Binding Data.AreAllTrophiesRevealed, Source={StaticResource EditorTabContext}, Converter={StaticResource InverseBoolToVis}}"/>
                                         <TextBlock Text="&#xEF24;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
-                                                   Visibility="{Binding DataContext.AreAllTrophiesRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"/>
+                                                   Visibility="{Binding Data.AreAllTrophiesRevealed, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}"/>
                                     </Grid>
                                 </Button>
                             </Grid>
@@ -1365,22 +1372,22 @@
                                 </Grid.ColumnDefinitions>
                                 <Border Grid.Column="0"
                                         Width="30"
-                                        Visibility="{Binding DataContext.CanRevealAnyPoints, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"/>
+                                        Visibility="{Binding Data.CanRevealAnyPoints, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}"/>
                                 <TextBlock Grid.Column="1"
                                            Text="{DynamicResource LOCPlayAch_Column_Points}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
                                 <Button Grid.Column="2"
                                         Style="{StaticResource RevealHeaderToggleButtonStyle}"
-                                        Visibility="{Binding DataContext.CanRevealAnyPoints, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
-                                        Command="{Binding DataContext.ToggleAllPointsRevealCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                        Visibility="{Binding Data.CanRevealAnyPoints, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding Data.ToggleAllPointsRevealCommand, Source={StaticResource EditorTabContext}}">
                                     <Grid>
                                         <TextBlock Text="&#xEF22;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
-                                                   Visibility="{Binding DataContext.AreAllPointsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVis}}"/>
+                                                   Visibility="{Binding Data.AreAllPointsRevealed, Source={StaticResource EditorTabContext}, Converter={StaticResource InverseBoolToVis}}"/>
                                         <TextBlock Text="&#xEF24;"
                                                    Style="{StaticResource RevealGlyphTextStyle}"
-                                                   Visibility="{Binding DataContext.AreAllPointsRevealed, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"/>
+                                                   Visibility="{Binding Data.AreAllPointsRevealed, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}"/>
                                     </Grid>
                                 </Button>
                             </Grid>
