@@ -329,11 +329,35 @@ namespace PlayniteAchievements.Services.Images
         internal string FindExistingAchievementIconCachePath(
             string gameId,
             string fileStem,
-            AchievementIconVariant variant)
+            AchievementIconVariant variant,
+            ISet<string> directorySnapshot = null)
         {
             var canonicalPath = GetAchievementIconCachePath(gameId, fileStem, variant);
             if (string.IsNullOrWhiteSpace(canonicalPath))
             {
+                return null;
+            }
+
+            // A caller resolving many icons in one pass hands in a listing of the directory taken
+            // once, and each probe becomes a set lookup. Without it this is up to nine File.Exists
+            // per call -- the canonical name plus every supported extension -- and callers that
+            // walk a game's achievements paid that per row, twice, once per variant.
+            if (directorySnapshot != null)
+            {
+                if (directorySnapshot.Contains(Path.GetFileName(canonicalPath)))
+                {
+                    return canonicalPath;
+                }
+
+                foreach (var extension in SupportedImageExtensions)
+                {
+                    var candidate = Path.ChangeExtension(canonicalPath, extension);
+                    if (directorySnapshot.Contains(Path.GetFileName(candidate)))
+                    {
+                        return candidate;
+                    }
+                }
+
                 return null;
             }
 
@@ -506,6 +530,37 @@ namespace PlayniteAchievements.Services.Images
             }
 
             return snapshot;
+        }
+
+        /// <summary>
+        /// One listing of a game's achievement icon cache directory, for a caller resolving many
+        /// icons in a single pass. Deliberately not cached on this service: a stale listing would
+        /// hide an icon that had just been written. The caller holds it only for its own pass,
+        /// during which nothing writes here, and discards it afterwards.
+        /// </summary>
+        internal HashSet<string> ScanAchievementIconCacheDirectory(string gameId)
+        {
+            try
+            {
+                var canonicalPath = GetAchievementIconCachePath(
+                    gameId,
+                    "probe",
+                    AchievementIconVariant.Unlocked);
+                var directory = Path.GetDirectoryName(canonicalPath);
+                if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+                {
+                    return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                }
+
+                return new HashSet<string>(
+                    Directory.EnumerateFiles(directory).Select(Path.GetFileName),
+                    StringComparer.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                // Null means "no snapshot": callers fall back to probing per file.
+                return null;
+            }
         }
 
         private HashSet<string> ScanDefaultCategoryArtDirectory(string gameId)

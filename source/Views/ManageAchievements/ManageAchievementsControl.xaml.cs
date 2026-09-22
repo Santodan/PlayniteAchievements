@@ -29,9 +29,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
 {
     public partial class ManageAchievementsControl : UserControl, IFullscreenControllerNavigable
     {
-        // Edit bursts in one session before closing the window is worth a compacting collection.
-        private const int CompactionEditThreshold = 20;
-
         private static readonly ManageAchievementsTab[] ControllerTabOrder =
         {
             ManageAchievementsTab.Overview,
@@ -233,8 +230,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 PlayniteAchievementsPlugin.Instance?.ThemeIntegrationService?.ResumeLibraryRefresh();
             }
 
-            CompactAfterEditSession();
-
             // Reported after a delay and a forced collection, so the ManageAchievements* live
             // counts in this line answer directly whether closing the window released it.
             PlayniteAchievementsPlugin.Instance?.ScheduleRetentionDiagnostics(
@@ -242,25 +237,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 delaySeconds: 8);
         }
 
-        /// <summary>
-        /// Hands back the large-object heap after an edit session that did enough work to have
-        /// fragmented it. Each edit rebuilds this game's rows and its hydrated data, and those
-        /// arrays are large enough to land on the LOH, which .NET does not return to the OS on
-        /// its own -- the reason a long session in here grows the working set and only a restart
-        /// brings it back.
-        /// </summary>
-        private void CompactAfterEditSession()
-        {
-            // The revision counts edit bursts, so a window opened to read rather than to edit
-            // stays under the threshold and never pays for a collection.
-            var edits = _viewModel?.CustomDataRevision ?? 0;
-            var logger = _logger;
-            System.Threading.Tasks.Task.Run(() => Common.MemoryMaintenance.CompactLargeObjectHeapAfterLargeScan(
-                edits,
-                CompactionEditThreshold,
-                logger,
-                "manage.closed"));
-        }
+        // Closing no longer compacts the large object heap. It was added on the theory that the
+        // per-edit row and hydration arrays were fragmenting it, and captures refute that: the
+        // two runs that actually fired reclaimed 60.6 MB from a 539 MB heap and then 10.7 MB from
+        // an 824 MB one. The memory is live, not fragmented, so a blocking compacting collection
+        // -- which suspends every thread including the UI -- was stalling the window close to
+        // reclaim almost nothing. The growth it was meant to answer is a retention problem and is
+        // being chased as one.
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {

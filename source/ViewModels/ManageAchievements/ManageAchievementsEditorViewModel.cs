@@ -1894,6 +1894,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // path of null, so the override maps are only safe to rebuild once it has been seen.
             _providerBaselinesResolved = rawByApiName.Count > 0;
 
+            // One listing of this game's icon cache for the whole pass. Resolving a row whose
+            // cached path is a custom icon probes the canonical name plus every supported
+            // extension, twice -- once per variant -- so a game with many overridden icons paid
+            // up to twenty File.Exists per row here. Held only for this pass: nothing writes to
+            // that directory while it runs, and it is discarded before anything can.
+            var iconCacheSnapshot = PlayniteAchievementsPlugin.Instance?.DiskImageService?
+                .ScanAchievementIconCacheDirectory(_gameIdText);
+
             foreach (var row in AchievementRows)
             {
                 var apiName = NormalizeText(row?.OriginalApiName);
@@ -1908,11 +1916,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     row.ProviderUnlockedIconPath = ResolveProviderIconBaseline(
                         raw.UnlockedIconPath,
                         row.IconFileStem,
-                        AchievementIconVariant.Unlocked);
+                        AchievementIconVariant.Unlocked,
+                        iconCacheSnapshot);
                     row.ProviderLockedIconPath = ResolveProviderIconBaseline(
                         raw.LockedIconPath,
                         row.IconFileStem,
-                        AchievementIconVariant.Locked);
+                        AchievementIconVariant.Locked,
+                        iconCacheSnapshot);
                     row.ProviderHidden = raw.Hidden;
                     // The hydrated row carries the overridden type, so the provider's own is only
                     // available here. Without it an existing type override would compare equal to
@@ -1960,7 +1970,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string ResolveProviderIconBaseline(
             string cachedPath,
             string fileStem,
-            AchievementIconVariant variant)
+            AchievementIconVariant variant,
+            ISet<string> iconCacheSnapshot = null)
         {
             if (!AchievementIconCachePathBuilder.IsCustomIconPath(cachedPath))
             {
@@ -1978,7 +1989,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return null;
             }
 
-            var cached = disk.FindExistingAchievementIconCachePath(_gameIdText, fileStem, variant);
+            var cached = disk.FindExistingAchievementIconCachePath(
+                _gameIdText,
+                fileStem,
+                variant,
+                iconCacheSnapshot);
             if (!string.IsNullOrWhiteSpace(cached))
             {
                 return cached;
