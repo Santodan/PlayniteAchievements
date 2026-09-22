@@ -186,6 +186,14 @@ namespace PlayniteAchievements.Views.Settings.General
                     return NotificationKind.Friend;
                 case "progress":
                     return NotificationKind.Progress;
+                case "common":
+                    return NotificationKind.Common;
+                case "uncommon":
+                    return NotificationKind.Uncommon;
+                case "rare":
+                    return NotificationKind.Rare;
+                case "ultrarare":
+                    return NotificationKind.UltraRare;
                 default:
                     return NotificationKind.Base;
             }
@@ -203,6 +211,14 @@ namespace PlayniteAchievements.Views.Settings.General
                     return L("LOCPlayAch_Settings_ToastPreviewFriend");
                 case NotificationKind.Progress:
                     return L("LOCPlayAch_Settings_Style_HeaderProgress");
+                case NotificationKind.Common:
+                    return L("LOCPlayAch_Rarity_Common");
+                case NotificationKind.Uncommon:
+                    return L("LOCPlayAch_Rarity_Uncommon");
+                case NotificationKind.Rare:
+                    return L("LOCPlayAch_Rarity_Rare");
+                case NotificationKind.UltraRare:
+                    return L("LOCPlayAch_Rarity_UltraRare");
                 default:
                     return null;
             }
@@ -369,8 +385,15 @@ namespace PlayniteAchievements.Views.Settings.General
             _currentToastUseThemeStyling = persisted.ToastUseThemeStyling;
             _currentFrameUseThemeStyling = persisted.FrameUseThemeStyling;
             ApplyThemeStylingControls(editable: true);
-            _toastEditorViewModel.SetStyle(kindStyle, editable ? option.Key : null, editable, !editingKind);
-            _frameEditorViewModel.SetStyle(kindStyle, editable ? option.Key : null, editable, !editingKind);
+            // A kind styled separately owns its own image slots, so the editors point at the
+            // kind's own folder inside the scope.
+            var imageOwner = NotificationImageOwner
+                .ForProvider(editable ? option.Key : null)
+                .ForNotificationKind(editingKind ? ActiveKind : NotificationKind.Base);
+            _toastEditorViewModel.SetStyle(
+                kindStyle, imageOwner, editable, persistStyle: null, providerKey: editable ? option.Key : null);
+            _frameEditorViewModel.SetStyle(
+                kindStyle, imageOwner, editable, persistStyle: null, providerKey: editable ? option.Key : null);
             UpdateMockups();
         }
 
@@ -412,7 +435,6 @@ namespace PlayniteAchievements.Views.Settings.General
                     providerName);
 
             ApplyThemeStylingControls(hasOverride);
-            var owner = NotificationImageOwner.ForGame(_gameId);
             Action<NotificationStyleSettings> persist = hasOverride
                 ? PersistGameStyle
                 : (Action<NotificationStyleSettings>)null;
@@ -420,9 +442,11 @@ namespace PlayniteAchievements.Views.Settings.General
             _currentScopeStyle = scopeStyle;
             var kindStyle = ApplyKindSelection(scopeStyle, hasOverride);
             var editingKind = !ReferenceEquals(kindStyle, scopeStyle);
-            _currentStyle = kindStyle;
-            _toastEditorViewModel.SetStyle(kindStyle, owner, hasOverride, persist, !editingKind);
-            _frameEditorViewModel.SetStyle(kindStyle, owner, hasOverride, persist, !editingKind);
+            var owner = NotificationImageOwner
+                .ForGame(_gameId)
+                .ForNotificationKind(editingKind ? ActiveKind : NotificationKind.Base);
+            _toastEditorViewModel.SetStyle(kindStyle, owner, hasOverride, persist);
+            _frameEditorViewModel.SetStyle(kindStyle, owner, hasOverride, persist);
             UpdateMockups();
         }
 
@@ -961,7 +985,7 @@ namespace PlayniteAchievements.Views.Settings.General
         /// that copy after confirmation. The copy is seeded from the scope style as it stands,
         /// so the kind starts out looking exactly as it did.
         /// </summary>
-        private void KindStyleCheckBox_Click(object sender, RoutedEventArgs e)
+        private async void KindStyleCheckBox_Click(object sender, RoutedEventArgs e)
         {
             if (_suppressCustomizeEvents)
             {
@@ -982,7 +1006,7 @@ namespace PlayniteAchievements.Views.Settings.General
 
                 if (KindStyleCheckBox.IsChecked == true)
                 {
-                    scopeStyle.EnableKindStyle(kind);
+                    await SeedKindStyleAsync(scopeStyle, kind);
                 }
                 else if (!ConfirmDropKindStyle())
                 {
@@ -994,6 +1018,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 else
                 {
                     scopeStyle.ClearKindStyle(kind);
+                    _plugin.NotificationImageStore.DeleteKindImages(ScopeImageOwner, kind);
                 }
 
                 PersistScopeStyle();
@@ -1010,7 +1035,7 @@ namespace PlayniteAchievements.Views.Settings.General
         /// Re-seeds the active kind's style from the scope's shared style, discarding the
         /// separate design while keeping the kind opted out.
         /// </summary>
-        private void ResetKindStyle_Click(object sender, RoutedEventArgs e)
+        private async void ResetKindStyle_Click(object sender, RoutedEventArgs e)
         {
             var kind = ActiveKind;
             var scopeStyle = _currentScopeStyle;
@@ -1024,7 +1049,8 @@ namespace PlayniteAchievements.Views.Settings.General
                 _toastEditorViewModel?.FlushPendingPersist();
                 _frameEditorViewModel?.FlushPendingPersist();
                 scopeStyle.ClearKindStyle(kind);
-                scopeStyle.EnableKindStyle(kind);
+                _plugin.NotificationImageStore.DeleteKindImages(ScopeImageOwner, kind);
+                await SeedKindStyleAsync(scopeStyle, kind);
                 PersistScopeStyle();
             }
             catch (Exception ex)
@@ -1033,6 +1059,94 @@ namespace PlayniteAchievements.Views.Settings.General
             }
 
             ApplySelection();
+        }
+
+        /// <summary>
+        /// Where an imported pack or preset lands inside a clone of the scope style: the
+        /// clone's copy of the kind currently being edited, or the clone itself. Writing a
+        /// pack always persists the whole scope object, so a kind edit cannot flatten the
+        /// scope onto the kind.
+        /// </summary>
+        private NotificationStyleSettings ResolveMergeTarget(NotificationStyleSettings scopeClone)
+        {
+            if (scopeClone == null || ReferenceEquals(_currentStyle, _currentScopeStyle))
+            {
+                return scopeClone;
+            }
+
+            return scopeClone.ResolveKind(ActiveKind);
+        }
+
+        /// <summary>
+        /// Installs a pack's surface onto the target style, and — when the target is the scope's
+        /// shared style — the pack's separately styled kinds along with it, so a pack carries
+        /// the whole look rather than one surface of it. A kind the pack does not carry is left
+        /// as it is rather than being overwritten with the shared look.
+        /// </summary>
+        private static void ApplyPackSurfaces(
+            NotificationStyleSettings target,
+            NotificationStyleSettings pack,
+            bool isFrame)
+        {
+            if (target == null || pack == null)
+            {
+                return;
+            }
+
+            CopySurface(target, pack, isFrame);
+            if (target.KindStyles == null)
+            {
+                return;
+            }
+
+            foreach (var pair in pack.KindStyles)
+            {
+                if (pair.Value == null ||
+                    !Enum.TryParse<NotificationKind>(pair.Key, ignoreCase: true, result: out var kind) ||
+                    kind == NotificationKind.Base)
+                {
+                    continue;
+                }
+
+                CopySurface(target.EnableKindStyle(kind), pair.Value, isFrame);
+            }
+        }
+
+        private static void CopySurface(
+            NotificationStyleSettings target,
+            NotificationStyleSettings source,
+            bool isFrame)
+        {
+            if (isFrame)
+            {
+                target.Frame = source.Frame;
+                return;
+            }
+
+            target.Toast = source.Toast;
+            target.ToastBackgroundImagePath = source.ToastBackgroundImagePath;
+        }
+
+        /// <summary>
+        /// The image slot owner for the current scope, before any kind narrowing.
+        /// </summary>
+        private NotificationImageOwner ScopeImageOwner =>
+            IsGameMode
+                ? NotificationImageOwner.ForGame(_gameId)
+                : NotificationImageOwner.ForProvider(_selectedProviderKey);
+
+        /// <summary>
+        /// Seeds a kind's own style from the scope's shared one and gives it its own copies of
+        /// the shared images, so it starts out identical and can then be changed — images
+        /// included — without touching the shared style.
+        /// </summary>
+        private async Task SeedKindStyleAsync(NotificationStyleSettings scopeStyle, NotificationKind kind)
+        {
+            var seeded = scopeStyle.EnableKindStyle(kind);
+            await _plugin.NotificationImageStore.CopyImagesAsync(
+                seeded,
+                ScopeImageOwner.ForNotificationKind(kind),
+                CancellationToken.None);
         }
 
         private bool ConfirmDropKindStyle()
@@ -1526,7 +1640,8 @@ namespace PlayniteAchievements.Views.Settings.General
                     // When the target scope still follows an inherited style, snapshot the
                     // inherited images into the scope first so an untouched surface never
                     // references another owner's slot files.
-                    var merged = (_currentStyle ?? NotificationStyleSettings.CreateDefault()).Clone();
+                    var merged = (_currentScopeStyle ?? NotificationStyleSettings.CreateDefault()).Clone();
+                    var mergeTarget = ResolveMergeTarget(merged);
                     if (!IsGameMode && providerKey != null &&
                         persisted.GetProviderNotificationStyle(providerKey) == null)
                     {
@@ -1541,13 +1656,12 @@ namespace PlayniteAchievements.Views.Settings.General
 
                     if (contents.HasToastStyle)
                     {
-                        merged.Toast = imported.Toast;
-                        merged.ToastBackgroundImagePath = imported.ToastBackgroundImagePath;
+                        ApplyPackSurfaces(mergeTarget, imported, isFrame: false);
                     }
 
                     if (contents.HasFrameStyle)
                     {
-                        merged.Frame = imported.Frame;
+                        ApplyPackSurfaces(mergeTarget, imported, isFrame: true);
                     }
 
                     ApplyImportedStyle(persisted, providerKey, merged);
@@ -1902,7 +2016,8 @@ namespace PlayniteAchievements.Views.Settings.General
                 // The merge base keeps the untouched surface intact. When the target scope is
                 // still following an inherited style, snapshot the inherited images into the
                 // scope first so the new copy never references another owner's slot files.
-                var merged = style.Clone();
+                var merged = (_currentScopeStyle ?? style).Clone();
+                var mergeTarget = ResolveMergeTarget(merged);
                 try
                 {
                     if (!IsGameMode && providerKey != null &&
@@ -1925,15 +2040,7 @@ namespace PlayniteAchievements.Views.Settings.General
 
                     // The preset's surface replaces the target surface wholesale, badge images and
                     // header texts included; a toast preset also carries the toast-only background.
-                    if (isFrame)
-                    {
-                        merged.Frame = imported.Frame;
-                    }
-                    else
-                    {
-                        merged.Toast = imported.Toast;
-                        merged.ToastBackgroundImagePath = imported.ToastBackgroundImagePath;
-                    }
+                    ApplyPackSurfaces(mergeTarget, imported, isFrame);
 
                     ApplyImportedStyle(persisted, providerKey, merged);
 
