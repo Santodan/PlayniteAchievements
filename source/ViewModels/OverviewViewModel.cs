@@ -3853,7 +3853,6 @@ namespace PlayniteAchievements.ViewModels
             var selectedGame = ResolveSelectedGameForChartContext(snapshot);
             var useSelectedRarity = selectedGame?.HasRarityPieChartData == true;
             var useSelectedTrophy = selectedGame?.HasTrophyPieChartData == true;
-            var useUniformRarityBadges = _settings?.Persisted?.UseUniformRarityBadges ?? false;
 
             if (useSelectedRarity)
             {
@@ -3871,8 +3870,7 @@ namespace PlayniteAchievements.ViewModels
                     uncommonLabel,
                     rareLabel,
                     ultraRareLabel,
-                    lockedLabel,
-                    useUniformRarityBadges);
+                    lockedLabel);
             }
             else
             {
@@ -3890,8 +3888,7 @@ namespace PlayniteAchievements.ViewModels
                     uncommonLabel,
                     rareLabel,
                     ultraRareLabel,
-                    lockedLabel,
-                    useUniformRarityBadges);
+                    lockedLabel);
             }
 
             if (useSelectedTrophy)
