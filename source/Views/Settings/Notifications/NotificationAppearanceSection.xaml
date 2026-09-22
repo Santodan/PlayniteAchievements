@@ -54,6 +54,7 @@
             <Border Grid.Row="0"
                     Style="{StaticResource SectionBorderStyle}"
                     Margin="0,0,0,10">
+                <StackPanel>
                 <TabControl x:Name="SurfaceTabs"
                             Background="Transparent"
                             BorderThickness="0"
@@ -194,6 +195,32 @@
                         </StackPanel>
                     </TabItem>
                 </TabControl>
+
+                <!-- Per-kind styling. The sample dropdown above already names the kind being
+                     previewed, so it doubles as the scope selector: with one of the special
+                     kinds selected, this row opts that kind out of the scope's shared style
+                     into its own copy, seeded from it. The row hides for the plain rarity
+                     samples, which always follow the shared style. One slot covers both
+                     surfaces, so the toast and frame tabs show the same state. -->
+                <StackPanel x:Name="KindStylePanel"
+                            Visibility="Collapsed"
+                            Margin="0,4,0,0">
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox x:Name="KindStyleCheckBox"
+                                  Click="KindStyleCheckBox_Click"
+                                  VerticalAlignment="Center"/>
+                        <Button x:Name="ResetKindStyleButton"
+                                Click="ResetKindStyle_Click"
+                                Content="{DynamicResource LOCPlayAch_Settings_Style_Kind_ResetToBase}"
+                                Margin="14,0,0,0"
+                                Visibility="Collapsed"/>
+                    </StackPanel>
+                    <TextBlock x:Name="KindStyleHint"
+                               Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0"/>
+                </StackPanel>
+                </StackPanel>
             </Border>
 
             <!-- ======================= SCROLL: scope / share / editor ======================= -->

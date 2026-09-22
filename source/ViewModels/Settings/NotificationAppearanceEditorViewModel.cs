@@ -1876,36 +1876,18 @@ namespace PlayniteAchievements.ViewModels.Settings
         /// Points the editor at a new style object (global default or a provider copy).
         /// Pending edits against the previous style are flushed first.
         /// </summary>
-        public void SetStyle(NotificationStyleSettings style, string providerKey, bool isEditable)
-        {
-            SetStyle(
-                style,
-                NotificationImageOwner.ForProvider(providerKey),
-                isEditable,
-                persistStyle: null,
-                providerKey: providerKey);
-        }
-
         /// <summary>
-        /// Points the editor at an arbitrary owned style, allowing the shared editor surface to
-        /// persist provider/global settings or a per-game custom-data snapshot through the same
-        /// debounce path.
+        /// Points the editor at an owned style, allowing the shared editor surface to persist
+        /// provider/global settings or a per-game custom-data snapshot through the same
+        /// debounce path. The image owner names the slot folder the style's images live in,
+        /// which for a separately styled notification kind is that kind's own folder.
         /// </summary>
         public void SetStyle(
             NotificationStyleSettings style,
             NotificationImageOwner imageOwner,
             bool isEditable,
-            Action<NotificationStyleSettings> persistStyle)
-        {
-            SetStyle(style, imageOwner, isEditable, persistStyle, providerKey: null);
-        }
-
-        private void SetStyle(
-            NotificationStyleSettings style,
-            NotificationImageOwner imageOwner,
-            bool isEditable,
-            Action<NotificationStyleSettings> persistStyle,
-            string providerKey)
+            Action<NotificationStyleSettings> persistStyle = null,
+            string providerKey = null)
         {
             FlushPendingPersist();
             Unsubscribe();
