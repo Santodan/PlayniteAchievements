@@ -1532,8 +1532,6 @@ namespace PlayniteAchievements.Models.Tests
             settings.StartPageRecentUnlocksGrid.ShowControlBar = true;
             settings.StartPageRecentUnlocksGrid.RowHeight = 72d;
             settings.StartPageRecentUnlocksGrid.MaxRows = 4;
-            settings.StartPagePieCharts.ShowCenterPercentage = false;
-            settings.StartPagePieCharts.SmallSliceMode = OverviewPieSmallSliceMode.Hide;
             settings.StartPageActivityScope = GameActivityScope.All;
             settings.StartPageProgressScope = GameProgressScope.NoProgress;
             settings.DataGridColumnVisibility["Title"] = false;
@@ -1637,8 +1635,6 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(defaults.StartPageRecentUnlocksGrid.ShowControlBar, settings.StartPageRecentUnlocksGrid.ShowControlBar);
             Assert.AreEqual(defaults.StartPageRecentAchievementsGridRowHeight, settings.StartPageRecentAchievementsGridRowHeight);
             Assert.AreEqual(defaults.StartPageRecentAchievementsGridMaxRows, settings.StartPageRecentAchievementsGridMaxRows);
-            Assert.AreEqual(defaults.StartPagePieCharts.ShowCenterPercentage, settings.StartPagePieCharts.ShowCenterPercentage);
-            Assert.AreEqual(defaults.StartPagePieCharts.SmallSliceMode, settings.StartPagePieCharts.SmallSliceMode);
             Assert.AreEqual(defaults.StartPageActivityScope, settings.StartPageActivityScope);
             Assert.AreEqual(defaults.StartPageProgressScope, settings.StartPageProgressScope);
             Assert.AreEqual(defaults.OverviewLeftColumnRatio, settings.OverviewLeftColumnRatio);

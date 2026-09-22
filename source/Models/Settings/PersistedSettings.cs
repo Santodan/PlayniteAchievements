@@ -212,8 +212,6 @@ namespace PlayniteAchievements.Models.Settings
         private StartPageGameSummariesGridSettings _startPageGameSummariesGrid;
         private StartPageRecentUnlocksGridSettings _startPageRecentUnlocksGrid;
         private StartPageFriendsRecentUnlocksGridSettings _startPageFriendsRecentUnlocksGrid;
-        private StartPagePieWidgetSettings _startPagePieCharts =
-            new StartPagePieWidgetSettings();
         private ShowcaseSettings _showcase;
         private GridOptionsCatalog _gridOptions = new GridOptionsCatalog();
         private GameActivityScope _startPageActivityScope = DefaultStartPageActivityScope;
@@ -2403,13 +2401,6 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _compactLockedListSortDescending, value);
         }
 
-        public StartPagePieWidgetSettings StartPagePieCharts
-        {
-            get => _startPagePieCharts ?? (_startPagePieCharts = AttachStartPageSettings(
-                new StartPagePieWidgetSettings()));
-            set => SetStartPagePieSettings(ref _startPagePieCharts, value, nameof(StartPagePieCharts));
-        }
-
         /// <summary>
         /// Replace (not populate) on load: the getter lazily seeds a default dashboard, and the
         /// default object-creation handling would populate that seeded instance - appending the
@@ -2737,22 +2728,6 @@ namespace PlayniteAchievements.Models.Settings
 
         #region StartPage Settings Helpers
 
-        private void SetStartPagePieSettings(
-            ref StartPagePieWidgetSettings field,
-            StartPagePieWidgetSettings value,
-            string propertyName)
-        {
-            var normalized = value ?? new StartPagePieWidgetSettings();
-            if (ReferenceEquals(field, normalized))
-            {
-                return;
-            }
-
-            DetachStartPageSettings(field);
-            field = AttachStartPageSettings(normalized);
-            OnPropertyChanged(propertyName);
-        }
-
         private void AttachStartPageSettingsHandlers()
         {
             _startPageGameSummariesGrid = AttachStartPageSettings(
@@ -2761,8 +2736,6 @@ namespace PlayniteAchievements.Models.Settings
                 _startPageRecentUnlocksGrid ?? new StartPageRecentUnlocksGridSettings(AchievementStartPageRecent));
             _startPageFriendsRecentUnlocksGrid = AttachStartPageSettings(
                 _startPageFriendsRecentUnlocksGrid ?? new StartPageFriendsRecentUnlocksGridSettings(AchievementStartPageFriendRecent));
-            _startPagePieCharts = AttachStartPageSettings(
-                _startPagePieCharts ?? new StartPagePieWidgetSettings());
         }
 
         private void RebindStartPageGridSettings()
@@ -2830,11 +2803,6 @@ namespace PlayniteAchievements.Models.Settings
                     nameof(StartPageFriendsRecentAchievementsGridRowHeight),
                     nameof(StartPageFriendsRecentAchievementsGridMaxRows));
                 return;
-            }
-
-            if (ReferenceEquals(sender, _startPagePieCharts))
-            {
-                RaiseStartPageSettingsChanged(nameof(StartPagePieCharts), childPropertyName);
             }
         }
 
@@ -3079,8 +3047,6 @@ namespace PlayniteAchievements.Models.Settings
                 CompactUnlockedListSortDescending = this.CompactUnlockedListSortDescending,
                 CompactLockedListSortMode = this.CompactLockedListSortMode,
                 CompactLockedListSortDescending = this.CompactLockedListSortDescending,
-                StartPagePieCharts = this.StartPagePieCharts?.Clone() ??
-                    new StartPagePieWidgetSettings(),
                 Showcase = this.Showcase?.Clone() ?? ShowcaseLayoutService.CreateDefault(
                     this.ShowOverviewCollectionScoreCard,
                     this.ShowOverviewPrestigeScoreCard),
@@ -3248,7 +3214,6 @@ namespace PlayniteAchievements.Models.Settings
             CompactLockedListSortDescending = defaults.CompactLockedListSortDescending;
 
 
-            StartPagePieCharts = new StartPagePieWidgetSettings();
             Showcase = ShowcaseLayoutService.CreateDefault(
                 defaults.ShowOverviewCollectionScoreCard,
                 defaults.ShowOverviewPrestigeScoreCard);

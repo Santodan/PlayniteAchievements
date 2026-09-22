@@ -231,8 +231,6 @@ namespace PlayniteAchievements.Models.Settings
             target.CompactUnlockedListSortDescending = source.CompactUnlockedListSortDescending;
             target.CompactLockedListSortMode = source.CompactLockedListSortMode;
             target.CompactLockedListSortDescending = source.CompactLockedListSortDescending;
-            target.StartPagePieCharts = source.StartPagePieCharts?.Clone() ??
-                new StartPagePieWidgetSettings();
             target.Showcase = source.Showcase?.Clone();
             target.GridOptions = source.GridOptions?.Clone() ?? new GridOptionsCatalog();
             target.StartPageActivityScope = source.StartPageActivityScope;
