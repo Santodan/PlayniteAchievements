@@ -363,18 +363,27 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _rowRealizationWindow = System.Diagnostics.Stopwatch.StartNew();
             }
 
-            if (++_realizedRowCount < 50)
+            _realizedRowCount++;
+
+            // Reports on whichever comes first: twenty rows, or a quarter second of realizing.
+            // A fixed batch of fifty never reported at all on a game of seventy-seven rows,
+            // because recycling means a scroll realizes far fewer containers than there are
+            // rows. The elapsed bound also catches a slow trickle, which is the shape a costly
+            // row template would produce.
+            var elapsed = _rowRealizationWindow.Elapsed.TotalMilliseconds;
+            if (_realizedRowCount < 20 && elapsed < 250)
             {
                 return;
             }
 
-            var elapsed = _rowRealizationWindow.Elapsed.TotalMilliseconds;
+            var realized = _realizedRowCount;
             var rows = ViewModel?.AchievementRows?.Count ?? 0;
             _realizedRowCount = 0;
             _rowRealizationWindow.Restart();
             LogManager.GetLogger().Debug(
                 $"[UiBlockRisk] tag=Editor.RowRealization ms={(long)elapsed} ui=true " +
-                $"thread={System.Threading.Thread.CurrentThread.ManagedThreadId} context=realized=50 rows={rows}");
+                $"thread={System.Threading.Thread.CurrentThread.ManagedThreadId} " +
+                $"context=realized={realized} rows={rows}");
         }
 
         private void RestoreSelectionByApiNames(IReadOnlyList<string> apiNames)
