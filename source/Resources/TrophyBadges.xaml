@@ -71,6 +71,9 @@
             <Pen Brush="{StaticResource RimTrophyUnknown}" Thickness="3" LineJoin="Round"/>
           </GeometryDrawing.Pen>
         </GeometryDrawing>
+        <!-- Same shine band the graded trophies carry, so the masked badge catches the light the
+             way they do. It sits under the glyph, which would otherwise be washed out by it. -->
+        <GeometryDrawing Geometry="{StaticResource GeoTrophy}" Brush="{StaticResource ShineOverlay}"/>
         <!-- The real Segoe UI Bold glyph as a path, in the cover's own glyph colour. -->
         <GeometryDrawing Geometry="{StaticResource GeoQuestionMark}" Brush="#CACBCD"/>
       </DrawingGroup>
