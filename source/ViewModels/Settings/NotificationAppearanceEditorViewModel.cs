@@ -46,6 +46,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         private NotificationImageOwner _imageOwner = NotificationImageOwner.Global;
         private Action<NotificationStyleSettings> _persistStyle;
         private bool _isEditable = true;
+        private bool _allowImageEditing = true;
 
         private string _unlockHeaderText;
         private string _friendUnlockHeaderText;
@@ -127,6 +128,20 @@ namespace PlayniteAchievements.ViewModels.Settings
         /// default values read-only until the user customizes the platform.
         /// </summary>
         public bool IsEditable => _isEditable;
+
+        /// <summary>
+        /// False while a notification kind's own style is being edited. Managed image files are
+        /// keyed by scope (global / provider / game) and a kind's style is a clone pointing at
+        /// the same files, so editing images from a kind would rewrite the shared ones. Custom
+        /// images and templates therefore stay with the scope's shared style.
+        /// </summary>
+        public bool IsImageEditingEnabled => _isEditable && _allowImageEditing;
+
+        /// <summary>
+        /// True when the image controls are disabled purely because a kind style is active, so
+        /// the editor can explain why rather than just graying out.
+        /// </summary>
+        public bool ShowKindImageNotice => _isEditable && !_allowImageEditing;
 
         public ObservableCollection<NotificationLineRowItem> LineRows { get; }
 
@@ -1434,7 +1449,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         /// </summary>
         public async Task ApplyImageAsync(NotificationImageSlot slot, string sourcePathOrUrl)
         {
-            if (_style == null || !_isEditable)
+            if (_style == null || !_isEditable || !_allowImageEditing)
             {
                 return;
             }
@@ -1471,7 +1486,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         /// </summary>
         public void ClearImage(NotificationImageSlot slot)
         {
-            if (_style == null || !_isEditable)
+            if (_style == null || !_isEditable || !_allowImageEditing)
             {
                 return;
             }
@@ -1876,14 +1891,19 @@ namespace PlayniteAchievements.ViewModels.Settings
         /// Points the editor at a new style object (global default or a provider copy).
         /// Pending edits against the previous style are flushed first.
         /// </summary>
-        public void SetStyle(NotificationStyleSettings style, string providerKey, bool isEditable)
+        public void SetStyle(
+            NotificationStyleSettings style,
+            string providerKey,
+            bool isEditable,
+            bool allowImageEditing = true)
         {
             SetStyle(
                 style,
                 NotificationImageOwner.ForProvider(providerKey),
                 isEditable,
                 persistStyle: null,
-                providerKey: providerKey);
+                providerKey: providerKey,
+                allowImageEditing: allowImageEditing);
         }
 
         /// <summary>
@@ -1895,9 +1915,16 @@ namespace PlayniteAchievements.ViewModels.Settings
             NotificationStyleSettings style,
             NotificationImageOwner imageOwner,
             bool isEditable,
-            Action<NotificationStyleSettings> persistStyle)
+            Action<NotificationStyleSettings> persistStyle,
+            bool allowImageEditing = true)
         {
-            SetStyle(style, imageOwner, isEditable, persistStyle, providerKey: null);
+            SetStyle(
+                style,
+                imageOwner,
+                isEditable,
+                persistStyle,
+                providerKey: null,
+                allowImageEditing: allowImageEditing);
         }
 
         private void SetStyle(
@@ -1905,7 +1932,8 @@ namespace PlayniteAchievements.ViewModels.Settings
             NotificationImageOwner imageOwner,
             bool isEditable,
             Action<NotificationStyleSettings> persistStyle,
-            string providerKey)
+            string providerKey,
+            bool allowImageEditing)
         {
             FlushPendingPersist();
             Unsubscribe();
@@ -1915,6 +1943,7 @@ namespace PlayniteAchievements.ViewModels.Settings
             _imageOwner = imageOwner ?? NotificationImageOwner.Global;
             _persistStyle = persistStyle;
             _isEditable = isEditable;
+            _allowImageEditing = allowImageEditing;
 
             Subscribe();
             SyncLineRows();
@@ -1926,6 +1955,8 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(Surface));
             OnPropertyChanged(nameof(ProviderKey));
             OnPropertyChanged(nameof(IsEditable));
+            OnPropertyChanged(nameof(IsImageEditingEnabled));
+            OnPropertyChanged(nameof(ShowKindImageNotice));
             OnPropertyChanged(nameof(SelectedFontFamilyOption));
             OnPropertyChanged(nameof(SelectedBadgePlacement));
             OnPropertyChanged(nameof(SelectedPercentPlacement));
