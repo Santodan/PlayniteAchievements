@@ -283,6 +283,15 @@ namespace PlayniteAchievements
 
             try
             {
+                // Before the warm, so the warm caches the upgraded rows rather than rows this is
+                // about to replace. Reads already normalize every record to the current schema on
+                // the way out; this writes that result back, which is what stops the migration
+                // backup arming on every launch for a game the user has never edited.
+                using (PerfScope.StartStartup(_logger, "PluginCtor.CustomDataSchemaUpgrade", thresholdMs: 50))
+                {
+                    _gameCustomDataStore.UpgradeStoredRecordsToCurrentSchema();
+                }
+
                 using (PerfScope.StartStartup(_logger, "PluginCtor.CustomDataWarmup", thresholdMs: 50))
                 {
                     var rows = _gameCustomDataStore.LoadAll();
