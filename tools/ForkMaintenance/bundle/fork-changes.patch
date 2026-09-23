@@ -5861,7 +5861,7 @@ index 10ed192a6393c7feccfcf5a16e3b10a980c060a2..b07ad5f918014607a1e36bccc0255ba4
          {
              token.ThrowIfCancellationRequested();
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e21268d388c2 100644
+index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..0e1d2bdb99eedc4373480beba22a4219c92f73ed 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
 @@ -1,23 +1,82 @@
@@ -5947,7 +5947,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
          }
  
          /// <summary>
-@@ -85,6 +144,644 @@ public void ShowThemeAutoMigrated(string themeName)
+@@ -85,6 +144,646 @@ public void ShowThemeAutoMigrated(string themeName)
              }
          }
  
@@ -6220,7 +6220,8 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +            string achievementDescription = null,
 +            int? achievementPoints = null,
 +            string achievementRarity = null,
-+            string achievementTrophy = null)
++            string achievementTrophy = null,
++            int? forcedSanPreviewView = null)
 +        {
 +            var localSettings = overrideLocalSettings ?? ProviderRegistry.Settings<LocalSettings>();
 +            var mode = forcedDeliveryMode ?? localSettings?.UnlockNotificationDeliveryMode ?? LocalUnlockNotificationDeliveryMode.Hybrid;
@@ -6260,7 +6261,8 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +                    achievementDescription,
 +                    achievementPoints,
 +                    achievementRarity,
-+                    achievementTrophy);
++                    achievementTrophy,
++                    forcedSanPreviewView);
 +            }
 +
 +            if (mode == LocalUnlockNotificationDeliveryMode.WindowsToast || mode == LocalUnlockNotificationDeliveryMode.Hybrid)
@@ -6592,7 +6594,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
          private static string AuthNotificationId(string providerKey) => $"PlayAch-AuthFailed-{providerKey}";
  
          public void ShowProviderAuthFailed(List<string> providerKeys)
-@@ -163,5 +860,7421 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +862,7511 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
@@ -6995,7 +6997,8 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +            string achievementDescription = null,
 +            int? achievementPoints = null,
 +            string achievementRarity = null,
-+            string achievementTrophy = null)
++            string achievementTrophy = null,
++            int? forcedSanPreviewView = null)
 +        {
 +            try
 +            {
@@ -7026,7 +7029,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +                                _persistentSettingsPreviewOverlay = null;
 +                                existing.Close();
 +
-+                                if (togglePersistentOverlay && !refreshPersistentOverlay)
++                                if (togglePersistentOverlay && !refreshPersistentOverlay && !forcedSanPreviewView.HasValue)
 +                                {
 +                                    return;
 +                                }
@@ -7072,7 +7075,8 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +                                position,
 +                                width,
 +                                height,
-+                                persistentPreviewRequested))
++                                persistentPreviewRequested,
++                                forcedSanPreviewView))
 +                        {
 +                            return;
 +                        }
@@ -7398,7 +7402,8 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +            LocalUnlockOverlayPosition position,
 +            double width,
 +            double height,
-+            bool persistentPreviewRequested = false)
++            bool persistentPreviewRequested = false,
++            int? forcedSanPreviewView = null)
 +        {
 +            return TryShowSanHtmlOverlayNotification(
 +                gameName,
@@ -7415,7 +7420,8 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +                position,
 +                width,
 +                height,
-+                persistentPreviewRequested);
++                persistentPreviewRequested,
++                forcedSanPreviewView);
 +        }
 +
 +        private bool TryShowSanHtmlOverlayNotification(
@@ -7433,7 +7439,8 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +            LocalUnlockOverlayPosition position,
 +            double width,
 +            double height,
-+            bool persistentPreviewRequested = false)
++            bool persistentPreviewRequested = false,
++            int? forcedSanPreviewView = null)
 +        {
 +            var hasSanSelection = settings != null &&
 +                (IsSanTransitionStyle(settings.UnlockOverlayTransitionStyle) ||
@@ -7533,7 +7540,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +                        LogOverlayWindowLifecycle(window, "SAN-WebView2", "webview-controller-ready", overlayOpacity, debugLoggingEnabled);
 +                        webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
 +                        webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
-+                        webView.CoreWebView2.NavigationCompleted += (_, navigationArgs) =>
++                        webView.CoreWebView2.NavigationCompleted += async (_, navigationArgs) =>
 +                        {
 +                            if (debugLoggingEnabled)
 +                            {
@@ -7543,6 +7550,18 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +                            }
 +
 +                            LogOverlayWindowLifecycle(window, "SAN-WebView2", "navigation-completed", overlayOpacity, debugLoggingEnabled);
++                            if (navigationArgs.IsSuccess && forcedSanPreviewView.HasValue)
++                            {
++                                try
++                                {
++                                    await webView.CoreWebView2.ExecuteScriptAsync(
++                                        $"window.playniteShowSanView && window.playniteShowSanView({forcedSanPreviewView.Value});");
++                                }
++                                catch (Exception ex)
++                                {
++                                    _logger?.Debug(ex, "Could not select the requested SAN settings preview view.");
++                                }
++                            }
 +                        };
 +                        if (autoResizeToContent)
 +                        {
@@ -8364,6 +8383,24 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +                : Math.Max(1, Math.Max(1, durationMs) / 1000.0);
 +            var timelineScale = Math.Max(0.1, displaySeconds / 10.0);
 +            var transitionSeconds = Math.Max(0.05, ((settings.UnlockOverlayFadeInMilliseconds > 0 ? settings.UnlockOverlayFadeInMilliseconds : 180) / 1000.0) * timelineScale);
++            if (usesSanTimeline)
++            {
++                // SAN's original styles assume two equal halves and use --displaytime / 2 as
++                // the phase boundary. Respect the independently configured view durations.
++                presetCss = presetCss?.Replace("var(--displaytime) / 2", "var(--san-view1-displaytime)");
++                elementCss = elementCss?.Replace("var(--displaytime) / 2", "var(--san-view1-displaytime)");
++
++                // xQjan uses as many as fourteen transition units for both its entrance and
++                // exit sequences. With asymmetric or short view durations, scaling only from
++                // the combined duration can consume the complete phase. Keep at least half of
++                // the shorter view available for its settled content.
++                if (string.Equals(animationPreset, "xqjan", StringComparison.OrdinalIgnoreCase))
++                {
++                    transitionSeconds = Math.Min(
++                        transitionSeconds,
++                        Math.Max(0.01, Math.Min(view1Seconds, view2Seconds) / 28.0));
++                }
++            }
 +            var bodyAttrs = BuildSanBodyAttributes(settings, customisation, sanElems.Length >= 3, animationPreset, elementPreset);
 +            var themeScale = Math.Max(0.1, (customisation?.Value<double?>("scale") ?? 100) / 100.0);
 +            var sanScale = Math.Max(0.1, settings.OverlayCustomScale * themeScale);
@@ -8729,8 +8766,9 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +    }});
 +  }};
 +  views.forEach((root, index) => fillView(root, index));
++  let sanViewSwitchTimer = null;
 +  if (views.length === 1 && sanLineDefinitions.some(line => line.view === 1)) {{
-+    window.setTimeout(() => {{
++    sanViewSwitchTimer = window.setTimeout(() => {{
 +      const root = views[0];
 +      if (root && root.dataset) {{
 +        root.dataset.sanViewIndex = '2';
@@ -8738,6 +8776,60 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e212
 +      fillView(root, 1);
 +    }}, {Math.Max(500, (int)Math.Round(view1Seconds * 1000)).ToString(CultureInfo.InvariantCulture)});
 +  }}
++  window.playniteShowSanView = requestedView => {{
++    const view = requestedView === 2 ? 2 : 1;
++    if (sanViewSwitchTimer !== null) window.clearTimeout(sanViewSwitchTimer);
++    const entryDelay = root => {{
++      if (!root || !root.getAnimations) return Number.POSITIVE_INFINITY;
++      const delays = root.getAnimations({{ subtree: false }})
++        .map(animation => Number(animation.effect && animation.effect.getTiming
++          ? animation.effect.getTiming().delay
++          : 0) || 0);
++      return delays.length ? Math.min(...delays) : Number.POSITIVE_INFINITY;
++    }};
++    const firstView = views.length > 1 && entryDelay(views[1]) < entryDelay(views[0]) ? 2 : 1;
++    views.forEach((root, index) => {{
++      if (root === document) return;
++      root.style.setProperty('display', index === view - 1 || views.length === 1 ? 'grid' : 'none', 'important');
++    }});
++    const root = views.length === 1 ? views[0] : views[view - 1];
++    if (root) {{
++      if (root.dataset) root.dataset.sanViewIndex = String(view);
++      fillView(root, view - 1);
++    }}
++    void document.body.offsetWidth;
++    const viewStart = view === firstView
++      ? 0
++      : firstView === 1
++        ? {(view1Seconds * 1000).ToString("0", CultureInfo.InvariantCulture)}
++        : {(view2Seconds * 1000).ToString("0", CultureInfo.InvariantCulture)};
++    document.getAnimations().forEach(animation => {{
++      try {{
++        animation.pause();
++        const target = animation.effect && animation.effect.target;
++        const belongsToSelectedView = root === document || !target || root.contains(target) || target === root;
++        if (!belongsToSelectedView) {{
++          animation.cancel();
++          return;
++        }}
++        animation.currentTime = viewStart;
++        const computedTiming = animation.effect && animation.effect.getComputedTiming
++          ? animation.effect.getComputedTiming()
++          : null;
++        const animationEnd = computedTiming && Number.isFinite(computedTiming.endTime)
++          ? computedTiming.endTime
++          : Number.POSITIVE_INFINITY;
++        if (viewStart > 0 && animationEnd <= viewStart) {{
++          // Calling play() on an animation already finished at the requested phase rewinds it.
++          // Keep entrance animations pinned to their filled end state for the exiting view.
++          animation.pause();
++        }} else {{
++          animation.play();
++        }}
++      }} catch (_) {{ }}
++    }});
++    return true;
++  }};
 +  document.body.toggleAttribute('alldetails', sanLineDefinitions.filter(line => line.html).length >= 3);
 +}};
 +window.playniteSanScreenshotDelay = (requestedView, millisecondsBeforeEnd) => {{

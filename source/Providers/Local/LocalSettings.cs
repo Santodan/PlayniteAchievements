@@ -997,37 +997,37 @@ namespace PlayniteAchievements.Providers.Local
         public double OverlayCustomTitleFontSize
         {
             get => _overlayCustomTitleFontSize;
-            set => SetValue(ref _overlayCustomTitleFontSize, Math.Max(10, Math.Min(34, value)));
+            set => SetValue(ref _overlayCustomTitleFontSize, Math.Max(8, Math.Min(56, value)));
         }
 
         public double OverlayCustomDetailFontSize
         {
             get => _overlayCustomDetailFontSize;
-            set => SetValue(ref _overlayCustomDetailFontSize, Math.Max(9, Math.Min(28, value)));
+            set => SetValue(ref _overlayCustomDetailFontSize, Math.Max(8, Math.Min(56, value)));
         }
 
         public double OverlayCustomMetaFontSize
         {
             get => _overlayCustomMetaFontSize;
-            set => SetValue(ref _overlayCustomMetaFontSize, Math.Max(8, Math.Min(24, value)));
+            set => SetValue(ref _overlayCustomMetaFontSize, Math.Max(8, Math.Min(56, value)));
         }
 
         public double OverlayCustomLine4FontSize
         {
             get => _overlayCustomLine4FontSize;
-            set => SetValue(ref _overlayCustomLine4FontSize, Math.Max(8, Math.Min(24, value)));
+            set => SetValue(ref _overlayCustomLine4FontSize, Math.Max(8, Math.Min(56, value)));
         }
 
         public double OverlayCustomLine5FontSize
         {
             get => _overlayCustomLine5FontSize;
-            set => SetValue(ref _overlayCustomLine5FontSize, Math.Max(8, Math.Min(24, value)));
+            set => SetValue(ref _overlayCustomLine5FontSize, Math.Max(8, Math.Min(56, value)));
         }
 
         public double OverlayCustomLine6FontSize
         {
             get => _overlayCustomLine6FontSize;
-            set => SetValue(ref _overlayCustomLine6FontSize, Math.Max(8, Math.Min(24, value)));
+            set => SetValue(ref _overlayCustomLine6FontSize, Math.Max(8, Math.Min(56, value)));
         }
 
         public string OverlayCustomLine1FontFamily
@@ -2525,12 +2525,12 @@ namespace PlayniteAchievements.Providers.Local
                     Width = Math.Max(280, Math.Min(900, slot.Width)),
                     Height = Math.Max(MinCustomOverlayHeight, Math.Min(320, slot.Height)),
                     CornerRadius = Math.Max(0, Math.Min(180, slot.CornerRadius)),
-                    TitleFontSize = Math.Max(10, Math.Min(56, slot.TitleFontSize)),
-                    DetailFontSize = Math.Max(9, Math.Min(44, slot.DetailFontSize)),
-                    MetaFontSize = Math.Max(8, Math.Min(24, slot.MetaFontSize)),
-                    Line4FontSize = Math.Max(8, Math.Min(24, slot.Line4FontSize <= 0 ? slot.MetaFontSize : slot.Line4FontSize)),
-                    Line5FontSize = Math.Max(8, Math.Min(24, slot.Line5FontSize <= 0 ? slot.MetaFontSize : slot.Line5FontSize)),
-                    Line6FontSize = Math.Max(8, Math.Min(24, slot.Line6FontSize <= 0 ? slot.MetaFontSize : slot.Line6FontSize)),
+                    TitleFontSize = Math.Max(8, Math.Min(56, slot.TitleFontSize)),
+                    DetailFontSize = Math.Max(8, Math.Min(56, slot.DetailFontSize)),
+                    MetaFontSize = Math.Max(8, Math.Min(56, slot.MetaFontSize)),
+                    Line4FontSize = Math.Max(8, Math.Min(56, slot.Line4FontSize <= 0 ? slot.MetaFontSize : slot.Line4FontSize)),
+                    Line5FontSize = Math.Max(8, Math.Min(56, slot.Line5FontSize <= 0 ? slot.MetaFontSize : slot.Line5FontSize)),
+                    Line6FontSize = Math.Max(8, Math.Min(56, slot.Line6FontSize <= 0 ? slot.MetaFontSize : slot.Line6FontSize)),
                     Line1FontFamily = NormalizeFontFamilySetting(slot.Line1FontFamily),
                     Line2FontFamily = NormalizeFontFamilySetting(slot.Line2FontFamily),
                     Line3FontFamily = NormalizeFontFamilySetting(slot.Line3FontFamily),

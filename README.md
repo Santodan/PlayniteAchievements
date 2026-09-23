@@ -103,7 +103,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added epic emulator compatibility
 - Fixed `SAN` transition screenshot
   - There is now an option in `Memories` to choose the `SAN` view and how many ms before it ends to take the screenshot
-- Add a preview of `VIew 1` and `View 2` for `SAN`transitions
+- Added a preview of `VIew 1` and `View 2` for `SAN`transitions
+  - `Show Vew1` and `Show View2` buttons located under the `Show Notification` in the `Notification Style` menu
 
 ## 2026-09-14 - v3.2.1.1
 

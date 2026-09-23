@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-09-23T12:52:10.4230923Z",
+    "generatedUtc":  "2026-09-23T14:09:44.2761706Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "653a310fed521206672d0aec9383fd7ec3bb94a3",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "F6C04FAB58478536DC5C37AEC35F1786D7679644A99D6CD284861C6773592412"
+                  "sha256":  "F7FE53F3F768C38DEB612E15212A08EA46C49CB5D591260E866BE1169A548580"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -141,7 +141,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "7CFA7FBD907F32BE6B9CFA767204DC2FBB905A2CA6DE23CC738B56BBCF75E9F3"
+                             "sha256":  "92DB14F3BF2FEA294E312C8E489181D46CEA5E61C45B9718D2F580DC4A7FA52E"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
@@ -317,11 +317,11 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "C182F72AC56058A6BDA18E3CBD7BAA2F4A1A8BB66A5C11612E91C8E82F9AD213"
+                             "sha256":  "A92A62C77F53E984555E4F900FADDFDAFD0511BCD04D099869377958C48AE40D"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "3CB0E2E1420C38EB2BE980C164E865BCA8892FCC040703DEE1E52307FCB9FAAD"
+                             "sha256":  "27178D90ADB54CC31CFBFCA848BD6F1F19F2DAA38F328FFF98373A19087113B9"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",

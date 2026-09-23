@@ -644,6 +644,10 @@ namespace PlayniteAchievements.Views
         private readonly ObservableCollection<CustomStyleSlotOption> _customStyleSlotOptions = new ObservableCollection<CustomStyleSlotOption>();
         private readonly DispatcherTimer _notificationAutoPopupPreviewTimer;
         private readonly DispatcherTimer _notificationInlinePreviewLoopTimer;
+        private readonly DispatcherTimer _sanViewPreviewLoopTimer;
+        private readonly DispatcherTimer _sanViewPreviewCloseTimer;
+        private int? _activeSanPreviewView;
+        private Window _settingsHostWindow;
         private Providers.Local.LocalSettings _notificationPreviewSettings;
         private bool _isRefreshingNotificationSoundSelection;
         private bool _isRefreshingNotificationStyleSelection;
@@ -789,6 +793,10 @@ namespace PlayniteAchievements.Views
                 Interval = TimeSpan.FromMilliseconds(2600)
             };
             _notificationInlinePreviewLoopTimer.Tick += NotificationInlinePreviewLoopTimer_Tick;
+            _sanViewPreviewLoopTimer = new DispatcherTimer();
+            _sanViewPreviewLoopTimer.Tick += SanViewPreviewLoopTimer_Tick;
+            _sanViewPreviewCloseTimer = new DispatcherTimer();
+            _sanViewPreviewCloseTimer.Tick += SanViewPreviewCloseTimer_Tick;
             Unloaded += LegacyNotificationSettingsControl_Unloaded;
 
             InitializeComponent();
@@ -847,7 +855,40 @@ namespace PlayniteAchievements.Views
         private void LegacyNotificationSettingsControl_Unloaded(object sender, RoutedEventArgs e)
         {
             _notificationAutoPopupPreviewTimer?.Stop();
+            _sanViewPreviewLoopTimer?.Stop();
+            _sanViewPreviewCloseTimer?.Stop();
+            _activeSanPreviewView = null;
             NotificationPublisher.ClosePersistentSettingsPreview();
+        }
+
+        private void NotificationSettingsContent_Loaded(object sender, RoutedEventArgs e)
+        {
+            var hostWindow = Window.GetWindow(sender as DependencyObject);
+            if (ReferenceEquals(_settingsHostWindow, hostWindow))
+            {
+                return;
+            }
+
+            if (_settingsHostWindow != null)
+            {
+                _settingsHostWindow.Closed -= SettingsHostWindow_Closed;
+            }
+
+            _settingsHostWindow = hostWindow;
+            if (_settingsHostWindow != null)
+            {
+                _settingsHostWindow.Closed += SettingsHostWindow_Closed;
+            }
+        }
+
+        private void SettingsHostWindow_Closed(object sender, EventArgs e)
+        {
+            StopSanViewPreview(closeOverlay: true);
+            if (_settingsHostWindow != null)
+            {
+                _settingsHostWindow.Closed -= SettingsHostWindow_Closed;
+                _settingsHostWindow = null;
+            }
         }
         private void NotificationTemplateTextBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
         {
@@ -1289,9 +1330,16 @@ namespace PlayniteAchievements.Views
                 }));
             }
 
-            if (NotificationsAutoPopupPreviewCheckBox?.IsChecked == true && IsCustomPopupPreviewProperty(e.PropertyName))
+            if ((NotificationsAutoPopupPreviewCheckBox?.IsChecked == true || _activeSanPreviewView.HasValue) &&
+                IsCustomPopupPreviewProperty(e.PropertyName))
             {
-                Dispatcher.BeginInvoke(new Action(ScheduleAutoPopupPreview));
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (NotificationsAutoPopupPreviewCheckBox?.IsChecked == true || _activeSanPreviewView.HasValue)
+                    {
+                        ScheduleAutoPopupPreview();
+                    }
+                }));
             }
         }
 
@@ -1479,7 +1527,56 @@ namespace PlayniteAchievements.Views
         private void NotificationAutoPopupPreviewTimer_Tick(object sender, EventArgs e)
         {
             _notificationAutoPopupPreviewTimer.Stop();
+            if (_activeSanPreviewView.HasValue)
+            {
+                ShowCustomPopupPreview(forceStatusMessage: true, forcedSanView: _activeSanPreviewView.Value);
+                ScheduleSanViewPreviewLoop();
+                return;
+            }
+
             ShowCustomPopupPreview(forceStatusMessage: false);
+        }
+
+        private void SanViewPreviewLoopTimer_Tick(object sender, EventArgs e)
+        {
+            _sanViewPreviewLoopTimer.Stop();
+            if (!_activeSanPreviewView.HasValue)
+            {
+                return;
+            }
+
+            ShowCustomPopupPreview(forceStatusMessage: true, forcedSanView: _activeSanPreviewView.Value);
+            ScheduleSanViewPreviewLoop();
+        }
+
+        private void SanViewPreviewCloseTimer_Tick(object sender, EventArgs e)
+        {
+            _sanViewPreviewCloseTimer.Stop();
+            if (_activeSanPreviewView.HasValue)
+            {
+                NotificationPublisher.ClosePersistentSettingsPreview();
+            }
+        }
+
+        private void ScheduleSanViewPreviewLoop()
+        {
+            if (!_activeSanPreviewView.HasValue)
+            {
+                _sanViewPreviewLoopTimer.Stop();
+                _sanViewPreviewCloseTimer.Stop();
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            var duration = _activeSanPreviewView.Value == 2
+                ? localSettings?.OverlayCustomSanView2DurationMilliseconds ?? 5000
+                : localSettings?.OverlayCustomSanView1DurationMilliseconds ?? 5000;
+            _sanViewPreviewLoopTimer.Stop();
+            _sanViewPreviewCloseTimer.Stop();
+            _sanViewPreviewCloseTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(500, duration));
+            _sanViewPreviewCloseTimer.Start();
+            _sanViewPreviewLoopTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(500, duration) + 2000);
+            _sanViewPreviewLoopTimer.Start();
         }
 
         private void NotificationInlinePreviewLoopTimer_Tick(object sender, EventArgs e)
@@ -3767,10 +3864,41 @@ namespace PlayniteAchievements.Views
 
         private void NotificationsShowCustomPopupPreview_Click(object sender, RoutedEventArgs e)
         {
+            StopSanViewPreview(closeOverlay: true);
             ShowCustomPopupPreview(forceStatusMessage: true);
         }
 
-        private void ShowCustomPopupPreview(bool forceStatusMessage)
+        private void NotificationsShowSanView_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button &&
+                int.TryParse(button.Tag as string, out var requestedView) &&
+                (requestedView == 1 || requestedView == 2))
+            {
+                if (_activeSanPreviewView == requestedView)
+                {
+                    StopSanViewPreview(closeOverlay: true);
+                    NotificationsUnlockSoundStatusTextBlock.Text = $"Stopped SAN View {requestedView} preview.";
+                    return;
+                }
+
+                _activeSanPreviewView = requestedView;
+                ShowCustomPopupPreview(forceStatusMessage: true, forcedSanView: requestedView);
+                ScheduleSanViewPreviewLoop();
+            }
+        }
+
+        private void StopSanViewPreview(bool closeOverlay)
+        {
+            _activeSanPreviewView = null;
+            _sanViewPreviewLoopTimer.Stop();
+            _sanViewPreviewCloseTimer.Stop();
+            if (closeOverlay)
+            {
+                NotificationPublisher.ClosePersistentSettingsPreview();
+            }
+        }
+
+        private void ShowCustomPopupPreview(bool forceStatusMessage, int? forcedSanView = null)
         {
             var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
             if (localSettings == null)
@@ -3797,13 +3925,18 @@ namespace PlayniteAchievements.Views
                 achievementDescription: previewAchievement?.Description ?? "Win your first fight without taking damage.",
                 achievementPoints: previewAchievement?.Points ?? 25,
                 achievementRarity: FormatPreviewAchievementRarity(previewAchievement, "12.7%"),
-                achievementTrophy: previewAchievement?.TrophyType ?? "Gold");
+                achievementTrophy: previewAchievement?.TrophyType ?? "Gold",
+                forcedSanPreviewView: forcedSanView);
 
             if (forceStatusMessage)
             {
                 NotificationsUnlockSoundStatusTextBlock.Text = string.IsNullOrWhiteSpace(previewGame?.Name)
-                    ? "Toggled silent Custom overlay preview."
-                    : $"Toggled silent Custom overlay preview for {previewGame.Name}.";
+                    ? forcedSanView.HasValue
+                        ? $"Toggled silent Custom overlay preview at SAN View {forcedSanView.Value}."
+                        : "Toggled silent Custom overlay preview."
+                    : forcedSanView.HasValue
+                        ? $"Toggled silent Custom overlay preview at SAN View {forcedSanView.Value} for {previewGame.Name}."
+                        : $"Toggled silent Custom overlay preview for {previewGame.Name}.";
             }
         }
 
@@ -3869,6 +4002,20 @@ namespace PlayniteAchievements.Views
                 (IsSanTransitionStyle(localSettings.UnlockOverlayTransitionStyle) ||
                  !string.IsNullOrWhiteSpace(localSettings.OverlayCustomSanElementPresetId));
             NotificationsSanViewDurationGrid.Visibility = hasSanSelection ? Visibility.Visible : Visibility.Collapsed;
+            if (NotificationsShowSanView1Button != null)
+            {
+                NotificationsShowSanView1Button.IsEnabled = hasSanSelection;
+            }
+
+            if (NotificationsShowSanView2Button != null)
+            {
+                NotificationsShowSanView2Button.IsEnabled = hasSanSelection;
+            }
+
+            if (!hasSanSelection && _activeSanPreviewView.HasValue)
+            {
+                StopSanViewPreview(closeOverlay: true);
+            }
         }
 
         private void NotificationsTransitionStyleComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -8425,6 +8572,8 @@ namespace PlayniteAchievements.Views
                 // The original tab binds notification controls directly to LocalSettings.
                 // Preserve that inherited context when the content is hosted by the v3 shell.
                 contentElement.DataContext = AchievementNotificationsTab.DataContext;
+                contentElement.Loaded -= NotificationSettingsContent_Loaded;
+                contentElement.Loaded += NotificationSettingsContent_Loaded;
             }
 
             if (AchievementNotificationsTab != null)
@@ -8462,6 +8611,14 @@ namespace PlayniteAchievements.Views
         {
             _notificationAutoPopupPreviewTimer?.Stop();
             _notificationInlinePreviewLoopTimer?.Stop();
+            _sanViewPreviewLoopTimer?.Stop();
+            _sanViewPreviewCloseTimer?.Stop();
+            _activeSanPreviewView = null;
+            if (_settingsHostWindow != null)
+            {
+                _settingsHostWindow.Closed -= SettingsHostWindow_Closed;
+                _settingsHostWindow = null;
+            }
             NotificationPublisher.ClosePersistentSettingsPreview();
             if (_notificationPreviewSettings != null)
             {
