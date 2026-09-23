@@ -64,6 +64,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _renameOverrideText;
         private bool _baselineIsSummarySelected;
         private bool _isSummarySelected;
+        private AchievementFilterScope _filterScope;
+        private int _subtreeAchievementCount;
 
         private ManageAchievementsCategoryMetadataItem(
             string gameIdText,
@@ -199,6 +201,54 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool HasChanges =>
             !string.Equals(GetNormalizedArtOverrideValue(), _baselineArtOverrideValue, StringComparison.Ordinal) ||
             _isSummarySelected != _baselineIsSummarySelected;
+
+        /// <summary>
+        /// What this category's achievements currently agree on, or
+        /// <see cref="AchievementFilterScope.Mixed"/> when they disagree. Derived from the members
+        /// rather than stored: the column pushes a scope onto them and then reads back what they
+        /// hold, so an edit made per achievement elsewhere shows up here as a mixed cell instead of
+        /// being contradicted by a remembered category value.
+        /// </summary>
+        public AchievementFilterScope FilterScope
+        {
+            get => _filterScope;
+            internal set => SetValue(ref _filterScope, value);
+        }
+
+        /// <summary>
+        /// How many achievements a push from this row would reach: this category plus every
+        /// subcategory beneath it. Deliberately not <see cref="TotalAchievements"/>, which counts
+        /// only what carries this exact label - a parent holding nothing of its own still pushes to
+        /// its whole subtree.
+        /// </summary>
+        public int SubtreeAchievementCount
+        {
+            get => _subtreeAchievementCount;
+            internal set
+            {
+                if (SetValueAndReturn(ref _subtreeAchievementCount, value))
+                {
+                    OnPropertyChanged(nameof(CanEditFilterScope));
+                }
+            }
+        }
+
+        /// <summary>False for a category whose subtree holds nothing, so there is nothing to push to.</summary>
+        public bool CanEditFilterScope => _subtreeAchievementCount > 0;
+
+        /// <summary>
+        /// Stamps the scope this row's subtree agrees on. Both counts are over the subtree, and
+        /// <paramref name="summaryEffectiveCount"/> includes the fully filtered, matching how the
+        /// two flags are read everywhere else.
+        /// </summary>
+        public void SetFilterScopeFromMembers(int subtreeTotal, int filteredCount, int summaryEffectiveCount)
+        {
+            SubtreeAchievementCount = subtreeTotal;
+            FilterScope = AchievementFilterScopes.FromMemberCounts(
+                subtreeTotal,
+                filteredCount,
+                summaryEffectiveCount);
+        }
 
         public static ManageAchievementsCategoryMetadataItem Create(
             string categoryLabel,
