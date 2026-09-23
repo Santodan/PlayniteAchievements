@@ -108,12 +108,6 @@
                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Overview}"
                                      Style="{StaticResource NavTabRadioStyle}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overview}" />
-                        <RadioButton x:Name="ManualTrackingTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_ManualTracking}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding ShowManualTrackingTab, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=ManualTracking}" />
-
                         <!-- Not gated on HasAchievementData: it is the Custom tab widened to every
                              achievement, so it must stay reachable for a game with no cached
                              achievements, where custom ones are authored. -->
@@ -128,43 +122,8 @@
                                      Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
 
-                        <TextBlock x:Name="AchievementsSectionHeader"
-                                   Text="{DynamicResource LOCPlayAch_Achievements}"
-                                   Style="{StaticResource NavSectionHeaderStyle}"
-                                   Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}" />
-                        <RadioButton x:Name="FiltersTabButton"
-                                     Content="{DynamicResource LOCPlayAch_Menu_Filters}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Filters}" />
-                        <RadioButton x:Name="AchievementOrderTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_AchievementOrder}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=AchievementOrder}" />
-                        <RadioButton x:Name="CapstonesTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Capstones}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Capstones}" />
-                        <RadioButton x:Name="GoalsTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Goals}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Goals}" />
-                        <RadioButton x:Name="NotesTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Notes}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Notes}" />
-
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance}"
                                    Style="{StaticResource NavSectionHeaderStyle}" />
-                        <RadioButton x:Name="CustomIconsTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_CustomIcons}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding ShowReplacedTabs, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=CustomIcons}" />
                         <RadioButton x:Name="NotificationsTabButton"
                                      Content="{DynamicResource LOCPlayAch_Settings_TabNotifications}"
                                      Style="{StaticResource NavTabRadioStyle}"
@@ -220,35 +179,6 @@
                         <Style TargetType="{x:Type Grid}">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="Capstones">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-
-                    <ContentControl x:Name="CapstoneHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="ManualTracking">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="ManualHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedTab}" Value="Editor">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
@@ -263,34 +193,6 @@
                         <Style TargetType="{x:Type Grid}">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="AchievementOrder">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="AchievementOrderHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="Goals">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="GoalsHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedTab}" Value="Category">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
@@ -298,48 +200,6 @@
                         </Style>
                     </Grid.Style>
                     <ContentControl x:Name="CategoryHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="Filters">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="FiltersHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="Notes">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="NotesHost" />
-                </Grid>
-
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="CustomIcons">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="AchievementIconsHost" />
                 </Grid>
 
                 <Grid>

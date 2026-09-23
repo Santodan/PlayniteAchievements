@@ -1704,11 +1704,6 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        public void OpenCapstoneView(Guid gameId)
-        {
-            OpenManageAchievementsView(gameId, ManageAchievementsTab.Capstones);
-        }
-
         public void OpenParityTestView(Guid gameId, bool modern)
         {
             try

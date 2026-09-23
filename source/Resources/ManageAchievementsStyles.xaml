@@ -569,20 +569,6 @@
         </StackPanel>
     </DataTemplate>
 
-    <Style x:Key="HiddenAchievementTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
-        <Setter Property="Cursor" Value="Arrow"/>
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding CanReveal}" Value="True">
-                <Setter Property="Cursor" Value="Hand"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding IsHidden}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Muted}"/>
-                <Setter Property="FontStyle" Value="Italic"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
     <Style x:Key="ClickableCellStyle" TargetType="Grid">
         <Setter Property="Cursor" Value="Arrow"/>
         <Style.Triggers>
@@ -676,36 +662,6 @@
         <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
         <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
-    </Style>
-
-    <Style x:Key="IconCardListItemStyle" TargetType="ListBoxItem">
-        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
-        <Setter Property="Focusable" Value="False"/>
-        <Setter Property="Padding" Value="0"/>
-        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ListBoxItem">
-                    <ContentPresenter/>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <Style x:Key="IconCardBorderStyle" TargetType="Border" BasedOn="{StaticResource CardBorderStyle}">
-        <Setter Property="Padding" Value="{StaticResource PlayAch.Thickness.IconCardPadding}"/>
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding CanReveal}" Value="True">
-                <Setter Property="Cursor" Value="Hand"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsMouseOver}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-            </DataTrigger>
-        </Style.Triggers>
     </Style>
 
 </ResourceDictionary>

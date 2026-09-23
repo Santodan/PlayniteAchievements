@@ -76,11 +76,6 @@ namespace PlayniteAchievements
             _windowService.OpenManageAchievementsView(gameId, initialTab, selectManageCategoriesSubTab);
         }
 
-        public void OpenCapstoneView(Guid gameId)
-        {
-            _windowService.OpenCapstoneView(gameId);
-        }
-
         private void EnsureAchievementResourcesLoaded()
         {
             _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);

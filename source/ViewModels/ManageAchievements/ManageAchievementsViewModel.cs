@@ -77,7 +77,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _cachedProviderKey;
         private bool _cachedHasAchievements;
         private string _manualTrackingWarningAcceptedForProvider;
-        private bool _showManualTrackingTab = true;
         private bool _useSeparateLockedIconsOverride;
         private bool _isLoadingProviderOverride;
         private string _selectedProviderOverrideKey = ProviderOverrideNoneKey;
@@ -177,42 +176,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
-                if (value == ManageAchievementsTab.ManualTracking && !ShowManualTrackingTab)
-                {
-                    return;
-                }
-
                 if (!HasAchievementData && ManageAchievementsTabs.RequireAchievementData.Contains(value))
                 {
                     return;
-                }
-
-                if (!ShowReplacedTabs && ManageAchievementsTabs.Replaced.Contains(value))
-                {
-                    return;
-                }
-
-                if (value == ManageAchievementsTab.ManualTracking &&
-                    ShouldWarnAboutManualTrackingOverride(out var existingProviderKey) &&
-                    !string.Equals(_manualTrackingWarningAcceptedForProvider, existingProviderKey, StringComparison.OrdinalIgnoreCase))
-                {
-                    var displayName = ProviderRegistry.GetLocalizedName(existingProviderKey);
-                    var message = string.Format(
-                        L("LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning"),
-                        displayName);
-
-                    var result = _playniteApi?.Dialogs?.ShowMessage(
-                        message,
-                        L("LOCPlayAch_Title_PluginName"),
-                        MessageBoxButton.OKCancel,
-                        MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-                    if (result != MessageBoxResult.OK)
-                    {
-                        return;
-                    }
-
-                    _manualTrackingWarningAcceptedForProvider = existingProviderKey;
                 }
 
                 SetValue(ref _selectedTab, value);
@@ -220,22 +186,40 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Whether the tabs the merged editor replaced are still offered. False while the editor is
-        /// proven against them; their views and view models are untouched, so setting this true
-        /// brings them straight back.
+        /// Warns, once per provider, that linking manual tracking replaces the data the game
+        /// already has from a provider. Returns false when the user backs out.
         /// </summary>
-        public bool ShowReplacedTabs => false;
-
-        /// <summary>
-        /// Whether the Manual Tracking tab is offered. The merged editor replaced it too -- linking
-        /// runs from its header and unlocks are recorded in its grid -- so it is held behind the
-        /// same flag as the other replaced tabs and returns with them. The availability rule below
-        /// still applies on top, so re-enabling does not offer it where it never belonged.
-        /// </summary>
-        public bool ShowManualTrackingTab
+        /// <remarks>
+        /// This used to guard opening the Manual Tracking tab. The editor took the tab's place and
+        /// runs linking from its own header, so the warning moved to that command rather than
+        /// going away with the tab.
+        /// </remarks>
+        public bool ConfirmManualTrackingOverride()
         {
-            get => _showManualTrackingTab && ShowReplacedTabs;
-            private set => SetValue(ref _showManualTrackingTab, value);
+            if (!ShouldWarnAboutManualTrackingOverride(out var existingProviderKey) ||
+                string.Equals(_manualTrackingWarningAcceptedForProvider, existingProviderKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var displayName = ProviderRegistry.GetLocalizedName(existingProviderKey);
+            var message = string.Format(
+                L("LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning"),
+                displayName);
+
+            var result = _playniteApi?.Dialogs?.ShowMessage(
+                message,
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) ?? MessageBoxResult.None;
+
+            if (result != MessageBoxResult.OK)
+            {
+                return false;
+            }
+
+            _manualTrackingWarningAcceptedForProvider = existingProviderKey;
+            return true;
         }
 
         public bool UseSeparateLockedIconsOverride
@@ -747,17 +731,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 HasCachedData = gameData != null;
                 _cachedProviderKey = gameData?.ProviderKey?.Trim();
                 _cachedHasAchievements = gameData?.HasAchievements ?? false;
-                var allowManualOverride = ManualAchievementsProvider.IsTrackingOverrideEnabled();
                 var isExcluded = _plugin?.IsGameExcluded(_gameId) ?? false;
-                var hasNonManualProviderData = ShouldWarnAboutManualTrackingOverride(out _);
                 ManualAchievementLink manualLink;
                 var hasManualLink = ManualAchievementsProvider.TryGetManualLink(_gameId, out manualLink);
-                ShowManualTrackingTab = ManualTrackingAvailability.CanLink(
-                    hasManualLink,
-                    allowManualOverride,
-                    isExcluded,
-                    _cachedHasAchievements,
-                    hasNonManualProviderData);
                 ProviderName = ResolveProviderDisplayName(gameData);
                 LibrarySourceName = ResolveLibrarySourceDisplayName(game, gameData?.LibrarySourceName);
 
@@ -803,16 +779,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     new AchievementPageLinkContext(game, gameData, rawGameData, manualLink));
 
                 RefreshCustomDataState();
-
-                if (!ShowManualTrackingTab && SelectedTab == ManageAchievementsTab.ManualTracking)
-                {
-                    SelectedTab = ManageAchievementsTab.Overview;
-                }
-
-                if (!ShowReplacedTabs && ManageAchievementsTabs.Replaced.Contains(SelectedTab))
-                {
-                    SelectedTab = ManageAchievementsTab.Overview;
-                }
 
                 if (!HasAchievementData && ManageAchievementsTabs.RequireAchievementData.Contains(SelectedTab))
                 {

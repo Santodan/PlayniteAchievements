@@ -24,9 +24,9 @@ namespace PlayniteAchievements.Tests.Views
             var focusOrder = ReadFocusButtonOrder();
 
             Assert.AreEqual(
-                12,
+                5,
                 xamlOrder.Count,
-                "Expected 12 tabs in the nav rail; update this test if a tab was added or removed.");
+                "Expected 5 tabs in the nav rail; update this test if a tab was added or removed.");
 
             CollectionAssert.AreEqual(
                 xamlOrder,
@@ -46,22 +46,8 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void NavRail_AchievementDataGatedTabs_MatchRequireAchievementDataSet()
         {
-            // The merged editor replaced every achievement-data tab, so those buttons gate on
-            // ShowReplacedTabs now. Whichever flag a button binds, it must agree with the set that
-            // names it, or a tab silently becomes unreachable or reappears.
             var tabsFile = File.ReadAllText(FindRepoFile(
                 "source", "ViewModels", "ManageAchievements", "ManageAchievementsTab.cs"));
-
-            var replacedInXaml = ReadXamlTabsGatedOn("ShowReplacedTabs");
-            var replacedInCode = ReadListedTabs(tabsFile, "Replaced =", "};");
-
-            CollectionAssert.AreEquivalent(
-                replacedInCode,
-                replacedInXaml,
-                "Every tab whose nav button binds visibility to ShowReplacedTabs must be listed in "
-                    + "ManageAchievementsTabs.Replaced, and vice versa. "
-                    + "XAML: " + string.Join(", ", replacedInXaml)
-                    + " | Replaced: " + string.Join(", ", replacedInCode));
 
             var gatedInXaml = ReadXamlTabsGatedOn("HasAchievementData");
             var requireInCode = ReadListedTabs(tabsFile, "RequireAchievementData =", "};");
@@ -82,7 +68,6 @@ namespace PlayniteAchievements.Tests.Views
             var headerKeys = new[]
             {
                 "LOCPlayAch_Common_General",
-                "LOCPlayAch_Achievements",
                 "LOCPlayAch_Settings_Appearance",
                 "LOCPlayAch_Settings_Maintenance_Title"
             };
@@ -99,35 +84,38 @@ namespace PlayniteAchievements.Tests.Views
                     "Group header key " + key + " must already exist in en_US.xaml.");
             }
 
-            // The Achievements group collapses with its tabs, and every tab it still labels is one
-            // the Editor superseded: Category sits with the Editor now, so the header follows the
-            // superseded tabs rather than the presence of achievement data.
-            Assert.IsTrue(
-                Regex.IsMatch(
-                    xaml,
-                    "LOCPlayAch_Achievements\\}\"[\\s\\S]{0,400}?Binding ShowReplacedTabs"),
-                "The Achievements group header must bind visibility to ShowReplacedTabs so it "
-                    + "collapses with the tabs it labels.");
+            // The Achievements group went with the tabs it labelled: the Editor absorbed them and
+            // Categories sits with it under General, so no header names that group any more.
+            Assert.IsFalse(
+                xaml.Contains("LOCPlayAch_Achievements}"),
+                "The Achievements group header must stay removed; the Editor replaced the tabs it "
+                    + "labelled.");
         }
 
         [TestMethod]
-        public void CapstonesPane_DropsUnreachableEmptyState()
+        public void EveryContentHost_DeclaresItsOwnSelectedTabTrigger()
         {
+            // Each pane defaults to Collapsed and is shown by one DataTrigger on SelectedTab.
+            // Deleting a pane by line range once took the next pane's trigger with it, leaving an
+            // empty Style.Triggers over that default -- three tabs that could never render, and
+            // nothing else catches it.
             var xaml = ReadControlXaml();
-            var viewModel = File.ReadAllText(FindRepoFile(
-                "source", "ViewModels", "ManageAchievements", "ManageAchievementsViewModel.cs"));
 
-            // The empty state was gated on the same flag that hides the Capstones nav button and
-            // forces a fallback to Overview, so it could never render.
             Assert.IsFalse(
-                xaml.Contains("CapstoneEmptyMessage"),
-                "The unreachable Capstones empty-state TextBlock must stay removed.");
-            Assert.IsFalse(
-                viewModel.Contains("CapstoneEmptyMessage"),
-                "The unused CapstoneEmptyMessage property must stay removed.");
-            Assert.IsFalse(
-                xaml.Contains("HasCapstoneData") || viewModel.Contains("HasCapstoneData"),
-                "HasCapstoneData was renamed to HasAchievementData.");
+                Regex.IsMatch(xaml, "<Style\\.Triggers>\\s*</Style\\.Triggers>"),
+                "A content host has an empty Style.Triggers, so its pane can never become visible.");
+
+            var triggered = Regex.Matches(xaml, "<DataTrigger Binding=\"\\{Binding SelectedTab\\}\" Value=\"(\\w+)\"")
+                .Cast<Match>()
+                .Select(match => match.Groups[1].Value)
+                .ToList();
+
+            CollectionAssert.AreEquivalent(
+                ReadXamlTabOrder(),
+                triggered,
+                "Every nav button needs a pane keyed to the same tab, and vice versa. "
+                    + "Buttons: " + string.Join(", ", ReadXamlTabOrder())
+                    + " | Panes: " + string.Join(", ", triggered));
         }
 
         private static List<string> ReadXamlTabOrder()
