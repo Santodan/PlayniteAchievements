@@ -77,7 +77,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _cachedProviderKey;
         private bool _cachedHasAchievements;
         private string _manualTrackingWarningAcceptedForProvider;
-        private bool _showManualTrackingTab = true;
         private bool _useSeparateLockedIconsOverride;
         private bool _isLoadingProviderOverride;
         private string _selectedProviderOverrideKey = ProviderOverrideNoneKey;
@@ -177,17 +176,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
-                if (value == ManageAchievementsTab.ManualTracking && !ShowManualTrackingTab)
-                {
-                    return;
-                }
-
                 if (!HasAchievementData && ManageAchievementsTabs.RequireAchievementData.Contains(value))
-                {
-                    return;
-                }
-
-                if (!ShowReplacedTabs && ManageAchievementsTabs.Replaced.Contains(value))
                 {
                     return;
                 }
@@ -231,25 +220,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             _manualTrackingWarningAcceptedForProvider = existingProviderKey;
             return true;
-        }
-
-        /// <summary>
-        /// Whether the tabs the merged editor replaced are still offered. False while the editor is
-        /// proven against them; their views and view models are untouched, so setting this true
-        /// brings them straight back.
-        /// </summary>
-        public bool ShowReplacedTabs => false;
-
-        /// <summary>
-        /// Whether the Manual Tracking tab is offered. The merged editor replaced it too -- linking
-        /// runs from its header and unlocks are recorded in its grid -- so it is held behind the
-        /// same flag as the other replaced tabs and returns with them. The availability rule below
-        /// still applies on top, so re-enabling does not offer it where it never belonged.
-        /// </summary>
-        public bool ShowManualTrackingTab
-        {
-            get => _showManualTrackingTab && ShowReplacedTabs;
-            private set => SetValue(ref _showManualTrackingTab, value);
         }
 
         public bool UseSeparateLockedIconsOverride
@@ -761,17 +731,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 HasCachedData = gameData != null;
                 _cachedProviderKey = gameData?.ProviderKey?.Trim();
                 _cachedHasAchievements = gameData?.HasAchievements ?? false;
-                var allowManualOverride = ManualAchievementsProvider.IsTrackingOverrideEnabled();
                 var isExcluded = _plugin?.IsGameExcluded(_gameId) ?? false;
-                var hasNonManualProviderData = ShouldWarnAboutManualTrackingOverride(out _);
                 ManualAchievementLink manualLink;
                 var hasManualLink = ManualAchievementsProvider.TryGetManualLink(_gameId, out manualLink);
-                ShowManualTrackingTab = ManualTrackingAvailability.CanLink(
-                    hasManualLink,
-                    allowManualOverride,
-                    isExcluded,
-                    _cachedHasAchievements,
-                    hasNonManualProviderData);
                 ProviderName = ResolveProviderDisplayName(gameData);
                 LibrarySourceName = ResolveLibrarySourceDisplayName(game, gameData?.LibrarySourceName);
 
@@ -817,16 +779,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     new AchievementPageLinkContext(game, gameData, rawGameData, manualLink));
 
                 RefreshCustomDataState();
-
-                if (!ShowManualTrackingTab && SelectedTab == ManageAchievementsTab.ManualTracking)
-                {
-                    SelectedTab = ManageAchievementsTab.Overview;
-                }
-
-                if (!ShowReplacedTabs && ManageAchievementsTabs.Replaced.Contains(SelectedTab))
-                {
-                    SelectedTab = ManageAchievementsTab.Overview;
-                }
 
                 if (!HasAchievementData && ManageAchievementsTabs.RequireAchievementData.Contains(SelectedTab))
                 {
