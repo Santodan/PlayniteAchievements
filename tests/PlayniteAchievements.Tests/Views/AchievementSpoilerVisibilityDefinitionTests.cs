@@ -112,9 +112,7 @@ namespace PlayniteAchievements.Tests.Views
             // these sites must route through the snapshot so there is one list, not four.
             var copySites = new[]
             {
-                new[] { "source", "ViewModels", "Items", "AchievementDisplayItem.cs" },
-                new[] { "source", "ViewModels", "CapstoneViewModel.cs" },
-                new[] { "source", "ViewModels", "ManageAchievements", "ManageAchievementsAchievementIconsViewModel.cs" }
+                new[] { "source", "ViewModels", "Items", "AchievementDisplayItem.cs" }
             };
 
             var offenders = new List<string>();
