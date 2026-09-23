@@ -91,6 +91,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedCustomizationFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _selectedStateFilters =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private List<string> _categoryFilterOptions = new List<string>();
         private bool _canRevealAnyTitle;
         private bool _canRevealAnyDescription;
@@ -169,6 +171,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             CategoryFilter = BuildCategoryFilter();
             TypeFilter = BuildTypeFilter();
             CustomizationFilter = BuildCustomizationFilter();
+            StateFilter = BuildStateFilter();
             AssignableCategoryOptions = new ObservableCollection<string>();
             TypeSelectionOptions = new ObservableCollection<CategoryTypeSelectionOption>(
                 AchievementCategoryTypeHelper.AssignableCategoryTypes.Select(type =>
@@ -5463,7 +5466,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _filterQuery.HasValue ||
             _selectedCategoryFilters.Count > 0 ||
             _selectedTypeFilters.Count > 0 ||
-            _selectedCustomizationFilters.Count > 0;
+            _selectedCustomizationFilters.Count > 0 ||
+            _selectedStateFilters.Count > 0;
 
         /// <summary>Raised when the filter text changed and the collection view needs refreshing.</summary>
         public event EventHandler FilterChanged;
@@ -5506,7 +5510,28 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
+            if (_selectedStateFilters.Count > 0 && !MatchesSelectedStates(row))
+            {
+                return false;
+            }
+
             return true;
+        }
+
+        /// <summary>
+        /// Whether the row is in one of the ticked states. Hidden overlaps the other two rather
+        /// than excluding them -- a hidden achievement is also locked or unlocked -- so the states
+        /// are matched as alternatives, the way the category and type filters match theirs.
+        /// </summary>
+        private bool MatchesSelectedStates(AchievementEditorRow row)
+        {
+            if (row.Hidden && _selectedStateFilters.Contains(HiddenFilterKey))
+            {
+                return true;
+            }
+
+            return _selectedStateFilters.Contains(
+                row.Unlocked ? UnlockedFilterKey : LockedFilterKey);
         }
 
         private bool MatchesSelectedTypes(AchievementEditorRow row)
@@ -5533,6 +5558,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private const string NotCustomizedFilterKey = "NotCustomized";
 
+        /// <summary>Option keys for the state filter, stored and labelled the same way.</summary>
+        private const string UnlockedFilterKey = "Unlocked";
+
+        private const string LockedFilterKey = "Locked";
+
+        private const string HiddenFilterKey = "Hidden";
+
         private void RebuildSearchIndex()
         {
             _searchIndex.Rebuild(AchievementRows);
@@ -5553,6 +5585,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public GridMultiSelectFilter TypeFilter { get; }
 
         public GridMultiSelectFilter CustomizationFilter { get; }
+
+        public GridMultiSelectFilter StateFilter { get; }
 
         /// <summary>
         /// Builds the three filter drop-downs. Each reads its own options live, so a rebuild only
@@ -5617,6 +5651,40 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 MinWidth = 140
             };
+        }
+
+        private GridMultiSelectFilter BuildStateFilter()
+        {
+            var options = new[] { UnlockedFilterKey, LockedFilterKey, HiddenFilterKey };
+            return new GridMultiSelectFilter(
+                this,
+                nameof(FilterOptionsChanged),
+                () => GetSelectedFilterText(
+                    _selectedStateFilters,
+                    options,
+                    ResourceProvider.GetString("LOCPlayAch_Column_Status"),
+                    GetStateFilterLabel),
+                () => options,
+                option => _selectedStateFilters.Contains(option),
+                (option, isSelected) => ToggleFilter(_selectedStateFilters, option, isSelected),
+                getDisplayLabel: GetStateFilterLabel,
+                // Three states every game's achievements can be in, so this one is always offered.
+                hasAvailableAction: () => true)
+            {
+                MinWidth = 140
+            };
+        }
+
+        private static string GetStateFilterLabel(string option)
+        {
+            if (string.Equals(option, UnlockedFilterKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return ResourceProvider.GetString("LOCPlayAch_Common_Unlocked");
+            }
+
+            return string.Equals(option, LockedFilterKey, StringComparison.OrdinalIgnoreCase)
+                ? ResourceProvider.GetString("LOCPlayAch_Common_Locked")
+                : ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Custom_Hidden");
         }
 
         private static string GetCustomizationFilterLabel(string option)
@@ -5723,6 +5791,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             CategoryFilter?.Refresh();
             TypeFilter?.Refresh();
             CustomizationFilter?.Refresh();
+            StateFilter?.Refresh();
 
             if (removed.Count > 0)
             {
