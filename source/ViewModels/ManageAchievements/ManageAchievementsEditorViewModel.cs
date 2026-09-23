@@ -648,9 +648,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // A full reload re-hydrates the game and rebuilds every row, which is most of what
                 // a press of the shortcut costs. It is only needed when the step moved something
                 // the rows cannot be re-seeded from in place.
-                if (RequiresReloadAfterHistoryStep(entry))
+                if (RequiresReloadAfterHistoryStep(entry, out var reloadForcedBy))
                 {
-                    using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Reload", thresholdMs: 10))
+                    using (Common.PerfScope.Start(
+                        _logger,
+                        "Editor.HistoryStep.Reload",
+                        thresholdMs: 10,
+                        context: "forcedBy=" + (reloadForcedBy ?? "unknown")))
                     {
                         ReloadData();
                     }
@@ -692,10 +696,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// is the override where there is one and the provider's own otherwise, and the row
         /// already carries both, so putting one back needs no hydration.
         /// </remarks>
-        private bool RequiresReloadAfterHistoryStep(EditorUndoEntry entry)
+        /// <param name="forcedBy">
+        /// The facet that made the answer yes, for the log. A reload rebuilds every row and costs
+        /// roughly two orders of magnitude more than a re-seed, so which facets keep landing here
+        /// decides whether the list above is worth widening - and a category-type undo, whose own
+        /// facet is on that list, was seen reloading anyway.
+        /// </param>
+        private bool RequiresReloadAfterHistoryStep(EditorUndoEntry entry, out string forcedBy)
         {
+            forcedBy = null;
             foreach (var patch in entry.Facets)
             {
+                forcedBy = patch.Facet.ToString();
                 switch (patch.Facet)
                 {
                     case GameCustomDataFacet.Capstones:
@@ -722,6 +734,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
             }
 
+            forcedBy = entry.Facets.Count == 0 ? "None" : null;
             return entry.Facets.Count == 0;
         }
 
@@ -3753,7 +3766,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     AttachRow(row, useSeparateLockedIcons);
                 }
+            }
 
+            // Measured apart from the attach loop above, which it used to share a scope with.
+            // Together they read as 113ms on a 641-row reload and under 5ms on the first load of
+            // the same game - and the difference between those two is not the rows, it is whether
+            // a grid was bound to this collection yet. The reset is raised synchronously, so
+            // whatever the view does with it is charged here.
+            using (Common.PerfScope.Start(
+                _logger,
+                "Editor.ReplaceRows.Reset",
+                thresholdMs: 5,
+                context: "rows=" + materializedRows.Count))
+            {
                 // One Reset for the whole set. The clear plus per-row add this replaces raised a
                 // collection change per row, and the grid's filtered view re-ran for each one.
                 AchievementRows.ReplaceAll(materializedRows);
