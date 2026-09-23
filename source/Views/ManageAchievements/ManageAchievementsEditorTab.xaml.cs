@@ -404,6 +404,56 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _lastRowRealizationMs = 0;
         }
 
+        private System.Windows.Controls.Panel _rowsPanel;
+
+        /// <summary>
+        /// What a scroll is accumulating, sampled on the same cadence as the realization report so
+        /// a long scroll produces a trend rather than two endpoints. Answers the question the
+        /// [MemPerf] lines cannot: those are logged only when the cache is invalidated or the
+        /// window closes, so a session spent purely scrolling measures nothing at all, and "the
+        /// heap was flat" read off the two samples either side of a scroll is not evidence.
+        ///
+        /// Deliberately cheap enough to sit in this path: GC.GetTotalMemory(false) never collects,
+        /// and the panel is found once. Containers is the direct test of whether recycling is
+        /// holding -- it should settle near a viewport's worth and stay there no matter how long
+        /// the scrolling goes on. A number that climbs with distance scrolled is a leak; managed
+        /// bytes climbing while containers hold flat is something retained per realization
+        /// instead.
+        /// </summary>
+        private string DescribeScrollRetention()
+        {
+            var managedMb = GC.GetTotalMemory(false) / (1024.0 * 1024.0);
+
+            var containers = -1;
+            if (_rowsPanel == null)
+            {
+                _rowsPanel = VisualTreeHelpers.FindVisualChild<System.Windows.Controls.VirtualizingStackPanel>(
+                    CustomAchievementsGrid);
+            }
+
+            if (_rowsPanel != null)
+            {
+                containers = _rowsPanel.Children.Count;
+            }
+
+            var images = string.Empty;
+            try
+            {
+                var imageService = PlayniteAchievementsPlugin.Instance?.ImageService;
+                if (imageService != null)
+                {
+                    imageService.GetCacheStats(out var imageCount, out var imageBytes);
+                    images = $" images={imageCount}/{imageBytes / (1024 * 1024)}MB";
+                }
+            }
+            catch
+            {
+                // Diagnostics only; never fail a scroll over a stats read.
+            }
+
+            return $" managedMb={managedMb:F1} containers={containers}{images}";
+        }
+
         private void ReportRowRealization(int realized, double elapsed)
         {
             var rows = ViewModel?.AchievementRows?.Count ?? 0;
@@ -414,7 +464,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             PlayniteAchievements.Services.Logging.PluginLogger.GetLogger(nameof(ManageAchievementsEditorTab)).Debug(
                 $"[UiBlockRisk] tag=Editor.RowRealization ms={(long)elapsed} ui=true " +
                 $"thread={System.Threading.Thread.CurrentThread.ManagedThreadId} " +
-                $"context=realized={realized} rows={rows}");
+                $"context=realized={realized} rows={rows}{DescribeScrollRetention()}");
         }
 
         private void RestoreSelectionByApiNames(IReadOnlyList<string> apiNames)
