@@ -6337,6 +6337,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isProviderRow;
         private AchievementCustomizationFacet _customizationFacets;
         private string _customizationToolTip;
+
+        // Separate from the string being null, because null is a real tooltip: an untouched row
+        // has none, and that answer is worth caching too.
+        private bool _customizationToolTipBuilt;
         private bool _providerBaselinesKnown;
         private string _achievementNote;
         private bool _isGoal;
@@ -7026,10 +7030,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _customizationFacets, value))
                 {
-                    // Built here rather than in the getter: the grid reads it once per row
-                    // realization, and rebuilding it there meant a string lookup per facet every
-                    // time a row scrolled back into view.
-                    _customizationToolTip = BuildCustomizationToolTip(value);
+                    // Invalidated here, built on the first read. Building it here instead was to
+                    // stop a rebuild on every row realization, and the cache below still does
+                    // that - but it also charged every row whose facets moved for a string lookup
+                    // per facet, whether or not anything ever displayed the result.
+                    // RefreshAssignmentState moves the facets on every row it touches, and
+                    // undoing a selection-wide assignment touches all of them, while the grid
+                    // only ever reads the tooltip of a row it has realized.
+                    _customizationToolTip = null;
+                    _customizationToolTipBuilt = false;
                     OnPropertyChanged(nameof(IsCustomized));
                     OnPropertyChanged(nameof(IsAuthored));
                     OnPropertyChanged(nameof(CustomizationToolTip));
@@ -7051,7 +7060,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// Names what was customized, one facet per line under a heading. Null on an untouched
         /// row, which leaves the marker's cell without a tooltip.
         /// </summary>
-        public string CustomizationToolTip => _customizationToolTip;
+        public string CustomizationToolTip
+        {
+            get
+            {
+                if (!_customizationToolTipBuilt)
+                {
+                    _customizationToolTip = BuildCustomizationToolTip(_customizationFacets);
+                    _customizationToolTipBuilt = true;
+                }
+
+                return _customizationToolTip;
+            }
+        }
 
         /// <summary>
         /// Recomputes <see cref="CustomizationFacets"/>. Called for the row's own edits through
