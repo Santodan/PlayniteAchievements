@@ -1707,18 +1707,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// names match what that tab called the two flags.
         /// </summary>
         public IReadOnlyList<AchievementFilterScopeOption> FilterScopeOptions { get; } =
-            new[]
-            {
-                new AchievementFilterScopeOption(
-                    AchievementFilterScope.None,
-                    L("LOCPlayAch_Common_None", "None")),
-                new AchievementFilterScopeOption(
-                    AchievementFilterScope.Summary,
-                    L("LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries", "Summaries")),
-                new AchievementFilterScopeOption(
-                    AchievementFilterScope.All,
-                    L("LOCPlayAch_ManageAchievements_Filters_FilterOut", "All"))
-            };
+            AchievementFilterScopes.CreateOptions();
 
         public string StatusText
         {
@@ -7498,8 +7487,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         internal void SetFilterScopeFromSource(AchievementFilterScope scope)
         {
             _filterScopeIsMixed = scope == AchievementFilterScope.Mixed;
-            _isFiltered = scope == AchievementFilterScope.All;
-            _isSummaryFiltered = scope == AchievementFilterScope.Summary;
+            AchievementFilterScopes.ToFlags(scope, out _isFiltered, out _isSummaryFiltered);
             OnPropertyChanged(nameof(IsFiltered));
             OnPropertyChanged(nameof(IsSummaryFiltered));
             OnPropertyChanged(nameof(IsFilteredFromSummaries));
