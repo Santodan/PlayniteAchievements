@@ -3233,17 +3233,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// list is cleared outright, so reverting the last customized row leaves no order override
         /// behind.
         /// </remarks>
-        private void RevertOrderForRows(IReadOnlyList<AchievementEditorRow> targets)
-        {
-            var restored = BuildRevertedOrder(targets);
-            if (restored == null)
-            {
-                return;
-            }
-
-            _achievementOverridesService.SetAchievementOrderOverride(_gameId, restored);
-        }
-
         /// <summary>
         /// The order with the given rows put back at their provider positions, or null when there
         /// is no stored order to re-seat them in.

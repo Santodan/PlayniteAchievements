@@ -830,7 +830,7 @@ namespace PlayniteAchievements.Services.Achievements
         /// game's record, three normalizations, a serialize, a SQLite open and close, and for a
         /// mirrored field a delete and re-insert of every override row. Applying a value across a
         /// selection by calling it in a loop paid all of that once per row. This batches the same
-        /// edit into one write, matching the shape ClearAchievementOverrides already uses.
+        /// edit into one write, matching the shape ClearCustomizations already uses.
         ///
         /// Ordering and partial failure differ deliberately: the whole set now lands or none of
         /// it does, where a loop could leave the first rows written and the rest not.
@@ -915,56 +915,6 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Drops every user override for the given achievements in one store update, so they show
-        /// exactly what the provider supplies again.
-        /// </summary>
-        /// <remarks>
-        /// Deleting the record is what makes revert structural: the provider's own values were
-        /// never overwritten, so removing the overlay is all that is needed. Clearing field by
-        /// field would not work for the unlock timestamp, where a cleared value is itself a stored
-        /// state. Icon paths on the record are dropped with it; the files they point at are
-        /// managed elsewhere.
-        /// </remarks>
-        public void ClearAchievementOverrides(Guid gameId, IEnumerable<string> achievementApiNames)
-        {
-            if (gameId == Guid.Empty || achievementApiNames == null)
-            {
-                return;
-            }
-
-            var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var name in achievementApiNames)
-            {
-                var apiName = AchievementNoteHelper.NormalizeApiName(name);
-                if (!string.IsNullOrWhiteSpace(apiName))
-                {
-                    targets.Add(apiName);
-                }
-            }
-
-            if (targets.Count == 0)
-            {
-                return;
-            }
-
-            // A dropped record may have carried a points or trophy-type override, both of which
-            // the summary SQL resolves through the mirror, so the rebuild is warranted.
-            _gameCustomDataStore.Update(
-                gameId,
-                customData =>
-                {
-                    var overrides = CloneOverrides(customData);
-                    foreach (var apiName in targets)
-                    {
-                        overrides.Remove(apiName);
-                    }
-
-                    StoreOverrides(customData, overrides);
-                },
-                affectsSummaryData: true);
-        }
-
-        /// <summary>
         /// Clears a game's stored customization in one store update.
         /// </summary>
         /// <remarks>
@@ -979,6 +929,12 @@ namespace PlayniteAchievements.Services.Achievements
         /// Order matters within the mutation and matches the sequence it replaced: the override
         /// records are dropped first, then the category maps are rewritten, so a map that still
         /// carries an assignment re-creates that entry rather than being erased by the clear.
+        ///
+        /// Dropping the whole override record is what makes a revert structural: the provider's
+        /// own values were never overwritten, so removing the overlay is all that is needed.
+        /// Clearing field by field would not work for the unlock timestamp, where a cleared value
+        /// is itself a stored state. Icon paths on the record go with it; the files they point at
+        /// are managed elsewhere.
         ///
         /// Capstones stay a separate call. Clearing one has to resolve the game's capstone
         /// candidates, refuse to materialize a set when no achievements are loaded, and decide for
