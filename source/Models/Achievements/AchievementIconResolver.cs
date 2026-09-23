@@ -326,10 +326,14 @@ namespace PlayniteAchievements.Models.Achievements
                 : string.Concat(CacheBustPrefix, cacheBustToken, "|", candidate);
         }
 
+        // One stat, not two. This runs on the UI thread for every DisplayIcon read, which means
+        // once per row the editor's grid realizes, and File.Exists followed by a fresh FileInfo
+        // asked the filesystem for the same entry twice. FileInfo caches its metadata on first
+        // access, so Exists, LastWriteTimeUtc and Length all come from the one lookup.
         private static string TryGetCacheBustToken(string value)
         {
             var normalized = NormalizeDisplaySource(value);
-            if (string.IsNullOrWhiteSpace(normalized) || !Path.IsPathRooted(normalized) || !File.Exists(normalized))
+            if (string.IsNullOrWhiteSpace(normalized) || !Path.IsPathRooted(normalized))
             {
                 return null;
             }
@@ -337,6 +341,11 @@ namespace PlayniteAchievements.Models.Achievements
             try
             {
                 var fileInfo = new FileInfo(normalized);
+                if (!fileInfo.Exists)
+                {
+                    return null;
+                }
+
                 return string.Concat(fileInfo.LastWriteTimeUtc.Ticks.ToString(), ":", fileInfo.Length.ToString());
             }
             catch
