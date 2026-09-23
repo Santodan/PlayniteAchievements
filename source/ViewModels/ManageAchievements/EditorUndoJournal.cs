@@ -388,7 +388,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            var facets = GameCustomDataFacetDiffer.Diff(_openBefore, _openAfter);
             var labelKey = _openIntent.LabelKey;
             var summary = _openAffectsSummaryData;
             var mirror = _openAffectsOverrideMirror;
@@ -402,6 +401,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     .Where(change => !Equals(change.OldValue, change.NewValue))
                     .ToList()
                 : new List<EditorRowValueChange>();
+
+            // Only when the step is not already held as row values. The record diff walks both
+            // sides of every facet and compares each entry by serializing it, so running it for
+            // a step that is about to discard it charged every ordinary field edit for a
+            // whole-record comparison nothing read.
+            var facets = rowValues.Count > 0
+                ? (IReadOnlyList<GameCustomDataFacetPatch>)Array.Empty<GameCustomDataFacetPatch>()
+                : GameCustomDataFacetDiffer.Diff(_openBefore, _openAfter);
 
             ClearOpenStep();
 
