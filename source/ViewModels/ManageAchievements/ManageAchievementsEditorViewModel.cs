@@ -769,6 +769,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // Set while the values go back, so the writes this causes are not recorded as a new
             // step and the gesture label is left alone.
             _isApplyingUndo = true;
+
+            // The same batching the forward selection edit sets up in ApplyPerRow, for the same
+            // reason. A row-value step covers every row a bulk edit touched, and reversing it by
+            // letting each row persist itself cost one store update per row -- each of which
+            // raises CacheInvalidated and rebuilds the library projection -- plus the per-row
+            // RefreshRevealHeaderState and, for authored rows, a RefreshComputedState and save
+            // apiece. That is the quadratic shape ApplyPerRow was changed to avoid, so undoing a
+            // bulk edit cost more than making it did.
+            //
+            // _isApplyingBulk keeps Row_PropertyChanged from persisting each row on its own; the
+            // writes are driven explicitly below so they land in the batches instead. The search
+            // index still sees every rename, because that runs before the flag is checked.
+            var previousApplyingBulk = _isApplyingBulk;
+            _isApplyingBulk = true;
+            _isTogglingReveal = true;
+            _batchedFieldWrites = new List<(string, AchievementEditableField, object)>();
+            _batchedNoteWrites = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var touchedAuthoredRow = false;
             try
             {
                 using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.RowValues", thresholdMs: 5))
@@ -786,6 +804,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         // the change was recorded, so there is nothing to resolve here: writing
                         // the copy re-materializes it exactly as picking a file would.
                         property.SetValue(row, reverse ? change.OldValue : change.NewValue);
+
+                        if (PersistSharedFacet(row, change.PropertyName))
+                        {
+                            continue;
+                        }
+
+                        if (row.IsProviderRow)
+                        {
+                            PersistProviderRowField(row, change.PropertyName);
+                        }
+                        else
+                        {
+                            touchedAuthoredRow = true;
+                        }
                     }
                 }
             }
@@ -798,6 +830,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             finally
             {
                 _isApplyingUndo = false;
+                _isApplyingBulk = previousApplyingBulk;
+                _isTogglingReveal = false;
+                FlushBatchedFieldWrites();
+            }
+
+            RefreshRevealHeaderState();
+
+            // Authored rows are stored as one definition list, so a single save covers all of
+            // them, exactly as it does for the forward edit.
+            if (touchedAuthoredRow)
+            {
+                RefreshComputedState();
+                _ = SaveAsync();
             }
 
             RaiseHistoryState();
