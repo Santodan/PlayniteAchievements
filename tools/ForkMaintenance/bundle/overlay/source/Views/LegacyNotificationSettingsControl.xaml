@@ -4213,6 +4213,31 @@
                                                 </StackPanel>
                                                 <CheckBox Content="Always capture game completion"
                                                           IsChecked="{Binding ScreenshotWithNotificationAlwaysCaptureCompletion, Mode=TwoWay}"/>
+                                                <StackPanel Margin="0,8,0,0"
+                                                            IsEnabled="{Binding HasSanScreenshotTiming}">
+                                                <DockPanel LastChildFill="False">
+                                                    <TextBlock Text="SAN screenshot view:"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,0,8,0"
+                                                               FontWeight="SemiBold"/>
+                                                    <ComboBox Width="140"
+                                                              SelectedValue="{Binding SanScreenshotView, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              SelectedValuePath="Tag">
+                                                        <ComboBoxItem Content="Automatic" Tag="{x:Static settings:SanScreenshotView.Automatic}"/>
+                                                        <ComboBoxItem Content="View 1" Tag="{x:Static settings:SanScreenshotView.View1}"/>
+                                                        <ComboBoxItem Content="View 2" Tag="{x:Static settings:SanScreenshotView.View2}"/>
+                                                    </ComboBox>
+                                                </DockPanel>
+                                                <DockPanel Margin="0,6,0,0" LastChildFill="False">
+                                                    <TextBlock Text="Capture before view ends (ms):"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,0,8,0"
+                                                               FontWeight="SemiBold"/>
+                                                    <TextBox Width="90"
+                                                             VerticalContentAlignment="Center"
+                                                             Text="{Binding SanScreenshotMillisecondsBeforeEnd, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                </DockPanel>
+                                                </StackPanel>
                                             </StackPanel>
 
                                             <CheckBox Content="Framed"

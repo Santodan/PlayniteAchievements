@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-09-23T11:41:31.3345092Z",
+    "generatedUtc":  "2026-09-23T12:52:10.4230923Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "653a310fed521206672d0aec9383fd7ec3bb94a3",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "D8D418F0487782A70268872867548966408DBBA6DB752F24CE454240CA61BBC7"
+                  "sha256":  "F6C04FAB58478536DC5C37AEC35F1786D7679644A99D6CD284861C6773592412"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -96,6 +96,10 @@
                              "sha256":  "5187E077BED570FB7C93099604AFD92AEA44492893FF71F69C28CD0EBE6A7523"
                          },
                          {
+                             "path":  "source/Models/Settings/SanScreenshotView.cs",
+                             "sha256":  "46010F5A622B362D241E6AB3E44D0F7213F4518CA8742896A1220BA433D5D34C"
+                         },
+                         {
                              "path":  "source/PlayniteAchievementsPlugin.LocalMenus.cs",
                              "sha256":  "A9B04F643B339AC7DEDD390B4CA30230189EAB0C29A3087268EFBAF0AA9BB808"
                          },
@@ -137,7 +141,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "711602C7372E399EEED76A4D1F9E13BB3C3878F160B0AC4E25B36BD0B628C81A"
+                             "sha256":  "7CFA7FBD907F32BE6B9CFA767204DC2FBB905A2CA6DE23CC738B56BBCF75E9F3"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
@@ -313,7 +317,7 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "D925A3C034D5F5DF14A32AE798A72C47A13D28F16BDCBAAC6A8F48D4D3955A57"
+                             "sha256":  "C182F72AC56058A6BDA18E3CBD7BAA2F4A1A8BB66A5C11612E91C8E82F9AD213"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",

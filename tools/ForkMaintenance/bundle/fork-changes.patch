@@ -5861,7 +5861,7 @@ index 10ed192a6393c7feccfcf5a16e3b10a980c060a2..b07ad5f918014607a1e36bccc0255ba4
          {
              token.ThrowIfCancellationRequested();
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..301cc8443aabbf4fb4ec6ce78425fc957d12f886 100644
+index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..edb845f403b186e2524dee0c7b25e21268d388c2 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
 @@ -1,23 +1,82 @@
@@ -6592,7 +6592,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..301cc8443aabbf4fb4ec6ce78425fc95
          private static string AuthNotificationId(string providerKey) => $"PlayAch-AuthFailed-{providerKey}";
  
          public void ShowProviderAuthFailed(List<string> providerKeys)
-@@ -163,5 +860,7395 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +860,7421 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
@@ -8357,9 +8357,11 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..301cc8443aabbf4fb4ec6ce78425fc95
 +            var sanElems = ResolveSanTextElements(settings, line1, line2, line3, out var unlockMessage, out var title, out var desc);
 +            var sanLineDefinitionsJson = BuildSanLineDefinitionsJson(settings, line1, line2, line3, line4, line5, line6);
 +
-+            var displaySeconds = Math.Max(1, Math.Max(1, durationMs) / 1000.0);
 +            var view1Seconds = Math.Max(0.5, (settings?.OverlayCustomSanView1DurationMilliseconds > 0 ? settings.OverlayCustomSanView1DurationMilliseconds : 5000) / 1000.0);
 +            var view2Seconds = Math.Max(0.5, (settings?.OverlayCustomSanView2DurationMilliseconds > 0 ? settings.OverlayCustomSanView2DurationMilliseconds : 5000) / 1000.0);
++            var displaySeconds = usesSanTimeline
++                ? view1Seconds + view2Seconds
++                : Math.Max(1, Math.Max(1, durationMs) / 1000.0);
 +            var timelineScale = Math.Max(0.1, displaySeconds / 10.0);
 +            var transitionSeconds = Math.Max(0.05, ((settings.UnlockOverlayFadeInMilliseconds > 0 ? settings.UnlockOverlayFadeInMilliseconds : 180) / 1000.0) * timelineScale);
 +            var bodyAttrs = BuildSanBodyAttributes(settings, customisation, sanElems.Length >= 3, animationPreset, elementPreset);
@@ -8631,6 +8633,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..301cc8443aabbf4fb4ec6ce78425fc95
 +}};
 +const sanLineDefinitions = {sanLineDefinitionsJson};
 +const sanElems = {JsStringArray(sanElems)};
++const sanTimelineStartedAt = performance.now();
 +const sanEscape = value => String(value || '').replace(/[&<>'""]/g, ch => {{
 +  switch (ch) {{
 +    case '&': return '&amp;';
@@ -8736,6 +8739,29 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..301cc8443aabbf4fb4ec6ce78425fc95
 +    }}, {Math.Max(500, (int)Math.Round(view1Seconds * 1000)).ToString(CultureInfo.InvariantCulture)});
 +  }}
 +  document.body.toggleAttribute('alldetails', sanLineDefinitions.filter(line => line.html).length >= 3);
++}};
++window.playniteSanScreenshotDelay = (requestedView, millisecondsBeforeEnd) => {{
++  const view = requestedView === 2 ? 2 : 1;
++  const viewDuration = view === 1
++    ? {(view1Seconds * 1000).ToString("0", CultureInfo.InvariantCulture)}
++    : {(view2Seconds * 1000).ToString("0", CultureInfo.InvariantCulture)};
++  const viewEnd = view === 1
++    ? {(view1Seconds * 1000).ToString("0", CultureInfo.InvariantCulture)}
++    : {((view1Seconds + view2Seconds) * 1000).ToString("0", CultureInfo.InvariantCulture)};
++  const beforeEnd = Math.max(0, Math.min(Number(millisecondsBeforeEnd) || 0, Math.max(0, viewDuration - 100)));
++  const readyAt = Math.max(100, viewEnd - beforeEnd);
++  return Math.max(0, readyAt - (performance.now() - sanTimelineStartedAt));
++}};
++window.playnitePauseSanScreenshot = () => {{
++  window.__playnitePausedSanAnimations = document.getAnimations().filter(animation => animation.playState === 'running');
++  window.__playnitePausedSanAnimations.forEach(animation => animation.pause());
++  return true;
++}};
++window.playniteResumeSanScreenshot = () => {{
++  (window.__playnitePausedSanAnimations || []).forEach(animation => {{
++    try {{ animation.play(); }} catch (_) {{ }}
++  }});
++  window.__playnitePausedSanAnimations = [];
 +}};
 +document.body.dataset.sanAnimationPreset = {JsString(animationPreset)};
 +document.body.dataset.sanElements = {JsString(elementPreset)};
@@ -16070,7 +16096,7 @@ index ce98f2573c8577dbe0170b4385b0da04446a35d2..179a687b98802cc0d7fbd665fe60990d
          {
              try
 diff --git a/source/Services/UI/ToastNotificationService.cs b/source/Services/UI/ToastNotificationService.cs
-index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230d55e08d7 100644
+index b0c6e8f208a09300faeed69dbf3f711c4490cc45..466a35c4b9126f0bac25b9b29511c8be2518d788 100644
 --- a/source/Services/UI/ToastNotificationService.cs
 +++ b/source/Services/UI/ToastNotificationService.cs
 @@ -1,6 +1,7 @@
@@ -16234,7 +16260,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
              var effective = ProviderNotificationPolicy.Resolve(_settings?.Persisted, providerKey);
              if (isProgressUpdate)
              {
-@@ -750,15 +817,41 @@ private bool TryResolveWaveGame(out IntPtr waveHwnd, out int? processId)
+@@ -750,15 +817,50 @@ private bool TryResolveWaveGame(out IntPtr waveHwnd, out int? processId)
                  var rect = System.Drawing.Rectangle.Empty;
                  if (haveGeometry && itemsControl != null)
                  {
@@ -16256,9 +16282,18 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
 +                                }
 +                            }
 +
-+                            var frame = captureState?.Capturing == true
++                            var memoriesSettings = ProviderRegistry.Settings<LocalSettings>();
++                            var sanScreenshotView = memoriesSettings?.EnableUnlockScreenshots == true &&
++                                memoriesSettings.HasSanScreenshotTiming
++                                ? memoriesSettings.SanScreenshotView
++                                : SanScreenshotView.Automatic;
++                            var sanScreenshotMillisecondsBeforeEnd = memoriesSettings?.EnableUnlockScreenshots == true
++                                ? memoriesSettings.SanScreenshotMillisecondsBeforeEnd
++                                : 0;
++                            var frame = sanScreenshotView == SanScreenshotView.Automatic && captureState?.Capturing == true
 +                                ? captureState.Latest
-+                                : await CaptureWebViewFrameAsync(webView).ConfigureAwait(true);
++                                : await CaptureWebViewFrameAsync(
++                                    webView, sanScreenshotView, sanScreenshotMillisecondsBeforeEnd).ConfigureAwait(true);
 +                            overlay = frame != null
 +                                ? CreatePArgbBitmap(frame.Pixels, frame.Width, frame.Height)
 +                                : null;
@@ -16281,7 +16316,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
                              rect = new System.Drawing.Rectangle(ix, iy, physSize.Width, physSize.Height);
                          }
                      }
-@@ -1306,6 +1399,162 @@ private System.Drawing.Bitmap TryRenderToastItemOverlay(
+@@ -1306,6 +1408,219 @@ private System.Drawing.Bitmap TryRenderToastItemOverlay(
              return bitmap;
          }
  
@@ -16327,7 +16362,10 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
 +            return null;
 +        }
 +
-+        private async Task<WebViewCapturedFrame> CaptureWebViewFrameAsync(WebView2 webView)
++        private async Task<WebViewCapturedFrame> CaptureWebViewFrameAsync(
++            WebView2 webView,
++            SanScreenshotView sanScreenshotView = SanScreenshotView.Automatic,
++            int sanScreenshotMillisecondsBeforeEnd = 0)
 +        {
 +            if (webView == null)
 +            {
@@ -16367,10 +16405,64 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
 +
 +            try
 +            {
++                var preparedSanView = false;
++                if (sanScreenshotView != SanScreenshotView.Automatic)
++                {
++                    try
++                    {
++                        var requestedView = sanScreenshotView == SanScreenshotView.View2 ? 2 : 1;
++                        var delayResult = await webView.CoreWebView2.ExecuteScriptAsync(
++                            $"window.playniteSanScreenshotDelay ? window.playniteSanScreenshotDelay({requestedView}, {Math.Max(0, sanScreenshotMillisecondsBeforeEnd)}) : 0")
++                            .ConfigureAwait(true);
++                        if (double.TryParse(
++                            delayResult?.Trim('"'),
++                            System.Globalization.NumberStyles.Float,
++                            System.Globalization.CultureInfo.InvariantCulture,
++                            out var remainingMilliseconds) && remainingMilliseconds > 0)
++                        {
++                            await Task.Delay((int)Math.Ceiling(Math.Min(remainingMilliseconds, 60000)))
++                                .ConfigureAwait(true);
++                        }
++
++                        var pauseResult = await webView.CoreWebView2.ExecuteScriptAsync(
++                            "window.playnitePauseSanScreenshot ? window.playnitePauseSanScreenshot() : false")
++                            .ConfigureAwait(true);
++                        preparedSanView = string.Equals(pauseResult, "true", StringComparison.OrdinalIgnoreCase);
++                        if (preparedSanView)
++                        {
++                            // Let Chromium present the paused animation state before CapturePreview.
++                            await Task.Delay(34).ConfigureAwait(true);
++                        }
++                    }
++                    catch (Exception ex)
++                    {
++                        _logger?.Debug(ex, "Could not prepare the selected SAN screenshot view; capturing the live frame.");
++                    }
++                }
++
 +                using (var stream = new MemoryStream())
 +                {
-+                    await webView.CoreWebView2.CapturePreviewAsync(
-+                        CoreWebView2CapturePreviewImageFormat.Png, stream).ConfigureAwait(true);
++                    try
++                    {
++                        await webView.CoreWebView2.CapturePreviewAsync(
++                            CoreWebView2CapturePreviewImageFormat.Png, stream).ConfigureAwait(true);
++                    }
++                    finally
++                    {
++                        if (preparedSanView && webView.CoreWebView2 != null)
++                        {
++                            try
++                            {
++                                await webView.CoreWebView2.ExecuteScriptAsync(
++                                    "window.playniteResumeSanScreenshot && window.playniteResumeSanScreenshot()")
++                                    .ConfigureAwait(true);
++                            }
++                            catch
++                            {
++                                // The WebView may be closing immediately after a screenshot-only wave.
++                            }
++                        }
++                    }
 +                    stream.Position = 0;
 +                    var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(
 +                        stream,
@@ -16444,7 +16536,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
          /// <summary>
          /// The shared geometry for one track operation: the wave's ItemsControl, the game client
          /// rect and toast window rect (physical pixels), and the window's DIP-to-physical factors.
-@@ -1369,7 +1618,7 @@ private void SampleWaveTracks(
+@@ -1369,7 +1684,7 @@ private void SampleWaveTracks(
              for (var i = 0; i < toastItems.Count; i++)
              {
                  var vm = toastItems[i];
@@ -16453,7 +16545,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
                  if (container == null)
                  {
                      continue;
-@@ -1450,10 +1699,35 @@ private void SampleWaveTracks(
+@@ -1450,10 +1765,35 @@ private void SampleWaveTracks(
                  bool rendered;
                  try
                  {
@@ -16493,7 +16585,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
                  }
                  finally
                  {
-@@ -1653,7 +1927,7 @@ private void CaptureWaveShadowLayers(
+@@ -1653,7 +1993,7 @@ private void CaptureWaveShadowLayers(
              var captureScale = CurrentCaptureScale(clientPhys);
              for (var i = 0; i < toastItems.Count; i++)
              {
@@ -16502,7 +16594,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
                  if (container == null)
                  {
                      continue;
-@@ -1851,7 +2125,7 @@ private void ReportSettledCornerDrift(
+@@ -1851,7 +2191,7 @@ private void ReportSettledCornerDrift(
                  return;
              }
  
@@ -16511,7 +16603,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
              if (container == null || container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0)
              {
                  return;
-@@ -1864,9 +2138,7 @@ private void ReportSettledCornerDrift(
+@@ -1864,9 +2204,7 @@ private void ReportSettledCornerDrift(
              var settledRelX = windowPhys.X + (int)Math.Round(bounds.X * pxPerDipX) - clientPhys.X;
              var settledRelY = windowPhys.Y + (int)Math.Round(bounds.Y * pxPerDipY) - clientPhys.Y;
  
@@ -16522,7 +16614,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
              WarnOnSettledCardDrift(toastItems.Count, cornerX - clientPhys.X, cornerY - clientPhys.Y,
                  settledRelX, settledRelY);
          }
-@@ -2217,7 +2489,13 @@ private WavePlan ResolveWavePlan(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -2217,7 +2555,13 @@ private WavePlan ResolveWavePlan(IReadOnlyList<AchievementToastViewModel> wave)
              // toast, items that only produce capture output, or a mix (waves batch by friend/own
              // only).
              var toastItems = wave
@@ -16537,7 +16629,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
                  .ToList();
              if (toastItems.Count > 0)
              {
-@@ -2281,6 +2559,20 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -2281,6 +2625,20 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
              var cardItems = wavePlan.CardItems;
              var visible = wavePlan.IsVisible;
              var plan = wavePlan.Screenshots;
@@ -16558,7 +16650,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
  
              // The wave shows once the queue, the foreground gate, and the notification delay all
              // allow (the delay hold happens upstream, in the queue's readiness gate). The capture
-@@ -2290,8 +2582,10 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -2290,8 +2648,10 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
              // frame.
              //
              // Previews and retriggers are exempt: both capture the instant they are asked for.
@@ -16571,7 +16663,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
                  : 0;
  
              // The instant the base frame is aimed at, published to the recording service so a
-@@ -2308,8 +2602,8 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -2308,8 +2668,8 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
              // Stamped even when no screenshot is planned: a clip can be cut with screenshots
              // switched off entirely, and it still anchors here.
              var waveNotifyDelayed = wave[0].NotifyReadyAtUtc != default(DateTime);
@@ -16582,7 +16674,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
                  : (DateTime?)null;
  
              // Feeds every variant: clean saves it as-is, framed composites the frame onto it, and
-@@ -2390,9 +2684,56 @@ await Task.WhenAny(
+@@ -2390,9 +2750,56 @@ await Task.WhenAny(
                  return;
              }
  
@@ -16642,7 +16734,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
  
              LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
  
-@@ -2406,7 +2747,7 @@ await Task.WhenAny(
+@@ -2406,7 +2813,7 @@ await Task.WhenAny(
              // reveal shift together and their alignment holds; bounded, so a stuck capture costs
              // latency, never the wave. A delayed capture runs after the card is on screen and
              // never overlaps the pop-up in the first place.
@@ -16651,7 +16743,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
              {
                  await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                      .ConfigureAwait(true);
-@@ -2464,10 +2805,8 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2464,10 +2871,8 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                  ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
              _activeWindow = window;
  
@@ -16664,7 +16756,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
              var slideHost = ToastSurfaceFactory.BuildSlideHost(items, out var slideTransform);
              _activeCardSurface = items;
              _activeSlideHost = slideHost;
-@@ -2569,7 +2908,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2569,7 +2974,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                      $"systemScale={systemScale:0.###}, perMonitorWindow={needsPerMonitorWindow}, " +
                      $"isGame={_activeIsGame}, revealed={visible}, mode={wavePlan.Mode}, " +
                      $"testFire={waveIsTestFire}, preview={previewSource.HasValue}, cards={cardItems.Count}, " +
@@ -16673,7 +16765,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
                  if (needsPerMonitorWindow)
                  {
                      using (Common.DpiAwarenessScope.PerMonitorV2())
-@@ -2651,13 +2990,16 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2651,13 +3056,16 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                  // presented before the next begins and the slide starts against a drained
                  // composition queue, at the price of two composed frames of extra latency. Game
                  // anchor only — a test fire out of game has no video — and only with recordings
@@ -16693,7 +16785,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
                      _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
                      trackSampleCount = 0;
                      _waveShadowCaptureCount = 0;
-@@ -2801,6 +3143,23 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2801,6 +3209,23 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                          plan, window, waveIsTestFire, baseCaptureTask, anchorFramesTask);
                  }
  
@@ -16717,7 +16809,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
                  if (plan != null)
                  {
                      _ = SaveWaveScreenshotsAsync(plan, baseCaptureTask, anchorFramesTask, toastCompositeTask);
-@@ -2843,7 +3202,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2843,7 +3268,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                      CompositionTarget.Rendering += onRendering;
                  }
  
@@ -16726,7 +16818,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
                  var remainingMs = Math.Max(0, durationMs - captureDelayMs);
                  try
                  {
-@@ -2951,6 +3310,10 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -2951,6 +3376,10 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                  _activeIsGame = false;
                  _activeSuppressZOrder = false;
                  _activeMonitorScale = 1.0;
@@ -16737,7 +16829,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
  
                  try
                  {
-@@ -3070,12 +3433,22 @@ private sealed class WaveScreenshotPlan
+@@ -3070,12 +3499,22 @@ private sealed class WaveScreenshotPlan
  
              public string FramedSuffix { get; set; }
  
@@ -16764,7 +16856,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
              public bool NeedsFrame => Items.Any(i =>
                  (i.Variants & ScreenshotVariants.Framed) != 0);
          }
-@@ -3100,8 +3473,23 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3100,8 +3539,23 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              }
  
              var persisted = _settings?.Persisted;
@@ -16790,7 +16882,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
              {
                  return null;
              }
-@@ -3110,7 +3498,8 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3110,7 +3564,8 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              // unlock — re-capturing a moment is the point of the shortcut. Opting into the test
              // folder diverts it to a shared "Test" subfolder the capture library hides, which is
              // what makes the shortcut usable for throwaway testing instead.
@@ -16800,7 +16892,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
              {
                  baseDir = System.IO.Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
              }
-@@ -3118,20 +3507,22 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3118,20 +3573,22 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              var plan = new WaveScreenshotPlan
              {
                  BaseDirectory = baseDir,
@@ -16831,7 +16923,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
  
                  if (variants != ScreenshotVariants.None)
                  {
-@@ -3142,6 +3533,39 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3142,6 +3599,39 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              return plan.Items.Count > 0 ? plan : null;
          }
  
@@ -16871,7 +16963,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
          /// <summary>
          /// Trims a configured screenshot filename suffix; blank collapses to null so the path
          /// builder emits no suffix at all.
-@@ -3187,6 +3611,10 @@ private async Task SaveWaveScreenshotsAsync(
+@@ -3187,6 +3677,10 @@ private async Task SaveWaveScreenshotsAsync(
                  anchorFrames = anchorFramesTask != null
                      ? await anchorFramesTask.ConfigureAwait(true)
                      : null;
@@ -16882,7 +16974,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
  
                  var framedByVm = new Dictionary<AchievementToastViewModel, System.Windows.Media.Imaging.BitmapSource>();
                  if (plan.NeedsFrame && (baseBitmap != null || anchorFrames != null))
-@@ -3291,27 +3719,65 @@ private async Task SaveWaveScreenshotsAsync(
+@@ -3291,27 +3785,65 @@ private async Task SaveWaveScreenshotsAsync(
                                  : clean;
                              if ((item.Variants & ScreenshotVariants.Clean) != 0 && itemClean != null)
                              {
@@ -16960,7 +17052,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
                              }
                          }
  
-@@ -3547,7 +4013,43 @@ private bool AlignBottom()
+@@ -3547,7 +4079,43 @@ private bool AlignBottom()
          // margin, so the body sits a constant distance from the corner whether or not the glow is on.
          private double EffectiveGapDip()
          {
@@ -17005,7 +17097,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
          }
  
          /// <summary>
-@@ -3592,11 +4094,23 @@ private bool TryPlacePhysical(Window window, bool measure, out ToastWindowPlacer
+@@ -3592,11 +4160,23 @@ private bool TryPlacePhysical(Window window, bool measure, out ToastWindowPlacer
              }
  
              var renderScale = ToastWindowPlacer.RenderScale(window);
@@ -17034,7 +17126,7 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
  
              // Keep the toast directly above the game window in the z-order (not owned, so the game is
              // never raised). Re-asserted every placement/follow frame so it stays interleaved as the
-@@ -4882,6 +5396,18 @@ private int EffectiveDurationSeconds()
+@@ -4882,6 +5462,25 @@ private int EffectiveDurationSeconds()
              return setting;
          }
  
@@ -17042,9 +17134,16 @@ index b0c6e8f208a09300faeed69dbf3f711c4490cc45..a72ad2038426d7989860cf75beb9e230
 +        {
 +            if (_activeUsesCustomMediaSurface)
 +            {
++                var local = ProviderRegistry.Settings<LocalSettings>();
++                var sanDuration = local != null &&
++                    (local.UnlockOverlayTransitionStyle.ToString().StartsWith("San", StringComparison.Ordinal) ||
++                     !string.IsNullOrWhiteSpace(local.OverlayCustomSanElementPresetId))
++                    ? Math.Max(0, local.OverlayCustomSanView1DurationMilliseconds) +
++                      Math.Max(0, local.OverlayCustomSanView2DurationMilliseconds)
++                    : 0;
 +                return Math.Max(
 +                    1200,
-+                    ProviderRegistry.Settings<LocalSettings>()?.UnlockOverlayDurationMilliseconds ?? 3400);
++                    Math.Max(local?.UnlockOverlayDurationMilliseconds ?? 3400, sanDuration));
 +            }
 +
 +            return EffectiveDurationSeconds() * 1000;

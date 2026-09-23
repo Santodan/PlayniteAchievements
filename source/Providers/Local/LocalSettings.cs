@@ -391,6 +391,8 @@ namespace PlayniteAchievements.Providers.Local
         private string _screenshotSuffixClean = "clean";
         private string _screenshotSuffixWithNotification = "notification";
         private string _screenshotSuffixFramed = "framed";
+        private SanScreenshotView _sanScreenshotView = SanScreenshotView.Automatic;
+        private int _sanScreenshotMillisecondsBeforeEnd = 500;
         private RaritySelection _screenshotCleanRarities = RaritySelection.All;
         private bool _screenshotCleanAlwaysCaptureCompletion = true;
         private RaritySelection _screenshotWithNotificationRarities = RaritySelection.All;
@@ -718,6 +720,12 @@ namespace PlayniteAchievements.Providers.Local
         public string ScreenshotSuffixClean { get => _screenshotSuffixClean; set => SetValue(ref _screenshotSuffixClean, value ?? string.Empty); }
         public string ScreenshotSuffixWithNotification { get => _screenshotSuffixWithNotification; set => SetValue(ref _screenshotSuffixWithNotification, value ?? string.Empty); }
         public string ScreenshotSuffixFramed { get => _screenshotSuffixFramed; set => SetValue(ref _screenshotSuffixFramed, value ?? string.Empty); }
+        public SanScreenshotView SanScreenshotView { get => _sanScreenshotView; set => SetValue(ref _sanScreenshotView, value); }
+        public int SanScreenshotMillisecondsBeforeEnd
+        {
+            get => _sanScreenshotMillisecondsBeforeEnd;
+            set => SetValue(ref _sanScreenshotMillisecondsBeforeEnd, Math.Max(0, Math.Min(30000, value)));
+        }
         public RaritySelection ScreenshotCleanRarities { get => _screenshotCleanRarities; set => SetValue(ref _screenshotCleanRarities, value); }
         public bool ScreenshotCleanAlwaysCaptureCompletion { get => _screenshotCleanAlwaysCaptureCompletion; set => SetValue(ref _screenshotCleanAlwaysCaptureCompletion, value); }
         public RaritySelection ScreenshotWithNotificationRarities { get => _screenshotWithNotificationRarities; set => SetValue(ref _screenshotWithNotificationRarities, value); }
@@ -875,7 +883,13 @@ namespace PlayniteAchievements.Providers.Local
         public LocalUnlockOverlayTransitionStyle UnlockOverlayTransitionStyle
         {
             get => _unlockOverlayTransitionStyle;
-            set => SetValue(ref _unlockOverlayTransitionStyle, value);
+            set
+            {
+                if (SetValue(ref _unlockOverlayTransitionStyle, value))
+                {
+                    OnPropertyChanged(nameof(HasSanScreenshotTiming));
+                }
+            }
         }
 
         public int UnlockOverlaySlideDistance
@@ -1567,8 +1581,19 @@ namespace PlayniteAchievements.Providers.Local
         public string OverlayCustomSanElementPresetId
         {
             get => _overlayCustomSanElementPresetId;
-            set => SetValue(ref _overlayCustomSanElementPresetId, value ?? string.Empty);
+            set
+            {
+                if (SetValue(ref _overlayCustomSanElementPresetId, value ?? string.Empty))
+                {
+                    OnPropertyChanged(nameof(HasSanScreenshotTiming));
+                }
+            }
         }
+
+        [JsonIgnore]
+        public bool HasSanScreenshotTiming =>
+            UnlockOverlayTransitionStyle.ToString().StartsWith("San", StringComparison.Ordinal) ||
+            !string.IsNullOrWhiteSpace(OverlayCustomSanElementPresetId);
 
         public LocalSanElementPosition OverlayCustomSanElementPosition
         {

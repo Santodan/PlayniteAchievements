@@ -2621,9 +2621,11 @@ steamImage +
             var sanElems = ResolveSanTextElements(settings, line1, line2, line3, out var unlockMessage, out var title, out var desc);
             var sanLineDefinitionsJson = BuildSanLineDefinitionsJson(settings, line1, line2, line3, line4, line5, line6);
 
-            var displaySeconds = Math.Max(1, Math.Max(1, durationMs) / 1000.0);
             var view1Seconds = Math.Max(0.5, (settings?.OverlayCustomSanView1DurationMilliseconds > 0 ? settings.OverlayCustomSanView1DurationMilliseconds : 5000) / 1000.0);
             var view2Seconds = Math.Max(0.5, (settings?.OverlayCustomSanView2DurationMilliseconds > 0 ? settings.OverlayCustomSanView2DurationMilliseconds : 5000) / 1000.0);
+            var displaySeconds = usesSanTimeline
+                ? view1Seconds + view2Seconds
+                : Math.Max(1, Math.Max(1, durationMs) / 1000.0);
             var timelineScale = Math.Max(0.1, displaySeconds / 10.0);
             var transitionSeconds = Math.Max(0.05, ((settings.UnlockOverlayFadeInMilliseconds > 0 ? settings.UnlockOverlayFadeInMilliseconds : 180) / 1000.0) * timelineScale);
             var bodyAttrs = BuildSanBodyAttributes(settings, customisation, sanElems.Length >= 3, animationPreset, elementPreset);
@@ -2895,6 +2897,7 @@ const sanStrings = {{
 }};
 const sanLineDefinitions = {sanLineDefinitionsJson};
 const sanElems = {JsStringArray(sanElems)};
+const sanTimelineStartedAt = performance.now();
 const sanEscape = value => String(value || '').replace(/[&<>'""]/g, ch => {{
   switch (ch) {{
     case '&': return '&amp;';
@@ -3000,6 +3003,29 @@ const sanApplyElems = () => {{
     }}, {Math.Max(500, (int)Math.Round(view1Seconds * 1000)).ToString(CultureInfo.InvariantCulture)});
   }}
   document.body.toggleAttribute('alldetails', sanLineDefinitions.filter(line => line.html).length >= 3);
+}};
+window.playniteSanScreenshotDelay = (requestedView, millisecondsBeforeEnd) => {{
+  const view = requestedView === 2 ? 2 : 1;
+  const viewDuration = view === 1
+    ? {(view1Seconds * 1000).ToString("0", CultureInfo.InvariantCulture)}
+    : {(view2Seconds * 1000).ToString("0", CultureInfo.InvariantCulture)};
+  const viewEnd = view === 1
+    ? {(view1Seconds * 1000).ToString("0", CultureInfo.InvariantCulture)}
+    : {((view1Seconds + view2Seconds) * 1000).ToString("0", CultureInfo.InvariantCulture)};
+  const beforeEnd = Math.max(0, Math.min(Number(millisecondsBeforeEnd) || 0, Math.max(0, viewDuration - 100)));
+  const readyAt = Math.max(100, viewEnd - beforeEnd);
+  return Math.max(0, readyAt - (performance.now() - sanTimelineStartedAt));
+}};
+window.playnitePauseSanScreenshot = () => {{
+  window.__playnitePausedSanAnimations = document.getAnimations().filter(animation => animation.playState === 'running');
+  window.__playnitePausedSanAnimations.forEach(animation => animation.pause());
+  return true;
+}};
+window.playniteResumeSanScreenshot = () => {{
+  (window.__playnitePausedSanAnimations || []).forEach(animation => {{
+    try {{ animation.play(); }} catch (_) {{ }}
+  }});
+  window.__playnitePausedSanAnimations = [];
 }};
 document.body.dataset.sanAnimationPreset = {JsString(animationPreset)};
 document.body.dataset.sanElements = {JsString(elementPreset)};

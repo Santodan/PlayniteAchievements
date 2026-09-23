@@ -101,7 +101,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 - Fixed Local achievement replay and screenshot floods
 - Added epic emulator compatibility
-- Fixed SAN transition screenshot
+- Fixed `SAN` transition screenshot
+  - There is now an option in `Memories` to choose the `SAN` view and how many ms before it ends to take the screenshot
+- Add a preview of `VIew 1` and `View 2` for `SAN`transitions
 
 ## 2026-09-14 - v3.2.1.1
 

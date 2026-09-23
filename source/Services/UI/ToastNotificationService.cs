@@ -833,9 +833,18 @@ namespace PlayniteAchievements.Services.UI
                                 }
                             }
 
-                            var frame = captureState?.Capturing == true
+                            var memoriesSettings = ProviderRegistry.Settings<LocalSettings>();
+                            var sanScreenshotView = memoriesSettings?.EnableUnlockScreenshots == true &&
+                                memoriesSettings.HasSanScreenshotTiming
+                                ? memoriesSettings.SanScreenshotView
+                                : SanScreenshotView.Automatic;
+                            var sanScreenshotMillisecondsBeforeEnd = memoriesSettings?.EnableUnlockScreenshots == true
+                                ? memoriesSettings.SanScreenshotMillisecondsBeforeEnd
+                                : 0;
+                            var frame = sanScreenshotView == SanScreenshotView.Automatic && captureState?.Capturing == true
                                 ? captureState.Latest
-                                : await CaptureWebViewFrameAsync(webView).ConfigureAwait(true);
+                                : await CaptureWebViewFrameAsync(
+                                    webView, sanScreenshotView, sanScreenshotMillisecondsBeforeEnd).ConfigureAwait(true);
                             overlay = frame != null
                                 ? CreatePArgbBitmap(frame.Pixels, frame.Width, frame.Height)
                                 : null;
@@ -1441,7 +1450,10 @@ namespace PlayniteAchievements.Services.UI
             return null;
         }
 
-        private async Task<WebViewCapturedFrame> CaptureWebViewFrameAsync(WebView2 webView)
+        private async Task<WebViewCapturedFrame> CaptureWebViewFrameAsync(
+            WebView2 webView,
+            SanScreenshotView sanScreenshotView = SanScreenshotView.Automatic,
+            int sanScreenshotMillisecondsBeforeEnd = 0)
         {
             if (webView == null)
             {
@@ -1481,10 +1493,64 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
+                var preparedSanView = false;
+                if (sanScreenshotView != SanScreenshotView.Automatic)
+                {
+                    try
+                    {
+                        var requestedView = sanScreenshotView == SanScreenshotView.View2 ? 2 : 1;
+                        var delayResult = await webView.CoreWebView2.ExecuteScriptAsync(
+                            $"window.playniteSanScreenshotDelay ? window.playniteSanScreenshotDelay({requestedView}, {Math.Max(0, sanScreenshotMillisecondsBeforeEnd)}) : 0")
+                            .ConfigureAwait(true);
+                        if (double.TryParse(
+                            delayResult?.Trim('"'),
+                            System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            out var remainingMilliseconds) && remainingMilliseconds > 0)
+                        {
+                            await Task.Delay((int)Math.Ceiling(Math.Min(remainingMilliseconds, 60000)))
+                                .ConfigureAwait(true);
+                        }
+
+                        var pauseResult = await webView.CoreWebView2.ExecuteScriptAsync(
+                            "window.playnitePauseSanScreenshot ? window.playnitePauseSanScreenshot() : false")
+                            .ConfigureAwait(true);
+                        preparedSanView = string.Equals(pauseResult, "true", StringComparison.OrdinalIgnoreCase);
+                        if (preparedSanView)
+                        {
+                            // Let Chromium present the paused animation state before CapturePreview.
+                            await Task.Delay(34).ConfigureAwait(true);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, "Could not prepare the selected SAN screenshot view; capturing the live frame.");
+                    }
+                }
+
                 using (var stream = new MemoryStream())
                 {
-                    await webView.CoreWebView2.CapturePreviewAsync(
-                        CoreWebView2CapturePreviewImageFormat.Png, stream).ConfigureAwait(true);
+                    try
+                    {
+                        await webView.CoreWebView2.CapturePreviewAsync(
+                            CoreWebView2CapturePreviewImageFormat.Png, stream).ConfigureAwait(true);
+                    }
+                    finally
+                    {
+                        if (preparedSanView && webView.CoreWebView2 != null)
+                        {
+                            try
+                            {
+                                await webView.CoreWebView2.ExecuteScriptAsync(
+                                    "window.playniteResumeSanScreenshot && window.playniteResumeSanScreenshot()")
+                                    .ConfigureAwait(true);
+                            }
+                            catch
+                            {
+                                // The WebView may be closing immediately after a screenshot-only wave.
+                            }
+                        }
+                    }
                     stream.Position = 0;
                     var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(
                         stream,
@@ -5400,9 +5466,16 @@ namespace PlayniteAchievements.Services.UI
         {
             if (_activeUsesCustomMediaSurface)
             {
+                var local = ProviderRegistry.Settings<LocalSettings>();
+                var sanDuration = local != null &&
+                    (local.UnlockOverlayTransitionStyle.ToString().StartsWith("San", StringComparison.Ordinal) ||
+                     !string.IsNullOrWhiteSpace(local.OverlayCustomSanElementPresetId))
+                    ? Math.Max(0, local.OverlayCustomSanView1DurationMilliseconds) +
+                      Math.Max(0, local.OverlayCustomSanView2DurationMilliseconds)
+                    : 0;
                 return Math.Max(
                     1200,
-                    ProviderRegistry.Settings<LocalSettings>()?.UnlockOverlayDurationMilliseconds ?? 3400);
+                    Math.Max(local?.UnlockOverlayDurationMilliseconds ?? 3400, sanDuration));
             }
 
             return EffectiveDurationSeconds() * 1000;
