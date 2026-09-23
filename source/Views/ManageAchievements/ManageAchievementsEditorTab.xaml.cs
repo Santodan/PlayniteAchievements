@@ -344,12 +344,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private int _realizedRowCount;
         private System.Diagnostics.Stopwatch _rowRealizationWindow;
+        private double _lastRowRealizationMs;
+
+        // Longer than this between two realizations and the grid was idle, not realizing. The
+        // window restarts rather than counting the gap. Comfortably above a single row's cost
+        // and far below the pause between two scroll gestures.
+        private const double RowRealizationIdleGapMs = 150;
 
         /// <summary>
         /// Counts realized rows and reports in batches. Per-row logging would cost more than the
-        /// realization it measures, so this reports every 50 rows with the elapsed time for that
-        /// run: a burst far larger than a viewport means virtualization is not holding, and a
-        /// slow one means the row template is the cost.
+        /// realization it measures, so this reports the elapsed time for a run of them: a burst
+        /// far larger than a viewport means virtualization is not holding, and a slow one means
+        /// the row template is the cost.
         /// </summary>
         private void AchievementsGrid_LoadingRow(object sender, DataGridRowEventArgs e)
         {
@@ -361,8 +367,25 @@ namespace PlayniteAchievements.Views.ManageAchievements
             if (_rowRealizationWindow == null)
             {
                 _rowRealizationWindow = System.Diagnostics.Stopwatch.StartNew();
+                _lastRowRealizationMs = 0;
             }
 
+            // The window must cover realization only. Timing from the first row of a burst to
+            // whenever the threshold happens to trip charged every idle second between two
+            // scrolls to the rows either side of it, and reported four-minute realizations of a
+            // single row. Any gap wider than a realization ends the window: the pending count is
+            // reported with the time it actually took, and the next burst starts clean.
+            var now = _rowRealizationWindow.Elapsed.TotalMilliseconds;
+            var gap = now - _lastRowRealizationMs;
+            if (_realizedRowCount > 0 && gap > RowRealizationIdleGapMs)
+            {
+                ReportRowRealization(_realizedRowCount, _lastRowRealizationMs);
+                _realizedRowCount = 0;
+                _rowRealizationWindow.Restart();
+                now = 0;
+            }
+
+            _lastRowRealizationMs = now;
             _realizedRowCount++;
 
             // Reports on whichever comes first: twenty rows, or a quarter second of realizing.
@@ -370,16 +393,20 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // because recycling means a scroll realizes far fewer containers than there are
             // rows. The elapsed bound also catches a slow trickle, which is the shape a costly
             // row template would produce.
-            var elapsed = _rowRealizationWindow.Elapsed.TotalMilliseconds;
-            if (_realizedRowCount < 20 && elapsed < 250)
+            if (_realizedRowCount < 20 && now < 250)
             {
                 return;
             }
 
-            var realized = _realizedRowCount;
-            var rows = ViewModel?.AchievementRows?.Count ?? 0;
+            ReportRowRealization(_realizedRowCount, now);
             _realizedRowCount = 0;
             _rowRealizationWindow.Restart();
+            _lastRowRealizationMs = 0;
+        }
+
+        private void ReportRowRealization(int realized, double elapsed)
+        {
+            var rows = ViewModel?.AchievementRows?.Count ?? 0;
             // The plugin's own logger, not LogManager.GetLogger(). That one writes to
             // playnite.log and its Debug output is not persisted, so the first two attempts at
             // this measurement produced no lines in either file and read as "the editor was
