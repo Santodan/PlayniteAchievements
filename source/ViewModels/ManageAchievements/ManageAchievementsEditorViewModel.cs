@@ -592,6 +592,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // ordinary edit does would let a second rebuild of every row through per press.
             SuppressExternalRefresh = true;
 
+            // Held across the write and the re-seed that follows it, not just the write. The
+            // re-seed puts the stored values back onto every row, and those assignments raise the
+            // properties an edit raises: with the flag already dropped, each row opened an undo
+            // step of its own and persisted itself. On a game of a few hundred achievements that
+            // was one store write per row, and a press of the shortcut stopped the window
+            // responding for the better part of a minute.
             _isApplyingUndo = true;
             try
             {
@@ -626,29 +632,41 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
                 _undoJournal.Clear();
                 RaiseHistoryState();
+                _isApplyingUndo = false;
                 return;
+            }
+
+            // The same batching the forward selection edit sets up in ApplyPerRow, and for the
+            // same reason: Row_PropertyChanged returns on this flag before it reaches
+            // PersistSharedFacet, so a re-seeded goal or filter is not written out again as if
+            // the user had just set it. Saved and restored rather than cleared, because
+            // SyncBulkRowFromSelection nests inside the re-seed and does the same.
+            var previousApplyingBulk = _isApplyingBulk;
+            _isApplyingBulk = true;
+            try
+            {
+                // A full reload re-hydrates the game and rebuilds every row, which is most of what
+                // a press of the shortcut costs. It is only needed when the step moved something
+                // the rows cannot be re-seeded from in place.
+                if (RequiresReloadAfterHistoryStep(entry))
+                {
+                    using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Reload", thresholdMs: 10))
+                    {
+                        ReloadData();
+                    }
+                }
+                else
+                {
+                    using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Reseed", thresholdMs: 10))
+                    {
+                        ReseedRowsAfterHistoryStep();
+                    }
+                }
             }
             finally
             {
+                _isApplyingBulk = previousApplyingBulk;
                 _isApplyingUndo = false;
-            }
-
-            // A full reload re-hydrates the game and rebuilds every row, which is most of what a
-            // press of the shortcut costs. It is only needed when the step moved something the
-            // rows cannot be re-seeded from in place.
-            if (RequiresReloadAfterHistoryStep(entry))
-            {
-                using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Reload", thresholdMs: 10))
-                {
-                    ReloadData();
-                }
-            }
-            else
-            {
-                using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Reseed", thresholdMs: 10))
-                {
-                    ReseedRowsAfterHistoryStep();
-                }
             }
 
             RaiseAssignmentsChanged();
@@ -731,8 +749,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     continue;
                 }
 
-                // From the source, so putting a value back does not read as a fresh edit and
-                // write itself out again.
+                // From the source, so the row's own setter does not treat this as an edit. The
+                // change notification still goes out, because the grid has to redraw - it is the
+                // caller's _isApplyingUndo and _isApplyingBulk that stop Row_PropertyChanged
+                // turning that notification back into a write.
                 row.SetGoalFromSource(goals.Contains(apiName));
                 row.SetFilterScopeFromSource(
                     filtered.Contains(apiName)
