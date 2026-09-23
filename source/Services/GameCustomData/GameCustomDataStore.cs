@@ -578,6 +578,25 @@ namespace PlayniteAchievements.Services.GameCustomData
             RaiseCustomDataChanged(playniteGameId);
         }
 
+        /// <summary>
+        /// Persists the schema upgrade that reads have been performing and discarding. Run once at
+        /// startup, before the cache is warmed, so the warm reads the upgraded rows.
+        /// </summary>
+        /// <remarks>
+        /// Raises no change event. Every record this rewrites already presented itself to callers
+        /// in exactly this shape, so nothing downstream has anything to recompute.
+        /// </remarks>
+        public int UpgradeStoredRecordsToCurrentSchema()
+        {
+            var upgraded = _repository.UpgradeStoredRecordsToCurrentSchema();
+            if (upgraded > 0)
+            {
+                InvalidateCache();
+            }
+
+            return upgraded;
+        }
+
         public IReadOnlyList<GameCustomDataFile> LoadAll()
         {
             lock (_cacheSync)
