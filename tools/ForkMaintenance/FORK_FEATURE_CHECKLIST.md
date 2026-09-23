@@ -73,6 +73,16 @@ Primary fork areas:
   `0/0` achievements. A real Default category remains visible when at least one
   achievement belongs to it.
 - Steam App ID and Steam-user overrides remain in the Steam sub-tab.
+- Epic remains between Steam and LumaPlay. Its sub-tab accepts Nemirtingas
+  `achievements_db.json` and `achievements.json` overrides plus an optional
+  32-character Epic artifact/namespace ID.
+- Nemirtingas Epic progress is correlated by `AchievementId`. Local schema
+  names and descriptions are preserved while missing icons are enriched from
+  Epic's public achievement schema. The artifact ID is detected from the save
+  directory and resolved to an Epic namespace when necessary.
+- When `achievements_db.json` is absent, a selected/detected save and Epic
+  identity load the complete official schema; if the public lookup is offline
+  or unavailable, local progress still works whenever the local schema exists.
 - LumaPlay App ID and `LumaPlay.ini` remain in the LumaPlay sub-tab.
 - A RetroAchievements Game ID override can load the base achievement set and
   available subsets, save any combination through multi-selection, and limit
@@ -82,7 +92,7 @@ Primary fork areas:
   from previously included sets do not return from the SQLite cache.
 - Custom schema loading, editing, creation, and per-game enable/disable work.
 - Manage Achievements contains Overrides → Main/Local and Local →
-  Local Saves & Schema/Steam/LumaPlay.
+  Local Saves & Schema/Steam/Epic/LumaPlay.
 - In Manage Achievements, selecting Automatic or Clear under Change Provider
   removes both the preferred-provider selection and any higher-priority forced
   provider override.

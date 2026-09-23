@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-09-21T14:58:22.7231612Z",
+    "generatedUtc":  "2026-09-23T11:41:31.3345092Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "653a310fed521206672d0aec9383fd7ec3bb94a3",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "778922025AD16A2467A5DBD8A8B471ACA0B2A90D0D8AF60099C437C09634EEEE"
+                  "sha256":  "D8D418F0487782A70268872867548966408DBBA6DB752F24CE454240CA61BBC7"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -133,11 +133,11 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "2DF971B654C1D4DAFABD75AB1DCA66BB8BD2F5A0159979418FD15E33963EF046"
+                             "sha256":  "20508640791DCDC620A94C05FA28DC38BBA88A25CCAC118CE221E0C1A56F9B8E"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "DA9B83DF65343AD7B5F3B87A938CCBB0EF737A833C8D46EAD94AB8CE340023C1"
+                             "sha256":  "711602C7372E399EEED76A4D1F9E13BB3C3878F160B0AC4E25B36BD0B628C81A"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
@@ -281,7 +281,7 @@
                          },
                          {
                              "path":  "source/ViewModels/GameOptionsLocalOverrideTab.cs",
-                             "sha256":  "7CD46997CCF9913E058C905B4DF04E9C06BB8A4F9160DAD65EF9D9F6AA01714A"
+                             "sha256":  "B843075BE08C9B3187A6EECD9412B63EFF69DBCC09D4DE89929D39154F58BF64"
                          },
                          {
                              "path":  "source/ViewModels/GameOptionsOverrideTab.cs",
@@ -301,7 +301,7 @@
                          },
                          {
                              "path":  "source/ViewModels/ManageAchievementsViewModel.ForkOverrides.cs",
-                             "sha256":  "6C06AB44201B89A97ABF67B644DC215BBB965D21A2FDC4C3D377B0AFBA92767D"
+                             "sha256":  "3A68F07480CED0C493517A9EF9A5DD67D1E5375FEF18B0E0C7322BAAECE79AC4"
                          },
                          {
                              "path":  "source/Views/GameOptionsLocalOverridesSection.xaml",

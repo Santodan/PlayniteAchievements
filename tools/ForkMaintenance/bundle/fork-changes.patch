@@ -19788,7 +19788,7 @@ index ec371baae2264b294840887b7bd1aa07df474d5e..3461366b115f94fbf01f8a9208bfe09b
  
          private void CleanupNotifications()
 diff --git a/source/Views/ManageAchievements/ManageAchievementsOverridesTab.xaml b/source/Views/ManageAchievements/ManageAchievementsOverridesTab.xaml
-index 411e5b6862ca66ef1112ddf64f67ca65f37c47af..424c104c4c9b44c00b35cef7fd9861fa0e5fcb87 100644
+index 411e5b6862ca66ef1112ddf64f67ca65f37c47af..b5ecefdee990ee4c7fee8b23a2c365952b9d8213 100644
 --- a/source/Views/ManageAchievements/ManageAchievementsOverridesTab.xaml
 +++ b/source/Views/ManageAchievements/ManageAchievementsOverridesTab.xaml
 @@ -3,6 +3,7 @@
@@ -19913,7 +19913,7 @@ index 411e5b6862ca66ef1112ddf64f67ca65f37c47af..424c104c4c9b44c00b35cef7fd9861fa
                  </StackPanel>
              </Border>
  
-@@ -189,6 +284,255 @@
+@@ -189,6 +284,319 @@
                      </Grid>
                  </StackPanel>
              </Border>
@@ -19941,6 +19941,10 @@ index 411e5b6862ca66ef1112ddf64f67ca65f37c47af..424c104c4c9b44c00b35cef7fd9861fa
 +                                 GroupName="ManageAchievementLocalOverrideTabs"
 +                                 Style="{StaticResource SubTabRadioStyle}"
 +                                 IsChecked="{Binding SelectedLocalOverrideTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Steam}" />
++                    <RadioButton Content="Epic"
++                                 GroupName="ManageAchievementLocalOverrideTabs"
++                                 Style="{StaticResource SubTabRadioStyle}"
++                                 IsChecked="{Binding SelectedLocalOverrideTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Epic}" />
 +                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Overrides_LocalSubTab_LumaPlay}"
 +                                 GroupName="ManageAchievementLocalOverrideTabs"
 +                                 Style="{StaticResource SubTabRadioStyle}"
@@ -20080,6 +20084,66 @@ index 411e5b6862ca66ef1112ddf64f67ca65f37c47af..424c104c4c9b44c00b35cef7fd9861fa
 +                    </StackPanel>
 +                </Border>
 +
++                    </StackPanel>
++
++                    <StackPanel>
++                        <StackPanel.Style>
++                            <Style TargetType="StackPanel">
++                                <Setter Property="Visibility" Value="Collapsed" />
++                                <Style.Triggers>
++                                    <DataTrigger Binding="{Binding SelectedLocalOverrideTab}" Value="Epic">
++                                        <Setter Property="Visibility" Value="Visible" />
++                                    </DataTrigger>
++                                </Style.Triggers>
++                            </Style>
++                        </StackPanel.Style>
++
++                        <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
++                            <StackPanel>
++                                <TextBlock Text="Nemirtingas Epic achievement schema" Style="{StaticResource SectionHeaderStyle}" />
++                                <TextBlock Text="Select achievements_db.json from the game's nepice_settings folder. It is detected automatically when it is below the Playnite install directory."
++                                           Foreground="{DynamicResource PlayAch.Brush.Text}" Opacity="{StaticResource PlayAch.Opacity.Hint}" TextWrapping="Wrap" Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
++                                <TextBlock Text="{Binding LocalEpicSchemaPathStatusText}" Foreground="{DynamicResource PlayAch.Brush.Text}" Margin="{StaticResource PlayAch.Thickness.Top.Sm}" TextWrapping="Wrap" />
++                                <Grid Margin="0,10,0,0">
++                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="420" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
++                                    <TextBox Grid.Column="0" Text="{Binding LocalEpicSchemaPathOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
++                                    <Button Grid.Column="1" Content="{DynamicResource LOCPlayAch_Button_BrowseFile}" Command="{Binding BrowseLocalEpicSchemaPathOverrideCommand}" Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
++                                    <Button Grid.Column="2" Content="{DynamicResource LOCPlayAch_Button_Apply}" Command="{Binding ApplyLocalEpicSchemaPathOverrideCommand}" Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
++                                    <Button Grid.Column="3" Content="{DynamicResource LOCPlayAch_Button_Clear}" Command="{Binding ClearLocalEpicSchemaPathOverrideCommand}" Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
++                                </Grid>
++                            </StackPanel>
++                        </Border>
++
++                        <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
++                            <StackPanel>
++                                <TextBlock Text="Nemirtingas Epic achievement save" Style="{StaticResource SectionHeaderStyle}" />
++                                <TextBlock Text="Select the emulator's achievements.json. Automatic detection searches %APPDATA%\NemirtingasEpicEmu and matches its AchievementId values to the selected schema."
++                                           Foreground="{DynamicResource PlayAch.Brush.Text}" Opacity="{StaticResource PlayAch.Opacity.Hint}" TextWrapping="Wrap" Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
++                                <TextBlock Text="{Binding LocalEpicSavePathStatusText}" Foreground="{DynamicResource PlayAch.Brush.Text}" Margin="{StaticResource PlayAch.Thickness.Top.Sm}" TextWrapping="Wrap" />
++                                <Grid Margin="0,10,0,0">
++                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="420" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
++                                    <TextBox Grid.Column="0" Text="{Binding LocalEpicSavePathOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
++                                    <Button Grid.Column="1" Content="{DynamicResource LOCPlayAch_Button_BrowseFile}" Command="{Binding BrowseLocalEpicSavePathOverrideCommand}" Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
++                                    <Button Grid.Column="2" Content="{DynamicResource LOCPlayAch_Button_Apply}" Command="{Binding ApplyLocalEpicSavePathOverrideCommand}" Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
++                                    <Button Grid.Column="3" Content="{DynamicResource LOCPlayAch_Button_Clear}" Command="{Binding ClearLocalEpicSavePathOverrideCommand}" Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
++                                </Grid>
++                            </StackPanel>
++                        </Border>
++
++                        <Border Style="{StaticResource CardBorderStyle}">
++                            <StackPanel>
++                                <TextBlock Text="Epic artifact or namespace ID" Style="{StaticResource SectionHeaderStyle}" />
++                                <TextBlock Text="Used to download official names and icons. Normally detected from the 32-character Nemirtingas save folder. Set it manually when testing copied JSON files or when achievements_db.json is unavailable."
++                                           Foreground="{DynamicResource PlayAch.Brush.Text}" Opacity="{StaticResource PlayAch.Opacity.Hint}" TextWrapping="Wrap" Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
++                                <TextBlock Text="{Binding LocalEpicProductIdStatusText}" Foreground="{DynamicResource PlayAch.Brush.Text}" Margin="{StaticResource PlayAch.Thickness.Top.Sm}" TextWrapping="Wrap" />
++                                <Grid Margin="0,10,0,0">
++                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="420" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
++                                    <TextBox Grid.Column="0" Text="{Binding LocalEpicProductIdOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
++                                    <Button Grid.Column="1" Content="{DynamicResource LOCPlayAch_Button_Apply}" Command="{Binding ApplyLocalEpicProductIdOverrideCommand}" Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
++                                    <Button Grid.Column="2" Content="{DynamicResource LOCPlayAch_Button_Clear}" Command="{Binding ClearLocalEpicProductIdOverrideCommand}" Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
++                                </Grid>
++                            </StackPanel>
++                        </Border>
 +                    </StackPanel>
 +
 +                    <StackPanel>

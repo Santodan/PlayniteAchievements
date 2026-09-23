@@ -363,6 +363,9 @@ namespace PlayniteAchievements.Providers.Local
         private Dictionary<Guid, int> _steamAppIdOverrides = new Dictionary<Guid, int>();
         private Dictionary<Guid, int> _lumaPlayAppIdOverrides = new Dictionary<Guid, int>();
         private Dictionary<Guid, string> _lumaPlayIniPathOverrides = new Dictionary<Guid, string>();
+        private Dictionary<Guid, string> _epicSchemaPathOverrides = new Dictionary<Guid, string>();
+        private Dictionary<Guid, string> _epicSavePathOverrides = new Dictionary<Guid, string>();
+        private Dictionary<Guid, string> _epicProductIdOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, string> _localFolderOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, string> _customSchemaPathOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, bool> _customSchemaEnabledOverrides = new Dictionary<Guid, bool>();
@@ -2192,6 +2195,24 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _lumaPlayIniPathOverrides;
             set => SetValue(ref _lumaPlayIniPathOverrides, value ?? new Dictionary<Guid, string>());
+        }
+
+        public Dictionary<Guid, string> EpicSchemaPathOverrides
+        {
+            get => _epicSchemaPathOverrides;
+            set => SetValue(ref _epicSchemaPathOverrides, value ?? new Dictionary<Guid, string>());
+        }
+
+        public Dictionary<Guid, string> EpicSavePathOverrides
+        {
+            get => _epicSavePathOverrides;
+            set => SetValue(ref _epicSavePathOverrides, value ?? new Dictionary<Guid, string>());
+        }
+
+        public Dictionary<Guid, string> EpicProductIdOverrides
+        {
+            get => _epicProductIdOverrides;
+            set => SetValue(ref _epicProductIdOverrides, value ?? new Dictionary<Guid, string>());
         }
 
         public Dictionary<Guid, string> LocalFolderOverrides

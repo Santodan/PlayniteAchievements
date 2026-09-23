@@ -44,6 +44,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _localSteamAppCacheUserOverrideValue = string.Empty;
         private string _localSteamAppCacheUserOverrideInput = string.Empty;
         private IReadOnlyList<LocalSteamAppCacheUserOption> _availableLocalSteamAppCacheUsers = Array.Empty<LocalSteamAppCacheUserOption>();
+        private string _localEpicSchemaPathOverrideInput = string.Empty;
+        private string _localEpicSavePathOverrideInput = string.Empty;
+        private string _localEpicProductIdOverrideInput = string.Empty;
+        private bool _hasLocalEpicSchemaPathOverride;
+        private bool _hasLocalEpicSavePathOverride;
+        private bool _hasLocalEpicProductIdOverride;
         private bool _hasLocalLumaPlayAppIdOverride;
         private string _localLumaPlayAppIdOverrideValue = string.Empty;
         private string _localLumaPlayAppIdOverrideInput = string.Empty;
@@ -73,6 +79,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private IReadOnlyList<OverviewOverrideItem> _overviewOverrides = Array.Empty<OverviewOverrideItem>();
         private RelayCommand _applyLocalFolderOverrideCommand, _clearLocalFolderOverrideCommand, _browseLocalFolderOverrideCommand, _browseLocalAchievementFileOverrideCommand, _refreshLocalFolderCandidatesCommand;
         private RelayCommand _applyLocalSteamAppIdOverrideCommand, _clearLocalSteamAppIdOverrideCommand, _applyLocalSteamAppCacheUserOverrideCommand, _clearLocalSteamAppCacheUserOverrideCommand;
+        private RelayCommand _applyLocalEpicSchemaPathOverrideCommand, _clearLocalEpicSchemaPathOverrideCommand, _browseLocalEpicSchemaPathOverrideCommand, _applyLocalEpicSavePathOverrideCommand, _clearLocalEpicSavePathOverrideCommand, _browseLocalEpicSavePathOverrideCommand, _applyLocalEpicProductIdOverrideCommand, _clearLocalEpicProductIdOverrideCommand;
         private RelayCommand _applyLocalLumaPlayAppIdOverrideCommand, _clearLocalLumaPlayAppIdOverrideCommand, _applyLocalLumaPlayIniPathOverrideCommand, _clearLocalLumaPlayIniPathOverrideCommand, _browseLocalLumaPlayIniPathOverrideCommand;
         private RelayCommand _applyLocalRefreshOnGameCloseOverrideCommand, _clearLocalRefreshOnGameCloseOverrideCommand;
         private RelayCommand _applyRaOverrideCommand, _clearRaOverrideCommand, _applyXeniaTitleIdOverrideCommand, _clearXeniaTitleIdOverrideCommand, _applyShadPS4MatchIdOverrideCommand, _clearShadPS4MatchIdOverrideCommand;
@@ -117,6 +124,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string LocalSteamAppCacheUserOverrideValue { get => _localSteamAppCacheUserOverrideValue; private set => SetValue(ref _localSteamAppCacheUserOverrideValue, value ?? string.Empty); }
         public string LocalSteamAppCacheUserOverrideInput { get => _localSteamAppCacheUserOverrideInput; set { if (SetValueAndReturn(ref _localSteamAppCacheUserOverrideInput, value ?? string.Empty)) { OnPropertyChanged(nameof(LocalSteamAppCacheUserStatusText)); RaiseForkOverrideCommandStates(); } } }
         public string LocalSteamAppCacheUserStatusText => HasLocalSteamAppCacheUserOverride ? string.Format(L("LOCPlayAch_GameOptions_Status_LocalSteamUserOverrideValue", "Forced Steam user: {0}"), GetSteamUserDisplayName(LocalSteamAppCacheUserOverrideValue)) : L("LOCPlayAch_GameOptions_Status_LocalSteamUserOverrideNone", "Automatic Steam user detection");
+        public bool HasLocalEpicSchemaPathOverride { get => _hasLocalEpicSchemaPathOverride; private set => SetValue(ref _hasLocalEpicSchemaPathOverride, value); }
+        public bool HasLocalEpicSavePathOverride { get => _hasLocalEpicSavePathOverride; private set => SetValue(ref _hasLocalEpicSavePathOverride, value); }
+        public bool HasLocalEpicProductIdOverride { get => _hasLocalEpicProductIdOverride; private set => SetValue(ref _hasLocalEpicProductIdOverride, value); }
+        public string LocalEpicSchemaPathOverrideInput { get => _localEpicSchemaPathOverrideInput; set => SetValue(ref _localEpicSchemaPathOverrideInput, value ?? string.Empty); }
+        public string LocalEpicSavePathOverrideInput { get => _localEpicSavePathOverrideInput; set => SetValue(ref _localEpicSavePathOverrideInput, value ?? string.Empty); }
+        public string LocalEpicProductIdOverrideInput { get => _localEpicProductIdOverrideInput; set => SetValue(ref _localEpicProductIdOverrideInput, value ?? string.Empty); }
+        public string LocalEpicSchemaPathStatusText => HasLocalEpicSchemaPathOverride ? string.Format(L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"), LocalEpicSchemaPathOverrideInput) : L("LOCPlayAch_GameOptions_Status_LocalEpicSchemaAuto", "Automatic: game folder\\nepice_settings\\achievements_db.json");
+        public string LocalEpicSavePathStatusText => HasLocalEpicSavePathOverride ? string.Format(L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"), LocalEpicSavePathOverrideInput) : L("LOCPlayAch_GameOptions_Status_LocalEpicSaveAuto", "Automatic: matching save under %APPDATA%\\NemirtingasEpicEmu");
+        public string LocalEpicProductIdStatusText => HasLocalEpicProductIdOverride ? string.Format(L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"), LocalEpicProductIdOverrideInput) : "Automatic: read the artifact ID from the Nemirtingas save folder";
         public bool HasLocalLumaPlayAppIdOverride { get => _hasLocalLumaPlayAppIdOverride; private set { if (SetValueAndReturn(ref _hasLocalLumaPlayAppIdOverride, value)) { OnPropertyChanged(nameof(LocalLumaPlayAppIdStatusText)); RaiseForkOverrideCommandStates(); } } }
         public string LocalLumaPlayAppIdOverrideValue { get => _localLumaPlayAppIdOverrideValue; private set => SetValue(ref _localLumaPlayAppIdOverrideValue, value ?? string.Empty); }
         public string LocalLumaPlayAppIdOverrideInput { get => _localLumaPlayAppIdOverrideInput; set { if (SetValueAndReturn(ref _localLumaPlayAppIdOverrideInput, value ?? string.Empty)) RaiseForkOverrideCommandStates(); } }
@@ -167,6 +183,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public RelayCommand ClearLocalSteamAppIdOverrideCommand => _clearLocalSteamAppIdOverrideCommand ??= new RelayCommand(_ => ClearLocalSteamAppIdOverride(), _ => HasGame && HasLocalSteamAppIdOverride);
         public RelayCommand ApplyLocalSteamAppCacheUserOverrideCommand => _applyLocalSteamAppCacheUserOverrideCommand ??= new RelayCommand(_ => ApplyLocalSteamAppCacheUserOverride(), _ => HasGame);
         public RelayCommand ClearLocalSteamAppCacheUserOverrideCommand => _clearLocalSteamAppCacheUserOverrideCommand ??= new RelayCommand(_ => ClearLocalSteamAppCacheUserOverride(), _ => HasGame && HasLocalSteamAppCacheUserOverride);
+        public RelayCommand ApplyLocalEpicSchemaPathOverrideCommand => _applyLocalEpicSchemaPathOverrideCommand ??= new RelayCommand(_ => ApplyLocalEpicSchemaPathOverride(), _ => HasGame);
+        public RelayCommand ClearLocalEpicSchemaPathOverrideCommand => _clearLocalEpicSchemaPathOverrideCommand ??= new RelayCommand(_ => ClearLocalEpicSchemaPathOverride(), _ => HasGame && HasLocalEpicSchemaPathOverride);
+        public RelayCommand BrowseLocalEpicSchemaPathOverrideCommand => _browseLocalEpicSchemaPathOverrideCommand ??= new RelayCommand(_ => BrowseLocalEpicPath(true), _ => HasGame);
+        public RelayCommand ApplyLocalEpicSavePathOverrideCommand => _applyLocalEpicSavePathOverrideCommand ??= new RelayCommand(_ => ApplyLocalEpicSavePathOverride(), _ => HasGame);
+        public RelayCommand ClearLocalEpicSavePathOverrideCommand => _clearLocalEpicSavePathOverrideCommand ??= new RelayCommand(_ => ClearLocalEpicSavePathOverride(), _ => HasGame && HasLocalEpicSavePathOverride);
+        public RelayCommand BrowseLocalEpicSavePathOverrideCommand => _browseLocalEpicSavePathOverrideCommand ??= new RelayCommand(_ => BrowseLocalEpicPath(false), _ => HasGame);
+        public RelayCommand ApplyLocalEpicProductIdOverrideCommand => _applyLocalEpicProductIdOverrideCommand ??= new RelayCommand(_ => ApplyLocalEpicProductIdOverride(), _ => HasGame);
+        public RelayCommand ClearLocalEpicProductIdOverrideCommand => _clearLocalEpicProductIdOverrideCommand ??= new RelayCommand(_ => ClearLocalEpicProductIdOverride(), _ => HasGame && HasLocalEpicProductIdOverride);
         public RelayCommand ApplyLocalLumaPlayAppIdOverrideCommand => _applyLocalLumaPlayAppIdOverrideCommand ??= new RelayCommand(_ => ApplyLocalLumaPlayAppIdOverride(), _ => HasGame);
         public RelayCommand ClearLocalLumaPlayAppIdOverrideCommand => _clearLocalLumaPlayAppIdOverrideCommand ??= new RelayCommand(_ => ClearLocalLumaPlayAppIdOverride(), _ => HasGame && HasLocalLumaPlayAppIdOverride);
         public RelayCommand ApplyLocalLumaPlayIniPathOverrideCommand => _applyLocalLumaPlayIniPathOverrideCommand ??= new RelayCommand(_ => ApplyLocalLumaPlayIniPathOverride(), _ => HasGame);
@@ -283,6 +307,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     GetSteamUserDisplayName(LocalSteamAppCacheUserOverrideValue));
             }
 
+            if (HasLocalEpicSchemaPathOverride) Add("Epic local schema", LocalEpicSchemaPathOverrideInput);
+            if (HasLocalEpicSavePathOverride) Add("Epic local save", LocalEpicSavePathOverrideInput);
+            if (HasLocalEpicProductIdOverride) Add("Epic artifact/namespace ID", LocalEpicProductIdOverrideInput);
+
             if (HasLocalLumaPlayAppIdOverride)
             {
                 Add(
@@ -335,6 +363,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             if (LocalSavesProvider.TryGetAppIdOverride(_gameId, out var appId)) { HasLocalSteamAppIdOverride = true; LocalSteamAppIdOverrideValue = appId.ToString(); LocalSteamAppIdOverrideInput = LocalSteamAppIdOverrideValue; }
             else { HasLocalSteamAppIdOverride = false; LocalSteamAppIdOverrideValue = string.Empty; LocalSteamAppIdOverrideInput = string.Empty; }
+            if (LocalSavesProvider.TryGetEpicSchemaPathOverride(_gameId, out var epicSchemaPath)) { HasLocalEpicSchemaPathOverride = true; LocalEpicSchemaPathOverrideInput = epicSchemaPath; }
+            else { HasLocalEpicSchemaPathOverride = false; LocalEpicSchemaPathOverrideInput = string.Empty; }
+            if (LocalSavesProvider.TryGetEpicSavePathOverride(_gameId, out var epicSavePath)) { HasLocalEpicSavePathOverride = true; LocalEpicSavePathOverrideInput = epicSavePath; }
+            else { HasLocalEpicSavePathOverride = false; LocalEpicSavePathOverrideInput = string.Empty; }
+            if (LocalSavesProvider.TryGetEpicProductIdOverride(_gameId, out var epicProductId)) { HasLocalEpicProductIdOverride = true; LocalEpicProductIdOverrideInput = epicProductId; }
+            else { HasLocalEpicProductIdOverride = false; LocalEpicProductIdOverrideInput = string.Empty; }
+            OnPropertyChanged(nameof(LocalEpicSchemaPathStatusText));
+            OnPropertyChanged(nameof(LocalEpicSavePathStatusText));
+            OnPropertyChanged(nameof(LocalEpicProductIdStatusText));
             if (LocalSavesProvider.TryGetLumaPlayAppIdOverride(_gameId, out var lumaId)) { HasLocalLumaPlayAppIdOverride = true; LocalLumaPlayAppIdOverrideValue = lumaId.ToString(); LocalLumaPlayAppIdOverrideInput = LocalLumaPlayAppIdOverrideValue; }
             else { HasLocalLumaPlayAppIdOverride = false; LocalLumaPlayAppIdOverrideValue = string.Empty; LocalLumaPlayAppIdOverrideInput = string.Empty; }
             if (LocalSavesProvider.TryGetLumaPlayIniPathOverride(_gameId, out var iniPath)) { HasLocalLumaPlayIniPathOverride = true; LocalLumaPlayIniPathOverrideValue = iniPath; LocalLumaPlayIniPathOverrideInput = iniPath; }
@@ -401,6 +438,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             RaiseCustomSchemaCommandStates();
             _applyLocalFolderOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalFolderOverrideCommand?.RaiseCanExecuteChanged(); _browseLocalFolderOverrideCommand?.RaiseCanExecuteChanged(); _browseLocalAchievementFileOverrideCommand?.RaiseCanExecuteChanged(); _refreshLocalFolderCandidatesCommand?.RaiseCanExecuteChanged();
             _applyLocalSteamAppIdOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalSteamAppIdOverrideCommand?.RaiseCanExecuteChanged(); _applyLocalSteamAppCacheUserOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalSteamAppCacheUserOverrideCommand?.RaiseCanExecuteChanged();
+            _applyLocalEpicSchemaPathOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalEpicSchemaPathOverrideCommand?.RaiseCanExecuteChanged(); _browseLocalEpicSchemaPathOverrideCommand?.RaiseCanExecuteChanged(); _applyLocalEpicSavePathOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalEpicSavePathOverrideCommand?.RaiseCanExecuteChanged(); _browseLocalEpicSavePathOverrideCommand?.RaiseCanExecuteChanged();
+            _applyLocalEpicProductIdOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalEpicProductIdOverrideCommand?.RaiseCanExecuteChanged();
             _applyLocalLumaPlayAppIdOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalLumaPlayAppIdOverrideCommand?.RaiseCanExecuteChanged(); _applyLocalLumaPlayIniPathOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalLumaPlayIniPathOverrideCommand?.RaiseCanExecuteChanged(); _browseLocalLumaPlayIniPathOverrideCommand?.RaiseCanExecuteChanged();
             _applyLocalRefreshOnGameCloseOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalRefreshOnGameCloseOverrideCommand?.RaiseCanExecuteChanged(); _applySteamAccountOverrideCommand?.RaiseCanExecuteChanged(); _clearSteamAccountOverrideCommand?.RaiseCanExecuteChanged(); _applyPreferredProviderOverrideCommand?.RaiseCanExecuteChanged(); _clearPreferredProviderOverrideCommand?.RaiseCanExecuteChanged();
         }
@@ -419,6 +458,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void ClearLocalSteamAppIdOverride() { LocalSavesProvider.TryClearAppIdOverride(_gameId, CurrentGameName, _persistSettingsForUi, _logger); _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey); Reload(); }
         private void ApplyLocalSteamAppCacheUserOverride() { var user = (LocalSteamAppCacheUserOverrideInput ?? string.Empty).Trim(); if (string.IsNullOrWhiteSpace(user)) { ClearLocalSteamAppCacheUserOverride(); return; } LocalSavesProvider.TrySetSteamAppCacheUserOverride(_gameId, user, CurrentGameName, _persistSettingsForUi, _logger); EnsurePreferredProviderIsLocal(); _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey); Reload(); }
         private void ClearLocalSteamAppCacheUserOverride() { LocalSavesProvider.TryClearSteamAppCacheUserOverride(_gameId, CurrentGameName, _persistSettingsForUi, _logger); _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey); Reload(); }
+        private void ApplyLocalEpicSchemaPathOverride() { ApplyLocalEpicPath(LocalEpicSchemaPathOverrideInput, true); }
+        private void ApplyLocalEpicSavePathOverride() { ApplyLocalEpicPath(LocalEpicSavePathOverrideInput, false); }
+        private void ApplyLocalEpicPath(string input, bool schema) { var p = (input ?? string.Empty).Trim(); if (!File.Exists(p)) { ShowWarning("LOCPlayAch_GameOptions_LocalEpicPath_NotFound", "The selected Epic achievement JSON file does not exist."); return; } var changed = schema ? LocalSavesProvider.TrySetEpicSchemaPathOverride(_gameId, p, CurrentGameName, _persistSettingsForUi, _logger) : LocalSavesProvider.TrySetEpicSavePathOverride(_gameId, p, CurrentGameName, _persistSettingsForUi, _logger); if (changed) { EnsurePreferredProviderIsLocal(); _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey); Reload(); } }
+        private void ClearLocalEpicSchemaPathOverride() { if (LocalSavesProvider.TryClearEpicSchemaPathOverride(_gameId, CurrentGameName, _persistSettingsForUi, _logger)) { _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey); Reload(); } }
+        private void ClearLocalEpicSavePathOverride() { if (LocalSavesProvider.TryClearEpicSavePathOverride(_gameId, CurrentGameName, _persistSettingsForUi, _logger)) { _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey); Reload(); } }
+        private void ApplyLocalEpicProductIdOverride() { var id = (LocalEpicProductIdOverrideInput ?? string.Empty).Trim(); if (!System.Text.RegularExpressions.Regex.IsMatch(id, "^[0-9a-fA-F]{32}$")) { ShowWarning("LOCPlayAch_GameOptions_LocalEpicId_Invalid", "Please enter a 32-character Epic artifact or namespace ID."); return; } if (LocalSavesProvider.TrySetEpicProductIdOverride(_gameId, id, CurrentGameName, _persistSettingsForUi, _logger)) { EnsurePreferredProviderIsLocal(); _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey, true); Reload(); } }
+        private void ClearLocalEpicProductIdOverride() { if (LocalSavesProvider.TryClearEpicProductIdOverride(_gameId, CurrentGameName, _persistSettingsForUi, _logger)) { _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey, true); Reload(); } }
+        private void BrowseLocalEpicPath(bool schema) { var d = new OpenFileDialog { Filter = schema ? "Nemirtingas schema (achievements_db.json)|achievements_db.json|JSON files (*.json)|*.json" : "Nemirtingas save (achievements.json)|achievements.json|JSON files (*.json)|*.json", CheckFileExists = true, Multiselect = false }; if (d.ShowDialog() == true) { if (schema) LocalEpicSchemaPathOverrideInput = d.FileName; else LocalEpicSavePathOverrideInput = d.FileName; } }
         private void ApplyLocalLumaPlayAppIdOverride() { if (int.TryParse(LocalLumaPlayAppIdOverrideInput, out var id) && id > 0) { LocalSavesProvider.TrySetLumaPlayAppIdOverride(_gameId, id, CurrentGameName, _persistSettingsForUi, _logger); _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey); Reload(); } else ShowWarning("LOCPlayAch_Menu_LocalLumaPlayAppId_InvalidId", "Please enter a valid positive LumaPlay Uplay App ID."); }
         private void ClearLocalLumaPlayAppIdOverride() { LocalSavesProvider.TryClearLumaPlayAppIdOverride(_gameId, CurrentGameName, _persistSettingsForUi, _logger); _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey); Reload(); }
         private void ApplyLocalLumaPlayIniPathOverride() { var p = (LocalLumaPlayIniPathOverrideInput ?? string.Empty).Trim(); if (string.IsNullOrWhiteSpace(p)) { ShowWarning("LOCPlayAch_GameOptions_LocalLumaPlayIniPath_Invalid", "Please enter a valid LumaPlay.ini path."); return; } if (!File.Exists(p)) { ShowWarning("LOCPlayAch_GameOptions_LocalLumaPlayIniPath_NotFound", "The selected LumaPlay.ini file does not exist."); return; } LocalSavesProvider.TrySetLumaPlayIniPathOverride(_gameId, p, CurrentGameName, _persistSettingsForUi, _logger); _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey); Reload(); }

@@ -99,7 +99,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
-- Fixed Local achievement replay and screenshot floods 
+- Fixed Local achievement replay and screenshot floods
+- Added epic emulator compatibility
+- Fixed SAN transition screenshot
 
 ## 2026-09-14 - v3.2.1.1
 

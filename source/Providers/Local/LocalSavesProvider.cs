@@ -97,6 +97,8 @@ namespace PlayniteAchievements.Providers.Local
         private readonly Dictionary<int, SchemaAndPercentages> _steamSchemaCache = new Dictionary<int, SchemaAndPercentages>();
         private readonly Dictionary<int, string> _steamSchemaSourceCache = new Dictionary<int, string>();
         private readonly Dictionary<int, string> _steamSchemaLanguageCache = new Dictionary<int, string>();
+        private readonly Dictionary<string, string> _nemirtingasSavePathCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, List<SchemaAchievement>> _nemirtingasEpicSchemaCache = new Dictionary<string, List<SchemaAchievement>>(StringComparer.OrdinalIgnoreCase);
         // Maps Playnite game name to resolved Steam App ID for LumaPlay games (0 = not found / not applicable)
         private readonly Dictionary<string, int> _lumaPlaySteamAppIdCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private static readonly TimeSpan RealtimeRepeatedLogInterval = TimeSpan.FromMinutes(10);
@@ -230,6 +232,11 @@ namespace PlayniteAchievements.Providers.Local
 
         public bool IsCapable(Game game)
         {
+            if (TryResolveNemirtingasPaths(game, out _, out _))
+            {
+                return true;
+            }
+
             if (!TryResolveAppId(game, out var appId, out _ ) || appId <= 0)
             {
                 // Explicit Local configuration is sufficient capability and should not trigger
@@ -307,6 +314,15 @@ namespace PlayniteAchievements.Providers.Local
 
         public async Task<GameAchievementData> GetAchievementsAsync(Game game, RefreshRequest request)
         {
+            if (TryResolveNemirtingasPaths(game, out var epicSchemaPath, out var epicSavePath))
+            {
+                var epicData = await LoadNemirtingasAchievementsAsync(game, epicSchemaPath, epicSavePath).ConfigureAwait(false);
+                if (epicData != null)
+                {
+                    return epicData;
+                }
+            }
+
             var appId = GetAppId(game, out var isAppIdOverridden);
             var hasCustomSchemaPathOverride = game != null && TryGetCustomSchemaPathOverride(game.Id, out _);
             var hasEnabledCustomSchemaOverride = game != null &&
@@ -868,6 +884,12 @@ namespace PlayniteAchievements.Providers.Local
             var appId = GetAppId(game, out _);
             int lumaAppId;
 
+            if (TryResolveNemirtingasPaths(game, out var epicSchemaPath, out var epicSavePath))
+            {
+                AddExistingPath(paths, epicSchemaPath);
+                AddExistingPath(paths, epicSavePath);
+            }
+
             if (string.IsNullOrWhiteSpace(appId))
             {
                 if (TryGetLumaPlayIniPathOverride(game.Id, out var lumaOverridePath) &&
@@ -1106,6 +1128,25 @@ namespace PlayniteAchievements.Providers.Local
             return !string.IsNullOrWhiteSpace(iniPath);
         }
 
+        internal static bool TryGetEpicSchemaPathOverride(Guid gameId, out string path) =>
+            TryGetStringOverride(gameId, settings => settings.EpicSchemaPathOverrides, out path);
+
+        internal static bool TryGetEpicProductIdOverride(Guid gameId, out string productId) =>
+            TryGetStringOverride(gameId, settings => settings.EpicProductIdOverrides, out productId);
+
+        internal static bool TryGetEpicSavePathOverride(Guid gameId, out string path) =>
+            TryGetStringOverride(gameId, settings => settings.EpicSavePathOverrides, out path);
+
+        private static bool TryGetStringOverride(Guid gameId, Func<LocalSettings, Dictionary<Guid, string>> selector, out string path)
+        {
+            path = null;
+            if (gameId == Guid.Empty) return false;
+            var values = selector(ProviderRegistry.Settings<LocalSettings>());
+            if (values == null || !values.TryGetValue(gameId, out var configuredPath)) return false;
+            path = configuredPath?.Trim();
+            return !string.IsNullOrWhiteSpace(path);
+        }
+
         internal static bool TryGetSteamAppCacheUserOverride(Guid gameId, out string userId)
         {
             userId = null;
@@ -1222,6 +1263,47 @@ namespace PlayniteAchievements.Providers.Local
             ProviderRegistry.Write(settings);
             persistSettingsForUi?.Invoke();
             logger?.Info($"Set Local custom schema override for '{gameName}' to '{normalizedPath}'");
+            return true;
+        }
+
+        internal static bool TrySetEpicSchemaPathOverride(Guid gameId, string path, string gameName, Action persistSettingsForUi, ILogger logger) =>
+            TrySetStringOverride(gameId, path, gameName, "Epic achievements schema", settings => settings.EpicSchemaPathOverrides, persistSettingsForUi, logger);
+
+        internal static bool TryClearEpicSchemaPathOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger) =>
+            TryClearStringOverride(gameId, gameName, "Epic achievements schema", settings => settings.EpicSchemaPathOverrides, persistSettingsForUi, logger);
+
+        internal static bool TrySetEpicProductIdOverride(Guid gameId, string productId, string gameName, Action persistSettingsForUi, ILogger logger) =>
+            TrySetStringOverride(gameId, productId, gameName, "Epic artifact/namespace ID", settings => settings.EpicProductIdOverrides, persistSettingsForUi, logger);
+
+        internal static bool TryClearEpicProductIdOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger) =>
+            TryClearStringOverride(gameId, gameName, "Epic artifact/namespace ID", settings => settings.EpicProductIdOverrides, persistSettingsForUi, logger);
+
+        internal static bool TrySetEpicSavePathOverride(Guid gameId, string path, string gameName, Action persistSettingsForUi, ILogger logger) =>
+            TrySetStringOverride(gameId, path, gameName, "Epic achievement save", settings => settings.EpicSavePathOverrides, persistSettingsForUi, logger);
+
+        internal static bool TryClearEpicSavePathOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger) =>
+            TryClearStringOverride(gameId, gameName, "Epic achievement save", settings => settings.EpicSavePathOverrides, persistSettingsForUi, logger);
+
+        private static bool TrySetStringOverride(Guid gameId, string path, string gameName, string label, Func<LocalSettings, Dictionary<Guid, string>> selector, Action persistSettingsForUi, ILogger logger)
+        {
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(path)) return false;
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            selector(settings)[gameId] = path.Trim();
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Set Local {label} override for '{gameName}' to '{path.Trim()}'");
+            return true;
+        }
+
+        private static bool TryClearStringOverride(Guid gameId, string gameName, string label, Func<LocalSettings, Dictionary<Guid, string>> selector, Action persistSettingsForUi, ILogger logger)
+        {
+            if (gameId == Guid.Empty) return false;
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            var values = selector(settings);
+            if (values == null || !values.Remove(gameId)) return false;
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Cleared Local {label} override for '{gameName}'");
             return true;
         }
 
@@ -6895,6 +6977,328 @@ namespace PlayniteAchievements.Providers.Local
         }
 #pragma warning restore CA1416
 
+        private bool TryResolveNemirtingasPaths(Game game, out string schemaPath, out string savePath)
+        {
+            schemaPath = null;
+            savePath = null;
+            if (game == null || game.Id == Guid.Empty) return false;
+
+            if (TryGetEpicSchemaPathOverride(game.Id, out var configuredSchema) && File.Exists(configuredSchema))
+            {
+                schemaPath = configuredSchema;
+            }
+            else
+            {
+                var installDirectory = PathExpansion.ExpandGamePath(_api, game, game.InstallDirectory)?.Trim();
+                var detectedSchema = string.IsNullOrWhiteSpace(installDirectory)
+                    ? null
+                    : Path.Combine(installDirectory, "nepice_settings", "achievements_db.json");
+                if (!string.IsNullOrWhiteSpace(detectedSchema) && File.Exists(detectedSchema)) schemaPath = detectedSchema;
+            }
+
+            if (TryGetEpicSavePathOverride(game.Id, out var configuredSave))
+            {
+                savePath = Directory.Exists(configuredSave)
+                    ? Path.Combine(configuredSave, "achievements.json")
+                    : configuredSave;
+                if (!File.Exists(savePath)) savePath = null;
+            }
+
+            if (string.IsNullOrWhiteSpace(savePath) && !string.IsNullOrWhiteSpace(schemaPath))
+            {
+                savePath = FindMatchingNemirtingasSave(schemaPath);
+            }
+
+            if (string.IsNullOrWhiteSpace(savePath))
+            {
+                var configuredIdentity = ResolveNemirtingasEpicIdentity(game, null);
+                if (!string.IsNullOrWhiteSpace(configuredIdentity))
+                {
+                    savePath = FindNemirtingasSaveByIdentity(configuredIdentity);
+                }
+            }
+
+            // The local schema is preferred because it reflects the exact emulator build. When
+            // it is absent, the official public schema can be loaded if the save path exposes an
+            // artifact ID or the user supplied an artifact/namespace override.
+            return !string.IsNullOrWhiteSpace(schemaPath) ||
+                   (!string.IsNullOrWhiteSpace(savePath) && !string.IsNullOrWhiteSpace(ResolveNemirtingasEpicIdentity(game, savePath)));
+        }
+
+        private static string FindNemirtingasSaveByIdentity(string identity)
+        {
+            if (!Regex.IsMatch(identity ?? string.Empty, "^[0-9a-fA-F]{32}$")) return null;
+            try
+            {
+                var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NemirtingasEpicEmu");
+                if (!Directory.Exists(root)) return null;
+                return Directory.EnumerateFiles(root, "achievements.json", SearchOption.AllDirectories)
+                    .FirstOrDefault(path => string.Equals(Path.GetFileName(Path.GetDirectoryName(path)), identity, StringComparison.OrdinalIgnoreCase));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private string FindMatchingNemirtingasSave(string schemaPath)
+        {
+            try
+            {
+                if (_nemirtingasSavePathCache.TryGetValue(schemaPath, out var cachedPath) && File.Exists(cachedPath))
+                {
+                    return cachedPath;
+                }
+
+                var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NemirtingasEpicEmu");
+                if (!Directory.Exists(root)) return null;
+                var schemaIds = new HashSet<string>(ParseNemirtingasSchema(File.ReadAllText(schemaPath)).Select(a => a.Name), StringComparer.OrdinalIgnoreCase);
+                if (schemaIds.Count == 0) return null;
+
+                var matches = Directory.EnumerateFiles(root, "achievements.json", SearchOption.AllDirectories)
+                    .Select(path => new { Path = path, Entries = ParseNemirtingasSave(File.ReadAllText(path)) })
+                    .Where(x => x.Entries.Count > 0 && x.Entries.Keys.All(schemaIds.Contains))
+                    .OrderByDescending(x => x.Entries.Count)
+                    .ThenByDescending(x => File.GetLastWriteTimeUtc(x.Path))
+                    .Select(x => x.Path)
+                    .Take(2)
+                    .ToList();
+                if (matches.Count != 1) return null;
+                _nemirtingasSavePathCache[schemaPath] = matches[0];
+                return matches[0];
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private async Task<GameAchievementData> LoadNemirtingasAchievementsAsync(Game game, string schemaPath, string savePath)
+        {
+            try
+            {
+                List<SchemaAchievement> schema;
+                if (!string.IsNullOrWhiteSpace(schemaPath) && File.Exists(schemaPath))
+                {
+                    var schemaJson = await Task.Run(() => File.ReadAllText(schemaPath)).ConfigureAwait(false);
+                    schema = ParseNemirtingasSchema(schemaJson, Path.GetDirectoryName(schemaPath));
+                }
+                else
+                {
+                    var identity = ResolveNemirtingasEpicIdentity(game, savePath);
+                    schema = string.IsNullOrWhiteSpace(identity)
+                        ? new List<SchemaAchievement>()
+                        : await FetchNemirtingasEpicSchemaAsync(identity).ConfigureAwait(false);
+                }
+                if (schema.Count == 0) return null;
+
+                if (schema.Any(item => string.IsNullOrWhiteSpace(item.Icon) || string.IsNullOrWhiteSpace(item.IconGray)))
+                {
+                    await TryEnrichNemirtingasEpicIconsAsync(game, savePath, schema).ConfigureAwait(false);
+                }
+
+                var progress = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
+                if (!string.IsNullOrWhiteSpace(savePath) && File.Exists(savePath))
+                {
+                    var saveJson = await Task.Run(() => File.ReadAllText(savePath)).ConfigureAwait(false);
+                    progress = ParseNemirtingasSave(saveJson);
+                }
+
+                var data = new GameAchievementData
+                {
+                    PlayniteGameId = game.Id,
+                    ProviderKey = ProviderKey,
+                    GameName = game.Name,
+                    Achievements = new List<AchievementDetail>()
+                };
+                var container = new SchemaAndPercentages { Achievements = schema };
+                foreach (var achievement in schema)
+                {
+                    progress.TryGetValue(achievement.Name, out var entry);
+                    data.Achievements.Add(CreateAchievementDetail(achievement.Name, entry, achievement, container, false, true));
+                }
+
+                PreserveCachedLocalMetadata(data);
+                Log($"NEMIRTINGAS EPIC: game='{game.Name}' schema='{schemaPath ?? "official Epic API"}' save='{savePath ?? "none"}' achievements={schema.Count} unlocked={progress.Count}");
+                return data;
+            }
+            catch (Exception ex)
+            {
+                Log($"NEMIRTINGAS EPIC ERROR: game='{game?.Name}' {ex.Message}");
+                return null;
+            }
+        }
+
+        internal static List<SchemaAchievement> ParseNemirtingasSchema(string json, string baseDirectory = null)
+        {
+            var result = new List<SchemaAchievement>();
+            if (string.IsNullOrWhiteSpace(json)) return result;
+            var token = JToken.Parse(json.TrimStart('\uFEFF', '\u00EF', '\u00BB', '\u00BF'));
+            foreach (var row in token as JArray ?? new JArray())
+            {
+                var id = row.Value<string>("AchievementId")?.Trim();
+                if (string.IsNullOrWhiteSpace(id)) continue;
+                result.Add(new SchemaAchievement
+                {
+                    Name = id,
+                    DisplayName = ReadNemirtingasLocalizedText(row["UnlockedDisplayName"]) ?? id,
+                    Description = ReadNemirtingasLocalizedText(row["UnlockedDescription"]) ?? string.Empty,
+                    Icon = ResolveNemirtingasIcon(baseDirectory, row.Value<string>("UnlockedIconUrl")),
+                    IconGray = ResolveNemirtingasIcon(baseDirectory, row.Value<string>("LockedIconUrl")),
+                    Hidden = row.Value<bool?>("IsHidden") == true ? 1 : 0
+                });
+            }
+            return result;
+        }
+
+        private static string ReadNemirtingasLocalizedText(JToken token)
+        {
+            if (token == null) return null;
+            if (token.Type == JTokenType.String) return token.ToString().Trim();
+            var culture = CultureInfo.CurrentUICulture;
+            foreach (var key in new[] { culture.Name, culture.TwoLetterISOLanguageName, "en", "default" })
+            {
+                var value = token[key]?.ToString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(value)) return value;
+            }
+            return token.Children<JProperty>().Select(p => p.Value?.ToString()?.Trim()).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+        }
+
+        private static string ResolveNemirtingasIcon(string baseDirectory, string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            if (Uri.TryCreate(value, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)) return value;
+            if (string.IsNullOrWhiteSpace(baseDirectory)) return value;
+            foreach (var candidate in new[] { value, value + ".png", value + ".jpg", value + ".jpeg", Path.Combine("img", value), Path.Combine("img", value + ".png") })
+            {
+                var path = Path.Combine(baseDirectory, candidate);
+                if (File.Exists(path)) return path;
+            }
+            return null;
+        }
+
+        private async Task TryEnrichNemirtingasEpicIconsAsync(Game game, string savePath, List<SchemaAchievement> schema)
+        {
+            try
+            {
+                var identity = ResolveNemirtingasEpicIdentity(game, savePath);
+                if (string.IsNullOrWhiteSpace(identity))
+                {
+                    Log($"NEMIRTINGAS EPIC ICONS: game='{game?.Name}' no artifact/namespace ID was available");
+                    return;
+                }
+
+                if (!_nemirtingasEpicSchemaCache.TryGetValue(identity, out var officialSchema))
+                {
+                    officialSchema = await FetchNemirtingasEpicSchemaAsync(identity).ConfigureAwait(false);
+                    if (officialSchema.Count > 0) _nemirtingasEpicSchemaCache[identity] = officialSchema;
+                }
+                if (officialSchema.Count == 0) return;
+
+                var byText = officialSchema
+                    .Where(item => !string.IsNullOrWhiteSpace(item.DisplayName))
+                    .GroupBy(item => NormalizeNemirtingasMatchText(item.DisplayName) + "\n" + NormalizeNemirtingasMatchText(item.Description))
+                    .Where(group => group.Count() == 1)
+                    .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+                var matched = 0;
+                foreach (var item in schema)
+                {
+                    var key = NormalizeNemirtingasMatchText(item.DisplayName) + "\n" + NormalizeNemirtingasMatchText(item.Description);
+                    if (!byText.TryGetValue(key, out var official)) continue;
+                    if (string.IsNullOrWhiteSpace(item.Icon)) item.Icon = official.Icon;
+                    if (string.IsNullOrWhiteSpace(item.IconGray)) item.IconGray = official.IconGray;
+                    if (!string.IsNullOrWhiteSpace(item.Icon) || !string.IsNullOrWhiteSpace(item.IconGray)) matched++;
+                }
+                Log($"NEMIRTINGAS EPIC ICONS: game='{game?.Name}' identity='{identity}' matched={matched}/{schema.Count}");
+            }
+            catch (Exception ex)
+            {
+                // Icon enrichment is optional; local achievement progress must remain usable offline.
+                Log($"NEMIRTINGAS EPIC ICONS ERROR: game='{game?.Name}' {ex.Message}");
+            }
+        }
+
+        private static string NormalizeNemirtingasMatchText(string value) =>
+            Regex.Replace(value ?? string.Empty, @"\s+", " ").Trim();
+
+        private static string ResolveNemirtingasEpicIdentity(Game game, string savePath)
+        {
+            if (game != null && TryGetEpicProductIdOverride(game.Id, out var configured)) return configured.Trim();
+
+            var directory = string.IsNullOrWhiteSpace(savePath) ? null : Path.GetDirectoryName(savePath);
+            for (var i = 0; i < 4 && !string.IsNullOrWhiteSpace(directory); i++, directory = Path.GetDirectoryName(directory))
+            {
+                var name = Path.GetFileName(directory);
+                if (Regex.IsMatch(name ?? string.Empty, "^[0-9a-fA-F]{32}$")) return name;
+            }
+
+            var gameId = game?.GameId?.Trim();
+            return Regex.IsMatch(gameId ?? string.Empty, "^[0-9a-fA-F]{32}$") ? gameId : null;
+        }
+
+        private async Task<List<SchemaAchievement>> FetchNemirtingasEpicSchemaAsync(string identity)
+        {
+            using (var client = HttpClientFactory.Create())
+            {
+                client.Timeout = TimeSpan.FromSeconds(20);
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
+                var schema = await TryFetchNemirtingasPublicSchemaAsync(client, identity).ConfigureAwait(false);
+                if (schema.Count > 0) return schema;
+
+                using (var response = await client.GetAsync("https://api.egdata.app/assets/" + Uri.EscapeDataString(identity)).ConfigureAwait(false))
+                {
+                    if (!response.IsSuccessStatusCode) return schema;
+                    var assetJson = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    var namespaceId = JObject.Parse(assetJson).Value<string>("namespace")?.Trim();
+                    if (string.IsNullOrWhiteSpace(namespaceId)) return schema;
+                    return await TryFetchNemirtingasPublicSchemaAsync(client, namespaceId).ConfigureAwait(false);
+                }
+            }
+        }
+
+        private static async Task<List<SchemaAchievement>> TryFetchNemirtingasPublicSchemaAsync(HttpClient client, string productId)
+        {
+            var url = "https://api.epicgames.dev/epic/achievements/v1/public/achievements/product/" +
+                      Uri.EscapeDataString(productId) + "/locale/en?includeAchievements=true";
+            using (var response = await client.GetAsync(url).ConfigureAwait(false))
+            {
+                if (!response.IsSuccessStatusCode) return new List<SchemaAchievement>();
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var rows = JObject.Parse(json)["achievements"] as JArray;
+                return (rows ?? new JArray())
+                    .Select(row => row["achievement"] ?? row)
+                    .Where(row => row != null)
+                    .Select(row => new SchemaAchievement
+                    {
+                        Name = row.Value<string>("name"),
+                        DisplayName = row.Value<string>("unlockedDisplayName") ?? row.Value<string>("lockedDisplayName"),
+                        Description = row.Value<string>("unlockedDescription") ?? row.Value<string>("lockedDescription"),
+                        Icon = row.Value<string>("unlockedIconLink"),
+                        IconGray = row.Value<string>("lockedIconLink")
+                    })
+                    .Where(row => !string.IsNullOrWhiteSpace(row.DisplayName))
+                    .ToList();
+            }
+        }
+
+        internal static Dictionary<string, LocalEntry> ParseNemirtingasSave(string json)
+        {
+            var result = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(json)) return result;
+            var token = JToken.Parse(json.TrimStart('\uFEFF', '\u00EF', '\u00BB', '\u00BF'));
+            foreach (var row in token as JArray ?? new JArray())
+            {
+                var id = row.Value<string>("AchievementId")?.Trim();
+                if (string.IsNullOrWhiteSpace(id)) continue;
+                result[id] = new LocalEntry
+                {
+                    earned = true,
+                    earned_time = row.Value<long?>("UnlockTime") ?? 0
+                };
+            }
+            return result;
+        }
+
         private async Task<Dictionary<string, LocalEntry>> LoadLocalEntriesAsync(string jsonPath, string iniPath)
         {
             return await LoadLocalEntriesAsync(
@@ -10264,7 +10668,7 @@ namespace PlayniteAchievements.Providers.Local
             "value"
         };
 
-        private struct LocalEntry
+        internal struct LocalEntry
         {
             public bool earned { get; set; }
             public long earned_time { get; set; }
