@@ -224,6 +224,17 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 viewModel.RestoreSelectionRequested -= ViewModel_RestoreSelectionRequested;
             }
 
+            CustomAchievementsGrid.LoadingRow -= AchievementsGrid_LoadingRow;
+
+            // Both of these otherwise tear down on Unloaded alone, which is exactly what this
+            // method exists because WPF does not guarantee. Each registers its hooks through
+            // DependencyPropertyDescriptor.AddValueChanged, whose table is process-wide, so a
+            // missed teardown roots the grid and every realized row for the life of the process.
+            // Setting the attached property false routes through each behavior's own Detach,
+            // which is guarded and safe to reach after an Unloaded that did fire.
+            DataGridHoverScrollBarBehavior.SetIsEnabled(CustomAchievementsGrid, false);
+            DataGridColumnGripperBehavior.SetIsEnabled(CustomAchievementsGrid, false);
+
             // Routes through OnOptionsChanged, which disposes the reorder state: its drag
             // subscriptions, its auto-scroll timer and the closures it holds over this tab.
             DataGridRowReorderBehavior.SetOptions(CustomAchievementsGrid, null);
