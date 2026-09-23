@@ -787,6 +787,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _batchedFieldWrites = new List<(string, AchievementEditableField, object)>();
             _batchedNoteWrites = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var touchedAuthoredRow = false;
+
+            // Icons do not go through the field batch: they are stored as their own maps, and
+            // PersistProviderRowField writes them by calling ApplyIconEditAsync for the single row
+            // it was handed. Collected per variant here and applied once each afterwards, which is
+            // what the forward path already does through ApplyIconEditAcrossSelection.
+            var unlockedIconRows = new List<AchievementEditorRow>();
+            var lockedIconRows = new List<AchievementEditorRow>();
             try
             {
                 using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.RowValues", thresholdMs: 5))
@@ -804,6 +811,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         // the change was recorded, so there is nothing to resolve here: writing
                         // the copy re-materializes it exactly as picking a file would.
                         property.SetValue(row, reverse ? change.OldValue : change.NewValue);
+
+                        if (change.PropertyName == nameof(AchievementEditorRow.UnlockedIconPath))
+                        {
+                            unlockedIconRows.Add(row);
+                            touchedAuthoredRow |= !row.IsProviderRow;
+                            continue;
+                        }
+
+                        if (change.PropertyName == nameof(AchievementEditorRow.LockedIconPath))
+                        {
+                            lockedIconRows.Add(row);
+                            touchedAuthoredRow |= !row.IsProviderRow;
+                            continue;
+                        }
 
                         if (PersistSharedFacet(row, change.PropertyName))
                         {
@@ -836,6 +857,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             RefreshRevealHeaderState();
+
+            if (unlockedIconRows.Count > 0)
+            {
+                _ = ApplyIconEditAsync(unlockedIconRows, AchievementIconVariant.Unlocked);
+            }
+
+            if (lockedIconRows.Count > 0)
+            {
+                _ = ApplyIconEditAsync(lockedIconRows, AchievementIconVariant.Locked);
+            }
 
             // Authored rows are stored as one definition list, so a single save covers all of
             // them, exactly as it does for the forward edit.
