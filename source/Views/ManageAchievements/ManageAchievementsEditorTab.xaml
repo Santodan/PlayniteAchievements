@@ -7,7 +7,6 @@
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
-             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d"
              d:DesignHeight="620"
              d:DesignWidth="980"
@@ -185,45 +184,6 @@
                 <Setter Property="Background" Value="#12000000" />
                 <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
-
-            <!-- The unlock-time cell's date editor, in two forms. A DatePicker is the most
-                 expensive control the row template builds: every container the scroll realizes
-                 gets a DatePickerTextBox, a drop-down button and a Popup, and a scrollbar drag
-                 realizes containers continuously. A row the pointer is not over never needs a
-                 live one, so it renders the date as text in a box of the same footprint.
-
-                 Hover is the trigger rather than selection. A click that first had to select the
-                 row would land before the swap, so the calendar would need a second click to
-                 open; the pointer is always over the row before the click that opens it. A
-                 scrollbar drag keeps the pointer off the rows entirely, which is the case that
-                 prompted this. -->
-            <!-- Shared so the swap cannot shift the column. Vertical difference needs no
-                 matching: the row's own MinHeight already exceeds either form. -->
-            <sys:Double x:Key="UnlockDateBoxWidth">112</sys:Double>
-
-            <DataTemplate x:Key="UnlockDatePlaceholderTemplate">
-                <Border Width="{StaticResource UnlockDateBoxWidth}"
-                        BorderBrush="{DynamicResource NormalBorderBrush}"
-                        BorderThickness="1"
-                        Background="{DynamicResource ControlBackgroundBrush}"
-                        VerticalAlignment="Center">
-                    <TextBlock Text="{Binding UnlockDate, StringFormat=d}"
-                               Margin="6,2"
-                               VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis" />
-                </Border>
-            </DataTemplate>
-
-            <DataTemplate x:Key="UnlockDatePickerTemplate">
-                <!-- One way with the pick applied in code, like the rest of the routed cells: a
-                     two-way binding here would write on the refresh a recycled container gets,
-                     not only on a pick. -->
-                <DatePicker SelectedDate="{Binding UnlockDate, Mode=OneWay}"
-                            SelectedDateChanged="UnlockDateCell_SelectedDateChanged"
-                            Width="{StaticResource UnlockDateBoxWidth}"
-                            Padding="4,2"
-                            VerticalAlignment="Center" />
-            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -1038,23 +998,14 @@
                                                     HorizontalAlignment="Center"
                                                     VerticalAlignment="Center"
                                                     Visibility="{Binding CanEditUnlockTime, Converter={StaticResource BoolToVis}}">
-                                            <!-- Live DatePicker only while the pointer is on the
-                                                 row; see the two templates in this file's
-                                                 resources for why. -->
-                                            <ContentControl Content="{Binding}"
-                                                            Margin="0,0,6,0"
-                                                            VerticalAlignment="Center">
-                                                <ContentControl.Style>
-                                                    <Style TargetType="ContentControl">
-                                                        <Setter Property="ContentTemplate" Value="{StaticResource UnlockDatePlaceholderTemplate}" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
-                                                                <Setter Property="ContentTemplate" Value="{StaticResource UnlockDatePickerTemplate}" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </ContentControl.Style>
-                                            </ContentControl>
+                                            <!-- One way with the pick applied in code, like the
+                                                 rest of the routed cells: a two-way binding here
+                                                 would write on the refresh a recycled container
+                                                 gets, not only on a pick. -->
+                                            <DatePicker SelectedDate="{Binding UnlockDate, Mode=OneWay}"
+                                                        SelectedDateChanged="UnlockDateCell_SelectedDateChanged"
+                                                        Padding="4,2"
+                                                        Margin="0,0,6,0" />
                                             <TextBox Text="{Binding TimeText, Mode=OneWay}"
                                                      LostFocus="RoutedCellTextBox_Commit"
                                                      PreviewKeyDown="RoutedCellTextBox_KeyDown"
