@@ -2794,13 +2794,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     targets.Select(row => row.OriginalApiName),
                     StringComparer.OrdinalIgnoreCase);
 
-                // One store update drops the whole record for every target: the editable fields,
-                // the note and the icon overrides together. Clearing field by field would leave
-                // the unlock timestamp cleared rather than reverted, because "no timestamp" is
-                // itself a stored state.
-                _achievementOverridesService.ClearAchievementOverrides(_gameId, apiNames);
-
-                // Whole-collection facets: staged across the rows, then written once each.
+                // Whole-collection facets: staged across the rows first, so the maps and lists
+                // below are built from rows that already read as cleared.
                 StageAcross(targets, row =>
                 {
                     row.CategoryLabel = null;
@@ -2809,9 +2804,27 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     row.SetFilterScopeFromSource(AchievementFilterScope.None);
                 });
 
-                PersistCategoryAssignmentsFromRows();
-                PersistFiltersFromRows();
-                PersistGoalsFromRows();
+                // Every facet in one store update. Each writer used to take its own, and each
+                // Update raises CacheInvalidated and rebuilds the library projection, so one press
+                // of Reset paid that cascade six or seven times before anything reloaded. Dropping
+                // the override record stays first within the mutation for the reason it was first
+                // here: clearing field by field would leave the unlock timestamp cleared rather
+                // than reverted, because "no timestamp" is itself a stored state.
+                _achievementOverridesService.ClearCustomizations(
+                    _gameId,
+                    apiNames,
+                    BuildAssignmentMap(row => row.CategoryLabel),
+                    BuildAssignmentMap(row => row.CategoryTypeValue),
+                    BuildFilteredApiNames(),
+                    BuildSummaryFilteredApiNames(),
+                    BuildGoalApiNames(),
+                    // Nothing is left to re-seat against once the authored rows go, so a full
+                    // reset drops the order outright rather than rewriting it without them.
+                    deleteAuthored ? Array.Empty<string>() : BuildRevertedOrder(targets),
+                    clearAuthoredAchievements: deleteAuthored);
+
+                RefreshAssignmentState();
+                RaiseAssignmentsChanged();
 
                 // Reverting drops each reverted row's own capstone and leaves the rest of the set
                 // alone, so reverting one achievement cannot clear a capstone elsewhere. Cleared
@@ -2829,17 +2842,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     _achievementOverridesService.SetCapstones(_gameId, clearedCapstones);
                 }
 
+                // The order and the authored definitions went into the update above; only the
+                // notification is left.
                 if (deleteAuthored)
                 {
-                    // Nothing is left to re-seat against, so the order is dropped outright rather
-                    // than rewritten without the reverted rows.
-                    _achievementOverridesService.SetAchievementOrderOverride(_gameId, Array.Empty<string>());
-                    _achievementOverridesService.SetCustomAchievements(_gameId, Array.Empty<CustomAchievementDefinition>());
                     CustomAchievementsSaved?.Invoke(this, EventArgs.Empty);
-                }
-                else
-                {
-                    RevertOrderForRows(targets);
                 }
 
                 ReloadData();
@@ -3228,20 +3235,38 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void RevertOrderForRows(IReadOnlyList<AchievementEditorRow> targets)
         {
+            var restored = BuildRevertedOrder(targets);
+            if (restored == null)
+            {
+                return;
+            }
+
+            _achievementOverridesService.SetAchievementOrderOverride(_gameId, restored);
+        }
+
+        /// <summary>
+        /// The order with the given rows put back at their provider positions, or null when there
+        /// is no stored order to re-seat them in.
+        /// </summary>
+        /// <remarks>
+        /// Null rather than an empty list, because the two mean different things to the writer:
+        /// nothing to change, against drop the order outright.
+        /// </remarks>
+        private IReadOnlyList<string> BuildRevertedOrder(IReadOnlyList<AchievementEditorRow> targets)
+        {
             var stored = ResolveCurrentCustomData()?.AchievementOrder;
             if (stored == null || stored.Count == 0)
             {
-                return;
+                return null;
             }
 
             var current = AchievementRows
                 .Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .Select(row => new KeyValuePair<string, int>(row.OriginalApiName, row.ProviderOrderIndex))
                 .ToList();
-            var restored = AchievementOrderHelper.RestoreDefaultPositions(
+            return AchievementOrderHelper.RestoreDefaultPositions(
                 current,
                 targets.Select(row => row.OriginalApiName));
-            _achievementOverridesService.SetAchievementOrderOverride(_gameId, restored);
         }
 
         /// <summary>
@@ -5231,13 +5256,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void PersistGoalsFromRows()
         {
-            var goals = AchievementRows
+            _achievementOverridesService.SetGoalAchievements(_gameId, BuildGoalApiNames());
+            RaiseAssignmentsChanged();
+        }
+
+        private List<string> BuildGoalApiNames() =>
+            AchievementRows
                 .Where(row => row != null && row.IsGoal && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .Select(row => row.OriginalApiName)
                 .ToList();
-            _achievementOverridesService.SetGoalAchievements(_gameId, goals);
-            RaiseAssignmentsChanged();
-        }
 
         /// <summary>
         /// Rebuilds one stored assignment map from the rows, keeping only the assignments that are
@@ -6124,18 +6151,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void PersistFiltersFromRows()
         {
-            var filtered = AchievementRows
+            _achievementOverridesService.SetAchievementFilters(
+                _gameId,
+                BuildFilteredApiNames(),
+                BuildSummaryFilteredApiNames());
+            RaiseAssignmentsChanged();
+        }
+
+        // Split from the persist so a reset can fold this facet into its single store update
+        // rather than taking one of its own. Same rows, same rule.
+        private List<string> BuildFilteredApiNames() =>
+            AchievementRows
                 .Where(row => row != null && row.IsFiltered && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .Select(row => row.OriginalApiName)
                 .ToList();
-            var summaryFiltered = AchievementRows
+
+        private List<string> BuildSummaryFilteredApiNames() =>
+            AchievementRows
                 .Where(row => row != null && row.IsSummaryFiltered && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .Select(row => row.OriginalApiName)
                 .ToList();
-
-            _achievementOverridesService.SetAchievementFilters(_gameId, filtered, summaryFiltered);
-            RaiseAssignmentsChanged();
-        }
 
         private void RaiseCommandStates()
         {
