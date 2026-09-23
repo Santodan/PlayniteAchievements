@@ -227,6 +227,93 @@ namespace PlayniteAchievements.Services.GameCustomData
             DeleteMany(new[] { playniteGameId });
         }
 
+        /// <summary>
+        /// Rewrites every record still stored under an older schema, and reports how many.
+        /// </summary>
+        /// <remarks>
+        /// Normalization upgrades a record on the way out of every read, but nothing wrote the
+        /// upgraded shape back unless that particular game was edited afterwards. A game the user
+        /// has not touched since the schema moved therefore stayed at its old version forever, and
+        /// because any such record arms the migration backup, a full copy of this database was
+        /// taken on every single launch - 184 of them, 348 MB, on the machine this was found on.
+        ///
+        /// Safe by construction rather than by care: this persists exactly what
+        /// <see cref="TryDeserialize"/> already hands every caller, and deletes exactly what that
+        /// method already asks callers to delete. Nothing here decides anything a read does not
+        /// decide already - it only stops the answer being recomputed and thrown away. The backup
+        /// is taken first, by the same guard the read path uses.
+        /// </remarks>
+        public int UpgradeStoredRecordsToCurrentSchema()
+        {
+            var rows = WithDb(
+                createIfMissing: false,
+                db => db.Load<GameCustomDataRow>(
+                    $"SELECT PlayniteGameId, PayloadJson, UpdatedUtc FROM {TableName} ORDER BY PlayniteGameId;").ToList(),
+                new List<GameCustomDataRow>());
+
+            if (rows == null || rows.Count == 0)
+            {
+                return 0;
+            }
+
+            var upgraded = new List<GameCustomDataFile>();
+            var deleteIds = new List<Guid>();
+
+            foreach (var row in rows)
+            {
+                if (!Guid.TryParse(row?.PlayniteGameId, out var gameId) || gameId == Guid.Empty)
+                {
+                    continue;
+                }
+
+                // The stored version, read before normalization rewrites it. A record already at
+                // the current version is left exactly as it is: untouched bytes cannot be damaged
+                // by a defect in this sweep.
+                int storedVersion;
+                try
+                {
+                    storedVersion =
+                        JsonConvert.DeserializeObject<GameCustomDataFile>(row.PayloadJson)?.SchemaVersion ?? 0;
+                }
+                catch (Exception ex)
+                {
+                    // Left alone deliberately. A payload that will not parse is not one to rewrite
+                    // from a guess, and the read path already decides what to do with it.
+                    _logger?.Warn(ex, $"Skipped schema upgrade for unreadable custom data, gameId={gameId}.");
+                    continue;
+                }
+
+                if (storedVersion >= GameCustomDataNormalizer.CurrentSchemaVersion)
+                {
+                    continue;
+                }
+
+                if (TryDeserialize(gameId, row.PayloadJson, out var normalized, out var shouldDelete))
+                {
+                    upgraded.Add(normalized);
+                }
+                else if (shouldDelete)
+                {
+                    deleteIds.Add(gameId);
+                }
+            }
+
+            if (upgraded.Count == 0 && deleteIds.Count == 0)
+            {
+                return 0;
+            }
+
+            SaveMany(upgraded);
+            DeleteMany(deleteIds);
+
+            var total = upgraded.Count + deleteIds.Count;
+            _logger?.Info(
+                $"[GameCustomData] Upgraded {upgraded.Count} record(s) to schema " +
+                $"{GameCustomDataNormalizer.CurrentSchemaVersion} and dropped {deleteIds.Count} empty one(s). " +
+                "The migration backup will not be taken again unless a record predates the schema.");
+            return total;
+        }
+
         public IEnumerable<GameCustomDataFile> EnumerateAllNormalized()
         {
             var rows = WithDb(
