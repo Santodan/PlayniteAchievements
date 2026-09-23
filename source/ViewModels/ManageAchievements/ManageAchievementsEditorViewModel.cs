@@ -6232,6 +6232,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void RaiseCommandStates()
         {
+            // These two were the only commands left out, which is why the toolbar's undo and redo
+            // went dead while the shortcuts kept working: the shortcut calls Undo() directly, so
+            // it never consults CanExecute, while the buttons are driven by it and this is the
+            // only thing that tells them to ask again. RelayCommand raises its own event rather
+            // than riding CommandManager.RequerySuggested, so nothing else was going to.
+            UndoCommand.RaiseCanExecuteChanged();
+            RedoCommand.RaiseCanExecuteChanged();
             AddCommand.RaiseCanExecuteChanged();
             DuplicateCommand.RaiseCanExecuteChanged();
             DeleteCommand.RaiseCanExecuteChanged();
