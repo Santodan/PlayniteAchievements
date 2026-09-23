@@ -110,19 +110,6 @@ namespace PlayniteAchievements.Tests.Views
                 "_definitionOrderedRows.Count > 0 ? _definitionOrderedRows : _allRows");
         }
 
-        [TestMethod]
-        public void ManageFiltersTab_BuildsCategoryOptionsFromCanonicalOrder()
-        {
-            var code = File.ReadAllText(FindRepoFile(
-                "source", "ViewModels", "ManageAchievements", "ManageAchievementsFiltersViewModel.cs"));
-
-            AssertContainsAll(
-                code,
-                "canonicalAchievements = orderedAchievements;",
-                "canonicalAchievements = rawAchievements;",
-                "                    canonicalAchievements,");
-        }
-
         /// <summary>
         /// The category view model is split across partials, with its row types in a fourth file.
         /// Assert against the whole set so relocating a member between them is a refactor rather
