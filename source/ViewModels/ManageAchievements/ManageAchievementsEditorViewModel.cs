@@ -592,6 +592,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // ordinary edit does would let a second rebuild of every row through per press.
             SuppressExternalRefresh = true;
 
+            // Held across the write and the re-seed that follows it, not just the write. The
+            // re-seed puts the stored values back onto every row, and those assignments raise the
+            // properties an edit raises: with the flag already dropped, each row opened an undo
+            // step of its own and persisted itself. On a game of a few hundred achievements that
+            // was one store write per row, and a press of the shortcut stopped the window
+            // responding for the better part of a minute.
             _isApplyingUndo = true;
             try
             {
@@ -626,29 +632,45 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
                 _undoJournal.Clear();
                 RaiseHistoryState();
+                _isApplyingUndo = false;
                 return;
+            }
+
+            // The same batching the forward selection edit sets up in ApplyPerRow, and for the
+            // same reason: Row_PropertyChanged returns on this flag before it reaches
+            // PersistSharedFacet, so a re-seeded goal or filter is not written out again as if
+            // the user had just set it. Saved and restored rather than cleared, because
+            // SyncBulkRowFromSelection nests inside the re-seed and does the same.
+            var previousApplyingBulk = _isApplyingBulk;
+            _isApplyingBulk = true;
+            try
+            {
+                // A full reload re-hydrates the game and rebuilds every row, which is most of what
+                // a press of the shortcut costs. It is only needed when the step moved something
+                // the rows cannot be re-seeded from in place.
+                if (RequiresReloadAfterHistoryStep(entry, out var reloadForcedBy))
+                {
+                    using (Common.PerfScope.Start(
+                        _logger,
+                        "Editor.HistoryStep.Reload",
+                        thresholdMs: 10,
+                        context: "forcedBy=" + (reloadForcedBy ?? "unknown")))
+                    {
+                        ReloadData();
+                    }
+                }
+                else
+                {
+                    using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Reseed", thresholdMs: 10))
+                    {
+                        ReseedRowsAfterHistoryStep();
+                    }
+                }
             }
             finally
             {
+                _isApplyingBulk = previousApplyingBulk;
                 _isApplyingUndo = false;
-            }
-
-            // A full reload re-hydrates the game and rebuilds every row, which is most of what a
-            // press of the shortcut costs. It is only needed when the step moved something the
-            // rows cannot be re-seeded from in place.
-            if (RequiresReloadAfterHistoryStep(entry))
-            {
-                using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Reload", thresholdMs: 10))
-                {
-                    ReloadData();
-                }
-            }
-            else
-            {
-                using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Reseed", thresholdMs: 10))
-                {
-                    ReseedRowsAfterHistoryStep();
-                }
             }
 
             RaiseAssignmentsChanged();
@@ -674,10 +696,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// is the override where there is one and the provider's own otherwise, and the row
         /// already carries both, so putting one back needs no hydration.
         /// </remarks>
-        private bool RequiresReloadAfterHistoryStep(EditorUndoEntry entry)
+        /// <param name="forcedBy">
+        /// The facet that made the answer yes, for the log. A reload rebuilds every row and costs
+        /// roughly two orders of magnitude more than a re-seed, so which facets keep landing here
+        /// decides whether the list above is worth widening - and a category-type undo, whose own
+        /// facet is on that list, was seen reloading anyway.
+        /// </param>
+        private bool RequiresReloadAfterHistoryStep(EditorUndoEntry entry, out string forcedBy)
         {
+            forcedBy = null;
             foreach (var patch in entry.Facets)
             {
+                forcedBy = patch.Facet.ToString();
                 switch (patch.Facet)
                 {
                     case GameCustomDataFacet.Capstones:
@@ -704,6 +734,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
             }
 
+            forcedBy = entry.Facets.Count == 0 ? "None" : null;
             return entry.Facets.Count == 0;
         }
 
@@ -731,8 +762,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     continue;
                 }
 
-                // From the source, so putting a value back does not read as a fresh edit and
-                // write itself out again.
+                // From the source, so the row's own setter does not treat this as an edit. The
+                // change notification still goes out, because the grid has to redraw - it is the
+                // caller's _isApplyingUndo and _isApplyingBulk that stop Row_PropertyChanged
+                // turning that notification back into a write.
                 row.SetGoalFromSource(goals.Contains(apiName));
                 row.SetFilterScopeFromSource(
                     filtered.Contains(apiName)
@@ -3733,7 +3766,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     AttachRow(row, useSeparateLockedIcons);
                 }
+            }
 
+            // Measured apart from the attach loop above, which it used to share a scope with.
+            // Together they read as 113ms on a 641-row reload and under 5ms on the first load of
+            // the same game - and the difference between those two is not the rows, it is whether
+            // a grid was bound to this collection yet. The reset is raised synchronously, so
+            // whatever the view does with it is charged here.
+            using (Common.PerfScope.Start(
+                _logger,
+                "Editor.ReplaceRows.Reset",
+                thresholdMs: 5,
+                context: "rows=" + materializedRows.Count))
+            {
                 // One Reset for the whole set. The clear plus per-row add this replaces raised a
                 // collection change per row, and the grid's filtered view re-ran for each one.
                 AchievementRows.ReplaceAll(materializedRows);
@@ -3766,48 +3811,72 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </param>
         private void RefreshAssignmentState(ResolvedGameCustomData resolved = null)
         {
+            // Measured at 36-45ms on a 641-row game, and it runs once per gesture from twelve
+            // call sites - every save, every capstone write, every assignment write, the reload
+            // and the undo re-seed. Only the reload's call was instrumented, so the other eleven
+            // did not show up anywhere. Which of the three parts below the time is in has not
+            // been established, so each carries its own scope rather than a fourth guess at it.
+            // Whether the record arrived pre-resolved rides on the context: ten of the callers
+            // pass nothing and pay for a resolve of their own.
+            using var assignmentScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.RefreshAssignmentState",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count + " preresolved=" + (resolved != null));
+
             _isRefreshingAssignments = true;
             try
             {
                 // One resolve for all three: this runs after every save, and each lookup helper
                 // would otherwise clone the game's whole record again.
-                resolved = resolved ?? ResolveCurrentCustomData();
+                using (Common.PerfScope.Start(_logger, "Editor.RefreshAssignmentState.Resolve", thresholdMs: 10))
+                {
+                    resolved = resolved ?? ResolveCurrentCustomData();
+                }
+
                 var categoryOverrides = GetCurrentCategoryOverrideMap(resolved);
                 var categoryTypeOverrides = GetCurrentCategoryTypeOverrideMap(resolved);
                 var capstones = BuildCapstoneState(resolved);
 
-                foreach (var row in AchievementRows)
+                using (Common.PerfScope.Start(_logger, "Editor.RefreshAssignmentState.Rows", thresholdMs: 10))
                 {
-                    var apiName = NormalizeText(row?.OriginalApiName);
-                    if (row == null)
+                    foreach (var row in AchievementRows)
                     {
-                        continue;
-                    }
+                        var apiName = NormalizeText(row?.OriginalApiName);
+                        if (row == null)
+                        {
+                            continue;
+                        }
 
-                    if (string.IsNullOrWhiteSpace(apiName))
-                    {
-                        row.CategoryLabel = null;
-                        row.CategoryTypeValue = null;
-                        row.SetCapstoneStateFromSource(false, null, null, null);
-                        continue;
-                    }
+                        if (string.IsNullOrWhiteSpace(apiName))
+                        {
+                            row.CategoryLabel = null;
+                            row.CategoryTypeValue = null;
+                            row.SetCapstoneStateFromSource(false, null, null, null);
+                            continue;
+                        }
 
-                    // Blank, not the Default sentinel: these two fields hold the user's override
-                    // and the writers rebuild the whole stored map from them, so a row standing in
-                    // for "no override" has to be empty. Filling it with Default instead made every
-                    // uncustomized achievement look like one deliberately filed under Default, and
-                    // the next write stamped that over the category its provider gave it.
-                    row.CategoryLabel = categoryOverrides.TryGetValue(apiName, out var category)
-                        ? category
-                        : null;
-                    row.CategoryTypeValue = categoryTypeOverrides.TryGetValue(apiName, out var categoryType)
-                        ? categoryType
-                        : null;
-                    ApplyCapstoneStateToRow(row, apiName, capstones);
+                        // Blank, not the Default sentinel: these two fields hold the user's
+                        // override and the writers rebuild the whole stored map from them, so a
+                        // row standing in for "no override" has to be empty. Filling it with
+                        // Default instead made every uncustomized achievement look like one
+                        // deliberately filed under Default, and the next write stamped that over
+                        // the category its provider gave it.
+                        row.CategoryLabel = categoryOverrides.TryGetValue(apiName, out var category)
+                            ? category
+                            : null;
+                        row.CategoryTypeValue = categoryTypeOverrides.TryGetValue(apiName, out var categoryType)
+                            ? categoryType
+                            : null;
+                        ApplyCapstoneStateToRow(row, apiName, capstones);
+                    }
                 }
 
-                RefreshAssignableCategoryOptions(resolved);
-                SyncTypeOptionsToEditTarget();
+                using (Common.PerfScope.Start(_logger, "Editor.RefreshAssignmentState.Options", thresholdMs: 10))
+                {
+                    RefreshAssignableCategoryOptions(resolved);
+                    SyncTypeOptionsToEditTarget();
+                }
             }
             catch (Exception ex)
             {
@@ -6163,6 +6232,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void RaiseCommandStates()
         {
+            // These two were the only commands left out, which is why the toolbar's undo and redo
+            // went dead while the shortcuts kept working: the shortcut calls Undo() directly, so
+            // it never consults CanExecute, while the buttons are driven by it and this is the
+            // only thing that tells them to ask again. RelayCommand raises its own event rather
+            // than riding CommandManager.RequerySuggested, so nothing else was going to.
+            UndoCommand.RaiseCanExecuteChanged();
+            RedoCommand.RaiseCanExecuteChanged();
             AddCommand.RaiseCanExecuteChanged();
             DuplicateCommand.RaiseCanExecuteChanged();
             DeleteCommand.RaiseCanExecuteChanged();
@@ -6261,6 +6337,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isProviderRow;
         private AchievementCustomizationFacet _customizationFacets;
         private string _customizationToolTip;
+
+        // Separate from the string being null, because null is a real tooltip: an untouched row
+        // has none, and that answer is worth caching too.
+        private bool _customizationToolTipBuilt;
         private bool _providerBaselinesKnown;
         private string _achievementNote;
         private bool _isGoal;
@@ -6950,10 +7030,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _customizationFacets, value))
                 {
-                    // Built here rather than in the getter: the grid reads it once per row
-                    // realization, and rebuilding it there meant a string lookup per facet every
-                    // time a row scrolled back into view.
-                    _customizationToolTip = BuildCustomizationToolTip(value);
+                    // Invalidated here, built on the first read. Building it here instead was to
+                    // stop a rebuild on every row realization, and the cache below still does
+                    // that - but it also charged every row whose facets moved for a string lookup
+                    // per facet, whether or not anything ever displayed the result.
+                    // RefreshAssignmentState moves the facets on every row it touches, and
+                    // undoing a selection-wide assignment touches all of them, while the grid
+                    // only ever reads the tooltip of a row it has realized.
+                    _customizationToolTip = null;
+                    _customizationToolTipBuilt = false;
                     OnPropertyChanged(nameof(IsCustomized));
                     OnPropertyChanged(nameof(IsAuthored));
                     OnPropertyChanged(nameof(CustomizationToolTip));
@@ -6975,7 +7060,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// Names what was customized, one facet per line under a heading. Null on an untouched
         /// row, which leaves the marker's cell without a tooltip.
         /// </summary>
-        public string CustomizationToolTip => _customizationToolTip;
+        public string CustomizationToolTip
+        {
+            get
+            {
+                if (!_customizationToolTipBuilt)
+                {
+                    _customizationToolTip = BuildCustomizationToolTip(_customizationFacets);
+                    _customizationToolTipBuilt = true;
+                }
+
+                return _customizationToolTip;
+            }
+        }
 
         /// <summary>
         /// Recomputes <see cref="CustomizationFacets"/>. Called for the row's own edits through

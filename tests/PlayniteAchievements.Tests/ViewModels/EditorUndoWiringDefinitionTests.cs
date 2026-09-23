@@ -172,6 +172,47 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "keeps its name while its contents change.");
         }
 
+        [TestMethod]
+        public void TheReSeed_RunsInsideBothGuardsRatherThanAfterThem()
+        {
+            // The re-seed puts the stored values back onto every row, and a row cannot tell that
+            // assignment from an edit: it raises IsGoal and the filter flags either way. With the
+            // guards dropped beforehand, each row opened its own undo step and persisted itself,
+            // and the filter facet rebuilt both whole lists from every row before each write. One
+            // press measured 23.8s of blocked UI and 1296 store writes on a 641-row game.
+            var apply = ExtractMethod(
+                ReadViewModel(),
+                "private void ApplyHistoryStep(EditorUndoEntry entry, bool reverse)");
+
+            var reseed = apply.IndexOf("ReseedRowsAfterHistoryStep()", StringComparison.Ordinal);
+            Assert.IsTrue(reseed >= 0, "ApplyHistoryStep no longer re-seeds.");
+
+            var bulkGuard = apply.IndexOf("_isApplyingBulk = true", StringComparison.Ordinal);
+            Assert.IsTrue(
+                bulkGuard >= 0 && bulkGuard < reseed,
+                "Row_PropertyChanged returns on _isApplyingBulk before it reaches " +
+                "PersistSharedFacet, so the re-seed has to be inside it.");
+
+            var released = apply.LastIndexOf("_isApplyingUndo = false", StringComparison.Ordinal);
+            Assert.IsTrue(
+                released > reseed,
+                "_isApplyingUndo is what stops MarkUndoIntent opening a step per row, so it " +
+                "must not be cleared until the re-seed has finished.");
+        }
+
+        [TestMethod]
+        public void TheToolbarButtons_AreToldToAskAgainWhenTheHistoryMoves()
+        {
+            // The shortcut calls Undo() straight out and never consults CanExecute, so it kept
+            // working while the buttons went dead: RelayCommand raises its own CanExecuteChanged
+            // rather than riding CommandManager.RequerySuggested, and these two were the only
+            // commands left out of the refresh.
+            var raise = ExtractMethod(ReadViewModel(), "private void RaiseCommandStates()");
+
+            StringAssert.Contains(raise, "UndoCommand.RaiseCanExecuteChanged()");
+            StringAssert.Contains(raise, "RedoCommand.RaiseCanExecuteChanged()");
+        }
+
         /// <summary>
         /// A method body, by its signature line, matched to the closing brace at its own indent.
         /// </summary>

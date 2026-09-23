@@ -224,6 +224,17 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 viewModel.RestoreSelectionRequested -= ViewModel_RestoreSelectionRequested;
             }
 
+            CustomAchievementsGrid.LoadingRow -= AchievementsGrid_LoadingRow;
+
+            // Both of these otherwise tear down on Unloaded alone, which is exactly what this
+            // method exists because WPF does not guarantee. Each registers its hooks through
+            // DependencyPropertyDescriptor.AddValueChanged, whose table is process-wide, so a
+            // missed teardown roots the grid and every realized row for the life of the process.
+            // Setting the attached property false routes through each behavior's own Detach,
+            // which is guarded and safe to reach after an Unloaded that did fire.
+            DataGridHoverScrollBarBehavior.SetIsEnabled(CustomAchievementsGrid, false);
+            DataGridColumnGripperBehavior.SetIsEnabled(CustomAchievementsGrid, false);
+
             // Routes through OnOptionsChanged, which disposes the reorder state: its drag
             // subscriptions, its auto-scroll timer and the closures it holds over this tab.
             DataGridRowReorderBehavior.SetOptions(CustomAchievementsGrid, null);
@@ -376,8 +387,17 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // single row. Any gap wider than a realization ends the window: the pending count is
             // reported with the time it actually took, and the next burst starts clean.
             var now = _rowRealizationWindow.Elapsed.TotalMilliseconds;
-            var gap = now - _lastRowRealizationMs;
-            if (_realizedRowCount > 0 && gap > RowRealizationIdleGapMs)
+            if (_realizedRowCount == 0)
+            {
+                // Nothing pending means the last batch was already reported, and everything since
+                // was idle. The gap test below cannot catch this - it needs a pending row to
+                // report - so the first row of a new window was charged the whole wait since the
+                // previous report. That is what produced "realized=1 ms=5519" for one row, and it
+                // inflated the leading edge of every batch that followed an idle pause.
+                _rowRealizationWindow.Restart();
+                now = 0;
+            }
+            else if (now - _lastRowRealizationMs > RowRealizationIdleGapMs)
             {
                 ReportRowRealization(_realizedRowCount, _lastRowRealizationMs);
                 _realizedRowCount = 0;

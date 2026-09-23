@@ -338,6 +338,11 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsTrue(
                 entry.IsRowValueStep,
                 "Reversing the field is an edit; restoring the record it lives in is not.");
+            Assert.IsTrue(
+                entry.Facets == null || entry.Facets.Count == 0,
+                "The record diff is not read for a step held as fields, which is why it is no " +
+                "longer computed for one: it walked both sides of every facet and compared each " +
+                "entry by serializing it, on every field edit.");
             var change = entry.RowValues.Single();
             Assert.AreEqual("one", change.ApiName);
             Assert.AreEqual("PointsText", change.PropertyName);
