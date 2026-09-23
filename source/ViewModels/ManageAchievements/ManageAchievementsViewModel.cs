@@ -192,31 +192,45 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
-                if (value == ManageAchievementsTab.ManualTracking &&
-                    ShouldWarnAboutManualTrackingOverride(out var existingProviderKey) &&
-                    !string.Equals(_manualTrackingWarningAcceptedForProvider, existingProviderKey, StringComparison.OrdinalIgnoreCase))
-                {
-                    var displayName = ProviderRegistry.GetLocalizedName(existingProviderKey);
-                    var message = string.Format(
-                        L("LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning"),
-                        displayName);
-
-                    var result = _playniteApi?.Dialogs?.ShowMessage(
-                        message,
-                        L("LOCPlayAch_Title_PluginName"),
-                        MessageBoxButton.OKCancel,
-                        MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-                    if (result != MessageBoxResult.OK)
-                    {
-                        return;
-                    }
-
-                    _manualTrackingWarningAcceptedForProvider = existingProviderKey;
-                }
-
                 SetValue(ref _selectedTab, value);
             }
+        }
+
+        /// <summary>
+        /// Warns, once per provider, that linking manual tracking replaces the data the game
+        /// already has from a provider. Returns false when the user backs out.
+        /// </summary>
+        /// <remarks>
+        /// This used to guard opening the Manual Tracking tab. The editor took the tab's place and
+        /// runs linking from its own header, so the warning moved to that command rather than
+        /// going away with the tab.
+        /// </remarks>
+        public bool ConfirmManualTrackingOverride()
+        {
+            if (!ShouldWarnAboutManualTrackingOverride(out var existingProviderKey) ||
+                string.Equals(_manualTrackingWarningAcceptedForProvider, existingProviderKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var displayName = ProviderRegistry.GetLocalizedName(existingProviderKey);
+            var message = string.Format(
+                L("LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning"),
+                displayName);
+
+            var result = _playniteApi?.Dialogs?.ShowMessage(
+                message,
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) ?? MessageBoxResult.None;
+
+            if (result != MessageBoxResult.OK)
+            {
+                return false;
+            }
+
+            _manualTrackingWarningAcceptedForProvider = existingProviderKey;
+            return true;
         }
 
         /// <summary>
