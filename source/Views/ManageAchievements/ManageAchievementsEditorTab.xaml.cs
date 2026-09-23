@@ -387,8 +387,17 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // single row. Any gap wider than a realization ends the window: the pending count is
             // reported with the time it actually took, and the next burst starts clean.
             var now = _rowRealizationWindow.Elapsed.TotalMilliseconds;
-            var gap = now - _lastRowRealizationMs;
-            if (_realizedRowCount > 0 && gap > RowRealizationIdleGapMs)
+            if (_realizedRowCount == 0)
+            {
+                // Nothing pending means the last batch was already reported, and everything since
+                // was idle. The gap test below cannot catch this - it needs a pending row to
+                // report - so the first row of a new window was charged the whole wait since the
+                // previous report. That is what produced "realized=1 ms=5519" for one row, and it
+                // inflated the leading edge of every batch that followed an idle pause.
+                _rowRealizationWindow.Restart();
+                now = 0;
+            }
+            else if (now - _lastRowRealizationMs > RowRealizationIdleGapMs)
             {
                 ReportRowRealization(_realizedRowCount, _lastRowRealizationMs);
                 _realizedRowCount = 0;
