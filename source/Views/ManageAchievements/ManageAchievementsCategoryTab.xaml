@@ -701,6 +701,31 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
+                        <DataGridTemplateColumn Width="Auto"
+                                                MinWidth="120"
+                                                CanUserResize="False"
+                                                CanUserSort="False"
+                                                Header="{DynamicResource LOCPlayAch_Menu_Filters}">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <!-- One way: picking a scope pushes it onto every achievement in
+                                         this category and its subcategories, and the cell then shows
+                                         what they hold. The OneWay binding keeps the view model the
+                                         single writer, and a subtree whose members disagree carries
+                                         Mixed, which matches no item and so renders blank. -->
+                                    <ComboBox ItemsSource="{Binding DataContext.FilterScopeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                              DisplayMemberPath="DisplayName"
+                                              SelectedValuePath="Value"
+                                              SelectedValue="{Binding FilterScope, Mode=OneWay}"
+                                              IsEnabled="{Binding CanEditFilterScope}"
+                                              SelectionChanged="CategoryFilterScopeComboBox_SelectionChanged"
+                                              ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_FilterScopeTooltip}"
+                                              VerticalAlignment="Center"
+                                              Margin="4,0" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
                     </DataGrid.Columns>
                 </DataGrid>
 
