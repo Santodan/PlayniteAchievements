@@ -964,6 +964,95 @@ namespace PlayniteAchievements.Services.Achievements
                 affectsSummaryData: true);
         }
 
+        /// <summary>
+        /// Clears a game's stored customization in one store update.
+        /// </summary>
+        /// <remarks>
+        /// Reset and Revert used to walk the individual writers in turn - the override records,
+        /// the category maps, the filters, the goals, the order, and for a full reset the authored
+        /// definitions - and every one of those is its own <c>Update</c>: a load, a deep clone, a
+        /// normalize, a serialize, a SQLite write, and a <c>CacheInvalidated</c> that rebuilds the
+        /// library projection. One button press therefore paid that cascade six or seven times.
+        /// The mutations are independent of each other, so they compose into a single update, the
+        /// same way <see cref="SetIconOverridesAndCustomAchievementIcons"/> folds its two halves.
+        ///
+        /// Order matters within the mutation and matches the sequence it replaced: the override
+        /// records are dropped first, then the category maps are rewritten, so a map that still
+        /// carries an assignment re-creates that entry rather than being erased by the clear.
+        ///
+        /// Capstones stay a separate call. Clearing one has to resolve the game's capstone
+        /// candidates, refuse to materialize a set when no achievements are loaded, and decide for
+        /// itself whether summaries move - none of which is a mutation that can be inlined here.
+        /// </remarks>
+        public void ClearCustomizations(
+            Guid gameId,
+            IEnumerable<string> achievementApiNames,
+            IReadOnlyDictionary<string, string> categoryOverrides,
+            IReadOnlyDictionary<string, string> categoryTypeOverrides,
+            IEnumerable<string> filteredAchievementApiNames,
+            IEnumerable<string> summaryFilteredAchievementApiNames,
+            IReadOnlyList<string> goalApiNames,
+            IReadOnlyList<string> orderedApiNames,
+            bool clearAuthoredAchievements)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in achievementApiNames ?? Array.Empty<string>())
+            {
+                var apiName = AchievementNoteHelper.NormalizeApiName(name);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    targets.Add(apiName);
+                }
+            }
+
+            var normalizedGoals = AchievementOrderHelper.NormalizeApiNames(goalApiNames);
+
+            // A dropped record may have carried a points or trophy-type override, both of which
+            // the summary SQL resolves through the mirror, so the rebuild is warranted.
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    if (targets.Count > 0)
+                    {
+                        var overrides = CloneOverrides(customData);
+                        foreach (var apiName in targets)
+                        {
+                            overrides.Remove(apiName);
+                        }
+
+                        StoreOverrides(customData, overrides);
+                    }
+
+                    ReplaceOverrideField(customData, categoryOverrides, (entry, value) => entry.Category = value);
+                    ReplaceOverrideField(customData, categoryTypeOverrides, (entry, value) => entry.CategoryType = value);
+
+                    customData.FilteredAchievementApiNames = CopyApiNames(filteredAchievementApiNames);
+                    customData.SummaryFilteredAchievementApiNames = CopyApiNames(summaryFilteredAchievementApiNames);
+
+                    customData.GoalAchievementApiNames = normalizedGoals.Count > 0 ? normalizedGoals : null;
+
+                    // Null leaves the stored order alone, which is what a revert wants when there
+                    // was no custom order to re-seat against; an empty list drops it outright,
+                    // which is what a full reset wants.
+                    if (orderedApiNames != null)
+                    {
+                        customData.AchievementOrder = new List<string>(orderedApiNames);
+                    }
+
+                    if (clearAuthoredAchievements)
+                    {
+                        customData.CustomAchievements = null;
+                    }
+                },
+                affectsSummaryData: true);
+        }
+
         public void SetAchievementNote(Guid gameId, string achievementApiName, string note)
         {
             if (gameId == Guid.Empty)
