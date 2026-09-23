@@ -200,6 +200,19 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "must not be cleared until the re-seed has finished.");
         }
 
+        [TestMethod]
+        public void TheToolbarButtons_AreToldToAskAgainWhenTheHistoryMoves()
+        {
+            // The shortcut calls Undo() straight out and never consults CanExecute, so it kept
+            // working while the buttons went dead: RelayCommand raises its own CanExecuteChanged
+            // rather than riding CommandManager.RequerySuggested, and these two were the only
+            // commands left out of the refresh.
+            var raise = ExtractMethod(ReadViewModel(), "private void RaiseCommandStates()");
+
+            StringAssert.Contains(raise, "UndoCommand.RaiseCanExecuteChanged()");
+            StringAssert.Contains(raise, "RedoCommand.RaiseCanExecuteChanged()");
+        }
+
         /// <summary>
         /// A method body, by its signature line, matched to the closing brace at its own indent.
         /// </summary>
