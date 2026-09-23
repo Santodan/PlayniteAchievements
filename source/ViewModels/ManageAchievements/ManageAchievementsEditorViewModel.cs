@@ -3786,48 +3786,72 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </param>
         private void RefreshAssignmentState(ResolvedGameCustomData resolved = null)
         {
+            // Measured at 36-45ms on a 641-row game, and it runs once per gesture from twelve
+            // call sites - every save, every capstone write, every assignment write, the reload
+            // and the undo re-seed. Only the reload's call was instrumented, so the other eleven
+            // did not show up anywhere. Which of the three parts below the time is in has not
+            // been established, so each carries its own scope rather than a fourth guess at it.
+            // Whether the record arrived pre-resolved rides on the context: ten of the callers
+            // pass nothing and pay for a resolve of their own.
+            using var assignmentScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.RefreshAssignmentState",
+                thresholdMs: 10,
+                context: "rows=" + AchievementRows.Count + " preresolved=" + (resolved != null));
+
             _isRefreshingAssignments = true;
             try
             {
                 // One resolve for all three: this runs after every save, and each lookup helper
                 // would otherwise clone the game's whole record again.
-                resolved = resolved ?? ResolveCurrentCustomData();
+                using (Common.PerfScope.Start(_logger, "Editor.RefreshAssignmentState.Resolve", thresholdMs: 10))
+                {
+                    resolved = resolved ?? ResolveCurrentCustomData();
+                }
+
                 var categoryOverrides = GetCurrentCategoryOverrideMap(resolved);
                 var categoryTypeOverrides = GetCurrentCategoryTypeOverrideMap(resolved);
                 var capstones = BuildCapstoneState(resolved);
 
-                foreach (var row in AchievementRows)
+                using (Common.PerfScope.Start(_logger, "Editor.RefreshAssignmentState.Rows", thresholdMs: 10))
                 {
-                    var apiName = NormalizeText(row?.OriginalApiName);
-                    if (row == null)
+                    foreach (var row in AchievementRows)
                     {
-                        continue;
-                    }
+                        var apiName = NormalizeText(row?.OriginalApiName);
+                        if (row == null)
+                        {
+                            continue;
+                        }
 
-                    if (string.IsNullOrWhiteSpace(apiName))
-                    {
-                        row.CategoryLabel = null;
-                        row.CategoryTypeValue = null;
-                        row.SetCapstoneStateFromSource(false, null, null, null);
-                        continue;
-                    }
+                        if (string.IsNullOrWhiteSpace(apiName))
+                        {
+                            row.CategoryLabel = null;
+                            row.CategoryTypeValue = null;
+                            row.SetCapstoneStateFromSource(false, null, null, null);
+                            continue;
+                        }
 
-                    // Blank, not the Default sentinel: these two fields hold the user's override
-                    // and the writers rebuild the whole stored map from them, so a row standing in
-                    // for "no override" has to be empty. Filling it with Default instead made every
-                    // uncustomized achievement look like one deliberately filed under Default, and
-                    // the next write stamped that over the category its provider gave it.
-                    row.CategoryLabel = categoryOverrides.TryGetValue(apiName, out var category)
-                        ? category
-                        : null;
-                    row.CategoryTypeValue = categoryTypeOverrides.TryGetValue(apiName, out var categoryType)
-                        ? categoryType
-                        : null;
-                    ApplyCapstoneStateToRow(row, apiName, capstones);
+                        // Blank, not the Default sentinel: these two fields hold the user's
+                        // override and the writers rebuild the whole stored map from them, so a
+                        // row standing in for "no override" has to be empty. Filling it with
+                        // Default instead made every uncustomized achievement look like one
+                        // deliberately filed under Default, and the next write stamped that over
+                        // the category its provider gave it.
+                        row.CategoryLabel = categoryOverrides.TryGetValue(apiName, out var category)
+                            ? category
+                            : null;
+                        row.CategoryTypeValue = categoryTypeOverrides.TryGetValue(apiName, out var categoryType)
+                            ? categoryType
+                            : null;
+                        ApplyCapstoneStateToRow(row, apiName, capstones);
+                    }
                 }
 
-                RefreshAssignableCategoryOptions(resolved);
-                SyncTypeOptionsToEditTarget();
+                using (Common.PerfScope.Start(_logger, "Editor.RefreshAssignmentState.Options", thresholdMs: 10))
+                {
+                    RefreshAssignableCategoryOptions(resolved);
+                    SyncTypeOptionsToEditTarget();
+                }
             }
             catch (Exception ex)
             {
