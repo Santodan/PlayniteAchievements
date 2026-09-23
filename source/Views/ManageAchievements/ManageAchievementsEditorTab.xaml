@@ -7,6 +7,7 @@
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d"
              d:DesignHeight="620"
              d:DesignWidth="980"
@@ -196,40 +197,20 @@
                  open; the pointer is always over the row before the click that opens it. A
                  scrollbar drag keeps the pointer off the rows entirely, which is the case that
                  prompted this. -->
-            <!-- The resting form mirrors PlayAch.DatePicker.BaseStyle's control template part for
-                 part: same border brush, thickness, corner radius, background, MinHeight, body
-                 font, content padding, and the same Marlett drop-down glyph at the same padding
-                 on the right. Matching the template rather than approximating it is what keeps
-                 the hover swap from reading as a change of control: nothing about the box moves
-                 or restyles, the border just picks up the accent the DatePicker's own IsMouseOver
-                 trigger gives it. Both forms size to their content, so neither pins a width that
-                 the column or the date's locale format could outgrow.
+            <!-- Shared so the swap cannot shift the column. Vertical difference needs no
+                 matching: the row's own MinHeight already exceeds either form. -->
+            <sys:Double x:Key="UnlockDateBoxWidth">112</sys:Double>
 
-                 Keep this in step with that style. It is a deliberate copy of a control template,
-                 which is the cost of not building the control. -->
             <DataTemplate x:Key="UnlockDatePlaceholderTemplate">
-                <Border Background="{DynamicResource PlayAch.Brush.Input.Background}"
-                        BorderBrush="{DynamicResource PlayAch.Brush.Input.Border}"
-                        BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                        CornerRadius="{StaticResource PlayAch.Radius.Small}"
-                        MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                        SnapsToDevicePixels="True"
+                <Border Width="{StaticResource UnlockDateBoxWidth}"
+                        BorderBrush="{DynamicResource NormalBorderBrush}"
+                        BorderThickness="1"
+                        Background="{DynamicResource ControlBackgroundBrush}"
                         VerticalAlignment="Center">
-                    <DockPanel>
-                        <TextBlock DockPanel.Dock="Right"
-                                   Text="6"
-                                   FontFamily="Marlett"
-                                   FontSize="11"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   Padding="6,0"
-                                   VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding UnlockDate, StringFormat=d}"
-                                   Padding="6,0,2,0"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
-                                   FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                   VerticalAlignment="Center" />
-                    </DockPanel>
+                    <TextBlock Text="{Binding UnlockDate, StringFormat=d}"
+                               Margin="6,2"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
                 </Border>
             </DataTemplate>
 
@@ -239,6 +220,8 @@
                      not only on a pick. -->
                 <DatePicker SelectedDate="{Binding UnlockDate, Mode=OneWay}"
                             SelectedDateChanged="UnlockDateCell_SelectedDateChanged"
+                            Width="{StaticResource UnlockDateBoxWidth}"
+                            Padding="4,2"
                             VerticalAlignment="Center" />
             </DataTemplate>
         </ResourceDictionary>
