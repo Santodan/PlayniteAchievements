@@ -961,6 +961,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return false;
             }
 
+            if (!_viewModel.ConfirmManualTrackingOverride())
+            {
+                return false;
+            }
+
             var availableSources = _manualSourceRegistry?.GetAllSources()?.ToList();
             if (availableSources == null || availableSources.Count == 0)
             {
