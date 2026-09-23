@@ -481,6 +481,24 @@
                                              ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
                             </Button.ContextMenu>
                         </Button>
+                        <!-- Unlocked, locked and hidden as alternatives rather than as three
+                             independent switches: ticking Hidden adds the hidden rows to whatever
+                             else is ticked instead of hiding the rest. -->
+                        <Button x:Name="StateFilterButton"
+                                DataContext="{Binding StateFilter}"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding DisplayText}"
+                                Click="MultiSelectFilter_Click"
+                                MinWidth="{Binding MinWidth}"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                ToolTip="{DynamicResource LOCPlayAch_Column_Status}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
+                            </Button.ContextMenu>
+                        </Button>
                         <!-- Narrows to what the user has touched, the counterpart to the marker
                              each customized row carries in its handle cell. -->
                         <Button x:Name="CustomizationFilterButton"
