@@ -1068,6 +1068,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // Stamping the filter scopes touches every row, and the trailing
+            // RefreshCategoryMetadataState is itself a pass over all of them, so letting the
+            // notifications through would make a stamp quadratic. Nothing is lost by skipping it:
+            // that state tracks the art values, which a filter scope does not move.
+            if (_isStampingFilterScopes)
+            {
+                return;
+            }
+
             if (e.PropertyName == nameof(ManageAchievementsCategoryMetadataItem.ArtOverrideValue) &&
                 !_isPersistingCategoryMetadata)
             {
@@ -1209,6 +1218,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 StringComparison.OrdinalIgnoreCase));
             StampIndentAffordances(rows);
             StampCategoryTreeShapes(rows);
+            _subtreeApiNamesByLabel = BuildSubtreeApiNamesByLabel();
+            StampCategoryFilterScopes(rows);
             ReplaceCategoryRows(rows);
         }
 

@@ -63,6 +63,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _hasCustomSummaryCategory;
         private bool _isEnforcingSummarySelection;
         private bool _isPersistingCategoryMetadata;
+        private bool _isStampingFilterScopes;
         private bool _hasCategoryImageValidationErrors;
         private bool _hasDeferredLibraryRefresh;
         private string _categoryImageStatusText;
