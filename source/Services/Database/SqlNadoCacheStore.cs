@@ -4624,6 +4624,12 @@ namespace PlayniteAchievements.Services.Database
             IEnumerable<FriendGameSummaryRow> rows,
             Dictionary<Guid, GamePresentation> presentationCache)
         {
+            // Memoized like the presentation cache beside it: a library holds a few dozen
+            // provider keys and a great many rows, and the name is a localized resource lookup
+            // with string interpolation behind it.
+            var providerVisuals =
+                new Dictionary<string, Tuple<string, string, string>>(StringComparer.OrdinalIgnoreCase);
+
             return (rows ?? Enumerable.Empty<FriendGameSummaryRow>())
                 .Where(row => row != null)
                 .Select(row =>
@@ -4633,12 +4639,24 @@ namespace PlayniteAchievements.Services.Database
                     // Display the underlying provider (e.g. EA) via visual fields, but keep the raw
                     // aggregator ProviderKey for identity comparisons and refresh targeting.
                     var displayProviderKey = ResolveDisplayProviderKey(row.ProviderKey, row.ProviderPlatformKey);
-                    var providerName = ProviderRegistry.GetLocalizedName(displayProviderKey);
-                    if (!ProviderRegistry.TryResolveProviderVisuals(displayProviderKey, out var providerIconKey, out var providerColorHex))
+                    if (!providerVisuals.TryGetValue(displayProviderKey ?? string.Empty, out var visuals))
                     {
-                        providerIconKey = string.IsNullOrWhiteSpace(displayProviderKey) ? null : "ProviderIcon" + displayProviderKey;
-                        providerColorHex = "#888888";
+                        var resolvedName = ProviderRegistry.GetLocalizedName(displayProviderKey);
+                        if (!ProviderRegistry.TryResolveProviderVisuals(displayProviderKey, out var resolvedIconKey, out var resolvedColorHex))
+                        {
+                            resolvedIconKey = string.IsNullOrWhiteSpace(displayProviderKey)
+                                ? null
+                                : "ProviderIcon" + displayProviderKey;
+                            resolvedColorHex = "#888888";
+                        }
+
+                        visuals = Tuple.Create(resolvedName, resolvedIconKey, resolvedColorHex);
+                        providerVisuals[displayProviderKey ?? string.Empty] = visuals;
                     }
+
+                    var providerName = visuals.Item1;
+                    var providerIconKey = visuals.Item2;
+                    var providerColorHex = visuals.Item3;
 
                     return new FriendGameSummaryItem
                     {
