@@ -133,6 +133,120 @@ namespace PlayniteAchievements.Services.Overview
             }
         }
 
+        /// <summary>
+        /// Applies every total derived from the game summaries in one pass: counts, rarity,
+        /// completions, trophies, the two per-provider maps, and the raw collector and prestige
+        /// scores.
+        /// </summary>
+        /// <remarks>
+        /// The two snapshot builders used to compute these as roughly twenty separate LINQ
+        /// <c>Sum</c>/<c>Count</c> calls plus a loop, so each build walked the library about
+        /// twenty times over. The overview rebuilds a snapshot on every delta tick, and the pie
+        /// charts build two more, so one custom-data edit paid that many library walks. The
+        /// arithmetic is unchanged -- only the number of passes is.
+        ///
+        /// <paramref name="addClamped"/> is how the caller adds the two scores; both saturate
+        /// rather than overflow.
+        /// </remarks>
+        public void ApplyGameSummaryTotals(
+            IReadOnlyList<GameSummaryItem> games,
+            Func<int, int, int> addClamped)
+        {
+            TotalGames = games?.Count ?? 0;
+            TotalAchievements = 0;
+            TotalUnlocked = 0;
+            TotalCommon = 0;
+            TotalUncommon = 0;
+            TotalRare = 0;
+            TotalUltraRare = 0;
+            TotalCommonPossible = 0;
+            TotalUncommonPossible = 0;
+            TotalRarePossible = 0;
+            TotalUltraRarePossible = 0;
+            CompletedGames = 0;
+            Completions = 0;
+            PossibleCompletions = 0;
+            CollectorScore = 0;
+            PrestigeScore = 0;
+            TotalPlatinum = 0;
+            TotalGold = 0;
+            TotalSilver = 0;
+            TotalBronze = 0;
+            TotalPlatinumPossible = 0;
+            TotalGoldPossible = 0;
+            TotalSilverPossible = 0;
+            TotalBronzePossible = 0;
+
+            if (UnlockedByProvider == null)
+            {
+                UnlockedByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (TotalByProvider == null)
+            {
+                TotalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (games == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < games.Count; i++)
+            {
+                var game = games[i];
+                if (game == null)
+                {
+                    continue;
+                }
+
+                TotalAchievements += game.TotalAchievements;
+                TotalUnlocked += game.UnlockedAchievements;
+                TotalCommon += game.CommonCount;
+                TotalUncommon += game.UncommonCount;
+                TotalRare += game.RareCount;
+                TotalUltraRare += game.UltraRareCount;
+                TotalCommonPossible += game.TotalCommonPossible;
+                TotalUncommonPossible += game.TotalUncommonPossible;
+                TotalRarePossible += game.TotalRarePossible;
+                TotalUltraRarePossible += game.TotalUltraRarePossible;
+
+                if (game.IsCompleted)
+                {
+                    CompletedGames++;
+                }
+
+                Completions += game.Completions;
+                PossibleCompletions += game.PossibleCompletions;
+
+                TotalPlatinum += game.TrophyPlatinumCount;
+                TotalGold += game.TrophyGoldCount;
+                TotalSilver += game.TrophySilverCount;
+                TotalBronze += game.TrophyBronzeCount;
+                TotalPlatinumPossible += game.TrophyPlatinumTotal;
+                TotalGoldPossible += game.TrophyGoldTotal;
+                TotalSilverPossible += game.TrophySilverTotal;
+                TotalBronzePossible += game.TrophyBronzeTotal;
+
+                var provider = string.IsNullOrWhiteSpace(game.ProviderKey) ? "Unknown" : game.ProviderKey;
+                UnlockedByProvider.TryGetValue(provider, out var providerUnlocked);
+                UnlockedByProvider[provider] = providerUnlocked + game.UnlockedAchievements;
+                TotalByProvider.TryGetValue(provider, out var providerTotal);
+                TotalByProvider[provider] = providerTotal + game.TotalAchievements;
+
+                if (addClamped != null)
+                {
+                    CollectorScore = addClamped(CollectorScore, game.CollectionScore);
+                    PrestigeScore = addClamped(PrestigeScore, game.PrestigeScore);
+                }
+            }
+
+            TotalLocked = Math.Max(0, TotalAchievements - TotalUnlocked);
+            GlobalProgressionPercent = TotalAchievements > 0
+                ? (double)TotalUnlocked / TotalAchievements * 100
+                : 0;
+        }
+
         // Total rarity counts (including locked achievements) for "unlocked / total" display
         public int TotalCommonPossible { get; set; }
         public int TotalUncommonPossible { get; set; }
