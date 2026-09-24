@@ -2284,54 +2284,8 @@ namespace PlayniteAchievements.ViewModels
             }
 
             Common.LeakWatch.Track("OverviewSnapshot.delta", snapshot);
-            snapshot.TotalGames = snapshot.GameSummaries.Count;
-            snapshot.TotalAchievements = snapshot.GameSummaries.Sum(g => g?.TotalAchievements ?? 0);
-            snapshot.TotalUnlocked = snapshot.GameSummaries.Sum(g => g?.UnlockedAchievements ?? 0);
-            snapshot.TotalCommon = snapshot.GameSummaries.Sum(g => g?.CommonCount ?? 0);
-            snapshot.TotalUncommon = snapshot.GameSummaries.Sum(g => g?.UncommonCount ?? 0);
-            snapshot.TotalRare = snapshot.GameSummaries.Sum(g => g?.RareCount ?? 0);
-            snapshot.TotalUltraRare = snapshot.GameSummaries.Sum(g => g?.UltraRareCount ?? 0);
-            snapshot.CompletedGames = snapshot.GameSummaries.Count(g => g?.IsCompleted == true);
-            snapshot.Completions = snapshot.GameSummaries.Sum(g => g?.Completions ?? 0);
-            snapshot.PossibleCompletions = snapshot.GameSummaries.Sum(g => g?.PossibleCompletions ?? 0);
-            snapshot.TotalLocked = Math.Max(0, snapshot.TotalAchievements - snapshot.TotalUnlocked);
-            snapshot.GlobalProgressionPercent = snapshot.TotalAchievements > 0
-                ? (double)snapshot.TotalUnlocked / snapshot.TotalAchievements * 100
-                : 0;
-
             snapshot.TotalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-            for (var i = 0; i < snapshot.GameSummaries.Count; i++)
-            {
-                var game = snapshot.GameSummaries[i];
-                if (game == null)
-                {
-                    continue;
-                }
-
-                var provider = string.IsNullOrWhiteSpace(game.ProviderKey) ? "Unknown" : game.ProviderKey;
-                if (!snapshot.UnlockedByProvider.ContainsKey(provider))
-                {
-                    snapshot.UnlockedByProvider[provider] = 0;
-                }
-
-                if (!snapshot.TotalByProvider.ContainsKey(provider))
-                {
-                    snapshot.TotalByProvider[provider] = 0;
-                }
-
-                snapshot.UnlockedByProvider[provider] += game.UnlockedAchievements;
-                snapshot.TotalByProvider[provider] += game.TotalAchievements;
-                snapshot.CollectorScore = AddClamped(snapshot.CollectorScore, game.CollectionScore);
-                snapshot.PrestigeScore = AddClamped(snapshot.PrestigeScore, game.PrestigeScore);
-            }
-
-            // Aggregate rarity "possible" totals from GameSummaries
-            snapshot.TotalCommonPossible = snapshot.GameSummaries.Sum(g => g?.TotalCommonPossible ?? 0);
-            snapshot.TotalUncommonPossible = snapshot.GameSummaries.Sum(g => g?.TotalUncommonPossible ?? 0);
-            snapshot.TotalRarePossible = snapshot.GameSummaries.Sum(g => g?.TotalRarePossible ?? 0);
-            snapshot.TotalUltraRarePossible = snapshot.GameSummaries.Sum(g => g?.TotalUltraRarePossible ?? 0);
-            snapshot.ApplyTrophyTotals(snapshot.GameSummaries);
+            snapshot.ApplyGameSummaryTotals(snapshot.GameSummaries, AddClamped);
             ApplyScoreSnapshotFromValues(snapshot, snapshot.CollectorScore, snapshot.PrestigeScore);
 
             return snapshot;
@@ -3524,17 +3478,49 @@ namespace PlayniteAchievements.ViewModels
 
         private void RecalculateOverviewStats()
         {
-            // This now calculates from the filtered view
+            // This now calculates from the filtered view.
+            //
+            // One pass, not eight. This runs from ApplyLeftFilters, which the overview calls on
+            // every delta tick, so each of these separate LINQ walks was another trip over the
+            // filtered library for one changed game.
             var sourceList = _filteredGameSummaries;
 
+            var totalAchievements = 0;
+            var totalUnlocked = 0;
+            var common = 0;
+            var uncommon = 0;
+            var rare = 0;
+            var ultraRare = 0;
+            var completed = 0;
+
+            for (var i = 0; i < sourceList.Count; i++)
+            {
+                var game = sourceList[i];
+                if (game == null)
+                {
+                    continue;
+                }
+
+                totalAchievements += game.TotalAchievements;
+                totalUnlocked += game.UnlockedAchievements;
+                common += game.CommonCount;
+                uncommon += game.UncommonCount;
+                rare += game.RareCount;
+                ultraRare += game.UltraRareCount;
+                if (game.IsCompleted)
+                {
+                    completed++;
+                }
+            }
+
             TotalGameSummaries = sourceList.Count;
-            TotalAchievementsOverview = sourceList.Sum(g => g.TotalAchievements);
-            TotalUnlockedOverview = sourceList.Sum(g => g.UnlockedAchievements);
-            TotalCommon = sourceList.Sum(g => g.CommonCount);
-            TotalUncommon = sourceList.Sum(g => g.UncommonCount);
-            TotalRare = sourceList.Sum(g => g.RareCount);
-            TotalUltraRare = sourceList.Sum(g => g.UltraRareCount);
-            CompletedGames = sourceList.Count(g => g.IsCompleted);
+            TotalAchievementsOverview = totalAchievements;
+            TotalUnlockedOverview = totalUnlocked;
+            TotalCommon = common;
+            TotalUncommon = uncommon;
+            TotalRare = rare;
+            TotalUltraRare = ultraRare;
+            CompletedGames = completed;
 
             GlobalProgression = TotalAchievementsOverview > 0 ? (double)TotalUnlockedOverview / TotalAchievementsOverview * 100 : 0;
         }
@@ -3885,35 +3871,9 @@ namespace PlayniteAchievements.ViewModels
                 TotalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
             };
 
-            snapshot.TotalGames = gamesList.Count;
-            snapshot.CompletedGames = gamesList.Count(game => game?.IsCompleted == true);
-            snapshot.Completions = gamesList.Sum(game => game?.Completions ?? 0);
-            snapshot.PossibleCompletions = gamesList.Sum(game => game?.PossibleCompletions ?? 0);
-            snapshot.TotalAchievements = gamesList.Sum(game => game?.TotalAchievements ?? 0);
-            snapshot.TotalUnlocked = gamesList.Sum(game => game?.UnlockedAchievements ?? 0);
-            snapshot.TotalLocked = Math.Max(0, snapshot.TotalAchievements - snapshot.TotalUnlocked);
-            snapshot.TotalCommon = gamesList.Sum(game => game?.CommonCount ?? 0);
-            snapshot.TotalUncommon = gamesList.Sum(game => game?.UncommonCount ?? 0);
-            snapshot.TotalRare = gamesList.Sum(game => game?.RareCount ?? 0);
-            snapshot.TotalUltraRare = gamesList.Sum(game => game?.UltraRareCount ?? 0);
-            snapshot.TotalCommonPossible = gamesList.Sum(game => game?.TotalCommonPossible ?? 0);
-            snapshot.TotalUncommonPossible = gamesList.Sum(game => game?.TotalUncommonPossible ?? 0);
-            snapshot.TotalRarePossible = gamesList.Sum(game => game?.TotalRarePossible ?? 0);
-            snapshot.TotalUltraRarePossible = gamesList.Sum(game => game?.TotalUltraRarePossible ?? 0);
-            snapshot.ApplyTrophyTotals(gamesList);
-
-            foreach (var game in gamesList)
-            {
-                var provider = string.IsNullOrWhiteSpace(game?.ProviderKey) ? "Unknown" : game.ProviderKey;
-                if (!snapshot.UnlockedByProvider.ContainsKey(provider))
-                {
-                    snapshot.UnlockedByProvider[provider] = 0;
-                    snapshot.TotalByProvider[provider] = 0;
-                }
-
-                snapshot.UnlockedByProvider[provider] += game?.UnlockedAchievements ?? 0;
-                snapshot.TotalByProvider[provider] += game?.TotalAchievements ?? 0;
-            }
+            // No score accumulation: the pies do not read CollectorScore or PrestigeScore, and
+            // passing no adder leaves both at zero, which is what this builder always produced.
+            snapshot.ApplyGameSummaryTotals(gamesList, addClamped: null);
 
             return snapshot;
         }
