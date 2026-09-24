@@ -8,24 +8,6 @@ using PlayniteAchievements.Services.Summaries;
 
 namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
-    /// <summary>One category's progress on the Manage Achievements Overview.</summary>
-    internal sealed class ManageOverviewCategoryCount
-    {
-        public ManageOverviewCategoryCount(string label, int unlocked, int total)
-        {
-            Label = label;
-            Unlocked = unlocked;
-            Total = total;
-        }
-
-        /// <summary>The normalized category path, or the default label for an uncategorized row.</summary>
-        public string Label { get; }
-
-        public int Unlocked { get; }
-
-        public int Total { get; }
-    }
-
     /// <summary>
     /// One kind of stored customization. <see cref="Count"/> is null for a game-level setting,
     /// which is either present or not.
@@ -56,8 +38,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public DateTime? LastUnlockUtc { get; set; }
 
-        public IReadOnlyList<ManageOverviewCategoryCount> Categories { get; set; } =
-            Array.Empty<ManageOverviewCategoryCount>();
+        /// <summary>Achievements in a category other than the default one.</summary>
+        public int CategorizedCount { get; set; }
 
         public bool HasPoints => TotalPoints > 0;
 
@@ -90,10 +72,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 Stats = AchievementStatsAccumulator.FromAchievements(list)
             };
 
-            // Categories keep the order the achievements arrive in, which is the game's own order.
-            var categoryOrder = new List<string>();
-            var categoryTotals = new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase);
-
             foreach (var achievement in list)
             {
                 var points = Math.Max(0, achievement.Points ?? 0);
@@ -116,29 +94,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 var label = CategoryPathHelper.NormalizePath(
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category));
-                if (string.IsNullOrWhiteSpace(label))
+                    AchievementCategoryTypeHelper.NormalizeCategory(achievement.Category));
+                if (!string.IsNullOrWhiteSpace(label) &&
+                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
-                    label = AchievementCategoryTypeHelper.DefaultCategoryLabel;
-                }
-
-                if (!categoryTotals.TryGetValue(label, out var totals))
-                {
-                    totals = new int[2];
-                    categoryTotals[label] = totals;
-                    categoryOrder.Add(label);
-                }
-
-                totals[1]++;
-                if (achievement.Unlocked)
-                {
-                    totals[0]++;
+                    breakdown.CategorizedCount++;
                 }
             }
-
-            breakdown.Categories = categoryOrder
-                .Select(label => new ManageOverviewCategoryCount(label, categoryTotals[label][0], categoryTotals[label][1]))
-                .ToList();
 
             return breakdown;
         }
@@ -214,16 +176,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         count = CountDistinct(data.GoalAchievementApiNames);
                         break;
                     case AchievementCustomizationFacet.Capstone:
-                        // A materialized set replaces the provider's capstones outright, so an
-                        // emptied set is still a customization and is reported as zero.
-                        if (data.CapstonesMaterialized)
-                        {
-                            result.Add(new ManageOverviewCustomizationCount(
-                                entry.Item2,
-                                data.Capstones?.Count(item => item != null) ?? 0));
-                        }
-
-                        continue;
+                        count = data.CapstonesMaterialized
+                            ? data.Capstones?.Count(item => item != null) ?? 0
+                            : 0;
+                        break;
                     default:
                         continue;
                 }
