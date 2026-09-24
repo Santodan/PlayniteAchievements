@@ -273,12 +273,19 @@ namespace PlayniteAchievements.Services.GameCustomData
             return resolved;
         }
 
+        // Both read one flag, so neither builds the resolved projection: that allocates and
+        // copies every collection the record holds, which is a great deal of work to answer a
+        // bool on a heavily customized game.
         public static bool IsExcludedFromRefreshes(
             Guid gameId,
             PersistedSettings fallbackSettings = null,
             GameCustomDataStore store = null)
         {
-            return ResolveGameCustomData(gameId, fallbackSettings, store).ExcludedFromRefreshes;
+            return ReadGameFlag(
+                gameId,
+                store,
+                customData => customData.ExcludedFromRefreshes == true,
+                () => fallbackSettings?.ExcludedGameIds?.Contains(gameId) == true);
         }
 
         public static bool IsExcludedFromSummaries(
@@ -286,7 +293,36 @@ namespace PlayniteAchievements.Services.GameCustomData
             PersistedSettings fallbackSettings = null,
             GameCustomDataStore store = null)
         {
-            return ResolveGameCustomData(gameId, fallbackSettings, store).ExcludedFromSummaries;
+            return ReadGameFlag(
+                gameId,
+                store,
+                customData => customData.ExcludedFromSummaries == true,
+                () => fallbackSettings?.ExcludedFromSummariesGameIds?.Contains(gameId) == true);
+        }
+
+        /// <summary>
+        /// Reads one flag off a game's stored record, falling back to the legacy settings
+        /// projection when the game has no record.
+        /// </summary>
+        private static bool ReadGameFlag(
+            Guid gameId,
+            GameCustomDataStore store,
+            Func<GameCustomDataFile, bool> fromRecord,
+            Func<bool> fromSettings)
+        {
+            if (gameId != Guid.Empty)
+            {
+                var resolvedStore = ResolveStore(store);
+                var stored = resolvedStore?.QueryGame(
+                    gameId,
+                    customData => customData == null ? (bool?)null : fromRecord(customData));
+                if (stored.HasValue)
+                {
+                    return stored.Value;
+                }
+            }
+
+            return fromSettings();
         }
 
         public static bool HasVisibleCustomization(
@@ -299,9 +335,21 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return false;
             }
 
-            if (TryLoad(gameId, out var customData, store))
+            // Read, not copied: this answers a bool, and tag sync asks it once per game across
+            // the library, so going through TryLoad deep-cloned every customized game's record
+            // - overrides, notes and all - to look at a handful of fields.
+            var resolvedStore = ResolveStore(store);
+            if (resolvedStore != null)
             {
-                return GameCustomDataNormalizer.HasVisibleCustomization(customData);
+                var stored = resolvedStore.QueryGame(
+                    gameId,
+                    customData => customData == null
+                        ? (bool?)null
+                        : GameCustomDataNormalizer.HasVisibleCustomization(customData));
+                if (stored.HasValue)
+                {
+                    return stored.Value;
+                }
             }
 
             var legacyData = new GameCustomDataFile
