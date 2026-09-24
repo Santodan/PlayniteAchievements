@@ -3949,7 +3949,12 @@ namespace PlayniteAchievements.Services.Database
                     nowIso,
                     nowIso,
                     nowIso);
-                return FriendOwnershipExists(db, userId, gameId);
+
+                // No read-back. The write either landed or threw, and this runs inside the
+                // caller's transaction, so nothing else can have removed the row in between.
+                // Verifying cost a third statement per owned game, and a friend refresh writes
+                // thousands of them.
+                return true;
             }
 
             db.ExecuteNonQuery(
@@ -3967,7 +3972,7 @@ namespace PlayniteAchievements.Services.Database
                 nowIso,
                 existingId);
 
-            return FriendOwnershipExists(db, userId, gameId);
+            return true;
         }
 
         private static void DeleteStaleSharedFriendOwnership(SQLiteDatabase db, long userId, HashSet<long> seenGameIds)
@@ -5234,6 +5239,16 @@ namespace PlayniteAchievements.Services.Database
         {
             var result = new List<FriendAchievementDisplayItem>();
             var customDataByGameId = new Dictionary<Guid, ResolvedGameCustomData>();
+
+            // One snapshot for the whole mapping. Every field but the locked-icon choice comes
+            // from the persisted settings and is identical for each row, so building one per
+            // achievement re-read thirteen settings and allocated an object per row -- and when
+            // the caller had no resolved value, fell back to a lookup per row as well.
+            var baseAppearance = AchievementDisplayItem.CreateAppearanceSettingsSnapshot(
+                _plugin?.Settings,
+                null,
+                false);
+
             foreach (var row in rows ?? Enumerable.Empty<FriendRecentUnlockRow>())
             {
                 if (row == null || string.IsNullOrWhiteSpace(row.ApiName))
@@ -5316,10 +5331,13 @@ namespace PlayniteAchievements.Services.Database
                     item.CategoryLabel,
                     detail.Category,
                     playniteGameId);
-                item.ApplyAppearanceSettings(AchievementDisplayItem.CreateAppearanceSettingsSnapshot(
-                    _plugin?.Settings,
-                    playniteGameId,
-                    customData?.UseSeparateLockedIcons));
+                // Only the per-game flag varies; the rest of the snapshot is shared.
+                item.ApplyAppearanceSettings(
+                    baseAppearance.WithSeparateLockedIcons(
+                        customData?.UseSeparateLockedIcons ??
+                        GameCustomDataLookup.ShouldUseSeparateLockedIcons(
+                            playniteGameId,
+                            _plugin?.Settings?.Persisted)));
 
                 result.Add(item);
             }
@@ -6965,21 +6983,38 @@ namespace PlayniteAchievements.Services.Database
                 desiredApiNames.Count > 0 &&
                 staleDefinitionIds.Count > 0)
             {
-                for (int i = 0; i < staleDefinitionIds.Count; i++)
+                // Two statements per chunk, not two per id. Re-keying a proxy row makes the whole
+                // schema stale, so this list can be every definition the game has.
+                //
+                // Explicitly delete dependent unlock rows: the declared ON DELETE CASCADE only
+                // applies when the connection has PRAGMA foreign_keys enabled, which is not
+                // guaranteed on the save connections. A stale definition surviving with unlock
+                // rows (or unlock rows orphaned and later re-joined by rowid reuse) is how
+                // duplicate per-family unlock sets arise.
+                const int deleteChunkSize = 400;
+                for (var start = 0; start < staleDefinitionIds.Count; start += deleteChunkSize)
                 {
-                    // Explicitly delete dependent unlock rows: the declared ON DELETE CASCADE only
-                    // applies when the connection has PRAGMA foreign_keys enabled, which is not
-                    // guaranteed on the save connections. A stale definition surviving with unlock
-                    // rows (or unlock rows orphaned and later re-joined by rowid reuse) is how
-                    // duplicate per-family unlock sets arise.
+                    var count = Math.Min(deleteChunkSize, staleDefinitionIds.Count - start);
+                    var placeholders = new StringBuilder();
+                    var args = new object[count];
+                    for (var i = 0; i < count; i++)
+                    {
+                        if (i > 0)
+                        {
+                            placeholders.Append(", ");
+                        }
+
+                        placeholders.Append('?');
+                        args[i] = staleDefinitionIds[start + i];
+                    }
+
+                    var inClause = placeholders.ToString();
                     db.ExecuteNonQuery(
-                        @"DELETE FROM UserAchievements
-                          WHERE AchievementDefinitionId = ?;",
-                        staleDefinitionIds[i]);
+                        "DELETE FROM UserAchievements WHERE AchievementDefinitionId IN (" + inClause + ");",
+                        args);
                     db.ExecuteNonQuery(
-                        @"DELETE FROM AchievementDefinitions
-                          WHERE Id = ?;",
-                        staleDefinitionIds[i]);
+                        "DELETE FROM AchievementDefinitions WHERE Id IN (" + inClause + ");",
+                        args);
                 }
             }
 
