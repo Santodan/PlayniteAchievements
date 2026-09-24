@@ -36,31 +36,6 @@
 
             <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader}"
-                               Style="{StaticResource SectionHeaderStyle}" />
-                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHint}"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
-                               TextWrapping="Wrap"
-                               Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExportButton}"
-                                Command="{Binding ExportCustomCommand}"
-                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
-                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ImportButton}"
-                                Command="{Binding ImportCustomJsonCommand}"
-                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
-                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton}"
-                                Command="{Binding ClearCustomDataCommand}"
-                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}" />
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
-            <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
-                <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader}"
                                Style="{StaticResource SectionHeaderStyle}" />
                     <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExclusionHint}"
@@ -118,70 +93,6 @@
                               IsChecked="{Binding UseSeparateLockedIconsOverride}"
                               FontWeight="SemiBold"
                               Margin="0,10,0,0" />
-                </StackPanel>
-            </Border>
-
-            <Border Style="{StaticResource CardBorderStyle}"
-                    Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
-                <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ProviderHeader}"
-                               Style="{StaticResource SectionHeaderStyle}" />
-                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ProviderHint}"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
-                               TextWrapping="Wrap"
-                               Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
-                    <TextBlock Text="{Binding ProviderOverrideStatusText}"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
-                               TextWrapping="Wrap" />
-
-                    <Grid Margin="0,10,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="220" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <ComboBox Grid.Column="0"
-                                  ItemsSource="{Binding ProviderOverrideOptions}"
-                                  DisplayMemberPath="DisplayName"
-                                  SelectedValuePath="ProviderKey"
-                                  SelectedValue="{Binding SelectedProviderOverrideKey, Mode=TwoWay}"
-                                  Padding="8,4" />
-                        <Button Grid.Column="1"
-                                Content="{DynamicResource LOCPlayAch_Button_Apply}"
-                                Command="{Binding ApplyProviderOverrideCommand}"
-                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                        <Button Grid.Column="2"
-                                Content="{DynamicResource LOCPlayAch_Button_Clear}"
-                                Command="{Binding ClearProviderOverrideCommand}"
-                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
-                                Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
-                    </Grid>
-
-                    <StackPanel Margin="0,12,0,0"
-                                Visibility="{Binding IsProviderOverrideValueVisible, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="{Binding ProviderOverrideInputLabel}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   FontWeight="SemiBold" />
-                        <TextBox Text="{Binding ProviderOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Visibility="{Binding IsProviderOverrideTextVisible, Converter={StaticResource BoolToVis}}"
-                                 Padding="8,6"
-                                 Width="300"
-                                 HorizontalAlignment="Left"
-                                 Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
-                        <ComboBox ItemsSource="{Binding ProviderOverrideChoices}"
-                                  DisplayMemberPath="DisplayName"
-                                  SelectedValuePath="Value"
-                                  SelectedValue="{Binding ProviderOverrideInput, Mode=TwoWay}"
-                                  Visibility="{Binding IsProviderOverrideChoiceVisible, Converter={StaticResource BoolToVis}}"
-                                  Padding="8,4"
-                                  Width="300"
-                                  HorizontalAlignment="Left"
-                                  Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
-                    </StackPanel>
                 </StackPanel>
             </Border>
 
