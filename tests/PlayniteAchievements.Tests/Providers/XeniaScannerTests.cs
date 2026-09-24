@@ -58,7 +58,7 @@ namespace PlayniteAchievements.Providers.Tests
                 var scanner = new XeniaScanner(
                     logger: null,
                     playniteApi: new FakePlayniteApi(),
-                    providerSettings: new XeniaSettings { AccountPath = tempDir },
+                    providerSettings: new XeniaSettings { AccountPaths = new List<string> { tempDir } },
                     pluginUserDataPath: tempDir);
 
                 var resolved = scanner.ResolveTitleID(new Game
@@ -104,7 +104,7 @@ namespace PlayniteAchievements.Providers.Tests
                 var scanner = new XeniaScanner(
                     logger: new FakeLogger(),
                     playniteApi: fakeApi,
-                    providerSettings: new XeniaSettings { AccountPath = tempDir },
+                    providerSettings: new XeniaSettings { AccountPaths = new List<string> { tempDir } },
                     pluginUserDataPath: tempDir);
 
                 GameAchievementData completedData = null;
@@ -177,7 +177,7 @@ namespace PlayniteAchievements.Providers.Tests
                 var scanner = new XeniaScanner(
                     logger: new FakeLogger(),
                     playniteApi: new FakePlayniteApi(extensionsDataPath),
-                    providerSettings: new XeniaSettings { AccountPath = tempDir },
+                    providerSettings: new XeniaSettings { AccountPaths = new List<string> { tempDir } },
                     pluginUserDataPath: tempDir);
 
                 var resolved = scanner.ResolveTitleID(game, out var titleId);
@@ -231,13 +231,88 @@ namespace PlayniteAchievements.Providers.Tests
                 var scanner = new XeniaScanner(
                     logger: new FakeLogger(),
                     playniteApi: new FakePlayniteApi(),
-                    providerSettings: new XeniaSettings { AccountPath = tempDir },
+                    providerSettings: new XeniaSettings { AccountPaths = new List<string> { tempDir } },
                     pluginUserDataPath: tempDir);
 
                 var resolved = scanner.ResolveTitleID(game, out var titleId);
 
                 Assert.IsTrue(resolved);
                 Assert.AreEqual("54441234", titleId);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_TwoAccountFolders_MergesUnlocksWithEarliestTime()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                var store = new GameCustomDataStore(Path.Combine(tempDir, "store"));
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    XeniaTitleIdOverride = "4D5307E6"
+                });
+
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var stockAccount = CreateAccountDirectory(tempDir, "stock");
+                var canaryAccount = CreateAccountDirectory(tempDir, "canary");
+                var missingGpdAccount = CreateAccountDirectory(tempDir, "netplay");
+
+                WriteFakeGpdWithAchievements(Path.Combine(stockAccount, "4D5307E6.gpd"),
+                    (1U, true, 200UL),
+                    (2U, false, 0UL),
+                    (3U, true, 500UL));
+                WriteFakeGpdWithAchievements(Path.Combine(canaryAccount, "4D5307E6.gpd"),
+                    (1U, true, 100UL),
+                    (2U, true, 300UL),
+                    (3U, false, 0UL));
+
+                var scanner = new XeniaScanner(
+                    logger: new FakeLogger(),
+                    playniteApi: new FakePlayniteApi(),
+                    providerSettings: new XeniaSettings
+                    {
+                        AccountPaths = new List<string> { stockAccount, missingGpdAccount, canaryAccount }
+                    },
+                    pluginUserDataPath: tempDir);
+
+                GameAchievementData completedData = null;
+                await scanner.RefreshAsync(
+                    new List<Game> { new Game { Id = gameId, Name = "Merged Game" } },
+                    onGameStarting: _ => { },
+                    onGameCompleted: (game, data) =>
+                    {
+                        completedData = data;
+                        return Task.CompletedTask;
+                    },
+                    cancel: CancellationToken.None);
+
+                Assert.IsNotNull(completedData);
+                Assert.IsTrue(completedData.HasAchievements);
+                CollectionAssert.AreEqual(
+                    new[] { "1", "2", "3" },
+                    completedData.Achievements.Select(a => a.ApiName).ToArray());
+
+                var byId = completedData.Achievements.ToDictionary(a => a.ApiName);
+                Assert.IsTrue(byId["1"].Unlocked);
+                Assert.AreEqual(DateTime.FromFileTimeUtc(100), byId["1"].UnlockTimeUtc);
+                Assert.IsTrue(byId["2"].Unlocked);
+                Assert.AreEqual(DateTime.FromFileTimeUtc(300), byId["2"].UnlockTimeUtc);
+                Assert.IsTrue(byId["3"].Unlocked);
+                Assert.AreEqual(DateTime.FromFileTimeUtc(500), byId["3"].UnlockTimeUtc);
             }
             finally
             {
@@ -350,6 +425,72 @@ namespace PlayniteAchievements.Providers.Tests
 
                 writer.Write(new byte[4]);           // icon payload
                 writer.Write(titleBytes);
+            }
+        }
+
+        /// <summary>
+        /// Creates &lt;root&gt;\&lt;build&gt;\content\&lt;XUID&gt;\FFFE07D1\00010000\&lt;XUID&gt; with an Account file.
+        /// </summary>
+        internal static string CreateAccountDirectory(string root, string build)
+        {
+            const string xuid = "E0300000AAAAAAAA";
+            var accountDir = Path.Combine(root, build, "content", xuid, "FFFE07D1", "00010000", xuid);
+            Directory.CreateDirectory(accountDir);
+            File.WriteAllBytes(Path.Combine(accountDir, "Account"), new byte[4]);
+            return accountDir;
+        }
+
+        /// <summary>
+        /// Writes a minimal XDBF/GPD holding section-1 achievement records. Entry and free
+        /// capacities are equal so both the full loader and the progress reader find the data.
+        /// </summary>
+        internal static void WriteFakeGpdWithAchievements(string path, params (uint Id, bool Earned, ulong UnlockTime)[] achievements)
+        {
+            var payloads = achievements.Select(achievement =>
+            {
+                using (var buffer = new MemoryStream())
+                using (var payload = new BinaryWriter(buffer))
+                {
+                    WriteBigEndian(payload, 0x10U);                 // magic
+                    WriteBigEndian(payload, achievement.Id);
+                    WriteBigEndian(payload, achievement.Id);        // icon id
+                    WriteBigEndian(payload, 10U);                   // gamerscore
+                    WriteBigEndian(payload, achievement.Earned ? 0x20001U : 0x1U);
+                    WriteBigEndian(payload, achievement.UnlockTime);
+                    payload.Write(Encoding.BigEndianUnicode.GetBytes($"Title {achievement.Id}\0"));
+                    payload.Write(Encoding.BigEndianUnicode.GetBytes($"Unlocked {achievement.Id}\0"));
+                    payload.Write(Encoding.BigEndianUnicode.GetBytes($"Locked {achievement.Id}\0"));
+                    payload.Flush();
+                    return buffer.ToArray();
+                }
+            }).ToList();
+
+            var capacity = (uint)payloads.Count;
+            using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write))
+            using (var writer = new BinaryWriter(stream))
+            {
+                WriteBigEndian(writer, 0x58444246U); // XDBF magic
+                WriteBigEndian(writer, 1U);          // version
+                WriteBigEndian(writer, capacity);    // entry capacity
+                WriteBigEndian(writer, capacity);    // entries used
+                WriteBigEndian(writer, capacity);    // free capacity
+                WriteBigEndian(writer, 0U);          // free used
+
+                var offset = 0U;
+                foreach (var payload in payloads)
+                {
+                    WriteBigEndian(writer, (ushort)1);
+                    WriteBigEndian(writer, (ulong)offset);
+                    WriteBigEndian(writer, offset);
+                    WriteBigEndian(writer, (uint)payload.Length);
+                    offset += (uint)payload.Length;
+                }
+
+                writer.Write(new byte[8 * capacity]); // free table
+                foreach (var payload in payloads)
+                {
+                    writer.Write(payload);
+                }
             }
         }
 

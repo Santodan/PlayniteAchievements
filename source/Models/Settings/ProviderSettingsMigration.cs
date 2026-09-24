@@ -303,7 +303,7 @@ namespace PlayniteAchievements.Models.Settings
             var settings = new XeniaSettings
             {
                 IsEnabled = persisted["XeniaEnabled"]?.Value<bool>() ?? true,
-                AccountPath = persisted["XeniaAccountPath"]?.ToString()
+                AccountPaths = ProviderPathList.FromLegacy(persisted["XeniaAccountPath"]?.ToString())
             };
             providerSettings["Xenia"] = JObject.Parse(settings.SerializeToJson());
         }

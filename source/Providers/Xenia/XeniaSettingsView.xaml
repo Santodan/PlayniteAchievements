@@ -80,23 +80,7 @@
                                         Padding="0,12,0,0"
                                         Margin="0,0,0,0">
                                     <StackPanel>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <TextBox Grid.Column="0"
-                                                     Text="{Binding Settings.AccountPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     Padding="4"
-                                                     Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
-                                                     KeyDown="XeniaAccountPath_KeyDown"
-                                                     LostFocus="XeniaAccountPath_LostFocus"/>
-                                            <Button Grid.Column="1"
-                                                    Content="{DynamicResource LOCPlayAch_Button_Browse}"
-                                                    Click="Xenia_Browse_Click"
-                                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Compact}"/>
-                                        </Grid>
+                                        <controls:ProviderPathListEditor x:Name="AccountPathsEditor"/>
 
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XeniaAccountPathHint}"
                                                    Style="{StaticResource MutedTextStyle}"
