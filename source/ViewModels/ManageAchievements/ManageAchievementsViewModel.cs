@@ -819,16 +819,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             return new ManageOverviewSummary
             {
-                RarityCommonText = FormatProgress(stats.CommonCount, stats.TotalCommonPossible),
-                RarityUncommonText = FormatProgress(stats.UncommonCount, stats.TotalUncommonPossible),
-                RarityRareText = FormatProgress(stats.RareCount, stats.TotalRarePossible),
-                RarityUltraRareText = FormatProgress(stats.UltraRareCount, stats.TotalUltraRarePossible),
-                TrophyPlatinumText = FormatProgress(stats.TrophyPlatinumCount, stats.TrophyPlatinumTotal),
-                TrophyGoldText = FormatProgress(stats.TrophyGoldCount, stats.TrophyGoldTotal),
-                TrophySilverText = FormatProgress(stats.TrophySilverCount, stats.TrophySilverTotal),
-                TrophyBronzeText = FormatProgress(stats.TrophyBronzeCount, stats.TrophyBronzeTotal),
-                PointsText = FormatProgress(breakdown.UnlockedPoints, breakdown.TotalPoints),
-                CategorizedText = FormatProgress(breakdown.CategorizedCount, stats.TotalAchievements),
+                RarityCommon = Stat(stats.CommonCount, stats.TotalCommonPossible),
+                RarityUncommon = Stat(stats.UncommonCount, stats.TotalUncommonPossible),
+                RarityRare = Stat(stats.RareCount, stats.TotalRarePossible),
+                RarityUltraRare = Stat(stats.UltraRareCount, stats.TotalUltraRarePossible),
+                TrophyPlatinum = Stat(stats.TrophyPlatinumCount, stats.TrophyPlatinumTotal),
+                TrophyGold = Stat(stats.TrophyGoldCount, stats.TrophyGoldTotal),
+                TrophySilver = Stat(stats.TrophySilverCount, stats.TrophySilverTotal),
+                TrophyBronze = Stat(stats.TrophyBronzeCount, stats.TrophyBronzeTotal),
+                Points = Stat(breakdown.UnlockedPoints, breakdown.TotalPoints),
+                // Shown only once something is categorized: "0 / 60" says nothing on its own.
+                Categorized = breakdown.CategorizedCount > 0
+                    ? Stat(breakdown.CategorizedCount, stats.TotalAchievements)
+                    : ManageOverviewStat.None,
+                Goals = Stat(breakdown.UnlockedGoalCount, breakdown.GoalCount),
                 Customizations = ManageOverviewSummaryBuilder.BuildCustomizationCounts(customData)
                     .Select(entry => new ManageOverviewCustomizationChip(
                         L(entry.LabelKey),
@@ -853,6 +857,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     : AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(capstone.Item1) + ": " + capstone.Item2)
                 .ToList();
             return lines.Count > 0 ? string.Join(Environment.NewLine, lines) : null;
+        }
+
+        private static ManageOverviewStat Stat(int value, int total)
+        {
+            return total > 0
+                ? new ManageOverviewStat(FormatProgress(value, total), true)
+                : ManageOverviewStat.None;
         }
 
         private static string FormatProgress(int unlocked, int total)
