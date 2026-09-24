@@ -616,32 +616,50 @@ namespace PlayniteAchievements.Services.GameCustomData
             return upgraded;
         }
 
+        /// <summary>
+        /// Every stored record, deep-cloned so a caller cannot mutate the cache through what it
+        /// is handed. Prefer <see cref="QueryAll{TResult}"/> when the answer is a projection:
+        /// the copies here cost a library's worth of overrides, notes and maps.
+        /// </summary>
         public IReadOnlyList<GameCustomDataFile> LoadAll()
         {
+            EnsureCacheLoaded();
             lock (_cacheSync)
             {
-                if (_cacheByGameId != null && _missingGameIds != null)
-                {
-                    return _cacheByGameId.Values
-                        .Select(data => data?.Clone())
-                        .Where(data => data != null)
-                        .ToList();
-                }
-            }
-
-            var rows = _repository.EnumerateAllNormalized().ToList();
-            lock (_cacheSync)
-            {
-                _cacheByGameId = rows
-                    .Where(data => data?.PlayniteGameId != Guid.Empty)
-                    .ToDictionary(
-                        data => data.PlayniteGameId,
-                        data => data.Clone());
-                _missingGameIds = new HashSet<Guid>();
                 return _cacheByGameId.Values
                     .Select(data => data?.Clone())
                     .Where(data => data != null)
                     .ToList();
+            }
+        }
+
+        /// <summary>
+        /// Answers a read-only question over every stored record without copying any of them.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="LoadAll"/> deep-clones every record it returns, because a caller that
+        /// holds one must not be able to mutate the cache through it. For a caller that only
+        /// reads - counting the games on a custom provider, asking whether any game has an
+        /// authored achievement - that copied a library's worth of overrides, notes, category
+        /// maps and icon maps to produce a number or a bool, and the cost grew with how many
+        /// games the user has customized.
+        ///
+        /// The records handed to <paramref name="query"/> are the live cached instances and are
+        /// valid only for the duration of the call: read them, do not store them, and do not
+        /// mutate them. The cache lock is held throughout, so <paramref name="query"/> must not
+        /// call back into the store.
+        /// </remarks>
+        public TResult QueryAll<TResult>(Func<IEnumerable<GameCustomDataFile>, TResult> query)
+        {
+            if (query == null)
+            {
+                throw new ArgumentNullException(nameof(query));
+            }
+
+            EnsureCacheLoaded();
+            lock (_cacheSync)
+            {
+                return query(_cacheByGameId.Values);
             }
         }
 
@@ -2289,6 +2307,18 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
         }
 
+        /// <summary>
+        /// Populates the in-memory cache from the repository when it has not been read yet.
+        /// </summary>
+        /// <remarks>
+        /// The repository read runs outside the cache lock, because it opens the database. A
+        /// second caller that wins the race re-checks before installing, so the work is repeated
+        /// at worst once and the cache is never replaced after it exists.
+        ///
+        /// This used to warm by calling <see cref="LoadAll"/> and discarding the result, which
+        /// deep-cloned every stored record twice - once into the cache, once into the copy that
+        /// was thrown away.
+        /// </remarks>
         private void EnsureCacheLoaded()
         {
             lock (_cacheSync)
@@ -2299,7 +2329,21 @@ namespace PlayniteAchievements.Services.GameCustomData
                 }
             }
 
-            _ = LoadAll();
+            var rows = _repository.EnumerateAllNormalized().ToList();
+            lock (_cacheSync)
+            {
+                if (_cacheByGameId != null && _missingGameIds != null)
+                {
+                    return;
+                }
+
+                _cacheByGameId = rows
+                    .Where(data => data?.PlayniteGameId != Guid.Empty)
+                    .ToDictionary(
+                        data => data.PlayniteGameId,
+                        data => data);
+                _missingGameIds = new HashSet<Guid>();
+            }
         }
 
         /// <summary>
