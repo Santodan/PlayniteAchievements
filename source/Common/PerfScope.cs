@@ -9,25 +9,59 @@ namespace PlayniteAchievements.Common
     internal sealed class PerfScope : IDisposable
     {
         private const int SevereThresholdMs = 250;
-        // Diagnostic toggle for perf tracing. Kept runtime-evaluated to avoid constant-folded
-        // unreachable branches.
+
+        /// <summary>
+        /// Name of the opt-in marker file. Create an empty file with this name in the plugin's
+        /// extension data folder (the one holding playniteachievements.log) and tracing arms on
+        /// the next Playnite start. That is what lets a user who reports a stall capture a log
+        /// without being handed a custom build.
+        /// </summary>
+        internal const string TracingOptInFileName = "perftrace.enabled";
+
+        // Diagnostic toggle for perf tracing. A Debug build traces unconditionally; a Release
+        // build traces only when the opt-in file above is present.
         //
-        // Currently ON so any build emits diagnostics without editing this file first.
-        //
-        // SET THIS BACK TO false BEFORE PACKING A RELEASE. On is not merely chatty:
-        //   - It turns on the cheap half of MemoryDiagnostics (Enabled ORs the two flags): the
-        //     [MemPerf] counter lines, the sampler, and RetentionProbes.
-        //     It no longer arms the retention report. That report forces two blocking gen2
-        //     collections per call and is scheduled off every cache invalidation, so with this
-        //     flag on it turned a custom-data editing session into a forced full collection every
-        //     few seconds (~1838 in one capture). It now answers to
-        //     MemoryDiagnostics.MemoryTracingEnabled alone.
-        //   - LeakWatch.Track then runs per editor row behind a global lock, so row construction
-        //     costs measurably more than it does in a shipped build.
+        // This used to be a hand-flipped constant with a "set this back to false before packing a
+        // release" note, and it shipped on. That is expensive, not merely chatty:
+        //   - LeakWatch.Track runs per editor row behind a global lock, and LeakWatch.TrackAll
+        //     runs over whole library row sets inside the overview's per-edit delta, so an edit
+        //     on a large library pays a locked scan it would not pay in a shipped build.
+        //   - It turns on the cheap half of MemoryDiagnostics: the [MemPerf] counter lines, the
+        //     sampler, and RetentionProbes.
         //   - It gates far more than the scopes: toast capture probes, toast placement
         //     diagnostics, the ray animation driver, the compact list controls, and a
         //     developer-only main-menu item that would otherwise be hidden from users.
-        internal static readonly bool PerfTracingEnabled = true;
+        //
+        // Runtime-evaluated (never a const) so branches are not constant-folded away.
+        internal static bool PerfTracingEnabled { get; private set; } =
+#if DEBUG
+            true;
+#else
+            false;
+#endif
+
+        /// <summary>
+        /// Arms tracing for a Release build when the opt-in marker file is present in the
+        /// plugin's user data folder. Call once at startup, before the first scope. A Debug
+        /// build is already on and is left alone; a probe failure leaves tracing off.
+        /// </summary>
+        public static void ConfigureTracing(string pluginUserDataPath)
+        {
+            if (PerfTracingEnabled || string.IsNullOrWhiteSpace(pluginUserDataPath))
+            {
+                return;
+            }
+
+            try
+            {
+                PerfTracingEnabled = System.IO.File.Exists(
+                    System.IO.Path.Combine(pluginUserDataPath, TracingOptInFileName));
+            }
+            catch
+            {
+                // A probe that cannot run leaves tracing off, which is the shipping default.
+            }
+        }
 
         private readonly ILogger _logger;
         private readonly string _tag;

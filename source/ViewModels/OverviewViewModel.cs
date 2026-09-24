@@ -2043,7 +2043,7 @@ namespace PlayniteAchievements.ViewModels
                     return true;
                 }
 
-                RemoveGameRows(_allAchievements, gameId, _globalAchievementSearchIndex);
+                RemoveGameAchievementRows(gameId);
                 RemoveGameRows(_allGameSummaries, gameId, _gameSummarySearchIndex);
                 RemoveGameRows(_allRecentAchievements, gameId, _recentAchievementSearchIndex);
                 _selectedGamePipeline.Invalidate(gameId);
@@ -2072,7 +2072,7 @@ namespace PlayniteAchievements.ViewModels
                 "Row.discardedGameSummary",
                 _allGameSummaries.Where(g => g?.PlayniteGameId == gameId));
 
-            RemoveGameRows(_allAchievements, gameId, _globalAchievementSearchIndex);
+            RemoveGameAchievementRows(gameId);
             RemoveGameRows(_allGameSummaries, gameId, _gameSummarySearchIndex);
             RemoveGameRows(_allRecentAchievements, gameId, _recentAchievementSearchIndex);
             _selectedGamePipeline.Invalidate(gameId);
@@ -2089,6 +2089,7 @@ namespace PlayniteAchievements.ViewModels
             if (fragment.Achievements != null && fragment.Achievements.Count > 0)
             {
                 _allAchievements.AddRange(fragment.Achievements);
+                _filteredGlobalAchievementCount += CountFilteredRows(fragment.Achievements);
             }
 
             if (fragment.GameSummary != null)
@@ -2099,6 +2100,31 @@ namespace PlayniteAchievements.ViewModels
             if (fragment.RecentAchievements != null && fragment.RecentAchievements.Count > 0)
             {
                 _allRecentAchievements.AddRange(fragment.RecentAchievements);
+            }
+
+            // Only the rows just swapped in need stamping: they are freshly built, so their
+            // session-only HasCaptures defaults to false, while every other row in the library
+            // still carries the mark it was given. Re-stamping all three library lists per delta
+            // instead copied them and re-ran the capture scan over the whole library for one
+            // changed game. _allSelectedGameAchievements is not stamped here because
+            // LoadSelectedGameAchievementsAsync marks its own rows, and a custom-data edit cannot
+            // move a capture.
+            if (fragment.GameSummary != null)
+            {
+                Services.Captures.CapturePresenceMarker.MarkSummaries(
+                    new[] { fragment.GameSummary }, _captureLibrary);
+            }
+
+            if (fragment.Achievements != null && fragment.Achievements.Count > 0)
+            {
+                Services.Captures.CapturePresenceMarker.MarkAchievements(
+                    fragment.Achievements, _captureLibrary);
+            }
+
+            if (fragment.RecentAchievements != null && fragment.RecentAchievements.Count > 0)
+            {
+                Services.Captures.CapturePresenceMarker.MarkAchievements(
+                    fragment.RecentAchievements, _captureLibrary);
             }
 
             return true;
@@ -2249,54 +2275,8 @@ namespace PlayniteAchievements.ViewModels
             }
 
             Common.LeakWatch.Track("OverviewSnapshot.delta", snapshot);
-            snapshot.TotalGames = snapshot.GameSummaries.Count;
-            snapshot.TotalAchievements = snapshot.GameSummaries.Sum(g => g?.TotalAchievements ?? 0);
-            snapshot.TotalUnlocked = snapshot.GameSummaries.Sum(g => g?.UnlockedAchievements ?? 0);
-            snapshot.TotalCommon = snapshot.GameSummaries.Sum(g => g?.CommonCount ?? 0);
-            snapshot.TotalUncommon = snapshot.GameSummaries.Sum(g => g?.UncommonCount ?? 0);
-            snapshot.TotalRare = snapshot.GameSummaries.Sum(g => g?.RareCount ?? 0);
-            snapshot.TotalUltraRare = snapshot.GameSummaries.Sum(g => g?.UltraRareCount ?? 0);
-            snapshot.CompletedGames = snapshot.GameSummaries.Count(g => g?.IsCompleted == true);
-            snapshot.Completions = snapshot.GameSummaries.Sum(g => g?.Completions ?? 0);
-            snapshot.PossibleCompletions = snapshot.GameSummaries.Sum(g => g?.PossibleCompletions ?? 0);
-            snapshot.TotalLocked = Math.Max(0, snapshot.TotalAchievements - snapshot.TotalUnlocked);
-            snapshot.GlobalProgressionPercent = snapshot.TotalAchievements > 0
-                ? (double)snapshot.TotalUnlocked / snapshot.TotalAchievements * 100
-                : 0;
-
             snapshot.TotalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-            for (var i = 0; i < snapshot.GameSummaries.Count; i++)
-            {
-                var game = snapshot.GameSummaries[i];
-                if (game == null)
-                {
-                    continue;
-                }
-
-                var provider = string.IsNullOrWhiteSpace(game.ProviderKey) ? "Unknown" : game.ProviderKey;
-                if (!snapshot.UnlockedByProvider.ContainsKey(provider))
-                {
-                    snapshot.UnlockedByProvider[provider] = 0;
-                }
-
-                if (!snapshot.TotalByProvider.ContainsKey(provider))
-                {
-                    snapshot.TotalByProvider[provider] = 0;
-                }
-
-                snapshot.UnlockedByProvider[provider] += game.UnlockedAchievements;
-                snapshot.TotalByProvider[provider] += game.TotalAchievements;
-                snapshot.CollectorScore = AddClamped(snapshot.CollectorScore, game.CollectionScore);
-                snapshot.PrestigeScore = AddClamped(snapshot.PrestigeScore, game.PrestigeScore);
-            }
-
-            // Aggregate rarity "possible" totals from GameSummaries
-            snapshot.TotalCommonPossible = snapshot.GameSummaries.Sum(g => g?.TotalCommonPossible ?? 0);
-            snapshot.TotalUncommonPossible = snapshot.GameSummaries.Sum(g => g?.TotalUncommonPossible ?? 0);
-            snapshot.TotalRarePossible = snapshot.GameSummaries.Sum(g => g?.TotalRarePossible ?? 0);
-            snapshot.TotalUltraRarePossible = snapshot.GameSummaries.Sum(g => g?.TotalUltraRarePossible ?? 0);
-            snapshot.ApplyTrophyTotals(snapshot.GameSummaries);
+            snapshot.ApplyGameSummaryTotals(snapshot.GameSummaries, AddClamped);
             ApplyScoreSnapshotFromValues(snapshot, snapshot.CollectorScore, snapshot.PrestigeScore);
 
             return snapshot;
@@ -2482,6 +2462,30 @@ namespace PlayniteAchievements.ViewModels
             return current + value;
         }
 
+        /// <summary>
+        /// The provider/platform set the current <see cref="ProviderFilterGroups"/> were built
+        /// from, so a tick that did not change it can leave them alone.
+        /// </summary>
+        private string _providerFilterOptionsSignature;
+
+        private static string BuildProviderFilterOptionsSignature(
+            Dictionary<string, SortedSet<string>> platformsByProvider)
+        {
+            var builder = new System.Text.StringBuilder();
+            foreach (var providerKey in platformsByProvider.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase))
+            {
+                builder.Append(providerKey).Append('␟');
+                foreach (var platform in platformsByProvider[providerKey])
+                {
+                    builder.Append(platform).Append('␞');
+                }
+
+                builder.Append('␝');
+            }
+
+            return builder.ToString();
+        }
+
         private void UpdateProviderFilterOptions(List<GameSummaryItem> games)
         {
             var gameList = games ?? new List<GameSummaryItem>();
@@ -2530,6 +2534,22 @@ namespace PlayniteAchievements.ViewModels
                     }
                 }
             }
+
+            // Nothing to rebuild when the provider/platform set is the one the current groups
+            // were built from. The overview calls this from every delta tick, so a custom-data
+            // edit - which almost never adds or removes a provider or a platform - otherwise
+            // allocated a fresh group per provider and a fresh collection, and drove the
+            // property cascade below, for an identical result. Selections and expansion are
+            // carried on the existing groups, so keeping them is also what preserves them.
+            var optionsSignature = BuildProviderFilterOptionsSignature(platformsByProvider);
+            if (ProviderFilterGroups != null &&
+                ProviderFilterGroups.Count > 0 &&
+                string.Equals(optionsSignature, _providerFilterOptionsSignature, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _providerFilterOptionsSignature = optionsSignature;
 
             var groups = new List<ProviderFilterGroup>();
             var newSelectedCount = 0;
@@ -2963,16 +2983,23 @@ namespace PlayniteAchievements.ViewModels
         {
             System.Windows.Application.Current?.Dispatcher?.InvokeIfNeeded(() =>
             {
+                bool addedWork;
                 lock (_deltaSync)
                 {
                     if (isFullReset)
                     {
                         _pendingFullResetFromDelta = true;
                         _pendingDeltaKeys.Clear();
+                        addedWork = true;
                     }
                     else if (!string.IsNullOrWhiteSpace(key))
                     {
-                        _pendingDeltaKeys.Add(key.Trim());
+                        // Add reports whether this key was not already queued.
+                        addedWork = _pendingDeltaKeys.Add(key.Trim());
+                    }
+                    else
+                    {
+                        addedWork = false;
                     }
                 }
 
@@ -2982,9 +3009,26 @@ namespace PlayniteAchievements.ViewModels
                 // dozens of whole-library passes per run; widening the window while a run is
                 // active collapses those into a handful without changing the end state, since
                 // the run's final invalidation queues one last pass.
-                _deltaBatchTimer.Interval = _refreshService.IsRebuilding
+                var interval = _refreshService.IsRebuilding
                     ? BulkDeltaBatchInterval
                     : InteractiveDeltaBatchInterval;
+
+                // A repeat signal for a game already queued must not push the deadline out.
+                // One edit reaches here more than once -- the store's synchronous
+                // CustomDataChanged, then the editor's own scoped cache invalidation behind its
+                // 250ms debounce -- and restarting the timer each time turned a single edit into
+                // two whole-library ticks (measured at 363ms and 334ms on a 500-game library,
+                // for keys=1 both times). The tick rebuilds each key's fragment from the store
+                // when it runs, so a later signal naming the same game is already covered by the
+                // pass that is scheduled. Draining and queuing both happen on this thread, so a
+                // signal that arrives after a drain still opens a new window rather than being
+                // lost.
+                if (!addedWork && _deltaBatchTimer.IsEnabled && _deltaBatchTimer.Interval == interval)
+                {
+                    return;
+                }
+
+                _deltaBatchTimer.Interval = interval;
                 _deltaBatchTimer.Stop();
                 _deltaBatchTimer.Start();
             });
@@ -3169,13 +3213,9 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
-            // ApplyFragmentDelta swaps in freshly built row instances whose session-only HasCaptures
-            // defaults to false, so the Captures button for the game being played would vanish on
-            // its first unlock. Re-stamp the replaced rows.
-            using (Common.PerfScope.Start(_logger, "Overview.DeltaTick.RemarkCaptures", thresholdMs: 5))
-            {
-                RemarkCapturePresence();
-            }
+            // No capture re-stamp here. ApplyFragmentDelta now marks the rows it swapped in, which
+            // are the only ones whose session-only HasCaptures was reset; doing it library-wide
+            // per tick copied all three lists and re-ran the capture scan over every game.
 
             // No search-index rebuild here. ApplyFragmentDelta already dropped the entries for
             // the rows it replaced, and the index fills lazily for the new ones, so rebuilding
@@ -3191,7 +3231,12 @@ namespace PlayniteAchievements.ViewModels
 
             using (Common.PerfScope.Start(_logger, "Overview.DeltaTick.Filters", thresholdMs: 5))
             {
-                RefreshFilter();
+                // No RefreshFilter here. ApplyFragmentDelta has already adjusted
+                // _filteredGlobalAchievementCount by the changed game's contribution, which is
+                // the only thing the status line reads of that set; running the full pass
+                // re-filtered and re-sorted every achievement in the library and raised a
+                // collection Reset, per edit. Every user-driven filter and sort change still
+                // calls RefreshFilter, which rebuilds the collection and re-seeds the count.
                 ApplyLeftFilters();
             }
 
@@ -3200,9 +3245,24 @@ namespace PlayniteAchievements.ViewModels
                 UpdateAggregatePieCharts();
             }
 
-            using (Common.PerfScope.Start(_logger, "Overview.DeltaTick.RightFilters", thresholdMs: 5))
+            using (var scope = Common.PerfScope.Start(_logger, "Overview.DeltaTick.RightFilters", thresholdMs: 5))
             {
-                ApplyRightFilters();
+                // With a game selected the right pane shows only that game's rows, so a delta
+                // that never touched it cannot change what the pane holds -- and re-running the
+                // control bar, the sort and the row limit for it was pure cost. With no game
+                // selected the pane shows the library's recent achievements, which the delta did
+                // move, so it still runs.
+                var selectedGameId = SelectedGame?.PlayniteGameId;
+                var selectedGameChanged = !IsGameSelected ||
+                    !selectedGameId.HasValue ||
+                    keys.Contains(selectedGameId.Value.ToString("D"), StringComparer.OrdinalIgnoreCase);
+
+                scope?.SetContext("applied=" + selectedGameChanged);
+                if (selectedGameChanged)
+                {
+                    ApplyRightFilters();
+                }
+
                 UpdateFilteredStatus();
             }
 
@@ -3267,26 +3327,24 @@ namespace PlayniteAchievements.ViewModels
         // that is no longer in the list. Replacement rows are not indexed here: the index fills
         // lazily on first lookup, which is what makes a per-delta whole-library rebuild
         // unnecessary.
+        // One pass, not two: RemoveAll calls its predicate exactly once per element, so the
+        // index entry can be dropped there rather than in a separate walk beforehand. A delta
+        // does this for three library lists per changed game.
         private static void RemoveGameRows(
             List<AchievementDisplayItem> rows,
             Guid gameId,
             SearchTextIndex<AchievementDisplayItem> index)
         {
-            if (rows == null)
+            rows?.RemoveAll(row =>
             {
-                return;
-            }
-
-            for (var i = 0; i < rows.Count; i++)
-            {
-                var row = rows[i];
-                if (row?.PlayniteGameId == gameId)
+                if (row?.PlayniteGameId != gameId)
                 {
-                    index?.Invalidate(row);
+                    return false;
                 }
-            }
 
-            rows.RemoveAll(row => row?.PlayniteGameId == gameId);
+                index?.Invalidate(row);
+                return true;
+            });
         }
 
         private static void RemoveGameRows(
@@ -3294,21 +3352,16 @@ namespace PlayniteAchievements.ViewModels
             Guid gameId,
             SearchTextIndex<GameSummaryItem> index)
         {
-            if (rows == null)
+            rows?.RemoveAll(row =>
             {
-                return;
-            }
-
-            for (var i = 0; i < rows.Count; i++)
-            {
-                var row = rows[i];
-                if (row?.PlayniteGameId == gameId)
+                if (row?.PlayniteGameId != gameId)
                 {
-                    index?.Invalidate(row);
+                    return false;
                 }
-            }
 
-            rows.RemoveAll(row => row?.PlayniteGameId == gameId);
+                index?.Invalidate(row);
+                return true;
+            });
         }
 
         private async void OnRefreshDebounceTimerTick(object sender, EventArgs e)
@@ -3347,7 +3400,78 @@ namespace PlayniteAchievements.ViewModels
             var searchQuery = SearchQuery.From(SearchText);
             var filtered = ApplySort(source.Where(item => FilterAchievement(item, searchQuery))).ToList();
             CollectionHelper.Replace(AllAchievements, filtered);
+            _filteredGlobalAchievementCount = filtered.Count;
             UpdateFilteredStatus();
+        }
+
+        /// <summary>
+        /// Size of the filtered global achievement set, which is all the status line reads of it.
+        /// </summary>
+        /// <remarks>
+        /// Maintained across delta ticks instead of recomputed. <see cref="RefreshFilter"/> re-ran
+        /// the filter predicate over every achievement in the library, re-sorted the result and
+        /// raised a collection Reset -- per edit, for one changed game -- and the only thing that
+        /// came of it was this number: <see cref="AllAchievements"/> is not bound by any view.
+        /// (OverviewControl binds SelectedGameAllAchievements; the AllAchievements binding in
+        /// ViewAchievementsControl belongs to ViewAchievementsViewModel.) So a delta adjusts the
+        /// count by the one game's contribution and leaves the collection to the next full
+        /// RefreshFilter, which every user-driven filter and sort change still runs.
+        /// </remarks>
+        private int _filteredGlobalAchievementCount;
+
+        /// <summary>
+        /// Drops a game's achievement rows and their search-index entries, and subtracts what
+        /// they contributed to <see cref="_filteredGlobalAchievementCount"/> — all in the single
+        /// pass <see cref="RemoveGameRows"/> was already making. The filter predicate runs only
+        /// on that game's rows.
+        /// </summary>
+        private void RemoveGameAchievementRows(Guid gameId)
+        {
+            if (_allAchievements == null || _allAchievements.Count == 0)
+            {
+                return;
+            }
+
+            var searchQuery = SearchQuery.From(SearchText);
+            var removedFiltered = 0;
+            _allAchievements.RemoveAll(row =>
+            {
+                if (row?.PlayniteGameId != gameId)
+                {
+                    return false;
+                }
+
+                if (FilterAchievement(row, searchQuery))
+                {
+                    removedFiltered++;
+                }
+
+                _globalAchievementSearchIndex?.Invalidate(row);
+                return true;
+            });
+
+            _filteredGlobalAchievementCount = Math.Max(0, _filteredGlobalAchievementCount - removedFiltered);
+        }
+
+        private int CountFilteredRows(IReadOnlyList<AchievementDisplayItem> rows)
+        {
+            if (rows == null || rows.Count == 0)
+            {
+                return 0;
+            }
+
+            var searchQuery = SearchQuery.From(SearchText);
+            var count = 0;
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                if (row != null && FilterAchievement(row, searchQuery))
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         private IEnumerable<AchievementDisplayItem> ApplySort(IEnumerable<AchievementDisplayItem> items)
@@ -3383,11 +3507,12 @@ namespace PlayniteAchievements.ViewModels
             {
                 StatusText = ResourceProvider.GetString("LOCPlayAch_Status_NoAchievementsCached");
             }
-            else if (HasMaterializedGlobalAchievementItems() && AllAchievements.Count < _totalCount)
+            else if (HasMaterializedGlobalAchievementItems() &&
+                     _filteredGlobalAchievementCount < _totalCount)
             {
                 StatusText = string.Format(
                     ResourceProvider.GetString("LOCPlayAch_Status_FilteredCounts"),
-                    AllAchievements.Count.ToString("N0", FormattingCulture.Current),
+                    _filteredGlobalAchievementCount.ToString("N0", FormattingCulture.Current),
                     _totalCount.ToString("N0", FormattingCulture.Current),
                     _unlockedCount.ToString("N0", FormattingCulture.Current),
                     _gamesCount.ToString("N0", FormattingCulture.Current));
@@ -3404,22 +3529,54 @@ namespace PlayniteAchievements.ViewModels
 
         private bool HasMaterializedGlobalAchievementItems()
         {
-            return (_allAchievements?.Count ?? 0) > 0 || (AllAchievements?.Count ?? 0) > 0;
+            return (_allAchievements?.Count ?? 0) > 0 || _filteredGlobalAchievementCount > 0;
         }
 
         private void RecalculateOverviewStats()
         {
-            // This now calculates from the filtered view
+            // This now calculates from the filtered view.
+            //
+            // One pass, not eight. This runs from ApplyLeftFilters, which the overview calls on
+            // every delta tick, so each of these separate LINQ walks was another trip over the
+            // filtered library for one changed game.
             var sourceList = _filteredGameSummaries;
 
+            var totalAchievements = 0;
+            var totalUnlocked = 0;
+            var common = 0;
+            var uncommon = 0;
+            var rare = 0;
+            var ultraRare = 0;
+            var completed = 0;
+
+            for (var i = 0; i < sourceList.Count; i++)
+            {
+                var game = sourceList[i];
+                if (game == null)
+                {
+                    continue;
+                }
+
+                totalAchievements += game.TotalAchievements;
+                totalUnlocked += game.UnlockedAchievements;
+                common += game.CommonCount;
+                uncommon += game.UncommonCount;
+                rare += game.RareCount;
+                ultraRare += game.UltraRareCount;
+                if (game.IsCompleted)
+                {
+                    completed++;
+                }
+            }
+
             TotalGameSummaries = sourceList.Count;
-            TotalAchievementsOverview = sourceList.Sum(g => g.TotalAchievements);
-            TotalUnlockedOverview = sourceList.Sum(g => g.UnlockedAchievements);
-            TotalCommon = sourceList.Sum(g => g.CommonCount);
-            TotalUncommon = sourceList.Sum(g => g.UncommonCount);
-            TotalRare = sourceList.Sum(g => g.RareCount);
-            TotalUltraRare = sourceList.Sum(g => g.UltraRareCount);
-            CompletedGames = sourceList.Count(g => g.IsCompleted);
+            TotalAchievementsOverview = totalAchievements;
+            TotalUnlockedOverview = totalUnlocked;
+            TotalCommon = common;
+            TotalUncommon = uncommon;
+            TotalRare = rare;
+            TotalUltraRare = ultraRare;
+            CompletedGames = completed;
 
             GlobalProgression = TotalAchievementsOverview > 0 ? (double)TotalUnlockedOverview / TotalAchievementsOverview * 100 : 0;
         }
@@ -3448,6 +3605,9 @@ namespace PlayniteAchievements.ViewModels
                 _filteredGameSummaries,
                 _settings?.Persisted?.OverviewGameSummariesGridMaxRows);
 
+            // Patched in place: the delta rebuilds one game's row and leaves every other row
+            // the same instance, so this raises a notification or two instead of the Reset that
+            // made the bound grid re-realize its viewport on a later dispatcher pass, per edit.
             CollectionHelper.Replace(GameSummaries, displayItems);
         }
 
@@ -3770,35 +3930,9 @@ namespace PlayniteAchievements.ViewModels
                 TotalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
             };
 
-            snapshot.TotalGames = gamesList.Count;
-            snapshot.CompletedGames = gamesList.Count(game => game?.IsCompleted == true);
-            snapshot.Completions = gamesList.Sum(game => game?.Completions ?? 0);
-            snapshot.PossibleCompletions = gamesList.Sum(game => game?.PossibleCompletions ?? 0);
-            snapshot.TotalAchievements = gamesList.Sum(game => game?.TotalAchievements ?? 0);
-            snapshot.TotalUnlocked = gamesList.Sum(game => game?.UnlockedAchievements ?? 0);
-            snapshot.TotalLocked = Math.Max(0, snapshot.TotalAchievements - snapshot.TotalUnlocked);
-            snapshot.TotalCommon = gamesList.Sum(game => game?.CommonCount ?? 0);
-            snapshot.TotalUncommon = gamesList.Sum(game => game?.UncommonCount ?? 0);
-            snapshot.TotalRare = gamesList.Sum(game => game?.RareCount ?? 0);
-            snapshot.TotalUltraRare = gamesList.Sum(game => game?.UltraRareCount ?? 0);
-            snapshot.TotalCommonPossible = gamesList.Sum(game => game?.TotalCommonPossible ?? 0);
-            snapshot.TotalUncommonPossible = gamesList.Sum(game => game?.TotalUncommonPossible ?? 0);
-            snapshot.TotalRarePossible = gamesList.Sum(game => game?.TotalRarePossible ?? 0);
-            snapshot.TotalUltraRarePossible = gamesList.Sum(game => game?.TotalUltraRarePossible ?? 0);
-            snapshot.ApplyTrophyTotals(gamesList);
-
-            foreach (var game in gamesList)
-            {
-                var provider = string.IsNullOrWhiteSpace(game?.ProviderKey) ? "Unknown" : game.ProviderKey;
-                if (!snapshot.UnlockedByProvider.ContainsKey(provider))
-                {
-                    snapshot.UnlockedByProvider[provider] = 0;
-                    snapshot.TotalByProvider[provider] = 0;
-                }
-
-                snapshot.UnlockedByProvider[provider] += game?.UnlockedAchievements ?? 0;
-                snapshot.TotalByProvider[provider] += game?.TotalAchievements ?? 0;
-            }
+            // No score accumulation: the pies do not read CollectorScore or PrestigeScore, and
+            // passing no adder leaves both at zero, which is what this builder always produced.
+            snapshot.ApplyGameSummaryTotals(gamesList, addClamped: null);
 
             return snapshot;
         }
@@ -4657,6 +4791,7 @@ namespace PlayniteAchievements.ViewModels
         private void ReleaseRetainedData()
         {
             AllAchievements.Clear();
+            _filteredGlobalAchievementCount = 0;
             GameSummaries.Clear();
             RecentAchievements.Clear();
             SelectedGameAchievements.Clear();

@@ -148,36 +148,50 @@
                 CornerRadius="{StaticResource PlayAch.Radius.Card}"
                 Padding="{StaticResource PlayAch.Thickness.CardPadding}">
             <Grid>
-                <views:ManageAchievementsOverviewTab x:Name="OverviewTabControl">
-                    <views:ManageAchievementsOverviewTab.Style>
-                        <Style TargetType="{x:Type views:ManageAchievementsOverviewTab}">
-                            <Setter Property="Visibility" Value="Collapsed" />
+                <!-- Every tab is a host, and every host is Hidden rather than Collapsed when
+                     it is not the selected one.
+
+                     Hosted, so the shell does not build all five: overview and overrides used
+                     to be inline, which put their construction and first layout inside
+                     ShowDialog's synchronous first render.
+
+                     Hidden, so a host that has been filled is still measured and arranged.
+                     WPF skips layout for a Collapsed element entirely, which meant a
+                     pre-built tab still paid its whole first layout and render on the click
+                     that revealed it - measured as a 557ms stall on selecting the editor.
+                     Hidden lets the idle prebuild absorb that instead. -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Visibility" Value="Hidden" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedTab}" Value="Overview">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </views:ManageAchievementsOverviewTab.Style>
-                </views:ManageAchievementsOverviewTab>
+                    </Grid.Style>
+                    <ContentControl x:Name="OverviewHost" />
+                </Grid>
 
-                <views:ManageAchievementsOverridesTab x:Name="OverridesTabControl">
-                    <views:ManageAchievementsOverridesTab.Style>
-                        <Style TargetType="{x:Type views:ManageAchievementsOverridesTab}">
-                            <Setter Property="Visibility" Value="Collapsed" />
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Visibility" Value="Hidden" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedTab}" Value="Overrides">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </views:ManageAchievementsOverridesTab.Style>
-                </views:ManageAchievementsOverridesTab>
+                    </Grid.Style>
+                    <ContentControl x:Name="OverridesHost" />
+                </Grid>
 
                 <Grid>
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Visibility" Value="Hidden" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedTab}" Value="Editor">
                                     <Setter Property="Visibility" Value="Visible" />
@@ -191,7 +205,7 @@
                 <Grid>
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Visibility" Value="Hidden" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedTab}" Value="Category">
                                     <Setter Property="Visibility" Value="Visible" />
@@ -205,7 +219,7 @@
                 <Grid>
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Visibility" Value="Hidden" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedTab}" Value="Notifications">
                                     <Setter Property="Visibility" Value="Visible" />

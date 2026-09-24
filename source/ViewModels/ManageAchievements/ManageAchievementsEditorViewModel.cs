@@ -2366,10 +2366,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            var otherGameCount = _gameCustomDataStore.LoadAll()
-                .Count(data => data != null &&
-                               data.PlayniteGameId != _gameId &&
-                               string.Equals(data.CustomProviderId, definition.Id, StringComparison.OrdinalIgnoreCase));
+            // Counted over the cached records rather than a cloned copy: LoadAll would deep-copy
+            // every customized game in the library to produce one number for a dialog.
+            var otherGameCount = _gameCustomDataStore.QueryAll(
+                rows => rows.Count(data => data != null &&
+                                           data.PlayniteGameId != _gameId &&
+                                           string.Equals(
+                                               data.CustomProviderId,
+                                               definition.Id,
+                                               StringComparison.OrdinalIgnoreCase)));
             var result = ShowConfirmation(
                 string.Format(
                     ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Custom_ProviderDeleteConfirm"),
@@ -4527,13 +4532,27 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // subscribes. Reveal state is per row and never persists.
             if (sender is AchievementEditorRow valueEditedRow)
             {
-                if (e.PropertyName == nameof(AchievementEditorRow.TrophyType) && valueEditedRow.HasTrophyType)
+                // Suppressed while the flag is flipped. Both setters that land here raise the
+                // reveal notification themselves once this handler returns, so without the guard
+                // one cell edit ran RefreshRevealHeaderState twice -- and that walk materializes
+                // the filtered rows, running the filter predicate over every row in the grid.
+                // The pass the setter triggers sees the flag already set, so nothing is lost.
+                var previousToggling = _isTogglingReveal;
+                _isTogglingReveal = true;
+                try
                 {
-                    valueEditedRow.IsTrophyRevealed = true;
+                    if (e.PropertyName == nameof(AchievementEditorRow.TrophyType) && valueEditedRow.HasTrophyType)
+                    {
+                        valueEditedRow.IsTrophyRevealed = true;
+                    }
+                    else if (e.PropertyName == nameof(AchievementEditorRow.PointsText) && valueEditedRow.HasPoints)
+                    {
+                        valueEditedRow.IsPointsRevealed = true;
+                    }
                 }
-                else if (e.PropertyName == nameof(AchievementEditorRow.PointsText) && valueEditedRow.HasPoints)
+                finally
                 {
-                    valueEditedRow.IsPointsRevealed = true;
+                    _isTogglingReveal = previousToggling;
                 }
             }
 

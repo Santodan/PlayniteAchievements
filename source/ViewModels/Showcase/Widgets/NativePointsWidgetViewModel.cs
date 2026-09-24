@@ -55,7 +55,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             }
 
             var max = Math.Max(1, entries.Max(entry => entry.Value));
-            Rows.ReplaceAll(entries
+            CollectionHelper.Replace(Rows, entries
                 .Select(entry => new ChartRowViewModel(
                     string.IsNullOrWhiteSpace(entry.LabelKey)
                         ? entry.Label ?? string.Empty

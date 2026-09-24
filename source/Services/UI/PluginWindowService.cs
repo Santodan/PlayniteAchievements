@@ -151,6 +151,22 @@ namespace PlayniteAchievements.Services.UI
 
         private void ShowWindow(Window window, bool isFullscreen)
         {
+            // Splits the span that three fixes have failed to move: ~1s between a popout's
+            // content loading and the first dispatcher callback running. ContentRendered fires
+            // when WPF has finished the first frame, so these two lines say whether that second
+            // is spent rendering (the window's own first paint, which nothing queued can
+            // pre-empt because ShowDialog runs it before its message loop pumps) or somewhere
+            // after it.
+            if (window != null && Common.PerfScope.PerfTracingEnabled)
+            {
+                var showRequestedTicks = Environment.TickCount;
+                _logger?.Debug("[WindowOpen] showing '" + window.Title + "'.");
+                window.ContentRendered += (_, __) =>
+                    _logger?.Debug(
+                        "[WindowOpen] content rendered after " +
+                        (Environment.TickCount - showRequestedTicks) + "ms.");
+            }
+
             PrepareForegroundActivation(window);
 
             if (isFullscreen)
@@ -1651,21 +1667,34 @@ namespace PlayniteAchievements.Services.UI
                     return;
                 }
 
-                _ensureAchievementResourcesLoaded?.Invoke();
+                // Opening this window is reported as laggy, and the span between the window
+                // appearing and Editor.ReloadData starting was entirely unmeasured -- roughly a
+                // second of it in one capture. These four scopes split it so a log says which
+                // part: loading the achievement resource dictionaries, constructing the control
+                // (XAML parse and the view-model graph behind it), creating the host window, or
+                // showing it.
+                using (Common.PerfScope.Start(_logger, "Manage.Open.EnsureResources", thresholdMs: 25))
+                {
+                    _ensureAchievementResourcesLoaded?.Invoke();
+                }
 
-                var view = new ManageAchievementsControl(
-                    gameId,
-                    initialTab,
-                    _refreshService,
-                    _cacheManager,
-                    _persistSettingsForUi,
-                    _achievementOverridesService,
-                    _achievementDataService,
-                    _api,
-                    _logger,
-                    _settings,
-                    _manualSourceRegistry,
-                    selectManageCategoriesSubTab);
+                ManageAchievementsControl view;
+                using (Common.PerfScope.Start(_logger, "Manage.Open.CreateControl", thresholdMs: 25))
+                {
+                    view = new ManageAchievementsControl(
+                        gameId,
+                        initialTab,
+                        _refreshService,
+                        _cacheManager,
+                        _persistSettingsForUi,
+                        _achievementOverridesService,
+                        _achievementDataService,
+                        _api,
+                        _logger,
+                        _settings,
+                        _manualSourceRegistry,
+                        selectManageCategoriesSubTab);
+                }
 
                 var windowOptions = new WindowOptions
                 {
@@ -1677,22 +1706,33 @@ namespace PlayniteAchievements.Services.UI
                     Height = 760
                 };
 
-                var window = CreateManagedPopoutWindow(
-                    view.WindowTitle,
-                    view,
-                    windowOptions,
-                    isFullscreen,
-                    ManageAchievementsWindowPlacementKey,
-                    configureWindow: createdWindow =>
-                    {
-                        createdWindow.MinWidth = 860;
-                        createdWindow.MinHeight = 620;
-                    },
-                    closed: view.Cleanup,
-                    fullscreenController: view);
+                Window window;
+                using (Common.PerfScope.Start(_logger, "Manage.Open.CreateWindow", thresholdMs: 25))
+                {
+                    window = CreateManagedPopoutWindow(
+                        view.WindowTitle,
+                        view,
+                        windowOptions,
+                        isFullscreen,
+                        ManageAchievementsWindowPlacementKey,
+                        configureWindow: createdWindow =>
+                        {
+                            createdWindow.MinWidth = 860;
+                            createdWindow.MinHeight = 620;
+                        },
+                        closed: view.Cleanup,
+                        fullscreenController: view);
+                }
 
                 TrackAchievementWindow(AchievementWindowKind.ManageAchievements, gameId, window);
 
+                // Not scoped: ShowWindow calls ShowDialog for a desktop popout, which blocks for
+                // the window's whole lifetime, so a scope here times how long the user kept the
+                // window open (30s in one capture) rather than the cost of showing it. Worth
+                // knowing for anyone reading the open path: the first show, layout and render
+                // all happen synchronously inside this call, before its nested message loop
+                // starts pumping -- so nothing queued on the dispatcher, at any priority, can
+                // run until that is done.
                 ShowWindow(window, isFullscreen);
             }
             catch (Exception ex)

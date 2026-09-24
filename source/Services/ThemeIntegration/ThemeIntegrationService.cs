@@ -1909,6 +1909,20 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             var library = _runtimeState.Library;
             PruneGameCommandCaches(library.AllGamesWithAchievements);
 
+            // One projected instance per game for this whole pass; see the memo's own note.
+            _gameSummaryProjectionMemo = new Dictionary<Guid, GameAchievementSummary>();
+            try
+            {
+                ApplyLibraryStateCore(library);
+            }
+            finally
+            {
+                _gameSummaryProjectionMemo = null;
+            }
+        }
+
+        private void ApplyLibraryStateCore(LibraryRuntimeState library)
+        {
             _settings.ModernTheme.CompletedGamesAsc = ProjectGameSummaries(library.CompletedGamesAsc);
             _settings.ModernTheme.CompletedGamesDesc = ProjectGameSummaries(library.CompletedGamesDesc);
             _settings.ModernTheme.GameSummariesAsc = ProjectGameSummaries(library.GameSummariesAsc);
@@ -2119,38 +2133,90 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         #endregion
 
+        /// <summary>
+        /// Projected summaries for the rebuild currently running, keyed by game id, so a game
+        /// appearing in several of the theme lists is projected once.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="ApplyLibraryState"/> calls <see cref="ProjectGameSummaries"/> around two
+        /// dozen times over lists that overlap heavily -- the ascending and descending pairs,
+        /// the all-games list, the completed and platinum pairs, and one provider bucket all
+        /// contain the same game -- so a library of N games produced roughly 7N fresh summaries
+        /// and twice that many command instances per refresh, all with identical content.
+        ///
+        /// Sharing one instance across those lists is safe: the type is an ObservableObject
+        /// whose content is read-only after construction, and WPF is content to see the same
+        /// item in several collections. It is also what lets an edit to one game notify every
+        /// surface showing it.
+        /// </remarks>
+        private Dictionary<Guid, GameAchievementSummary> _gameSummaryProjectionMemo;
+
         private ObservableCollection<GameAchievementSummary> ProjectGameSummaries(IEnumerable<GameAchievementSummary> items)
         {
+            var memo = _gameSummaryProjectionMemo;
+            if (memo != null)
+            {
+                var reused = new List<GameAchievementSummary>();
+                var fresh = new List<GameAchievementSummary>();
+                foreach (var item in items ?? Enumerable.Empty<GameAchievementSummary>())
+                {
+                    if (item == null)
+                    {
+                        continue;
+                    }
+
+                    if (!memo.TryGetValue(item.GameId, out var projectedItem))
+                    {
+                        projectedItem = CreateProjectedGameSummary(item);
+                        memo[item.GameId] = projectedItem;
+                        fresh.Add(projectedItem);
+                    }
+
+                    reused.Add(projectedItem);
+                }
+
+                // Only the ones built here need their commands attached; the rest already have
+                // them from the list that first projected them.
+                AttachGameSummaryCommands(fresh);
+                return new ObservableCollection<GameAchievementSummary>(reused);
+            }
+
             var projected = (items ?? Enumerable.Empty<GameAchievementSummary>())
-                .Select(item => new GameAchievementSummary(
-                    item.GameId,
-                    item.Name,
-                    item.Platform,
-                    item.CoverImagePath,
-                    item.Progress,
-                    item.GoldCount,
-                    item.SilverCount,
-                    item.BronzeCount,
-                    item.IsCompleted,
-                    item.LastUnlockDate,
-                    GetOpenViewAchievementsCommand(item.GameId),
-                    item.Common,
-                    item.Uncommon,
-                    item.Rare,
-                    item.UltraRare,
-                    item.RareAndUltraRare,
-                    item.Overall,
-                    item.ProviderKey,
-                    item.ProviderName,
-                    item.LastPlayed,
-                    item.UnlockedCount,
-                    item.AchievementCount,
-                    openManageAchievementsWindow: GetOpenManageAchievementsCommand(item.GameId),
-                    sortingName: item.SortingName))
+                .Where(item => item != null)
+                .Select(CreateProjectedGameSummary)
                 .ToList();
 
             AttachGameSummaryCommands(projected);
             return new ObservableCollection<GameAchievementSummary>(projected);
+        }
+
+        private GameAchievementSummary CreateProjectedGameSummary(GameAchievementSummary item)
+        {
+            return new GameAchievementSummary(
+                item.GameId,
+                item.Name,
+                item.Platform,
+                item.CoverImagePath,
+                item.Progress,
+                item.GoldCount,
+                item.SilverCount,
+                item.BronzeCount,
+                item.IsCompleted,
+                item.LastUnlockDate,
+                GetOpenViewAchievementsCommand(item.GameId),
+                item.Common,
+                item.Uncommon,
+                item.Rare,
+                item.UltraRare,
+                item.RareAndUltraRare,
+                item.Overall,
+                item.ProviderKey,
+                item.ProviderName,
+                item.LastPlayed,
+                item.UnlockedCount,
+                item.AchievementCount,
+                openManageAchievementsWindow: GetOpenManageAchievementsCommand(item.GameId),
+                sortingName: item.SortingName);
         }
 
         private ObservableCollection<FriendGameAchievementSummary> ProjectFriendGameSummaries(

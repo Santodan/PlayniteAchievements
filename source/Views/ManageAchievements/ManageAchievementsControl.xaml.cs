@@ -150,12 +150,32 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             _viewModel.SelectedTab = tab;
-            QueueEnsureSelectedTabContent();
+
+            // Built here, not queued. The window is shown with ShowDialog, which renders its
+            // first frame before its nested dispatcher frame starts pumping queued operations,
+            // so a queued build waits for the pump rather than the paint: measured at ~850ms
+            // after ContentRendered, with the thread idle and no stall. (The ray animation kept
+            // ticking through it, but CompositionTarget.Rendering is invoked from the render
+            // pass, not the dispatcher queue, so that showed the thread rendering rather than
+            // the queue draining.)
+            //
+            // Doing it inline costs ~150ms before the window appears and removes the second of
+            // empty shell after it. The Loaded handler still queues, which covers a tab changed
+            // before the window is up.
+            EnsureSelectedTabContent();
             QueueFocusSelectedTab();
         }
 
         private void ManageAchievementsControl_Loaded(object sender, System.Windows.RoutedEventArgs e)
         {
+            // Marks where the shell finished loading. A capture of a slow open shows ~1.4s of
+            // solid UI-thread work between the window being shown and the Background-priority
+            // callback below running, with no plugin scope covering it and even the animation
+            // tick starved. Loaded fires before WPF renders, so this line plus the
+            // Manage.EnsureTabContent that follows brackets that span: if the gap sits after
+            // this line, it is WPF laying out and rendering the shell, not plugin code.
+            _logger?.Debug("[ManageOpen] shell loaded; queueing tab content at Background priority.");
+
             // Held for as long as this window is up, and released once in Cleanup. Editing here
             // raises a custom-data change per edit, and each one otherwise rebuilds every game's
             // theme lists -- work behind this window that nothing can see until it closes. The
@@ -172,6 +192,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         public void Cleanup()
         {
             Loaded -= ManageAchievementsControl_Loaded;
+
 
             if (_viewModel != null)
             {
@@ -223,6 +244,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             if (e.PropertyName == nameof(ManageAchievementsViewModel.SelectedTab))
             {
+                // Marks the instant the tab actually changed. Without it a capture cannot tell
+                // how long the user took to click from how long the queued build then waited,
+                // and those need opposite fixes.
+                if (Common.PerfScope.PerfTracingEnabled)
+                {
+                    _logger?.Debug("[ManageTab] selected " + _viewModel?.SelectedTab + "; queueing build.");
+                }
+
                 QueueEnsureSelectedTabContent();
             }
             else if (e.PropertyName == nameof(ManageAchievementsViewModel.CustomDataRevision))
@@ -239,11 +268,21 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             _ensureTabContentQueued = true;
+
+            // Normal, not Background. Background sits below Input and Render, so this waited
+            // behind whatever else the dispatcher had -- and with the ray animation driving a
+            // continuous render loop on the surface behind this window, that was measured at
+            // about a second between the shell loading and the tab content appearing, with the
+            // UI thread responsive throughout. It was starvation, not work: the build itself is
+            // ~150ms, and the window showed an empty shell for the whole wait.
+            //
+            // Still queued rather than called inline, so the shell lays out first; it just no
+            // longer yields to everything else once it has.
             _ = Dispatcher.BeginInvoke(new Action(() =>
             {
                 _ensureTabContentQueued = false;
                 EnsureSelectedTabContent();
-            }), DispatcherPriority.Background);
+            }), DispatcherPriority.Normal);
         }
 
         private void EnsureSelectedTabContent()
@@ -253,12 +292,26 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
+            using var tabScope = Common.PerfScope.Start(
+                _logger,
+                "Manage.EnsureTabContent",
+                thresholdMs: 25,
+                context: "tab=" + _viewModel.SelectedTab);
+
             if (_viewModel.SelectedTab != ManageAchievementsTab.Category)
             {
                 PropagateCategoryEditsToSiblingTabs();
             }
 
-            if (_viewModel.SelectedTab == ManageAchievementsTab.Editor)
+            if (_viewModel.SelectedTab == ManageAchievementsTab.Overview)
+            {
+                EnsureOverviewControl();
+            }
+            else if (_viewModel.SelectedTab == ManageAchievementsTab.Overrides)
+            {
+                EnsureOverridesControl();
+            }
+            else if (_viewModel.SelectedTab == ManageAchievementsTab.Editor)
             {
                 var hadEditorControl = _editorControl != null;
                 EnsureEditorControl(forceRecreate: false);
@@ -302,6 +355,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     _notificationsRefreshDiscardPending = false;
                 }
             }
+
+            // Tabs stay lazy: only the selected one is built. Building the editor with the
+            // window was tried and rejected - it put its construction and layout into every
+            // open, including the ones that never touch it. The cost belongs on the click; the
+            // work is to make it smaller, not to move it.
         }
 
         public bool HandleFullscreenControllerInput(ControllerInput input)
@@ -492,10 +550,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
             switch (_viewModel?.SelectedTab)
             {
                 case ManageAchievementsTab.Overview:
-                    root = OverviewTabControl;
+                    root = _overviewControl ?? (DependencyObject)OverviewHost;
                     break;
                 case ManageAchievementsTab.Overrides:
-                    root = OverridesTabControl;
+                    root = _overridesControl ?? (DependencyObject)OverridesHost;
                     break;
                 case ManageAchievementsTab.Editor:
                     return _editorControl?.GetControllerElements() ?? new List<UIElement>();
@@ -728,6 +786,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
+            // Builds the editor's view model and its view. Dispatched at Background priority
+            // from Loaded, so it lands after the window has already appeared -- which is the
+            // span between the window showing and Editor.ReloadData that a capture of a slow
+            // open shows as an unexplained gap.
+            using var scope = Common.PerfScope.Start(
+                _logger,
+                "Manage.EnsureEditorControl",
+                thresholdMs: 25,
+                context: "recreate=" + forceRecreate);
+
             CleanupEditor();
 
             // Same view model and view as the Custom tab, told to include provider achievements:
@@ -859,6 +927,33 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _viewModel.EffectiveProviderKey);
             NotificationsHost.Content = _notificationsControl;
         }
+
+        // The overview and overrides tabs take no constructor arguments and read everything
+        // from the shared DataContext, so hosting them costs nothing beyond the instance.
+        private void EnsureOverviewControl()
+        {
+            if (_overviewControl != null)
+            {
+                return;
+            }
+
+            _overviewControl = new ManageAchievementsOverviewTab();
+            OverviewHost.Content = _overviewControl;
+        }
+
+        private void EnsureOverridesControl()
+        {
+            if (_overridesControl != null)
+            {
+                return;
+            }
+
+            _overridesControl = new ManageAchievementsOverridesTab();
+            OverridesHost.Content = _overridesControl;
+        }
+
+        private ManageAchievementsOverviewTab _overviewControl;
+        private ManageAchievementsOverridesTab _overridesControl;
 
         private void CustomViewModel_CustomAchievementsSaved(object sender, EventArgs e)
         {

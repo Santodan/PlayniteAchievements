@@ -56,9 +56,57 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// A game's category order as a normalized lookup, so a caller resolving many
+        /// achievements against one game's order normalizes each entry once instead of once per
+        /// probe. First position wins, matching the scan it replaces.
+        /// </summary>
+        public static Dictionary<string, int> BuildCategoryOrderIndex(IReadOnlyList<string> categoryOrder)
+        {
+            var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            if (categoryOrder == null)
+            {
+                return map;
+            }
+
+            for (var i = 0; i < categoryOrder.Count; i++)
+            {
+                var normalized = CategoryPathHelper.NormalizePath(categoryOrder[i]);
+                if (!string.IsNullOrWhiteSpace(normalized) && !map.ContainsKey(normalized))
+                {
+                    map[normalized] = i;
+                }
+            }
+
+            return map;
+        }
+
+        /// <summary>
+        /// Index of a normalized category label in a prebuilt
+        /// <see cref="BuildCategoryOrderIndex"/> lookup, or <see cref="int.MaxValue"/> when the
+        /// label is absent.
+        /// </summary>
+        public static int ResolveCategoryOrderIndex(
+            string categoryLabel,
+            IReadOnlyDictionary<string, int> categoryOrderIndex)
+        {
+            if (string.IsNullOrWhiteSpace(categoryLabel) ||
+                categoryOrderIndex == null ||
+                categoryOrderIndex.Count == 0)
+            {
+                return int.MaxValue;
+            }
+
+            return categoryOrderIndex.TryGetValue(categoryLabel, out var index) ? index : int.MaxValue;
+        }
+
+        /// <summary>
         /// Index of a normalized category label in the game's custom category order, or
         /// <see cref="int.MaxValue"/> when there is no custom order or the label is absent.
         /// </summary>
+        /// <remarks>
+        /// Scans and normalizes as it goes. Resolving a whole game's achievements against one
+        /// order list should build the lookup above once instead of calling this per achievement.
+        /// </remarks>
         public static int ResolveCategoryOrderIndex(string categoryLabel, IReadOnlyList<string> categoryOrder)
         {
             if (string.IsNullOrWhiteSpace(categoryLabel) || categoryOrder == null || categoryOrder.Count == 0)

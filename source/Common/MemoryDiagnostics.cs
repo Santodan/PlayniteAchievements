@@ -40,11 +40,15 @@ namespace PlayniteAchievements.Common
         /// </summary>
         internal static readonly bool MemoryTracingEnabled = false;
 
-        // Two gates, deliberately different.
+        // Two gates, deliberately different -- and neither answers to PerfScope.PerfTracingEnabled.
         //
-        // Enabled covers everything cheap: the [MemPerf] counter lines, the inline suffixes, the
-        // sampler, LeakWatch and RetentionProbes. It ORs in PerfScope.PerfTracingEnabled so a
-        // tracing build reports memory alongside its timings.
+        // Enabled covers the [MemPerf] counter lines, the inline suffixes, the sampler, LeakWatch
+        // and RetentionProbes. It used to OR in PerfScope.PerfTracingEnabled so a tracing build
+        // reported memory alongside its timings, but that made a timing capture measure itself:
+        // LeakWatch.Track runs per editor row behind a global lock, and LeakWatch.TrackAll runs
+        // over whole library row sets inside the overview's per-edit delta, so arming it with the
+        // timings inflated the very numbers the timings were taken to read. Memory tracing is now
+        // its own opt-in, which is what the split below already established for the report.
         //
         // RetentionReportEnabled covers only the retention report, which forces two blocking gen2
         // collections per call (see LogRetained). That is far too expensive to ride along with
@@ -62,12 +66,11 @@ namespace PlayniteAchievements.Common
         /// </summary>
         internal static bool? TestEnabledOverride;
 
-        public static bool Enabled =>
-            TestEnabledOverride ?? (MemoryTracingEnabled || PerfScope.PerfTracingEnabled);
+        public static bool Enabled => TestEnabledOverride ?? MemoryTracingEnabled;
 
         public static bool RetentionReportEnabled => TestEnabledOverride ?? MemoryTracingEnabled;
 #else
-        public static bool Enabled => MemoryTracingEnabled || PerfScope.PerfTracingEnabled;
+        public static bool Enabled => MemoryTracingEnabled;
 
         public static bool RetentionReportEnabled => MemoryTracingEnabled;
 #endif

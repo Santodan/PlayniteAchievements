@@ -52,7 +52,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             AnimateRarityGlows =
                 PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.AnimateRarityGlows ?? true;
 
-            Items.ReplaceAll(OrderAchievements(achievements));
+            CollectionHelper.Replace(Items, OrderAchievements(achievements));
         }
 
         /// <summary>

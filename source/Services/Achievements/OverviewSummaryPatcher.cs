@@ -74,9 +74,23 @@ namespace PlayniteAchievements.Services.Achievements
             // A game that had rows in the base but reads back with none is the signature of a
             // scoped read that failed to match -- a GUID stored in a format the predicate does
             // not find, say. Falling back is what keeps that from silently deleting the game.
+            // Indexed once rather than scanned per target: this runs on a UI-triggered read,
+            // and the base list is the whole library while targets can be up to MaxScopedGames.
+            var baseGameIds = new HashSet<Guid>();
+            if (baseData.Games != null)
+            {
+                foreach (var game in baseData.Games)
+                {
+                    if (game?.PlayniteGameId.HasValue == true)
+                    {
+                        baseGameIds.Add(game.PlayniteGameId.Value);
+                    }
+                }
+            }
+
             foreach (var id in targets)
             {
-                var hadRows = baseData.Games?.Any(game => game?.PlayniteGameId == id) == true;
+                var hadRows = baseGameIds.Contains(id);
                 var hasRows = hydratedSlices[id].Games?.Any(game => game?.PlayniteGameId == id) == true;
                 var isExcludedNow = hydratedSlices[id].Games?.Count == 0 &&
                                     hydratedSlices[id].Achievements?.Count == 0 &&

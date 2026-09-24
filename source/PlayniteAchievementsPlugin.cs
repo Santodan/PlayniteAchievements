@@ -294,8 +294,11 @@ namespace PlayniteAchievements
 
                 using (PerfScope.StartStartup(_logger, "PluginCtor.CustomDataWarmup", thresholdMs: 50))
                 {
-                    var rows = _gameCustomDataStore.LoadAll();
-                    _logger?.Debug($"Preloaded {rows?.Count ?? 0} game custom-data rows.");
+                    // Counted, not loaded out. LoadAll deep-clones every stored record, and this
+                    // wanted a number -- so a user who has customized their whole library paid a
+                    // full copy of every record at startup, and it was discarded on the next line.
+                    var count = _gameCustomDataStore.QueryAll(rows => rows.Count());
+                    _logger?.Debug($"Preloaded {count} game custom-data rows.");
                 }
             }
             catch (Exception ex)
@@ -478,7 +481,10 @@ namespace PlayniteAchievements
         public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
         {
             // Initialize logging system first
-            PluginLogger.Initialize(GetPluginUserDataPath());
+            var pluginUserDataPath = GetPluginUserDataPath();
+            PluginLogger.Initialize(pluginUserDataPath);
+            // Before the first scope below, so a traced session covers startup too.
+            PerfScope.ConfigureTracing(pluginUserDataPath);
             _logger = PluginLogger.GetLogger(nameof(PlayniteAchievementsPlugin));
             _themeControlRegistry = new ThemeControlRegistry();
             _resourceService = new AchievementResourceService(_logger);
@@ -531,7 +537,6 @@ namespace PlayniteAchievements
                 Charting.For<PieSliceChartData>(pieSliceMapper);
 
                 var settings = _settingsViewModel.Settings;
-                var pluginUserDataPath = GetPluginUserDataPath();
                 _manualSourceRegistry = new ManualSourceRegistry(_logger, settings, PlayniteApi, pluginUserDataPath);
 
                 // User-defined custom providers resolve through static hooks so the registry and
@@ -1783,12 +1788,19 @@ namespace PlayniteAchievements
             {
                 Views.Converters.ProviderIconConverter.Invalidate("GeoCustom:" + e.Id + "|");
 
-                var affectedGameIds = _gameCustomDataStore.LoadAll()
-                    .Where(data => data != null &&
-                                   data.PlayniteGameId != Guid.Empty &&
-                                   string.Equals(data.CustomProviderId, e.Id, StringComparison.OrdinalIgnoreCase))
-                    .Select(data => data.PlayniteGameId)
-                    .ToList();
+                // Only the ids are wanted, so this reads the cached records instead of the
+                // deep-cloned copy LoadAll returns -- which would copy every customized game in
+                // the library to select a handful of Guids.
+                var affectedGameIds = _gameCustomDataStore.QueryAll(
+                    rows => rows
+                        .Where(data => data != null &&
+                                       data.PlayniteGameId != Guid.Empty &&
+                                       string.Equals(
+                                           data.CustomProviderId,
+                                           e.Id,
+                                           StringComparison.OrdinalIgnoreCase))
+                        .Select(data => data.PlayniteGameId)
+                        .ToList());
 
                 foreach (var gameId in affectedGameIds)
                 {
@@ -2100,8 +2112,87 @@ namespace PlayniteAchievements
             // store's read connection for hundreds of milliseconds, behind which UI-thread reads
             // queue. The cache is still dropped either way, so an on-demand consumer never sees
             // stale values; only the precompute waits.
+            //
+            // But most of these updates move nothing the projection reads. Tag sync writes the
+            // Playnite database once per edited game, Playnite raises this back at us for that
+            // write, and the projection was then discarded for a change to Tags -- a field it
+            // does not project. So every custom-data edit threw away a whole-library projection
+            // a second time, on top of the one its own store event caused, and that projection
+            // was measured at ~1.5s to rebuild for 500 games.
+            if (!UpdateAffectsProjection(e))
+            {
+                return;
+            }
+
             _libraryProjectionService?.InvalidateForGame();
             ScheduleStartPageInvalidate();
+        }
+
+        /// <summary>
+        /// Whether a Playnite game update moved any field the overview/start-page projection
+        /// reads. An update carrying no before/after pair is treated as affecting it, so an
+        /// unknown shape still invalidates rather than going stale.
+        /// </summary>
+        private static bool UpdateAffectsProjection(ItemUpdatedEventArgs<Game> e)
+        {
+            var updates = e?.UpdatedItems;
+            if (updates == null || updates.Count == 0)
+            {
+                return true;
+            }
+
+            foreach (var update in updates)
+            {
+                var before = update?.OldData;
+                var after = update?.NewData;
+                if (before == null || after == null)
+                {
+                    return true;
+                }
+
+                // The fields GamePresentation projects, plus the ones the summary rows sort and
+                // group by. Tags, categories, descriptions and the rest are deliberately absent.
+                if (!string.Equals(before.Name, after.Name, StringComparison.Ordinal) ||
+                    !string.Equals(before.SortingName, after.SortingName, StringComparison.Ordinal) ||
+                    !string.Equals(before.Icon, after.Icon, StringComparison.Ordinal) ||
+                    !string.Equals(before.CoverImage, after.CoverImage, StringComparison.Ordinal) ||
+                    before.Favorite != after.Favorite ||
+                    before.Hidden != after.Hidden ||
+                    before.Playtime != after.Playtime ||
+                    before.LastActivity != after.LastActivity ||
+                    !NullableGuidListsMatch(before.PlatformIds, after.PlatformIds) ||
+                    !NullableGuidListsMatch(before.RegionIds, after.RegionIds))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool NullableGuidListsMatch(List<Guid> left, List<Guid> right)
+        {
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            var leftCount = left?.Count ?? 0;
+            var rightCount = right?.Count ?? 0;
+            if (leftCount != rightCount)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < leftCount; i++)
+            {
+                if (left[i] != right[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private Task TriggerNewGamesRefreshAsync(List<Guid> gameIds)

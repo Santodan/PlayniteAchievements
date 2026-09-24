@@ -33,7 +33,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var decodePixel = Math.Max(64, (int)Math.Ceiling(coverHeight * 2));
             var pinnable = ShowcaseWidgetOptions.GetGameMosaicSource(Projection?.Instance) ==
                 ShowcaseGameMosaicSource.Pinned;
-            Tiles.ReplaceAll(OrderGames(games)
+            CollectionHelper.Replace(Tiles, OrderGames(games)
                 .Select(game => new GameTileViewModel(
                     game,
                     pinnable,

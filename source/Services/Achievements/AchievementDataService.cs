@@ -619,7 +619,14 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
-        private HashSet<Guid> ResolveExcludedSummaryGameIds(IReadOnlyDictionary<Guid, GameCustomDataFile> customDataByGameId)
+        /// <param name="customDataByGameId">
+        /// Read only if the store lookup throws. Taken as a factory so a caller that has no
+        /// other use for the records does not materialize them: the map comes from LoadAll,
+        /// which deep-clones every stored record, and the store's own lookup reads the cache
+        /// without copying anything.
+        /// </param>
+        private HashSet<Guid> ResolveExcludedSummaryGameIds(
+            Func<IReadOnlyDictionary<Guid, GameCustomDataFile>> customDataByGameId)
         {
             try
             {
@@ -628,7 +635,7 @@ namespace PlayniteAchievements.Services.Achievements
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "Failed to resolve excluded summary game IDs from custom-data store. Falling back to persisted settings projection.");
-                return BuildExcludedSummaryGameIdsFallback(customDataByGameId);
+                return BuildExcludedSummaryGameIdsFallback(customDataByGameId?.Invoke());
             }
         }
 
@@ -739,7 +746,7 @@ namespace PlayniteAchievements.Services.Achievements
             if (scopeGameIds == null || scopeGameIds.Count == 0)
             {
                 var all = LoadCustomDataByGameId();
-                return (all, ResolveExcludedSummaryGameIds(all));
+                return (all, ResolveExcludedSummaryGameIds(() => all));
             }
 
             var scoped = new Dictionary<Guid, GameCustomDataFile>();
@@ -765,7 +772,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             // Narrowed to the scope: the exclusion filter must only ever remove rows belonging to
             // games this pass actually re-read, or a patch would drop rows it never replaced.
-            var excluded = ResolveExcludedSummaryGameIds(scoped);
+            var excluded = ResolveExcludedSummaryGameIds(() => scoped);
             excluded?.IntersectWith(scopeGameIds);
             return (scoped, excluded);
         }
@@ -875,8 +882,10 @@ namespace PlayniteAchievements.Services.Achievements
         {
             allData ??= new List<GameAchievementData>();
 
-            var customDataByGameId = LoadCustomDataByGameId();
-            var excludedSummaryIds = ResolveExcludedSummaryGameIds(customDataByGameId);
+            // The records are wanted only if the store lookup throws, so they are not loaded
+            // up front: LoadCustomDataByGameId deep-clones every stored record, and this needs
+            // a set of ids.
+            var excludedSummaryIds = ResolveExcludedSummaryGameIds(LoadCustomDataByGameId);
             if (excludedSummaryIds == null || excludedSummaryIds.Count == 0)
             {
                 return allData;
@@ -1414,15 +1423,30 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            var entriesByGameId = new Dictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>>();
-            foreach (var pair in LoadCustomDataByGameId())
+            // Built straight off the cached records. Going through LoadCustomDataByGameId
+            // deep-cloned every stored record first, and the mirror entries are fresh objects
+            // holding scalars, so the copies were read once and dropped -- a full copy of the
+            // library's custom data on every full invalidation, for a user who has customized
+            // all of it.
+            var entriesByGameId = _gameCustomDataStore?.QueryAll(rows =>
             {
-                var entries = BuildOverrideMirrorEntries(pair.Value);
-                if (entries.Count > 0)
+                var map = new Dictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>>();
+                foreach (var row in rows)
                 {
-                    entriesByGameId[pair.Key] = entries;
+                    if (row == null || row.PlayniteGameId == Guid.Empty)
+                    {
+                        continue;
+                    }
+
+                    var built = BuildOverrideMirrorEntries(row);
+                    if (built.Count > 0)
+                    {
+                        map[row.PlayniteGameId] = built;
+                    }
                 }
-            }
+
+                return map;
+            }) ?? new Dictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>>();
 
             _overrideMirror.ResyncAllAchievementOverrides(entriesByGameId);
             InvalidateOverviewProjectionCaches();

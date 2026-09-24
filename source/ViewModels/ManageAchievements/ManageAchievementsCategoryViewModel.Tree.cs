@@ -1040,7 +1040,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // One Reset rather than a Clear plus an Add per row: the grid rebuilds a container and
             // lays it out on every notification, and each of these rows carries category art.
-            CategoryRows.ReplaceAll(nextRows);
+            CollectionHelper.Replace(CategoryRows, nextRows);
 
             RefreshAssignableCategoryOptions();
             RefreshCategoryMetadataState();

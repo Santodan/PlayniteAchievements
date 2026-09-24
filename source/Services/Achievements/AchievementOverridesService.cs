@@ -949,13 +949,26 @@ namespace PlayniteAchievements.Services.Achievements
                 gameId,
                 customData =>
                 {
+                    // Cloned once for the whole batch, not once per write. MutateOverrides
+                    // deep-copies the game's entire override map and re-stores it on every
+                    // call, so driving it per write cost N copies of an N-entry map -- and the
+                    // batch that reaches this with the most writes is a bulk edit, or an undo
+                    // of one, across every achievement in the game. Applying 641 writes to a
+                    // game with 641 overrides meant on the order of 400,000 entry clones for
+                    // one gesture.
+                    var overrides = CloneOverrides(customData);
                     foreach (var write in resolved)
                     {
-                        MutateOverrides(
-                            customData,
-                            new[] { write.ApiName },
-                            entry => ApplyFieldToEntry(entry, write.Field, write.Value));
+                        if (!overrides.TryGetValue(write.ApiName, out var entry) || entry == null)
+                        {
+                            entry = new AchievementOverride();
+                        }
+
+                        ApplyFieldToEntry(entry, write.Field, write.Value);
+                        overrides[write.ApiName] = entry;
                     }
+
+                    StoreOverrides(customData, overrides);
                 },
                 affectsSummary,
                 affectsMirror);

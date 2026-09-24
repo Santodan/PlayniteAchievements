@@ -142,6 +142,46 @@ namespace PlayniteAchievements.Services.Tests
             }
         }
 
+        [TestMethod]
+        public void TheStoredPayload_IsWrittenCompact()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    AchievementOrder = new List<string> { "ach_one", "ach_two" },
+                    AchievementNotes = new Dictionary<string, string> { ["ach_one"] = "a note" }
+                });
+
+                var payload = ReadPayloadOnDisk(store.DatabasePath, gameId);
+
+                // The payload is only ever round-tripped through JsonConvert, so its indentation
+                // was whitespace serialized on every per-game save and carried into the WAL. The
+                // serialize scales with the game's override count, which is the profile that made
+                // editing a heavily customized game slow.
+                Assert.IsFalse(
+                    payload.Contains("\n"),
+                    "The stored blob must be compact; indenting it costs bytes and serialize time " +
+                    "on every save and buys nothing, because nothing reads it as text.");
+
+                // Still a faithful record, not just a short one.
+                var reloaded = new GameCustomDataStore(tempDir).LoadOrDefault(gameId);
+                CollectionAssert.AreEqual(
+                    new[] { "ach_one", "ach_two" },
+                    reloaded.AchievementOrder.ToArray());
+                Assert.AreEqual("a note", reloaded.AchievementNotes["ach_one"]);
+            }
+            finally
+            {
+                TryDeleteDirectory(tempDir);
+            }
+        }
+
         // The sources are compiled into this assembly, so the test reads the constant itself
         // rather than restating a number that would drift the next time the schema moves.
         private static int CurrentSchemaVersion => GameCustomDataNormalizer.CurrentSchemaVersion;

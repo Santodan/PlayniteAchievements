@@ -137,28 +137,8 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
     }
 
-    internal sealed class ResolvedOverviewGameCustomData
-    {
-        public bool ExcludedFromSummaries { get; set; }
-
-        public bool UseSeparateLockedIcons { get; set; }
-    }
-
     internal static class GameCustomDataLookup
     {
-        public static ResolvedOverviewGameCustomData ResolveOverviewGameCustomData(
-            Guid gameId,
-            PersistedSettings fallbackSettings = null,
-            GameCustomDataStore store = null)
-        {
-            var resolved = ResolveGameCustomData(gameId, fallbackSettings, store);
-            return new ResolvedOverviewGameCustomData
-            {
-                ExcludedFromSummaries = resolved.ExcludedFromSummaries,
-                UseSeparateLockedIcons = resolved.UseSeparateLockedIcons
-            };
-        }
-
         public static ResolvedGameCustomData ResolveGameCustomData(
             Guid gameId,
             PersistedSettings fallbackSettings = null,
@@ -172,86 +152,140 @@ namespace PlayniteAchievements.Services.GameCustomData
                 };
             }
 
-            var hasCustomData = TryLoad(gameId, out var customData, store);
+            // Read off the cached record instead of a clone of it. This runs once per game
+            // across the whole library during hydration, and it already rebuilds every
+            // collection it hands out -- so going through TryLoad meant a full deep copy of the
+            // record (including a per-entry copy of every override) followed by a second copy
+            // of most of it. On a library where every game is customized that doubling is the
+            // dominant cost of a hydration pass.
+            //
+            // Everything the builder returns is freshly allocated, so nothing escapes into the
+            // cache; the four collections that used to ride out as references on the discarded
+            // clone are copied explicitly there.
+            var resolvedStore = ResolveStore(store);
+            var resolved = resolvedStore?.QueryGame(
+                gameId,
+                customData => customData == null ? null : BuildResolvedFromRecord(customData, fallbackSettings));
+
+            return resolved ?? BuildResolvedFromSettings(gameId, fallbackSettings);
+        }
+
+        private static ResolvedGameCustomData BuildResolvedFromRecord(
+            GameCustomDataFile customData,
+            PersistedSettings fallbackSettings)
+        {
             var resolved = new ResolvedGameCustomData
             {
-                ExcludedFromRefreshes = hasCustomData
-                    ? customData?.ExcludedFromRefreshes == true
-                    : fallbackSettings?.ExcludedGameIds?.Contains(gameId) == true,
-                ExcludedFromSummaries = hasCustomData
-                    ? customData?.ExcludedFromSummaries == true
-                    : fallbackSettings?.ExcludedFromSummariesGameIds?.Contains(gameId) == true,
+                ExcludedFromRefreshes = customData.ExcludedFromRefreshes == true,
+                ExcludedFromSummaries = customData.ExcludedFromSummaries == true,
                 UseSeparateLockedIcons = fallbackSettings?.UseSeparateLockedIconsWhenAvailable == true ||
-                    (hasCustomData
-                        ? customData?.UseSeparateLockedIconsOverride == true
-                        : fallbackSettings?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true),
-                HasManualLink = hasCustomData && customData?.ManualLink != null,
-                CapstonesMaterialized = hasCustomData
-                    ? customData?.CapstonesMaterialized == true
-                    : fallbackSettings?.ManualCapstones != null &&
-                      fallbackSettings.ManualCapstones.ContainsKey(gameId),
-                Capstones = hasCustomData
-                    ? customData?.Capstones ?? new List<CapstoneAssignment>()
-                    : BuildLegacyCapstones(gameId, fallbackSettings),
-                AchievementOrder = hasCustomData
-                    ? customData?.AchievementOrder ?? new List<string>()
-                                        : fallbackSettings?.AchievementOrderOverrides != null &&
-                                            fallbackSettings.AchievementOrderOverrides.TryGetValue(gameId, out var configuredOrder)
-                                                ? AchievementOrderHelper.NormalizeApiNames(configuredOrder)
-                                                : new List<string>(),
-                AchievementCategoryOverrides = hasCustomData
-                    ? customData?.AchievementCategoryOverrides ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                                        : fallbackSettings?.AchievementCategoryOverrides != null &&
-                                            fallbackSettings.AchievementCategoryOverrides.TryGetValue(gameId, out var configuredCategoryOverrides)
-                                                ? CloneStringMap(configuredCategoryOverrides)
-                                                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-                AchievementCategoryTypeOverrides = hasCustomData
-                    ? customData?.AchievementCategoryTypeOverrides ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                                        : fallbackSettings?.AchievementCategoryTypeOverrides != null &&
-                                            fallbackSettings.AchievementCategoryTypeOverrides.TryGetValue(gameId, out var configuredCategoryTypeOverrides)
-                                                ? CloneStringMap(configuredCategoryTypeOverrides)
-                                                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-                AchievementCategoryOrder = hasCustomData
-                    ? CloneCategoryOrder(customData?.AchievementCategoryOrder)
+                    customData.UseSeparateLockedIconsOverride == true,
+                HasManualLink = customData.ManualLink != null,
+                CapstonesMaterialized = customData.CapstonesMaterialized,
+
+                // Copied rather than referenced: the record here is the cached instance, not a
+                // clone of it, so handing out its own collections would let a caller mutate the
+                // cache.
+                Capstones = customData.Capstones != null
+                    ? customData.Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : new List<CapstoneAssignment>(),
+                AchievementOrder = customData.AchievementOrder != null
+                    ? new List<string>(customData.AchievementOrder)
                     : new List<string>(),
-                AchievementCategoryImageOverrides = hasCustomData
-                    ? CloneCategoryImageOverrideMap(customData?.AchievementCategoryImageOverrides)
-                    : new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase),
-                GameSummaryCategory = hasCustomData
-                    ? GameCustomDataNormalizer.NormalizeGameSummaryCategory(customData?.GameSummaryCategory)
-                    : null,
-                FilteredAchievementApiNames = hasCustomData
-                    ? CloneApiNameSet(customData?.FilteredAchievementApiNames)
-                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                SummaryFilteredAchievementApiNames = hasCustomData
-                    ? CloneApiNameSet(customData?.SummaryFilteredAchievementApiNames)
-                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                GoalAchievementApiNames = hasCustomData
-                    ? AchievementOrderHelper.NormalizeApiNames(customData?.GoalAchievementApiNames)
-                    : new List<string>(),
-                AchievementNotes = hasCustomData
-                    ? CloneNoteMap(customData?.AchievementNotes)
+                // A plain copy, not CloneStringMap: these used to ride out as references on the
+                // discarded clone, so they carried exactly what the stored record held. The
+                // record is normalized on load, so re-normalizing here would only cost a pass
+                // -- and could drop an entry the old path kept.
+                AchievementCategoryOverrides = customData.AchievementCategoryOverrides != null
+                    ? new Dictionary<string, string>(
+                        customData.AchievementCategoryOverrides,
+                        StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-                CustomAchievements = hasCustomData
-                    ? CloneCustomAchievements(customData?.CustomAchievements)
-                    : new List<CustomAchievementDefinition>()
+                AchievementCategoryTypeOverrides = customData.AchievementCategoryTypeOverrides != null
+                    ? new Dictionary<string, string>(
+                        customData.AchievementCategoryTypeOverrides,
+                        StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+
+                AchievementCategoryOrder = CloneCategoryOrder(customData.AchievementCategoryOrder),
+                AchievementCategoryImageOverrides =
+                    CloneCategoryImageOverrideMap(customData.AchievementCategoryImageOverrides),
+                GameSummaryCategory =
+                    GameCustomDataNormalizer.NormalizeGameSummaryCategory(customData.GameSummaryCategory),
+                FilteredAchievementApiNames = CloneApiNameSet(customData.FilteredAchievementApiNames),
+                SummaryFilteredAchievementApiNames = CloneApiNameSet(customData.SummaryFilteredAchievementApiNames),
+                GoalAchievementApiNames = AchievementOrderHelper.NormalizeApiNames(customData.GoalAchievementApiNames),
+                AchievementNotes = CloneNoteMap(customData.AchievementNotes),
+                CustomAchievements = CloneCustomAchievements(customData.CustomAchievements)
             };
 
-            // A pre-custom-data game resolves its customization from settings, which only ever held
-            // the legacy maps, so the record is synthesized from what resolved above.
-            resolved.AchievementOverrides = hasCustomData && customData?.AchievementOverrides != null
+            resolved.AchievementOverrides = customData.AchievementOverrides != null
                 ? CloneOverrideMap(customData.AchievementOverrides)
                 : resolved.ResolveAchievementOverrides();
 
             return resolved;
         }
 
+        /// <summary>
+        /// A game with no stored record resolves its customization from the legacy settings
+        /// maps, which are all this plugin had before the per-game store.
+        /// </summary>
+        private static ResolvedGameCustomData BuildResolvedFromSettings(
+            Guid gameId,
+            PersistedSettings fallbackSettings)
+        {
+            var resolved = new ResolvedGameCustomData
+            {
+                ExcludedFromRefreshes = fallbackSettings?.ExcludedGameIds?.Contains(gameId) == true,
+                ExcludedFromSummaries = fallbackSettings?.ExcludedFromSummariesGameIds?.Contains(gameId) == true,
+                UseSeparateLockedIcons = fallbackSettings?.UseSeparateLockedIconsWhenAvailable == true ||
+                    fallbackSettings?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true,
+                HasManualLink = false,
+                CapstonesMaterialized = fallbackSettings?.ManualCapstones != null &&
+                    fallbackSettings.ManualCapstones.ContainsKey(gameId),
+                Capstones = BuildLegacyCapstones(gameId, fallbackSettings),
+                AchievementOrder = fallbackSettings?.AchievementOrderOverrides != null &&
+                    fallbackSettings.AchievementOrderOverrides.TryGetValue(gameId, out var configuredOrder)
+                        ? AchievementOrderHelper.NormalizeApiNames(configuredOrder)
+                        : new List<string>(),
+                AchievementCategoryOverrides = fallbackSettings?.AchievementCategoryOverrides != null &&
+                    fallbackSettings.AchievementCategoryOverrides.TryGetValue(gameId, out var configuredCategoryOverrides)
+                        ? CloneStringMap(configuredCategoryOverrides)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                AchievementCategoryTypeOverrides = fallbackSettings?.AchievementCategoryTypeOverrides != null &&
+                    fallbackSettings.AchievementCategoryTypeOverrides.TryGetValue(gameId, out var configuredCategoryTypeOverrides)
+                        ? CloneStringMap(configuredCategoryTypeOverrides)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                AchievementCategoryOrder = new List<string>(),
+                AchievementCategoryImageOverrides =
+                    new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase),
+                GameSummaryCategory = null,
+                FilteredAchievementApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                SummaryFilteredAchievementApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                GoalAchievementApiNames = new List<string>(),
+                AchievementNotes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                CustomAchievements = new List<CustomAchievementDefinition>()
+            };
+
+            // Synthesized from the legacy maps resolved above, which is the only place a
+            // pre-store game's per-achievement customization lived.
+            resolved.AchievementOverrides = resolved.ResolveAchievementOverrides();
+            return resolved;
+        }
+
+        // Both read one flag, so neither builds the resolved projection: that allocates and
+        // copies every collection the record holds, which is a great deal of work to answer a
+        // bool on a heavily customized game.
         public static bool IsExcludedFromRefreshes(
             Guid gameId,
             PersistedSettings fallbackSettings = null,
             GameCustomDataStore store = null)
         {
-            return ResolveGameCustomData(gameId, fallbackSettings, store).ExcludedFromRefreshes;
+            return ReadGameFlag(
+                gameId,
+                store,
+                customData => customData.ExcludedFromRefreshes == true,
+                () => fallbackSettings?.ExcludedGameIds?.Contains(gameId) == true);
         }
 
         public static bool IsExcludedFromSummaries(
@@ -259,7 +293,36 @@ namespace PlayniteAchievements.Services.GameCustomData
             PersistedSettings fallbackSettings = null,
             GameCustomDataStore store = null)
         {
-            return ResolveGameCustomData(gameId, fallbackSettings, store).ExcludedFromSummaries;
+            return ReadGameFlag(
+                gameId,
+                store,
+                customData => customData.ExcludedFromSummaries == true,
+                () => fallbackSettings?.ExcludedFromSummariesGameIds?.Contains(gameId) == true);
+        }
+
+        /// <summary>
+        /// Reads one flag off a game's stored record, falling back to the legacy settings
+        /// projection when the game has no record.
+        /// </summary>
+        private static bool ReadGameFlag(
+            Guid gameId,
+            GameCustomDataStore store,
+            Func<GameCustomDataFile, bool> fromRecord,
+            Func<bool> fromSettings)
+        {
+            if (gameId != Guid.Empty)
+            {
+                var resolvedStore = ResolveStore(store);
+                var stored = resolvedStore?.QueryGame(
+                    gameId,
+                    customData => customData == null ? (bool?)null : fromRecord(customData));
+                if (stored.HasValue)
+                {
+                    return stored.Value;
+                }
+            }
+
+            return fromSettings();
         }
 
         public static bool HasVisibleCustomization(
@@ -272,9 +335,21 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return false;
             }
 
-            if (TryLoad(gameId, out var customData, store))
+            // Read, not copied: this answers a bool, and tag sync asks it once per game across
+            // the library, so going through TryLoad deep-cloned every customized game's record
+            // - overrides, notes and all - to look at a handful of fields.
+            var resolvedStore = ResolveStore(store);
+            if (resolvedStore != null)
             {
-                return GameCustomDataNormalizer.HasVisibleCustomization(customData);
+                var stored = resolvedStore.QueryGame(
+                    gameId,
+                    customData => customData == null
+                        ? (bool?)null
+                        : GameCustomDataNormalizer.HasVisibleCustomization(customData));
+                if (stored.HasValue)
+                {
+                    return stored.Value;
+                }
             }
 
             var legacyData = new GameCustomDataFile
@@ -373,25 +448,68 @@ namespace PlayniteAchievements.Services.GameCustomData
             return resolvedStore.GetExcludedSummaryGameIds(fallbackSettings?.ExcludedFromSummariesGameIds);
         }
 
+        /// <remarks>
+        /// Reads the one flag rather than building the resolved projection, which allocates and
+        /// copies every collection the record holds. The appearance snapshot falls back to this
+        /// per achievement row whenever the caller has no resolved value in hand, so a full
+        /// projection build here was paid per row.
+        /// </remarks>
         public static bool ShouldUseSeparateLockedIcons(
             Guid? gameId,
             PersistedSettings settings,
             GameCustomDataStore store = null)
         {
-            return ResolveGameCustomData(gameId ?? Guid.Empty, settings, store).UseSeparateLockedIcons;
+            // The global setting wins on its own, exactly as the resolved projection has it.
+            if (settings?.UseSeparateLockedIconsWhenAvailable == true)
+            {
+                return true;
+            }
+
+            var resolvedGameId = gameId ?? Guid.Empty;
+            return ReadGameFlag(
+                resolvedGameId,
+                store,
+                customData => customData.UseSeparateLockedIconsOverride == true,
+                () => settings?.SeparateLockedIconEnabledGameIds?.Contains(resolvedGameId) == true);
         }
 
         /// <summary>
         /// A game's stored capstones. An untouched game returns an unmaterialized set, which tells
         /// the resolver to seed from the provider instead.
         /// </summary>
+        /// <remarks>
+        /// Reads the two fields it needs rather than building the resolved projection, which
+        /// allocates and copies every collection the record holds. Tag sync asks this once per
+        /// game across the library.
+        /// </remarks>
         public static CapstoneSet GetCapstoneSet(
             Guid gameId,
             PersistedSettings fallbackSettings = null,
             GameCustomDataStore store = null)
         {
-            var resolved = ResolveGameCustomData(gameId, fallbackSettings, store);
-            return new CapstoneSet(resolved.CapstonesMaterialized, resolved.Capstones);
+            if (gameId != Guid.Empty)
+            {
+                var resolvedStore = ResolveStore(store);
+                var stored = resolvedStore?.QueryGame<CapstoneSet?>(
+                    gameId,
+                    customData => customData == null
+                        ? (CapstoneSet?)null
+                        : new CapstoneSet(
+                            customData.CapstonesMaterialized,
+                            customData.Capstones != null
+                                ? customData.Capstones.ConvertAll(item => item?.Clone())
+                                    .FindAll(item => item != null)
+                                : new List<CapstoneAssignment>()));
+                if (stored.HasValue)
+                {
+                    return stored.Value;
+                }
+            }
+
+            return new CapstoneSet(
+                fallbackSettings?.ManualCapstones != null &&
+                    fallbackSettings.ManualCapstones.ContainsKey(gameId),
+                BuildLegacyCapstones(gameId, fallbackSettings));
         }
 
         /// <summary>
@@ -485,19 +603,90 @@ namespace PlayniteAchievements.Services.GameCustomData
         {
             selection = null;
             imageOverrides = null;
-            if (gameId == Guid.Empty || !TryLoad(gameId, out var customData, store))
+            var resolvedStore = ResolveStore(store);
+            if (gameId == Guid.Empty || resolvedStore == null)
             {
                 return false;
             }
 
-            selection = GameCustomDataNormalizer.NormalizeGameSummaryCategory(customData?.GameSummaryCategory);
-            if (selection == null)
+            // Read off the cached record rather than a deep clone of it. The whole-library
+            // overview build resolves summary art once per game, and going through TryLoad
+            // deep-copied every customized game's overrides, notes and icon maps to reach two
+            // fields. Both values handed back are freshly built, so nothing escapes into the
+            // cache: the normalizer returns a new instance, and the image map is copied.
+            var result = resolvedStore.QueryGame(
+                gameId,
+                customData =>
+                {
+                    var normalized = GameCustomDataNormalizer.NormalizeGameSummaryCategory(
+                        customData?.GameSummaryCategory);
+                    return normalized == null
+                        ? null
+                        : Tuple.Create(
+                            normalized,
+                            GameCustomDataFile.CloneCategoryImageOverrideMap(
+                                customData?.AchievementCategoryImageOverrides));
+                });
+
+            if (result == null)
             {
                 return false;
             }
 
-            imageOverrides = customData?.AchievementCategoryImageOverrides;
+            selection = result.Item1;
+            imageOverrides = result.Item2;
             return true;
+        }
+
+        /// <summary>
+        /// A game's category ordering and category art overrides, read without resolving the
+        /// whole customization record. Both come back as fresh copies; either may be null when
+        /// the game stores none.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="ResolveGameCustomData"/> deep-clones the stored record and then rebuilds
+        /// roughly ten collections off it, which is a great deal of copying when the caller
+        /// wants two of them. The overview's achievement materialization does this once per
+        /// distinct game, so on a library where every game is customized it was paying that
+        /// per game. Neither field has a legacy-settings fallback -- a game with no stored
+        /// record simply has neither -- so reading them directly is equivalent.
+        /// </remarks>
+        public static void GetCategoryMetadata(
+            Guid gameId,
+            out List<string> categoryOrder,
+            out Dictionary<string, CategoryImageOverrideData> categoryImageOverrides,
+            GameCustomDataStore store = null)
+        {
+            categoryOrder = null;
+            categoryImageOverrides = null;
+
+            var resolvedStore = ResolveStore(store);
+            if (gameId == Guid.Empty || resolvedStore == null)
+            {
+                return;
+            }
+
+            // Empty comes back as null, matching what the caller derived from the resolved
+            // record: an absent ordering and an absent art map are the same thing as empty ones.
+            var result = resolvedStore.QueryGame(
+                gameId,
+                customData =>
+                {
+                    var order = CloneCategoryOrder(customData?.AchievementCategoryOrder);
+                    var art = GameCustomDataFile.CloneCategoryImageOverrideMap(
+                        customData?.AchievementCategoryImageOverrides);
+                    return Tuple.Create(
+                        order != null && order.Count > 0 ? order : null,
+                        art != null && art.Count > 0 ? art : null);
+                });
+
+            if (result == null)
+            {
+                return;
+            }
+
+            categoryOrder = result.Item1;
+            categoryImageOverrides = result.Item2;
         }
 
         public static HashSet<string> GetFilteredAchievementApiNames(
@@ -540,8 +729,10 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return false;
             }
 
-            var rows = resolvedStore.LoadAll();
-            return rows != null && rows.Any(CustomAchievementProjectionService.HasCustomAchievements);
+            // Asked over the cached records rather than a cloned copy of them: this is a bool,
+            // and LoadAll would deep-copy every customized game in the library to produce it.
+            return resolvedStore.QueryAll(
+                rows => rows.Any(CustomAchievementProjectionService.HasCustomAchievements));
         }
 
         public static string GetAchievementNote(
@@ -562,28 +753,42 @@ namespace PlayniteAchievements.Services.GameCustomData
                 : null;
         }
 
+        // Both read one map off the record rather than cloning the record to reach it. They are
+        // called back to back once per game during hydration -- immediately after the same
+        // record was already resolved -- so going through TryLoad meant two more deep copies of
+        // every override, note and capstone the game holds, per game.
         public static Dictionary<string, string> GetAchievementUnlockedIconOverrides(
             Guid gameId,
             GameCustomDataStore store = null)
         {
-            if (gameId == Guid.Empty || !TryLoad(gameId, out var customData, store))
-            {
-                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            }
-
-            return CloneStringMap(customData?.AchievementUnlockedIconOverrides);
+            return ReadIconOverrideMap(gameId, store, data => data.AchievementUnlockedIconOverrides);
         }
 
         public static Dictionary<string, string> GetAchievementLockedIconOverrides(
             Guid gameId,
             GameCustomDataStore store = null)
         {
-            if (gameId == Guid.Empty || !TryLoad(gameId, out var customData, store))
+            return ReadIconOverrideMap(gameId, store, data => data.AchievementLockedIconOverrides);
+        }
+
+        private static Dictionary<string, string> ReadIconOverrideMap(
+            Guid gameId,
+            GameCustomDataStore store,
+            Func<GameCustomDataFile, Dictionary<string, string>> select)
+        {
+            if (gameId != Guid.Empty)
             {
-                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var resolvedStore = ResolveStore(store);
+                var map = resolvedStore?.QueryGame(
+                    gameId,
+                    customData => customData == null ? null : CloneStringMap(select(customData)));
+                if (map != null)
+                {
+                    return map;
+                }
             }
 
-            return CloneStringMap(customData?.AchievementLockedIconOverrides);
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
         public static bool TryGetManualLink(

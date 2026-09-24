@@ -176,7 +176,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 previous?.Dispose();
             }
 
-            LegendRows.ReplaceAll((chart.LegendItems ?? Enumerable.Empty<LegendItem>())
+            CollectionHelper.Replace(LegendRows, (chart.LegendItems ?? Enumerable.Empty<LegendItem>())
                 .Take(8)
                 .Select(item => new PieLegendRowViewModel(item)));
         }
