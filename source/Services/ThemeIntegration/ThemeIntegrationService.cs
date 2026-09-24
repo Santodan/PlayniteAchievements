@@ -666,7 +666,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 // covered by the library refresh below.
                 if (shouldRefreshSelectedGame)
                 {
-                    RequestUpdate(resolvedGameId.Value, forceRefresh: true);
+                    // Rebuilds the selected-game theme surface, including that game's achievement
+                    // lists. In the Manage window the edited game is almost always the selected
+                    // one, so this runs on every edit burst.
+                    using (Common.PerfScope.Start(_logger, "Theme.NotifyCustomData.SelectedGame", thresholdMs: 10))
+                    {
+                        RequestUpdate(resolvedGameId.Value, forceRefresh: true);
+                    }
                 }
             }
             catch (Exception ex)
@@ -681,13 +687,20 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             try
             {
-                if (_hasLoadedLibraryState)
+                // Suspended while the Manage window is open, so this should log nothing during
+                // an editing session. If it does, the suspension is not holding.
+                using (var scope = Common.PerfScope.Start(_logger, "Theme.NotifyCustomData.Library", thresholdMs: 10))
                 {
-                    RequestLibraryRefresh(_lastLibraryRefreshIncludedHeavyAchievementLists);
-                }
-                else if (IsFullscreen() && _fullscreenInitialized)
-                {
-                    RequestRefresh();
+                    scope?.SetContext("hasLoadedLibraryState=" + _hasLoadedLibraryState);
+
+                    if (_hasLoadedLibraryState)
+                    {
+                        RequestLibraryRefresh(_lastLibraryRefreshIncludedHeavyAchievementLists);
+                    }
+                    else if (IsFullscreen() && _fullscreenInitialized)
+                    {
+                        RequestRefresh();
+                    }
                 }
             }
             catch (Exception ex)

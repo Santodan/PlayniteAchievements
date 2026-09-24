@@ -1805,6 +1805,17 @@ namespace PlayniteAchievements
 
         private void HandleCustomDataChanged(Guid gameId, bool affectsSummaryData)
         {
+            // Runs on a pool thread 400ms after the last edit in a burst. Uninstrumented until
+            // now, which made everything it fans out into invisible in a log.
+            using (var scope = Common.PerfScope.Start(_logger, "Plugin.HandleCustomDataChanged", thresholdMs: 10))
+            {
+                scope?.SetContext("affectsSummary=" + affectsSummaryData);
+                HandleCustomDataChangedCore(gameId, affectsSummaryData);
+            }
+        }
+
+        private void HandleCustomDataChangedCore(Guid gameId, bool affectsSummaryData)
+        {
             var persisted = _settingsViewModel?.Settings?.Persisted;
             if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
             {
@@ -1813,14 +1824,21 @@ namespace PlayniteAchievements
                 // game carries customization of any kind, which a rename or a note moves while
                 // leaving every count alone. Those get the narrow sync, which skips the
                 // achievement load a full evaluation needs.
-                QueueTagSync(gameId, fullEvaluation: affectsSummaryData);
+                using (Common.PerfScope.Start(_logger, "Plugin.CustomDataChanged.QueueTagSync", thresholdMs: 10))
+                {
+                    QueueTagSync(gameId, fullEvaluation: affectsSummaryData);
+                }
             }
 
             try
             {
                 // The game's own theme surface still repaints - a category edit is visible there -
                 // but the whole-library theme lists are rebuilt only when something they read moved.
-                _themeIntegrationService?.NotifyCustomDataChanged(gameId, refreshLibraryState: affectsSummaryData);
+                using (var scope = Common.PerfScope.Start(_logger, "Plugin.CustomDataChanged.ThemeNotify", thresholdMs: 10))
+                {
+                    scope?.SetContext("refreshLibraryState=" + affectsSummaryData);
+                    _themeIntegrationService?.NotifyCustomDataChanged(gameId, refreshLibraryState: affectsSummaryData);
+                }
             }
             catch (Exception ex)
             {
@@ -1926,14 +1944,24 @@ namespace PlayniteAchievements
 
                 try
                 {
+                    // These write to the Playnite database, which makes Playnite re-render its
+                    // own library view and fire ItemUpdated back at this plugin.
                     if (batch.Count > 0)
                     {
-                        tagSyncService.SyncTagsForGames(batch);
+                        using (var scope = Common.PerfScope.Start(_logger, "TagSync.SyncTags", thresholdMs: 10))
+                        {
+                            scope?.SetContext("games=" + batch.Count);
+                            tagSyncService.SyncTagsForGames(batch);
+                        }
                     }
 
                     if (customizationBatch.Count > 0)
                     {
-                        tagSyncService.SyncCustomizationTagsForGames(customizationBatch);
+                        using (var scope = Common.PerfScope.Start(_logger, "TagSync.SyncCustomizationTags", thresholdMs: 10))
+                        {
+                            scope?.SetContext("games=" + customizationBatch.Count);
+                            tagSyncService.SyncCustomizationTagsForGames(customizationBatch);
+                        }
                     }
                 }
                 catch (Exception ex)
