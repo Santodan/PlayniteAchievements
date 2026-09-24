@@ -25,6 +25,7 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Summaries;
+using PlayniteAchievements.ViewModels.Items;
 using AsyncCommand = PlayniteAchievements.Common.AsyncCommand;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
@@ -95,6 +96,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private bool _canClearCustomData;
         private int _customDataRevision;
+        private ManageOverviewSummary _overviewSummary = ManageOverviewSummary.Empty;
 
         public IReadOnlyList<ProviderOverrideOption> ProviderOverrideOptions { get; }
 
@@ -301,7 +303,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _hasProviderOverride, value))
                 {
                     OnPropertyChanged(nameof(ProviderOverrideStatusText));
-                    OnPropertyChanged(nameof(ProviderOverrideSummaryText));
                     RaiseCommandStates();
                 }
             }
@@ -315,7 +316,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _providerOverrideValue, value ?? string.Empty))
                 {
                     OnPropertyChanged(nameof(ProviderOverrideStatusText));
-                    OnPropertyChanged(nameof(ProviderOverrideSummaryText));
                 }
             }
         }
@@ -378,8 +378,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     valueDisplay);
             }
         }
-
-        public string ProviderOverrideSummaryText => ProviderOverrideStatusText;
 
         public string ExophaseEnrichmentSlugInput
         {
@@ -658,6 +656,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             private set => SetValue(ref _customDataRevision, value);
         }
 
+        /// <summary>
+        /// The Overview's rarity, trophy and category breakdowns and its per-kind customization
+        /// counts. Replaced as one value on every reload.
+        /// </summary>
+        public ManageOverviewSummary OverviewSummary
+        {
+            get => _overviewSummary;
+            private set => SetValue(ref _overviewSummary, value ?? ManageOverviewSummary.Empty);
+        }
+
         // Both of these are cache hits once the snapshot is warm and a full load when it is not,
         // and they run on the UI thread. On a game with hundreds of achievements a cold call is
         // the freeze the user sees, so the scope reports which edits are paying for one.
@@ -772,6 +780,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 HasAchievementData = (gameData?.HasAchievements ?? false) && list.Count > 0;
 
                 var currentCustomData = TryLoadStoredCustomData(_plugin?.GameCustomDataStore);
+                OverviewSummary = BuildOverviewSummary(list, currentCustomData);
                 IsExcluded = isExcluded;
                 IsExcludedFromSummaries = GameCustomDataLookup.IsExcludedFromSummaries(_gameId, _settings?.Persisted);
                 SetValue(
@@ -801,6 +810,53 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 RaiseCommandStates();
             }
+        }
+
+        private static ManageOverviewSummary BuildOverviewSummary(
+            IReadOnlyList<AchievementDetail> achievements,
+            GameCustomDataFile customData)
+        {
+            var breakdown = ManageOverviewSummaryBuilder.BuildBreakdown(achievements);
+            var stats = breakdown.Stats;
+
+            return new ManageOverviewSummary
+            {
+                RarityCommonText = FormatProgress(stats.CommonCount, stats.TotalCommonPossible),
+                RarityUncommonText = FormatProgress(stats.UncommonCount, stats.TotalUncommonPossible),
+                RarityRareText = FormatProgress(stats.RareCount, stats.TotalRarePossible),
+                RarityUltraRareText = FormatProgress(stats.UltraRareCount, stats.TotalUltraRarePossible),
+                HasTrophies = breakdown.HasTrophies,
+                TrophyPlatinumText = FormatProgress(stats.TrophyPlatinumCount, stats.TrophyPlatinumTotal),
+                TrophyGoldText = FormatProgress(stats.TrophyGoldCount, stats.TrophyGoldTotal),
+                TrophySilverText = FormatProgress(stats.TrophySilverCount, stats.TrophySilverTotal),
+                TrophyBronzeText = FormatProgress(stats.TrophyBronzeCount, stats.TrophyBronzeTotal),
+                HasPoints = breakdown.HasPoints,
+                PointsText = FormatProgress(breakdown.UnlockedPoints, breakdown.TotalPoints),
+                HiddenText = FormatCount(breakdown.HiddenCount),
+                LastUnlockText = breakdown.LastUnlockUtc.HasValue
+                    ? breakdown.LastUnlockUtc.Value.ToLocalTime().ToString("g")
+                    : L("LOCPlayAch_ManageAchievements_Value_NotAvailable"),
+                Categories = breakdown.Categories
+                    .Select(category => new ManageOverviewCategoryRow(
+                        AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(category.Label),
+                        FormatProgress(category.Unlocked, category.Total)))
+                    .ToList(),
+                Customizations = ManageOverviewSummaryBuilder.BuildCustomizationCounts(customData)
+                    .Select(entry => new ManageOverviewCustomizationChip(
+                        L(entry.LabelKey),
+                        entry.Count.HasValue ? FormatCount(entry.Count.Value) : null))
+                    .ToList()
+            };
+        }
+
+        private static string FormatProgress(int unlocked, int total)
+        {
+            return string.Format(FormattingCulture.Current, "{0:N0} / {1:N0}", unlocked, total);
+        }
+
+        private static string FormatCount(int value)
+        {
+            return value.ToString("N0", FormattingCulture.Current);
         }
 
         private void OpenAchievements()
