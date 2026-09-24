@@ -35,6 +35,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     {
         private const string ProviderOverrideNoneKey = "None";
 
+        public enum GameExclusionMode
+        {
+            None,
+            Refreshes,
+            Summaries
+        }
+
+        public sealed class GameExclusionOption
+        {
+            public GameExclusionOption(GameExclusionMode mode, string displayName)
+            {
+                Mode = mode;
+                DisplayName = displayName;
+            }
+
+            public GameExclusionMode Mode { get; }
+
+            public string DisplayName { get; }
+        }
+
         public sealed class ProviderOverrideOption
         {
             public string ProviderKey { get; set; }
@@ -102,8 +122,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public RelayCommand OpenAchievementsCommand { get; }
         public AsyncCommand OpenAchievementPageCommand { get; }
-        public RelayCommand ToggleExclusionCommand { get; }
-        public RelayCommand ToggleSummaryExclusionCommand { get; }
         public RelayCommand ApplyProviderOverrideCommand { get; }
         public RelayCommand ClearProviderOverrideCommand { get; }
         public RelayCommand ApplyExophaseEnrichmentSlugCommand { get; }
@@ -143,8 +161,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             OpenAchievementsCommand = new RelayCommand(_ => OpenAchievements(), _ => HasGame);
             OpenAchievementPageCommand = new AsyncCommand(_ => OpenAchievementPageAsync(), _ => HasGame && HasAchievementPageLink);
-            ToggleExclusionCommand = new RelayCommand(_ => ToggleExclusion(), _ => HasGame);
-            ToggleSummaryExclusionCommand = new RelayCommand(_ => ToggleSummaryExclusion(), _ => HasGame);
             ApplyProviderOverrideCommand = new RelayCommand(_ => ApplyProviderOverride(), _ => HasGame);
             ClearProviderOverrideCommand = new RelayCommand(_ => ClearProviderOverride(), _ => HasGame && HasProviderOverride);
             ApplyExophaseEnrichmentSlugCommand = new RelayCommand(_ => ApplyExophaseEnrichmentSlug(), _ => HasGame);
@@ -542,6 +558,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             get => _currentCapstoneName;
             private set => SetValue(ref _currentCapstoneName, value);
         }
+
         public bool IsExcluded
         {
             get => _isExcluded;
@@ -549,19 +566,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _isExcluded, value))
                 {
-                    OnPropertyChanged(nameof(ExclusionStatusText));
-                    OnPropertyChanged(nameof(ExclusionActionText));
+                    OnPropertyChanged(nameof(ExclusionMode));
                 }
             }
         }
-
-        public string ExclusionStatusText => IsExcluded
-            ? L("LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes")
-            : L("LOCPlayAch_ManageAchievements_Status_IncludedFromRefreshes");
-
-        public string ExclusionActionText => IsExcluded
-            ? L("LOCPlayAch_Menu_IncludeGame")
-            : L("LOCPlayAch_Menu_ExcludeGame");
 
         public bool IsExcludedFromSummaries
         {
@@ -570,19 +578,33 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _isExcludedFromSummaries, value))
                 {
-                    OnPropertyChanged(nameof(SummaryExclusionStatusText));
-                    OnPropertyChanged(nameof(SummaryExclusionActionText));
+                    OnPropertyChanged(nameof(ExclusionMode));
                 }
             }
         }
 
-        public string SummaryExclusionStatusText => IsExcludedFromSummaries
-            ? L("LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries")
-            : L("LOCPlayAch_ManageAchievements_Status_IncludedFromSummaries");
+        public IReadOnlyList<GameExclusionOption> ExclusionModeOptions { get; } = new[]
+        {
+            new GameExclusionOption(GameExclusionMode.None, L("LOCPlayAch_Common_None")),
+            new GameExclusionOption(GameExclusionMode.Refreshes, L("LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes")),
+            new GameExclusionOption(GameExclusionMode.Summaries, L("LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries"))
+        };
 
-        public string SummaryExclusionActionText => IsExcludedFromSummaries
-            ? L("LOCPlayAch_Common_Action_IncludeInSummaries")
-            : L("LOCPlayAch_Common_Action_ExcludeFromSummaries");
+        /// <summary>
+        /// The game's two exclusions as one choice. Picking one clears the other; a game that
+        /// already stores both reads as excluded from refreshes.
+        /// </summary>
+        /// <remarks>
+        /// Excluding from refreshes here leaves the cached data in place, unlike the game menu's
+        /// "Exclude and Clear Data": the Overview already has a Clear button beside it.
+        /// </remarks>
+        public GameExclusionMode ExclusionMode
+        {
+            get => IsExcluded
+                ? GameExclusionMode.Refreshes
+                : IsExcludedFromSummaries ? GameExclusionMode.Summaries : GameExclusionMode.None;
+            set => ApplyExclusionMode(value);
+        }
 
         public bool HasManualTrackingLink
         {
@@ -921,15 +943,29 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 MessageBoxImage.Information);
         }
 
-        private void ToggleExclusion()
+        private void ApplyExclusionMode(GameExclusionMode mode)
         {
-            _plugin?.ToggleGameExclusion(_gameId);
-            Reload();
-        }
+            if (!HasGame || _achievementOverridesService == null || mode == ExclusionMode)
+            {
+                return;
+            }
 
-        private void ToggleSummaryExclusion()
-        {
-            _achievementOverridesService?.SetExcludedFromSummaries(_gameId, !IsExcludedFromSummaries);
+            var excludeFromRefreshes = mode == GameExclusionMode.Refreshes;
+            var excludeFromSummaries = mode == GameExclusionMode.Summaries;
+
+            if (IsExcluded != excludeFromRefreshes)
+            {
+                _achievementOverridesService.SetExcludedByUser(
+                    _gameId,
+                    excludeFromRefreshes,
+                    clearCachedDataWhenExcluding: false);
+            }
+
+            if (IsExcludedFromSummaries != excludeFromSummaries)
+            {
+                _achievementOverridesService.SetExcludedFromSummaries(_gameId, excludeFromSummaries);
+            }
+
             Reload();
         }
 
@@ -1448,8 +1484,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             OpenAchievementsCommand?.RaiseCanExecuteChanged();
             OpenAchievementPageCommand?.RaiseCanExecuteChanged();
-            ToggleExclusionCommand?.RaiseCanExecuteChanged();
-            ToggleSummaryExclusionCommand?.RaiseCanExecuteChanged();
             ApplyProviderOverrideCommand?.RaiseCanExecuteChanged();
             ClearProviderOverrideCommand?.RaiseCanExecuteChanged();
             ApplyExophaseEnrichmentSlugCommand?.RaiseCanExecuteChanged();
