@@ -238,7 +238,10 @@ namespace PlayniteAchievements.Services.GameCustomData
                         return data != null;
                     }
 
-                    if (_missingGameIds != null && _missingGameIds.Contains(playniteGameId))
+                    // A complete cache answers a miss on its own. Otherwise every game without
+                    // custom data - most of a library - cost a repository read to learn that.
+                    if (_cacheHoldsEveryStoredRow ||
+                        (_missingGameIds != null && _missingGameIds.Contains(playniteGameId)))
                     {
                         return false;
                     }
@@ -690,7 +693,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                         return cached != null ? query(cached) : missing;
                     }
 
-                    if (_missingGameIds != null && _missingGameIds.Contains(playniteGameId))
+                    if (_cacheHoldsEveryStoredRow ||
+                        (_missingGameIds != null && _missingGameIds.Contains(playniteGameId)))
                     {
                         return missing;
                     }
@@ -2313,6 +2317,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             {
                 _cacheByGameId = null;
                 _missingGameIds = null;
+                _cacheHoldsEveryStoredRow = false;
             }
         }
 
@@ -2328,6 +2333,22 @@ namespace PlayniteAchievements.Services.GameCustomData
                 _missingGameIds = new HashSet<Guid>();
             }
         }
+
+        /// <summary>
+        /// True once <see cref="EnsureCacheLoaded"/> has read every stored row, so a game id the
+        /// cache does not hold definitively has no custom data.
+        /// </summary>
+        /// <remarks>
+        /// Without this, a miss fell through to a repository read - one SQLite query per game -
+        /// and games with no custom data are most of a library. The whole-library overview build
+        /// resolves summary art per game, so its first run after startup issued a query for
+        /// every uncustomized game: measured at 1528ms of a 1719ms build for 500 games, against
+        /// ~122ms for the second build once the lazy miss set had filled in.
+        ///
+        /// Writes keep the cache complete (a save adds its row, a delete removes one), so only
+        /// <see cref="InvalidateCache"/> clears the flag.
+        /// </remarks>
+        private bool _cacheHoldsEveryStoredRow;
 
         private HashSet<Guid> GetExcludedGameIds(
             ISet<Guid> fallbackIds,
@@ -2398,6 +2419,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                         data => data.PlayniteGameId,
                         data => data);
                 _missingGameIds = new HashSet<Guid>();
+                _cacheHoldsEveryStoredRow = true;
             }
         }
 
