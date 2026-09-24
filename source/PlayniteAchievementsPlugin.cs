@@ -144,6 +144,14 @@ namespace PlayniteAchievements
         private TagSyncService _tagSyncService;
         private AutoCapstoneMaintainer _autoCapstoneMaintainer;
 
+        /// <summary>
+        /// Games added to the library but not yet refreshed. Held until OnLibraryUpdated so the
+        /// refresh (and its tag-sync write) lands after Playnite's post-import metadata download;
+        /// a Tags field already holding a managed tag makes that download skip the field.
+        /// </summary>
+        private readonly object _pendingNewGamesGate = new object();
+        private readonly HashSet<Guid> _pendingNewGameIds = new HashSet<Guid>();
+
         public override Guid Id { get; } =
             Guid.Parse("e6aad2c9-6e06-4d8d-ac55-ac3b252b5f7b");
 
@@ -2069,20 +2077,16 @@ namespace PlayniteAchievements
             var addedItems = e.AddedItems;
             if (addedItems != null)
             {
-                var addedGameIds = new List<Guid>();
-                foreach (var game in addedItems)
+                // Refreshed from OnLibraryUpdated, after the import's metadata download.
+                lock (_pendingNewGamesGate)
                 {
-                    if (game == null)
+                    foreach (var game in addedItems)
                     {
-                        continue;
+                        if (game != null && game.Id != Guid.Empty)
+                        {
+                            _pendingNewGameIds.Add(game.Id);
+                        }
                     }
-
-                    addedGameIds.Add(game.Id);
-                }
-
-                if (addedGameIds.Count > 0)
-                {
-                    _ = TriggerNewGamesRefreshAsync(addedGameIds);
                 }
             }
 
@@ -2098,6 +2102,33 @@ namespace PlayniteAchievements
 
                     _ = TriggerRemovedGameCleanupAsync(game);
                 }
+            }
+        }
+
+        public override void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
+        {
+            List<Guid> addedGameIds;
+            lock (_pendingNewGamesGate)
+            {
+                if (_pendingNewGameIds.Count == 0)
+                {
+                    return;
+                }
+
+                addedGameIds = _pendingNewGameIds.ToList();
+                _pendingNewGameIds.Clear();
+            }
+
+            // Games removed before the update finished have nothing to refresh.
+            var games = PlayniteApi?.Database?.Games;
+            if (games != null)
+            {
+                addedGameIds = addedGameIds.Where(id => games.Get(id) != null).ToList();
+            }
+
+            if (addedGameIds.Count > 0)
+            {
+                _ = TriggerNewGamesRefreshAsync(addedGameIds);
             }
         }
 
