@@ -34,17 +34,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public int UnlockedPoints { get; set; }
 
-        public int HiddenCount { get; set; }
-
-        public DateTime? LastUnlockUtc { get; set; }
-
         /// <summary>Achievements in a category other than the default one.</summary>
         public int CategorizedCount { get; set; }
-
-        public bool HasPoints => TotalPoints > 0;
-
-        public bool HasTrophies =>
-            Stats.TrophyPlatinumTotal + Stats.TrophyGoldTotal + Stats.TrophySilverTotal + Stats.TrophyBronzeTotal > 0;
     }
 
     /// <summary>
@@ -77,20 +68,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var points = Math.Max(0, achievement.Points ?? 0);
                 breakdown.TotalPoints = AchievementGameStats.AddClamped(breakdown.TotalPoints, points);
 
-                if (achievement.Hidden)
-                {
-                    breakdown.HiddenCount++;
-                }
-
                 if (achievement.Unlocked)
                 {
                     breakdown.UnlockedPoints = AchievementGameStats.AddClamped(breakdown.UnlockedPoints, points);
-
-                    if (achievement.UnlockTimeUtc.HasValue &&
-                        (!breakdown.LastUnlockUtc.HasValue || achievement.UnlockTimeUtc.Value > breakdown.LastUnlockUtc.Value))
-                    {
-                        breakdown.LastUnlockUtc = achievement.UnlockTimeUtc.Value;
-                    }
                 }
 
                 var label = CategoryPathHelper.NormalizePath(
@@ -103,6 +83,29 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             return breakdown;
+        }
+
+        /// <summary>
+        /// The game's capstones as (category, name) pairs, in the game's order. The category is
+        /// null for a capstone in the default category, which stands for the whole game.
+        /// </summary>
+        public static IReadOnlyList<Tuple<string, string>> BuildCapstones(IEnumerable<AchievementDetail> achievements)
+        {
+            return (achievements ?? Enumerable.Empty<AchievementDetail>())
+                .Where(a => a != null && a.IsCapstone)
+                .Select(a =>
+                {
+                    var category = CategoryPathHelper.NormalizePath(
+                        AchievementCategoryTypeHelper.NormalizeCategory(a.Category));
+                    if (string.Equals(category, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                    {
+                        category = null;
+                    }
+
+                    var name = HasText(a.DisplayName) ? a.DisplayName.Trim() : (a.ApiName ?? string.Empty).Trim();
+                    return Tuple.Create(string.IsNullOrWhiteSpace(category) ? null : category, name);
+                })
+                .ToList();
         }
 
         /// <summary>
