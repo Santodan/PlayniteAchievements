@@ -276,7 +276,19 @@ namespace PlayniteAchievements.Services.Refresh
                 _logger);
             _progressReportingService = new ProgressReportingService(_logger, PostToUi);
             _refreshStateManager = new RefreshStateManager();
-            _targetSelectionResolver = new TargetSelectionResolver(_api, _settings, _cacheService, _logger, refreshOrder);
+            _targetSelectionResolver = new TargetSelectionResolver(
+                _api,
+                _settings,
+                _cacheService,
+                _logger,
+                refreshOrder,
+                // Resolved here, where the cache's read-optimization seam is reachable, so a
+                // bulk refresh gets the whole no-achievement set in one query instead of
+                // loading each candidate game's payload to read the flag.
+                (_cacheService as ICacheReadOptimizations) != null
+                    ? (Func<HashSet<Guid>>)(() =>
+                        ((ICacheReadOptimizations)_cacheService).GetNoAchievementGameIds())
+                    : null);
             _refreshRequestPlanner = new RefreshRequestPlanner(
                 _api,
                 _settings,

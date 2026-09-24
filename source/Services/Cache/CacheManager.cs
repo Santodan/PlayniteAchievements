@@ -15,18 +15,8 @@ using System.Windows;
 
 namespace PlayniteAchievements.Services.Cache
 {
-    internal interface ICacheReadOptimizations
-    {
-        List<GameAchievementData> LoadAllGameDataFast();
-
-        CachedSummaryData LoadCachedSummaryDataFast(int recentAchievementDetailLimit = 0);
-
-        /// <summary>
-        /// One game's contribution, for patching a cached whole-library summary rather than
-        /// re-reading every row. Always unbounded, matching the overview's own request.
-        /// </summary>
-        CachedSummaryData LoadCachedSummaryDataForGameFast(Guid playniteGameId);
-    }
+    // ICacheReadOptimizations lives in its own file, so the sources that consume it can be
+    // linked into the test project without dragging this one in.
 
     // Write access to the AchievementOverrides mirror table — the summary queries' SQL-side view
     // of the per-achievement override records that live in the separate custom-data database.
@@ -177,6 +167,39 @@ namespace PlayniteAchievements.Services.Cache
         CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataForGameFast(Guid playniteGameId)
         {
             return LoadCachedSummaryDataForGameFast(playniteGameId);
+        }
+
+        HashSet<Guid> ICacheReadOptimizations.GetNoAchievementGameIds()
+        {
+            var result = new HashSet<Guid>();
+            try
+            {
+                lock (_sync)
+                {
+                    EnsureReady_Locked("GetNoAchievementGameIds");
+                }
+
+                using (PerfScope.Start(_logger, "Cache.GetNoAchievementGameIds", thresholdMs: 25))
+                {
+                    foreach (var key in _store.GetNoAchievementCacheKeysForCurrentUsers())
+                    {
+                        // Cache keys are only game ids for Playnite-backed rows; a provider-only
+                        // row has no game to skip, so it simply does not join the set.
+                        if (Guid.TryParse(key, out var gameId) && gameId != Guid.Empty)
+                        {
+                            result.Add(gameId);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // An empty set means "skip nothing", which is the safe direction: the refresh
+                // considers every game rather than wrongly passing one over.
+                _logger?.Debug(ex, "Failed reading the cached no-achievement game set.");
+            }
+
+            return result;
         }
 
         // Mirror writes never throw: when the store failed to initialize, summaries are

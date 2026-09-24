@@ -63,19 +63,30 @@ namespace PlayniteAchievements.Services.Refresh
         private readonly ICacheManager _cacheService;
         private readonly ILogger _logger;
 
+        /// <param name="noAchievementGameIds">
+        /// Optional batched source for the games the cache records as having no achievements.
+        /// Supplied by the composition root, which can reach the cache's read-optimization
+        /// seam; left null the resolver falls back to reading each candidate game's cached
+        /// payload, which is correct but costs a lock, a SQL round trip and a full payload copy
+        /// per game.
+        /// </param>
         public TargetSelectionResolver(
             IPlayniteAPI api,
             PlayniteAchievementsSettings settings,
             ICacheManager cacheService,
             ILogger logger,
-            IEnumerable<string> refreshOrder)
+            IEnumerable<string> refreshOrder,
+            Func<HashSet<Guid>> noAchievementGameIds = null)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
             _logger = logger;
             _refreshOrderIndex = BuildOrderIndex(refreshOrder);
+            _noAchievementGameIds = noAchievementGameIds;
         }
+
+        private readonly Func<HashSet<Guid>> _noAchievementGameIds;
 
         public IDataProvider ResolveProviderForGame(
             Game game,
@@ -250,11 +261,19 @@ namespace PlayniteAchievements.Services.Refresh
             var candidatesSeen = 0;
 
             HashSet<Guid> excludedGameIds = null;
+            HashSet<Guid> cachedNoAchievementGameIds = null;
             var skipCachedNoAchievements = false;
             if (options.SkipNoAchievementsGames && !options.BypassExclusions)
             {
                 excludedGameIds = GameCustomDataLookup.GetExcludedRefreshGameIds(_settings?.Persisted);
                 skipCachedNoAchievements = true;
+
+                // One query for the whole set, built alongside the exclusions. Asking per game
+                // goes through LoadGameData, which takes the cache lock, issues a SQL round
+                // trip and deep-copies the entire achievement payload -- to read one boolean,
+                // once per candidate game, before a single provider call. Null when no batched
+                // source was supplied, which falls back to the per-game read.
+                cachedNoAchievementGameIds = _noAchievementGameIds?.Invoke();
             }
 
             IEnumerable<Game> candidates;
@@ -306,7 +325,10 @@ namespace PlayniteAchievements.Services.Refresh
                 }
 
                 if ((excludedGameIds != null && excludedGameIds.Contains(game.Id)) ||
-                    (skipCachedNoAchievements && IsCachedNoAchievements(game)))
+                    (skipCachedNoAchievements &&
+                     (cachedNoAchievementGameIds != null
+                         ? cachedNoAchievementGameIds.Contains(game.Id)
+                         : IsCachedNoAchievements(game))))
                 {
                     skippedNoAchievements++;
                     continue;

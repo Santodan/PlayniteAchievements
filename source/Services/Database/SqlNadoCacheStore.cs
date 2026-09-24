@@ -572,6 +572,31 @@ namespace PlayniteAchievements.Services.Database
             });
         }
 
+        /// <summary>
+        /// Cache keys the current user's progress rows record as having no achievements.
+        /// </summary>
+        /// <remarks>
+        /// One query for the whole set, so a bulk refresh can test membership instead of
+        /// loading each candidate game's payload to read the flag off it.
+        /// </remarks>
+        public List<string> GetNoAchievementCacheKeysForCurrentUsers()
+        {
+            return WithDb(db =>
+            {
+                var rows = db.Load<CacheKeyRow>(
+                    @"SELECT DISTINCT ugp.CacheKey AS CacheKey
+                      FROM UserGameProgress ugp
+                      INNER JOIN Users u ON u.Id = ugp.UserId
+                      WHERE u.IsCurrentUser = 1 AND ugp.HasAchievements = 0;").ToList();
+
+                return rows
+                    .Select(a => a.CacheKey)
+                    .Where(a => !string.IsNullOrWhiteSpace(a))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            });
+        }
+
         public GameAchievementData LoadCurrentUserGameData(string key)
         {
             if (string.IsNullOrWhiteSpace(key))
