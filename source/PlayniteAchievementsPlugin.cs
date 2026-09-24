@@ -1785,12 +1785,19 @@ namespace PlayniteAchievements
             {
                 Views.Converters.ProviderIconConverter.Invalidate("GeoCustom:" + e.Id + "|");
 
-                var affectedGameIds = _gameCustomDataStore.LoadAll()
-                    .Where(data => data != null &&
-                                   data.PlayniteGameId != Guid.Empty &&
-                                   string.Equals(data.CustomProviderId, e.Id, StringComparison.OrdinalIgnoreCase))
-                    .Select(data => data.PlayniteGameId)
-                    .ToList();
+                // Only the ids are wanted, so this reads the cached records instead of the
+                // deep-cloned copy LoadAll returns -- which would copy every customized game in
+                // the library to select a handful of Guids.
+                var affectedGameIds = _gameCustomDataStore.QueryAll(
+                    rows => rows
+                        .Where(data => data != null &&
+                                       data.PlayniteGameId != Guid.Empty &&
+                                       string.Equals(
+                                           data.CustomProviderId,
+                                           e.Id,
+                                           StringComparison.OrdinalIgnoreCase))
+                        .Select(data => data.PlayniteGameId)
+                        .ToList());
 
                 foreach (var gameId in affectedGameIds)
                 {

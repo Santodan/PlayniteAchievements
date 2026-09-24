@@ -540,8 +540,10 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return false;
             }
 
-            var rows = resolvedStore.LoadAll();
-            return rows != null && rows.Any(CustomAchievementProjectionService.HasCustomAchievements);
+            // Asked over the cached records rather than a cloned copy of them: this is a bool,
+            // and LoadAll would deep-copy every customized game in the library to produce it.
+            return resolvedStore.QueryAll(
+                rows => rows.Any(CustomAchievementProjectionService.HasCustomAchievements));
         }
 
         public static string GetAchievementNote(

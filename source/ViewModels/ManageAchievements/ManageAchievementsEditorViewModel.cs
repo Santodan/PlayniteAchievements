@@ -2366,10 +2366,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            var otherGameCount = _gameCustomDataStore.LoadAll()
-                .Count(data => data != null &&
-                               data.PlayniteGameId != _gameId &&
-                               string.Equals(data.CustomProviderId, definition.Id, StringComparison.OrdinalIgnoreCase));
+            // Counted over the cached records rather than a cloned copy: LoadAll would deep-copy
+            // every customized game in the library to produce one number for a dialog.
+            var otherGameCount = _gameCustomDataStore.QueryAll(
+                rows => rows.Count(data => data != null &&
+                                           data.PlayniteGameId != _gameId &&
+                                           string.Equals(
+                                               data.CustomProviderId,
+                                               definition.Id,
+                                               StringComparison.OrdinalIgnoreCase)));
             var result = ShowConfirmation(
                 string.Format(
                     ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Custom_ProviderDeleteConfirm"),
