@@ -290,7 +290,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 PropagateCategoryEditsToSiblingTabs();
             }
 
-            if (_viewModel.SelectedTab == ManageAchievementsTab.Editor)
+            if (_viewModel.SelectedTab == ManageAchievementsTab.Overview)
+            {
+                EnsureOverviewControl();
+            }
+            else if (_viewModel.SelectedTab == ManageAchievementsTab.Overrides)
+            {
+                EnsureOverridesControl();
+            }
+            else if (_viewModel.SelectedTab == ManageAchievementsTab.Editor)
             {
                 var hadEditorControl = _editorControl != null;
                 EnsureEditorControl(forceRecreate: false);
@@ -384,6 +392,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 {
                     try
                     {
+                        EnsureOverviewControl();
+                        EnsureOverridesControl();
                         EnsureEditorControl(forceRecreate: false);
                         EnsureCategoryControl(forceRecreate: false);
                         EnsureNotificationsControl(forceRecreate: false);
@@ -599,10 +609,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
             switch (_viewModel?.SelectedTab)
             {
                 case ManageAchievementsTab.Overview:
-                    root = OverviewTabControl;
+                    root = _overviewControl ?? (DependencyObject)OverviewHost;
                     break;
                 case ManageAchievementsTab.Overrides:
-                    root = OverridesTabControl;
+                    root = _overridesControl ?? (DependencyObject)OverridesHost;
                     break;
                 case ManageAchievementsTab.Editor:
                     return _editorControl?.GetControllerElements() ?? new List<UIElement>();
@@ -976,6 +986,33 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _viewModel.EffectiveProviderKey);
             NotificationsHost.Content = _notificationsControl;
         }
+
+        // The overview and overrides tabs take no constructor arguments and read everything
+        // from the shared DataContext, so hosting them costs nothing beyond the instance.
+        private void EnsureOverviewControl()
+        {
+            if (_overviewControl != null)
+            {
+                return;
+            }
+
+            _overviewControl = new ManageAchievementsOverviewTab();
+            OverviewHost.Content = _overviewControl;
+        }
+
+        private void EnsureOverridesControl()
+        {
+            if (_overridesControl != null)
+            {
+                return;
+            }
+
+            _overridesControl = new ManageAchievementsOverridesTab();
+            OverridesHost.Content = _overridesControl;
+        }
+
+        private ManageAchievementsOverviewTab _overviewControl;
+        private ManageAchievementsOverridesTab _overridesControl;
 
         private void CustomViewModel_CustomAchievementsSaved(object sender, EventArgs e)
         {

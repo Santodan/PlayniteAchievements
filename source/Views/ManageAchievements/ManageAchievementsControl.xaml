@@ -148,9 +148,14 @@
                 CornerRadius="{StaticResource PlayAch.Radius.Card}"
                 Padding="{StaticResource PlayAch.Thickness.CardPadding}">
             <Grid>
-                <views:ManageAchievementsOverviewTab x:Name="OverviewTabControl">
-                    <views:ManageAchievementsOverviewTab.Style>
-                        <Style TargetType="{x:Type views:ManageAchievementsOverviewTab}">
+                <!-- Hosted, not inline, like the editor, category and notification tabs below.
+                     These two were the only ones built with the shell, so opening the window
+                     paid their construction and their first layout inside ShowDialog's
+                     synchronous first render - before anything queued on the dispatcher could
+                     run, whatever its priority. -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedTab}" Value="Overview">
@@ -158,12 +163,13 @@
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </views:ManageAchievementsOverviewTab.Style>
-                </views:ManageAchievementsOverviewTab>
+                    </Grid.Style>
+                    <ContentControl x:Name="OverviewHost" />
+                </Grid>
 
-                <views:ManageAchievementsOverridesTab x:Name="OverridesTabControl">
-                    <views:ManageAchievementsOverridesTab.Style>
-                        <Style TargetType="{x:Type views:ManageAchievementsOverridesTab}">
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedTab}" Value="Overrides">
@@ -171,8 +177,9 @@
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </views:ManageAchievementsOverridesTab.Style>
-                </views:ManageAchievementsOverridesTab>
+                    </Grid.Style>
+                    <ContentControl x:Name="OverridesHost" />
+                </Grid>
 
                 <Grid>
                     <Grid.Style>
