@@ -152,77 +152,124 @@ namespace PlayniteAchievements.Services.GameCustomData
                 };
             }
 
-            var hasCustomData = TryLoad(gameId, out var customData, store);
+            // Read off the cached record instead of a clone of it. This runs once per game
+            // across the whole library during hydration, and it already rebuilds every
+            // collection it hands out -- so going through TryLoad meant a full deep copy of the
+            // record (including a per-entry copy of every override) followed by a second copy
+            // of most of it. On a library where every game is customized that doubling is the
+            // dominant cost of a hydration pass.
+            //
+            // Everything the builder returns is freshly allocated, so nothing escapes into the
+            // cache; the four collections that used to ride out as references on the discarded
+            // clone are copied explicitly there.
+            var resolvedStore = ResolveStore(store);
+            var resolved = resolvedStore?.QueryGame(
+                gameId,
+                customData => customData == null ? null : BuildResolvedFromRecord(customData, fallbackSettings));
+
+            return resolved ?? BuildResolvedFromSettings(gameId, fallbackSettings);
+        }
+
+        private static ResolvedGameCustomData BuildResolvedFromRecord(
+            GameCustomDataFile customData,
+            PersistedSettings fallbackSettings)
+        {
             var resolved = new ResolvedGameCustomData
             {
-                ExcludedFromRefreshes = hasCustomData
-                    ? customData?.ExcludedFromRefreshes == true
-                    : fallbackSettings?.ExcludedGameIds?.Contains(gameId) == true,
-                ExcludedFromSummaries = hasCustomData
-                    ? customData?.ExcludedFromSummaries == true
-                    : fallbackSettings?.ExcludedFromSummariesGameIds?.Contains(gameId) == true,
+                ExcludedFromRefreshes = customData.ExcludedFromRefreshes == true,
+                ExcludedFromSummaries = customData.ExcludedFromSummaries == true,
                 UseSeparateLockedIcons = fallbackSettings?.UseSeparateLockedIconsWhenAvailable == true ||
-                    (hasCustomData
-                        ? customData?.UseSeparateLockedIconsOverride == true
-                        : fallbackSettings?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true),
-                HasManualLink = hasCustomData && customData?.ManualLink != null,
-                CapstonesMaterialized = hasCustomData
-                    ? customData?.CapstonesMaterialized == true
-                    : fallbackSettings?.ManualCapstones != null &&
-                      fallbackSettings.ManualCapstones.ContainsKey(gameId),
-                Capstones = hasCustomData
-                    ? customData?.Capstones ?? new List<CapstoneAssignment>()
-                    : BuildLegacyCapstones(gameId, fallbackSettings),
-                AchievementOrder = hasCustomData
-                    ? customData?.AchievementOrder ?? new List<string>()
-                                        : fallbackSettings?.AchievementOrderOverrides != null &&
-                                            fallbackSettings.AchievementOrderOverrides.TryGetValue(gameId, out var configuredOrder)
-                                                ? AchievementOrderHelper.NormalizeApiNames(configuredOrder)
-                                                : new List<string>(),
-                AchievementCategoryOverrides = hasCustomData
-                    ? customData?.AchievementCategoryOverrides ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                                        : fallbackSettings?.AchievementCategoryOverrides != null &&
-                                            fallbackSettings.AchievementCategoryOverrides.TryGetValue(gameId, out var configuredCategoryOverrides)
-                                                ? CloneStringMap(configuredCategoryOverrides)
-                                                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-                AchievementCategoryTypeOverrides = hasCustomData
-                    ? customData?.AchievementCategoryTypeOverrides ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                                        : fallbackSettings?.AchievementCategoryTypeOverrides != null &&
-                                            fallbackSettings.AchievementCategoryTypeOverrides.TryGetValue(gameId, out var configuredCategoryTypeOverrides)
-                                                ? CloneStringMap(configuredCategoryTypeOverrides)
-                                                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-                AchievementCategoryOrder = hasCustomData
-                    ? CloneCategoryOrder(customData?.AchievementCategoryOrder)
+                    customData.UseSeparateLockedIconsOverride == true,
+                HasManualLink = customData.ManualLink != null,
+                CapstonesMaterialized = customData.CapstonesMaterialized,
+
+                // Copied rather than referenced: the record here is the cached instance, not a
+                // clone of it, so handing out its own collections would let a caller mutate the
+                // cache.
+                Capstones = customData.Capstones != null
+                    ? customData.Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
+                    : new List<CapstoneAssignment>(),
+                AchievementOrder = customData.AchievementOrder != null
+                    ? new List<string>(customData.AchievementOrder)
                     : new List<string>(),
-                AchievementCategoryImageOverrides = hasCustomData
-                    ? CloneCategoryImageOverrideMap(customData?.AchievementCategoryImageOverrides)
-                    : new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase),
-                GameSummaryCategory = hasCustomData
-                    ? GameCustomDataNormalizer.NormalizeGameSummaryCategory(customData?.GameSummaryCategory)
-                    : null,
-                FilteredAchievementApiNames = hasCustomData
-                    ? CloneApiNameSet(customData?.FilteredAchievementApiNames)
-                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                SummaryFilteredAchievementApiNames = hasCustomData
-                    ? CloneApiNameSet(customData?.SummaryFilteredAchievementApiNames)
-                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                GoalAchievementApiNames = hasCustomData
-                    ? AchievementOrderHelper.NormalizeApiNames(customData?.GoalAchievementApiNames)
-                    : new List<string>(),
-                AchievementNotes = hasCustomData
-                    ? CloneNoteMap(customData?.AchievementNotes)
+                // A plain copy, not CloneStringMap: these used to ride out as references on the
+                // discarded clone, so they carried exactly what the stored record held. The
+                // record is normalized on load, so re-normalizing here would only cost a pass
+                // -- and could drop an entry the old path kept.
+                AchievementCategoryOverrides = customData.AchievementCategoryOverrides != null
+                    ? new Dictionary<string, string>(
+                        customData.AchievementCategoryOverrides,
+                        StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-                CustomAchievements = hasCustomData
-                    ? CloneCustomAchievements(customData?.CustomAchievements)
-                    : new List<CustomAchievementDefinition>()
+                AchievementCategoryTypeOverrides = customData.AchievementCategoryTypeOverrides != null
+                    ? new Dictionary<string, string>(
+                        customData.AchievementCategoryTypeOverrides,
+                        StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+
+                AchievementCategoryOrder = CloneCategoryOrder(customData.AchievementCategoryOrder),
+                AchievementCategoryImageOverrides =
+                    CloneCategoryImageOverrideMap(customData.AchievementCategoryImageOverrides),
+                GameSummaryCategory =
+                    GameCustomDataNormalizer.NormalizeGameSummaryCategory(customData.GameSummaryCategory),
+                FilteredAchievementApiNames = CloneApiNameSet(customData.FilteredAchievementApiNames),
+                SummaryFilteredAchievementApiNames = CloneApiNameSet(customData.SummaryFilteredAchievementApiNames),
+                GoalAchievementApiNames = AchievementOrderHelper.NormalizeApiNames(customData.GoalAchievementApiNames),
+                AchievementNotes = CloneNoteMap(customData.AchievementNotes),
+                CustomAchievements = CloneCustomAchievements(customData.CustomAchievements)
             };
 
-            // A pre-custom-data game resolves its customization from settings, which only ever held
-            // the legacy maps, so the record is synthesized from what resolved above.
-            resolved.AchievementOverrides = hasCustomData && customData?.AchievementOverrides != null
+            resolved.AchievementOverrides = customData.AchievementOverrides != null
                 ? CloneOverrideMap(customData.AchievementOverrides)
                 : resolved.ResolveAchievementOverrides();
 
+            return resolved;
+        }
+
+        /// <summary>
+        /// A game with no stored record resolves its customization from the legacy settings
+        /// maps, which are all this plugin had before the per-game store.
+        /// </summary>
+        private static ResolvedGameCustomData BuildResolvedFromSettings(
+            Guid gameId,
+            PersistedSettings fallbackSettings)
+        {
+            var resolved = new ResolvedGameCustomData
+            {
+                ExcludedFromRefreshes = fallbackSettings?.ExcludedGameIds?.Contains(gameId) == true,
+                ExcludedFromSummaries = fallbackSettings?.ExcludedFromSummariesGameIds?.Contains(gameId) == true,
+                UseSeparateLockedIcons = fallbackSettings?.UseSeparateLockedIconsWhenAvailable == true ||
+                    fallbackSettings?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true,
+                HasManualLink = false,
+                CapstonesMaterialized = fallbackSettings?.ManualCapstones != null &&
+                    fallbackSettings.ManualCapstones.ContainsKey(gameId),
+                Capstones = BuildLegacyCapstones(gameId, fallbackSettings),
+                AchievementOrder = fallbackSettings?.AchievementOrderOverrides != null &&
+                    fallbackSettings.AchievementOrderOverrides.TryGetValue(gameId, out var configuredOrder)
+                        ? AchievementOrderHelper.NormalizeApiNames(configuredOrder)
+                        : new List<string>(),
+                AchievementCategoryOverrides = fallbackSettings?.AchievementCategoryOverrides != null &&
+                    fallbackSettings.AchievementCategoryOverrides.TryGetValue(gameId, out var configuredCategoryOverrides)
+                        ? CloneStringMap(configuredCategoryOverrides)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                AchievementCategoryTypeOverrides = fallbackSettings?.AchievementCategoryTypeOverrides != null &&
+                    fallbackSettings.AchievementCategoryTypeOverrides.TryGetValue(gameId, out var configuredCategoryTypeOverrides)
+                        ? CloneStringMap(configuredCategoryTypeOverrides)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                AchievementCategoryOrder = new List<string>(),
+                AchievementCategoryImageOverrides =
+                    new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase),
+                GameSummaryCategory = null,
+                FilteredAchievementApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                SummaryFilteredAchievementApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                GoalAchievementApiNames = new List<string>(),
+                AchievementNotes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                CustomAchievements = new List<CustomAchievementDefinition>()
+            };
+
+            // Synthesized from the legacy maps resolved above, which is the only place a
+            // pre-store game's per-achievement customization lived.
+            resolved.AchievementOverrides = resolved.ResolveAchievementOverrides();
             return resolved;
         }
 
