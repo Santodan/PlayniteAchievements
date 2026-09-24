@@ -755,19 +755,39 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             RequestRefresh();
         }
 
-        private void RefreshService_CacheInvalidated(object sender, EventArgs e)
+        // Typed, or IsFull and ChangedGameIds are invisible and every per-game edit pays for a
+        // whole-library theme refresh. A scoped invalidation names the games that moved, and a
+        // current-user achievement edit cannot move friend data at all.
+        private void RefreshService_CacheInvalidated(object sender, CacheInvalidatedEventArgs e)
         {
-            if (IsFullscreen() && _fullscreenInitialized)
+            var isScoped = e?.IsFull == false;
+
+            Guid? selectedGameId = null;
+            try
+            {
+                selectedGameId = ResolveSelectedGameIdForThemeUpdate();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[ThemeIntegration] Failed to resolve the selected game after cache invalidation.");
+            }
+
+            // A scoped change repaints the whole fullscreen surface only when it touched the
+            // game that surface is showing.
+            var scopeTouchesSelectedGame =
+                !isScoped ||
+                (selectedGameId.HasValue && e.ChangedGameIds.Contains(selectedGameId.Value));
+
+            if (IsFullscreen() && _fullscreenInitialized && scopeTouchesSelectedGame)
             {
                 RequestRefresh();
             }
 
             try
             {
-                var id = ResolveSelectedGameIdForThemeUpdate();
-                if (id.HasValue)
+                if (selectedGameId.HasValue && scopeTouchesSelectedGame)
                 {
-                    RequestUpdate(id);
+                    RequestUpdate(selectedGameId);
                 }
             }
             catch (Exception ex)
@@ -775,7 +795,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _logger?.Debug(ex, "[ThemeIntegration] Failed to request selected-game theme update after cache invalidation.");
             }
 
-            _friendsOverviewDataCoordinator?.Invalidate();
+            if (!isScoped)
+            {
+                _friendsOverviewDataCoordinator?.Invalidate();
+            }
         }
 
         private void FriendCache_FriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)
