@@ -527,13 +527,36 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             var wanted = new HashSet<string>(apiNames, StringComparer.OrdinalIgnoreCase);
-            CustomAchievementsGrid.SelectedItems.Clear();
-            foreach (var row in CustomAchievementsGrid.Items.OfType<AchievementEditorRow>())
+            var rows = CustomAchievementsGrid.Items.OfType<AchievementEditorRow>().ToList();
+            var matches = rows
+                .Where(row => !string.IsNullOrWhiteSpace(row.OriginalApiName) &&
+                              wanted.Contains(row.OriginalApiName))
+                .ToList();
+
+            using var scope = Common.PerfScope.Start(
+                Services.Logging.PluginLogger.GetLogger(nameof(ManageAchievementsEditorTab)),
+                "Editor.RestoreSelection",
+                thresholdMs: 10,
+                context: "rows=" + rows.Count + " selected=" + matches.Count);
+
+            // Adding to SelectedItems one row at a time makes the DataGrid do its selection
+            // bookkeeping per row, and restoring a selection of several hundred is what made
+            // undo, redo and reset-all feel like they locked: the work lands after the reload,
+            // at Background priority, so none of the reload's own scopes covered it.
+            //
+            // SelectAll goes through the Selector's own batched selection change instead, which
+            // is one operation whatever the row count -- and "everything was selected" is
+            // exactly the case those three produce.
+            if (matches.Count == rows.Count && rows.Count > 0)
             {
-                if (!string.IsNullOrWhiteSpace(row.OriginalApiName) && wanted.Contains(row.OriginalApiName))
-                {
-                    CustomAchievementsGrid.SelectedItems.Add(row);
-                }
+                CustomAchievementsGrid.SelectAll();
+                return;
+            }
+
+            CustomAchievementsGrid.SelectedItems.Clear();
+            foreach (var row in matches)
+            {
+                CustomAchievementsGrid.SelectedItems.Add(row);
             }
         }
 
