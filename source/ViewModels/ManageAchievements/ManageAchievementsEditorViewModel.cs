@@ -2110,10 +2110,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _logger,
                 "Editor.RefreshData",
                 thresholdMs: 10,
-                context: "rows=" + AchievementRows.Count);
+                context: "rows=" + AchievementRows.Count + " path=" + (HasChanges ? "providerState" : "fullReload"));
 
             if (!HasChanges)
             {
+                // A full rebuild of every row. Reaching here for the editor's own write is the
+                // per-edit hitch; the host's self-write marker is what is supposed to prevent it.
+                _logger?.Debug(
+                    $"[Editor] Full reload requested for {AchievementRows.Count} rows " +
+                    "(external change, or a self-write whose marker was already consumed).");
                 ReloadData();
             }
             else

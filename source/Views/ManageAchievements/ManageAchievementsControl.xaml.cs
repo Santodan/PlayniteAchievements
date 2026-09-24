@@ -56,6 +56,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private System.Windows.Threading.DispatcherTimer _iconOverridesChangedDebounce;
         private readonly HashSet<string> _pendingIconOverrideApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private bool _pendingIconOverridesFromEditor;
+        private bool _selfWriteMarkerClearQueued;
         private bool _librarySuspensionHeld;
         private ManageAchievementsEditorViewModel _editorViewModel;
         private ManageAchievementsCategoryViewModel _categoryViewModel;
@@ -984,9 +985,22 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         /// <summary>
-        /// Whether the refresh being handled was caused by the editor's own write, clearing the
-        /// marker as it reads it so only the first refresh after that write is skipped.
+        /// Whether the refresh being handled was caused by the editor's own write.
         /// </summary>
+        /// <remarks>
+        /// The marker is deliberately NOT cleared here. One write can fan out into more than one
+        /// refresh leg -- a cache-updated path reaching <see cref="HandleStateChanged"/> and the
+        /// revision-changed path reaching <see cref="HandleCustomDataRevisionChanged"/> -- and
+        /// clearing on the first read let the second leg mistake the editor's own edit for an
+        /// external change. That ran a full ReloadData: 641 rows rebuilt, the grid reset, and
+        /// every visible container re-realized, measured at about a second of UI-thread work
+        /// starting ~14ms after the save. It is the per-edit hitch.
+        ///
+        /// Clearing is instead posted at Background priority. Every leg of one write's cascade is
+        /// synchronous and runs before that callback, so all of them see the marker; a genuinely
+        /// external change arriving afterwards finds it cleared and still refreshes. This is
+        /// scoped to the cascade rather than to a wall-clock window, so it stays deterministic.
+        /// </remarks>
         private bool ConsumeEditorSelfWrite()
         {
             if (_editorViewModel?.SuppressExternalRefresh != true)
@@ -994,8 +1008,28 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return false;
             }
 
-            _editorViewModel.SuppressExternalRefresh = false;
+            ScheduleSelfWriteMarkerClear();
             return true;
+        }
+
+        private void ScheduleSelfWriteMarkerClear()
+        {
+            if (_selfWriteMarkerClearQueued)
+            {
+                return;
+            }
+
+            _selfWriteMarkerClearQueued = true;
+            _ = Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    _selfWriteMarkerClearQueued = false;
+                    if (_editorViewModel != null)
+                    {
+                        _editorViewModel.SuppressExternalRefresh = false;
+                    }
+                }),
+                DispatcherPriority.Background);
         }
 
         private void HandleStateChanged(bool refreshCustom = true)
