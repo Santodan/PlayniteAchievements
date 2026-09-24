@@ -598,9 +598,25 @@ namespace PlayniteAchievements
                         _eventSubscriptions.Add(() => _friendCacheManager.FriendCacheInvalidated -= FriendCacheManager_FriendCacheInvalidated);
                     }
 
-                    _cacheManager.CacheInvalidated += (_, __) =>
+                    _cacheManager.CacheInvalidated += (_, args) =>
                     {
-                        InvalidateStartPageData();
+                        // Scoped invalidations arrive in bursts -- one per custom-data edit --
+                        // and each start-page invalidation makes every live widget re-pull a
+                        // full library snapshot. Collapse the burst through the same coalescer
+                        // the CustomDataChanged path already uses. A full invalidation is a
+                        // bulk event, not a burst, so it still lands immediately.
+                        if (args?.IsFull == false)
+                        {
+                            ScheduleStartPageInvalidate();
+                        }
+                        else
+                        {
+                            InvalidateStartPageData();
+                        }
+
+                        // Deliberately unconditional: scoped invalidations also come from the
+                        // refresh pipeline's end-of-run raise, which includes friend-mode runs,
+                        // and this is two cheap Invalidate() calls.
                         InvalidateFriendDataCoordinators();
                         ScheduleRetentionDiagnostics();
                     };
