@@ -3605,6 +3605,9 @@ namespace PlayniteAchievements.ViewModels
                 _filteredGameSummaries,
                 _settings?.Persisted?.OverviewGameSummariesGridMaxRows);
 
+            // Patched in place: the delta rebuilds one game's row and leaves every other row
+            // the same instance, so this raises a notification or two instead of the Reset that
+            // made the bound grid re-realize its viewport on a later dispatcher pass, per edit.
             CollectionHelper.Replace(GameSummaries, displayItems);
         }
 

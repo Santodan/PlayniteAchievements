@@ -65,9 +65,9 @@ namespace PlayniteAchievements.Tests.Views
             AssertContainsAll(
                 code,
                 "public BulkObservableCollection<FriendAchievementDisplayItem> SelectedFriendGameAllAchievements { get; }",
-                "SelectedFriendGameAllAchievements.ReplaceAll(HasFriendGameSelection");
+                "CollectionHelper.Replace(SelectedFriendGameAllAchievements, HasFriendGameSelection");
             Assert.IsFalse(
-                code.Contains("SelectedFriendGameAllAchievements.ReplaceAll(_filteredAchievementsList"),
+                code.Contains("CollectionHelper.Replace(SelectedFriendGameAllAchievements, _filteredAchievementsList"),
                 "Friends overview category-summary source must not follow the filtered/sorted achievement list.");
         }
 
