@@ -58,8 +58,28 @@ namespace PlayniteAchievements.Services.Achievements
         private readonly PlayniteAchievementsSettings _settings;
         private PersistedSettingsSubscription _persistedSubscription;
         private readonly object _overviewProjectionCacheSync = new object();
-        private readonly Dictionary<int, CachedSummaryData> _overviewSummaryCacheByLimit =
-            new Dictionary<int, CachedSummaryData>();
+
+        /// <summary>
+        /// A memoized summary plus the games whose contribution to it is known to be stale. An
+        /// entry with no dirty games is served as-is; one with dirty games is patched per game on
+        /// the next read rather than rebuilt. Patching lazily -- on read rather than on the
+        /// change event -- collapses an editing burst into one patch and keeps the scoped SQL
+        /// read off the editor's save path.
+        /// </summary>
+        private sealed class OverviewSummaryMemoEntry
+        {
+            public OverviewSummaryMemoEntry(CachedSummaryData data)
+            {
+                Data = data;
+            }
+
+            public CachedSummaryData Data { get; set; }
+
+            public HashSet<Guid> DirtyGameIds { get; } = new HashSet<Guid>();
+        }
+
+        private readonly Dictionary<int, OverviewSummaryMemoEntry> _overviewSummaryCacheByLimit =
+            new Dictionary<int, OverviewSummaryMemoEntry>();
 
         // Bumped on every invalidation; a summary loaded before an invalidation must not be
         // memoized after it (it may have been built against since-replaced filter mirror rows).
@@ -295,14 +315,41 @@ namespace PlayniteAchievements.Services.Achievements
         {
             var normalizedLimit = Math.Max(0, recentAchievementDetailLimit);
             int generation;
+            CachedSummaryData patchBase = null;
+            List<Guid> dirtyGameIds = null;
+
             lock (_overviewProjectionCacheSync)
             {
-                if (_overviewSummaryCacheByLimit.TryGetValue(normalizedLimit, out var cachedSummary))
+                if (_overviewSummaryCacheByLimit.TryGetValue(normalizedLimit, out var entry))
                 {
-                    return cachedSummary;
+                    if (entry.DirtyGameIds.Count == 0)
+                    {
+                        return entry.Data;
+                    }
+
+                    // Snapshot and patch outside the lock; the entry stays dirty until the patch
+                    // is installed, so a concurrent reader either waits or takes the same path.
+                    patchBase = entry.Data;
+                    dirtyGameIds = entry.DirtyGameIds.ToList();
                 }
 
                 generation = _overviewProjectionGeneration;
+            }
+
+            if (patchBase != null && dirtyGameIds != null && dirtyGameIds.Count > 0)
+            {
+                var patched = TryPatchOverviewSummary(patchBase, dirtyGameIds, normalizedLimit, generation);
+                if (patched != null)
+                {
+                    return patched;
+                }
+
+                // The patch refused, so fall through to the full rebuild below and drop the
+                // stale entry rather than serve from it again.
+                lock (_overviewProjectionCacheSync)
+                {
+                    _overviewSummaryCacheByLimit.Remove(normalizedLimit);
+                }
             }
 
             var summaryData = GetCachedSummaryData(normalizedLimit);
@@ -330,11 +377,90 @@ namespace PlayniteAchievements.Services.Achievements
                 // invalidation in the memo.
                 if (generation == _overviewProjectionGeneration)
                 {
-                    _overviewSummaryCacheByLimit[normalizedLimit] = hydratedSummary;
+                    _overviewSummaryCacheByLimit[normalizedLimit] = new OverviewSummaryMemoEntry(hydratedSummary);
                 }
 
                 return hydratedSummary;
             }
+        }
+
+        /// <summary>
+        /// Re-reads and re-hydrates each named game on its own, then splices the result into
+        /// <paramref name="patchBase"/>. Returns null when anything about the patch is not
+        /// expressible, in which case the caller rebuilds.
+        /// </summary>
+        private CachedSummaryData TryPatchOverviewSummary(
+            CachedSummaryData patchBase,
+            List<Guid> dirtyGameIds,
+            int normalizedLimit,
+            int generation)
+        {
+            // Only the unbounded read is patchable. A bounded one trims rows library-wide, and a
+            // row trimmed away cannot be recovered from one game's slice.
+            if (normalizedLimit != 0 ||
+                dirtyGameIds.Count > Models.CacheInvalidatedEventArgs.MaxScopedGames)
+            {
+                return null;
+            }
+
+            CachedSummaryData patched;
+            using (var scope = Common.PerfScope.Start(_logger, "Overview.PatchCachedSummary", thresholdMs: 25))
+            {
+                scope?.SetContext("games=" + dirtyGameIds.Count);
+
+                var slices = new Dictionary<Guid, CachedSummaryData>();
+                foreach (var gameId in dirtyGameIds)
+                {
+                    CachedSummaryData slice;
+                    try
+                    {
+                        slice = _cacheReadOptimizations?.LoadCachedSummaryDataForGameFast(gameId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Error(ex, $"Scoped summary read failed for game {gameId}.");
+                        return null;
+                    }
+
+                    if (slice == null)
+                    {
+                        return null;
+                    }
+
+                    try
+                    {
+                        // Same hydration code as the whole-library path, narrowed to this game.
+                        slices[gameId] = ApplyOverviewSummaryHydration(slice, 0, new[] { gameId });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Error(ex, $"Scoped summary hydration failed for game {gameId}.");
+                        return null;
+                    }
+                }
+
+                patched = OverviewSummaryPatcher.Patch(patchBase, dirtyGameIds, slices);
+            }
+
+            if (patched == null)
+            {
+                return null;
+            }
+
+            lock (_overviewProjectionCacheSync)
+            {
+                // Same rule the full path uses: install only when no invalidation landed while
+                // the patch was being built. If one did, this caller still gets the patched
+                // result (bounded staleness) and the ids stay dirty for the next read to retry.
+                if (generation == _overviewProjectionGeneration &&
+                    _overviewSummaryCacheByLimit.TryGetValue(normalizedLimit, out var entry))
+                {
+                    entry.Data = patched;
+                    entry.DirtyGameIds.Clear();
+                }
+            }
+
+            return patched;
         }
 
         internal CachedSummaryData GetCachedSummaryDataForTheme(int recentAchievementDetailLimit = 0)
@@ -342,7 +468,16 @@ namespace PlayniteAchievements.Services.Achievements
             return GetCachedSummaryDataForOverview(recentAchievementDetailLimit);
         }
 
-        private CachedSummaryData ApplyOverviewSummaryHydration(CachedSummaryData summaryData, int recentAchievementDetailLimit)
+        /// <summary>
+        /// <paramref name="scopeGameIds"/> narrows the custom-data context to one game's slice.
+        /// Every step below is already keyed by PlayniteGameId, so the scoped and whole-library
+        /// paths run the same code -- which is the strongest guarantee available that a patched
+        /// summary equals a full rebuild.
+        /// </summary>
+        private CachedSummaryData ApplyOverviewSummaryHydration(
+            CachedSummaryData summaryData,
+            int recentAchievementDetailLimit,
+            IReadOnlyCollection<Guid> scopeGameIds = null)
         {
             summaryData ??= new CachedSummaryData();
             summaryData.Games ??= new List<CachedGameSummaryData>();
@@ -351,7 +486,7 @@ namespace PlayniteAchievements.Services.Achievements
             summaryData.GlobalUnlockCountsByDate ??= new Dictionary<DateTime, int>();
             summaryData.UnlockCountsByDateByGame ??= new Dictionary<Guid, Dictionary<DateTime, int>>();
 
-            var (customDataByGameId, excludedSummaryIds) = BuildOverviewCustomDataContext();
+            var (customDataByGameId, excludedSummaryIds) = BuildOverviewCustomDataContext(scopeGameIds);
             if (excludedSummaryIds != null && excludedSummaryIds.Count > 0)
             {
                 summaryData.Games = summaryData.Games
@@ -592,11 +727,47 @@ namespace PlayniteAchievements.Services.Achievements
             return capstones;
         }
 
+        /// <summary>
+        /// When <paramref name="scopeGameIds"/> is given, loads only those games' custom data and
+        /// narrows the exclusion set to them. LoadCustomDataByGameId goes through
+        /// GameCustomDataStore.LoadAll, which deep-clones every stored record on every call, so
+        /// an unscoped context costs one clone per game in the library per hydration.
+        /// </summary>
         private (Dictionary<Guid, GameCustomDataFile> customDataByGameId, HashSet<Guid> excludedSummaryIds)
-            BuildOverviewCustomDataContext()
+            BuildOverviewCustomDataContext(IReadOnlyCollection<Guid> scopeGameIds = null)
         {
-            var customDataByGameId = LoadCustomDataByGameId();
-            return (customDataByGameId, ResolveExcludedSummaryGameIds(customDataByGameId));
+            if (scopeGameIds == null || scopeGameIds.Count == 0)
+            {
+                var all = LoadCustomDataByGameId();
+                return (all, ResolveExcludedSummaryGameIds(all));
+            }
+
+            var scoped = new Dictionary<Guid, GameCustomDataFile>();
+            foreach (var gameId in scopeGameIds)
+            {
+                if (gameId == Guid.Empty || _gameCustomDataStore == null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (_gameCustomDataStore.TryLoad(gameId, out var record) && record != null)
+                    {
+                        scoped[gameId] = record;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"Failed to load custom data for game {gameId} during scoped hydration.");
+                }
+            }
+
+            // Narrowed to the scope: the exclusion filter must only ever remove rows belonging to
+            // games this pass actually re-read, or a patch would drop rows it never replaced.
+            var excluded = ResolveExcludedSummaryGameIds(scoped);
+            excluded?.IntersectWith(scopeGameIds);
+            return (scoped, excluded);
         }
 
         private static Dictionary<string, string> ResolveFallbackOverrides(
@@ -1142,7 +1313,9 @@ namespace PlayniteAchievements.Services.Achievements
             _persistedSubscription = new PersistedSettingsSubscription(
                 _settings,
                 OnPersistedSettingsChanged,
-                InvalidateOverviewProjectionCaches);
+                // Wholesale: a settings swap can revert any projection-affecting setting at
+                // once, which is not expressible as a per-game patch.
+                () => InvalidateOverviewProjectionCaches());
         }
 
         private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs e)
@@ -1181,7 +1354,11 @@ namespace PlayniteAchievements.Services.Achievements
                 SyncAchievementFiltersForGame(e?.PlayniteGameId ?? Guid.Empty);
             }
 
-            InvalidateOverviewProjectionCaches();
+            // Names the one game that moved, so the next read patches its contribution instead
+            // of re-running five unfiltered whole-library queries.
+            var changedGameId = e?.PlayniteGameId ?? Guid.Empty;
+            InvalidateOverviewProjectionCaches(
+                changedGameId == Guid.Empty ? null : new[] { changedGameId });
         }
 
         // A full cache invalidation may follow ClearCache(), which deletes the whole database
@@ -1193,7 +1370,12 @@ namespace PlayniteAchievements.Services.Achievements
                 SyncAllAchievementFiltersFromCustomData();
             }
 
-            InvalidateOverviewProjectionCaches();
+            // The editor raises a scoped invalidation for its own game on top of the store's
+            // CustomDataChanged, and it is the only route by which an edit that does not affect
+            // summary data reaches the overview. Honouring the scope here is what stops that
+            // second raise from costing a whole-library rebuild.
+            InvalidateOverviewProjectionCaches(
+                e?.IsFull == false && e.ChangedGameIds.Count > 0 ? e.ChangedGameIds : null);
         }
 
         private void SyncAchievementFiltersForGame(Guid playniteGameId)
@@ -1297,12 +1479,59 @@ namespace PlayniteAchievements.Services.Achievements
             return entry;
         }
 
-        private void InvalidateOverviewProjectionCaches()
+        /// <summary>
+        /// Drops the memoized overview summaries. With <paramref name="changedGameIds"/> the
+        /// unbounded entry is instead marked dirty for those games, so the next read patches
+        /// their contribution rather than re-running five whole-library queries. Passing null --
+        /// a settings change, a full cache invalidation, a library-wide filter resync -- keeps
+        /// the wholesale behaviour.
+        /// </summary>
+        private void InvalidateOverviewProjectionCaches(IReadOnlyList<Guid> changedGameIds = null)
         {
+            var scoped = changedGameIds?.Where(id => id != Guid.Empty).ToList();
+            if (scoped == null ||
+                scoped.Count == 0 ||
+                scoped.Count > Models.CacheInvalidatedEventArgs.MaxScopedGames)
+            {
+                lock (_overviewProjectionCacheSync)
+                {
+                    _overviewProjectionGeneration++;
+                    _overviewSummaryCacheByLimit.Clear();
+                }
+
+                return;
+            }
+
             lock (_overviewProjectionCacheSync)
             {
+                // Still bumped for every invalidation, so a summary loaded before this point is
+                // never memoized after it. The generation guards the install, not the dirty set.
                 _overviewProjectionGeneration++;
-                _overviewSummaryCacheByLimit.Clear();
+
+                // Bounded-limit entries cannot be patched (a trimmed row cannot be recovered),
+                // so they are dropped as before. Only the unbounded entry carries dirty games.
+                var boundedLimits = _overviewSummaryCacheByLimit.Keys.Where(limit => limit != 0).ToList();
+                foreach (var limit in boundedLimits)
+                {
+                    _overviewSummaryCacheByLimit.Remove(limit);
+                }
+
+                if (!_overviewSummaryCacheByLimit.TryGetValue(0, out var entry))
+                {
+                    // Nothing memoized to patch; the next read takes the full path anyway.
+                    return;
+                }
+
+                foreach (var gameId in scoped)
+                {
+                    entry.DirtyGameIds.Add(gameId);
+                }
+
+                // Past the cap the patch stops paying for itself against a rebuild.
+                if (entry.DirtyGameIds.Count > Models.CacheInvalidatedEventArgs.MaxScopedGames)
+                {
+                    _overviewSummaryCacheByLimit.Remove(0);
+                }
             }
         }
 
@@ -1318,8 +1547,10 @@ namespace PlayniteAchievements.Services.Achievements
                 achievementRows = 0;
                 foreach (var cached in _overviewSummaryCacheByLimit.Values)
                 {
-                    achievementRows += cached?.Achievements?.Count ?? 0;
-                    achievementRows += cached?.RecentUnlocks?.Count ?? 0;
+                    // Counts rows held, not distinct rows: a patched envelope shares most of its
+                    // rows with the one it replaced, so this over-reports retention slightly.
+                    achievementRows += cached?.Data?.Achievements?.Count ?? 0;
+                    achievementRows += cached?.Data?.RecentUnlocks?.Count ?? 0;
                 }
             }
         }
