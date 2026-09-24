@@ -156,6 +156,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void ManageAchievementsControl_Loaded(object sender, System.Windows.RoutedEventArgs e)
         {
+            // Marks where the shell finished loading. A capture of a slow open shows ~1.4s of
+            // solid UI-thread work between the window being shown and the Background-priority
+            // callback below running, with no plugin scope covering it and even the animation
+            // tick starved. Loaded fires before WPF renders, so this line plus the
+            // Manage.EnsureTabContent that follows brackets that span: if the gap sits after
+            // this line, it is WPF laying out and rendering the shell, not plugin code.
+            _logger?.Debug("[ManageOpen] shell loaded; queueing tab content at Background priority.");
+
             // Held for as long as this window is up, and released once in Cleanup. Editing here
             // raises a custom-data change per edit, and each one otherwise rebuilds every game's
             // theme lists -- work behind this window that nothing can see until it closes. The
