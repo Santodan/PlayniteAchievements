@@ -36,6 +36,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>Achievements in a category other than the default one.</summary>
         public int CategorizedCount { get; set; }
+
+        public int GoalCount { get; set; }
+
+        public int UnlockedGoalCount { get; set; }
     }
 
     /// <summary>
@@ -71,6 +75,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (achievement.Unlocked)
                 {
                     breakdown.UnlockedPoints = AchievementGameStats.AddClamped(breakdown.UnlockedPoints, points);
+                }
+
+                if (achievement.IsGoal)
+                {
+                    breakdown.GoalCount++;
+                    if (achievement.Unlocked)
+                    {
+                        breakdown.UnlockedGoalCount++;
+                    }
                 }
 
                 var label = CategoryPathHelper.NormalizePath(
