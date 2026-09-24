@@ -129,10 +129,10 @@
                                      Style="{StaticResource NavTabRadioStyle}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Notifications}" />
 
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Maintenance_Title}"
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Advanced}"
                                    Style="{StaticResource NavSectionHeaderStyle}" />
                         <RadioButton x:Name="OverridesTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Overrides}"
+                                     Content="{DynamicResource LOCPlayAch_Settings_Maintenance_Title}"
                                      Style="{StaticResource NavTabRadioStyle}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overrides}" />
                     </StackPanel>
