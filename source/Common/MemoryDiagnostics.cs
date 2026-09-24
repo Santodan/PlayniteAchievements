@@ -40,6 +40,20 @@ namespace PlayniteAchievements.Common
         /// </summary>
         internal static readonly bool MemoryTracingEnabled = false;
 
+        // Two gates, deliberately different.
+        //
+        // Enabled covers everything cheap: the [MemPerf] counter lines, the inline suffixes, the
+        // sampler, LeakWatch and RetentionProbes. It ORs in PerfScope.PerfTracingEnabled so a
+        // tracing build reports memory alongside its timings.
+        //
+        // RetentionReportEnabled covers only the retention report, which forces two blocking gen2
+        // collections per call (see LogRetained). That is far too expensive to ride along with
+        // timing tracing: the report is scheduled off every cache invalidation, so a session spent
+        // editing custom data -- which invalidates per edit -- turned into a forced full collection
+        // every few seconds. One captured session took ~1838 of them on a ~350MB managed heap, and
+        // every one suspends every thread including the UI. It answers to MemoryTracingEnabled
+        // alone, which is what that flag's "too expensive to ship enabled" note always meant.
+
 #if TEST
         /// <summary>
         /// Test-only seam. The real switches are compile-time constants, so without this the
@@ -50,8 +64,12 @@ namespace PlayniteAchievements.Common
 
         public static bool Enabled =>
             TestEnabledOverride ?? (MemoryTracingEnabled || PerfScope.PerfTracingEnabled);
+
+        public static bool RetentionReportEnabled => TestEnabledOverride ?? MemoryTracingEnabled;
 #else
         public static bool Enabled => MemoryTracingEnabled || PerfScope.PerfTracingEnabled;
+
+        public static bool RetentionReportEnabled => MemoryTracingEnabled;
 #endif
 
         /// <summary>
@@ -91,10 +109,16 @@ namespace PlayniteAchievements.Common
         /// Logs a [MemPerf] line after forcing a full blocking collection, so the managed number
         /// reflects what is actually still rooted rather than uncollected garbage. Only for
         /// once-per-refresh retention reporting - never in a hot path.
+        /// <para>
+        /// Gated on <see cref="RetentionReportEnabled"/>, not <see cref="Enabled"/>: the two
+        /// collections below suspend every thread, so this must not ride along with timing
+        /// tracing. Callers that schedule it should check the same gate before building the
+        /// detail string, which is itself expensive.
+        /// </para>
         /// </summary>
         public static void LogRetained(ILogger logger, string point, string detail = null)
         {
-            if (!Enabled)
+            if (!RetentionReportEnabled)
             {
                 return;
             }
