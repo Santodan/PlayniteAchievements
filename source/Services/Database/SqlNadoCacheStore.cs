@@ -5876,18 +5876,56 @@ namespace PlayniteAchievements.Services.Database
 
             var gameIdText = playniteGameId.ToString();
             var desiredByApiName = BuildAchievementOverrideEntries(entries);
-            var desired = BuildAchievementOverrideSignatures(desiredByApiName.Values);
             return WithDb(db =>
             {
-                var existing = db.Load<AchievementOverrideRow>(
-                        @"SELECT PlayniteGameId, ApiName, Points, TrophyType, IsFiltered, IsSummaryFiltered
-                          FROM AchievementOverrides
-                          WHERE PlayniteGameId = ?;",
-                        gameIdText)
-                    .Select(row => row.ToEntry().ToSignature())
-                    .ToList();
+                // Keyed by ApiName rather than collected into one set, so the write below can be
+                // the rows that actually moved. This runs on the caller's thread inside the
+                // synchronous CustomDataChanged -- for an editor write, the UI thread -- and
+                // deleting and re-inserting every override the game has, to change one
+                // achievement's points or trophy grade, is what made that edit scale with how
+                // customized the game is.
+                var existingByApiName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var row in db.Load<AchievementOverrideRow>(
+                    @"SELECT PlayniteGameId, ApiName, Points, TrophyType, IsFiltered, IsSummaryFiltered
+                      FROM AchievementOverrides
+                      WHERE PlayniteGameId = ?;",
+                    gameIdText))
+                {
+                    var entry = row.ToEntry();
+                    var apiName = (entry.ApiName ?? string.Empty).Trim();
+                    if (apiName.Length > 0)
+                    {
+                        existingByApiName[apiName] = entry.ToSignature();
+                    }
+                }
 
-                if (existing.Count == desired.Count && desired.SetEquals(existing))
+                var toWrite = new List<AchievementOverrideMirrorEntry>();
+                foreach (var entry in desiredByApiName.Values)
+                {
+                    var apiName = (entry?.ApiName ?? string.Empty).Trim();
+                    if (apiName.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    if (!existingByApiName.TryGetValue(apiName, out var storedSignature) ||
+                        !string.Equals(storedSignature, entry.ToSignature(), StringComparison.Ordinal))
+                    {
+                        toWrite.Add(entry);
+                    }
+                }
+
+                var toDelete = new List<string>();
+                foreach (var apiName in existingByApiName.Keys)
+                {
+                    if (!desiredByApiName.ContainsKey(apiName))
+                    {
+                        toDelete.Add(apiName);
+                    }
+                }
+
+                // An unchanged save stays WAL-silent, as before.
+                if (toWrite.Count == 0 && toDelete.Count == 0)
                 {
                     return false;
                 }
@@ -5895,10 +5933,25 @@ namespace PlayniteAchievements.Services.Database
                 var nowIso = ToIso(DateTime.UtcNow);
                 db.RunTransaction(() =>
                 {
-                    db.ExecuteNonQuery(
-                        "DELETE FROM AchievementOverrides WHERE PlayniteGameId = ?;",
-                        gameIdText);
-                    InsertAchievementOverrideRows(db, gameIdText, desiredByApiName.Values, nowIso);
+                    foreach (var apiName in toDelete)
+                    {
+                        db.ExecuteNonQuery(
+                            "DELETE FROM AchievementOverrides WHERE PlayniteGameId = ? AND ApiName = ?;",
+                            gameIdText,
+                            apiName);
+                    }
+
+                    // The rows being rewritten go first: the insert is INSERT OR IGNORE, so a
+                    // changed row has to lose its stored version before the new one can land.
+                    foreach (var entry in toWrite)
+                    {
+                        db.ExecuteNonQuery(
+                            "DELETE FROM AchievementOverrides WHERE PlayniteGameId = ? AND ApiName = ?;",
+                            gameIdText,
+                            entry.ApiName.Trim());
+                    }
+
+                    InsertAchievementOverrideRows(db, gameIdText, toWrite, nowIso);
                 });
 
                 return true;
