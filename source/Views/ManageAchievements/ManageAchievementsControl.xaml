@@ -51,14 +51,6 @@
                     </Setter.Value>
                 </Setter>
             </Style>
-
-            <Style x:Key="NavSectionHeaderStyle" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
-                <Setter Property="Opacity" Value="0.65" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}" />
-                <Setter Property="Margin" Value="0,12,0,4" />
-            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -102,9 +94,6 @@
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_General}"
-                                   Style="{StaticResource NavSectionHeaderStyle}"
-                                   Margin="0,0,0,4" />
                         <RadioButton x:Name="OverviewTabButton"
                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Overview}"
                                      Style="{StaticResource NavTabRadioStyle}"
@@ -123,19 +112,10 @@
                                      Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
 
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance}"
-                                   Style="{StaticResource NavSectionHeaderStyle}" />
                         <RadioButton x:Name="NotificationsTabButton"
                                      Content="{DynamicResource LOCPlayAch_Settings_TabNotifications}"
                                      Style="{StaticResource NavTabRadioStyle}"
                                      IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Notifications}" />
-
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Maintenance_Title}"
-                                   Style="{StaticResource NavSectionHeaderStyle}" />
-                        <RadioButton x:Name="OverridesTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Overrides}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overrides}" />
                     </StackPanel>
                 </ScrollViewer>
 
@@ -284,19 +264,6 @@
                     <ContentControl x:Name="OverviewHost" />
                 </Grid>
 
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="{x:Type Grid}">
-                            <Setter Property="Visibility" Value="Hidden" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedTab}" Value="Overrides">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <ContentControl x:Name="OverridesHost" />
-                </Grid>
 
                 <Grid>
                     <Grid.Style>
