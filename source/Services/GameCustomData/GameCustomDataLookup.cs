@@ -137,28 +137,8 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
     }
 
-    internal sealed class ResolvedOverviewGameCustomData
-    {
-        public bool ExcludedFromSummaries { get; set; }
-
-        public bool UseSeparateLockedIcons { get; set; }
-    }
-
     internal static class GameCustomDataLookup
     {
-        public static ResolvedOverviewGameCustomData ResolveOverviewGameCustomData(
-            Guid gameId,
-            PersistedSettings fallbackSettings = null,
-            GameCustomDataStore store = null)
-        {
-            var resolved = ResolveGameCustomData(gameId, fallbackSettings, store);
-            return new ResolvedOverviewGameCustomData
-            {
-                ExcludedFromSummaries = resolved.ExcludedFromSummaries,
-                UseSeparateLockedIcons = resolved.UseSeparateLockedIcons
-            };
-        }
-
         public static ResolvedGameCustomData ResolveGameCustomData(
             Guid gameId,
             PersistedSettings fallbackSettings = null,
@@ -518,6 +498,57 @@ namespace PlayniteAchievements.Services.GameCustomData
             selection = result.Item1;
             imageOverrides = result.Item2;
             return true;
+        }
+
+        /// <summary>
+        /// A game's category ordering and category art overrides, read without resolving the
+        /// whole customization record. Both come back as fresh copies; either may be null when
+        /// the game stores none.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="ResolveGameCustomData"/> deep-clones the stored record and then rebuilds
+        /// roughly ten collections off it, which is a great deal of copying when the caller
+        /// wants two of them. The overview's achievement materialization does this once per
+        /// distinct game, so on a library where every game is customized it was paying that
+        /// per game. Neither field has a legacy-settings fallback -- a game with no stored
+        /// record simply has neither -- so reading them directly is equivalent.
+        /// </remarks>
+        public static void GetCategoryMetadata(
+            Guid gameId,
+            out List<string> categoryOrder,
+            out Dictionary<string, CategoryImageOverrideData> categoryImageOverrides,
+            GameCustomDataStore store = null)
+        {
+            categoryOrder = null;
+            categoryImageOverrides = null;
+
+            var resolvedStore = ResolveStore(store);
+            if (gameId == Guid.Empty || resolvedStore == null)
+            {
+                return;
+            }
+
+            // Empty comes back as null, matching what the caller derived from the resolved
+            // record: an absent ordering and an absent art map are the same thing as empty ones.
+            var result = resolvedStore.QueryGame(
+                gameId,
+                customData =>
+                {
+                    var order = CloneCategoryOrder(customData?.AchievementCategoryOrder);
+                    var art = GameCustomDataFile.CloneCategoryImageOverrideMap(
+                        customData?.AchievementCategoryImageOverrides);
+                    return Tuple.Create(
+                        order != null && order.Count > 0 ? order : null,
+                        art != null && art.Count > 0 ? art : null);
+                });
+
+            if (result == null)
+            {
+                return;
+            }
+
+            categoryOrder = result.Item1;
+            categoryImageOverrides = result.Item2;
         }
 
         public static HashSet<string> GetFilteredAchievementApiNames(

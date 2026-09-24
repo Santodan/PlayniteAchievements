@@ -963,13 +963,16 @@ namespace PlayniteAchievements.Services.Overview
                 return;
             }
 
-            var resolved = GameCustomDataLookup.ResolveGameCustomData(
+            // Two fields, read as two fields. Resolving the whole record deep-cloned it and
+            // rebuilt roughly ten collections off it, and this then copied both of the two it
+            // wanted a second time. That ran once per distinct game in the materialization, so
+            // a library where every game is customized paid all of it per game.
+            GameCustomDataLookup.GetCategoryMetadata(
                 gameData.PlayniteGameId.Value,
-                settings?.Persisted);
-            gameData.AchievementCategoryOrder = resolved.AchievementCategoryOrder != null && resolved.AchievementCategoryOrder.Count > 0
-                ? new List<string>(resolved.AchievementCategoryOrder)
-                : null;
-            gameData.AchievementCategoryImageOverrides = CloneCategoryImageOverrideMap(resolved.AchievementCategoryImageOverrides);
+                out var categoryOrder,
+                out var categoryImageOverrides);
+            gameData.AchievementCategoryOrder = categoryOrder;
+            gameData.AchievementCategoryImageOverrides = categoryImageOverrides;
         }
 
         private static Dictionary<string, CategoryImageOverrideData> CloneCategoryImageOverrideMap(
