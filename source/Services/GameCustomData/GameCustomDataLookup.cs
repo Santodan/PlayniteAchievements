@@ -460,13 +460,39 @@ namespace PlayniteAchievements.Services.GameCustomData
         /// A game's stored capstones. An untouched game returns an unmaterialized set, which tells
         /// the resolver to seed from the provider instead.
         /// </summary>
+        /// <remarks>
+        /// Reads the two fields it needs rather than building the resolved projection, which
+        /// allocates and copies every collection the record holds. Tag sync asks this once per
+        /// game across the library.
+        /// </remarks>
         public static CapstoneSet GetCapstoneSet(
             Guid gameId,
             PersistedSettings fallbackSettings = null,
             GameCustomDataStore store = null)
         {
-            var resolved = ResolveGameCustomData(gameId, fallbackSettings, store);
-            return new CapstoneSet(resolved.CapstonesMaterialized, resolved.Capstones);
+            if (gameId != Guid.Empty)
+            {
+                var resolvedStore = ResolveStore(store);
+                var stored = resolvedStore?.QueryGame<CapstoneSet?>(
+                    gameId,
+                    customData => customData == null
+                        ? (CapstoneSet?)null
+                        : new CapstoneSet(
+                            customData.CapstonesMaterialized,
+                            customData.Capstones != null
+                                ? customData.Capstones.ConvertAll(item => item?.Clone())
+                                    .FindAll(item => item != null)
+                                : new List<CapstoneAssignment>()));
+                if (stored.HasValue)
+                {
+                    return stored.Value;
+                }
+            }
+
+            return new CapstoneSet(
+                fallbackSettings?.ManualCapstones != null &&
+                    fallbackSettings.ManualCapstones.ContainsKey(gameId),
+                BuildLegacyCapstones(gameId, fallbackSettings));
         }
 
         /// <summary>

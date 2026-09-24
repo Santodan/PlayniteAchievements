@@ -1723,11 +1723,23 @@ namespace PlayniteAchievements.Services.Refresh
                     return;
                 }
 
-                var summaryCategory = GameCustomDataLookup.GetGameSummaryCategory(gameId);
+                // Two targeted reads, not three whole-record resolves. This runs per refreshed
+                // game, and Plan abandons immediately when the game holds no category metadata
+                // at all -- which is almost every game -- so the resolves were paid up front to
+                // be thrown away. Plan treats null order and null images as empty.
+                GameCustomDataLookup.TryGetGameSummaryCategory(
+                    gameId,
+                    out var summaryCategory,
+                    out _);
+                GameCustomDataLookup.GetCategoryMetadata(
+                    gameId,
+                    out var categoryOrder,
+                    out var categoryImageOverrides);
+
                 var plan = ProviderCategoryPathMigration.Plan(
                     data.Achievements.Select(achievement => achievement?.Category),
-                    GameCustomDataLookup.GetAchievementCategoryOrder(gameId),
-                    GameCustomDataLookup.GetAchievementCategoryImageOverrides(gameId),
+                    categoryOrder,
+                    categoryImageOverrides,
                     summaryCategory);
 
                 if (plan == null)
