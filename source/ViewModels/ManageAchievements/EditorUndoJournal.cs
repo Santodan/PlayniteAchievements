@@ -275,27 +275,35 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            var opened = EnsureOpenStep(intent);
-            if (opened || _openBefore == null)
+            EnsureOpenStep(intent);
+
+            // Folded, never narrowed: a reversal has to resync everything the gesture did.
+            // Unconditional because ClearOpenStep resets both to false, so the first write's OR
+            // is the same as the assignment this used to make.
+            _openAffectsSummaryData |= affectsSummaryData;
+            _openAffectsOverrideMirror |= affectsOverrideMirror;
+
+            // Only for a step that is not already held as row values. The record pair exists
+            // solely to feed the facet diff in CommitOpenStep, and a step carrying row values
+            // discards that diff and is stored as its fields instead -- so for an ordinary field
+            // edit these two clones deep-copied every override, note, category map and icon map
+            // the game has, twice per write, for a result nothing read. The count only grows
+            // within a step (ClearOpenStep is the sole reset, and it ends the step), so this
+            // decides the same way CommitOpenStep will.
+            if (_openRowValues.Count == 0)
             {
                 // Cloned, not held: the store caches the record it just wrote and the next write
                 // mutates that same instance in place, so a reference here would drift under us
-                // before the step is closed. Also set when the step was opened by a field change,
-                // which happens before any write.
-                _openBefore = previous.Clone();
-                _openAffectsSummaryData = affectsSummaryData;
-                _openAffectsOverrideMirror = affectsOverrideMirror;
-            }
-            else
-            {
-                // Folded, never narrowed: a reversal has to resync everything the gesture did.
-                _openAffectsSummaryData |= affectsSummaryData;
-                _openAffectsOverrideMirror |= affectsOverrideMirror;
-            }
+                // before the step is closed.
+                if (_openBefore == null)
+                {
+                    _openBefore = previous.Clone();
+                }
 
-            // The step spans from the first write's starting point to the latest write's result,
-            // which is what makes a fan-out across many rows one entry.
-            _openAfter = persisted.Clone();
+                // The step spans from the first write's starting point to the latest write's
+                // result, which is what makes a fan-out across many rows one entry.
+                _openAfter = persisted.Clone();
+            }
 
             if (affectedApiNames != null)
             {
@@ -396,7 +404,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // A field edit is held as the fields it moved. Reversing those is an edit, where
             // restoring the record they live in and reloading is not, and costs the same whether
             // one achievement changed or the whole game.
-            var rowValues = _openRowValues.Count > 0
+            var heldAsRowValues = _openRowValues.Count > 0;
+            var rowValues = heldAsRowValues
                 ? _openRowValues.Values
                     .Where(change => !Equals(change.OldValue, change.NewValue))
                     .ToList()
@@ -406,7 +415,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // sides of every facet and compares each entry by serializing it, so running it for
             // a step that is about to discard it charged every ordinary field edit for a
             // whole-record comparison nothing read.
-            var facets = rowValues.Count > 0
+            //
+            // Keyed on the same predicate Record uses to decide whether to capture the record
+            // pair at all, so the two cannot disagree. Testing the filtered rowValues instead
+            // would ask for a diff of two records that were deliberately never cloned, in the
+            // one case where a step's field changes all return to their starting values -- and
+            // a step that ends where it started is dropped below either way.
+            var facets = heldAsRowValues
                 ? (IReadOnlyList<GameCustomDataFacetPatch>)Array.Empty<GameCustomDataFacetPatch>()
                 : GameCustomDataFacetDiffer.Diff(_openBefore, _openAfter);
 

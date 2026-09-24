@@ -402,6 +402,29 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void AFieldPutBack_IsNotAStepEvenWhenTheRecordsDiffer()
+        {
+            var journal = new EditorUndoJournal();
+
+            // The records disagree, so the facet differ would find something here. It is not
+            // consulted: the step recorded field changes, and a step that records any field
+            // change is held as its fields and never as a record diff. That is also why Record
+            // does not clone the two records for a step like this -- cloning a game's whole
+            // custom-data record twice per write, for a diff that is thrown away, is what made
+            // an ordinary cell edit expensive on a heavily customized game.
+            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+
+            journal.RecordRowValue("one", "PointsText", "10", "20", PointsEdit);
+            journal.RecordRowValue("one", "PointsText", "20", "10", PointsEdit);
+            journal.CommitOpenStep();
+
+            Assert.IsFalse(
+                journal.CanUndo,
+                "Every field the gesture moved returned to its starting value, so the gesture " +
+                "is not a step.");
+        }
+
+        [TestMethod]
         public void AFieldChange_IsOnlyRecordedForAFieldEdit()
         {
             var journal = new EditorUndoJournal();
