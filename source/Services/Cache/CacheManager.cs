@@ -1103,7 +1103,12 @@ namespace PlayniteAchievements.Services.Cache
 
                 RaiseGameCacheUpdatedEvent(cacheKey);
                 RaiseCacheDeltaUpdatedEvent(cacheKey, CacheDeltaOperationType.Remove);
-                RaiseCacheInvalidatedEvent();
+
+                // Scoped, like the in-game write path above. A full invalidation makes
+                // LibraryProjectionService treat this as unscoped, which skips its idle delay
+                // and schedules an eager whole-library projection rebuild -- for one game
+                // leaving the cache. The id is already in hand.
+                RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs.Scoped(new[] { playniteGameId }));
             }
             catch (Exception ex)
             {
