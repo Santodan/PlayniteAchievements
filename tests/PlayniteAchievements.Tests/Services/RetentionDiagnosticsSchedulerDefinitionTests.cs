@@ -32,8 +32,9 @@ namespace PlayniteAchievements.Tests.Services
 
             Assert.IsFalse(
                 body.Contains("MemoryDiagnostics.Enabled"),
-                "The broader gate must not appear here: it ORs in PerfScope.PerfTracingEnabled, " +
-                "which is committed true, so it would arm the collections in every build.");
+                "The broader gate must not appear here: it arms the cheap counters and LeakWatch, " +
+                "which is a different and much weaker bar than two blocking gen2 collections " +
+                "scheduled off every cache invalidation.");
         }
 
         [TestMethod]

@@ -478,7 +478,10 @@ namespace PlayniteAchievements
         public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
         {
             // Initialize logging system first
-            PluginLogger.Initialize(GetPluginUserDataPath());
+            var pluginUserDataPath = GetPluginUserDataPath();
+            PluginLogger.Initialize(pluginUserDataPath);
+            // Before the first scope below, so a traced session covers startup too.
+            PerfScope.ConfigureTracing(pluginUserDataPath);
             _logger = PluginLogger.GetLogger(nameof(PlayniteAchievementsPlugin));
             _themeControlRegistry = new ThemeControlRegistry();
             _resourceService = new AchievementResourceService(_logger);
@@ -531,7 +534,6 @@ namespace PlayniteAchievements
                 Charting.For<PieSliceChartData>(pieSliceMapper);
 
                 var settings = _settingsViewModel.Settings;
-                var pluginUserDataPath = GetPluginUserDataPath();
                 _manualSourceRegistry = new ManualSourceRegistry(_logger, settings, PlayniteApi, pluginUserDataPath);
 
                 // User-defined custom providers resolve through static hooks so the registry and

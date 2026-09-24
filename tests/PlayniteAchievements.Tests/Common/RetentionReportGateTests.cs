@@ -13,7 +13,10 @@ namespace PlayniteAchievements.Tests.Common
     /// full collection every few seconds: one capture took ~1838 of them on a ~350MB managed
     /// heap, each suspending every thread including the UI.
     ///
-    /// These pin the split: the cheap counters follow tracing, the collections do not.
+    /// These pin the split. Both gates now answer to MemoryTracingEnabled alone: the counters
+    /// were separated from timing tracing as well, because LeakWatch runs per editor row behind
+    /// a global lock and over whole library row sets inside the overview's per-edit delta, so
+    /// arming it with the timings made a timing capture measure itself.
     /// </summary>
     [TestClass]
     public class RetentionReportGateTests
@@ -57,7 +60,7 @@ namespace PlayniteAchievements.Tests.Common
         }
 
         [TestMethod]
-        public void TracingOnlyBuild_LeavesTheCheapCountersArmedAndTheCollectionsDisarmed()
+        public void TracingOnlyBuild_LeavesEveryMemoryGateDisarmed()
         {
             MemoryDiagnostics.TestEnabledOverride = null;
 
@@ -71,11 +74,15 @@ namespace PlayniteAchievements.Tests.Common
                 MemoryDiagnostics.RetentionReportEnabled,
                 "Memory tracing is off, so the forced collections must be off.");
 
+            // Deliberately asserted against the memory switch rather than a literal, so it keeps
+            // meaning something if that switch is flipped for a capture.
             Assert.AreEqual(
-                PerfScope.PerfTracingEnabled,
+                MemoryDiagnostics.MemoryTracingEnabled,
                 MemoryDiagnostics.Enabled,
-                "The cheap [MemPerf] counters and LeakWatch still ride along with timing tracing; " +
-                "only the retention report was split off.");
+                "The [MemPerf] counters and LeakWatch must answer to MemoryTracingEnabled alone. " +
+                "If they ever OR in PerfScope.PerfTracingEnabled again, a timing capture pays " +
+                "LeakWatch's global lock per editor row and per overview delta, and so measures " +
+                "itself.");
         }
 
         [TestMethod]
