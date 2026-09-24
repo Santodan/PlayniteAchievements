@@ -201,6 +201,31 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void TheRowValueFlush_RunsInsideTheGuardRatherThanAfterIt()
+        {
+            // The sibling of the re-seed rule above, for the other replay path. A row-value
+            // reversal batches its writes and flushes them in a finally; with _isApplyingUndo
+            // already cleared, the CustomDataWritten handler recorded that flush as a write it
+            // could not attribute, and NoteForeignWrite clears the whole history -- undo and
+            // redo both -- when a foreign write touches a facet an existing step touched.
+            //
+            // The symptom is that redo disappears the instant an undo finishes: the step moves
+            // to the redo side and is then wiped by the undo's own write.
+            var apply = ExtractMethod(
+                ReadViewModel(),
+                "private void ApplyRowValueStep(EditorUndoEntry entry, bool reverse)");
+
+            var flush = apply.LastIndexOf("FlushBatchedFieldWrites()", StringComparison.Ordinal);
+            Assert.IsTrue(flush >= 0, "ApplyRowValueStep no longer flushes its batch.");
+
+            var released = apply.LastIndexOf("_isApplyingUndo = false", StringComparison.Ordinal);
+            Assert.IsTrue(
+                released > flush,
+                "The replay's own write must land while _isApplyingUndo is still set, or the " +
+                "journal treats it as foreign and clears the history.");
+        }
+
+        [TestMethod]
         public void TheToolbarButtons_AreToldToAskAgainWhenTheHistoryMoves()
         {
             // The shortcut calls Undo() straight out and never consults CanExecute, so it kept

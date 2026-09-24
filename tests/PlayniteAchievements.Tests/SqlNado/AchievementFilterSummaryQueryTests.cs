@@ -264,6 +264,178 @@ namespace PlayniteAchievements.SqlNado.Tests
             StringAssert.Contains(schema, "SchemaVersion = 18");
         }
 
+        // --- Scoped (per-game) reads -------------------------------------------------------
+        //
+        // A single-game custom-data edit patches one game's contribution into the cached summary
+        // instead of re-running these queries across the whole library. That is only sound while
+        // a scoped read returns exactly the rows the full read would have returned for that game.
+        // SummaryCacheReader is not linkable here, so these mirror its predicate the same way the
+        // SQL above mirrors its queries.
+
+        private const string GameScopePredicate = @"
+                  AND (TRIM(lp.PlayniteGameId) = ? COLLATE NOCASE
+                       OR (COALESCE(TRIM(lp.PlayniteGameId), '') = ''
+                           AND TRIM(lp.CacheKey) = ? COLLATE NOCASE))";
+
+        private static string Scoped(string sql)
+        {
+            var index = sql.IndexOf("WHERE lp.RowNum = 1", StringComparison.Ordinal);
+            Assert.IsTrue(index >= 0, "Anchor not found; the mirrored SQL has drifted.");
+            var insertAt = index + "WHERE lp.RowNum = 1".Length;
+            return sql.Substring(0, insertAt) + GameScopePredicate + sql.Substring(insertAt);
+        }
+
+        [TestMethod]
+        public void AnEmptyParameterArray_ReadsIdenticallyToPassingNoParameters()
+        {
+            // The production reader now always passes an args array, empty when unscoped. If an
+            // empty array were not equivalent to passing nothing, every whole-library read would
+            // break -- and nothing else here exercises that path.
+            WithSeededDb(db =>
+            {
+                var withNoArgs = db.Load<GameSummaryTestRow>(GameSummarySql).ToList();
+                var withEmptyArgs = db.Load<GameSummaryTestRow>(GameSummarySql, Array.Empty<object>()).ToList();
+
+                CollectionAssert.AreEqual(
+                    withNoArgs.Select(r => r.CacheKey).ToList(),
+                    withEmptyArgs.Select(r => r.CacheKey).ToList());
+                Assert.AreNotEqual(0, withNoArgs.Count, "The seed must produce rows for this to mean anything.");
+            });
+        }
+
+        [TestMethod]
+        public void AScopedGameSummaryRead_ReturnsExactlyTheFullReadsRowForThatGame()
+        {
+            WithSeededDb(db =>
+            {
+                var full = db.Load<GameSummaryTestRow>(GameSummarySql).ToList();
+                var scoped = db.Load<GameSummaryTestRow>(Scoped(GameSummarySql), GameAId, GameAId).ToList();
+
+                Assert.AreEqual(1, scoped.Count, "A scoped read must return one game's row and no decoy's.");
+
+                var expected = full.Single(r => r.PlayniteGameId == GameAId);
+                var actual = scoped[0];
+                Assert.AreEqual(expected.CacheKey, actual.CacheKey);
+                Assert.AreEqual(expected.TotalAchievements, actual.TotalAchievements);
+                Assert.AreEqual(expected.AchievementsUnlocked, actual.AchievementsUnlocked);
+                Assert.AreEqual(expected.LastUnlockUtc, actual.LastUnlockUtc);
+                Assert.AreEqual(expected.RareCount, actual.RareCount);
+                Assert.AreEqual(expected.CapstoneTotal, actual.CapstoneTotal);
+            });
+        }
+
+        [TestMethod]
+        public void AScopedRead_MatchesRegardlessOfTheStoredGuidCasing()
+        {
+            // SQLite compares TEXT case-sensitively; Guid.TryParse -- what every other reader of
+            // this column uses -- does not. Without COLLATE NOCASE a writer storing an uppercase
+            // GUID would make the scoped read silently return nothing, and the game would vanish
+            // from the patched summary.
+            WithSeededDb(db =>
+            {
+                var lower = db.Load<GameSummaryTestRow>(
+                    Scoped(GameSummarySql), GameAId.ToLowerInvariant(), GameAId.ToLowerInvariant()).ToList();
+                var upper = db.Load<GameSummaryTestRow>(
+                    Scoped(GameSummarySql), GameAId.ToUpperInvariant(), GameAId.ToUpperInvariant()).ToList();
+
+                Assert.AreEqual(1, lower.Count);
+                Assert.AreEqual(1, upper.Count, "An uppercase GUID must still match.");
+                Assert.AreEqual(lower[0].CacheKey, upper[0].CacheKey);
+            });
+        }
+
+        [TestMethod]
+        public void AScopedRead_FindsAGameWhoseIdLivesOnlyInItsCacheKey()
+        {
+            // Games rows may carry no PlayniteGameId, in which case the cache key is itself the
+            // GUID (SqlNadoCacheStore.ResolveCachedPlayniteGameId). The second predicate arm is
+            // what keeps those games reachable.
+            const string keyOnlyId = "44444444-4444-4444-4444-444444444444";
+
+            WithSeededDb(db =>
+            {
+                db.ExecuteNonQuery(
+                    "INSERT INTO Games (Id, ProviderKey, PlayniteGameId, GameName) VALUES (400, 'Steam', NULL, 'Key Only');");
+                db.ExecuteNonQuery(
+                    $@"INSERT INTO UserGameProgress (Id, UserId, GameId, CacheKey, HasAchievements, LastUpdatedUtc)
+                       VALUES (1400, 1, 400, '{keyOnlyId}', 1, '2026-05-01T00:00:00Z');");
+                db.ExecuteNonQuery(
+                    "INSERT INTO AchievementDefinitions (Id, GameId, ApiName, Rarity, IsCapstone) VALUES (400, 400, 'k1', 'common', 0);");
+
+                var scoped = db.Load<GameSummaryTestRow>(
+                    Scoped(GameSummarySql), keyOnlyId, keyOnlyId).ToList();
+
+                Assert.AreEqual(
+                    1,
+                    scoped.Count,
+                    "Without the CacheKey arm this game is unreachable and a patch would drop it.");
+                Assert.AreEqual(keyOnlyId, scoped[0].CacheKey);
+            });
+        }
+
+        [TestMethod]
+        public void AScopedRead_DoesNotMatchAGameWhoseCacheKeyIsNotAGuid()
+        {
+            // Game B's cache key is "app:200", so it resolves to no Playnite game id at all and
+            // can never be a patch target. The patcher relies on that: it always retains rows
+            // carrying no game id, because custom data is keyed by Playnite game id.
+            WithSeededDb(db =>
+            {
+                var scoped = db.Load<GameSummaryTestRow>(
+                    Scoped(GameSummarySql), DecoyGameId, DecoyGameId).ToList();
+
+                Assert.IsFalse(
+                    scoped.Any(r => r.CacheKey == "app:200"),
+                    "A game with no resolvable id must not be swept into another game's scope.");
+            });
+        }
+
+        [TestMethod]
+        public void AScopedRead_StillReturnsAFullyFilteredGamesZeroCountRow()
+        {
+            WithSeededDb(db =>
+            {
+                var scoped = db.Load<GameSummaryTestRow>(
+                    Scoped(GameSummarySql), GameCId, GameCId).ToList();
+
+                Assert.AreEqual(1, scoped.Count, "The row survives filtering; the consumer hides it.");
+                Assert.AreEqual(0, scoped[0].TotalAchievements);
+                Assert.AreEqual(0, scoped[0].AchievementsUnlocked);
+            });
+        }
+
+        [TestMethod]
+        public void ScopedTimelineAndRecentReads_MatchTheFullReadsRowsForThatGame()
+        {
+            WithSeededDb(db =>
+            {
+                var fullTimeline = db.Load<TimelineTestRow>(TimelineSql)
+                    .Where(r => r.PlayniteGameId == GameAId)
+                    .Select(r => r.UnlockDateUtc + "=" + r.UnlockCount)
+                    .ToList();
+                var scopedTimeline = db.Load<TimelineTestRow>(Scoped(TimelineSql), GameAId, GameAId)
+                    .Select(r => r.UnlockDateUtc + "=" + r.UnlockCount)
+                    .ToList();
+                CollectionAssert.AreEqual(fullTimeline, scopedTimeline, "Scoped timeline diverged.");
+
+                // This mirrored SQL ends in LIMIT ?, so the limit binds after the scope's two
+                // parameters -- the same positional order the production reader builds.
+                const int noLimit = 1000;
+
+                // Game A's cache key is its GUID, which is also how a Games row with no
+                // PlayniteGameId is resolved, so filtering on it here matches the scope.
+                var fullRecent = db.Load<RecentUnlockTestRow>(RecentUnlocksSql, noLimit)
+                    .Where(r => r.CacheKey == GameAId)
+                    .Select(r => r.ApiName)
+                    .ToList();
+                var scopedRecent = db.Load<RecentUnlockTestRow>(
+                        Scoped(RecentUnlocksSql), GameAId, GameAId, noLimit)
+                    .Select(r => r.ApiName)
+                    .ToList();
+                CollectionAssert.AreEqual(fullRecent, scopedRecent, "Scoped recent unlocks diverged.");
+            });
+        }
+
         private static void WithSeededDb(Action<SQLiteDatabase> action)
         {
             var path = Path.Combine(Path.GetTempPath(), "playach-filterq-" + Guid.NewGuid().ToString("N") + ".db");

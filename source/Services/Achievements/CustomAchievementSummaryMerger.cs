@@ -144,14 +144,15 @@ namespace PlayniteAchievements.Services.Achievements
 
             // The reader returns recent unlocks newest first and trims to the requested limit;
             // re-apply that after appending so the merged list keeps the same contract.
-            summaryData.RecentUnlocks = summaryData.RecentUnlocks
-                .OrderByDescending(recent => recent?.UnlockTimeUtc ?? DateTime.MinValue)
-                .ToList();
+            //
+            // RecentUnlockOrder rather than a sort on the timestamp alone: the per-game patcher
+            // rebuilds this order from row fields, and a timestamp-only sort leaves ties in
+            // input order, which a patch cannot reproduce. All three producers share one
+            // comparer so a patched summary equals a full rebuild.
+            summaryData.RecentUnlocks = RecentUnlockOrder.Sorted(summaryData.RecentUnlocks);
             if (recentAchievementDetailLimit == 0)
             {
-                summaryData.Achievements = summaryData.Achievements
-                    .OrderByDescending(item => item?.UnlockTimeUtc ?? DateTime.MinValue)
-                    .ToList();
+                summaryData.Achievements = RecentUnlockOrder.Sorted(summaryData.Achievements);
             }
             if (recentAchievementDetailLimit > 0 && summaryData.RecentUnlocks.Count > recentAchievementDetailLimit)
             {

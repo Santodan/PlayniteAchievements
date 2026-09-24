@@ -598,9 +598,25 @@ namespace PlayniteAchievements
                         _eventSubscriptions.Add(() => _friendCacheManager.FriendCacheInvalidated -= FriendCacheManager_FriendCacheInvalidated);
                     }
 
-                    _cacheManager.CacheInvalidated += (_, __) =>
+                    _cacheManager.CacheInvalidated += (_, args) =>
                     {
-                        InvalidateStartPageData();
+                        // Scoped invalidations arrive in bursts -- one per custom-data edit --
+                        // and each start-page invalidation makes every live widget re-pull a
+                        // full library snapshot. Collapse the burst through the same coalescer
+                        // the CustomDataChanged path already uses. A full invalidation is a
+                        // bulk event, not a burst, so it still lands immediately.
+                        if (args?.IsFull == false)
+                        {
+                            ScheduleStartPageInvalidate();
+                        }
+                        else
+                        {
+                            InvalidateStartPageData();
+                        }
+
+                        // Deliberately unconditional: scoped invalidations also come from the
+                        // refresh pipeline's end-of-run raise, which includes friend-mode runs,
+                        // and this is two cheap Invalidate() calls.
                         InvalidateFriendDataCoordinators();
                         ScheduleRetentionDiagnostics();
                     };
@@ -1232,6 +1248,11 @@ namespace PlayniteAchievements
             {
                 _applicationStarted = true;
 
+                // Measures the symptom rather than a suspected cause: every other timing here is
+                // a scope around code someone already suspected, and a reported freeze was
+                // repeatedly not inside one.
+                Common.UiStallWatchdog.Start(_logger);
+
                 LogStartupBanner();
 
                 // Launch and preload the sound host off the UI thread so the first unlock plays with
@@ -1789,6 +1810,17 @@ namespace PlayniteAchievements
 
         private void HandleCustomDataChanged(Guid gameId, bool affectsSummaryData)
         {
+            // Runs on a pool thread 400ms after the last edit in a burst. Uninstrumented until
+            // now, which made everything it fans out into invisible in a log.
+            using (var scope = Common.PerfScope.Start(_logger, "Plugin.HandleCustomDataChanged", thresholdMs: 10))
+            {
+                scope?.SetContext("affectsSummary=" + affectsSummaryData);
+                HandleCustomDataChangedCore(gameId, affectsSummaryData);
+            }
+        }
+
+        private void HandleCustomDataChangedCore(Guid gameId, bool affectsSummaryData)
+        {
             var persisted = _settingsViewModel?.Settings?.Persisted;
             if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
             {
@@ -1797,14 +1829,21 @@ namespace PlayniteAchievements
                 // game carries customization of any kind, which a rename or a note moves while
                 // leaving every count alone. Those get the narrow sync, which skips the
                 // achievement load a full evaluation needs.
-                QueueTagSync(gameId, fullEvaluation: affectsSummaryData);
+                using (Common.PerfScope.Start(_logger, "Plugin.CustomDataChanged.QueueTagSync", thresholdMs: 10))
+                {
+                    QueueTagSync(gameId, fullEvaluation: affectsSummaryData);
+                }
             }
 
             try
             {
                 // The game's own theme surface still repaints - a category edit is visible there -
                 // but the whole-library theme lists are rebuilt only when something they read moved.
-                _themeIntegrationService?.NotifyCustomDataChanged(gameId, refreshLibraryState: affectsSummaryData);
+                using (var scope = Common.PerfScope.Start(_logger, "Plugin.CustomDataChanged.ThemeNotify", thresholdMs: 10))
+                {
+                    scope?.SetContext("refreshLibraryState=" + affectsSummaryData);
+                    _themeIntegrationService?.NotifyCustomDataChanged(gameId, refreshLibraryState: affectsSummaryData);
+                }
             }
             catch (Exception ex)
             {
@@ -1910,14 +1949,24 @@ namespace PlayniteAchievements
 
                 try
                 {
+                    // These write to the Playnite database, which makes Playnite re-render its
+                    // own library view and fire ItemUpdated back at this plugin.
                     if (batch.Count > 0)
                     {
-                        tagSyncService.SyncTagsForGames(batch);
+                        using (var scope = Common.PerfScope.Start(_logger, "TagSync.SyncTags", thresholdMs: 10))
+                        {
+                            scope?.SetContext("games=" + batch.Count);
+                            tagSyncService.SyncTagsForGames(batch);
+                        }
                     }
 
                     if (customizationBatch.Count > 0)
                     {
-                        tagSyncService.SyncCustomizationTagsForGames(customizationBatch);
+                        using (var scope = Common.PerfScope.Start(_logger, "TagSync.SyncCustomizationTags", thresholdMs: 10))
+                        {
+                            scope?.SetContext("games=" + customizationBatch.Count);
+                            tagSyncService.SyncCustomizationTagsForGames(customizationBatch);
+                        }
                     }
                 }
                 catch (Exception ex)

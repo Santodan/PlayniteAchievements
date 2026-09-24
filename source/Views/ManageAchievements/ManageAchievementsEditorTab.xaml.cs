@@ -170,6 +170,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // two hypotheses read from the markup did not survive checking, so this measures
             // instead of guessing a third time.
             CustomAchievementsGrid.LoadingRow += AchievementsGrid_LoadingRow;
+            CustomAchievementsGrid.UnloadingRow += AchievementsGrid_UnloadingRow;
+
+            // Lets a refresh skip notifying rows nothing is bound to. Without this the view
+            // model has no way to tell, so it tells every row -- and WPF answering that for
+            // hundreds of rows is what stalled the UI for the better part of a second.
+            if (viewModel != null)
+            {
+                viewModel.IsRowRealized = row => row != null && _realizedRows.Contains(row);
+            }
 
             // On this control, not the window: stepping achievements with the arrows is what the
             // whole window is for, but Ctrl+Z is not - a window-wide handler would fight the other
@@ -225,6 +234,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             CustomAchievementsGrid.LoadingRow -= AchievementsGrid_LoadingRow;
+            CustomAchievementsGrid.UnloadingRow -= AchievementsGrid_UnloadingRow;
+            _realizedRows.Clear();
 
             // Both of these otherwise tear down on Unloaded alone, which is exactly what this
             // method exists because WPF does not guarantee. Each registers its hooks through
@@ -368,8 +379,29 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// far larger than a viewport means virtualization is not holding, and a slow one means
         /// the row template is the cost.
         /// </summary>
+        /// <summary>
+        /// The rows that currently have a container. Only these are bound to anything, so only
+        /// these need telling when a refresh changes their values -- a row scrolled out of view
+        /// reads its current state when the grid realizes it again.
+        /// </summary>
+        private readonly HashSet<AchievementEditorRow> _realizedRows =
+            new HashSet<AchievementEditorRow>();
+
+        private void AchievementsGrid_UnloadingRow(object sender, DataGridRowEventArgs e)
+        {
+            if (e?.Row?.Item is AchievementEditorRow row)
+            {
+                _realizedRows.Remove(row);
+            }
+        }
+
         private void AchievementsGrid_LoadingRow(object sender, DataGridRowEventArgs e)
         {
+            if (e?.Row?.Item is AchievementEditorRow realized)
+            {
+                _realizedRows.Add(realized);
+            }
+
             if (!Common.PerfScope.PerfTracingEnabled)
             {
                 return;
@@ -495,13 +527,36 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             var wanted = new HashSet<string>(apiNames, StringComparer.OrdinalIgnoreCase);
-            CustomAchievementsGrid.SelectedItems.Clear();
-            foreach (var row in CustomAchievementsGrid.Items.OfType<AchievementEditorRow>())
+            var rows = CustomAchievementsGrid.Items.OfType<AchievementEditorRow>().ToList();
+            var matches = rows
+                .Where(row => !string.IsNullOrWhiteSpace(row.OriginalApiName) &&
+                              wanted.Contains(row.OriginalApiName))
+                .ToList();
+
+            using var scope = Common.PerfScope.Start(
+                Services.Logging.PluginLogger.GetLogger(nameof(ManageAchievementsEditorTab)),
+                "Editor.RestoreSelection",
+                thresholdMs: 10,
+                context: "rows=" + rows.Count + " selected=" + matches.Count);
+
+            // Adding to SelectedItems one row at a time makes the DataGrid do its selection
+            // bookkeeping per row, and restoring a selection of several hundred is what made
+            // undo, redo and reset-all feel like they locked: the work lands after the reload,
+            // at Background priority, so none of the reload's own scopes covered it.
+            //
+            // SelectAll goes through the Selector's own batched selection change instead, which
+            // is one operation whatever the row count -- and "everything was selected" is
+            // exactly the case those three produce.
+            if (matches.Count == rows.Count && rows.Count > 0)
             {
-                if (!string.IsNullOrWhiteSpace(row.OriginalApiName) && wanted.Contains(row.OriginalApiName))
-                {
-                    CustomAchievementsGrid.SelectedItems.Add(row);
-                }
+                CustomAchievementsGrid.SelectAll();
+                return;
+            }
+
+            CustomAchievementsGrid.SelectedItems.Clear();
+            foreach (var row in matches)
+            {
+                CustomAchievementsGrid.SelectedItems.Add(row);
             }
         }
 

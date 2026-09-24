@@ -666,7 +666,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 // covered by the library refresh below.
                 if (shouldRefreshSelectedGame)
                 {
-                    RequestUpdate(resolvedGameId.Value, forceRefresh: true);
+                    // Rebuilds the selected-game theme surface, including that game's achievement
+                    // lists. In the Manage window the edited game is almost always the selected
+                    // one, so this runs on every edit burst.
+                    using (Common.PerfScope.Start(_logger, "Theme.NotifyCustomData.SelectedGame", thresholdMs: 10))
+                    {
+                        RequestUpdate(resolvedGameId.Value, forceRefresh: true);
+                    }
                 }
             }
             catch (Exception ex)
@@ -681,13 +687,20 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             try
             {
-                if (_hasLoadedLibraryState)
+                // Suspended while the Manage window is open, so this should log nothing during
+                // an editing session. If it does, the suspension is not holding.
+                using (var scope = Common.PerfScope.Start(_logger, "Theme.NotifyCustomData.Library", thresholdMs: 10))
                 {
-                    RequestLibraryRefresh(_lastLibraryRefreshIncludedHeavyAchievementLists);
-                }
-                else if (IsFullscreen() && _fullscreenInitialized)
-                {
-                    RequestRefresh();
+                    scope?.SetContext("hasLoadedLibraryState=" + _hasLoadedLibraryState);
+
+                    if (_hasLoadedLibraryState)
+                    {
+                        RequestLibraryRefresh(_lastLibraryRefreshIncludedHeavyAchievementLists);
+                    }
+                    else if (IsFullscreen() && _fullscreenInitialized)
+                    {
+                        RequestRefresh();
+                    }
                 }
             }
             catch (Exception ex)
@@ -755,19 +768,39 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             RequestRefresh();
         }
 
-        private void RefreshService_CacheInvalidated(object sender, EventArgs e)
+        // Typed, or IsFull and ChangedGameIds are invisible and every per-game edit pays for a
+        // whole-library theme refresh. A scoped invalidation names the games that moved, and a
+        // current-user achievement edit cannot move friend data at all.
+        private void RefreshService_CacheInvalidated(object sender, CacheInvalidatedEventArgs e)
         {
-            if (IsFullscreen() && _fullscreenInitialized)
+            var isScoped = e?.IsFull == false;
+
+            Guid? selectedGameId = null;
+            try
+            {
+                selectedGameId = ResolveSelectedGameIdForThemeUpdate();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[ThemeIntegration] Failed to resolve the selected game after cache invalidation.");
+            }
+
+            // A scoped change repaints the whole fullscreen surface only when it touched the
+            // game that surface is showing.
+            var scopeTouchesSelectedGame =
+                !isScoped ||
+                (selectedGameId.HasValue && e.ChangedGameIds.Contains(selectedGameId.Value));
+
+            if (IsFullscreen() && _fullscreenInitialized && scopeTouchesSelectedGame)
             {
                 RequestRefresh();
             }
 
             try
             {
-                var id = ResolveSelectedGameIdForThemeUpdate();
-                if (id.HasValue)
+                if (selectedGameId.HasValue && scopeTouchesSelectedGame)
                 {
-                    RequestUpdate(id);
+                    RequestUpdate(selectedGameId);
                 }
             }
             catch (Exception ex)
@@ -775,7 +808,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _logger?.Debug(ex, "[ThemeIntegration] Failed to request selected-game theme update after cache invalidation.");
             }
 
-            _friendsOverviewDataCoordinator?.Invalidate();
+            if (!isScoped)
+            {
+                _friendsOverviewDataCoordinator?.Invalidate();
+            }
         }
 
         private void FriendCache_FriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)

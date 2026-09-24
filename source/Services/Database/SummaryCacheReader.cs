@@ -104,7 +104,62 @@ namespace PlayniteAchievements.Services.Database
             public int? Points { get; set; }
         }
 
-        public CachedSummaryData LoadCachedSummaryData(int recentAchievementDetailLimit = 0)
+        /// <summary>
+        /// Narrows every query below to one game. Appended after the shared "WHERE lp.RowNum = 1"
+        /// anchor -- deliberately in the outer WHERE rather than inside the LatestProgress CTE,
+        /// so it cannot change which row that CTE's ROW_NUMBER picks per cache key.
+        /// <para>
+        /// The second arm is required, not defensive: a Games row may carry no PlayniteGameId, in
+        /// which case the cache key is itself the game's GUID (see
+        /// SqlNadoCacheStore.ResolveCachedPlayniteGameId). Without it a scoped read would silently
+        /// return nothing for those games.
+        /// </para>
+        /// <para>
+        /// COLLATE NOCASE because SQLite compares TEXT case-sensitively while Guid.TryParse -- the
+        /// comparison every other reader of this column performs -- does not. A writer storing an
+        /// uppercase GUID would otherwise make the scoped read quietly miss.
+        /// </para>
+        /// </summary>
+        private const string GameScopePredicate = @"
+                  AND (TRIM(lp.PlayniteGameId) = ? COLLATE NOCASE
+                       OR (COALESCE(TRIM(lp.PlayniteGameId), '') = ''
+                           AND TRIM(lp.CacheKey) = ? COLLATE NOCASE))";
+
+        private static string ScopeSql(Guid? scopeGameId)
+        {
+            return scopeGameId.HasValue ? GameScopePredicate : string.Empty;
+        }
+
+        /// <summary>
+        /// The two positional parameters <see cref="GameScopePredicate"/> binds, or an empty set
+        /// when the read is unscoped. Both arms match on the same GUID string.
+        /// </summary>
+        private static object[] ScopeArgs(Guid? scopeGameId)
+        {
+            if (!scopeGameId.HasValue)
+            {
+                return Array.Empty<object>();
+            }
+
+            var id = scopeGameId.Value.ToString();
+            return new object[] { id, id };
+        }
+
+        /// <summary>
+        /// Everything one game contributes to the library summary, in the same shape and built by
+        /// the same code as the whole-library read. Always unbounded (limit 0): a bounded read
+        /// trims rows library-wide, which one game's slice cannot reproduce.
+        /// </summary>
+        public CachedSummaryData LoadCachedSummaryDataForGame(Guid playniteGameId)
+        {
+            return playniteGameId == Guid.Empty
+                ? new CachedSummaryData()
+                : LoadCachedSummaryData(0, playniteGameId);
+        }
+
+        public CachedSummaryData LoadCachedSummaryData(
+            int recentAchievementDetailLimit = 0,
+            Guid? scopeGameId = null)
         {
             return _store.WithReadDb(db =>
             {
@@ -114,31 +169,35 @@ namespace PlayniteAchievements.Services.Database
                 // separate "slow because of volume" from "slow because of a sort".
                 var logger = _store._logger;
 
+                // Scoped reads get their own tag suffix so a log separates the cheap per-game
+                // patch reads from the whole-library rebuilds they replaced.
+                var tagSuffix = scopeGameId.HasValue ? ".Scoped" : string.Empty;
+
                 List<CachedGameSummaryRow> gameRows;
-                using (var scope = PerfScope.Start(logger, "Cache.Summary.GameRows", thresholdMs: 25))
+                using (var scope = PerfScope.Start(logger, "Cache.Summary.GameRows" + tagSuffix, thresholdMs: 25))
                 {
-                    gameRows = LoadCachedGameSummaryRows(db);
+                    gameRows = LoadCachedGameSummaryRows(db, scopeGameId);
                     scope?.SetContext("rows=" + gameRows.Count);
                 }
 
                 Dictionary<string, (int CollectionScore, int PrestigeScore, int Points)> scoreTotalsByCacheKey;
-                using (var scope = PerfScope.Start(logger, "Cache.Summary.ScoreTotalsUnlocked", thresholdMs: 25))
+                using (var scope = PerfScope.Start(logger, "Cache.Summary.ScoreTotalsUnlocked" + tagSuffix, thresholdMs: 25))
                 {
-                    scoreTotalsByCacheKey = LoadCachedScoreTotals(db, unlockedOnly: true);
+                    scoreTotalsByCacheKey = LoadCachedScoreTotals(db, unlockedOnly: true, scopeGameId: scopeGameId);
                     scope?.SetContext("games=" + scoreTotalsByCacheKey.Count);
                 }
 
                 Dictionary<string, (int CollectionScore, int PrestigeScore, int Points)> possibleScoreTotalsByCacheKey;
-                using (var scope = PerfScope.Start(logger, "Cache.Summary.ScoreTotalsPossible", thresholdMs: 25))
+                using (var scope = PerfScope.Start(logger, "Cache.Summary.ScoreTotalsPossible" + tagSuffix, thresholdMs: 25))
                 {
-                    possibleScoreTotalsByCacheKey = LoadCachedScoreTotals(db, unlockedOnly: false);
+                    possibleScoreTotalsByCacheKey = LoadCachedScoreTotals(db, unlockedOnly: false, scopeGameId: scopeGameId);
                     scope?.SetContext("games=" + possibleScoreTotalsByCacheKey.Count);
                 }
 
                 List<CachedUnlockTimelineRow> timelineRows;
-                using (var scope = PerfScope.Start(logger, "Cache.Summary.UnlockTimeline", thresholdMs: 25))
+                using (var scope = PerfScope.Start(logger, "Cache.Summary.UnlockTimeline" + tagSuffix, thresholdMs: 25))
                 {
-                    timelineRows = LoadCachedUnlockTimelineRows(db);
+                    timelineRows = LoadCachedUnlockTimelineRows(db, scopeGameId);
                     scope?.SetContext("rows=" + timelineRows.Count);
                 }
 
@@ -146,12 +205,13 @@ namespace PlayniteAchievements.Services.Database
                 var boundedRecentLimit = requestedRecentLimit > 0 ? requestedRecentLimit + 1 : 0;
 
                 List<CachedRecentUnlockRow> recentRows;
-                using (var scope = PerfScope.Start(logger, "Cache.Summary.RecentUnlocks", thresholdMs: 25))
+                using (var scope = PerfScope.Start(logger, "Cache.Summary.RecentUnlocks" + tagSuffix, thresholdMs: 25))
                 {
                     recentRows = LoadCachedRecentUnlockRows(
                         db,
                         boundedRecentLimit,
-                        includeAllUnlockedAchievements: requestedRecentLimit == 0);
+                        includeAllUnlockedAchievements: requestedRecentLimit == 0,
+                        scopeGameId: scopeGameId);
                     // limit=0 is the overview's request and takes the unbounded variant: every
                     // unlocked row with all definition columns and no LIMIT. The row count is the
                     // point of this scope.
@@ -286,7 +346,9 @@ namespace PlayniteAchievements.Services.Database
             });
         }
 
-        private static List<CachedGameSummaryRow> LoadCachedGameSummaryRows(SQLiteDatabase db)
+        private static List<CachedGameSummaryRow> LoadCachedGameSummaryRows(
+            SQLiteDatabase db,
+            Guid? scopeGameId = null)
         {
             // Headline counts are recomputed from the joined (filter-aware) definition rows
             // rather than read from the persisted ugp scalars, which aggregate over ALL
@@ -376,7 +438,7 @@ namespace PlayniteAchievements.Services.Database
                 LEFT JOIN AchievementOverrides aov
                     ON aov.PlayniteGameId = lp.PlayniteGameId
                    AND aov.ApiName = ad.ApiName
-                WHERE lp.RowNum = 1
+                WHERE lp.RowNum = 1" + ScopeSql(scopeGameId) + @"
                 GROUP BY
                     lp.CacheKey,
                     lp.HasAchievements,
@@ -387,12 +449,13 @@ namespace PlayniteAchievements.Services.Database
                     lp.ProviderGameKey,
                     lp.PlayniteGameId,
                     lp.GameName
-                ORDER BY lp.LastUpdatedUtc DESC, lp.CacheKey;").ToList();
+                ORDER BY lp.LastUpdatedUtc DESC, lp.CacheKey;", ScopeArgs(scopeGameId)).ToList();
         }
 
         private static Dictionary<string, (int CollectionScore, int PrestigeScore, int Points)> LoadCachedScoreTotals(
             SQLiteDatabase db,
-            bool unlockedOnly)
+            bool unlockedOnly,
+            Guid? scopeGameId = null)
         {
             var userAchievementJoin = unlockedOnly
                 ? @"INNER JOIN UserAchievements ua
@@ -432,12 +495,12 @@ namespace PlayniteAchievements.Services.Database
                     ON aov.PlayniteGameId = lp.PlayniteGameId
                    AND aov.ApiName = ad.ApiName
                 " + userAchievementJoin + @"
-                WHERE lp.RowNum = 1
+                WHERE lp.RowNum = 1" + ScopeSql(scopeGameId) + @"
                   AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
                                   WHERE ao.PlayniteGameId = lp.PlayniteGameId
                                     AND ao.ApiName = ad.ApiName
                                      AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1))
-                ORDER BY lp.CacheKey;").ToList();
+                ORDER BY lp.CacheKey;", ScopeArgs(scopeGameId)).ToList();
 
             var totals = new Dictionary<string, (int CollectionScore, int PrestigeScore, int Points)>(StringComparer.OrdinalIgnoreCase);
             for (var i = 0; i < rows.Count; i++)
@@ -460,7 +523,9 @@ namespace PlayniteAchievements.Services.Database
             return totals;
         }
 
-        private static List<CachedUnlockTimelineRow> LoadCachedUnlockTimelineRows(SQLiteDatabase db)
+        private static List<CachedUnlockTimelineRow> LoadCachedUnlockTimelineRows(
+            SQLiteDatabase db,
+            Guid? scopeGameId = null)
         {
             return db.Load<CachedUnlockTimelineRow>(
                 @"WITH LatestProgress AS (
@@ -490,7 +555,7 @@ namespace PlayniteAchievements.Services.Database
                    AND ua.Unlocked = 1
                    AND ua.UnlockTimeUtc IS NOT NULL
                 INNER JOIN AchievementDefinitions ad ON ad.Id = ua.AchievementDefinitionId
-                WHERE lp.RowNum = 1
+                WHERE lp.RowNum = 1" + ScopeSql(scopeGameId) + @"
                   AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
                                   WHERE ao.PlayniteGameId = lp.PlayniteGameId
                                     AND ao.ApiName = ad.ApiName
@@ -499,13 +564,14 @@ namespace PlayniteAchievements.Services.Database
                     lp.CacheKey,
                     lp.PlayniteGameId,
                     date(ua.UnlockTimeUtc)
-                ORDER BY UnlockDateUtc DESC, lp.CacheKey;").ToList();
+                ORDER BY UnlockDateUtc DESC, lp.CacheKey;", ScopeArgs(scopeGameId)).ToList();
         }
 
         private static List<CachedRecentUnlockRow> LoadCachedRecentUnlockRows(
             SQLiteDatabase db,
             int recentAchievementLimit,
-            bool includeAllUnlockedAchievements)
+            bool includeAllUnlockedAchievements,
+            Guid? scopeGameId = null)
         {
             var sql = new StringBuilder(
                 @"WITH LatestProgress AS (
@@ -578,22 +644,33 @@ namespace PlayniteAchievements.Services.Database
 
             sql.Append(@"
                 INNER JOIN AchievementDefinitions ad ON ad.Id = ua.AchievementDefinitionId
-                WHERE lp.RowNum = 1
+                WHERE lp.RowNum = 1");
+            sql.Append(ScopeSql(scopeGameId));
+            sql.Append(@"
                   AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
                                   WHERE ao.PlayniteGameId = lp.PlayniteGameId
                                     AND ao.ApiName = ad.ApiName
                                      AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1))
-                ORDER BY ua.UnlockTimeUtc DESC, lp.CacheKey, ad.Id");
+                -- ApiName, not ad.Id, breaks ties among rows sharing an unlock timestamp. The
+                -- row objects this produces carry ApiName but not ad.Id, so a per-game patch
+                -- spliced into an existing result could not otherwise reproduce this order and
+                -- would drift from a full rebuild. Ordering among distinct timestamps is
+                -- unaffected; only exact ties move, and they move to a stable, reproducible key.
+                ORDER BY ua.UnlockTimeUtc DESC, lp.CacheKey, ad.ApiName");
+
+            // Positional parameters bind in SQL order: the scope predicate above precedes LIMIT.
+            var scopeArgs = ScopeArgs(scopeGameId);
 
             if (recentAchievementLimit > 0)
             {
                 sql.Append(" LIMIT ?");
                 sql.Append(';');
-                return db.Load<CachedRecentUnlockRow>(sql.ToString(), recentAchievementLimit).ToList();
+                var args = scopeArgs.Concat(new object[] { recentAchievementLimit }).ToArray();
+                return db.Load<CachedRecentUnlockRow>(sql.ToString(), args).ToList();
             }
 
             sql.Append(';');
-            return db.Load<CachedRecentUnlockRow>(sql.ToString()).ToList();
+            return db.Load<CachedRecentUnlockRow>(sql.ToString(), scopeArgs).ToList();
         }
 
         private List<CachedRecentUnlockData> MapAchievementDetails(

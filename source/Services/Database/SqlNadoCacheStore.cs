@@ -800,6 +800,15 @@ namespace PlayniteAchievements.Services.Database
             return _summaryReader.LoadCachedSummaryData(recentAchievementDetailLimit);
         }
 
+        /// <summary>
+        /// One game's contribution to the library summary, for patching a cached whole-library
+        /// result instead of re-reading it.
+        /// </summary>
+        public CachedSummaryData LoadCachedSummaryDataForGame(Guid playniteGameId)
+        {
+            return _summaryReader.LoadCachedSummaryDataForGame(playniteGameId);
+        }
+
         internal static Guid? ResolveCachedPlayniteGameId(string cacheKey, string playniteGameId)
         {
             var resolved = ParseGuid(playniteGameId);

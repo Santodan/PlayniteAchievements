@@ -514,8 +514,13 @@ namespace PlayniteAchievements.Services.GameCustomData
             bool affectsSummaryData = true,
             bool affectsOverrideMirror = true)
         {
-            using (PerfScope.Start(_logger, "GameCustomData.Save", thresholdMs: 10))
+            // Names the caller. A bulk rename across 641 rows produced 215 store writes over 42
+            // seconds with a 5.8s UI freeze inside it, and the log could not say which path
+            // emitted them -- every candidate batches correctly when read on its own.
+            using (var saveScope = PerfScope.Start(_logger, "GameCustomData.Save", thresholdMs: 10))
             {
+                saveScope?.SetContext(DescribeSaveCaller());
+
                 GameCustomDataFile normalized;
                 using (PerfScope.Start(_logger, "GameCustomData.Save.Normalize", thresholdMs: 10))
                 {
@@ -2293,6 +2298,57 @@ namespace PlayniteAchievements.Services.GameCustomData
             bool affectsOverrideMirror = true)
         {
             RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror);
+        }
+
+        /// <summary>
+        /// The plugin frames on the current stack, nearest first, so a burst of writes says which
+        /// path produced it. Diagnostic only: walking the stack is far too expensive to do on a
+        /// hot path, so it is gated on tracing and bounded to a handful of frames.
+        /// </summary>
+        private static string DescribeSaveCaller()
+        {
+            if (!PerfScope.PerfTracingEnabled)
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                var frames = new System.Diagnostics.StackTrace(2, false).GetFrames();
+                if (frames == null)
+                {
+                    return string.Empty;
+                }
+
+                var names = new List<string>();
+                foreach (var frame in frames)
+                {
+                    var method = frame?.GetMethod();
+                    var type = method?.DeclaringType;
+                    if (type == null || type.Namespace?.StartsWith("PlayniteAchievements", StringComparison.Ordinal) != true)
+                    {
+                        continue;
+                    }
+
+                    // The store's own frames say nothing about who asked.
+                    if (type == typeof(GameCustomDataStore))
+                    {
+                        continue;
+                    }
+
+                    names.Add(type.Name + "." + method.Name);
+                    if (names.Count >= 4)
+                    {
+                        break;
+                    }
+                }
+
+                return names.Count == 0 ? string.Empty : "via=" + string.Join("<-", names);
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
 
         private void RaiseCustomDataChanged(

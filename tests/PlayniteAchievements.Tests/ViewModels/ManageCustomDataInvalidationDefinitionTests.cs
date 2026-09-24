@@ -6,10 +6,16 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace PlayniteAchievements.Tests.ViewModels
 {
     /// <summary>
-    /// One edit in the Manage Achievements window used to raise a cache invalidation on top of the
-    /// CustomDataChanged the store already raised for the same write. The projection handler drops
-    /// the scope those args carry, so each edit discarded the whole-library projection and forced a
-    /// full summary re-read: a reported 35-minute editing session logged 245 of them.
+    /// One edit in the Manage Achievements window raises a cache invalidation on top of the
+    /// CustomDataChanged the store already raised for the same write.
+    ///
+    /// That used to be ruinous because the consumers dropped the scope those args carry, so each
+    /// edit discarded the whole-library projection and forced a full summary re-read: a reported
+    /// 35-minute editing session logged 245 of them. Both consumers now honour it --
+    /// LibraryProjectionService defers its warm (pinned by LibraryProjectionScopeDefinitionTests)
+    /// and AchievementDataService patches the summary memo per game rather than clearing it
+    /// (pinned by OverviewSummaryMemoDefinitionTests). So the second raise is now cheap, and the
+    /// reason to keep it is unchanged.
     ///
     /// Removing it is only safe while every consumer still hears about the edit on the
     /// CustomDataChanged path, which is also the path that filters on AffectsSummaryData. These
@@ -39,8 +45,21 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "store and nothing on screen re-reads it.");
             StringAssert.Contains(
                 core,
-                "Reload();",
-                "The window still reloads per edit -- that is what shows the user their own edit.");
+                "ScheduleShellReload();",
+                "The window still reloads per edit -- that is what shows the user their own edit. " +
+                "It is now deferred rather than synchronous: the CustomDataRevision bump on the " +
+                "next line rehydrates the visible tab's snapshot in this same call stack, so a " +
+                "reload that lands after it reads a warm snapshot instead of forcing its own " +
+                "cold load on the UI thread (measured at 369ms per edit). Deferred, never " +
+                "suppressed -- a self-write can still move the shell's totals.");
+
+            // Ordering is the point: schedule, then bump. Reversed, the reload would fire before
+            // the thing that warms the snapshot it reads.
+            var schedule = core.IndexOf("ScheduleShellReload();", StringComparison.Ordinal);
+            var bump = core.IndexOf("CustomDataRevision = unchecked(", StringComparison.Ordinal);
+            Assert.IsTrue(
+                schedule >= 0 && bump > schedule,
+                "The shell reload must be scheduled before the revision bump.");
         }
 
         [TestMethod]

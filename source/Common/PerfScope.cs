@@ -15,10 +15,13 @@ namespace PlayniteAchievements.Common
         // Currently ON so any build emits diagnostics without editing this file first.
         //
         // SET THIS BACK TO false BEFORE PACKING A RELEASE. On is not merely chatty:
-        //   - It also turns on MemoryDiagnostics (Enabled ORs the two flags), and the retention
-        //     report forces a full blocking collection every time the cache is invalidated. One
-        //     measured session took ~82 forced gen2 collections that way, each freezing every
-        //     thread including the UI.
+        //   - It turns on the cheap half of MemoryDiagnostics (Enabled ORs the two flags): the
+        //     [MemPerf] counter lines, the sampler, and RetentionProbes.
+        //     It no longer arms the retention report. That report forces two blocking gen2
+        //     collections per call and is scheduled off every cache invalidation, so with this
+        //     flag on it turned a custom-data editing session into a forced full collection every
+        //     few seconds (~1838 in one capture). It now answers to
+        //     MemoryDiagnostics.MemoryTracingEnabled alone.
         //   - LeakWatch.Track then runs per editor row behind a global lock, so row construction
         //     costs measurably more than it does in a shipped build.
         //   - It gates far more than the scopes: toast capture probes, toast placement

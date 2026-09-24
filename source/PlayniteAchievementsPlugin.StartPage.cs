@@ -30,6 +30,10 @@ namespace PlayniteAchievements
         private System.Threading.Timer _startPageInvalidateTimer;
         private const int StartPageInvalidateDelayMs = 2000;
 
+        private readonly object _retentionDiagnosticsSync = new object();
+        private System.Threading.Timer _retentionDiagnosticsTimer;
+        private string _pendingRetentionPoint;
+
         public StartPageExtensionArgs GetAvailableStartPageViews()
         {
             EnsureAchievementResourcesLoaded();
@@ -213,23 +217,63 @@ namespace PlayniteAchievements
         /// </summary>
         internal void ScheduleRetentionDiagnostics(string point, int delaySeconds)
         {
-            if (!Common.MemoryDiagnostics.Enabled)
+            // RetentionReportEnabled, not Enabled: this schedules two blocking gen2 collections
+            // plus a full cache-and-LeakWatch census, so a timing-only build must not arm it.
+            if (!Common.MemoryDiagnostics.RetentionReportEnabled)
             {
                 return;
             }
 
-            Task.Run(async () =>
+            // Trailing-edge coalescer, the same shape as ScheduleStartPageInvalidate. This is
+            // scheduled off every cache invalidation, and a burst of them -- one per custom-data
+            // edit -- used to queue one independent delayed task each, so the forced collections
+            // arrived as a storm one delay later. Collapsing the burst into a single report is
+            // what the report wanted anyway: it measures the resting state after things settle.
+            var delayMs = Math.Max(1, delaySeconds) * 1000;
+            lock (_retentionDiagnosticsSync)
             {
-                try
+                // Last writer wins. When a deliberate one-shot point ("manage.closed",
+                // "overview.closed") collides with a refresh.settled burst, that point is the
+                // later and more interesting event, so naming the report after it is correct.
+                _pendingRetentionPoint = point;
+
+                if (_retentionDiagnosticsTimer == null)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(Math.Max(1, delaySeconds))).ConfigureAwait(false);
-                    LogRetentionDiagnostics(point);
+                    _retentionDiagnosticsTimer = new System.Threading.Timer(
+                        _ => FlushRetentionDiagnostics(),
+                        null,
+                        delayMs,
+                        System.Threading.Timeout.Infinite);
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger?.Debug(ex, "Retention diagnostics failed.");
+                    _retentionDiagnosticsTimer.Change(delayMs, System.Threading.Timeout.Infinite);
                 }
-            });
+            }
+        }
+
+        private void FlushRetentionDiagnostics()
+        {
+            string point;
+            lock (_retentionDiagnosticsSync)
+            {
+                point = _pendingRetentionPoint;
+                _pendingRetentionPoint = null;
+            }
+
+            if (point == null)
+            {
+                return;
+            }
+
+            try
+            {
+                LogRetentionDiagnostics(point);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Retention diagnostics failed.");
+            }
         }
 
         private void LogRetentionDiagnostics(string point)
@@ -414,6 +458,13 @@ namespace PlayniteAchievements
             {
                 _startPageInvalidateTimer?.Dispose();
                 _startPageInvalidateTimer = null;
+            }
+
+            lock (_retentionDiagnosticsSync)
+            {
+                _retentionDiagnosticsTimer?.Dispose();
+                _retentionDiagnosticsTimer = null;
+                _pendingRetentionPoint = null;
             }
 
             try

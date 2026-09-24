@@ -3065,6 +3065,25 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            // Diagnostics for the per-edit hitch. This tick is queued by every custom-data edit
+            // and runs 300ms later, and most of what follows the fragment build is sized to the
+            // whole library rather than to the games that actually changed -- so the context
+            // below deliberately carries both numbers. Nothing here was instrumented, which is
+            // why a ~1s hitch could not be seen in a log at all.
+            using (var tickScope = Common.PerfScope.Start(_logger, "Overview.DeltaTick", thresholdMs: 10))
+            {
+                tickScope?.SetContext(
+                    "keys=" + keys.Count +
+                    " games=" + (_allGameSummaries?.Count ?? 0) +
+                    " recent=" + (_allRecentAchievements?.Count ?? 0) +
+                    " ach=" + (_allAchievements?.Count ?? 0));
+
+                await ApplyPendingDeltasCoreAsync(keys).ConfigureAwait(true);
+            }
+        }
+
+        private async Task ApplyPendingDeltasCoreAsync(List<string> keys)
+        {
             var revealedCopy = GetRevealedKeysSnapshotIfNeeded();
 
             var fragments = await Task.Run(() =>
@@ -3108,12 +3127,16 @@ namespace PlayniteAchievements.ViewModels
             }
 
             var requiresFallbackRefresh = false;
-            foreach (var key in keys)
+            using (var scope = Common.PerfScope.Start(_logger, "Overview.DeltaTick.ApplyFragments", thresholdMs: 5))
             {
-                if (!ApplyFragmentDelta(key, fragments.TryGetValue(key, out var fragment) ? fragment : null))
+                scope?.SetContext("keys=" + keys.Count);
+                foreach (var key in keys)
                 {
-                    requiresFallbackRefresh = true;
-                    break;
+                    if (!ApplyFragmentDelta(key, fragments.TryGetValue(key, out var fragment) ? fragment : null))
+                    {
+                        requiresFallbackRefresh = true;
+                        break;
+                    }
                 }
             }
 
@@ -3126,36 +3149,67 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            if (string.IsNullOrEmpty(_overviewSortPath))
+            // Whole-library sorts, run per delta tick regardless of how many games changed.
+            using (var scope = Common.PerfScope.Start(_logger, "Overview.DeltaTick.Sort", thresholdMs: 5))
             {
-                GameSummariesSortHelper.SortByConfiguredDefault(_allGameSummaries, _settings?.Persisted);
-            }
+                scope?.SetContext(
+                    "games=" + (_allGameSummaries?.Count ?? 0) +
+                    " recent=" + (_allRecentAchievements?.Count ?? 0));
 
-            if (string.IsNullOrEmpty(_recentSortPath))
-            {
-                _allRecentAchievements = AchievementSortHelper.CreateDefaultSortedList(
-                    _allRecentAchievements,
-                    AchievementSortScope.RecentAchievements);
+                if (string.IsNullOrEmpty(_overviewSortPath))
+                {
+                    GameSummariesSortHelper.SortByConfiguredDefault(_allGameSummaries, _settings?.Persisted);
+                }
+
+                if (string.IsNullOrEmpty(_recentSortPath))
+                {
+                    _allRecentAchievements = AchievementSortHelper.CreateDefaultSortedList(
+                        _allRecentAchievements,
+                        AchievementSortScope.RecentAchievements);
+                }
             }
 
             // ApplyFragmentDelta swaps in freshly built row instances whose session-only HasCaptures
             // defaults to false, so the Captures button for the game being played would vanish on
             // its first unlock. Re-stamp the replaced rows.
-            RemarkCapturePresence();
+            using (Common.PerfScope.Start(_logger, "Overview.DeltaTick.RemarkCaptures", thresholdMs: 5))
+            {
+                RemarkCapturePresence();
+            }
 
             // No search-index rebuild here. ApplyFragmentDelta already dropped the entries for
             // the rows it replaced, and the index fills lazily for the new ones, so rebuilding
             // all three indexes would re-normalize the entire library on every delta batch.
 
-            var snapshot = BuildSnapshotFromSourceLists();
-            ApplyOverviewSummaryFromSnapshot(snapshot);
-            RefreshFilter();
-            ApplyLeftFilters();
-            UpdateAggregatePieCharts();
-            ApplyRightFilters();
-            UpdateFilteredStatus();
+            // Rebuilds the whole-library snapshot -- including the global unlock-count map and one
+            // sub-dictionary per game -- then re-runs every filter and chart over it.
+            using (Common.PerfScope.Start(_logger, "Overview.DeltaTick.Snapshot", thresholdMs: 5))
+            {
+                var snapshot = BuildSnapshotFromSourceLists();
+                ApplyOverviewSummaryFromSnapshot(snapshot);
+            }
 
-            await ReloadSelectedGameIfRequestedAsync();
+            using (Common.PerfScope.Start(_logger, "Overview.DeltaTick.Filters", thresholdMs: 5))
+            {
+                RefreshFilter();
+                ApplyLeftFilters();
+            }
+
+            using (Common.PerfScope.Start(_logger, "Overview.DeltaTick.Charts", thresholdMs: 5))
+            {
+                UpdateAggregatePieCharts();
+            }
+
+            using (Common.PerfScope.Start(_logger, "Overview.DeltaTick.RightFilters", thresholdMs: 5))
+            {
+                ApplyRightFilters();
+                UpdateFilteredStatus();
+            }
+
+            using (Common.PerfScope.Start(_logger, "Overview.DeltaTick.SelectedGame", thresholdMs: 5))
+            {
+                await ReloadSelectedGameIfRequestedAsync();
+            }
         }
 
         /// <summary>

@@ -883,10 +883,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
             finally
             {
-                _isApplyingUndo = false;
-                _isApplyingBulk = previousApplyingBulk;
-                _isTogglingReveal = false;
-                FlushBatchedFieldWrites();
+                // Flushed inside the guard, not after it. This is the replay's own write, and
+                // the CustomDataWritten handler skips recording only while _isApplyingUndo is
+                // set. Flushing once the flag had dropped made the journal see an unattributed
+                // write, and NoteForeignWrite clears the whole history -- undo and redo both --
+                // when a foreign write touches a facet an existing step touched. The symptom is
+                // that redo disappears the moment an undo completes.
+                //
+                // Nested so a throwing flush still restores the flags.
+                try
+                {
+                    FlushBatchedFieldWrites();
+                }
+                finally
+                {
+                    _isApplyingUndo = false;
+                    _isApplyingBulk = previousApplyingBulk;
+                    _isTogglingReveal = false;
+                }
             }
 
             RefreshRevealHeaderState();
@@ -2110,10 +2124,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _logger,
                 "Editor.RefreshData",
                 thresholdMs: 10,
-                context: "rows=" + AchievementRows.Count);
+                context: "rows=" + AchievementRows.Count + " path=" + (HasChanges ? "providerState" : "fullReload"));
 
             if (!HasChanges)
             {
+                // A full rebuild of every row. Reaching here for the editor's own write is the
+                // per-edit hitch; the host's self-write marker is what is supposed to prevent it.
+                _logger?.Debug(
+                    $"[Editor] Full reload requested for {AchievementRows.Count} rows " +
+                    "(external change, or a self-write whose marker was already consumed).");
                 ReloadData();
             }
             else
@@ -2821,6 +2840,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // Reaches a full ReloadData below. This was the one reload a captured editing session
+            // still paid, and it had no scope of its own, so it appeared in the log with no
+            // visible cause and had to be inferred from timing.
+            using var resetScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.ResetCustomizations",
+                thresholdMs: 10,
+                context: "targets=" + targets.Count + " rows=" + AchievementRows.Count +
+                         " deleteAuthored=" + deleteAuthored);
+
             try
             {
                 var apiNames = new HashSet<string>(
@@ -2829,13 +2858,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 // Whole-collection facets: staged across the rows first, so the maps and lists
                 // below are built from rows that already read as cleared.
-                StageAcross(targets, row =>
+                // Four property changes per target, each raised on a row the grid is still bound
+                // to, so this scales with how many rows are being reset -- the dimension a
+                // reported stall was observed to scale with.
+                using (var stageScope = Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ResetCustomizations.Stage",
+                    thresholdMs: 10,
+                    context: "targets=" + targets.Count))
                 {
-                    row.CategoryLabel = null;
-                    row.CategoryTypeValue = null;
-                    row.IsGoal = false;
-                    row.SetFilterScopeFromSource(AchievementFilterScope.None);
-                });
+                    StageAcross(targets, row =>
+                    {
+                        row.CategoryLabel = null;
+                        row.CategoryTypeValue = null;
+                        row.IsGoal = false;
+                        row.SetFilterScopeFromSource(AchievementFilterScope.None);
+                    });
+                }
 
                 // Every facet in one store update. Each writer used to take its own, and each
                 // Update raises CacheInvalidated and rebuilds the library projection, so one press
@@ -2843,20 +2882,39 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // the override record stays first within the mutation for the reason it was first
                 // here: clearing field by field would leave the unlock timestamp cleared rather
                 // than reverted, because "no timestamp" is itself a stored state.
-                _achievementOverridesService.ClearCustomizations(
-                    _gameId,
-                    apiNames,
-                    BuildAssignmentMap(row => row.CategoryLabel),
-                    BuildAssignmentMap(row => row.CategoryTypeValue),
-                    BuildFilteredApiNames(),
-                    BuildSummaryFilteredApiNames(),
-                    BuildGoalApiNames(),
-                    // Nothing is left to re-seat against once the authored rows go, so a full
-                    // reset drops the order outright rather than rewriting it without them.
-                    deleteAuthored ? Array.Empty<string>() : BuildRevertedOrder(targets),
-                    clearAuthoredAchievements: deleteAuthored);
+                // Scoped to the write alone. This is the store update plus everything the
+                // synchronous CustomDataChanged cascade does inside it -- including the filter
+                // mirror rewrite, which re-reads, diffs, deletes and re-inserts every override
+                // the game has, on this thread.
+                using (var clearScope = Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ResetCustomizations.Clear",
+                    thresholdMs: 10,
+                    context: "targets=" + targets.Count))
+                {
+                    _achievementOverridesService.ClearCustomizations(
+                        _gameId,
+                        apiNames,
+                        BuildAssignmentMap(row => row.CategoryLabel),
+                        BuildAssignmentMap(row => row.CategoryTypeValue),
+                        BuildFilteredApiNames(),
+                        BuildSummaryFilteredApiNames(),
+                        BuildGoalApiNames(),
+                        // Nothing is left to re-seat against once the authored rows go, so a full
+                        // reset drops the order outright rather than rewriting it without them.
+                        deleteAuthored ? Array.Empty<string>() : BuildRevertedOrder(targets),
+                        clearAuthoredAchievements: deleteAuthored);
+                }
 
-                RefreshAssignmentState();
+                using (Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ResetCustomizations.RefreshAssignments",
+                    thresholdMs: 10,
+                    context: "rows=" + AchievementRows.Count))
+                {
+                    RefreshAssignmentState();
+                }
+
                 RaiseAssignmentsChanged();
 
                 // Reverting drops each reverted row's own capstone and leaves the rest of the set
@@ -3756,32 +3814,110 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 buildScope?.SetContext("rows=" + materializedRows.Count);
             }
 
-            using (Common.PerfScope.Start(
-                _logger,
-                "Editor.ReplaceRows.Attach",
-                thresholdMs: 5,
-                context: "rows=" + materializedRows.Count))
+            // Attached below, once it is known which rows actually end up in the collection.
+            // Wiring the freshly built rows here would leave the live ones detached on the
+            // in-place path -- which is what they are replaced by state from, not replaced with.
+
+            // A reload that produces the same achievements in the same order -- which is what a
+            // reset, a revert and most saves do -- can pour the new state onto the rows already
+            // bound to the grid instead of replacing them. That skips the Reset and the
+            // re-realization it forces, the two largest costs below.
+            //
+            // Safe because the rows are detached above and reattached after, so no setter can
+            // reach the persistence hook, and because CopyStateFrom copies backing fields rather
+            // than driving the public setters.
+            // Only the rows that actually changed, and only while there are few enough of them.
+            // Telling a bound row that every property changed makes WPF re-evaluate it, and that
+            // work lands on later dispatcher passes rather than inside the loop -- so notifying
+            // every row looked cheap here while stalling the UI afterwards. Measured on a
+            // 641-row game: one Reset stalls ~440ms, while notifying all 641 rows stalls
+            // 670-870ms. Below the threshold the per-row path wins by a wide margin, because a
+            // normal edit changes one row.
+            var changedRows = TryCopyRowsInPlace(materializedRows)
+                ? FindChangedRows(materializedRows)
+                : null;
+
+            if (changedRows != null)
             {
-                foreach (var row in materializedRows)
+                using (var copyScope = Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ReplaceRows.CopyInPlace",
+                    thresholdMs: 5))
                 {
-                    AttachRow(row, useSeparateLockedIcons);
+                    var notified = 0;
+                    for (var i = 0; i < changedRows.Count; i++)
+                    {
+                        var index = changedRows[i];
+                        var target = AchievementRows[index];
+
+                        // Only rows something is bound to. A row with no container reads its
+                        // current state when the grid realizes it, so announcing to it costs a
+                        // view re-evaluation and buys nothing -- and there are hundreds of them.
+                        var notify = ShouldNotifyRow(target);
+                        if (notify)
+                        {
+                            notified++;
+                        }
+
+                        target.CopyStateFrom(materializedRows[index], notify);
+                    }
+
+                    copyScope?.SetContext(
+                        "rows=" + materializedRows.Count +
+                        " changed=" + changedRows.Count +
+                        " notified=" + notified);
+                }
+
+                // These are the rows that stay bound, and every one of them was detached above.
+                // Re-wiring them is what restores the persistence hook, the reveal handler and
+                // the undo recorder -- without it the grid still shows the right values and the
+                // next edit to any row quietly does nothing.
+                //
+                // After the copy, never before: AttachRow subscribes Row_PropertyChanged, and a
+                // copy made while that is live would run the persistence hook for every field of
+                // every changed row.
+                using (Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ReplaceRows.Attach",
+                    thresholdMs: 5,
+                    context: "rows=" + AchievementRows.Count))
+                {
+                    foreach (var row in AchievementRows)
+                    {
+                        AttachRow(row, useSeparateLockedIcons);
+                    }
                 }
             }
-
-            // Measured apart from the attach loop above, which it used to share a scope with.
-            // Together they read as 113ms on a 641-row reload and under 5ms on the first load of
-            // the same game - and the difference between those two is not the rows, it is whether
-            // a grid was bound to this collection yet. The reset is raised synchronously, so
-            // whatever the view does with it is charged here.
-            using (Common.PerfScope.Start(
-                _logger,
-                "Editor.ReplaceRows.Reset",
-                thresholdMs: 5,
-                context: "rows=" + materializedRows.Count))
+            else
             {
-                // One Reset for the whole set. The clear plus per-row add this replaces raised a
-                // collection change per row, and the grid's filtered view re-ran for each one.
-                AchievementRows.ReplaceAll(materializedRows);
+                // Measured apart from the attach loop above, which it used to share a scope with.
+                // Together they read as 113ms on a 641-row reload and under 5ms on the first load
+                // of the same game - and the difference between those two is not the rows, it is
+                // whether a grid was bound to this collection yet. The reset is raised
+                // synchronously, so whatever the view does with it is charged here.
+                using (Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ReplaceRows.Attach",
+                    thresholdMs: 5,
+                    context: "rows=" + materializedRows.Count))
+                {
+                    foreach (var row in materializedRows)
+                    {
+                        AttachRow(row, useSeparateLockedIcons);
+                    }
+                }
+
+                using (Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ReplaceRows.Reset",
+                    thresholdMs: 5,
+                    context: "rows=" + materializedRows.Count))
+                {
+                    // One Reset for the whole set. The clear plus per-row add this replaces
+                    // raised a collection change per row, and the grid's filtered view re-ran
+                    // for each one.
+                    AchievementRows.ReplaceAll(materializedRows);
+                }
             }
 
             // Keep the user's place: a save or reload rebuilds the rows, and the details pane
@@ -4743,6 +4879,150 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 insertAfterTarget: true);
         }
 
+        /// <summary>
+        /// How many positions must change occupant before one collection Reset beats a
+        /// collection change per displaced row.
+        /// </summary>
+        /// <remarks>
+        /// A Reset was measured on this grid at ~137ms for the DataGrid to react plus ~175ms to
+        /// re-realize a viewport, and that price does not scale down with the size of the change.
+        /// An incremental sync instead pays a forward scan and one collection change per
+        /// displaced row, so it is far cheaper for a short drag and far worse for a long one.
+        /// Set well below the point where the incremental path reaches a Reset's cost, because
+        /// overshooting only wastes a few milliseconds while undershooting on a block drag is the
+        /// stall this exists to remove.
+        /// </remarks>
+        private const int ReorderResetThreshold = 40;
+
+        /// <summary>
+        /// Positions whose occupant differs between the current order and the intended one. This
+        /// is what either path has to pay for -- not the number of rows dragged, since dragging
+        /// one row to the far end displaces everything in between.
+        /// </summary>
+        private static int CountDisplacedPositions(
+            IList<AchievementEditorRow> current,
+            IList<AchievementEditorRow> reordered)
+        {
+            if (current == null || reordered == null)
+            {
+                return int.MaxValue;
+            }
+
+            // A length change means rows were added or removed, which the incremental path
+            // handles but which is not a plain reorder; treat it as a full change.
+            if (current.Count != reordered.Count)
+            {
+                return int.MaxValue;
+            }
+
+            var displaced = 0;
+            for (var i = 0; i < current.Count; i++)
+            {
+                if (!ReferenceEquals(current[i], reordered[i]))
+                {
+                    displaced++;
+                }
+            }
+
+            return displaced;
+        }
+
+        /// <summary>
+        /// Set by the view: whether a row currently has a container, and so whether anything is
+        /// bound to it. Null until the view wires it, in which case every row is notified, which
+        /// is correct but slow.
+        /// </summary>
+        internal Func<AchievementEditorRow, bool> IsRowRealized { get; set; }
+
+        /// <summary>
+        /// Whether a refreshed row has to announce itself.
+        /// </summary>
+        /// <remarks>
+        /// Raising "every property changed" on a bound row makes WPF re-evaluate it, and that
+        /// work runs on later dispatcher passes -- so it never appears in the loop that triggers
+        /// it. That is how announcing to all 641 rows came to measure 19ms while stalling the UI
+        /// for 670-870ms afterwards, worse than the Reset it replaced.
+        ///
+        /// Bounding it by what is on screen is what makes the in-place path scale: a viewport is
+        /// a dozen rows whether the reload changed one row or every one of them.
+        /// </remarks>
+        private bool ShouldNotifyRow(AchievementEditorRow row)
+        {
+            if (row == null)
+            {
+                return false;
+            }
+
+            // The details pane binds the selected row whether or not the grid has it realized.
+            if (ReferenceEquals(row, SelectedRow) || row.IsBulkRow)
+            {
+                return true;
+            }
+
+            // No tracker wired: stay correct rather than fast.
+            return IsRowRealized == null || IsRowRealized(row);
+        }
+
+        /// <summary>
+        /// The positions whose row state actually differs. A reset or an undo rewrites the whole
+        /// record, but most rows in it usually come back identical, and an identical row needs
+        /// neither the copy nor the notification.
+        /// </summary>
+        private List<int> FindChangedRows(List<AchievementEditorRow> incoming)
+        {
+            var changed = new List<int>();
+            using (var scope = Common.PerfScope.Start(
+                _logger,
+                "Editor.ReplaceRows.DiffRows",
+                thresholdMs: 10))
+            {
+                for (var i = 0; i < incoming.Count; i++)
+                {
+                    if (!Common.ObservableStateCopier.StateEquals(AchievementRows[i], incoming[i]))
+                    {
+                        changed.Add(i);
+                    }
+                }
+
+                scope?.SetContext("rows=" + incoming.Count + " changed=" + changed.Count);
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// Whether the incoming rows are the same achievements, in the same order, as the ones
+        /// already bound -- the case where the collection itself need not change.
+        /// </summary>
+        /// <remarks>
+        /// Identity is the achievement's own key, not the row instance, because the incoming rows
+        /// are always freshly built. Order is compared position by position rather than as a set:
+        /// a reorder has to go through the collection so the grid actually moves the rows.
+        /// </remarks>
+        private bool TryCopyRowsInPlace(List<AchievementEditorRow> incoming)
+        {
+            if (incoming == null || incoming.Count == 0 || AchievementRows.Count != incoming.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < incoming.Count; i++)
+            {
+                var existingKey = NormalizeText(AchievementRows[i]?.OriginalApiName);
+                var incomingKey = NormalizeText(incoming[i]?.OriginalApiName);
+
+                // An unkeyed row cannot be matched, so fall back rather than guess.
+                if (string.IsNullOrWhiteSpace(existingKey) ||
+                    string.IsNullOrWhiteSpace(incomingKey) ||
+                    !string.Equals(existingKey, incomingKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private bool TryMoveItems(
             List<AchievementEditorRow> source,
             IReadOnlyList<int> selectedIndexes,
@@ -4774,14 +5054,41 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            // Synchronized item by item, deliberately, even though a Reset would raise one
-            // collection change instead of one per displaced row. A Reset sends the DataGrid back
-            // to the top, and the reorder behavior's RestoreSelection only reselects the moved
-            // rows -- it does not scroll to them -- so the user would lose their place on every
-            // drag. The per-move cost is bounded by how far the rows travel, not by the list
-            // length, so a normal drag pays little; restoring scroll offset explicitly is what a
-            // Reset here would need first.
-            CollectionHelper.SynchronizeCollection(AchievementRows, reordered);
+            // One Reset rather than a Move per displaced row. The item-by-item synchronize this
+            // replaced scanned the rest of the list for each displaced row -- quadratic in the
+            // list, not bounded by how far the rows travel as its comment claimed -- and then
+            // raised a collection change per row for the grid to handle one at a time. Dragging
+            // a block through a few hundred rows is the case that made slow.
+            //
+            // The prerequisite the old comment named is now met: DataGridRowReorderBehavior
+            // captures the scroll offset before the move and restores it afterwards, so the
+            // Reset no longer costs the user their place. Selection is restored there too.
+            //
+            // The rows are the same instances in a new order, so no handler is detached or
+            // reattached here -- unlike ReplaceRows, which builds new rows.
+            // Which of the two is cheaper depends entirely on how much of the list actually
+            // moved, and the crossover is measured rather than assumed: a Reset on this grid
+            // costs ~137ms for the grid to react plus ~175ms to re-realize a viewport, whatever
+            // changed, while an incremental sync costs a scan and a collection change per
+            // displaced row. So a small drag stays incremental and a block drag takes the Reset.
+            var displaced = CountDisplacedPositions(AchievementRows, reordered);
+
+            using (var scope = Common.PerfScope.Start(_logger, "Editor.Reorder.Apply", thresholdMs: 5))
+            {
+                scope?.SetContext(
+                    "rows=" + reordered.Count +
+                    " displaced=" + displaced +
+                    " path=" + (displaced > ReorderResetThreshold ? "reset" : "incremental"));
+
+                if (displaced > ReorderResetThreshold)
+                {
+                    AchievementRows.ReplaceAll(reordered);
+                }
+                else
+                {
+                    CollectionHelper.SynchronizeCollection(AchievementRows, reordered);
+                }
+            }
             PersistCurrentOrder();
             return true;
         }
@@ -6136,17 +6443,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            // A bulk gesture sets one value across the selection, so this is normally a single
-            // group. Grouping rather than assuming keeps it correct if a caller ever batches a
-            // value computed per row.
-            foreach (var group in pending.GroupBy(write => new { write.Field, write.Value }))
-            {
-                _achievementOverridesService.SetAchievementFieldOverride(
-                    _gameId,
-                    group.Select(write => write.ApiName).ToList(),
-                    group.Key.Field,
-                    group.Key.Value);
-            }
+            // One store update for the whole batch, whatever mix of values it holds.
+            //
+            // This used to group by (field, value) and write once per group, which collapsed the
+            // batch only when every achievement took the *same* value. Setting one name across a
+            // selection does; undoing it does not, because each achievement gets its own previous
+            // value back -- so a batch of N distinct values degraded to N updates, each a load, a
+            // deep clone, three normalizations, a serialize, a SQLite write and a change cascade.
+            // Undoing a rename across 641 rows was measured as 215 store writes over 42 seconds,
+            // with a 5.8s UI freeze inside.
+            _achievementOverridesService.SetAchievementFieldOverrides(_gameId, pending);
 
             RaiseAssignmentsChanged();
         }
@@ -6399,6 +6705,44 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     RefreshCustomizationState();
                 }
             };
+        }
+
+        /// <summary>
+        /// Makes this row hold exactly the state of <paramref name="source"/>, so a reload that
+        /// produces the same rows in the same order can update them in place instead of replacing
+        /// the collection. Replacing it raises a Reset, which cost ~136ms for the DataGrid to
+        /// react plus ~162ms to re-realize a viewport on a 641-row game.
+        /// </summary>
+        /// <remarks>
+        /// Fields are copied, not properties. The public setters validate, raise events, depend
+        /// on each other's assignment order, and feed the view model's persistence hook -- so
+        /// driving ~50 of them across every row would risk both a different result than a reload
+        /// and a storm of store writes. Copying the backing fields runs none of that logic, which
+        /// makes this exactly as complete as the row's own state and no more.
+        ///
+        /// One PropertyChanged with an empty name follows, which WPF reads as "every property
+        /// changed"; only the realized containers re-evaluate, so the cost is a viewport's worth
+        /// of bindings rather than the whole list.
+        /// </remarks>
+        internal void CopyStateFrom(AchievementEditorRow source, bool notify = true)
+        {
+            if (source == null || ReferenceEquals(source, this))
+            {
+                return;
+            }
+
+            Common.ObservableStateCopier.CopyState(this, source);
+
+            if (!notify)
+            {
+                // Nothing is bound to this row. Its container, when the grid makes one, reads
+                // whatever the row holds then -- so the values are already correct without an
+                // announcement, and announcing anyway is what made this path stall.
+                return;
+            }
+
+            // Empty name, which WPF reads as "every property changed".
+            OnPropertyChanged(string.Empty);
         }
 
         public string OriginalApiName { get; private set; }
