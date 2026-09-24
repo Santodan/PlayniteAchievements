@@ -277,7 +277,7 @@ namespace PlayniteAchievements.Models.Settings
             var settings = new ShadPS4Settings
             {
                 IsEnabled = persisted["ShadPS4Enabled"]?.Value<bool>() ?? true,
-                GameDataPath = persisted["ShadPS4GameDataPath"]?.ToString()
+                GameDataPaths = ProviderPathList.FromLegacy(persisted["ShadPS4GameDataPath"]?.ToString())
             };
             providerSettings["ShadPS4"] = JObject.Parse(settings.SerializeToJson());
         }
