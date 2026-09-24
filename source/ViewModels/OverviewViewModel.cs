@@ -2043,6 +2043,9 @@ namespace PlayniteAchievements.ViewModels
                     return true;
                 }
 
+                _filteredGlobalAchievementCount = Math.Max(
+                    0,
+                    _filteredGlobalAchievementCount - CountFilteredRowsForGame(_allAchievements, gameId));
                 RemoveGameRows(_allAchievements, gameId, _globalAchievementSearchIndex);
                 RemoveGameRows(_allGameSummaries, gameId, _gameSummarySearchIndex);
                 RemoveGameRows(_allRecentAchievements, gameId, _recentAchievementSearchIndex);
@@ -2072,6 +2075,12 @@ namespace PlayniteAchievements.ViewModels
                 "Row.discardedGameSummary",
                 _allGameSummaries.Where(g => g?.PlayniteGameId == gameId));
 
+            // Before the rows go: the outgoing contribution has to be measured against the list
+            // that still holds them.
+            _filteredGlobalAchievementCount = Math.Max(
+                0,
+                _filteredGlobalAchievementCount - CountFilteredRowsForGame(_allAchievements, gameId));
+
             RemoveGameRows(_allAchievements, gameId, _globalAchievementSearchIndex);
             RemoveGameRows(_allGameSummaries, gameId, _gameSummarySearchIndex);
             RemoveGameRows(_allRecentAchievements, gameId, _recentAchievementSearchIndex);
@@ -2089,6 +2098,7 @@ namespace PlayniteAchievements.ViewModels
             if (fragment.Achievements != null && fragment.Achievements.Count > 0)
             {
                 _allAchievements.AddRange(fragment.Achievements);
+                _filteredGlobalAchievementCount += CountFilteredRows(fragment.Achievements);
             }
 
             if (fragment.GameSummary != null)
@@ -3212,7 +3222,12 @@ namespace PlayniteAchievements.ViewModels
 
             using (Common.PerfScope.Start(_logger, "Overview.DeltaTick.Filters", thresholdMs: 5))
             {
-                RefreshFilter();
+                // No RefreshFilter here. ApplyFragmentDelta has already adjusted
+                // _filteredGlobalAchievementCount by the changed game's contribution, which is
+                // the only thing the status line reads of that set; running the full pass
+                // re-filtered and re-sorted every achievement in the library and raised a
+                // collection Reset, per edit. Every user-driven filter and sort change still
+                // calls RefreshFilter, which rebuilds the collection and re-seeds the count.
                 ApplyLeftFilters();
             }
 
@@ -3383,7 +3398,70 @@ namespace PlayniteAchievements.ViewModels
             var searchQuery = SearchQuery.From(SearchText);
             var filtered = ApplySort(source.Where(item => FilterAchievement(item, searchQuery))).ToList();
             CollectionHelper.Replace(AllAchievements, filtered);
+            _filteredGlobalAchievementCount = filtered.Count;
             UpdateFilteredStatus();
+        }
+
+        /// <summary>
+        /// Size of the filtered global achievement set, which is all the status line reads of it.
+        /// </summary>
+        /// <remarks>
+        /// Maintained across delta ticks instead of recomputed. <see cref="RefreshFilter"/> re-ran
+        /// the filter predicate over every achievement in the library, re-sorted the result and
+        /// raised a collection Reset -- per edit, for one changed game -- and the only thing that
+        /// came of it was this number: <see cref="AllAchievements"/> is not bound by any view.
+        /// (OverviewControl binds SelectedGameAllAchievements; the AllAchievements binding in
+        /// ViewAchievementsControl belongs to ViewAchievementsViewModel.) So a delta adjusts the
+        /// count by the one game's contribution and leaves the collection to the next full
+        /// RefreshFilter, which every user-driven filter and sort change still runs.
+        /// </remarks>
+        private int _filteredGlobalAchievementCount;
+
+        /// <summary>
+        /// How many of a game's rows in <paramref name="source"/> pass the current global filter.
+        /// The game-id test is the same cheap scan <see cref="RemoveGameRows"/> already makes; the
+        /// filter predicate runs only on that game's rows.
+        /// </summary>
+        private int CountFilteredRowsForGame(List<AchievementDisplayItem> source, Guid gameId)
+        {
+            if (source == null || source.Count == 0)
+            {
+                return 0;
+            }
+
+            var searchQuery = SearchQuery.From(SearchText);
+            var count = 0;
+            for (var i = 0; i < source.Count; i++)
+            {
+                var row = source[i];
+                if (row?.PlayniteGameId == gameId && FilterAchievement(row, searchQuery))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private int CountFilteredRows(IReadOnlyList<AchievementDisplayItem> rows)
+        {
+            if (rows == null || rows.Count == 0)
+            {
+                return 0;
+            }
+
+            var searchQuery = SearchQuery.From(SearchText);
+            var count = 0;
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                if (row != null && FilterAchievement(row, searchQuery))
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         private IEnumerable<AchievementDisplayItem> ApplySort(IEnumerable<AchievementDisplayItem> items)
@@ -3419,11 +3497,12 @@ namespace PlayniteAchievements.ViewModels
             {
                 StatusText = ResourceProvider.GetString("LOCPlayAch_Status_NoAchievementsCached");
             }
-            else if (HasMaterializedGlobalAchievementItems() && AllAchievements.Count < _totalCount)
+            else if (HasMaterializedGlobalAchievementItems() &&
+                     _filteredGlobalAchievementCount < _totalCount)
             {
                 StatusText = string.Format(
                     ResourceProvider.GetString("LOCPlayAch_Status_FilteredCounts"),
-                    AllAchievements.Count.ToString("N0", FormattingCulture.Current),
+                    _filteredGlobalAchievementCount.ToString("N0", FormattingCulture.Current),
                     _totalCount.ToString("N0", FormattingCulture.Current),
                     _unlockedCount.ToString("N0", FormattingCulture.Current),
                     _gamesCount.ToString("N0", FormattingCulture.Current));
@@ -3440,7 +3519,7 @@ namespace PlayniteAchievements.ViewModels
 
         private bool HasMaterializedGlobalAchievementItems()
         {
-            return (_allAchievements?.Count ?? 0) > 0 || (AllAchievements?.Count ?? 0) > 0;
+            return (_allAchievements?.Count ?? 0) > 0 || _filteredGlobalAchievementCount > 0;
         }
 
         private void RecalculateOverviewStats()
@@ -4693,6 +4772,7 @@ namespace PlayniteAchievements.ViewModels
         private void ReleaseRetainedData()
         {
             AllAchievements.Clear();
+            _filteredGlobalAchievementCount = 0;
             GameSummaries.Clear();
             RecentAchievements.Clear();
             SelectedGameAchievements.Clear();
