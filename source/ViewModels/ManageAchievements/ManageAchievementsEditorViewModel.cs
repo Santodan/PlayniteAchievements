@@ -3783,20 +3783,46 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
             }
 
-            // Measured apart from the attach loop above, which it used to share a scope with.
-            // Together they read as 113ms on a 641-row reload and under 5ms on the first load of
-            // the same game - and the difference between those two is not the rows, it is whether
-            // a grid was bound to this collection yet. The reset is raised synchronously, so
-            // whatever the view does with it is charged here.
-            using (Common.PerfScope.Start(
-                _logger,
-                "Editor.ReplaceRows.Reset",
-                thresholdMs: 5,
-                context: "rows=" + materializedRows.Count))
+            // A reload that produces the same achievements in the same order -- which is what a
+            // reset, a revert and most saves do -- can pour the new state onto the rows already
+            // bound to the grid instead of replacing them. That skips the Reset and the
+            // re-realization it forces, the two largest costs below.
+            //
+            // Safe because the rows are detached above and reattached after, so no setter can
+            // reach the persistence hook, and because CopyStateFrom copies backing fields rather
+            // than driving the public setters.
+            if (TryCopyRowsInPlace(materializedRows))
             {
-                // One Reset for the whole set. The clear plus per-row add this replaces raised a
-                // collection change per row, and the grid's filtered view re-ran for each one.
-                AchievementRows.ReplaceAll(materializedRows);
+                using (Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ReplaceRows.CopyInPlace",
+                    thresholdMs: 5,
+                    context: "rows=" + materializedRows.Count))
+                {
+                    for (var i = 0; i < materializedRows.Count; i++)
+                    {
+                        AchievementRows[i].CopyStateFrom(materializedRows[i]);
+                    }
+                }
+            }
+            else
+            {
+                // Measured apart from the attach loop above, which it used to share a scope with.
+                // Together they read as 113ms on a 641-row reload and under 5ms on the first load
+                // of the same game - and the difference between those two is not the rows, it is
+                // whether a grid was bound to this collection yet. The reset is raised
+                // synchronously, so whatever the view does with it is charged here.
+                using (Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ReplaceRows.Reset",
+                    thresholdMs: 5,
+                    context: "rows=" + materializedRows.Count))
+                {
+                    // One Reset for the whole set. The clear plus per-row add this replaces
+                    // raised a collection change per row, and the grid's filtered view re-ran
+                    // for each one.
+                    AchievementRows.ReplaceAll(materializedRows);
+                }
             }
 
             // Keep the user's place: a save or reload rebuilds the rows, and the details pane
@@ -4804,6 +4830,39 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             return displaced;
+        }
+
+        /// <summary>
+        /// Whether the incoming rows are the same achievements, in the same order, as the ones
+        /// already bound -- the case where the collection itself need not change.
+        /// </summary>
+        /// <remarks>
+        /// Identity is the achievement's own key, not the row instance, because the incoming rows
+        /// are always freshly built. Order is compared position by position rather than as a set:
+        /// a reorder has to go through the collection so the grid actually moves the rows.
+        /// </remarks>
+        private bool TryCopyRowsInPlace(List<AchievementEditorRow> incoming)
+        {
+            if (incoming == null || incoming.Count == 0 || AchievementRows.Count != incoming.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < incoming.Count; i++)
+            {
+                var existingKey = NormalizeText(AchievementRows[i]?.OriginalApiName);
+                var incomingKey = NormalizeText(incoming[i]?.OriginalApiName);
+
+                // An unkeyed row cannot be matched, so fall back rather than guess.
+                if (string.IsNullOrWhiteSpace(existingKey) ||
+                    string.IsNullOrWhiteSpace(incomingKey) ||
+                    !string.Equals(existingKey, incomingKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private bool TryMoveItems(
@@ -6489,6 +6548,37 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     RefreshCustomizationState();
                 }
             };
+        }
+
+        /// <summary>
+        /// Makes this row hold exactly the state of <paramref name="source"/>, so a reload that
+        /// produces the same rows in the same order can update them in place instead of replacing
+        /// the collection. Replacing it raises a Reset, which cost ~136ms for the DataGrid to
+        /// react plus ~162ms to re-realize a viewport on a 641-row game.
+        /// </summary>
+        /// <remarks>
+        /// Fields are copied, not properties. The public setters validate, raise events, depend
+        /// on each other's assignment order, and feed the view model's persistence hook -- so
+        /// driving ~50 of them across every row would risk both a different result than a reload
+        /// and a storm of store writes. Copying the backing fields runs none of that logic, which
+        /// makes this exactly as complete as the row's own state and no more.
+        ///
+        /// One PropertyChanged with an empty name follows, which WPF reads as "every property
+        /// changed"; only the realized containers re-evaluate, so the cost is a viewport's worth
+        /// of bindings rather than the whole list.
+        /// </remarks>
+        internal void CopyStateFrom(AchievementEditorRow source)
+        {
+            if (source == null || ReferenceEquals(source, this))
+            {
+                return;
+            }
+
+            Common.ObservableStateCopier.CopyState(this, source);
+
+            // Empty name, which WPF reads as "every property changed". Only the realized
+            // containers re-evaluate their bindings, so this costs a viewport rather than a list.
+            OnPropertyChanged(string.Empty);
         }
 
         public string OriginalApiName { get; private set; }
