@@ -3800,17 +3800,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 buildScope?.SetContext("rows=" + materializedRows.Count);
             }
 
-            using (Common.PerfScope.Start(
-                _logger,
-                "Editor.ReplaceRows.Attach",
-                thresholdMs: 5,
-                context: "rows=" + materializedRows.Count))
-            {
-                foreach (var row in materializedRows)
-                {
-                    AttachRow(row, useSeparateLockedIcons);
-                }
-            }
+            // Attached below, once it is known which rows actually end up in the collection.
+            // Wiring the freshly built rows here would leave the live ones detached on the
+            // in-place path -- which is what they are replaced by state from, not replaced with.
 
             // A reload that produces the same achievements in the same order -- which is what a
             // reset, a revert and most saves do -- can pour the new state onto the rows already
@@ -3861,6 +3853,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         " changed=" + changedRows.Count +
                         " notified=" + notified);
                 }
+
+                // These are the rows that stay bound, and every one of them was detached above.
+                // Re-wiring them is what restores the persistence hook, the reveal handler and
+                // the undo recorder -- without it the grid still shows the right values and the
+                // next edit to any row quietly does nothing.
+                //
+                // After the copy, never before: AttachRow subscribes Row_PropertyChanged, and a
+                // copy made while that is live would run the persistence hook for every field of
+                // every changed row.
+                using (Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ReplaceRows.Attach",
+                    thresholdMs: 5,
+                    context: "rows=" + AchievementRows.Count))
+                {
+                    foreach (var row in AchievementRows)
+                    {
+                        AttachRow(row, useSeparateLockedIcons);
+                    }
+                }
             }
             else
             {
@@ -3869,6 +3881,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // of the same game - and the difference between those two is not the rows, it is
                 // whether a grid was bound to this collection yet. The reset is raised
                 // synchronously, so whatever the view does with it is charged here.
+                using (Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ReplaceRows.Attach",
+                    thresholdMs: 5,
+                    context: "rows=" + materializedRows.Count))
+                {
+                    foreach (var row in materializedRows)
+                    {
+                        AttachRow(row, useSeparateLockedIcons);
+                    }
+                }
+
                 using (Common.PerfScope.Start(
                     _logger,
                     "Editor.ReplaceRows.Reset",
