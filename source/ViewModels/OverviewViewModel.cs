@@ -2471,6 +2471,30 @@ namespace PlayniteAchievements.ViewModels
             return current + value;
         }
 
+        /// <summary>
+        /// The provider/platform set the current <see cref="ProviderFilterGroups"/> were built
+        /// from, so a tick that did not change it can leave them alone.
+        /// </summary>
+        private string _providerFilterOptionsSignature;
+
+        private static string BuildProviderFilterOptionsSignature(
+            Dictionary<string, SortedSet<string>> platformsByProvider)
+        {
+            var builder = new System.Text.StringBuilder();
+            foreach (var providerKey in platformsByProvider.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase))
+            {
+                builder.Append(providerKey).Append('␟');
+                foreach (var platform in platformsByProvider[providerKey])
+                {
+                    builder.Append(platform).Append('␞');
+                }
+
+                builder.Append('␝');
+            }
+
+            return builder.ToString();
+        }
+
         private void UpdateProviderFilterOptions(List<GameSummaryItem> games)
         {
             var gameList = games ?? new List<GameSummaryItem>();
@@ -2519,6 +2543,22 @@ namespace PlayniteAchievements.ViewModels
                     }
                 }
             }
+
+            // Nothing to rebuild when the provider/platform set is the one the current groups
+            // were built from. The overview calls this from every delta tick, so a custom-data
+            // edit - which almost never adds or removes a provider or a platform - otherwise
+            // allocated a fresh group per provider and a fresh collection, and drove the
+            // property cascade below, for an identical result. Selections and expansion are
+            // carried on the existing groups, so keeping them is also what preserves them.
+            var optionsSignature = BuildProviderFilterOptionsSignature(platformsByProvider);
+            if (ProviderFilterGroups != null &&
+                ProviderFilterGroups.Count > 0 &&
+                string.Equals(optionsSignature, _providerFilterOptionsSignature, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _providerFilterOptionsSignature = optionsSignature;
 
             var groups = new List<ProviderFilterGroup>();
             var newSelectedCount = 0;
