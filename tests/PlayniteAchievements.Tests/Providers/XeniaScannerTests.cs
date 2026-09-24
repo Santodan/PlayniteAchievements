@@ -340,6 +340,31 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public void ResolveTitleId_IsoHeader_ReadsFullXgd3DumpAtKnownOffset()
+        {
+            AssertHeaderResolution("game.iso", path => WriteFakeTrimmedIso(path, 0x4D530AA4, volumeDescriptorOffset: 0x2090000), expected: "4D530AA4");
+        }
+
+        [TestMethod]
+        public void ResolveTitleId_IsoHeader_SkipsDecoyAndScansForRealDescriptor()
+        {
+            AssertHeaderResolution("game.iso", path =>
+            {
+                // Real partition at 0x20000, not a known offset; a decoy descriptor with an
+                // empty root directory sits at the trimmed-image spot.
+                WriteFakeTrimmedIso(path, 0x445007F7, volumeDescriptorOffset: 0x30000);
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Write))
+                using (var writer = new BinaryWriter(stream))
+                {
+                    stream.Position = 0x10000;
+                    writer.Write(Encoding.ASCII.GetBytes("MICROSOFT*XBOX*MEDIA"));
+                    writer.Write(0U);
+                    writer.Write(0U);
+                }
+            }, expected: "445007F7");
+        }
+
+        [TestMethod]
         public void ResolveTitleId_XexHeaderWithZeroTitleId_FallsThrough()
         {
             AssertHeaderResolution("game.xex", path => WriteFakeXex(path, 0), expected: null);

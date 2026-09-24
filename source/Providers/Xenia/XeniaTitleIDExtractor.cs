@@ -12,6 +12,16 @@ namespace PlayniteAchievements.Providers.Xenia
         private const string XdvdfsMagic = "MICROSOFT*XBOX*MEDIA";
         private const int SectorSize = 2048;
 
+        // Volume descriptor offsets (game partition start + 0x10000): trimmed image, then full
+        // XGD2, XGD3 and XGD1 dumps, using the partition offsets extract-xiso seeks to.
+        private static readonly long[] KnownVolumeDescriptorOffsets =
+        {
+            0x10000L,
+            0xFD90000L + 0x10000L,
+            0x2080000L + 0x10000L,
+            0x18300000L + 0x10000L
+        };
+
         internal class ExecutionInfo
         {
             public uint MediaId;
@@ -43,32 +53,35 @@ namespace PlayniteAchievements.Providers.Xenia
                 long volumeOffset = 0;
                 bool foundAnyVolumeDescriptor = false;
 
-                // Fast path: the standard "trimmed" ISO layout has the real volume
-                // descriptor at 0x10000, so try that first without scanning the whole file.
-                const long trimmedOffset = 0x10000L;
-                if (trimmedOffset + SectorSize <= fs.Length && HasXDVDFSMagicAt(fs, trimmedOffset))
+                // Fast path: the volume descriptor sits 0x10000 into the game partition, and the
+                // partition starts at 0 in a trimmed image or at a fixed offset per disc format in
+                // a full dump, so those spots are tried before scanning the whole file.
+                var tried = new HashSet<long>();
+                foreach (long knownOffset in KnownVolumeDescriptorOffsets)
                 {
+                    tried.Add(knownOffset);
+                    if (knownOffset + SectorSize > fs.Length || !HasXDVDFSMagicAt(fs, knownOffset))
+                        continue;
+
                     foundAnyVolumeDescriptor = true;
-                    entry = TryFindFileEntry(fs, trimmedOffset, xexFileName);
+                    entry = TryFindFileEntry(fs, knownOffset, xexFileName);
                     if (entry != null)
-                        volumeOffset = trimmedOffset;
+                    {
+                        volumeOffset = knownOffset;
+                        break;
+                    }
                 }
 
-                // Fallback: Xbox 360 discs frequently contain decoy "MICROSOFT*XBOX*MEDIA" as an anti-ripping measure, so the real descriptor isn't at 0x10000 at all.
-                // Scan for every sector-aligned occurrence and try each in turn until one actually contains the xex file.
+                // Fallback: Xbox 360 discs frequently contain decoy "MICROSOFT*XBOX*MEDIA" as an anti-ripping measure, so the real descriptor isn't at a known offset at all.
+                // Scan for every sector-aligned occurrence and try each as it is found, stopping at the first that actually contains the xex file.
                 if (entry == null)
                 {
-                    var candidateOffsets = new List<long>();
-                    foreach (long off in FindXdvdfsVolumeOffsets(fs))
+                    foreach (long candidateOffset in FindXdvdfsVolumeOffsets(fs))
                     {
-                        if (off != trimmedOffset) // already tried above
-                            candidateOffsets.Add(off);
-                    }
+                        if (!tried.Add(candidateOffset))
+                            continue;
 
-                    foundAnyVolumeDescriptor |= candidateOffsets.Count > 0;
-
-                    foreach (long candidateOffset in candidateOffsets)
-                    {
+                        foundAnyVolumeDescriptor = true;
                         var candidateEntry = TryFindFileEntry(fs, candidateOffset, xexFileName);
                         if (candidateEntry != null)
                         {
@@ -189,12 +202,14 @@ namespace PlayniteAchievements.Providers.Xenia
             byte[] magicBytes = Encoding.ASCII.GetBytes(XdvdfsMagic);
             byte[] buffer = new byte[chunkSize + magicBytes.Length]; // overlap so we don't miss a match spanning a chunk boundary
 
-            iso.Seek(0, SeekOrigin.Begin);
             long baseOffset = 0;
             int carryOver = 0;
 
             while (baseOffset < iso.Length)
             {
+                // The caller probes each candidate as it is yielded, which moves the stream,
+                // so the scan re-seeks to its own position before every read.
+                iso.Seek(baseOffset, SeekOrigin.Begin);
                 int bytesRead = iso.Read(buffer, carryOver, buffer.Length - carryOver);
                 if (bytesRead <= 0) break;
                 int validLength = carryOver + bytesRead;
