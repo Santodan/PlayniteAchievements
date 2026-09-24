@@ -294,8 +294,11 @@ namespace PlayniteAchievements
 
                 using (PerfScope.StartStartup(_logger, "PluginCtor.CustomDataWarmup", thresholdMs: 50))
                 {
-                    var rows = _gameCustomDataStore.LoadAll();
-                    _logger?.Debug($"Preloaded {rows?.Count ?? 0} game custom-data rows.");
+                    // Counted, not loaded out. LoadAll deep-clones every stored record, and this
+                    // wanted a number -- so a user who has customized their whole library paid a
+                    // full copy of every record at startup, and it was discarded on the next line.
+                    var count = _gameCustomDataStore.QueryAll(rows => rows.Count());
+                    _logger?.Debug($"Preloaded {count} game custom-data rows.");
                 }
             }
             catch (Exception ex)
