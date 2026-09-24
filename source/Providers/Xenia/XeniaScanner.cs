@@ -278,6 +278,40 @@ namespace PlayniteAchievements.Providers.Xenia
 
             var candidatePaths = GetCandidateRomPaths(game);
 
+            // Try to find TitleID in file
+            foreach (var path in candidatePaths)
+            {
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
+                if (path.EndsWith(".iso", StringComparison.OrdinalIgnoreCase))
+                {
+                    var executionInfo = XeniaTitleIDExtractor.GetFromIsoFile(path);
+                    if (!string.IsNullOrEmpty(executionInfo.TitleIdHex))
+                    {
+                        //_logger.Debug($"Found TitleID: {executionInfo.TitleIdHex}");
+                        titleID = executionInfo.TitleIdHex;
+                        return true;
+                    }
+                }
+                else if (path.EndsWith(".xex", StringComparison.OrdinalIgnoreCase))
+                {
+                    var executionInfo = XeniaTitleIDExtractor.GetFromXexFile(path);
+                    if (!string.IsNullOrEmpty(executionInfo.TitleIdHex))
+                    {
+                        //_logger.Debug($"Found TitleID: {executionInfo.TitleIdHex}");
+                        titleID = executionInfo.TitleIdHex;
+                        return true;
+                    }
+                }
+                else
+                {
+                    _logger.Error("[Xenia] Unsupported ROM only .xex or .iso files are supported!");
+                }
+            }
+
             // Try to find game in each build's recent.toml
             foreach (var path in candidatePaths)
             {
