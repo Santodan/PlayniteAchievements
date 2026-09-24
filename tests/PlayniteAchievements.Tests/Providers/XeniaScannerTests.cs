@@ -206,7 +206,13 @@ namespace PlayniteAchievements.Providers.Tests
             AssertByteScanFindsTitleId(exeMarkerOffset: 20000);
         }
 
-        private static void AssertByteScanFindsTitleId(int exeMarkerOffset)
+        [TestMethod]
+        public void ResolveTitleId_UppercaseIsoExtension_ByteScanStillRuns()
+        {
+            AssertByteScanFindsTitleId(exeMarkerOffset: 20000, romFileName: "GAME.ISO");
+        }
+
+        private static void AssertByteScanFindsTitleId(int exeMarkerOffset, string romFileName = "game.iso")
         {
             var tempDir = CreateTempDirectory();
             var previousPlugin = PlayniteAchievementsPlugin.Instance;
@@ -218,7 +224,7 @@ namespace PlayniteAchievements.Providers.Tests
                     GameCustomDataStore = new GameCustomDataStore(Path.Combine(tempDir, "store"))
                 };
 
-                var romPath = Path.Combine(tempDir, "game.iso");
+                var romPath = Path.Combine(tempDir, romFileName);
                 WriteFakeRomWithTitleIdAtOffset(romPath, "54441234", exeMarkerOffset);
 
                 var game = new Game

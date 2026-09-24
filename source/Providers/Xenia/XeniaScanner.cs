@@ -311,7 +311,9 @@ namespace PlayniteAchievements.Providers.Xenia
                     continue;
                 }
 
-                if (path.EndsWith(".iso") || path.EndsWith(".xex") || string.IsNullOrEmpty(Path.GetExtension(path)))
+                if (path.EndsWith(".iso", StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(".xex", StringComparison.OrdinalIgnoreCase) ||
+                    string.IsNullOrEmpty(Path.GetExtension(path)))
                 {
                     var chunksize = 8 * 1024; // 8 KB buffer
                     var buffer = new byte[chunksize];
