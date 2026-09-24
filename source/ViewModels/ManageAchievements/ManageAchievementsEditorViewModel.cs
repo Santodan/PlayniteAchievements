@@ -3831,21 +3831,35 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 ? FindChangedRows(materializedRows)
                 : null;
 
-            if (changedRows != null && changedRows.Count <= InPlaceNotifyThreshold)
+            if (changedRows != null)
             {
                 using (var copyScope = Common.PerfScope.Start(
                     _logger,
                     "Editor.ReplaceRows.CopyInPlace",
                     thresholdMs: 5))
                 {
-                    copyScope?.SetContext(
-                        "rows=" + materializedRows.Count + " changed=" + changedRows.Count);
-
+                    var notified = 0;
                     for (var i = 0; i < changedRows.Count; i++)
                     {
                         var index = changedRows[i];
-                        AchievementRows[index].CopyStateFrom(materializedRows[index]);
+                        var target = AchievementRows[index];
+
+                        // Only rows something is bound to. A row with no container reads its
+                        // current state when the grid realizes it, so announcing to it costs a
+                        // view re-evaluation and buys nothing -- and there are hundreds of them.
+                        var notify = ShouldNotifyRow(target);
+                        if (notify)
+                        {
+                            notified++;
+                        }
+
+                        target.CopyStateFrom(materializedRows[index], notify);
                     }
+
+                    copyScope?.SetContext(
+                        "rows=" + materializedRows.Count +
+                        " changed=" + changedRows.Count +
+                        " notified=" + notified);
                 }
             }
             else
@@ -4876,20 +4890,40 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// How many rows may be refreshed individually before one collection Reset is cheaper.
+        /// Set by the view: whether a row currently has a container, and so whether anything is
+        /// bound to it. Null until the view wires it, in which case every row is notified, which
+        /// is correct but slow.
+        /// </summary>
+        internal Func<AchievementEditorRow, bool> IsRowRealized { get; set; }
+
+        /// <summary>
+        /// Whether a refreshed row has to announce itself.
         /// </summary>
         /// <remarks>
         /// Raising "every property changed" on a bound row makes WPF re-evaluate it, and that
-        /// work runs on later dispatcher passes -- so it does not show up in the loop that
-        /// triggers it, which is how notifying every row came to look cheap while stalling the
-        /// UI for the better part of a second afterwards.
+        /// work runs on later dispatcher passes -- so it never appears in the loop that triggers
+        /// it. That is how announcing to all 641 rows came to measure 19ms while stalling the UI
+        /// for 670-870ms afterwards, worse than the Reset it replaced.
         ///
-        /// Measured on a 641-row game with the stall watchdog: one Reset stalls ~440ms including
-        /// the re-realization it forces, while notifying all 641 rows stalls 670-870ms. That puts
-        /// the crossover near 200 rows. Set at that, rather than lower, because the per-row path
-        /// is the one that keeps scroll position and selection intact.
+        /// Bounding it by what is on screen is what makes the in-place path scale: a viewport is
+        /// a dozen rows whether the reload changed one row or every one of them.
         /// </remarks>
-        private const int InPlaceNotifyThreshold = 200;
+        private bool ShouldNotifyRow(AchievementEditorRow row)
+        {
+            if (row == null)
+            {
+                return false;
+            }
+
+            // The details pane binds the selected row whether or not the grid has it realized.
+            if (ReferenceEquals(row, SelectedRow) || row.IsBulkRow)
+            {
+                return true;
+            }
+
+            // No tracker wired: stay correct rather than fast.
+            return IsRowRealized == null || IsRowRealized(row);
+        }
 
         /// <summary>
         /// The positions whose row state actually differs. A reset or an undo rewrites the whole
@@ -6653,7 +6687,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// changed"; only the realized containers re-evaluate, so the cost is a viewport's worth
         /// of bindings rather than the whole list.
         /// </remarks>
-        internal void CopyStateFrom(AchievementEditorRow source)
+        internal void CopyStateFrom(AchievementEditorRow source, bool notify = true)
         {
             if (source == null || ReferenceEquals(source, this))
             {
@@ -6662,8 +6696,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             Common.ObservableStateCopier.CopyState(this, source);
 
-            // Empty name, which WPF reads as "every property changed". Only the realized
-            // containers re-evaluate their bindings, so this costs a viewport rather than a list.
+            if (!notify)
+            {
+                // Nothing is bound to this row. Its container, when the grid makes one, reads
+                // whatever the row holds then -- so the values are already correct without an
+                // announcement, and announcing anyway is what made this path stall.
+                return;
+            }
+
+            // Empty name, which WPF reads as "every property changed".
             OnPropertyChanged(string.Empty);
         }
 
