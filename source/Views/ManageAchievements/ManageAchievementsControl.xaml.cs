@@ -247,11 +247,21 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             _ensureTabContentQueued = true;
+
+            // Normal, not Background. Background sits below Input and Render, so this waited
+            // behind whatever else the dispatcher had -- and with the ray animation driving a
+            // continuous render loop on the surface behind this window, that was measured at
+            // about a second between the shell loading and the tab content appearing, with the
+            // UI thread responsive throughout. It was starvation, not work: the build itself is
+            // ~150ms, and the window showed an empty shell for the whole wait.
+            //
+            // Still queued rather than called inline, so the shell lays out first; it just no
+            // longer yields to everything else once it has.
             _ = Dispatcher.BeginInvoke(new Action(() =>
             {
                 _ensureTabContentQueued = false;
                 EnsureSelectedTabContent();
-            }), DispatcherPriority.Background);
+            }), DispatcherPriority.Normal);
         }
 
         private void EnsureSelectedTabContent()
