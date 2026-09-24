@@ -1926,12 +1926,6 @@ namespace PlayniteAchievements.Providers.RPCS3
             return bestIso;
         }
 
-        private string GetRpcs3Root()
-        {
-            var exePath = _providerSettings?.ExecutablePath;
-            return string.IsNullOrWhiteSpace(exePath) ? null : Path.GetDirectoryName(exePath);
-        }
-
         private static string ResolvePathAgainstRoot(string path, string root)
         {
             if (string.IsNullOrWhiteSpace(path))

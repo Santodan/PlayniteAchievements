@@ -239,8 +239,8 @@ namespace PlayniteAchievements.Providers.RPCS3
                 }
             }
 
-            var settingsRoot = GetSettingsRoot(settings);
-            if (!string.IsNullOrWhiteSpace(settingsRoot))
+            // Configured installs are tried in order; the first with a resolvable profile is used.
+            foreach (var settingsRoot in GetSettingsRoots(settings))
             {
                 var settingsContext = Rpcs3InstallationContext.Create(settingsRoot, null, null, logger);
                 if (settingsContext != null)
@@ -314,16 +314,44 @@ namespace PlayniteAchievements.Providers.RPCS3
             return null;
         }
 
-        private static string GetSettingsRoot(Rpcs3Settings settings)
+        private static IEnumerable<string> GetSettingsRoots(Rpcs3Settings settings)
         {
-            var executablePath = settings?.ExecutablePath;
-            if (string.IsNullOrWhiteSpace(executablePath))
+            return ProviderPathList.Normalize(settings?.ExecutablePaths)
+                .Select(GetInstallRoot)
+                .Where(root => root != null);
+        }
+
+        private static string GetInstallRoot(string executablePath)
+        {
+            string root;
+            try
+            {
+                root = Path.GetDirectoryName(executablePath);
+            }
+            catch (Exception ex) when (ex is ArgumentException || ex is PathTooLongException)
             {
                 return null;
             }
 
-            var root = Path.GetDirectoryName(executablePath);
             return !string.IsNullOrWhiteSpace(root) && Directory.Exists(root) ? root : null;
+        }
+
+        /// <summary>
+        /// Settings-row check: the executable's folder exists and holds a trophy folder for its
+        /// active profile.
+        /// </summary>
+        internal static ProviderPathValidation ValidateExecutablePath(string executablePath)
+        {
+            var root = GetInstallRoot(executablePath);
+            if (root == null)
+            {
+                return ProviderPathValidation.Invalid("LOCPlayAch_InvalidPath");
+            }
+
+            var context = ResolveFromRoot(root, logger: null);
+            return context != null && Directory.Exists(context.TrophyFolder)
+                ? ProviderPathValidation.Valid
+                : ProviderPathValidation.Invalid("LOCPlayAch_Rpcs3Validation_NoTrophyFolder");
         }
 
         private static string ResolveUniqueRegisteredRoot(IPlayniteAPI playniteApi, ILogger logger)

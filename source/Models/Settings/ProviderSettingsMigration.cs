@@ -290,7 +290,7 @@ namespace PlayniteAchievements.Models.Settings
             var settings = new Rpcs3Settings
             {
                 IsEnabled = persisted["Rpcs3Enabled"]?.Value<bool>() ?? true,
-                ExecutablePath = persisted["Rpcs3ExecutablePath"]?.ToString()
+                ExecutablePaths = ProviderPathList.FromLegacy(persisted["Rpcs3ExecutablePath"]?.ToString())
             };
             providerSettings["RPCS3"] = JObject.Parse(settings.SerializeToJson());
         }
