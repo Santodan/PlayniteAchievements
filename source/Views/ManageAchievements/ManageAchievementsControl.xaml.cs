@@ -326,7 +326,60 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     _notificationsRefreshDiscardPending = false;
                 }
             }
+
+            QueuePrebuildIdleTabs();
         }
+
+        /// <summary>
+        /// Builds the tabs the user is not looking at, once the dispatcher has nothing else to
+        /// do, so the first click on one finds it already built.
+        /// </summary>
+        /// <remarks>
+        /// Each tab's control is created lazily on first selection and cached thereafter, which
+        /// makes the first click on a tab cost its whole construction - measured at ~150ms for
+        /// the editor and ~57ms for categories, before the first render of its visual tree. The
+        /// work has to happen either way; doing it while idle moves it off the click.
+        ///
+        /// ContextIdle, so it never competes with the selected tab's own build or with input.
+        /// It runs once per window: each Ensure* call returns immediately when its control
+        /// already exists.
+        /// </remarks>
+        private void QueuePrebuildIdleTabs()
+        {
+            if (_idleTabPrebuildQueued)
+            {
+                return;
+            }
+
+            _idleTabPrebuildQueued = true;
+            _ = Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (_viewModel == null)
+                    {
+                        return;
+                    }
+
+                    using (Common.PerfScope.Start(_logger, "Manage.PrebuildIdleTabs", thresholdMs: 25))
+                    {
+                        try
+                        {
+                            EnsureEditorControl(forceRecreate: false);
+                            EnsureCategoryControl(forceRecreate: false);
+                            EnsureNotificationsControl(forceRecreate: false);
+                        }
+                        catch (Exception ex)
+                        {
+                            // A prebuild is an optimization; a tab that fails here is built
+                            // again on its own selection, which is where an error belongs.
+                            _logger?.Debug(ex, "Failed pre-building Manage Achievements tabs.");
+                        }
+                    }
+                }),
+                DispatcherPriority.ContextIdle);
+        }
+
+        private bool _idleTabPrebuildQueued;
 
         public bool HandleFullscreenControllerInput(ControllerInput input)
         {

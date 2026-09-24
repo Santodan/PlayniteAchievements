@@ -1710,10 +1710,14 @@ namespace PlayniteAchievements.Services.UI
 
                 TrackAchievementWindow(AchievementWindowKind.ManageAchievements, gameId, window);
 
-                using (Common.PerfScope.Start(_logger, "Manage.Open.ShowWindow", thresholdMs: 25))
-                {
-                    ShowWindow(window, isFullscreen);
-                }
+                // Not scoped: ShowWindow calls ShowDialog for a desktop popout, which blocks for
+                // the window's whole lifetime, so a scope here times how long the user kept the
+                // window open (30s in one capture) rather than the cost of showing it. Worth
+                // knowing for anyone reading the open path: the first show, layout and render
+                // all happen synchronously inside this call, before its nested message loop
+                // starts pumping -- so nothing queued on the dispatcher, at any priority, can
+                // run until that is done.
+                ShowWindow(window, isFullscreen);
             }
             catch (Exception ex)
             {
