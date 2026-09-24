@@ -1351,7 +1351,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 Header = ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Editor_Goal"),
                 IsCheckable = true,
                 IsChecked = selection.All(row => row.IsGoal),
-                IsEnabled = selection.All(row => row.CanEditAssignments)
+                IsEnabled = selection.Count == 1 && selection[0].CanEditGoal
             };
             goalItem.Click += (_, __) => viewModel.SetGoalForSelection(goalItem.IsChecked);
             menu.Items.Add(goalItem);
