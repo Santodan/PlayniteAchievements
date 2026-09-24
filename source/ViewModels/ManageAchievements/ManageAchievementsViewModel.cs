@@ -69,6 +69,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private int _unlockedAchievements;
         private bool _isCompleted;
         private string _currentCapstoneName;
+        private bool _hasCapstone;
         private bool _isExcluded;
         private bool _isExcludedFromSummaries;
         private bool _hasManualTrackingLink;
@@ -543,6 +544,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             private set => SetValue(ref _currentCapstoneName, value);
         }
 
+        public bool HasCapstone
+        {
+            get => _hasCapstone;
+            private set => SetValue(ref _hasCapstone, value);
+        }
+
         public bool IsExcluded
         {
             get => _isExcluded;
@@ -776,6 +783,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     : !string.IsNullOrWhiteSpace(capstone?.ApiName)
                         ? capstone.ApiName.Trim()
                         : L("LOCPlayAch_Common_None");
+                HasCapstone = !string.IsNullOrWhiteSpace(capstone?.DisplayName) ||
+                              !string.IsNullOrWhiteSpace(capstone?.ApiName);
 
                 HasAchievementData = (gameData?.HasAchievements ?? false) && list.Count > 0;
 
@@ -832,15 +841,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 TrophyBronzeText = FormatProgress(stats.TrophyBronzeCount, stats.TrophyBronzeTotal),
                 HasPoints = breakdown.HasPoints,
                 PointsText = FormatProgress(breakdown.UnlockedPoints, breakdown.TotalPoints),
+                HasHidden = breakdown.HiddenCount > 0,
                 HiddenText = FormatCount(breakdown.HiddenCount),
                 LastUnlockText = breakdown.LastUnlockUtc.HasValue
                     ? breakdown.LastUnlockUtc.Value.ToLocalTime().ToString("g")
-                    : L("LOCPlayAch_ManageAchievements_Value_NotAvailable"),
-                Categories = breakdown.Categories
-                    .Select(category => new ManageOverviewCategoryRow(
-                        AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(category.Label),
-                        FormatProgress(category.Unlocked, category.Total)))
-                    .ToList(),
+                    : null,
+                HasCategorized = breakdown.CategorizedCount > 0,
+                CategorizedText = FormatProgress(breakdown.CategorizedCount, stats.TotalAchievements),
                 Customizations = ManageOverviewSummaryBuilder.BuildCustomizationCounts(customData)
                     .Select(entry => new ManageOverviewCustomizationChip(
                         L(entry.LabelKey),
@@ -1460,6 +1467,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             CurrentCapstoneName = string.IsNullOrWhiteSpace(displayName)
                 ? L("LOCPlayAch_Common_None")
                 : displayName.Trim();
+            HasCapstone = !string.IsNullOrWhiteSpace(displayName);
             RefreshCustomDataState();
         }
 
