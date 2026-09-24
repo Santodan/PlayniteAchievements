@@ -11,32 +11,54 @@ namespace PlayniteAchievements.ViewModels.Items
     {
         public static readonly ManageOverviewSummary Empty = new ManageOverviewSummary();
 
-        public string RarityCommonText { get; set; } = "0 / 0";
+        // Each stat is an "x / y" text and whether it has anything to show: a stat whose total
+        // is zero is left off the Overview rather than shown as "0 / 0".
 
-        public string RarityUncommonText { get; set; } = "0 / 0";
+        public ManageOverviewStat RarityCommon { get; set; } = ManageOverviewStat.None;
 
-        public string RarityRareText { get; set; } = "0 / 0";
+        public ManageOverviewStat RarityUncommon { get; set; } = ManageOverviewStat.None;
 
-        public string RarityUltraRareText { get; set; } = "0 / 0";
+        public ManageOverviewStat RarityRare { get; set; } = ManageOverviewStat.None;
 
-        public string TrophyPlatinumText { get; set; } = "0 / 0";
+        public ManageOverviewStat RarityUltraRare { get; set; } = ManageOverviewStat.None;
 
-        public string TrophyGoldText { get; set; } = "0 / 0";
+        public ManageOverviewStat TrophyPlatinum { get; set; } = ManageOverviewStat.None;
 
-        public string TrophySilverText { get; set; } = "0 / 0";
+        public ManageOverviewStat TrophyGold { get; set; } = ManageOverviewStat.None;
 
-        public string TrophyBronzeText { get; set; } = "0 / 0";
+        public ManageOverviewStat TrophySilver { get; set; } = ManageOverviewStat.None;
 
-        /// <summary><c>unlocked / total</c>, summed from each achievement's points.</summary>
-        public string PointsText { get; set; } = "0 / 0";
+        public ManageOverviewStat TrophyBronze { get; set; } = ManageOverviewStat.None;
 
-        /// <summary><c>categorized / total</c>: achievements in a category other than the default one.</summary>
-        public string CategorizedText { get; set; } = "0 / 0";
+        /// <summary>Unlocked over total, summed from each achievement's points.</summary>
+        public ManageOverviewStat Points { get; set; } = ManageOverviewStat.None;
+
+        /// <summary>Achievements in a category other than the default one, over all achievements.</summary>
+        public ManageOverviewStat Categorized { get; set; } = ManageOverviewStat.None;
+
+        /// <summary>Unlocked goals over all goals.</summary>
+        public ManageOverviewStat Goals { get; set; } = ManageOverviewStat.None;
 
         public IReadOnlyList<ManageOverviewCustomizationChip> Customizations { get; set; } =
             Array.Empty<ManageOverviewCustomizationChip>();
 
         public bool HasCustomizations => Customizations.Count > 0;
+    }
+
+    /// <summary>One "x / y" stat on the Overview, shown only when its total is above zero.</summary>
+    public sealed class ManageOverviewStat
+    {
+        public static readonly ManageOverviewStat None = new ManageOverviewStat(null, false);
+
+        public ManageOverviewStat(string text, bool isVisible)
+        {
+            Text = text;
+            IsVisible = isVisible;
+        }
+
+        public string Text { get; }
+
+        public bool IsVisible { get; }
     }
 
     /// <summary>
