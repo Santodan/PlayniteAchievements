@@ -1385,10 +1385,21 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
+            // Runs on the caller's thread inside the synchronous CustomDataChanged, which for an
+            // editor write is the UI thread, and its cost scales with how many overrides the
+            // game has -- it re-reads them all, diffs, then deletes and re-inserts the set. A
+            // reset of every row is the largest case there is, so it carries the count.
+            using var scope = Common.PerfScope.Start(
+                _logger,
+                "Filters.SyncAchievementFiltersForGame",
+                thresholdMs: 10);
+
             // A missing custom-data row (deleted) maps to an empty entry list, which removes
             // the game's mirror rows.
             _gameCustomDataStore.TryLoad(playniteGameId, out var customData);
-            _overrideMirror.ReplaceAchievementOverrides(playniteGameId, BuildOverrideMirrorEntries(customData));
+            var entries = BuildOverrideMirrorEntries(customData);
+            scope?.SetContext("entries=" + (entries?.Count ?? 0));
+            _overrideMirror.ReplaceAchievementOverrides(playniteGameId, entries);
         }
 
         /// <summary>

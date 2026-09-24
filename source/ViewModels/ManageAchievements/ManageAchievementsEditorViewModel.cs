@@ -2844,13 +2844,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 // Whole-collection facets: staged across the rows first, so the maps and lists
                 // below are built from rows that already read as cleared.
-                StageAcross(targets, row =>
+                // Four property changes per target, each raised on a row the grid is still bound
+                // to, so this scales with how many rows are being reset -- the dimension a
+                // reported stall was observed to scale with.
+                using (var stageScope = Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ResetCustomizations.Stage",
+                    thresholdMs: 10,
+                    context: "targets=" + targets.Count))
                 {
-                    row.CategoryLabel = null;
-                    row.CategoryTypeValue = null;
-                    row.IsGoal = false;
-                    row.SetFilterScopeFromSource(AchievementFilterScope.None);
-                });
+                    StageAcross(targets, row =>
+                    {
+                        row.CategoryLabel = null;
+                        row.CategoryTypeValue = null;
+                        row.IsGoal = false;
+                        row.SetFilterScopeFromSource(AchievementFilterScope.None);
+                    });
+                }
 
                 // Every facet in one store update. Each writer used to take its own, and each
                 // Update raises CacheInvalidated and rebuilds the library projection, so one press
@@ -2858,20 +2868,39 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // the override record stays first within the mutation for the reason it was first
                 // here: clearing field by field would leave the unlock timestamp cleared rather
                 // than reverted, because "no timestamp" is itself a stored state.
-                _achievementOverridesService.ClearCustomizations(
-                    _gameId,
-                    apiNames,
-                    BuildAssignmentMap(row => row.CategoryLabel),
-                    BuildAssignmentMap(row => row.CategoryTypeValue),
-                    BuildFilteredApiNames(),
-                    BuildSummaryFilteredApiNames(),
-                    BuildGoalApiNames(),
-                    // Nothing is left to re-seat against once the authored rows go, so a full
-                    // reset drops the order outright rather than rewriting it without them.
-                    deleteAuthored ? Array.Empty<string>() : BuildRevertedOrder(targets),
-                    clearAuthoredAchievements: deleteAuthored);
+                // Scoped to the write alone. This is the store update plus everything the
+                // synchronous CustomDataChanged cascade does inside it -- including the filter
+                // mirror rewrite, which re-reads, diffs, deletes and re-inserts every override
+                // the game has, on this thread.
+                using (var clearScope = Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ResetCustomizations.Clear",
+                    thresholdMs: 10,
+                    context: "targets=" + targets.Count))
+                {
+                    _achievementOverridesService.ClearCustomizations(
+                        _gameId,
+                        apiNames,
+                        BuildAssignmentMap(row => row.CategoryLabel),
+                        BuildAssignmentMap(row => row.CategoryTypeValue),
+                        BuildFilteredApiNames(),
+                        BuildSummaryFilteredApiNames(),
+                        BuildGoalApiNames(),
+                        // Nothing is left to re-seat against once the authored rows go, so a full
+                        // reset drops the order outright rather than rewriting it without them.
+                        deleteAuthored ? Array.Empty<string>() : BuildRevertedOrder(targets),
+                        clearAuthoredAchievements: deleteAuthored);
+                }
 
-                RefreshAssignmentState();
+                using (Common.PerfScope.Start(
+                    _logger,
+                    "Editor.ResetCustomizations.RefreshAssignments",
+                    thresholdMs: 10,
+                    context: "rows=" + AchievementRows.Count))
+                {
+                    RefreshAssignmentState();
+                }
+
                 RaiseAssignmentsChanged();
 
                 // Reverting drops each reverted row's own capstone and leaves the rest of the set

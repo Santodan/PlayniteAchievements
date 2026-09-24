@@ -1248,6 +1248,11 @@ namespace PlayniteAchievements
             {
                 _applicationStarted = true;
 
+                // Measures the symptom rather than a suspected cause: every other timing here is
+                // a scope around code someone already suspected, and a reported freeze was
+                // repeatedly not inside one.
+                Common.UiStallWatchdog.Start(_logger);
+
                 LogStartupBanner();
 
                 // Launch and preload the sound host off the UI thread so the first unlock plays with
