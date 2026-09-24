@@ -150,7 +150,19 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             _viewModel.SelectedTab = tab;
-            QueueEnsureSelectedTabContent();
+
+            // Built here, not queued. The window is shown with ShowDialog, which renders its
+            // first frame before its nested dispatcher frame starts pumping queued operations,
+            // so a queued build waits for the pump rather than the paint: measured at ~850ms
+            // after ContentRendered, with the thread idle and no stall. (The ray animation kept
+            // ticking through it, but CompositionTarget.Rendering is invoked from the render
+            // pass, not the dispatcher queue, so that showed the thread rendering rather than
+            // the queue draining.)
+            //
+            // Doing it inline costs ~150ms before the window appears and removes the second of
+            // empty shell after it. The Loaded handler still queues, which covers a tab changed
+            // before the window is up.
+            EnsureSelectedTabContent();
             QueueFocusSelectedTab();
         }
 
