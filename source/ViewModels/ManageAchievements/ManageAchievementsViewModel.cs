@@ -727,7 +727,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 GameImagePath = ResolveGameImagePath(game);
 
                 var gameData = GetHydratedGameData();
-                var rawGameData = GetRawGameData();
+
+                // Only read when the hydrated copy is missing. The single consumer below builds
+                // an AchievementPageLinkContext, whose BestGameData is `GameData ?? RawGameData`,
+                // and no provider reads RawGameData directly -- so when gameData is present the
+                // raw copy can never be observed. Reading it unconditionally made every reload
+                // two cold snapshot loads instead of one, on the UI thread.
+                var rawGameData = gameData != null ? null : GetRawGameData();
+
                 HasCachedData = gameData != null;
                 _cachedProviderKey = gameData?.ProviderKey?.Trim();
                 _cachedHasAchievements = gameData?.HasAchievements ?? false;
