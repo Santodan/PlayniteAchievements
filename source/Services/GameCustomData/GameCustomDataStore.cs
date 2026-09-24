@@ -137,9 +137,23 @@ namespace PlayniteAchievements.Services.GameCustomData
             };
 
         private readonly ILogger _logger;
+        // Indented, for the portable .pa manifest a user can open and read.
         private readonly JsonSerializerSettings _writeSettings = new JsonSerializerSettings
         {
             Formatting = Formatting.Indented,
+            NullValueHandling = NullValueHandling.Ignore,
+            DefaultValueHandling = DefaultValueHandling.Ignore
+        };
+
+        // Compact, for the stored blob. The payload is a SQLite TEXT column that is only ever
+        // round-tripped through JsonConvert -- never diffed as text, hashed, or shown to anyone --
+        // so its indentation was whitespace written on every per-game save and carried into the
+        // WAL. The serialize scales with the game's override count, which is exactly the profile
+        // that made editing a heavily customized game slow. Anything that ever wants to compare
+        // payload text must normalize first.
+        private readonly JsonSerializerSettings _storeWriteSettings = new JsonSerializerSettings
+        {
+            Formatting = Formatting.None,
             NullValueHandling = NullValueHandling.Ignore,
             DefaultValueHandling = DefaultValueHandling.Ignore
         };
@@ -168,7 +182,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         {
             _logger = logger;
             var databasePath = Path.Combine(pluginUserDataPath ?? string.Empty, DatabaseFileName);
-            _repository = new GameCustomDataRepository(databasePath, _writeSettings, logger);
+            _repository = new GameCustomDataRepository(databasePath, _storeWriteSettings, logger);
         }
 
         public string DatabasePath => _repository.DatabasePath;
