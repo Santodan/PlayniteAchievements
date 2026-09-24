@@ -2724,8 +2724,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             MarkUndoIntent(EditorEditIntent.Command("Goal", "LOCPlayAch_ManageAchievements_Editor_Goal"));
 
+            // Refused here as well as disabled in the view, so the cell click, which routes to the
+            // selection, cannot reach a multi-selection or an unlocked row.
             var targets = ResolveSelectionTargets();
-            if (targets.Count == 0)
+            if (targets.Count != 1 || !targets[0].CanEditGoal)
             {
                 return;
             }
@@ -7248,6 +7250,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool CanEditCapstone => CanEditAssignments && (!IsBulkRow || AllowBulkCapstone);
 
         /// <summary>
+        /// A goal is one achievement still to be earned, so the bulk proxy and an unlocked row both
+        /// refuse it. Matches the row menu outside the editor, where unlocking retires a goal.
+        /// </summary>
+        public bool CanEditGoal => CanEditAssignments && !IsBulkRow && !Unlocked;
+
+        /// <summary>
         /// The icons the provider supplies, captured before any override is applied over them.
         /// A row shows its effective icon, so this is the only way to tell an override apart from
         /// the provider's own art, and the only thing to fall back to when one is cleared.
@@ -8028,6 +8036,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                     OnPropertyChanged(nameof(UnlockedState));
                     OnPropertyChanged(nameof(CanEditUnlockTime));
+                    OnPropertyChanged(nameof(CanEditGoal));
                     NotifyRevealStateChanged();
                 }
             }
@@ -8082,6 +8091,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(Unlocked));
             OnPropertyChanged(nameof(UnlockedState));
             OnPropertyChanged(nameof(CanEditUnlockTime));
+            OnPropertyChanged(nameof(CanEditGoal));
             NotifyRevealStateChanged();
         }
 
@@ -8848,6 +8858,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             LockedIconPath = definition.LockedIconPath;
             OriginalApiName = CustomAchievementProjectionService.BuildApiName(definition.Id);
             OnPropertyChanged(nameof(CanEditAssignments));
+            OnPropertyChanged(nameof(CanEditGoal));
             CaptureBaseline();
         }
 
