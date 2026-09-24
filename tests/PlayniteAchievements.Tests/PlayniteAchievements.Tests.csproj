@@ -283,6 +283,7 @@
     <Compile Include="..\..\source\Providers\Xenia\XeniaTitleIdHelper.cs" Link="Source\Providers\Xenia\XeniaTitleIdHelper.cs" />
     <Compile Include="..\..\source\Providers\Xenia\XeniaScanner.cs" Link="Source\Providers\Xenia\XeniaScanner.cs" />
     <Compile Include="..\..\source\Providers\Xenia\XeniaAccountResolver.cs" Link="Source\Providers\Xenia\XeniaAccountResolver.cs" />
+    <Compile Include="..\..\source\Providers\Xenia\XeniaTitleIDExtractor.cs" Link="Source\Providers\Xenia\XeniaTitleIDExtractor.cs" />
     <Compile Include="..\..\source\Providers\Xenia\GPDResolver.cs" Link="Source\Providers\Xenia\GPDResolver.cs" />
     <Compile Include="..\..\source\Providers\Xenia\Models\XdbfModels.cs" Link="Source\Providers\Xenia\Models\XdbfModels.cs" />
     <Compile Include="..\..\source\Providers\Manual\ManualSettings.cs" Link="Source\Providers\Manual\ManualSettings.cs" />

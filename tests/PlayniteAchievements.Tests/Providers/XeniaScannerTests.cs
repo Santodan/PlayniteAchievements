@@ -322,6 +322,136 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public void ResolveTitleId_XexHeader_ReadsExecutionInfoAndCaches()
+        {
+            AssertHeaderResolution("GAME.XEX", path => WriteFakeXex(path, 0x4D5307E6), expected: "4D5307E6");
+        }
+
+        [TestMethod]
+        public void ResolveTitleId_IsoHeader_ReadsDefaultXexFromTrimmedImage()
+        {
+            AssertHeaderResolution("game.iso", path => WriteFakeTrimmedIso(path, 0x4E4D081C, volumeDescriptorOffset: 0x10000), expected: "4E4D081C");
+        }
+
+        [TestMethod]
+        public void ResolveTitleId_XexHeaderWithZeroTitleId_FallsThrough()
+        {
+            AssertHeaderResolution("game.xex", path => WriteFakeXex(path, 0), expected: null);
+        }
+
+        private static void AssertHeaderResolution(string fileName, Action<string> writeRom, string expected)
+        {
+            var tempDir = CreateTempDirectory();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = new GameCustomDataStore(Path.Combine(tempDir, "store"))
+                };
+
+                var romPath = Path.Combine(tempDir, fileName);
+                writeRom(romPath);
+
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Header Game",
+                    Roms = new ObservableCollection<GameRom> { new GameRom("rom", romPath) }
+                };
+
+                var scanner = new XeniaScanner(
+                    logger: new FakeLogger(),
+                    playniteApi: new FakePlayniteApi(),
+                    providerSettings: new XeniaSettings(),
+                    pluginUserDataPath: tempDir);
+
+                var resolved = scanner.ResolveTitleID(game, out var titleId);
+
+                Assert.AreEqual(expected != null, resolved);
+                if (expected != null)
+                {
+                    Assert.AreEqual(expected, titleId);
+                    Assert.IsTrue(scanner.TryGetCachedTitleId(game.Id, out var cachedTitleId));
+                    Assert.AreEqual(expected, cachedTitleId);
+                }
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        /// <summary>
+        /// XEX2 header with one optional header entry pointing at the execution info block.
+        /// </summary>
+        private static byte[] BuildFakeXex(uint titleId)
+        {
+            using (var buffer = new MemoryStream())
+            using (var writer = new BinaryWriter(buffer))
+            {
+                WriteBigEndian(writer, 0x58455832U); // "XEX2"
+                writer.Write(new byte[0x10]);        // module flags .. security offset
+                WriteBigEndian(writer, 1U);          // optional header count at 0x14
+                WriteBigEndian(writer, 0x00040006U); // execution info id
+                WriteBigEndian(writer, 0x28U);       // execution info offset
+                writer.Write(new byte[0x28 - 0x20]);
+                WriteBigEndian(writer, 0x12345678U); // media id
+                WriteBigEndian(writer, 1U);          // version
+                WriteBigEndian(writer, 1U);          // base version
+                WriteBigEndian(writer, titleId);
+                writer.Write(new byte[] { 2, 0, 1, 1 }); // platform, type, disc number, disc count
+                WriteBigEndian(writer, 0U);          // save game id
+                writer.Flush();
+                return buffer.ToArray();
+            }
+        }
+
+        private static void WriteFakeXex(string path, uint titleId)
+        {
+            File.WriteAllBytes(path, BuildFakeXex(titleId));
+        }
+
+        /// <summary>
+        /// XDVDFS image whose volume descriptor sits at <paramref name="volumeDescriptorOffset"/>
+        /// (partition start + 0x10000), with a root directory holding only default.xex.
+        /// </summary>
+        internal static void WriteFakeTrimmedIso(string path, uint titleId, long volumeDescriptorOffset)
+        {
+            const int sector = 2048;
+            var partitionOffset = volumeDescriptorOffset - 0x10000;
+            const uint rootDirSector = 34;
+            const uint xexSector = 35;
+            var xex = BuildFakeXex(titleId);
+            var name = Encoding.ASCII.GetBytes("default.xex");
+
+            using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write))
+            using (var writer = new BinaryWriter(stream))
+            {
+                stream.SetLength(partitionOffset + (xexSector + 1) * sector);
+
+                stream.Position = volumeDescriptorOffset;
+                writer.Write(Encoding.ASCII.GetBytes("MICROSOFT*XBOX*MEDIA"));
+                writer.Write(rootDirSector);          // little-endian
+                writer.Write((uint)sector);           // root directory size
+
+                stream.Position = partitionOffset + rootDirSector * sector;
+                writer.Write((ushort)0);              // left
+                writer.Write((ushort)0);              // right
+                writer.Write(xexSector);
+                writer.Write((uint)xex.Length);
+                writer.Write((byte)0x20);             // attributes
+                writer.Write((byte)name.Length);
+                writer.Write(name);
+
+                stream.Position = partitionOffset + xexSector * sector;
+                writer.Write(xex);
+            }
+        }
+
+        [TestMethod]
         public void TryReadTitleString_ReadsSection5String()
         {
             var tempDir = CreateTempDirectory();

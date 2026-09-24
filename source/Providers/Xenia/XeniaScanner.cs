@@ -278,37 +278,14 @@ namespace PlayniteAchievements.Providers.Xenia
 
             var candidatePaths = GetCandidateRomPaths(game);
 
-            // Try to find TitleID in file
+            // Read the TitleID from the executable's XEX header
             foreach (var path in candidatePaths)
             {
-                if (!File.Exists(path))
+                if (TryReadTitleIdFromXexHeader(path, out var headerTitleId))
                 {
-                    continue;
-                }
-
-                if (path.EndsWith(".iso", StringComparison.OrdinalIgnoreCase))
-                {
-                    var executionInfo = XeniaTitleIDExtractor.GetFromIsoFile(path);
-                    if (!string.IsNullOrEmpty(executionInfo.TitleIdHex))
-                    {
-                        //_logger.Debug($"Found TitleID: {executionInfo.TitleIdHex}");
-                        titleID = executionInfo.TitleIdHex;
-                        return true;
-                    }
-                }
-                else if (path.EndsWith(".xex", StringComparison.OrdinalIgnoreCase))
-                {
-                    var executionInfo = XeniaTitleIDExtractor.GetFromXexFile(path);
-                    if (!string.IsNullOrEmpty(executionInfo.TitleIdHex))
-                    {
-                        //_logger.Debug($"Found TitleID: {executionInfo.TitleIdHex}");
-                        titleID = executionInfo.TitleIdHex;
-                        return true;
-                    }
-                }
-                else
-                {
-                    _logger.Error("[Xenia] Unsupported ROM only .xex or .iso files are supported!");
+                    titleID = headerTitleId;
+                    CacheTitleId(game.Id, headerTitleId);
+                    return true;
                 }
             }
 
@@ -399,6 +376,47 @@ namespace PlayniteAchievements.Providers.Xenia
 
             titleID = "";
             return false;
+        }
+
+        /// <summary>
+        /// Reads the TitleID from the execution info header of a .xex, or of default.xex inside
+        /// an .iso. False for other files and for any file the header read cannot parse, which
+        /// leaves the later lookups to try it.
+        /// </summary>
+        private bool TryReadTitleIdFromXexHeader(string path, out string titleID)
+        {
+            titleID = null;
+            if (!File.Exists(path))
+            {
+                return false;
+            }
+
+            var isIso = path.EndsWith(".iso", StringComparison.OrdinalIgnoreCase);
+            if (!isIso && !path.EndsWith(".xex", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            try
+            {
+                var executionInfo = isIso
+                    ? XeniaTitleIDExtractor.GetFromIsoFile(path)
+                    : XeniaTitleIDExtractor.GetFromXexFile(path);
+                if (executionInfo == null ||
+                    executionInfo.TitleId == 0 ||
+                    !XeniaTitleIdHelper.TryNormalize(executionInfo.TitleIdHex, out titleID))
+                {
+                    titleID = null;
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is UnauthorizedAccessException)
+            {
+                _logger?.Debug($"[Xenia] XEX header read failed for '{path}': {ex.Message}");
+                return false;
+            }
         }
 
         /// <summary>
