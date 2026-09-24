@@ -12,29 +12,23 @@ namespace PlayniteAchievements.Tests.Services
     public class ManageOverviewSummaryBuilderTests
     {
         [TestMethod]
-        public void BuildBreakdown_Empty_ReturnsZeroesAndNoCategories()
+        public void BuildBreakdown_Empty_ReturnsZeroes()
         {
             var breakdown = ManageOverviewSummaryBuilder.BuildBreakdown(null);
 
             Assert.AreEqual(0, breakdown.Stats.TotalAchievements);
             Assert.AreEqual(0, breakdown.TotalPoints);
-            Assert.AreEqual(0, breakdown.HiddenCount);
-            Assert.IsNull(breakdown.LastUnlockUtc);
             Assert.AreEqual(0, breakdown.CategorizedCount);
-            Assert.IsFalse(breakdown.HasPoints);
-            Assert.IsFalse(breakdown.HasTrophies);
         }
 
         [TestMethod]
-        public void BuildBreakdown_CountsPointsHiddenLastUnlockAndCategorized()
+        public void BuildBreakdown_CountsPointsAndCategorized()
         {
-            var early = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            var late = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
             var achievements = new List<AchievementDetail>
             {
-                Achievement("a", unlocked: true, points: 10, category: "Base", unlockTimeUtc: early),
-                Achievement("b", unlocked: false, points: 20, category: "DLC", hidden: true),
-                Achievement("c", unlocked: true, points: 30, category: "base", unlockTimeUtc: late),
+                Achievement("a", unlocked: true, points: 10, category: "Base"),
+                Achievement("b", unlocked: false, points: 20, category: "DLC"),
+                Achievement("c", unlocked: true, points: 30, category: "base"),
                 Achievement("d", unlocked: false, points: null, category: null),
                 Achievement("e", unlocked: false, points: null, category: "Default"),
                 null
@@ -45,21 +39,26 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(5, breakdown.Stats.TotalAchievements);
             Assert.AreEqual(60, breakdown.TotalPoints);
             Assert.AreEqual(40, breakdown.UnlockedPoints);
-            Assert.AreEqual(1, breakdown.HiddenCount);
-            Assert.AreEqual(late, breakdown.LastUnlockUtc);
             Assert.AreEqual(3, breakdown.CategorizedCount);
         }
 
         [TestMethod]
-        public void BuildBreakdown_TrophyTypes_SetHasTrophies()
+        public void BuildCapstones_PairsNamesWithNonDefaultCategories()
         {
-            var breakdown = ManageOverviewSummaryBuilder.BuildBreakdown(new[]
-            {
-                Achievement("a", unlocked: true, points: null, category: null, trophy: "gold")
-            });
+            var game = Achievement("a", unlocked: true, points: null, category: null);
+            game.IsCapstone = true;
+            game.DisplayName = "All Done";
+            var dlc = Achievement("b", unlocked: false, points: null, category: "DLC");
+            dlc.IsCapstone = true;
+            var notCapstone = Achievement("c", unlocked: false, points: null, category: "DLC");
 
-            Assert.IsTrue(breakdown.HasTrophies);
-            Assert.AreEqual(1, breakdown.Stats.TrophyGoldTotal);
+            var capstones = ManageOverviewSummaryBuilder.BuildCapstones(new[] { game, dlc, notCapstone });
+
+            Assert.AreEqual(2, capstones.Count);
+            Assert.IsNull(capstones[0].Item1);
+            Assert.AreEqual("All Done", capstones[0].Item2);
+            Assert.AreEqual("DLC", capstones[1].Item1);
+            Assert.AreEqual("b", capstones[1].Item2);
         }
 
         [TestMethod]
@@ -155,20 +154,14 @@ namespace PlayniteAchievements.Tests.Services
             string apiName,
             bool unlocked,
             int? points,
-            string category,
-            bool hidden = false,
-            DateTime? unlockTimeUtc = null,
-            string trophy = null)
+            string category)
         {
             return new AchievementDetail
             {
                 ApiName = apiName,
                 Unlocked = unlocked,
                 Points = points,
-                Category = category,
-                Hidden = hidden,
-                UnlockTimeUtc = unlockTimeUtc,
-                TrophyType = trophy
+                Category = category
             };
         }
     }
