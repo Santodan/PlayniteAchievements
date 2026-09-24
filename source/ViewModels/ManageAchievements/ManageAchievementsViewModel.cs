@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 // WinForms dialogs: the WPF Microsoft.Win32 pickers render legacy-style on .NET Framework.
 using DialogResult = System.Windows.Forms.DialogResult;
 using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
@@ -1442,13 +1443,72 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _plugin?.ThemeUpdateService?.RequestUpdate(_gameId, forceRefresh: true);
             }
 
-            Reload();
+            // Deferred, not skipped, and deliberately before the revision bump. The bump below
+            // fires HandleCustomDataRevisionChanged synchronously in this same call stack, and
+            // that rehydrates the snapshot for the visible tab -- so by the time this reload
+            // runs it reads a warm snapshot instead of forcing a second cold load on the UI
+            // thread. Measured at 369ms of UI-thread SQLite per edit before deferring.
+            //
+            // Deferring rather than suppressing on the editor's self-write marker: a self-write
+            // can still move the shell's totals, and ConsumeEditorSelfWrite clears the flag on
+            // read, so the marker cannot be consulted twice.
+            ScheduleShellReload();
             CustomDataRevision = unchecked(CustomDataRevision + 1);
 
             if (requiresRefresh)
             {
                 TriggerRefresh(forceIconRefresh);
             }
+        }
+
+        // Trailing-edge coalescer for the shell reload. A burst of edits -- the editor persists
+        // on every completed field -- collapses into one reload.
+        private static readonly TimeSpan ShellReloadDebounce = TimeSpan.FromMilliseconds(150);
+        private DispatcherTimer _shellReloadTimer;
+
+        internal void ScheduleShellReload()
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null || !dispatcher.CheckAccess())
+            {
+                // No dispatcher to defer onto (tests, or an off-thread caller): keep the old
+                // synchronous behaviour rather than silently dropping the reload.
+                Reload();
+                return;
+            }
+
+            if (_shellReloadTimer == null)
+            {
+                _shellReloadTimer = new DispatcherTimer(DispatcherPriority.Background, dispatcher)
+                {
+                    Interval = ShellReloadDebounce
+                };
+                _shellReloadTimer.Tick += ShellReloadTimer_Tick;
+            }
+
+            _shellReloadTimer.Stop();
+            _shellReloadTimer.Start();
+        }
+
+        private void ShellReloadTimer_Tick(object sender, EventArgs e)
+        {
+            _shellReloadTimer?.Stop();
+            Reload();
+        }
+
+        /// <summary>
+        /// Runs any pending shell reload now. Called when the window is closing, so a deferred
+        /// reload is never simply dropped.
+        /// </summary>
+        internal void FlushPendingShellReload()
+        {
+            if (_shellReloadTimer?.IsEnabled != true)
+            {
+                return;
+            }
+
+            _shellReloadTimer.Stop();
+            Reload();
         }
 
         internal void NotifyIconOverridesChanged(IReadOnlyCollection<string> changedApiNames)

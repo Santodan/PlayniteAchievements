@@ -186,6 +186,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
             CleanupCategory();
             CleanupNotifications();
 
+            // A deferred shell reload must not be dropped on the way out: it is what leaves the
+            // view model's own state consistent with the last edit.
+            _viewModel?.FlushPendingShellReload();
+
             // Releases the hold taken on Loaded, which issues the single library rebuild standing
             // in for every edit made in here.
             if (_librarySuspensionHeld)
@@ -1003,7 +1007,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             using (PlayniteAchievements.Common.PerfScope.Start(_logger, "Manage.HandleStateChanged.ShellReload", thresholdMs: 10))
             {
-                _viewModel.Reload();
+                // Coalesced and deferred: EnsureSelectedTabContent below rehydrates the snapshot
+                // for the visible tab, so letting the shell reload land after it reads a warm
+                // snapshot instead of forcing its own cold load on the UI thread.
+                _viewModel.ScheduleShellReload();
             }
 
             // Not for the editor's own write: it already shows the change, and reloading
