@@ -62,6 +62,35 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void TheMultiValueWriter_ClonesTheOverrideMapOnceForTheBatch()
+        {
+            var body = Between(
+                ReadOverridesService(),
+                "public void SetAchievementFieldOverrides(",
+                "private static void ApplyFieldToEntry(");
+
+            // The outer half of the quadratic was one store write per row, fixed by the single
+            // Update above. This is the inner half: MutateOverrides deep-copies the game's whole
+            // override map and re-stores it on every call, so driving it per write inside that
+            // one Update still cost N copies of an N-entry map. Undoing a bulk edit across 641
+            // achievements came to roughly 400,000 entry clones for one gesture.
+            Assert.IsFalse(
+                body.Contains("MutateOverrides("),
+                "The batch must not drive MutateOverrides per write: it clones and re-stores the " +
+                "entire override map each call, which is quadratic across a bulk gesture.");
+
+            Assert.AreEqual(
+                1,
+                CountOccurrences(body, "CloneOverrides(customData)"),
+                "One clone of the override map for the whole batch.");
+
+            Assert.AreEqual(
+                1,
+                CountOccurrences(body, "StoreOverrides(customData, overrides)"),
+                "One store-back for the whole batch.");
+        }
+
+        [TestMethod]
         public void TheMultiValueWriter_KeepsLastWriteWinsPerAchievementAndField()
         {
             var body = Between(
