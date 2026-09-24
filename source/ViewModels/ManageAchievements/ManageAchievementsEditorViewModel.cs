@@ -3820,17 +3820,31 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // Safe because the rows are detached above and reattached after, so no setter can
             // reach the persistence hook, and because CopyStateFrom copies backing fields rather
             // than driving the public setters.
-            if (TryCopyRowsInPlace(materializedRows))
+            // Only the rows that actually changed, and only while there are few enough of them.
+            // Telling a bound row that every property changed makes WPF re-evaluate it, and that
+            // work lands on later dispatcher passes rather than inside the loop -- so notifying
+            // every row looked cheap here while stalling the UI afterwards. Measured on a
+            // 641-row game: one Reset stalls ~440ms, while notifying all 641 rows stalls
+            // 670-870ms. Below the threshold the per-row path wins by a wide margin, because a
+            // normal edit changes one row.
+            var changedRows = TryCopyRowsInPlace(materializedRows)
+                ? FindChangedRows(materializedRows)
+                : null;
+
+            if (changedRows != null && changedRows.Count <= InPlaceNotifyThreshold)
             {
-                using (Common.PerfScope.Start(
+                using (var copyScope = Common.PerfScope.Start(
                     _logger,
                     "Editor.ReplaceRows.CopyInPlace",
-                    thresholdMs: 5,
-                    context: "rows=" + materializedRows.Count))
+                    thresholdMs: 5))
                 {
-                    for (var i = 0; i < materializedRows.Count; i++)
+                    copyScope?.SetContext(
+                        "rows=" + materializedRows.Count + " changed=" + changedRows.Count);
+
+                    for (var i = 0; i < changedRows.Count; i++)
                     {
-                        AchievementRows[i].CopyStateFrom(materializedRows[i]);
+                        var index = changedRows[i];
+                        AchievementRows[index].CopyStateFrom(materializedRows[index]);
                     }
                 }
             }
@@ -4859,6 +4873,49 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             return displaced;
+        }
+
+        /// <summary>
+        /// How many rows may be refreshed individually before one collection Reset is cheaper.
+        /// </summary>
+        /// <remarks>
+        /// Raising "every property changed" on a bound row makes WPF re-evaluate it, and that
+        /// work runs on later dispatcher passes -- so it does not show up in the loop that
+        /// triggers it, which is how notifying every row came to look cheap while stalling the
+        /// UI for the better part of a second afterwards.
+        ///
+        /// Measured on a 641-row game with the stall watchdog: one Reset stalls ~440ms including
+        /// the re-realization it forces, while notifying all 641 rows stalls 670-870ms. That puts
+        /// the crossover near 200 rows. Set at that, rather than lower, because the per-row path
+        /// is the one that keeps scroll position and selection intact.
+        /// </remarks>
+        private const int InPlaceNotifyThreshold = 200;
+
+        /// <summary>
+        /// The positions whose row state actually differs. A reset or an undo rewrites the whole
+        /// record, but most rows in it usually come back identical, and an identical row needs
+        /// neither the copy nor the notification.
+        /// </summary>
+        private List<int> FindChangedRows(List<AchievementEditorRow> incoming)
+        {
+            var changed = new List<int>();
+            using (var scope = Common.PerfScope.Start(
+                _logger,
+                "Editor.ReplaceRows.DiffRows",
+                thresholdMs: 10))
+            {
+                for (var i = 0; i < incoming.Count; i++)
+                {
+                    if (!Common.ObservableStateCopier.StateEquals(AchievementRows[i], incoming[i]))
+                    {
+                        changed.Add(i);
+                    }
+                }
+
+                scope?.SetContext("rows=" + incoming.Count + " changed=" + changed.Count);
+            }
+
+            return changed;
         }
 
         /// <summary>

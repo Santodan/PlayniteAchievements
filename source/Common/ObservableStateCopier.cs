@@ -72,6 +72,40 @@ namespace PlayniteAchievements.Common
         }
 
         /// <summary>
+        /// Whether the two already hold identical state, so a caller can skip both the copy and
+        /// the notification that would follow it.
+        /// </summary>
+        /// <remarks>
+        /// Worth checking because the notification is the expensive part, not the copy. Telling
+        /// a bound object that every property changed makes the view re-evaluate it, and doing
+        /// that for hundreds of objects that did not change costs far more than comparing them.
+        /// </remarks>
+        public static bool StateEquals<T>(T left, T right)
+            where T : class
+        {
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            if (left == null || right == null || left.GetType() != right.GetType())
+            {
+                return false;
+            }
+
+            var fields = GetStateFields(left.GetType());
+            for (var i = 0; i < fields.Length; i++)
+            {
+                if (!Equals(fields[i].GetValue(left), fields[i].GetValue(right)))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Makes <paramref name="target"/> hold the same state as <paramref name="source"/>.
         /// Raises nothing; the caller decides how to notify, because only it knows whether the
         /// object is bound to anything.
