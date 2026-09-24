@@ -485,18 +485,38 @@ namespace PlayniteAchievements.Services.GameCustomData
         {
             selection = null;
             imageOverrides = null;
-            if (gameId == Guid.Empty || !TryLoad(gameId, out var customData, store))
+            var resolvedStore = ResolveStore(store);
+            if (gameId == Guid.Empty || resolvedStore == null)
             {
                 return false;
             }
 
-            selection = GameCustomDataNormalizer.NormalizeGameSummaryCategory(customData?.GameSummaryCategory);
-            if (selection == null)
+            // Read off the cached record rather than a deep clone of it. The whole-library
+            // overview build resolves summary art once per game, and going through TryLoad
+            // deep-copied every customized game's overrides, notes and icon maps to reach two
+            // fields. Both values handed back are freshly built, so nothing escapes into the
+            // cache: the normalizer returns a new instance, and the image map is copied.
+            var result = resolvedStore.QueryGame(
+                gameId,
+                customData =>
+                {
+                    var normalized = GameCustomDataNormalizer.NormalizeGameSummaryCategory(
+                        customData?.GameSummaryCategory);
+                    return normalized == null
+                        ? null
+                        : Tuple.Create(
+                            normalized,
+                            GameCustomDataFile.CloneCategoryImageOverrideMap(
+                                customData?.AchievementCategoryImageOverrides));
+                });
+
+            if (result == null)
             {
                 return false;
             }
 
-            imageOverrides = customData?.AchievementCategoryImageOverrides;
+            selection = result.Item1;
+            imageOverrides = result.Item2;
             return true;
         }
 

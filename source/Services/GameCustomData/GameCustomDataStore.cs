@@ -651,6 +651,59 @@ namespace PlayniteAchievements.Services.GameCustomData
         /// mutate them. The cache lock is held throughout, so <paramref name="query"/> must not
         /// call back into the store.
         /// </remarks>
+        /// <summary>
+        /// Reads a projection of one game's record without copying it. Returns
+        /// <paramref name="missing"/> when the game has no stored custom data.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="TryLoad"/> hands back a deep clone, which is right for a caller that keeps
+        /// the record but wrong for one that reads a field or two off it. The whole-library
+        /// overview build did the latter once per game, so it deep-copied every customized
+        /// game's overrides, notes, category maps and icon maps to resolve summary art.
+        ///
+        /// What <paramref name="query"/> receives is the live cached instance, valid only for
+        /// the duration of the call: read it, do not store it, do not mutate it, and return a
+        /// copy of anything that outlives the call. The cache lock is held throughout, so
+        /// <paramref name="query"/> must not call back into the store.
+        /// </remarks>
+        public TResult QueryGame<TResult>(
+            Guid playniteGameId,
+            Func<GameCustomDataFile, TResult> query,
+            TResult missing = default(TResult))
+        {
+            if (query == null)
+            {
+                throw new ArgumentNullException(nameof(query));
+            }
+
+            if (playniteGameId == Guid.Empty)
+            {
+                return missing;
+            }
+
+            lock (_cacheSync)
+            {
+                if (_cacheByGameId != null)
+                {
+                    if (_cacheByGameId.TryGetValue(playniteGameId, out var cached))
+                    {
+                        return cached != null ? query(cached) : missing;
+                    }
+
+                    if (_missingGameIds != null && _missingGameIds.Contains(playniteGameId))
+                    {
+                        return missing;
+                    }
+                }
+            }
+
+            // Not cached yet: fall back to the cloning load, which also populates the cache, so
+            // the next read of this game takes the path above.
+            return TryLoad(playniteGameId, out var loaded) && loaded != null
+                ? query(loaded)
+                : missing;
+        }
+
         public TResult QueryAll<TResult>(Func<IEnumerable<GameCustomDataFile>, TResult> query)
         {
             if (query == null)
