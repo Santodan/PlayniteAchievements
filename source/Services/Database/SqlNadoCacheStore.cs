@@ -5137,7 +5137,11 @@ namespace PlayniteAchievements.Services.Database
                     var gameConditions = new List<string>();
                     if (!string.IsNullOrWhiteSpace(scope.ProviderGameKey))
                     {
-                        gameConditions.Add("LOWER(g.ProviderGameKey) = LOWER(?)");
+                        // No LOWER(): Games.ProviderGameKey is declared COLLATE NOCASE, so a
+                        // plain comparison is already case-insensitive -- and wrapping the
+                        // column in a function stops IX_Games_Provider_GameKey being used,
+                        // turning a scoped friend patch load into a full scan of Games.
+                        gameConditions.Add("g.ProviderGameKey = ?");
                     }
 
                     if (scope.AppId > 0)
@@ -5152,11 +5156,12 @@ namespace PlayniteAchievements.Services.Database
                         continue;
                     }
 
-                    var conditions = new List<string> { "LOWER(g.ProviderKey) = LOWER(?)" };
+                    // Both columns are COLLATE NOCASE; see the note above on LOWER and indexes.
+                    var conditions = new List<string> { "g.ProviderKey = ?" };
                     args.Add(scope.ProviderKey ?? string.Empty);
                     if (!string.IsNullOrWhiteSpace(scope.ExternalUserId))
                     {
-                        conditions.Add("LOWER(u.ExternalUserId) = LOWER(?)");
+                        conditions.Add("u.ExternalUserId = ?");
                         args.Add(scope.ExternalUserId);
                     }
 
