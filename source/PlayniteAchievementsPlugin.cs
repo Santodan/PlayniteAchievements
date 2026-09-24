@@ -2109,8 +2109,87 @@ namespace PlayniteAchievements
             // store's read connection for hundreds of milliseconds, behind which UI-thread reads
             // queue. The cache is still dropped either way, so an on-demand consumer never sees
             // stale values; only the precompute waits.
+            //
+            // But most of these updates move nothing the projection reads. Tag sync writes the
+            // Playnite database once per edited game, Playnite raises this back at us for that
+            // write, and the projection was then discarded for a change to Tags -- a field it
+            // does not project. So every custom-data edit threw away a whole-library projection
+            // a second time, on top of the one its own store event caused, and that projection
+            // was measured at ~1.5s to rebuild for 500 games.
+            if (!UpdateAffectsProjection(e))
+            {
+                return;
+            }
+
             _libraryProjectionService?.InvalidateForGame();
             ScheduleStartPageInvalidate();
+        }
+
+        /// <summary>
+        /// Whether a Playnite game update moved any field the overview/start-page projection
+        /// reads. An update carrying no before/after pair is treated as affecting it, so an
+        /// unknown shape still invalidates rather than going stale.
+        /// </summary>
+        private static bool UpdateAffectsProjection(ItemUpdatedEventArgs<Game> e)
+        {
+            var updates = e?.UpdatedItems;
+            if (updates == null || updates.Count == 0)
+            {
+                return true;
+            }
+
+            foreach (var update in updates)
+            {
+                var before = update?.OldData;
+                var after = update?.NewData;
+                if (before == null || after == null)
+                {
+                    return true;
+                }
+
+                // The fields GamePresentation projects, plus the ones the summary rows sort and
+                // group by. Tags, categories, descriptions and the rest are deliberately absent.
+                if (!string.Equals(before.Name, after.Name, StringComparison.Ordinal) ||
+                    !string.Equals(before.SortingName, after.SortingName, StringComparison.Ordinal) ||
+                    !string.Equals(before.Icon, after.Icon, StringComparison.Ordinal) ||
+                    !string.Equals(before.CoverImage, after.CoverImage, StringComparison.Ordinal) ||
+                    before.Favorite != after.Favorite ||
+                    before.Hidden != after.Hidden ||
+                    before.Playtime != after.Playtime ||
+                    before.LastActivity != after.LastActivity ||
+                    !NullableGuidListsMatch(before.PlatformIds, after.PlatformIds) ||
+                    !NullableGuidListsMatch(before.RegionIds, after.RegionIds))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool NullableGuidListsMatch(List<Guid> left, List<Guid> right)
+        {
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            var leftCount = left?.Count ?? 0;
+            var rightCount = right?.Count ?? 0;
+            if (leftCount != rightCount)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < leftCount; i++)
+            {
+                if (left[i] != right[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private Task TriggerNewGamesRefreshAsync(List<Guid> gameIds)
