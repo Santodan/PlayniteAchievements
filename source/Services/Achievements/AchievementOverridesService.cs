@@ -878,7 +878,95 @@ namespace PlayniteAchievements.Services.Achievements
 
             _gameCustomDataStore.Update(
                 gameId,
-                customData => MutateOverrides(customData, targets, entry =>
+                customData => MutateOverrides(customData, targets, entry => ApplyFieldToEntry(entry, field, value)),
+                affectsSummaryData,
+                affectsOverrideMirror);
+        }
+
+        /// <summary>
+        /// Writes a different value per achievement in one store update.
+        /// </summary>
+        /// <remarks>
+        /// The single-value overload above collapses N achievements into one update only when
+        /// they all take the *same* value. Undo and redo are the case where they do not: setting
+        /// one name across a selection is one value, but restoring the previous state gives every
+        /// achievement back its own. Grouping by value therefore degraded to one update per row,
+        /// and each update is a load, a deep clone, three normalizations, a serialize, a SQLite
+        /// write and a change cascade. Undoing a rename across 641 rows was measured as 215
+        /// store writes over 42 seconds, with a 5.8s UI freeze inside it.
+        /// </remarks>
+        public void SetAchievementFieldOverrides(
+            Guid gameId,
+            IReadOnlyList<(string ApiName, AchievementEditableField Field, object Value)> writes)
+        {
+            if (gameId == Guid.Empty || writes == null || writes.Count == 0)
+            {
+                return;
+            }
+
+            // Last write wins per achievement and field, matching what a sequence of individual
+            // calls would have left behind.
+            var resolved = new List<(string ApiName, AchievementEditableField Field, object Value)>();
+            var seen = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var write in writes)
+            {
+                var normalized = AchievementNoteHelper.NormalizeApiName(write.ApiName);
+                if (string.IsNullOrWhiteSpace(normalized))
+                {
+                    continue;
+                }
+
+                var key = normalized + "\u0000" + write.Field;
+                if (seen.TryGetValue(key, out var existing))
+                {
+                    resolved[existing] = (normalized, write.Field, write.Value);
+                    continue;
+                }
+
+                seen[key] = resolved.Count;
+                resolved.Add((normalized, write.Field, write.Value));
+            }
+
+            if (resolved.Count == 0)
+            {
+                return;
+            }
+
+            // The flags are the union over the fields written, for the reasons the single-value
+            // overload documents: a mirrored field anywhere in the batch means the batch moves
+            // the mirror.
+            var affectsSummary = false;
+            var affectsMirror = false;
+            foreach (var write in resolved)
+            {
+                affectsSummary |= write.Field != AchievementEditableField.UnlockTimeUtc;
+                affectsMirror |=
+                    write.Field == AchievementEditableField.Points ||
+                    write.Field == AchievementEditableField.TrophyType;
+            }
+
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    foreach (var write in resolved)
+                    {
+                        MutateOverrides(
+                            customData,
+                            new[] { write.ApiName },
+                            entry => ApplyFieldToEntry(entry, write.Field, write.Value));
+                    }
+                },
+                affectsSummary,
+                affectsMirror);
+        }
+
+        private static void ApplyFieldToEntry(
+            AchievementOverride entry,
+            AchievementEditableField field,
+            object value)
+        {
+            {
                 {
                     switch (field)
                     {
@@ -909,9 +997,8 @@ namespace PlayniteAchievements.Services.Achievements
                             entry.Hidden = value as bool?;
                             break;
                     }
-                }),
-                affectsSummaryData,
-                affectsOverrideMirror);
+                }
+            }
         }
 
         /// <summary>
