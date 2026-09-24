@@ -448,6 +448,37 @@
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
 
+    <!-- The count half of a customization chip on the Overview. -->
+    <Style x:Key="ChipCountTextStyle" TargetType="TextBlock" BasedOn="{StaticResource ChipTextStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+        <Setter Property="Opacity" Value="1"/>
+        <Setter Property="Margin" Value="6,0,0,0"/>
+    </Style>
+
+    <!-- Value-over-label tiles for the Overview's breakdowns. -->
+    <Style x:Key="OverviewStatTileStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Chrome.Background}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.ControlBorder}"/>
+        <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
+        <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Card}"/>
+        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="Margin" Value="0,0,8,8"/>
+        <Setter Property="MinWidth" Value="104"/>
+    </Style>
+
+    <Style x:Key="OverviewStatValueStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.SectionHeader}"/>
+    </Style>
+
+    <Style x:Key="OverviewStatLabelStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Subtle}"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+
     <Style x:Key="InlineLinkButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
