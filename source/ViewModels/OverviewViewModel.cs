@@ -2043,10 +2043,7 @@ namespace PlayniteAchievements.ViewModels
                     return true;
                 }
 
-                _filteredGlobalAchievementCount = Math.Max(
-                    0,
-                    _filteredGlobalAchievementCount - CountFilteredRowsForGame(_allAchievements, gameId));
-                RemoveGameRows(_allAchievements, gameId, _globalAchievementSearchIndex);
+                RemoveGameAchievementRows(gameId);
                 RemoveGameRows(_allGameSummaries, gameId, _gameSummarySearchIndex);
                 RemoveGameRows(_allRecentAchievements, gameId, _recentAchievementSearchIndex);
                 _selectedGamePipeline.Invalidate(gameId);
@@ -2075,13 +2072,7 @@ namespace PlayniteAchievements.ViewModels
                 "Row.discardedGameSummary",
                 _allGameSummaries.Where(g => g?.PlayniteGameId == gameId));
 
-            // Before the rows go: the outgoing contribution has to be measured against the list
-            // that still holds them.
-            _filteredGlobalAchievementCount = Math.Max(
-                0,
-                _filteredGlobalAchievementCount - CountFilteredRowsForGame(_allAchievements, gameId));
-
-            RemoveGameRows(_allAchievements, gameId, _globalAchievementSearchIndex);
+            RemoveGameAchievementRows(gameId);
             RemoveGameRows(_allGameSummaries, gameId, _gameSummarySearchIndex);
             RemoveGameRows(_allRecentAchievements, gameId, _recentAchievementSearchIndex);
             _selectedGamePipeline.Invalidate(gameId);
@@ -3336,26 +3327,24 @@ namespace PlayniteAchievements.ViewModels
         // that is no longer in the list. Replacement rows are not indexed here: the index fills
         // lazily on first lookup, which is what makes a per-delta whole-library rebuild
         // unnecessary.
+        // One pass, not two: RemoveAll calls its predicate exactly once per element, so the
+        // index entry can be dropped there rather than in a separate walk beforehand. A delta
+        // does this for three library lists per changed game.
         private static void RemoveGameRows(
             List<AchievementDisplayItem> rows,
             Guid gameId,
             SearchTextIndex<AchievementDisplayItem> index)
         {
-            if (rows == null)
+            rows?.RemoveAll(row =>
             {
-                return;
-            }
-
-            for (var i = 0; i < rows.Count; i++)
-            {
-                var row = rows[i];
-                if (row?.PlayniteGameId == gameId)
+                if (row?.PlayniteGameId != gameId)
                 {
-                    index?.Invalidate(row);
+                    return false;
                 }
-            }
 
-            rows.RemoveAll(row => row?.PlayniteGameId == gameId);
+                index?.Invalidate(row);
+                return true;
+            });
         }
 
         private static void RemoveGameRows(
@@ -3363,21 +3352,16 @@ namespace PlayniteAchievements.ViewModels
             Guid gameId,
             SearchTextIndex<GameSummaryItem> index)
         {
-            if (rows == null)
+            rows?.RemoveAll(row =>
             {
-                return;
-            }
-
-            for (var i = 0; i < rows.Count; i++)
-            {
-                var row = rows[i];
-                if (row?.PlayniteGameId == gameId)
+                if (row?.PlayniteGameId != gameId)
                 {
-                    index?.Invalidate(row);
+                    return false;
                 }
-            }
 
-            rows.RemoveAll(row => row?.PlayniteGameId == gameId);
+                index?.Invalidate(row);
+                return true;
+            });
         }
 
         private async void OnRefreshDebounceTimerTick(object sender, EventArgs e)
@@ -3436,29 +3420,37 @@ namespace PlayniteAchievements.ViewModels
         private int _filteredGlobalAchievementCount;
 
         /// <summary>
-        /// How many of a game's rows in <paramref name="source"/> pass the current global filter.
-        /// The game-id test is the same cheap scan <see cref="RemoveGameRows"/> already makes; the
-        /// filter predicate runs only on that game's rows.
+        /// Drops a game's achievement rows and their search-index entries, and subtracts what
+        /// they contributed to <see cref="_filteredGlobalAchievementCount"/> — all in the single
+        /// pass <see cref="RemoveGameRows"/> was already making. The filter predicate runs only
+        /// on that game's rows.
         /// </summary>
-        private int CountFilteredRowsForGame(List<AchievementDisplayItem> source, Guid gameId)
+        private void RemoveGameAchievementRows(Guid gameId)
         {
-            if (source == null || source.Count == 0)
+            if (_allAchievements == null || _allAchievements.Count == 0)
             {
-                return 0;
+                return;
             }
 
             var searchQuery = SearchQuery.From(SearchText);
-            var count = 0;
-            for (var i = 0; i < source.Count; i++)
+            var removedFiltered = 0;
+            _allAchievements.RemoveAll(row =>
             {
-                var row = source[i];
-                if (row?.PlayniteGameId == gameId && FilterAchievement(row, searchQuery))
+                if (row?.PlayniteGameId != gameId)
                 {
-                    count++;
+                    return false;
                 }
-            }
 
-            return count;
+                if (FilterAchievement(row, searchQuery))
+                {
+                    removedFiltered++;
+                }
+
+                _globalAchievementSearchIndex?.Invalidate(row);
+                return true;
+            });
+
+            _filteredGlobalAchievementCount = Math.Max(0, _filteredGlobalAchievementCount - removedFiltered);
         }
 
         private int CountFilteredRows(IReadOnlyList<AchievementDisplayItem> rows)
