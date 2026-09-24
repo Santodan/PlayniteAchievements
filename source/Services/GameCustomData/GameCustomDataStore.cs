@@ -544,7 +544,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                 GameCustomDataFile persisted;
                 using (PerfScope.Start(_logger, "GameCustomData.Save.Repository", thresholdMs: 10))
                 {
-                    persisted = _repository.Save(playniteGameId, normalized);
+                    // Normalized immediately above and untouched since, so the repository does
+                    // not repeat it.
+                    persisted = _repository.Save(playniteGameId, normalized, alreadyNormalized: true);
                 }
 
                 SetCachedEntry(playniteGameId, persisted);

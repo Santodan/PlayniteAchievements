@@ -140,14 +140,25 @@ namespace PlayniteAchievements.Services.GameCustomData
         /// so the caller can seed its cache without reading the row back. Returns null when the
         /// data normalized to nothing and the row was deleted instead.
         /// </summary>
-        public GameCustomDataFile Save(Guid playniteGameId, GameCustomDataFile data)
+        /// <param name="alreadyNormalized">
+        /// True when the caller has just normalized <paramref name="data"/> and nothing has
+        /// touched it since. The only caller, <c>GameCustomDataStore.Save</c>, does exactly
+        /// that, and normalizing again rebuilds every nested collection in the record a second
+        /// time for an identical result - which scales with how customized the game is.
+        /// </param>
+        public GameCustomDataFile Save(
+            Guid playniteGameId,
+            GameCustomDataFile data,
+            bool alreadyNormalized = false)
         {
             if (playniteGameId == Guid.Empty)
             {
                 throw new ArgumentException("Game ID is required.", nameof(playniteGameId));
             }
 
-            var normalized = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
+            var normalized = alreadyNormalized && data != null
+                ? data
+                : GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
             if (!GameCustomDataNormalizer.HasInternalData(normalized))
             {
                 Delete(playniteGameId);
