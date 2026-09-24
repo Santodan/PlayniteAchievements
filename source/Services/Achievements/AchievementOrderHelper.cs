@@ -117,14 +117,17 @@ namespace PlayniteAchievements.Services.Achievements
             Func<T, string> apiNameSelector,
             IReadOnlyList<string> orderedApiNames)
         {
-            var items = source?.ToList() ?? new List<T>();
-            if (items.Count == 0 || apiNameSelector == null)
+            // The order list is checked before the source is copied. Most games store no custom
+            // order, and copying first meant a full list allocation per game across a
+            // whole-library hydration just to hand the same sequence back.
+            var normalizedOrder = NormalizeApiNames(orderedApiNames);
+            if (normalizedOrder.Count == 0 || apiNameSelector == null)
             {
-                return items;
+                return source as List<T> ?? source?.ToList() ?? new List<T>();
             }
 
-            var normalizedOrder = NormalizeApiNames(orderedApiNames);
-            if (normalizedOrder.Count == 0)
+            var items = source?.ToList() ?? new List<T>();
+            if (items.Count == 0)
             {
                 return items;
             }

@@ -710,28 +710,42 @@ namespace PlayniteAchievements.Services.GameCustomData
                 : null;
         }
 
+        // Both read one map off the record rather than cloning the record to reach it. They are
+        // called back to back once per game during hydration -- immediately after the same
+        // record was already resolved -- so going through TryLoad meant two more deep copies of
+        // every override, note and capstone the game holds, per game.
         public static Dictionary<string, string> GetAchievementUnlockedIconOverrides(
             Guid gameId,
             GameCustomDataStore store = null)
         {
-            if (gameId == Guid.Empty || !TryLoad(gameId, out var customData, store))
-            {
-                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            }
-
-            return CloneStringMap(customData?.AchievementUnlockedIconOverrides);
+            return ReadIconOverrideMap(gameId, store, data => data.AchievementUnlockedIconOverrides);
         }
 
         public static Dictionary<string, string> GetAchievementLockedIconOverrides(
             Guid gameId,
             GameCustomDataStore store = null)
         {
-            if (gameId == Guid.Empty || !TryLoad(gameId, out var customData, store))
+            return ReadIconOverrideMap(gameId, store, data => data.AchievementLockedIconOverrides);
+        }
+
+        private static Dictionary<string, string> ReadIconOverrideMap(
+            Guid gameId,
+            GameCustomDataStore store,
+            Func<GameCustomDataFile, Dictionary<string, string>> select)
+        {
+            if (gameId != Guid.Empty)
             {
-                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var resolvedStore = ResolveStore(store);
+                var map = resolvedStore?.QueryGame(
+                    gameId,
+                    customData => customData == null ? null : CloneStringMap(select(customData)));
+                if (map != null)
+                {
+                    return map;
+                }
             }
 
-            return CloneStringMap(customData?.AchievementLockedIconOverrides);
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
         public static bool TryGetManualLink(
