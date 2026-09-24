@@ -193,13 +193,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             Loaded -= ManageAchievementsControl_Loaded;
 
-            // A window closing inside the prebuild delay must not then build the tabs it was
-            // about to warm.
-            if (_idleTabPrebuildTimer != null)
-            {
-                _idleTabPrebuildTimer.Stop();
-                _idleTabPrebuildTimer = null;
-            }
 
             if (_viewModel != null)
             {
@@ -251,6 +244,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             if (e.PropertyName == nameof(ManageAchievementsViewModel.SelectedTab))
             {
+                // Marks the instant the tab actually changed. Without it a capture cannot tell
+                // how long the user took to click from how long the queued build then waited,
+                // and those need opposite fixes.
+                if (Common.PerfScope.PerfTracingEnabled)
+                {
+                    _logger?.Debug("[ManageTab] selected " + _viewModel?.SelectedTab + "; queueing build.");
+                }
+
                 QueueEnsureSelectedTabContent();
             }
             else if (e.PropertyName == nameof(ManageAchievementsViewModel.CustomDataRevision))
@@ -355,83 +356,19 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 }
             }
 
-            QueuePrebuildIdleTabs();
-        }
-
-        /// <summary>
-        /// Builds the tabs the user is not looking at, once the dispatcher has nothing else to
-        /// do, so the first click on one finds it already built.
-        /// </summary>
-        /// <remarks>
-        /// Each tab's control is created lazily on first selection and cached thereafter, which
-        /// makes the first click on a tab cost its whole construction - measured at ~150ms for
-        /// the editor and ~57ms for categories, before the first render of its visual tree. The
-        /// work has to happen either way; doing it while idle moves it off the click.
-        ///
-        /// ContextIdle, so it never competes with the selected tab's own build or with input.
-        /// It runs once per window: each Ensure* call returns immediately when its control
-        /// already exists.
-        /// </remarks>
-        private void QueuePrebuildIdleTabs()
-        {
-            if (_idleTabPrebuildQueued)
+            // The editor is where most people go straight from the default tab, so it is built
+            // with the window rather than on the click that reveals it. Combined with the
+            // Hidden hosts, that means it is also laid out during the open, so selecting it
+            // only flips visibility.
+            //
+            // This replaces a 1.5s idle prebuild timer, which was wrong twice over: it dumped
+            // 200-330ms of UI-thread work into a running session as a visible stutter, and it
+            // fired long after the click it was meant to cover.
+            if (_viewModel.SelectedTab != ManageAchievementsTab.Editor)
             {
-                return;
+                EnsureEditorControl(forceRecreate: false);
             }
-
-            _idleTabPrebuildQueued = true;
-
-            // On a timer rather than a dispatcher priority. ContextIdle still ran before the
-            // selected tab's grid had realized its rows, so 335ms of building tabs nobody was
-            // looking at landed in front of the editor's first render and delayed the thing the
-            // user is waiting for. There is no priority below the render work this has to
-            // follow, so it waits on the clock instead.
-            _idleTabPrebuildTimer = new DispatcherTimer(DispatcherPriority.ContextIdle)
-            {
-                Interval = TimeSpan.FromMilliseconds(IdleTabPrebuildDelayMs)
-            };
-            _idleTabPrebuildTimer.Tick += (_, __) =>
-            {
-                _idleTabPrebuildTimer?.Stop();
-                _idleTabPrebuildTimer = null;
-
-                if (_viewModel == null)
-                {
-                    return;
-                }
-
-                using (Common.PerfScope.Start(_logger, "Manage.PrebuildIdleTabs", thresholdMs: 25))
-                {
-                    try
-                    {
-                        EnsureOverviewControl();
-                        EnsureOverridesControl();
-                        EnsureEditorControl(forceRecreate: false);
-                        EnsureCategoryControl(forceRecreate: false);
-                        EnsureNotificationsControl(forceRecreate: false);
-                    }
-                    catch (Exception ex)
-                    {
-                        // A prebuild is an optimization; a tab that fails here is built again on
-                        // its own selection, which is where an error belongs.
-                        _logger?.Debug(ex, "Failed pre-building Manage Achievements tabs.");
-                    }
-                }
-            };
-
-            _idleTabPrebuildTimer.Start();
         }
-
-        private bool _idleTabPrebuildQueued;
-
-        /// <summary>
-        /// Long enough for the selected tab to have rendered. Measured: the editor's rows
-        /// realize about a second after the shell loads, so the prebuild waits past that rather
-        /// than competing with it.
-        /// </summary>
-        private const int IdleTabPrebuildDelayMs = 1500;
-
-        private DispatcherTimer _idleTabPrebuildTimer;
 
         public bool HandleFullscreenControllerInput(ControllerInput input)
         {
