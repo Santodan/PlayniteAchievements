@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
@@ -39,6 +40,46 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         FilterScope = 1 << 12,
         Goal = 1 << 13,
         Capstone = 1 << 14
+    }
+
+    /// <summary>
+    /// The localized name of each facet, in display order. Every label is an existing key: the
+    /// same words the editor's own fields carry, so the editor's customization tooltip and the
+    /// Overview's customization counts name a facet alike.
+    /// </summary>
+    public static class AchievementCustomizationFacetLabels
+    {
+        public static readonly IReadOnlyList<Tuple<AchievementCustomizationFacet, string>> Ordered =
+            new[]
+            {
+                Tuple.Create(AchievementCustomizationFacet.DisplayName, "LOCPlayAch_Column_AchievementName"),
+                Tuple.Create(AchievementCustomizationFacet.Description, "LOCPlayAch_Column_Description"),
+                Tuple.Create(AchievementCustomizationFacet.UnlockedIcon, "LOCPlayAch_ManageAchievements_Custom_UnlockedIcon"),
+                Tuple.Create(AchievementCustomizationFacet.LockedIcon, "LOCPlayAch_ManageAchievements_Custom_LockedIcon"),
+                Tuple.Create(AchievementCustomizationFacet.Points, "LOCPlayAch_Column_Points"),
+                Tuple.Create(AchievementCustomizationFacet.TrophyType, "LOCPlayAch_Column_Trophy"),
+                Tuple.Create(AchievementCustomizationFacet.UnlockTime, "LOCPlayAch_Common_UnlockTime"),
+                Tuple.Create(AchievementCustomizationFacet.Category, "LOCPlayAch_Common_Label_Category"),
+                Tuple.Create(AchievementCustomizationFacet.CategoryType, "LOCPlayAch_ManageAchievements_Category_TypeSelectorLabel"),
+                Tuple.Create(AchievementCustomizationFacet.Hidden, "LOCPlayAch_ManageAchievements_Custom_Hidden"),
+                Tuple.Create(AchievementCustomizationFacet.Note, "LOCPlayAch_ManageAchievements_Notes_Note"),
+                Tuple.Create(AchievementCustomizationFacet.FilterScope, "LOCPlayAch_Menu_Filters"),
+                Tuple.Create(AchievementCustomizationFacet.Goal, "LOCPlayAch_ManageAchievements_Editor_Goal"),
+                Tuple.Create(AchievementCustomizationFacet.Capstone, "LOCPlayAch_Dynamic_Capstone")
+            };
+
+        public static string GetLabelKey(AchievementCustomizationFacet facet)
+        {
+            foreach (var entry in Ordered)
+            {
+                if (entry.Item1 == facet)
+                {
+                    return entry.Item2;
+                }
+            }
+
+            return null;
+        }
     }
 
     /// <summary>
