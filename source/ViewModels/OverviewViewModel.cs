@@ -2992,16 +2992,23 @@ namespace PlayniteAchievements.ViewModels
         {
             System.Windows.Application.Current?.Dispatcher?.InvokeIfNeeded(() =>
             {
+                bool addedWork;
                 lock (_deltaSync)
                 {
                     if (isFullReset)
                     {
                         _pendingFullResetFromDelta = true;
                         _pendingDeltaKeys.Clear();
+                        addedWork = true;
                     }
                     else if (!string.IsNullOrWhiteSpace(key))
                     {
-                        _pendingDeltaKeys.Add(key.Trim());
+                        // Add reports whether this key was not already queued.
+                        addedWork = _pendingDeltaKeys.Add(key.Trim());
+                    }
+                    else
+                    {
+                        addedWork = false;
                     }
                 }
 
@@ -3011,9 +3018,26 @@ namespace PlayniteAchievements.ViewModels
                 // dozens of whole-library passes per run; widening the window while a run is
                 // active collapses those into a handful without changing the end state, since
                 // the run's final invalidation queues one last pass.
-                _deltaBatchTimer.Interval = _refreshService.IsRebuilding
+                var interval = _refreshService.IsRebuilding
                     ? BulkDeltaBatchInterval
                     : InteractiveDeltaBatchInterval;
+
+                // A repeat signal for a game already queued must not push the deadline out.
+                // One edit reaches here more than once -- the store's synchronous
+                // CustomDataChanged, then the editor's own scoped cache invalidation behind its
+                // 250ms debounce -- and restarting the timer each time turned a single edit into
+                // two whole-library ticks (measured at 363ms and 334ms on a 500-game library,
+                // for keys=1 both times). The tick rebuilds each key's fragment from the store
+                // when it runs, so a later signal naming the same game is already covered by the
+                // pass that is scheduled. Draining and queuing both happen on this thread, so a
+                // signal that arrives after a drain still opens a new window rather than being
+                // lost.
+                if (!addedWork && _deltaBatchTimer.IsEnabled && _deltaBatchTimer.Interval == interval)
+                {
+                    return;
+                }
+
+                _deltaBatchTimer.Interval = interval;
                 _deltaBatchTimer.Stop();
                 _deltaBatchTimer.Start();
             });
