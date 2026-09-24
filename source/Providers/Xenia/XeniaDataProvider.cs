@@ -55,15 +55,7 @@ namespace PlayniteAchievements.Providers.Xenia
 
         public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
 
-        public bool IsAuthenticated
-        {
-            get
-            {
-                var accountPath = GetAccountPath();
-                return !string.IsNullOrWhiteSpace(accountPath) &&
-                       File.Exists(Path.Combine(accountPath, "Account"));
-            }
-        }
+        public bool IsAuthenticated => XeniaAccountResolver.GetConfiguredAccountDirectories(ProviderSettings).Count > 0;
 
         public bool IsCapable(Game game)
         {
@@ -111,7 +103,7 @@ namespace PlayniteAchievements.Providers.Xenia
                 }
 
                 var emulator = _playniteApi?.Database?.Emulators?.Get(action.EmulatorId);
-                if (IsXeniaEmulator(emulator))
+                if (XeniaAccountResolver.IsXeniaEmulator(emulator))
                 {
                     return true;
                 }
@@ -156,11 +148,16 @@ namespace PlayniteAchievements.Providers.Xenia
             }
 
             titleId = XeniaTitleIdHelper.Normalize(titleId);
-            var accountPath = GetAccountPath();
-            var progressPath = string.IsNullOrWhiteSpace(accountPath) || string.IsNullOrWhiteSpace(titleId)
-                ? null
-                : Path.Combine(accountPath, titleId + ".gpd");
-            if (string.IsNullOrWhiteSpace(progressPath) || !Directory.Exists(accountPath))
+            if (string.IsNullOrWhiteSpace(titleId))
+            {
+                return null;
+            }
+
+            // Every build's copy is watched, including ones the game has not written yet.
+            var progressPaths = XeniaAccountResolver.ResolveAccountDirectories(game, ProviderSettings, _playniteApi)
+                .Select(accountDirectory => Path.Combine(accountDirectory, titleId + ".gpd"))
+                .ToArray();
+            if (progressPaths.Length == 0)
             {
                 return null;
             }
@@ -168,9 +165,9 @@ namespace PlayniteAchievements.Providers.Xenia
             return new InGameProgressRegistration
             {
                 ProviderKey = ProviderKey,
-                WatchTargets = new[] { progressPath },
+                WatchTargets = progressPaths,
                 PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
-                State = progressPath
+                State = progressPaths
             };
         }
 
@@ -183,8 +180,7 @@ namespace PlayniteAchievements.Providers.Xenia
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var gameId = context?.Game?.Id ?? Guid.Empty;
-                var path = context?.Registration?.State as string;
-                if (!GPDResolver.TryLoadAchievementProgress(path, out var progress))
+                if (!TryLoadMergedProgress(context?.Registration?.State as string[], out var progress))
                 {
                     results.Add(InGameProgressQueryResult.Failed(gameId, "file_unstable"));
                     continue;
@@ -207,6 +203,38 @@ namespace PlayniteAchievements.Providers.Xenia
             return Task.FromResult<IReadOnlyList<InGameProgressQueryResult>>(results);
         }
 
+        /// <summary>
+        /// Reads every existing copy and merges them. A copy that exists but cannot be read fails
+        /// the whole query, so a mid-write file never hides unlocks another copy lacks.
+        /// </summary>
+        private static bool TryLoadMergedProgress(string[] paths, out List<XeniaAchievementProgress> progress)
+        {
+            progress = null;
+            var copies = new List<List<XeniaAchievementProgress>>();
+            foreach (var path in paths ?? Array.Empty<string>())
+            {
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
+                if (!GPDResolver.TryLoadAchievementProgress(path, out var copy))
+                {
+                    return false;
+                }
+
+                copies.Add(copy);
+            }
+
+            if (copies.Count == 0)
+            {
+                return false;
+            }
+
+            progress = XeniaAccountResolver.MergeProgress(copies);
+            return true;
+        }
+
         private static DateTime? SafeFileTime(ulong fileTime)
         {
             try
@@ -219,27 +247,6 @@ namespace PlayniteAchievements.Providers.Xenia
             {
                 return null;
             }
-        }
-
-        private string GetAccountPath()
-        {
-            return (ProviderSettings?.AccountPath ?? string.Empty).Trim();
-        }
-
-        private static bool IsXeniaEmulator(Emulator emulator)
-        {
-            if (emulator == null)
-            {
-                return false;
-            }
-
-            var builtInId = emulator.BuiltInConfigId ?? string.Empty;
-            var name = emulator.Name ?? string.Empty;
-            var installDir = emulator.InstallDir ?? string.Empty;
-
-            return builtInId.IndexOf("xenia", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   name.IndexOf("xenia", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   installDir.IndexOf("xenia", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private bool HasSupportedRom(Game game)

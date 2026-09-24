@@ -1945,7 +1945,7 @@ namespace PlayniteAchievements.Providers.Tests
                 var scanner = new Rpcs3Scanner(
                     new FakeLogger(),
                     new PlayniteAchievementsSettings(),
-                    new Rpcs3Settings { ExecutablePath = Path.Combine(rpcs3Root, "rpcs3.exe") });
+                    new Rpcs3Settings { ExecutablePaths = new List<string> { Path.Combine(rpcs3Root, "rpcs3.exe") } });
                 var method = typeof(Rpcs3Scanner).GetMethod(
                     "ReadRpcs3GamesYmlTitlePathMap",
                     BindingFlags.Instance | BindingFlags.NonPublic);
@@ -2772,7 +2772,7 @@ BCUS98246: 'D:\RPCS3\Other Collection.iso' # trailing comment
             var settings = new PlayniteAchievementsSettings();
             var registry = new ProviderRegistry(settings, new[] { "RPCS3" });
             var providerSettings = registry.GetSettings<Rpcs3Settings>();
-            providerSettings.ExecutablePath = Path.Combine(rpcs3Root, "rpcs3.exe");
+            providerSettings.ExecutablePaths = new List<string> { Path.Combine(rpcs3Root, "rpcs3.exe") };
             providerSettings.UseExophaseForRarity = useExophaseForRarity;
             registry.Save(providerSettings);
 

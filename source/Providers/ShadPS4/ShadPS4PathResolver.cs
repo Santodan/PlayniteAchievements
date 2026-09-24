@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using PlayniteAchievements.Providers.Settings;
 
 namespace PlayniteAchievements.Providers.ShadPS4
 {
@@ -203,11 +204,51 @@ namespace PlayniteAchievements.Providers.ShadPS4
             return Path.Combine(appDataPath, "home", resolvedUserId, "trophy");
         }
 
+        /// <summary>
+        /// The AppData root that owns a per-user trophy file
+        /// (&lt;root&gt;\home\&lt;userId&gt;\trophy\&lt;npcommid&gt;.xml), or null for any other layout.
+        /// </summary>
+        public static string GetAppDataRootFromUserTrophyXml(string userTrophyXmlPath)
+        {
+            try
+            {
+                var trophyDir = string.IsNullOrWhiteSpace(userTrophyXmlPath)
+                    ? null
+                    : new FileInfo(userTrophyXmlPath).Directory;
+                var homeDir = trophyDir?.Parent?.Parent;
+                if (trophyDir == null ||
+                    homeDir == null ||
+                    !string.Equals(trophyDir.Name, "trophy", StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(homeDir.Name, "home", StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
+                return homeDir.Parent?.FullName;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public static string GetTrophyBasePath(string appDataPath)
         {
             return string.IsNullOrWhiteSpace(appDataPath)
                 ? null
                 : Path.Combine(appDataPath, "trophy");
+        }
+
+        /// <summary>
+        /// Settings-row check: the path resolves to a legacy game_data folder or to an AppData
+        /// root that already holds trophy data.
+        /// </summary>
+        public static ProviderPathValidation ValidateConfiguredPath(string configuredPath)
+        {
+            return !string.IsNullOrWhiteSpace(ResolveConfiguredLegacyGameDataPath(configuredPath)) ||
+                   HasConfiguredAppDataTrophyData(configuredPath)
+                ? ProviderPathValidation.Valid
+                : ProviderPathValidation.Invalid("LOCPlayAch_InvalidPath");
         }
 
         public static bool HasConfiguredAppDataTrophyData(string configuredPath)

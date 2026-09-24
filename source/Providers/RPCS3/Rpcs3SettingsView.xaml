@@ -79,24 +79,7 @@
                                         BorderThickness="0,1,0,0"
                                         Padding="0,12,0,0">
                                     <StackPanel>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <TextBox Grid.Column="0"
-                                                     Text="{Binding Settings.ExecutablePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     Padding="4"
-                                                     Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
-                                                     KeyDown="Rpcs3ExecutablePath_KeyDown"
-                                                     LostFocus="Rpcs3ExecutablePath_LostFocus"/>
-
-                                            <Button Grid.Column="1"
-                                                    Content="{DynamicResource LOCPlayAch_Button_Browse}"
-                                                    Click="Rpcs3_Browse_Click"
-                                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Compact}"/>
-                                        </Grid>
+                                        <controls:ProviderPathListEditor x:Name="ExecutablePathsEditor"/>
 
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Rpcs3ExecutablePathHint}"
                                                    Style="{StaticResource MutedTextStyle}"

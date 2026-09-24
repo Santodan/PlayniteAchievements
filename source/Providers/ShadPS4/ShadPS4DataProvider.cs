@@ -82,36 +82,50 @@ namespace PlayniteAchievements.Providers.ShadPS4
         {
             get
             {
-                var gameDataPath = GetGameDataPath();
-                if (!string.IsNullOrWhiteSpace(gameDataPath) && Directory.Exists(gameDataPath))
+                if (GetGameDataPaths().Any(Directory.Exists))
                 {
                     return true;
                 }
 
-                var appDataPath = GetAppDataPath();
-                if (!string.IsNullOrWhiteSpace(appDataPath))
-                {
-                    var trophyUserPath = GetTrophyUserPath(appDataPath);
-                    if (!string.IsNullOrWhiteSpace(trophyUserPath) && Directory.Exists(trophyUserPath))
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
+                return GetAppDataPaths()
+                    .Select(appDataPath => GetTrophyUserPath(appDataPath))
+                    .Any(trophyUserPath => !string.IsNullOrWhiteSpace(trophyUserPath) && Directory.Exists(trophyUserPath));
             }
+        }
+
+        internal List<string> GetConfiguredPaths()
+        {
+            return ProviderPathList.Normalize(ProviderSettings?.GameDataPaths);
+        }
+
+        /// <summary>
+        /// Every legacy game_data folder the configured paths resolve to, in configured order.
+        /// Falls back to <see cref="GetGameDataPath"/> when none of them has one.
+        /// </summary>
+        internal List<string> GetGameDataPaths()
+        {
+            var paths = ProviderPathList.Normalize(GetConfiguredPaths()
+                .Select(ShadPS4PathResolver.ResolveConfiguredLegacyGameDataPath));
+            if (paths.Count == 0)
+            {
+                paths = ProviderPathList.FromLegacy(GetGameDataPath());
+            }
+
+            return paths;
         }
 
         /// <summary>
         /// Gets the game data path using priority order:
-        /// 1. User settings (single root path, auto-resolved to legacy game_data)
+        /// 1. User settings (first configured path that resolves to a legacy game_data)
         /// 2. Game's emulator config (auto-resolved)
         /// 3. First ShadPS4 emulator in database (auto-resolved, with compatibility fallback)
         /// </summary>
         public string GetGameDataPath(Game game = null)
         {
             // Priority 1: From provider settings
-            var settingsGameDataPath = ShadPS4PathResolver.ResolveConfiguredLegacyGameDataPath(ProviderSettings?.GameDataPath);
+            var settingsGameDataPath = GetConfiguredPaths()
+                .Select(ShadPS4PathResolver.ResolveConfiguredLegacyGameDataPath)
+                .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
             if (!string.IsNullOrWhiteSpace(settingsGameDataPath))
             {
                 return settingsGameDataPath;
@@ -310,9 +324,12 @@ namespace PlayniteAchievements.Providers.ShadPS4
         {
             if (game?.GameActions == null) return false;
 
-            // Get settings root for comparison and normalize to likely emulator install folder.
-            var configuredRootPath = ShadPS4PathResolver.ResolveConfiguredRootPath(ProviderSettings?.GameDataPath);
-            var shadps4InstallFolder = ResolveInstallFolderFromConfiguredRoot(configuredRootPath);
+            // Get settings roots for comparison and normalize to likely emulator install folders.
+            var shadps4InstallFolders = GetConfiguredPaths()
+                .Select(ShadPS4PathResolver.ResolveConfiguredRootPath)
+                .Select(ResolveInstallFolderFromConfiguredRoot)
+                .Where(folder => !string.IsNullOrWhiteSpace(folder))
+                .ToList();
 
             foreach (var action in game.GameActions)
             {
@@ -330,9 +347,8 @@ namespace PlayniteAchievements.Providers.ShadPS4
                         return true;
                     }
 
-                    // Also check by path matching settings (if settings path is configured)
-                    if (!string.IsNullOrWhiteSpace(shadps4InstallFolder) &&
-                        PathsEqual(emulator.InstallDir, shadps4InstallFolder))
+                    // Also check by path matching settings (if settings paths are configured)
+                    if (shadps4InstallFolders.Any(folder => PathsEqual(emulator.InstallDir, folder)))
                     {
                         return true;
                     }
@@ -428,39 +444,38 @@ namespace PlayniteAchievements.Providers.ShadPS4
         {
             var cache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            var gameDataPath = GetGameDataPath();
-            if (string.IsNullOrWhiteSpace(gameDataPath))
+            // A title present under several installs resolves to the first configured one.
+            foreach (var gameDataPath in GetGameDataPaths())
             {
-                return cache;
-            }
-
-            if (!Directory.Exists(gameDataPath))
-            {
-                return cache;
-            }
-
-            try
-            {
-                var titleDirectories = Directory.GetDirectories(gameDataPath);
-                foreach (var titleDir in titleDirectories)
+                if (!Directory.Exists(gameDataPath))
                 {
-                    var titleId = Path.GetFileName(titleDir);
-                    if (string.IsNullOrWhiteSpace(titleId))
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    // Verify trophy data exists
-                    var xmlPath = Path.Combine(titleDir, "trophyfiles", "trophy00", "Xml", "TROP.XML");
-                    if (File.Exists(xmlPath))
+                try
+                {
+                    var titleDirectories = Directory.GetDirectories(gameDataPath);
+                    foreach (var titleDir in titleDirectories)
                     {
-                        cache[titleId.ToUpperInvariant()] = titleDir;
+                        var titleId = Path.GetFileName(titleDir);
+                        if (string.IsNullOrWhiteSpace(titleId))
+                        {
+                            continue;
+                        }
+
+                        // Verify trophy data exists
+                        var xmlPath = Path.Combine(titleDir, "trophyfiles", "trophy00", "Xml", "TROP.XML");
+                        var key = titleId.ToUpperInvariant();
+                        if (!cache.ContainsKey(key) && File.Exists(xmlPath))
+                        {
+                            cache[key] = titleDir;
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "[ShadPS4] Failed to enumerate title directories.");
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"[ShadPS4] Failed to enumerate title directories in '{gameDataPath}'.");
+                }
             }
 
             return cache;
@@ -581,11 +596,20 @@ namespace PlayniteAchievements.Providers.ShadPS4
         public ProviderSettingsViewBase CreateSettingsView() => new ShadPS4SettingsView(_playniteApi);
 
         /// <summary>
-        /// Gets the configured shadPS4 AppData directory when the settings path points to one.
+        /// Gets the first configured shadPS4 AppData directory.
         /// </summary>
         internal string GetAppDataPath()
         {
-            return ShadPS4PathResolver.ResolveConfiguredAppDataPath(ProviderSettings?.GameDataPath);
+            return GetAppDataPaths().FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Every AppData directory the configured paths resolve to, in configured order.
+        /// </summary>
+        internal List<string> GetAppDataPaths()
+        {
+            return ProviderPathList.Normalize(GetConfiguredPaths()
+                .Select(ShadPS4PathResolver.ResolveConfiguredAppDataPath));
         }
 
         /// <summary>
@@ -647,27 +671,32 @@ namespace PlayniteAchievements.Providers.ShadPS4
         {
             var cache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            var userTrophyPath = GetTrophyUserPath();
-            if (string.IsNullOrWhiteSpace(userTrophyPath) || !Directory.Exists(userTrophyPath))
+            // A title present under several installs resolves to the first configured one.
+            foreach (var appDataPath in GetAppDataPaths())
             {
-                return cache;
-            }
-
-            try
-            {
-                var files = Directory.GetFiles(userTrophyPath, "*.xml");
-                foreach (var file in files)
+                var userTrophyPath = GetTrophyUserPath(appDataPath);
+                if (string.IsNullOrWhiteSpace(userTrophyPath) || !Directory.Exists(userTrophyPath))
                 {
-                    var npcommid = ShadPS4MatchIdHelper.Normalize(Path.GetFileNameWithoutExtension(file));
-                    if (ShadPS4MatchIdHelper.GetKind(npcommid) == ShadPS4MatchIdKind.NpCommId)
+                    continue;
+                }
+
+                try
+                {
+                    var files = Directory.GetFiles(userTrophyPath, "*.xml");
+                    foreach (var file in files)
                     {
-                        cache[npcommid] = file;
+                        var npcommid = ShadPS4MatchIdHelper.Normalize(Path.GetFileNameWithoutExtension(file));
+                        if (ShadPS4MatchIdHelper.GetKind(npcommid) == ShadPS4MatchIdKind.NpCommId &&
+                            !cache.ContainsKey(npcommid))
+                        {
+                            cache[npcommid] = file;
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "[ShadPS4] Failed to enumerate new-format trophy files.");
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"[ShadPS4] Failed to enumerate new-format trophy files in '{userTrophyPath}'.");
+                }
             }
 
             return cache;

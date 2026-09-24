@@ -13,6 +13,7 @@ using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Tests.Providers;
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -115,6 +116,83 @@ namespace PlayniteAchievements.Providers.Tests
             finally
             {
                 PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_TwoRoots_FindsLegacyTitleInSecondRoot()
+        {
+            var tempDir = CreateTempDirectory();
+            var firstGameData = Path.Combine(tempDir, "stable", "user", "game_data");
+            var secondGameData = Path.Combine(tempDir, "nightly", "user", "game_data");
+            var installDir = Path.Combine(tempDir, "Games", "CUSA03173");
+
+            try
+            {
+                CreateLegacyTrophyData(firstGameData, "CUSA11111", "First Root Trophy");
+                CreateLegacyTrophyData(secondGameData, "CUSA03173", "Second Root Trophy");
+
+                var provider = CreateProviderWithPaths(
+                    Path.Combine(tempDir, "stable"),
+                    Path.Combine(tempDir, "nightly"));
+
+                Assert.IsTrue(provider.IsAuthenticated);
+                var titleCache = provider.GetOrBuildTitleCache();
+                Assert.IsTrue(titleCache.ContainsKey("CUSA11111"));
+                Assert.IsTrue(titleCache.ContainsKey("CUSA03173"));
+
+                var data = await RefreshSingleGameAsync(provider, new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Bloodborne",
+                    InstallDirectory = installDir
+                }).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual("Second Root Trophy", data.Achievements.Single().DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_TwoRoots_NewFormatTitleReadsItsOwnRootsMetadataAndIcons()
+        {
+            var tempDir = CreateTempDirectory();
+            var firstRoot = Path.Combine(tempDir, "stable");
+            var secondRoot = Path.Combine(tempDir, "nightly");
+            var installDir = Path.Combine(tempDir, "game");
+            const string npCommId = "NPWR33333_00";
+
+            try
+            {
+                CreateNewFormatTrophyData(firstRoot, "1000", "NPWR11111_00", "Other Game Trophy");
+                WriteNewFormatTrophyData(secondRoot, "1000", npCommId, BuildNewFormatStateOnlyXml(npCommId));
+                WriteSharedTrophyMetadata(
+                    secondRoot,
+                    npCommId,
+                    BuildSharedTrophyMetadataXml(npCommId, "Second Root Trophy", "Description", "Base", trophyType: "B", hidden: "no"));
+                CreateNewFormatIcon(secondRoot, npCommId, "1");
+                CreateNpbindFile(installDir, npCommId);
+
+                var provider = CreateProviderWithPaths(firstRoot, secondRoot);
+                var data = await RefreshSingleGameAsync(provider, new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Second Root Game",
+                    InstallDirectory = installDir
+                }).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                var trophy = data.Achievements.Single();
+                Assert.AreEqual("Second Root Trophy", trophy.DisplayName);
+                Assert.IsFalse(string.IsNullOrWhiteSpace(trophy.UnlockedIconPath));
+            }
+            finally
+            {
                 DeleteDirectory(tempDir);
             }
         }
@@ -768,6 +846,17 @@ namespace PlayniteAchievements.Providers.Tests
             return captured;
         }
 
+        private static ShadPS4DataProvider CreateProviderWithPaths(params string[] configuredPaths)
+        {
+            var settings = new PlayniteAchievementsSettings();
+            var registry = new ProviderRegistry(settings, new[] { "ShadPS4" });
+            var providerSettings = registry.GetSettings<ShadPS4Settings>();
+            providerSettings.GameDataPaths = new System.Collections.Generic.List<string>(configuredPaths);
+            registry.Save(providerSettings);
+
+            return new ShadPS4DataProvider(new FakeLogger(), settings, new FakePlayniteApi());
+        }
+
         private static ShadPS4DataProvider CreateProvider(
             string configuredPath,
             string extensionsDataPath = null,
@@ -781,7 +870,7 @@ namespace PlayniteAchievements.Providers.Tests
 
             var registry = new ProviderRegistry(settings, new[] { "ShadPS4" });
             var providerSettings = registry.GetSettings<ShadPS4Settings>();
-            providerSettings.GameDataPath = configuredPath;
+            providerSettings.GameDataPaths = PlayniteAchievements.Providers.Settings.ProviderPathList.FromLegacy(configuredPath);
             registry.Save(providerSettings);
 
             return new ShadPS4DataProvider(new FakeLogger(), settings, new FakePlayniteApi(extensionsDataPath));

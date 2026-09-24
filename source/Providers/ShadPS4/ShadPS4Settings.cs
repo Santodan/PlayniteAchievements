@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Newtonsoft.Json;
 using PlayniteAchievements.Providers.Settings;
 
 namespace PlayniteAchievements.Providers.ShadPS4
@@ -7,20 +9,29 @@ namespace PlayniteAchievements.Providers.ShadPS4
     /// </summary>
     public class ShadPS4Settings : ProviderSettingsBase
     {
-        private string _gameDataPath = ShadPS4PathResolver.GetDefaultSettingsPath();
+        private List<string> _gameDataPaths = ProviderPathList.FromLegacy(ShadPS4PathResolver.GetDefaultSettingsPath());
         private bool _useExophaseForRarity;
 
         /// <inheritdoc />
         public override string ProviderKey => "ShadPS4";
 
         /// <summary>
-        /// Gets or sets the ShadPS4 root path.
-        /// The resolver accepts emulator install roots, data roots, and legacy game_data paths.
+        /// ShadPS4 root paths, one per install. Each entry may be an emulator install root, a data
+        /// root, or a legacy game_data path; titles are looked up across all of them in order.
         /// </summary>
-        public string GameDataPath
+        public List<string> GameDataPaths
         {
-            get => _gameDataPath;
-            set => SetValue(ref _gameDataPath, value);
+            get => _gameDataPaths;
+            set => SetValue(ref _gameDataPaths, ProviderPathList.Normalize(value));
+        }
+
+        /// <summary>
+        /// Reads the single-path setting from configs saved before <see cref="GameDataPaths"/>; never written.
+        /// </summary>
+        [JsonProperty("GameDataPath")]
+        private string LegacyGameDataPath
+        {
+            set => GameDataPaths = ProviderPathList.FromLegacy(value);
         }
 
         /// <summary>
