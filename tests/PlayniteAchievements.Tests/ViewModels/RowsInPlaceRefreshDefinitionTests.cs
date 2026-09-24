@@ -29,7 +29,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "AchievementRows.ReplaceAll(materializedRows)",
                 "The Reset path must stay: adding, removing or reordering rows has to go through " +
                 "the collection or the grid never learns about it.");
-            StringAssert.Contains(source, "CopyStateFrom(materializedRows[index])");
+            StringAssert.Contains(source, "CopyStateFrom(materializedRows[index], notify)");
         }
 
         [TestMethod]
@@ -84,7 +84,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             // property change raised during the copy can reach the persistence hook. That is the
             // second half of why this is safe, alongside the copier never driving a setter.
             var detach = body.IndexOf("DetachRow(row)", StringComparison.Ordinal);
-            var copy = body.IndexOf("CopyStateFrom(materializedRows[index])", StringComparison.Ordinal);
+            var copy = body.IndexOf("CopyStateFrom(materializedRows[index], notify)", StringComparison.Ordinal);
             var attach = body.IndexOf("AttachRow(row, useSeparateLockedIcons)", StringComparison.Ordinal);
 
             Assert.IsTrue(detach >= 0, "The detach loop must remain.");
@@ -105,21 +105,65 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "notification is the expensive half.");
             StringAssert.Contains(
                 source,
-                "AchievementRows[index].CopyStateFrom(materializedRows[index])",
+                "var index = changedRows[i]",
                 "The copy must be driven by the changed set, not by every position.");
         }
 
         [TestMethod]
-        public void PastTheThreshold_OneResetIsPreferredToNotifyingEveryRow()
+        public void OnlyRowsSomethingIsBoundTo_AreNotified()
         {
             var source = ReadViewModel();
 
             // Raising "every property changed" per row defers its real cost to later dispatcher
-            // passes, so it does not appear in the loop that causes it. Measured with the stall
-            // watchdog: a Reset stalls ~440ms, notifying all 641 rows stalls 670-870ms. Without
-            // this cap the in-place path is slower than the thing it replaced.
-            StringAssert.Contains(source, "changedRows.Count <= InPlaceNotifyThreshold");
-            StringAssert.Contains(source, "private const int InPlaceNotifyThreshold");
+            // passes, so it never appears in the loop that causes it. Measured with the stall
+            // watchdog: announcing to all 641 rows stalled 670-870ms, worse than the ~440ms
+            // Reset it replaced. Bounding notifications by the viewport is what makes the
+            // in-place path scale, since a viewport is a dozen rows however much changed.
+            StringAssert.Contains(source, "var notify = ShouldNotifyRow(target)");
+            StringAssert.Contains(source, "target.CopyStateFrom(materializedRows[index], notify)");
+        }
+
+        [TestMethod]
+        public void TheSelectedRowAndBulkRow_AreAlwaysNotified()
+        {
+            var body = Between(
+                ReadViewModel(),
+                "private bool ShouldNotifyRow(",
+                "private List<int> FindChangedRows(");
+
+            // The details pane binds the selected row whether or not the grid has realized it,
+            // so skipping it would leave the pane showing pre-reset values.
+            StringAssert.Contains(body, "ReferenceEquals(row, SelectedRow) || row.IsBulkRow");
+
+            // Correctness over speed when the view has not wired the tracker.
+            StringAssert.Contains(body, "IsRowRealized == null || IsRowRealized(row)");
+        }
+
+        [TestMethod]
+        public void TheViewTracksRealizedRowsOnBothEdges()
+        {
+            var source = ReadRepoFile(
+                "source", "Views", "ManageAchievements", "ManageAchievementsEditorTab.xaml.cs");
+
+            // Tracking only additions would leave scrolled-away rows marked realized forever,
+            // growing the notify set back to the whole list.
+            StringAssert.Contains(source, "LoadingRow += AchievementsGrid_LoadingRow");
+            StringAssert.Contains(source, "UnloadingRow += AchievementsGrid_UnloadingRow");
+            StringAssert.Contains(source, "LoadingRow -= AchievementsGrid_LoadingRow");
+            StringAssert.Contains(source, "UnloadingRow -= AchievementsGrid_UnloadingRow");
+            StringAssert.Contains(source, "_realizedRows.Add(realized)");
+            StringAssert.Contains(source, "_realizedRows.Remove(row)");
+            StringAssert.Contains(source, "viewModel.IsRowRealized = row =>");
+
+            // The realization counter is gated on tracing; the tracking must not be, or the set
+            // is empty in a normal build and every refresh silently shows stale rows.
+            var loading = Between(
+                source,
+                "private void AchievementsGrid_LoadingRow(",
+                "private void ReportRowRealization(");
+            var add = loading.IndexOf("_realizedRows.Add(realized)", StringComparison.Ordinal);
+            var gate = loading.IndexOf("PerfScope.PerfTracingEnabled", StringComparison.Ordinal);
+            Assert.IsTrue(add >= 0 && gate > add, "Tracking must precede the tracing gate.");
         }
 
         [TestMethod]
@@ -145,11 +189,12 @@ namespace PlayniteAchievements.Tests.ViewModels
 
         private static string ReadViewModel()
         {
-            var parts = new[]
-            {
-                "source", "ViewModels", "ManageAchievements", "ManageAchievementsEditorViewModel.cs"
-            };
+            return ReadRepoFile(
+                "source", "ViewModels", "ManageAchievements", "ManageAchievementsEditorViewModel.cs");
+        }
 
+        private static string ReadRepoFile(params string[] parts)
+        {
             var directory = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
             while (directory != null)
             {
@@ -162,7 +207,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 directory = directory.Parent;
             }
 
-            Assert.Fail("Could not find ManageAchievementsEditorViewModel.cs.");
+            Assert.Fail($"Could not find {parts.Last()}.");
             return null;
         }
     }
