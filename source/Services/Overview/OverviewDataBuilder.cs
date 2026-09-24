@@ -108,6 +108,7 @@ namespace PlayniteAchievements.Services.Overview
             // provider definitions live, so a longer-lived cache would serve pre-edit visuals.
             var providerVisuals = new Dictionary<string, (string iconKey, string colorHex)>(
                 StringComparer.OrdinalIgnoreCase);
+            var providerNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             var snapshot = new OverviewDataSnapshot
             {
@@ -141,7 +142,20 @@ namespace PlayniteAchievements.Services.Overview
                 .Concat(achievements
                     .Where(item => item?.PlayniteGameId.HasValue == true)
                     .Select(item => item.PlayniteGameId.Value));
-            var presentationByGameId = BuildGamePresentationCache(referencedGameIds);
+            // Split so a capture says which phase of a whole-library build the time is in. The
+            // build was measured at 1499ms for 500 games and 4982 achievements, under one tag.
+            Dictionary<Guid, GamePresentation> presentationByGameId;
+            using (var presentationScope = PerfScope.Start(
+                _logger, "Overview.Build.Presentation", thresholdMs: 25))
+            {
+                presentationByGameId = BuildGamePresentationCache(referencedGameIds);
+                presentationScope?.SetContext("games=" + presentationByGameId.Count);
+            }
+
+            // Disposed explicitly below rather than with a using, so the scope covers the loop
+            // and not the phases that follow it.
+            var gameRowScope = PerfScope.Start(_logger, "Overview.Build.GameRows", thresholdMs: 25);
+            gameRowScope?.SetContext("games=" + games.Count);
 
             for (var i = 0; i < games.Count; i++)
             {
@@ -156,10 +170,19 @@ namespace PlayniteAchievements.Services.Overview
                 }
 
                 var providerKey = ResolveEffectiveProviderKey(game.ProviderKey, game.ProviderPlatformKey);
-                var providerName = ProviderRegistry.GetLocalizedName(providerKey);
-                if (string.IsNullOrWhiteSpace(providerName))
+
+                // Memoized with the visuals below rather than resolved per game: there are a
+                // few dozen provider keys and a library's worth of games, and the name is a
+                // localized resource lookup.
+                if (!providerNames.TryGetValue(providerKey, out var providerName))
                 {
-                    providerName = providerKey;
+                    providerName = ProviderRegistry.GetLocalizedName(providerKey);
+                    if (string.IsNullOrWhiteSpace(providerName))
+                    {
+                        providerName = providerKey;
+                    }
+
+                    providerNames[providerKey] = providerName;
                 }
 
                 if (!providerVisuals.TryGetValue(providerKey, out var providerMetadata))
@@ -256,21 +279,36 @@ namespace PlayniteAchievements.Services.Overview
                 snapshot.TotalByProvider[providerKey] += game.TotalAchievements;
             }
 
-            snapshot.Achievements = MaterializeAchievements(
-                settings,
-                achievements,
-                presentationByGameId,
-                cancel);
-            AppendPinnedLockedAchievements(settings, snapshot, presentationByGameId, cancel);
-            BuildUnlockNextCandidates(settings, snapshot, presentationByGameId, cancel);
-            snapshot.RecentAchievements = AchievementSortHelper.CreateDefaultSortedList(
-                snapshot.Achievements.Where(item =>
-                    item?.Unlocked == true && item.UnlockTimeUtc.HasValue),
-                AchievementSortScope.RecentAchievements);
+            gameRowScope?.Dispose();
 
-            snapshot.GameSummaries = snapshot.GameSummaries
-                .OrderByDescending(g => g.LastPlayed ?? DateTime.MinValue)
-                .ToList();
+            using (var achievementScope = PerfScope.Start(
+                _logger, "Overview.Build.AchievementRows", thresholdMs: 25))
+            {
+                achievementScope?.SetContext("rows=" + achievements.Count);
+                snapshot.Achievements = MaterializeAchievements(
+                    settings,
+                    achievements,
+                    presentationByGameId,
+                    cancel);
+            }
+
+            using (PerfScope.Start(_logger, "Overview.Build.PinnedAndUnlockNext", thresholdMs: 25))
+            {
+                AppendPinnedLockedAchievements(settings, snapshot, presentationByGameId, cancel);
+                BuildUnlockNextCandidates(settings, snapshot, presentationByGameId, cancel);
+            }
+
+            using (PerfScope.Start(_logger, "Overview.Build.Sort", thresholdMs: 25))
+            {
+                snapshot.RecentAchievements = AchievementSortHelper.CreateDefaultSortedList(
+                    snapshot.Achievements.Where(item =>
+                        item?.Unlocked == true && item.UnlockTimeUtc.HasValue),
+                    AchievementSortScope.RecentAchievements);
+
+                snapshot.GameSummaries = snapshot.GameSummaries
+                    .OrderByDescending(g => g.LastPlayed ?? DateTime.MinValue)
+                    .ToList();
+            }
             snapshot.TotalGames = snapshot.GameSummaries.Count;
             snapshot.TotalLocked = Math.Max(0, snapshot.TotalAchievements - snapshot.TotalUnlocked);
             snapshot.ApplyTrophyTotals(snapshot.GameSummaries);
