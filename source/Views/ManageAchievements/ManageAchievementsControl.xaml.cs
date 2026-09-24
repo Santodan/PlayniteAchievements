@@ -34,8 +34,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ManageAchievementsTab.Overview,
             ManageAchievementsTab.Editor,
             ManageAchievementsTab.Category,
-            ManageAchievementsTab.Notifications,
-            ManageAchievementsTab.Overrides
+            ManageAchievementsTab.Notifications
         };
 
         private readonly RefreshRuntime _refreshService;
@@ -307,10 +306,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 EnsureOverviewControl();
             }
-            else if (_viewModel.SelectedTab == ManageAchievementsTab.Overrides)
-            {
-                EnsureOverridesControl();
-            }
             else if (_viewModel.SelectedTab == ManageAchievementsTab.Editor)
             {
                 var hadEditorControl = _editorControl != null;
@@ -516,8 +511,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     OverviewTabButton,
                     EditorTabButton,
                     CategoryTabButton,
-                    NotificationsTabButton,
-                    OverridesTabButton
+                    NotificationsTabButton
                 }
                 .Where(button => button != null && button.IsVisible && button.IsEnabled)
                 .ToList();
@@ -551,9 +545,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 case ManageAchievementsTab.Overview:
                     root = _overviewControl ?? (DependencyObject)OverviewHost;
-                    break;
-                case ManageAchievementsTab.Overrides:
-                    root = _overridesControl ?? (DependencyObject)OverridesHost;
                     break;
                 case ManageAchievementsTab.Editor:
                     return _editorControl?.GetControllerElements() ?? new List<UIElement>();
@@ -941,19 +932,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             OverviewHost.Content = _overviewControl;
         }
 
-        private void EnsureOverridesControl()
-        {
-            if (_overridesControl != null)
-            {
-                return;
-            }
-
-            _overridesControl = new ManageAchievementsOverridesTab();
-            OverridesHost.Content = _overridesControl;
-        }
-
         private ManageAchievementsOverviewTab _overviewControl;
-        private ManageAchievementsOverridesTab _overridesControl;
 
         private void CustomViewModel_CustomAchievementsSaved(object sender, EventArgs e)
         {
