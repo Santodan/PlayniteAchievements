@@ -21,6 +21,46 @@
         <StackPanel Margin="0">
             <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
                 <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_GameId}"
+                               Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBox Text="{Binding GameIdText, Mode=OneWay}"
+                             IsReadOnly="True"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             Foreground="{DynamicResource PlayAch.Brush.Text}"
+                             Padding="0"
+                             HorizontalAlignment="Left"
+                             Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader}"
+                               Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHint}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                               TextWrapping="Wrap"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExportButton}"
+                                Command="{Binding ExportCustomCommand}"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
+                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ImportButton}"
+                                Command="{Binding ImportCustomJsonCommand}"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
+                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton}"
+                                Command="{Binding ClearCustomDataCommand}"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader}"
                                Style="{StaticResource SectionHeaderStyle}" />
                     <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExclusionHint}"
