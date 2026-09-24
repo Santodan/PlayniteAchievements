@@ -1082,7 +1082,7 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <CheckBox IsChecked="{Binding IsGoalState, Mode=OneWay}"
-                                          IsEnabled="{Binding CanEditAssignments}"
+                                          IsEnabled="{Binding CanEditGoal}"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
                                           Focusable="False"
@@ -1759,7 +1759,7 @@
                                                VerticalAlignment="Center" />
                                     <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}"
                                               IsChecked="{Binding IsGoalState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsEnabled="{Binding CanEditAssignments}"
+                                              IsEnabled="{Binding CanEditGoal}"
                                               MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                                               Margin="0,0,0,2"
                                               VerticalContentAlignment="Center" />
