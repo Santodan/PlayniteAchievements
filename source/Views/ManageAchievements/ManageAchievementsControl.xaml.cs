@@ -253,6 +253,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
+            using var tabScope = Common.PerfScope.Start(
+                _logger,
+                "Manage.EnsureTabContent",
+                thresholdMs: 25,
+                context: "tab=" + _viewModel.SelectedTab);
+
             if (_viewModel.SelectedTab != ManageAchievementsTab.Category)
             {
                 PropagateCategoryEditsToSiblingTabs();
@@ -727,6 +733,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 return;
             }
+
+            // Builds the editor's view model and its view. Dispatched at Background priority
+            // from Loaded, so it lands after the window has already appeared -- which is the
+            // span between the window showing and Editor.ReloadData that a capture of a slow
+            // open shows as an unexplained gap.
+            using var scope = Common.PerfScope.Start(
+                _logger,
+                "Manage.EnsureEditorControl",
+                thresholdMs: 25,
+                context: "recreate=" + forceRecreate);
 
             CleanupEditor();
 

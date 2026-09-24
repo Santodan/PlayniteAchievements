@@ -1651,21 +1651,34 @@ namespace PlayniteAchievements.Services.UI
                     return;
                 }
 
-                _ensureAchievementResourcesLoaded?.Invoke();
+                // Opening this window is reported as laggy, and the span between the window
+                // appearing and Editor.ReloadData starting was entirely unmeasured -- roughly a
+                // second of it in one capture. These four scopes split it so a log says which
+                // part: loading the achievement resource dictionaries, constructing the control
+                // (XAML parse and the view-model graph behind it), creating the host window, or
+                // showing it.
+                using (Common.PerfScope.Start(_logger, "Manage.Open.EnsureResources", thresholdMs: 25))
+                {
+                    _ensureAchievementResourcesLoaded?.Invoke();
+                }
 
-                var view = new ManageAchievementsControl(
-                    gameId,
-                    initialTab,
-                    _refreshService,
-                    _cacheManager,
-                    _persistSettingsForUi,
-                    _achievementOverridesService,
-                    _achievementDataService,
-                    _api,
-                    _logger,
-                    _settings,
-                    _manualSourceRegistry,
-                    selectManageCategoriesSubTab);
+                ManageAchievementsControl view;
+                using (Common.PerfScope.Start(_logger, "Manage.Open.CreateControl", thresholdMs: 25))
+                {
+                    view = new ManageAchievementsControl(
+                        gameId,
+                        initialTab,
+                        _refreshService,
+                        _cacheManager,
+                        _persistSettingsForUi,
+                        _achievementOverridesService,
+                        _achievementDataService,
+                        _api,
+                        _logger,
+                        _settings,
+                        _manualSourceRegistry,
+                        selectManageCategoriesSubTab);
+                }
 
                 var windowOptions = new WindowOptions
                 {
@@ -1677,23 +1690,30 @@ namespace PlayniteAchievements.Services.UI
                     Height = 760
                 };
 
-                var window = CreateManagedPopoutWindow(
-                    view.WindowTitle,
-                    view,
-                    windowOptions,
-                    isFullscreen,
-                    ManageAchievementsWindowPlacementKey,
-                    configureWindow: createdWindow =>
-                    {
-                        createdWindow.MinWidth = 860;
-                        createdWindow.MinHeight = 620;
-                    },
-                    closed: view.Cleanup,
-                    fullscreenController: view);
+                Window window;
+                using (Common.PerfScope.Start(_logger, "Manage.Open.CreateWindow", thresholdMs: 25))
+                {
+                    window = CreateManagedPopoutWindow(
+                        view.WindowTitle,
+                        view,
+                        windowOptions,
+                        isFullscreen,
+                        ManageAchievementsWindowPlacementKey,
+                        configureWindow: createdWindow =>
+                        {
+                            createdWindow.MinWidth = 860;
+                            createdWindow.MinHeight = 620;
+                        },
+                        closed: view.Cleanup,
+                        fullscreenController: view);
+                }
 
                 TrackAchievementWindow(AchievementWindowKind.ManageAchievements, gameId, window);
 
-                ShowWindow(window, isFullscreen);
+                using (Common.PerfScope.Start(_logger, "Manage.Open.ShowWindow", thresholdMs: 25))
+                {
+                    ShowWindow(window, isFullscreen);
+                }
             }
             catch (Exception ex)
             {
