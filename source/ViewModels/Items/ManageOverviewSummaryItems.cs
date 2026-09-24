@@ -19,8 +19,6 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public string RarityUltraRareText { get; set; } = "0 / 0";
 
-        public bool HasTrophies { get; set; }
-
         public string TrophyPlatinumText { get; set; } = "0 / 0";
 
         public string TrophyGoldText { get; set; } = "0 / 0";
@@ -29,19 +27,8 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public string TrophyBronzeText { get; set; } = "0 / 0";
 
-        public bool HasPoints { get; set; }
-
+        /// <summary><c>unlocked / total</c>, summed from each achievement's points.</summary>
         public string PointsText { get; set; } = "0 / 0";
-
-        public bool HasHidden { get; set; }
-
-        public string HiddenText { get; set; } = "0";
-
-        public string LastUnlockText { get; set; }
-
-        public bool HasLastUnlock => !string.IsNullOrEmpty(LastUnlockText);
-
-        public bool HasCategorized { get; set; }
 
         /// <summary><c>categorized / total</c>: achievements in a category other than the default one.</summary>
         public string CategorizedText { get; set; } = "0 / 0";
@@ -58,10 +45,11 @@ namespace PlayniteAchievements.ViewModels.Items
     /// </summary>
     public sealed class ManageOverviewCustomizationChip
     {
-        public ManageOverviewCustomizationChip(string label, string countText)
+        public ManageOverviewCustomizationChip(string label, string countText, string toolTip = null)
         {
             Label = label;
             CountText = countText;
+            ToolTip = toolTip;
         }
 
         public string Label { get; }
@@ -69,5 +57,8 @@ namespace PlayniteAchievements.ViewModels.Items
         public string CountText { get; }
 
         public bool HasCount => !string.IsNullOrEmpty(CountText);
+
+        /// <summary>Detail behind the count, such as which achievements are the capstones.</summary>
+        public string ToolTip { get; }
     }
 }
