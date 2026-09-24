@@ -10,8 +10,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         // Goals, Notes, Order and Icons tabs, which each owned a slice of what it now does.
         Editor,
         Category,
-        Notifications,
-        Overrides
+        Notifications
     }
 
     internal static class ManageAchievementsTabs
