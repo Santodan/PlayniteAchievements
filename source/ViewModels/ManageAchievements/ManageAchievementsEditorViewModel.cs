@@ -883,10 +883,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
             finally
             {
-                _isApplyingUndo = false;
-                _isApplyingBulk = previousApplyingBulk;
-                _isTogglingReveal = false;
-                FlushBatchedFieldWrites();
+                // Flushed inside the guard, not after it. This is the replay's own write, and
+                // the CustomDataWritten handler skips recording only while _isApplyingUndo is
+                // set. Flushing once the flag had dropped made the journal see an unattributed
+                // write, and NoteForeignWrite clears the whole history -- undo and redo both --
+                // when a foreign write touches a facet an existing step touched. The symptom is
+                // that redo disappears the moment an undo completes.
+                //
+                // Nested so a throwing flush still restores the flags.
+                try
+                {
+                    FlushBatchedFieldWrites();
+                }
+                finally
+                {
+                    _isApplyingUndo = false;
+                    _isApplyingBulk = previousApplyingBulk;
+                    _isTogglingReveal = false;
+                }
             }
 
             RefreshRevealHeaderState();
@@ -6429,9 +6443,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            // A bulk gesture sets one value across the selection, so this is normally a single
-            // group. Grouping rather than assuming keeps it correct if a caller ever batches a
-            // value computed per row.
             // One store update for the whole batch, whatever mix of values it holds.
             //
             // This used to group by (field, value) and write once per group, which collapsed the
