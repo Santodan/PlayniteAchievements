@@ -181,6 +181,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             Loaded -= ManageAchievementsControl_Loaded;
 
+            // A window closing inside the prebuild delay must not then build the tabs it was
+            // about to warm.
+            if (_idleTabPrebuildTimer != null)
+            {
+                _idleTabPrebuildTimer.Stop();
+                _idleTabPrebuildTimer = null;
+            }
+
             if (_viewModel != null)
             {
                 _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
@@ -352,34 +360,56 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             _idleTabPrebuildQueued = true;
-            _ = Dispatcher.BeginInvoke(
-                new Action(() =>
-                {
-                    if (_viewModel == null)
-                    {
-                        return;
-                    }
 
-                    using (Common.PerfScope.Start(_logger, "Manage.PrebuildIdleTabs", thresholdMs: 25))
+            // On a timer rather than a dispatcher priority. ContextIdle still ran before the
+            // selected tab's grid had realized its rows, so 335ms of building tabs nobody was
+            // looking at landed in front of the editor's first render and delayed the thing the
+            // user is waiting for. There is no priority below the render work this has to
+            // follow, so it waits on the clock instead.
+            _idleTabPrebuildTimer = new DispatcherTimer(DispatcherPriority.ContextIdle)
+            {
+                Interval = TimeSpan.FromMilliseconds(IdleTabPrebuildDelayMs)
+            };
+            _idleTabPrebuildTimer.Tick += (_, __) =>
+            {
+                _idleTabPrebuildTimer?.Stop();
+                _idleTabPrebuildTimer = null;
+
+                if (_viewModel == null)
+                {
+                    return;
+                }
+
+                using (Common.PerfScope.Start(_logger, "Manage.PrebuildIdleTabs", thresholdMs: 25))
+                {
+                    try
                     {
-                        try
-                        {
-                            EnsureEditorControl(forceRecreate: false);
-                            EnsureCategoryControl(forceRecreate: false);
-                            EnsureNotificationsControl(forceRecreate: false);
-                        }
-                        catch (Exception ex)
-                        {
-                            // A prebuild is an optimization; a tab that fails here is built
-                            // again on its own selection, which is where an error belongs.
-                            _logger?.Debug(ex, "Failed pre-building Manage Achievements tabs.");
-                        }
+                        EnsureEditorControl(forceRecreate: false);
+                        EnsureCategoryControl(forceRecreate: false);
+                        EnsureNotificationsControl(forceRecreate: false);
                     }
-                }),
-                DispatcherPriority.ContextIdle);
+                    catch (Exception ex)
+                    {
+                        // A prebuild is an optimization; a tab that fails here is built again on
+                        // its own selection, which is where an error belongs.
+                        _logger?.Debug(ex, "Failed pre-building Manage Achievements tabs.");
+                    }
+                }
+            };
+
+            _idleTabPrebuildTimer.Start();
         }
 
         private bool _idleTabPrebuildQueued;
+
+        /// <summary>
+        /// Long enough for the selected tab to have rendered. Measured: the editor's rows
+        /// realize about a second after the shell loads, so the prebuild waits past that rather
+        /// than competing with it.
+        /// </summary>
+        private const int IdleTabPrebuildDelayMs = 1500;
+
+        private DispatcherTimer _idleTabPrebuildTimer;
 
         public bool HandleFullscreenControllerInput(ControllerInput input)
         {
