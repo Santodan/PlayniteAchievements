@@ -2101,6 +2101,31 @@ namespace PlayniteAchievements.ViewModels
                 _allRecentAchievements.AddRange(fragment.RecentAchievements);
             }
 
+            // Only the rows just swapped in need stamping: they are freshly built, so their
+            // session-only HasCaptures defaults to false, while every other row in the library
+            // still carries the mark it was given. Re-stamping all three library lists per delta
+            // instead copied them and re-ran the capture scan over the whole library for one
+            // changed game. _allSelectedGameAchievements is not stamped here because
+            // LoadSelectedGameAchievementsAsync marks its own rows, and a custom-data edit cannot
+            // move a capture.
+            if (fragment.GameSummary != null)
+            {
+                Services.Captures.CapturePresenceMarker.MarkSummaries(
+                    new[] { fragment.GameSummary }, _captureLibrary);
+            }
+
+            if (fragment.Achievements != null && fragment.Achievements.Count > 0)
+            {
+                Services.Captures.CapturePresenceMarker.MarkAchievements(
+                    fragment.Achievements, _captureLibrary);
+            }
+
+            if (fragment.RecentAchievements != null && fragment.RecentAchievements.Count > 0)
+            {
+                Services.Captures.CapturePresenceMarker.MarkAchievements(
+                    fragment.RecentAchievements, _captureLibrary);
+            }
+
             return true;
         }
 
@@ -3169,13 +3194,9 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
-            // ApplyFragmentDelta swaps in freshly built row instances whose session-only HasCaptures
-            // defaults to false, so the Captures button for the game being played would vanish on
-            // its first unlock. Re-stamp the replaced rows.
-            using (Common.PerfScope.Start(_logger, "Overview.DeltaTick.RemarkCaptures", thresholdMs: 5))
-            {
-                RemarkCapturePresence();
-            }
+            // No capture re-stamp here. ApplyFragmentDelta now marks the rows it swapped in, which
+            // are the only ones whose session-only HasCaptures was reset; doing it library-wide
+            // per tick copied all three lists and re-ran the capture scan over every game.
 
             // No search-index rebuild here. ApplyFragmentDelta already dropped the entries for
             // the rows it replaced, and the index fills lazily for the new ones, so rebuilding
@@ -3200,9 +3221,24 @@ namespace PlayniteAchievements.ViewModels
                 UpdateAggregatePieCharts();
             }
 
-            using (Common.PerfScope.Start(_logger, "Overview.DeltaTick.RightFilters", thresholdMs: 5))
+            using (var scope = Common.PerfScope.Start(_logger, "Overview.DeltaTick.RightFilters", thresholdMs: 5))
             {
-                ApplyRightFilters();
+                // With a game selected the right pane shows only that game's rows, so a delta
+                // that never touched it cannot change what the pane holds -- and re-running the
+                // control bar, the sort and the row limit for it was pure cost. With no game
+                // selected the pane shows the library's recent achievements, which the delta did
+                // move, so it still runs.
+                var selectedGameId = SelectedGame?.PlayniteGameId;
+                var selectedGameChanged = !IsGameSelected ||
+                    !selectedGameId.HasValue ||
+                    keys.Contains(selectedGameId.Value.ToString("D"), StringComparer.OrdinalIgnoreCase);
+
+                scope?.SetContext("applied=" + selectedGameChanged);
+                if (selectedGameChanged)
+                {
+                    ApplyRightFilters();
+                }
+
                 UpdateFilteredStatus();
             }
 
