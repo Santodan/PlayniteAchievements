@@ -356,18 +356,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 }
             }
 
-            // The editor is where most people go straight from the default tab, so it is built
-            // with the window rather than on the click that reveals it. Combined with the
-            // Hidden hosts, that means it is also laid out during the open, so selecting it
-            // only flips visibility.
-            //
-            // This replaces a 1.5s idle prebuild timer, which was wrong twice over: it dumped
-            // 200-330ms of UI-thread work into a running session as a visible stutter, and it
-            // fired long after the click it was meant to cover.
-            if (_viewModel.SelectedTab != ManageAchievementsTab.Editor)
-            {
-                EnsureEditorControl(forceRecreate: false);
-            }
+            // Tabs stay lazy: only the selected one is built. Building the editor with the
+            // window was tried and rejected - it put its construction and layout into every
+            // open, including the ones that never touch it. The cost belongs on the click; the
+            // work is to make it smaller, not to move it.
         }
 
         public bool HandleFullscreenControllerInput(ControllerInput input)
