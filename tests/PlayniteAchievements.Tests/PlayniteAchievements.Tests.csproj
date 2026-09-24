@@ -425,6 +425,7 @@
     <Compile Include="..\..\source\Services\Achievements\AchievementOverrideApplier.cs" Link="Source\Services\Achievements\AchievementOverrideApplier.cs" />
     <Compile Include="..\..\source\ViewModels\ManageAchievements\AchievementEditorFieldRules.cs" Link="Source\ViewModels\ManageAchievements\AchievementEditorFieldRules.cs" />
     <Compile Include="..\..\source\ViewModels\ManageAchievements\AchievementCustomization.cs" Link="Source\ViewModels\ManageAchievements\AchievementCustomization.cs" />
+    <Compile Include="..\..\source\ViewModels\ManageAchievements\ManageOverviewSummaryBuilder.cs" Link="Source\ViewModels\ManageAchievements\ManageOverviewSummaryBuilder.cs" />
     <Compile Include="..\..\source\Models\Settings\CapstoneAssignment.cs" Link="Source\Models\Settings\CapstoneAssignment.cs" />
     <Compile Include="..\..\source\Models\Settings\GameCustomDataFile.cs" Link="Source\Models\Settings\GameCustomDataFile.cs" />
     <Compile Include="..\..\source\Models\Settings\GameCustomDataPortableFile.cs" Link="Source\Models\Settings\GameCustomDataPortableFile.cs" />

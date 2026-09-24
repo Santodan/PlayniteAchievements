@@ -25,6 +25,7 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Summaries;
+using PlayniteAchievements.ViewModels.Items;
 using AsyncCommand = PlayniteAchievements.Common.AsyncCommand;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
@@ -33,6 +34,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     public sealed class ManageAchievementsViewModel : PlayniteAchievements.Common.ObservableObject
     {
         private const string ProviderOverrideNoneKey = "None";
+
+        public enum GameExclusionMode
+        {
+            None,
+            Refreshes,
+            Summaries
+        }
+
+        public sealed class GameExclusionOption
+        {
+            public GameExclusionOption(GameExclusionMode mode, string displayName)
+            {
+                Mode = mode;
+                DisplayName = displayName;
+            }
+
+            public GameExclusionMode Mode { get; }
+
+            public string DisplayName { get; }
+        }
 
         public sealed class ProviderOverrideOption
         {
@@ -95,13 +116,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private bool _canClearCustomData;
         private int _customDataRevision;
+        private ManageOverviewSummary _overviewSummary = ManageOverviewSummary.Empty;
 
         public IReadOnlyList<ProviderOverrideOption> ProviderOverrideOptions { get; }
 
         public RelayCommand OpenAchievementsCommand { get; }
         public AsyncCommand OpenAchievementPageCommand { get; }
-        public RelayCommand ToggleExclusionCommand { get; }
-        public RelayCommand ToggleSummaryExclusionCommand { get; }
         public RelayCommand ApplyProviderOverrideCommand { get; }
         public RelayCommand ClearProviderOverrideCommand { get; }
         public RelayCommand ApplyExophaseEnrichmentSlugCommand { get; }
@@ -141,8 +161,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             OpenAchievementsCommand = new RelayCommand(_ => OpenAchievements(), _ => HasGame);
             OpenAchievementPageCommand = new AsyncCommand(_ => OpenAchievementPageAsync(), _ => HasGame && HasAchievementPageLink);
-            ToggleExclusionCommand = new RelayCommand(_ => ToggleExclusion(), _ => HasGame);
-            ToggleSummaryExclusionCommand = new RelayCommand(_ => ToggleSummaryExclusion(), _ => HasGame);
             ApplyProviderOverrideCommand = new RelayCommand(_ => ApplyProviderOverride(), _ => HasGame);
             ClearProviderOverrideCommand = new RelayCommand(_ => ClearProviderOverride(), _ => HasGame && HasProviderOverride);
             ApplyExophaseEnrichmentSlugCommand = new RelayCommand(_ => ApplyExophaseEnrichmentSlug(), _ => HasGame);
@@ -301,7 +319,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _hasProviderOverride, value))
                 {
                     OnPropertyChanged(nameof(ProviderOverrideStatusText));
-                    OnPropertyChanged(nameof(ProviderOverrideSummaryText));
                     RaiseCommandStates();
                 }
             }
@@ -315,7 +332,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (SetValueAndReturn(ref _providerOverrideValue, value ?? string.Empty))
                 {
                     OnPropertyChanged(nameof(ProviderOverrideStatusText));
-                    OnPropertyChanged(nameof(ProviderOverrideSummaryText));
                 }
             }
         }
@@ -378,8 +394,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     valueDisplay);
             }
         }
-
-        public string ProviderOverrideSummaryText => ProviderOverrideStatusText;
 
         public string ExophaseEnrichmentSlugInput
         {
@@ -552,19 +566,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _isExcluded, value))
                 {
-                    OnPropertyChanged(nameof(ExclusionStatusText));
-                    OnPropertyChanged(nameof(ExclusionActionText));
+                    OnPropertyChanged(nameof(ExclusionMode));
                 }
             }
         }
-
-        public string ExclusionStatusText => IsExcluded
-            ? L("LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes")
-            : L("LOCPlayAch_ManageAchievements_Status_IncludedFromRefreshes");
-
-        public string ExclusionActionText => IsExcluded
-            ? L("LOCPlayAch_Menu_IncludeGame")
-            : L("LOCPlayAch_Menu_ExcludeGame");
 
         public bool IsExcludedFromSummaries
         {
@@ -573,19 +578,33 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _isExcludedFromSummaries, value))
                 {
-                    OnPropertyChanged(nameof(SummaryExclusionStatusText));
-                    OnPropertyChanged(nameof(SummaryExclusionActionText));
+                    OnPropertyChanged(nameof(ExclusionMode));
                 }
             }
         }
 
-        public string SummaryExclusionStatusText => IsExcludedFromSummaries
-            ? L("LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries")
-            : L("LOCPlayAch_ManageAchievements_Status_IncludedFromSummaries");
+        public IReadOnlyList<GameExclusionOption> ExclusionModeOptions { get; } = new[]
+        {
+            new GameExclusionOption(GameExclusionMode.None, L("LOCPlayAch_Common_None")),
+            new GameExclusionOption(GameExclusionMode.Refreshes, L("LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes")),
+            new GameExclusionOption(GameExclusionMode.Summaries, L("LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries"))
+        };
 
-        public string SummaryExclusionActionText => IsExcludedFromSummaries
-            ? L("LOCPlayAch_Common_Action_IncludeInSummaries")
-            : L("LOCPlayAch_Common_Action_ExcludeFromSummaries");
+        /// <summary>
+        /// The game's two exclusions as one choice. Picking one clears the other; a game that
+        /// already stores both reads as excluded from refreshes.
+        /// </summary>
+        /// <remarks>
+        /// Excluding from refreshes here leaves the cached data in place, unlike the game menu's
+        /// "Exclude and Clear Data": the Overview already has a Clear button beside it.
+        /// </remarks>
+        public GameExclusionMode ExclusionMode
+        {
+            get => IsExcluded
+                ? GameExclusionMode.Refreshes
+                : IsExcludedFromSummaries ? GameExclusionMode.Summaries : GameExclusionMode.None;
+            set => ApplyExclusionMode(value);
+        }
 
         public bool HasManualTrackingLink
         {
@@ -656,6 +675,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get => _customDataRevision;
             private set => SetValue(ref _customDataRevision, value);
+        }
+
+        /// <summary>
+        /// The Overview's rarity, trophy and category breakdowns and its per-kind customization
+        /// counts. Replaced as one value on every reload.
+        /// </summary>
+        public ManageOverviewSummary OverviewSummary
+        {
+            get => _overviewSummary;
+            private set => SetValue(ref _overviewSummary, value ?? ManageOverviewSummary.Empty);
         }
 
         // Both of these are cache hits once the snapshot is warm and a full load when it is not,
@@ -768,10 +797,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     : !string.IsNullOrWhiteSpace(capstone?.ApiName)
                         ? capstone.ApiName.Trim()
                         : L("LOCPlayAch_Common_None");
-
                 HasAchievementData = (gameData?.HasAchievements ?? false) && list.Count > 0;
 
                 var currentCustomData = TryLoadStoredCustomData(_plugin?.GameCustomDataStore);
+                OverviewSummary = BuildOverviewSummary(list, currentCustomData);
                 IsExcluded = isExcluded;
                 IsExcludedFromSummaries = GameCustomDataLookup.IsExcludedFromSummaries(_gameId, _settings?.Persisted);
                 SetValue(
@@ -801,6 +830,72 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 RaiseCommandStates();
             }
+        }
+
+        private static ManageOverviewSummary BuildOverviewSummary(
+            IReadOnlyList<AchievementDetail> achievements,
+            GameCustomDataFile customData)
+        {
+            var breakdown = ManageOverviewSummaryBuilder.BuildBreakdown(achievements);
+            var stats = breakdown.Stats;
+
+            return new ManageOverviewSummary
+            {
+                RarityCommon = Stat(stats.CommonCount, stats.TotalCommonPossible),
+                RarityUncommon = Stat(stats.UncommonCount, stats.TotalUncommonPossible),
+                RarityRare = Stat(stats.RareCount, stats.TotalRarePossible),
+                RarityUltraRare = Stat(stats.UltraRareCount, stats.TotalUltraRarePossible),
+                TrophyPlatinum = Stat(stats.TrophyPlatinumCount, stats.TrophyPlatinumTotal),
+                TrophyGold = Stat(stats.TrophyGoldCount, stats.TrophyGoldTotal),
+                TrophySilver = Stat(stats.TrophySilverCount, stats.TrophySilverTotal),
+                TrophyBronze = Stat(stats.TrophyBronzeCount, stats.TrophyBronzeTotal),
+                Points = Stat(breakdown.UnlockedPoints, breakdown.TotalPoints),
+                // Shown only once something is categorized: "0 / 60" says nothing on its own.
+                Categorized = breakdown.CategorizedCount > 0
+                    ? Stat(breakdown.CategorizedCount, stats.TotalAchievements)
+                    : ManageOverviewStat.None,
+                Goals = Stat(breakdown.UnlockedGoalCount, breakdown.GoalCount),
+                Customizations = ManageOverviewSummaryBuilder.BuildCustomizationCounts(customData)
+                    .Select(entry => new ManageOverviewCustomizationChip(
+                        L(entry.LabelKey),
+                        entry.Count.HasValue ? FormatCount(entry.Count.Value) : null,
+                        entry.LabelKey == CapstoneLabelKey ? BuildCapstoneToolTip(achievements) : null))
+                    .ToList()
+            };
+        }
+
+        private static readonly string CapstoneLabelKey =
+            AchievementCustomizationFacetLabels.GetLabelKey(AchievementCustomizationFacet.Capstone);
+
+        /// <summary>
+        /// One capstone per line, prefixed with its category when it stands for a category rather
+        /// than the whole game.
+        /// </summary>
+        private static string BuildCapstoneToolTip(IReadOnlyList<AchievementDetail> achievements)
+        {
+            var lines = ManageOverviewSummaryBuilder.BuildCapstones(achievements)
+                .Select(capstone => capstone.Item1 == null
+                    ? capstone.Item2
+                    : AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(capstone.Item1) + ": " + capstone.Item2)
+                .ToList();
+            return lines.Count > 0 ? string.Join(Environment.NewLine, lines) : null;
+        }
+
+        private static ManageOverviewStat Stat(int value, int total)
+        {
+            return total > 0
+                ? new ManageOverviewStat(FormatProgress(value, total), true)
+                : ManageOverviewStat.None;
+        }
+
+        private static string FormatProgress(int unlocked, int total)
+        {
+            return string.Format(FormattingCulture.Current, "{0:N0} / {1:N0}", unlocked, total);
+        }
+
+        private static string FormatCount(int value)
+        {
+            return value.ToString("N0", FormattingCulture.Current);
         }
 
         private void OpenAchievements()
@@ -848,15 +943,29 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 MessageBoxImage.Information);
         }
 
-        private void ToggleExclusion()
+        private void ApplyExclusionMode(GameExclusionMode mode)
         {
-            _plugin?.ToggleGameExclusion(_gameId);
-            Reload();
-        }
+            if (!HasGame || _achievementOverridesService == null || mode == ExclusionMode)
+            {
+                return;
+            }
 
-        private void ToggleSummaryExclusion()
-        {
-            _achievementOverridesService?.SetExcludedFromSummaries(_gameId, !IsExcludedFromSummaries);
+            var excludeFromRefreshes = mode == GameExclusionMode.Refreshes;
+            var excludeFromSummaries = mode == GameExclusionMode.Summaries;
+
+            if (IsExcluded != excludeFromRefreshes)
+            {
+                _achievementOverridesService.SetExcludedByUser(
+                    _gameId,
+                    excludeFromRefreshes,
+                    clearCachedDataWhenExcluding: false);
+            }
+
+            if (IsExcludedFromSummaries != excludeFromSummaries)
+            {
+                _achievementOverridesService.SetExcludedFromSummaries(_gameId, excludeFromSummaries);
+            }
+
             Reload();
         }
 
@@ -1375,8 +1484,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             OpenAchievementsCommand?.RaiseCanExecuteChanged();
             OpenAchievementPageCommand?.RaiseCanExecuteChanged();
-            ToggleExclusionCommand?.RaiseCanExecuteChanged();
-            ToggleSummaryExclusionCommand?.RaiseCanExecuteChanged();
             ApplyProviderOverrideCommand?.RaiseCanExecuteChanged();
             ClearProviderOverrideCommand?.RaiseCanExecuteChanged();
             ApplyExophaseEnrichmentSlugCommand?.RaiseCanExecuteChanged();
@@ -1403,8 +1510,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             CurrentCapstoneName = string.IsNullOrWhiteSpace(displayName)
                 ? L("LOCPlayAch_Common_None")
-                : displayName.Trim();
-            RefreshCustomDataState();
+                : displayName.Trim();            RefreshCustomDataState();
         }
 
         internal void NotifyCustomDataChanged(

@@ -24,9 +24,9 @@ namespace PlayniteAchievements.Tests.Views
             var focusOrder = ReadFocusButtonOrder();
 
             Assert.AreEqual(
-                5,
+                4,
                 xamlOrder.Count,
-                "Expected 5 tabs in the nav rail; update this test if a tab was added or removed.");
+                "Expected 4 tabs in the nav rail; update this test if a tab was added or removed.");
 
             CollectionAssert.AreEqual(
                 xamlOrder,
@@ -60,36 +60,31 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void NavRail_GroupHeaders_ReuseExistingLocalizationKeys()
+        public void NavRail_HasNoGroupHeaders()
         {
             var xaml = ReadControlXaml();
 
-            // Group headers reuse keys already defined in en_US.xaml; no new strings are introduced.
-            var headerKeys = new[]
+            // The rail is four tabs, so it lists them flat. The Overrides tab folded into the
+            // Overview, which left each remaining group with a single entry, and the headers went
+            // with it.
+            var formerHeaderKeys = new[]
             {
                 "LOCPlayAch_Common_General",
                 "LOCPlayAch_Settings_Appearance",
-                "LOCPlayAch_Settings_Maintenance_Title"
+                "LOCPlayAch_Settings_Maintenance_Title",
+                "LOCPlayAch_Achievements"
             };
 
-            var english = File.ReadAllText(FindRepoFile("source", "Localization", "en_US.xaml"));
-
-            foreach (var key in headerKeys)
+            foreach (var key in formerHeaderKeys)
             {
-                Assert.IsTrue(
+                Assert.IsFalse(
                     xaml.Contains("{DynamicResource " + key + "}"),
-                    "Nav rail is missing the group header binding for " + key + ".");
-                Assert.IsTrue(
-                    english.Contains("x:Key=\"" + key + "\""),
-                    "Group header key " + key + " must already exist in en_US.xaml.");
+                    "Nav rail group header " + key + " must stay removed.");
             }
 
-            // The Achievements group went with the tabs it labelled: the Editor absorbed them and
-            // Categories sits with it under General, so no header names that group any more.
             Assert.IsFalse(
-                xaml.Contains("LOCPlayAch_Achievements}"),
-                "The Achievements group header must stay removed; the Editor replaced the tabs it "
-                    + "labelled.");
+                xaml.Contains("NavSectionHeaderStyle"),
+                "The nav rail has no group headers, so it needs no header style.");
         }
 
         [TestMethod]

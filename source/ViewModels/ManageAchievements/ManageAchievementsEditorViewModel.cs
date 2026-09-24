@@ -7547,29 +7547,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// The localized name of each facet, in the order the tooltip lists them. Every label is
-        /// an existing key: the same words the editor's own fields carry, so the tooltip names
-        /// what it points at.
-        /// </summary>
-        private static readonly Tuple<AchievementCustomizationFacet, string>[] CustomizationFacetLabelKeys =
-        {
-            Tuple.Create(AchievementCustomizationFacet.DisplayName, "LOCPlayAch_Column_AchievementName"),
-            Tuple.Create(AchievementCustomizationFacet.Description, "LOCPlayAch_Column_Description"),
-            Tuple.Create(AchievementCustomizationFacet.UnlockedIcon, "LOCPlayAch_ManageAchievements_Custom_UnlockedIcon"),
-            Tuple.Create(AchievementCustomizationFacet.LockedIcon, "LOCPlayAch_ManageAchievements_Custom_LockedIcon"),
-            Tuple.Create(AchievementCustomizationFacet.Points, "LOCPlayAch_Column_Points"),
-            Tuple.Create(AchievementCustomizationFacet.TrophyType, "LOCPlayAch_Column_Trophy"),
-            Tuple.Create(AchievementCustomizationFacet.UnlockTime, "LOCPlayAch_Common_UnlockTime"),
-            Tuple.Create(AchievementCustomizationFacet.Category, "LOCPlayAch_Common_Label_Category"),
-            Tuple.Create(AchievementCustomizationFacet.CategoryType, "LOCPlayAch_ManageAchievements_Category_TypeSelectorLabel"),
-            Tuple.Create(AchievementCustomizationFacet.Hidden, "LOCPlayAch_ManageAchievements_Custom_Hidden"),
-            Tuple.Create(AchievementCustomizationFacet.Note, "LOCPlayAch_ManageAchievements_Notes_Note"),
-            Tuple.Create(AchievementCustomizationFacet.FilterScope, "LOCPlayAch_Menu_Filters"),
-            Tuple.Create(AchievementCustomizationFacet.Goal, "LOCPlayAch_ManageAchievements_Editor_Goal"),
-            Tuple.Create(AchievementCustomizationFacet.Capstone, "LOCPlayAch_Dynamic_Capstone")
-        };
-
-        /// <summary>
         /// One facet per line under the same word the filter uses, so the marker, the filter and
         /// the editor's fields all read alike. An authored row is named for what it is instead:
         /// it has no provider values behind it to have diverged from.
@@ -7587,7 +7564,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             var lines = new List<string> { ResourceProvider.GetString("LOCPlayAch_Tagging_Customized") };
-            foreach (var entry in CustomizationFacetLabelKeys)
+            foreach (var entry in AchievementCustomizationFacetLabels.Ordered)
             {
                 if ((facets & entry.Item1) != 0)
                 {
