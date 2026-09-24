@@ -251,6 +251,64 @@ namespace PlayniteAchievements.Tests.Common
         }
 
         [TestMethod]
+        public void StateEquals_IsTrueOnlyWhenEveryFieldMatches()
+        {
+            var left = Populated();
+            var right = Populated();
+
+            Assert.IsTrue(
+                ObservableStateCopier.StateEquals(left, right),
+                "Two instances built the same way hold the same state, so refreshing one from " +
+                "the other would notify a bound view for nothing.");
+
+            right.Number = 43;
+            Assert.IsFalse(ObservableStateCopier.StateEquals(left, right));
+        }
+
+        [TestMethod]
+        public void StateEquals_ComparesTheSameFieldsTheCopyAssigns()
+        {
+            // The two must agree, or a row could compare equal and then be changed by the copy,
+            // leaving the view showing a value nothing announced.
+            var source = Populated();
+            var target = new DerivedState();
+
+            Assert.IsFalse(ObservableStateCopier.StateEquals(target, source));
+            ObservableStateCopier.CopyState(target, source);
+            Assert.IsTrue(
+                ObservableStateCopier.StateEquals(target, source),
+                "A copy must leave the two comparing equal; if it does not, the diff and the " +
+                "copy disagree about what state is.");
+        }
+
+        [TestMethod]
+        public void StateEquals_IgnoresEventSubscribersAndReadonlyFields()
+        {
+            var left = Populated();
+            var right = Populated();
+
+            right.Changed += (_, __) => { };
+            right.ReadonlyList.Add("only-here");
+
+            Assert.IsTrue(
+                ObservableStateCopier.StateEquals(left, right),
+                "Neither is state the copy would transfer, so neither may make two rows look " +
+                "different and force a needless notification.");
+        }
+
+        [TestMethod]
+        public void StateEquals_HandlesNullsAndMismatchedTypes()
+        {
+            var populated = Populated();
+
+            Assert.IsTrue(ObservableStateCopier.StateEquals<object>(null, null));
+            Assert.IsFalse(ObservableStateCopier.StateEquals<object>(populated, null));
+            Assert.IsFalse(ObservableStateCopier.StateEquals<object>(null, populated));
+            Assert.IsFalse(ObservableStateCopier.StateEquals<object>(populated, new OtherState()));
+            Assert.IsTrue(ObservableStateCopier.StateEquals(populated, populated));
+        }
+
+        [TestMethod]
         public void TheEditorRow_UsesTheCopierAndAnnouncesEveryProperty()
         {
             // AchievementEditorRow is not linked into this project, so the delegation itself is

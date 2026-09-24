@@ -23,13 +23,13 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var source = ReadViewModel();
 
-            StringAssert.Contains(source, "if (TryCopyRowsInPlace(materializedRows))");
+            StringAssert.Contains(source, "TryCopyRowsInPlace(materializedRows)");
             StringAssert.Contains(
                 source,
                 "AchievementRows.ReplaceAll(materializedRows)",
                 "The Reset path must stay: adding, removing or reordering rows has to go through " +
                 "the collection or the grid never learns about it.");
-            StringAssert.Contains(source, "CopyStateFrom(materializedRows[i])");
+            StringAssert.Contains(source, "CopyStateFrom(materializedRows[index])");
         }
 
         [TestMethod]
@@ -84,12 +84,42 @@ namespace PlayniteAchievements.Tests.ViewModels
             // property change raised during the copy can reach the persistence hook. That is the
             // second half of why this is safe, alongside the copier never driving a setter.
             var detach = body.IndexOf("DetachRow(row)", StringComparison.Ordinal);
-            var copy = body.IndexOf("CopyStateFrom(materializedRows[i])", StringComparison.Ordinal);
+            var copy = body.IndexOf("CopyStateFrom(materializedRows[index])", StringComparison.Ordinal);
             var attach = body.IndexOf("AttachRow(row, useSeparateLockedIcons)", StringComparison.Ordinal);
 
             Assert.IsTrue(detach >= 0, "The detach loop must remain.");
             Assert.IsTrue(attach > detach, "Rows are reattached after being detached.");
             Assert.IsTrue(copy > detach, "The copy must happen after the rows are detached.");
+        }
+
+        [TestMethod]
+        public void OnlyChangedRows_AreCopiedAndNotified()
+        {
+            var source = ReadViewModel();
+
+            StringAssert.Contains(source, "FindChangedRows(materializedRows)");
+            StringAssert.Contains(
+                source,
+                "ObservableStateCopier.StateEquals(AchievementRows[i], incoming[i])",
+                "An unchanged row needs neither the copy nor the notification, and the " +
+                "notification is the expensive half.");
+            StringAssert.Contains(
+                source,
+                "AchievementRows[index].CopyStateFrom(materializedRows[index])",
+                "The copy must be driven by the changed set, not by every position.");
+        }
+
+        [TestMethod]
+        public void PastTheThreshold_OneResetIsPreferredToNotifyingEveryRow()
+        {
+            var source = ReadViewModel();
+
+            // Raising "every property changed" per row defers its real cost to later dispatcher
+            // passes, so it does not appear in the loop that causes it. Measured with the stall
+            // watchdog: a Reset stalls ~440ms, notifying all 641 rows stalls 670-870ms. Without
+            // this cap the in-place path is slower than the thing it replaced.
+            StringAssert.Contains(source, "changedRows.Count <= InPlaceNotifyThreshold");
+            StringAssert.Contains(source, "private const int InPlaceNotifyThreshold");
         }
 
         [TestMethod]
