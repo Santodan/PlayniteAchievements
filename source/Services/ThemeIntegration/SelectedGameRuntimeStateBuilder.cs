@@ -165,8 +165,18 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             var category = CategoryPathHelper.NormalizePath(achievement.Category);
-            achievement.CategoryOrderIndex =
-                AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(category, data?.AchievementCategoryOrder);
+
+            // Built once per game on the shared memo. Resolving against the raw list scans it and
+            // re-normalizes every entry on each probe, once per achievement, so a game with a
+            // custom category order paid categories x achievements normalizations per rebuild.
+            var categoryOrderIndex = categoryArtMemo?.GetCategoryOrderIndex(
+                data?.AchievementCategoryOrder,
+                AchievementCategoryFilterOrderHelper.BuildCategoryOrderIndex);
+            achievement.CategoryOrderIndex = categoryOrderIndex != null
+                ? AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(category, categoryOrderIndex)
+                : AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(
+                    category,
+                    data?.AchievementCategoryOrder);
 
             // One shared chain with the achievement grid: the effective label is probed before
             // the provider label so a merged category resolves the target's art, and a nested

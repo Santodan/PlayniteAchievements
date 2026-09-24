@@ -34,6 +34,9 @@ namespace PlayniteAchievements.Services.Images
     ///
     /// Scope one memo to a single pass over a single game and discard it afterwards.
     /// </summary>
+    /// <summary>
+    /// Per-game memo for the category work done while presenting a game's achievements.
+    /// </summary>
     internal sealed class CategoryArtChainMemo
     {
         private readonly Dictionary<string, string> _entries =
@@ -42,6 +45,29 @@ namespace PlayniteAchievements.Services.Images
         internal bool TryGet(string key, out string art) => _entries.TryGetValue(key, out art);
 
         internal void Set(string key, string art) => _entries[key] = art;
+
+        /// <summary>
+        /// The game's category order as a normalized lookup, built on first use and reused for
+        /// every achievement of that game.
+        /// </summary>
+        /// <remarks>
+        /// Resolving the order index used to scan the order list and normalize each entry on
+        /// every probe, once per achievement -- so a game with many achievements and a custom
+        /// category order paid categories x achievements string normalizations per rebuild.
+        /// </remarks>
+        internal IReadOnlyDictionary<string, int> GetCategoryOrderIndex(
+            IReadOnlyList<string> categoryOrder,
+            Func<IReadOnlyList<string>, Dictionary<string, int>> build)
+        {
+            if (_categoryOrderIndex == null)
+            {
+                _categoryOrderIndex = build(categoryOrder);
+            }
+
+            return _categoryOrderIndex;
+        }
+
+        private IReadOnlyDictionary<string, int> _categoryOrderIndex;
     }
 
     /// <summary>
