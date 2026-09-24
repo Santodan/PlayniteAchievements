@@ -57,6 +57,37 @@ namespace PlayniteAchievements.ViewModels.Items
             public bool ShowFriendSpoilers { get; set; }
 
             /// <summary>
+            /// A copy carrying a different per-game locked-icon choice. Everything else in a
+            /// snapshot comes from the persisted settings and is the same for every row, so a
+            /// caller mapping many rows builds one snapshot and varies only this.
+            /// </summary>
+            public AppearanceSettingsSnapshot WithSeparateLockedIcons(bool useSeparateLockedIcons)
+            {
+                if (useSeparateLockedIcons == UseSeparateLockedIconsWhenAvailable)
+                {
+                    return this;
+                }
+
+                return new AppearanceSettingsSnapshot
+                {
+                    ShowHiddenIcon = ShowHiddenIcon,
+                    ShowHiddenTitle = ShowHiddenTitle,
+                    ShowHiddenDescription = ShowHiddenDescription,
+                    ShowHiddenSuffix = ShowHiddenSuffix,
+                    ShowLockedIcon = ShowLockedIcon,
+                    ShowLockedTitle = ShowLockedTitle,
+                    ShowLockedDescription = ShowLockedDescription,
+                    ShowHiddenTrophy = ShowHiddenTrophy,
+                    ShowHiddenPoints = ShowHiddenPoints,
+                    ShowLockedTrophy = ShowLockedTrophy,
+                    ShowLockedPoints = ShowLockedPoints,
+                    UseSeparateLockedIconsWhenAvailable = useSeparateLockedIcons,
+                    ShowRarityBar = ShowRarityBar,
+                    ShowFriendSpoilers = ShowFriendSpoilers
+                };
+            }
+
+            /// <summary>
             /// A field-for-field copy. Callers that need to vary one field per game clone rather
             /// than re-listing every field, so a field added above cannot be silently dropped.
             /// </summary>

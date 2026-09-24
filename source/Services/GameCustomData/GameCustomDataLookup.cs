@@ -448,12 +448,29 @@ namespace PlayniteAchievements.Services.GameCustomData
             return resolvedStore.GetExcludedSummaryGameIds(fallbackSettings?.ExcludedFromSummariesGameIds);
         }
 
+        /// <remarks>
+        /// Reads the one flag rather than building the resolved projection, which allocates and
+        /// copies every collection the record holds. The appearance snapshot falls back to this
+        /// per achievement row whenever the caller has no resolved value in hand, so a full
+        /// projection build here was paid per row.
+        /// </remarks>
         public static bool ShouldUseSeparateLockedIcons(
             Guid? gameId,
             PersistedSettings settings,
             GameCustomDataStore store = null)
         {
-            return ResolveGameCustomData(gameId ?? Guid.Empty, settings, store).UseSeparateLockedIcons;
+            // The global setting wins on its own, exactly as the resolved projection has it.
+            if (settings?.UseSeparateLockedIconsWhenAvailable == true)
+            {
+                return true;
+            }
+
+            var resolvedGameId = gameId ?? Guid.Empty;
+            return ReadGameFlag(
+                resolvedGameId,
+                store,
+                customData => customData.UseSeparateLockedIconsOverride == true,
+                () => settings?.SeparateLockedIconEnabledGameIds?.Contains(resolvedGameId) == true);
         }
 
         /// <summary>
