@@ -151,6 +151,22 @@ namespace PlayniteAchievements.Services.UI
 
         private void ShowWindow(Window window, bool isFullscreen)
         {
+            // Splits the span that three fixes have failed to move: ~1s between a popout's
+            // content loading and the first dispatcher callback running. ContentRendered fires
+            // when WPF has finished the first frame, so these two lines say whether that second
+            // is spent rendering (the window's own first paint, which nothing queued can
+            // pre-empt because ShowDialog runs it before its message loop pumps) or somewhere
+            // after it.
+            if (window != null && Common.PerfScope.PerfTracingEnabled)
+            {
+                var showRequestedTicks = Environment.TickCount;
+                _logger?.Debug("[WindowOpen] showing '" + window.Title + "'.");
+                window.ContentRendered += (_, __) =>
+                    _logger?.Debug(
+                        "[WindowOpen] content rendered after " +
+                        (Environment.TickCount - showRequestedTicks) + "ms.");
+            }
+
             PrepareForegroundActivation(window);
 
             if (isFullscreen)
