@@ -34,7 +34,13 @@ namespace PlayniteAchievements.Tests.Services
                 null
             };
 
+            achievements[0].IsGoal = true;
+            achievements[1].IsGoal = true;
+
             var breakdown = ManageOverviewSummaryBuilder.BuildBreakdown(achievements);
+
+            Assert.AreEqual(2, breakdown.GoalCount);
+            Assert.AreEqual(1, breakdown.UnlockedGoalCount);
 
             Assert.AreEqual(5, breakdown.Stats.TotalAchievements);
             Assert.AreEqual(60, breakdown.TotalPoints);
