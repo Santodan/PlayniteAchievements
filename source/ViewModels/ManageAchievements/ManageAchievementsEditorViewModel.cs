@@ -2826,6 +2826,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // Reaches a full ReloadData below. This was the one reload a captured editing session
+            // still paid, and it had no scope of its own, so it appeared in the log with no
+            // visible cause and had to be inferred from timing.
+            using var resetScope = Common.PerfScope.Start(
+                _logger,
+                "Editor.ResetCustomizations",
+                thresholdMs: 10,
+                context: "targets=" + targets.Count + " rows=" + AchievementRows.Count +
+                         " deleteAuthored=" + deleteAuthored);
+
             try
             {
                 var apiNames = new HashSet<string>(
@@ -4748,6 +4758,54 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 insertAfterTarget: true);
         }
 
+        /// <summary>
+        /// How many positions must change occupant before one collection Reset beats a
+        /// collection change per displaced row.
+        /// </summary>
+        /// <remarks>
+        /// A Reset was measured on this grid at ~137ms for the DataGrid to react plus ~175ms to
+        /// re-realize a viewport, and that price does not scale down with the size of the change.
+        /// An incremental sync instead pays a forward scan and one collection change per
+        /// displaced row, so it is far cheaper for a short drag and far worse for a long one.
+        /// Set well below the point where the incremental path reaches a Reset's cost, because
+        /// overshooting only wastes a few milliseconds while undershooting on a block drag is the
+        /// stall this exists to remove.
+        /// </remarks>
+        private const int ReorderResetThreshold = 40;
+
+        /// <summary>
+        /// Positions whose occupant differs between the current order and the intended one. This
+        /// is what either path has to pay for -- not the number of rows dragged, since dragging
+        /// one row to the far end displaces everything in between.
+        /// </summary>
+        private static int CountDisplacedPositions(
+            IList<AchievementEditorRow> current,
+            IList<AchievementEditorRow> reordered)
+        {
+            if (current == null || reordered == null)
+            {
+                return int.MaxValue;
+            }
+
+            // A length change means rows were added or removed, which the incremental path
+            // handles but which is not a plain reorder; treat it as a full change.
+            if (current.Count != reordered.Count)
+            {
+                return int.MaxValue;
+            }
+
+            var displaced = 0;
+            for (var i = 0; i < current.Count; i++)
+            {
+                if (!ReferenceEquals(current[i], reordered[i]))
+                {
+                    displaced++;
+                }
+            }
+
+            return displaced;
+        }
+
         private bool TryMoveItems(
             List<AchievementEditorRow> source,
             IReadOnlyList<int> selectedIndexes,
@@ -4779,14 +4837,41 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            // Synchronized item by item, deliberately, even though a Reset would raise one
-            // collection change instead of one per displaced row. A Reset sends the DataGrid back
-            // to the top, and the reorder behavior's RestoreSelection only reselects the moved
-            // rows -- it does not scroll to them -- so the user would lose their place on every
-            // drag. The per-move cost is bounded by how far the rows travel, not by the list
-            // length, so a normal drag pays little; restoring scroll offset explicitly is what a
-            // Reset here would need first.
-            CollectionHelper.SynchronizeCollection(AchievementRows, reordered);
+            // One Reset rather than a Move per displaced row. The item-by-item synchronize this
+            // replaced scanned the rest of the list for each displaced row -- quadratic in the
+            // list, not bounded by how far the rows travel as its comment claimed -- and then
+            // raised a collection change per row for the grid to handle one at a time. Dragging
+            // a block through a few hundred rows is the case that made slow.
+            //
+            // The prerequisite the old comment named is now met: DataGridRowReorderBehavior
+            // captures the scroll offset before the move and restores it afterwards, so the
+            // Reset no longer costs the user their place. Selection is restored there too.
+            //
+            // The rows are the same instances in a new order, so no handler is detached or
+            // reattached here -- unlike ReplaceRows, which builds new rows.
+            // Which of the two is cheaper depends entirely on how much of the list actually
+            // moved, and the crossover is measured rather than assumed: a Reset on this grid
+            // costs ~137ms for the grid to react plus ~175ms to re-realize a viewport, whatever
+            // changed, while an incremental sync costs a scan and a collection change per
+            // displaced row. So a small drag stays incremental and a block drag takes the Reset.
+            var displaced = CountDisplacedPositions(AchievementRows, reordered);
+
+            using (var scope = Common.PerfScope.Start(_logger, "Editor.Reorder.Apply", thresholdMs: 5))
+            {
+                scope?.SetContext(
+                    "rows=" + reordered.Count +
+                    " displaced=" + displaced +
+                    " path=" + (displaced > ReorderResetThreshold ? "reset" : "incremental"));
+
+                if (displaced > ReorderResetThreshold)
+                {
+                    AchievementRows.ReplaceAll(reordered);
+                }
+                else
+                {
+                    CollectionHelper.SynchronizeCollection(AchievementRows, reordered);
+                }
+            }
             PersistCurrentOrder();
             return true;
         }

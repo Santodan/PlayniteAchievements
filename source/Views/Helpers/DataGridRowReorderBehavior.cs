@@ -546,6 +546,14 @@ namespace PlayniteAchievements.Views.Helpers
                 bool moved;
                 var isNest = false;
                 var targetItem = row?.DataContext;
+
+                // The host collapses a reorder into a single collection Reset, which is what
+                // makes dragging a large block cheap -- but a Reset sends the grid back to the
+                // top. Captured before the move and restored after, so the drop leaves the view
+                // where the user left it.
+                EnsureScrollViewer();
+                var restoreOffset = _scrollViewer?.VerticalOffset ?? 0d;
+                var restoreHorizontal = _scrollViewer?.HorizontalOffset ?? 0d;
                 if (targetItem != null && _options.IsReorderableItem(targetItem))
                 {
                     // The same zone resolution the hover indicator used, so the drop can never
@@ -577,6 +585,8 @@ namespace PlayniteAchievements.Views.Helpers
                 {
                     _options.RestoreSelection?.Invoke(draggedKeys);
                 }
+
+                RestoreScrollOffsetAfterReorder(restoreOffset, restoreHorizontal);
                 _isDragging = false;
                 _dragItemCount = 0;
                 StopAutoScroll();
@@ -588,6 +598,37 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 var cell = VisualTreeHelpers.FindVisualParent<DataGridCell>(source);
                 return cell?.Column?.DisplayIndex == 0;
+            }
+
+            /// <summary>
+            /// Puts the view back where it was before a reorder. Posted at Loaded priority
+            /// because the collection Reset the move raises re-runs layout first, and setting
+            /// the offset before that lands would be overwritten by it.
+            /// </summary>
+            private void RestoreScrollOffsetAfterReorder(double verticalOffset, double horizontalOffset)
+            {
+                if (_scrollViewer == null || (verticalOffset <= 0d && horizontalOffset <= 0d))
+                {
+                    return;
+                }
+
+                _ = _grid?.Dispatcher?.BeginInvoke(
+                    new Action(() =>
+                    {
+                        if (_scrollViewer == null)
+                        {
+                            return;
+                        }
+
+                        // Clamped by the ScrollViewer itself, so a reorder that shortened the
+                        // list simply lands at the new bottom rather than out of range.
+                        _scrollViewer.ScrollToVerticalOffset(verticalOffset);
+                        if (horizontalOffset > 0d)
+                        {
+                            _scrollViewer.ScrollToHorizontalOffset(horizontalOffset);
+                        }
+                    }),
+                    DispatcherPriority.Loaded);
             }
 
             private void EnsureScrollViewer()
