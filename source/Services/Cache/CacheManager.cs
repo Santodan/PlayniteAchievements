@@ -20,6 +20,12 @@ namespace PlayniteAchievements.Services.Cache
         List<GameAchievementData> LoadAllGameDataFast();
 
         CachedSummaryData LoadCachedSummaryDataFast(int recentAchievementDetailLimit = 0);
+
+        /// <summary>
+        /// One game's contribution, for patching a cached whole-library summary rather than
+        /// re-reading every row. Always unbounded, matching the overview's own request.
+        /// </summary>
+        CachedSummaryData LoadCachedSummaryDataForGameFast(Guid playniteGameId);
     }
 
     // Write access to the AchievementOverrides mirror table — the summary queries' SQL-side view
@@ -166,6 +172,11 @@ namespace PlayniteAchievements.Services.Cache
         CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataFast(int recentAchievementDetailLimit)
         {
             return LoadCachedSummaryDataFast(recentAchievementDetailLimit);
+        }
+
+        CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataForGameFast(Guid playniteGameId)
+        {
+            return LoadCachedSummaryDataForGameFast(playniteGameId);
         }
 
         // Mirror writes never throw: when the store failed to initialize, summaries are
@@ -801,6 +812,43 @@ namespace PlayniteAchievements.Services.Cache
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, "Failed loading cached summary data from cache.");
+                    return null;
+                }
+                finally
+                {
+                    if (scopeChanged)
+                    {
+                        RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
+                    }
+                }
+            }
+        }
+
+        internal CachedSummaryData LoadCachedSummaryDataForGameFast(Guid playniteGameId)
+        {
+            using (var scope = PerfScope.Start(_logger, "Cache.LoadCachedSummaryDataForGameFast", thresholdMs: 25))
+            {
+                scope?.SetContext(playniteGameId.ToString());
+                var scopeChanged = false;
+
+                try
+                {
+                    lock (_sync)
+                    {
+                        EnsureReady_Locked("LoadCachedSummaryDataForGameFast");
+                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
+                    }
+
+                    // Read off _sync, on the store's read connection, exactly as the
+                    // whole-library read does.
+                    return _store.LoadCachedSummaryDataForGame(playniteGameId);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"Failed loading cached summary data for game {playniteGameId}.");
+
+                    // null, not an empty result: the caller must fall back to a full rebuild
+                    // rather than conclude the game now contributes nothing.
                     return null;
                 }
                 finally
