@@ -564,6 +564,19 @@ namespace PlayniteAchievements.Services.Overview
             CancellationToken cancel)
         {
             var collections = settings?.Persisted?.Showcase?.AchievementPinCollections;
+            if (snapshot != null)
+            {
+                // Recorded before hydrating, including pins whose game data turns out to be
+                // unavailable: the set says which pins this build considered, not which it found.
+                snapshot.AchievementPinKeysAtBuild = new HashSet<string>(
+                    (collections ?? new List<PinnedAchievementCollection>())
+                        .Where(collection => collection?.Pins != null)
+                        .SelectMany(collection => collection.Pins)
+                        .Where(pin => pin != null && pin.GameId != Guid.Empty && !string.IsNullOrWhiteSpace(pin.ApiName))
+                        .Select(pin => OverviewDataSnapshot.AchievementPinKey(pin.GameId, pin.ApiName)),
+                    StringComparer.Ordinal);
+            }
+
             if (collections == null || collections.Count == 0 || snapshot?.Achievements == null)
             {
                 return;
