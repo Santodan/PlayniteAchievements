@@ -1407,6 +1407,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_TopN">Top entries</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Source">Source</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ItemCount">Item count</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_TileSpacing">Tile spacing</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Variant">Show</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Interval">Interval</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_FitMode">Fit</sys:String>
