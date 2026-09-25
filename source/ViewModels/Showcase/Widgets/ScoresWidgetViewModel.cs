@@ -91,7 +91,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 : current.CurrentLevelEndScore + 1d;
 
             var reached = new List<double>();
-            var walker = AchievementLevelCalculator.CalculateModern(Math.Max(0, windowMinScore));
+            // Only the last few boundaries are drawn, so start the walk no more than that many
+            // levels below the current one; mastery lets a window span thousands of levels.
+            var walkFloor = AchievementLevelCalculator.GetScoreForLevel(
+                Math.Max(0, current.Level - MaxReachedTierLines));
+            var walker = AchievementLevelCalculator.CalculateModern(Math.Max(windowMinScore, walkFloor));
             while (!walker.IsMaxLevel &&
                 walker.CurrentLevelEndScore < currentScore &&
                 walker.CurrentLevelEndScore < int.MaxValue - 1)
