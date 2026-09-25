@@ -8,8 +8,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 {
     /// <summary>
     /// A game cover tile. When the hosting widget draws from showcase pins, the tile
-    /// exposes reorder/unpin commands surfaced through a context menu; other sources
-    /// render read-only tiles.
+    /// also exposes reorder/unpin commands, which the tile context menu adds beside the
+    /// Open items (see ShowcaseMosaicClickBehavior).
     /// </summary>
     public sealed class GameTileViewModel
     {
@@ -48,6 +48,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             MoveLaterCommand = new RelayCommand(_ => Move(1));
             UnpinCommand = new RelayCommand(_ => Unpin());
         }
+
+        /// <summary>The tile's Playnite game, which a click opens in the library.</summary>
+        public Guid? GameId => _gameId;
 
         public string CoverPath { get; }
 
