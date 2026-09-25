@@ -34,6 +34,43 @@
                 <Setter Property="VerticalAlignment"
                         Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"/>
             </Style>
+
+            <!-- Level cells: the level, then a mastery star once a friend has completed a pass. -->
+            <Style x:Key="FriendSummaryLevelPanelStyle" TargetType="StackPanel">
+                <Setter Property="Orientation" Value="Horizontal"/>
+                <Setter Property="HorizontalAlignment"
+                        Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"/>
+                <Setter Property="VerticalAlignment"
+                        Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"/>
+            </Style>
+
+            <!-- Tag carries the mastery count so one style serves both level columns. -->
+            <Style x:Key="FriendSummaryMasteryStarStyle" TargetType="Viewbox">
+                <Setter Property="Width" Value="16"/>
+                <Setter Property="Height" Value="16"/>
+                <Setter Property="Margin" Value="5,0,0,0"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="IsHitTestVisible" Value="False"/>
+                <Style.Triggers>
+                    <Trigger Property="Tag" Value="{x:Null}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </Trigger>
+                    <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="0">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- Fixed white on the fixed rainbow star art. -->
+            <Style x:Key="FriendSummaryMasteryNumberStyle" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{DynamicResource CommonFont}"/>
+                <Setter Property="FontSize" Value="48"/>
+                <Setter Property="FontWeight" Value="Black"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,10,0,0"/>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -189,18 +226,46 @@
                                 SortMemberPath="CollectionScore"
                                 ElementStyle="{StaticResource FriendSummaryTextStyle}"
                                 helpers:ColumnVisibilityHelper.ColumnKey="FriendSummaryCollectionScore"/>
-            <DataGridTextColumn Width="*" MinWidth="64" CanUserResize="True"
-                                Header="{DynamicResource LOCPlayAch_Column_PrestigeLevel}"
-                                Binding="{Binding PrestigeLevel, Converter={StaticResource BlankZeroNumber}}"
-                                SortMemberPath="PrestigeLevel"
-                                ElementStyle="{StaticResource FriendSummaryTextStyle}"
-                                helpers:ColumnVisibilityHelper.ColumnKey="FriendSummaryPrestigeLevel"/>
-            <DataGridTextColumn Width="*" MinWidth="64" CanUserResize="True"
-                                Header="{DynamicResource LOCPlayAch_Column_CollectionLevel}"
-                                Binding="{Binding CollectionLevel, Converter={StaticResource BlankZeroNumber}}"
-                                SortMemberPath="CollectionLevel"
-                                ElementStyle="{StaticResource FriendSummaryTextStyle}"
-                                helpers:ColumnVisibilityHelper.ColumnKey="FriendSummaryCollectionLevel"/>
+            <DataGridTemplateColumn Width="*" MinWidth="64" CanUserResize="True"
+                                    Header="{DynamicResource LOCPlayAch_Column_PrestigeLevel}"
+                                    SortMemberPath="PrestigeLevel"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="FriendSummaryPrestigeLevel">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <StackPanel Style="{StaticResource FriendSummaryLevelPanelStyle}">
+                            <TextBlock Text="{Binding PrestigeLevel, Converter={StaticResource BlankZeroNumber}}"
+                                       Style="{StaticResource FriendSummaryTextStyle}"
+                                       TextWrapping="NoWrap"/>
+                            <Viewbox Tag="{Binding PrestigeMastery}" Style="{StaticResource FriendSummaryMasteryStarStyle}">
+                                <Grid Width="128" Height="128">
+                                    <Image Source="{DynamicResource ScoreBadgeMasteryStar}"/>
+                                    <TextBlock Text="{Binding PrestigeMastery}" Style="{StaticResource FriendSummaryMasteryNumberStyle}"/>
+                                </Grid>
+                            </Viewbox>
+                        </StackPanel>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Width="*" MinWidth="64" CanUserResize="True"
+                                    Header="{DynamicResource LOCPlayAch_Column_CollectionLevel}"
+                                    SortMemberPath="CollectionLevel"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="FriendSummaryCollectionLevel">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <StackPanel Style="{StaticResource FriendSummaryLevelPanelStyle}">
+                            <TextBlock Text="{Binding CollectionLevel, Converter={StaticResource BlankZeroNumber}}"
+                                       Style="{StaticResource FriendSummaryTextStyle}"
+                                       TextWrapping="NoWrap"/>
+                            <Viewbox Tag="{Binding CollectionMastery}" Style="{StaticResource FriendSummaryMasteryStarStyle}">
+                                <Grid Width="128" Height="128">
+                                    <Image Source="{DynamicResource ScoreBadgeMasteryStar}"/>
+                                    <TextBlock Text="{Binding CollectionMastery}" Style="{StaticResource FriendSummaryMasteryNumberStyle}"/>
+                                </Grid>
+                            </Viewbox>
+                        </StackPanel>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
         </DataGrid.Columns>
     </DataGrid>
     </Grid>
