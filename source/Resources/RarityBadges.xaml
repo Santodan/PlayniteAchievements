@@ -220,30 +220,6 @@
     </DrawingImage.Drawing>
   </DrawingImage>
 
-  <!-- Mastery star: the completed-game rainbow on a five-point star, marking passes through the
-       score ladder beyond level 250. -->
-  <Geometry x:Key="GeoStar">M 64,10 L 78.1,48.6 119.2,50.1 86.8,75.4 98.1,114.9 64,92 29.9,114.9 41.2,75.4 8.8,50.1 49.9,48.6 Z</Geometry>
-
-  <DrawingImage x:Key="BadgeMasteryStar">
-    <DrawingImage.Drawing>
-      <DrawingGroup>
-        <!-- Dark keyline under the rim so the star separates from whatever badge it sits on,
-             including the rainbow Master hexagon. -->
-        <GeometryDrawing Geometry="{StaticResource GeoStar}">
-          <GeometryDrawing.Pen>
-            <Pen Brush="#D91A1426" Thickness="16" LineJoin="Round"/>
-          </GeometryDrawing.Pen>
-        </GeometryDrawing>
-        <GeometryDrawing Geometry="{StaticResource GeoStar}" Brush="{StaticResource FillRainbow}">
-          <GeometryDrawing.Pen>
-            <Pen Brush="{StaticResource RimRainbow}" Thickness="5" LineJoin="Round"/>
-          </GeometryDrawing.Pen>
-        </GeometryDrawing>
-        <GeometryDrawing Geometry="{StaticResource GeoStar}" Brush="{StaticResource ShineOverlay}"/>
-      </DrawingGroup>
-    </DrawingImage.Drawing>
-  </DrawingImage>
-
   <!-- Achievement-status checkmark (shared by the Status column and the grid control bar filter) -->
   <Geometry x:Key="GeoCheck">M 3,9 L 7,13 L 15,5</Geometry>
 
