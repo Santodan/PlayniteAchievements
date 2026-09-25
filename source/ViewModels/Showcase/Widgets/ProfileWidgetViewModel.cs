@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
 
@@ -23,6 +25,44 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         public string IconKey { get; }
 
         public string CountText { get; }
+    }
+
+    /// <summary>A clickable platform profile link, drawn as the provider's icon.</summary>
+    public sealed class ProfileLinkViewModel
+    {
+        private static readonly ILogger Logger = LogManager.GetLogger();
+
+        public ProfileLinkViewModel(string providerKey, string url)
+        {
+            Url = url;
+            ProviderRegistry.TryResolveProviderVisuals(providerKey, out var iconKey, out var colorHex);
+            IconKey = iconKey;
+            ColorHex = colorHex;
+            ToolTip = ProviderRegistry.GetLocalizedName(providerKey) + Environment.NewLine + url;
+            OpenCommand = new Common.RelayCommand(_ => Open());
+        }
+
+        public string IconKey { get; }
+
+        public string ColorHex { get; }
+
+        public string Url { get; }
+
+        public string ToolTip { get; }
+
+        public Common.RelayCommand OpenCommand { get; }
+
+        private void Open()
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo { FileName = Url, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex, $"Failed to open profile link: {Url}");
+            }
+        }
     }
 
     /// <summary>A stat-strip tile: formatted value plus localized label.</summary>
@@ -65,12 +105,19 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private Thickness _contentPadding;
         private CornerRadius _backgroundCornerRadius;
         private int _backgroundDecodePixel = 320;
+        private bool _showLinks;
+        private string _linksSignature;
 
         public BulkObservableCollection<ProfileMedalViewModel> Medals { get; } =
             new BulkObservableCollection<ProfileMedalViewModel>();
 
         public BulkObservableCollection<ProfileStatViewModel> Stats { get; } =
             new BulkObservableCollection<ProfileStatViewModel>();
+
+        public BulkObservableCollection<ProfileLinkViewModel> Links { get; } =
+            new BulkObservableCollection<ProfileLinkViewModel>();
+
+        public bool ShowLinks { get => _showLinks; private set => SetValue(ref _showLinks, value); }
 
         public string BackgroundPath { get => _backgroundPath; private set => SetValue(ref _backgroundPath, value); }
 
@@ -172,9 +219,30 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ShowcaseWidgetOptions.GetProfileMedalMode(Projection?.Instance)));
             ShowMedals = Medals.Count > 0;
 
+            RefreshLinks(ShowcaseWidgetOptions.GetProfileShowLinks(Projection?.Instance)
+                ? resolved.Links
+                : null);
+
             Stats.ReplaceAll(BuildStatStrip());
             ShowStatStrip = Stats.Count > 0;
             StatColumns = Math.Max(1, Math.Min(4, Stats.Count));
+        }
+
+        // Rebuilt only when the resolved links change, so an unrelated re-projection does not
+        // re-render the icons.
+        private void RefreshLinks(IReadOnlyList<ShowcaseProfileLinkProjection> links)
+        {
+            var list = (links ?? Array.Empty<ShowcaseProfileLinkProjection>())
+                .Where(link => link != null && !string.IsNullOrWhiteSpace(link.Url))
+                .ToList();
+            var signature = string.Join("\n", list.Select(link => link.ProviderKey + "|" + link.Url));
+            if (!string.Equals(signature, _linksSignature, StringComparison.Ordinal))
+            {
+                _linksSignature = signature;
+                Links.ReplaceAll(list.Select(link => new ProfileLinkViewModel(link.ProviderKey, link.Url)).ToList());
+            }
+
+            ShowLinks = Links.Count > 0;
         }
 
         /// <summary><c>PlayAch.Radius.Section</c> (8) less <c>PlayAch.Thickness.Border</c> (1).</summary>
