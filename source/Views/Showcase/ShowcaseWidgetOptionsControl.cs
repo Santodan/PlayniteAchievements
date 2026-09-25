@@ -370,21 +370,25 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCPlayAch_Showcase_ItemCount"),
                         () => ShowcaseWidgetOptions.GetMosaicCount(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicCount(_settings, value));
-                    // Size scales the density-based tile size; spacing is the gap around each tile.
-                    AddChoice(
-                        panel,
-                        Localize("LOCPlayAch_Settings_Style_SizeHeader"),
-                        ShowcaseWidgetOptions.MosaicScaleChoices.ToArray(),
-                        ShowcaseWidgetOptions.GetMosaicScale(_settings),
-                        value => ShowcaseWidgetOptions.SetMosaicScale(_settings, value),
-                        value => PercentFormatter.FormatWhole(value));
-                    AddChoice(
+                    // Tile size in pixels, per content (icons and covers have different defaults),
+                    // prefilled with the default; leaving it at the default keeps the size following
+                    // the widget's density. Spacing is the gap around each tile. Both clamp on
+                    // commit, and the box shows the stored value.
+                    AddNumberRow(
+                        achievementMosaicPanel,
+                        Localize("LOCPlayAch_Settings_Style_SizeHeader") + " (px)",
+                        () => ShowcaseWidgetOptions.GetMosaicIconSize(_settings),
+                        value => ShowcaseWidgetOptions.SetMosaicIconSize(_settings, value));
+                    AddNumberRow(
+                        gameMosaicPanel,
+                        Localize("LOCPlayAch_Settings_Style_SizeHeader") + " (px)",
+                        () => ShowcaseWidgetOptions.GetMosaicCoverWidth(_settings),
+                        value => ShowcaseWidgetOptions.SetMosaicCoverWidth(_settings, value));
+                    AddNumberRow(
                         panel,
                         Localize("LOCPlayAch_Showcase_TileSpacing"),
-                        ShowcaseWidgetOptions.MosaicSpacingChoices.ToArray(),
-                        ShowcaseWidgetOptions.GetMosaicSpacing(_settings),
-                        value => ShowcaseWidgetOptions.SetMosaicSpacing(_settings, value),
-                        CountLabel);
+                        () => ShowcaseWidgetOptions.GetMosaicSpacing(_settings),
+                        value => ShowcaseWidgetOptions.SetMosaicSpacing(_settings, value));
                     break;
                 case ShowcaseWidgetKind.ScreenshotSlideshow:
                     FrameworkElement slideshowGameCollectionRow = null;
