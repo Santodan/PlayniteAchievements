@@ -589,6 +589,8 @@ namespace PlayniteAchievements
                         () => Settings?.Persisted?.LockedFallbackIconPath;
                     AchievementIconResolver.HiddenFallbackPathAccessor =
                         () => Settings?.Persisted?.HiddenFallbackIconPath;
+                    ShowcaseProfileResolver.ProfileUrlBuilder = BuildProviderProfileUrl;
+                    ShowcaseProfileResolver.CurrentUserProfileNames = ReadCurrentUserProfileNames;
                     _imageService = new MemoryImageService(_logger, _diskImageService);
                     _rayTrackService = new RayTrackService(_logger, _imageService);
                     _gameCustomDataStore.AttachManagedCustomIconService(_managedCustomIconService);
@@ -2037,6 +2039,36 @@ namespace PlayniteAchievements
         {
             EnsureAchievementResourcesLoaded();
             return _themeControlRegistry.TryCreate(args.Name, out var control) ? control : null;
+        }
+
+        // Showcase profile links: the providers own each platform's profile address and know the
+        // signed-in user's name from their settings.
+        private string BuildProviderProfileUrl(string providerKey, string user)
+        {
+            return _providerRegistry != null &&
+                   _providerRegistry.TryGetProvider(providerKey, out var provider) &&
+                   provider is IProfileLinkProvider links
+                ? links.BuildProfileUrl(user)
+                : null;
+        }
+
+        private IReadOnlyList<KeyValuePair<string, string>> ReadCurrentUserProfileNames()
+        {
+            var result = new List<KeyValuePair<string, string>>();
+            foreach (var provider in _providerRegistry?.GetAllProviders() ?? Array.Empty<IDataProvider>())
+            {
+                if (provider is IProfileLinkProvider links &&
+                    _providerRegistry.IsProviderEnabled(provider.ProviderKey))
+                {
+                    var name = links.GetCurrentUserProfileName();
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        result.Add(new KeyValuePair<string, string>(provider.ProviderKey, name.Trim()));
+                    }
+                }
+            }
+
+            return result;
         }
 
         /// <summary>
