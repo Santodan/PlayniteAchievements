@@ -682,6 +682,9 @@ namespace PlayniteAchievements.Services.Achievements
                 ExcludedFromSummaries = hasCustomData
                     ? customData.ExcludedFromSummaries == true
                     : Persisted?.ExcludedFromSummariesGameIds?.Contains(gameId) == true,
+                // Same as GameCustomDataLookup: a manual link owns unlock times, so the override
+                // applier must skip its unlock-time fields here exactly as the per-game path does.
+                HasManualLink = hasCustomData && customData.ManualLink != null,
                 UseSeparateLockedIcons = useSeparateLockedIconsDefault ||
                     (hasCustomData
                         ? customData.UseSeparateLockedIconsOverride == true
