@@ -419,6 +419,75 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void FinishNext_OptionsFilterAndRankByTheChosenCriterion()
+        {
+            // 9/10, one left, all rare. 12/20, eight left, all common. 2/10, eight left. Unplayed 5/6.
+            var almost = new GameSummaryItem
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                GameName = "Almost",
+                TotalAchievements = 10,
+                UnlockedAchievements = 9,
+                TotalRarePossible = 10,
+                RareCount = 9,
+                LastPlayed = DateTime.Now.AddDays(-1)
+            };
+            var easy = new GameSummaryItem
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                GameName = "Easy",
+                TotalAchievements = 20,
+                UnlockedAchievements = 12,
+                TotalCommonPossible = 20,
+                CommonCount = 12,
+                LastPlayed = DateTime.Now.AddDays(-1)
+            };
+            var barely = new GameSummaryItem
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                GameName = "Barely",
+                TotalAchievements = 10,
+                UnlockedAchievements = 2,
+                LastPlayed = DateTime.Now.AddDays(-1)
+            };
+            var unplayed = new GameSummaryItem
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                GameName = "Unplayed",
+                TotalAchievements = 6,
+                UnlockedAchievements = 5
+            };
+            var games = new[] { barely, easy, almost, unplayed };
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
+            ShowcaseWidgetOptions.SetLastPlayedWindow(instance, TimelineRange.OneMonth);
+
+            CollectionAssert.AreEqual(
+                new[] { almost, easy, barely },
+                ShowcaseWidgetProjectionService.ResolveFinishNextGames(games, instance).ToArray(),
+                "Closest to completion; the unplayed game is outside the window.");
+
+            ShowcaseWidgetOptions.SetFinishNextIncludeUnplayed(instance, true);
+            ShowcaseWidgetOptions.SetFinishNextMinimumProgress(instance, 50);
+            CollectionAssert.AreEqual(
+                new[] { almost, unplayed, easy },
+                ShowcaseWidgetProjectionService.ResolveFinishNextGames(games, instance).ToArray(),
+                "Unplayed kept, and games under 50% dropped.");
+
+            ShowcaseWidgetOptions.SetFinishNextCriterion(instance, FinishNextCriterion.EasiestRemaining);
+            CollectionAssert.AreEqual(
+                new[] { easy, unplayed, almost },
+                ShowcaseWidgetProjectionService.ResolveFinishNextGames(games, instance).ToArray(),
+                "All-common remainder first, no tier data in the middle, all-rare last.");
+
+            ShowcaseWidgetOptions.SetFinishNextCriterion(instance, FinishNextCriterion.FewestRemaining);
+            ShowcaseWidgetOptions.SetFinishNextMaxRemaining(instance, 1);
+            CollectionAssert.AreEqual(
+                new[] { almost, unplayed },
+                ShowcaseWidgetProjectionService.ResolveFinishNextGames(games, instance).ToArray(),
+                "At most one left.");
+        }
+
+        [TestMethod]
         public void FinishNext_RanksUnfinishedGamesByCompletionWithinTheWindow()
         {
             var almost = new GameSummaryItem
