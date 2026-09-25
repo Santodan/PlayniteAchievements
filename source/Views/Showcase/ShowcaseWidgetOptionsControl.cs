@@ -291,7 +291,7 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetMosaicSource(_settings));
 
                     FrameworkElement mosaicGameCollectionRow = null;
-                    FrameworkElement finishNextWindowRow = null;
+                    FrameworkElement finishNextOptions = null;
                     AddChoice(
                         gameMosaicPanel,
                         Localize("LOCPlayAch_Showcase_Source"),
@@ -314,9 +314,9 @@ namespace PlayniteAchievements.Views.Showcase
                                     : Visibility.Collapsed;
                             }
 
-                            if (finishNextWindowRow != null)
+                            if (finishNextOptions != null)
                             {
-                                finishNextWindowRow.Visibility = value == ShowcaseGameMosaicSource.FinishNext
+                                finishNextOptions.Visibility = value == ShowcaseGameMosaicSource.FinishNext
                                     ? Visibility.Visible
                                     : Visibility.Collapsed;
                             }
@@ -327,8 +327,8 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseGameMosaicSource.Pinned
                         ? Visibility.Visible
                         : Visibility.Collapsed;
-                    finishNextWindowRow = AddLastPlayedWindowChoice(gameMosaicPanel);
-                    finishNextWindowRow.Visibility = ShowcaseWidgetOptions.GetGameMosaicSource(_settings) ==
+                    finishNextOptions = AddFinishNextOptions(gameMosaicPanel);
+                    finishNextOptions.Visibility = ShowcaseWidgetOptions.GetGameMosaicSource(_settings) ==
                         ShowcaseGameMosaicSource.FinishNext
                         ? Visibility.Visible
                         : Visibility.Collapsed;
@@ -483,7 +483,7 @@ namespace PlayniteAchievements.Views.Showcase
                     // The collapsed Game Summaries Grid: library scope filters only apply to
                     // the Library source, so their rows hide for the pinned/favorites sources.
                     FrameworkElement gameGridCollectionRow = null;
-                    FrameworkElement gameGridWindowRow = null;
+                    FrameworkElement gameGridFinishNextOptions = null;
                     var gameGridLibraryPanel = new StackPanel();
                     AddChoice(
                         panel,
@@ -506,9 +506,9 @@ namespace PlayniteAchievements.Views.Showcase
                                     : Visibility.Collapsed;
                             }
 
-                            if (gameGridWindowRow != null)
+                            if (gameGridFinishNextOptions != null)
                             {
-                                gameGridWindowRow.Visibility = value == ShowcaseGameGridSource.FinishNext
+                                gameGridFinishNextOptions.Visibility = value == ShowcaseGameGridSource.FinishNext
                                     ? Visibility.Visible
                                     : Visibility.Collapsed;
                             }
@@ -523,9 +523,9 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetGameGridSource(_settings) == ShowcaseGameGridSource.Pinned
                             ? Visibility.Visible
                             : Visibility.Collapsed;
-                    // Finish Next's last-played window, as on the Finish Next game mosaic.
-                    gameGridWindowRow = AddLastPlayedWindowChoice(panel);
-                    gameGridWindowRow.Visibility =
+                    // Finish Next's options, the same set as on the Finish Next game mosaic.
+                    gameGridFinishNextOptions = AddFinishNextOptions(panel);
+                    gameGridFinishNextOptions.Visibility =
                         ShowcaseWidgetOptions.GetGameGridSource(_settings) == ShowcaseGameGridSource.FinishNext
                             ? Visibility.Visible
                             : Visibility.Collapsed;
@@ -629,6 +629,48 @@ namespace PlayniteAchievements.Views.Showcase
                     value => ShowcaseWidgetOptions.SetIncludeHiddenAchievements(_settings, value),
                     OnOffLabel)
             };
+        }
+
+        /// <summary>
+        /// The Finish Next rows (ranking, last-played window, minimum progress, most remaining,
+        /// unplayed games) in one container the source choice shows or hides, shared by the
+        /// game mosaic and the game grid so both read the same options.
+        /// </summary>
+        private FrameworkElement AddFinishNextOptions(Panel panel)
+        {
+            var container = new StackPanel();
+            panel.Children.Add(container);
+            AddChoice(
+                container,
+                Localize("LOCPlayAch_Showcase_UnlockNextCriterion"),
+                new[]
+                {
+                    FinishNextCriterion.ClosestToCompletion,
+                    FinishNextCriterion.FewestRemaining,
+                    FinishNextCriterion.EasiestRemaining
+                },
+                ShowcaseWidgetOptions.GetFinishNextCriterion(_settings),
+                value => ShowcaseWidgetOptions.SetFinishNextCriterion(_settings, value),
+                FinishNextCriterionName);
+            AddLastPlayedWindowChoice(container);
+            AddChoice(
+                container,
+                Localize("LOCPlayAch_Showcase_FinishNextIncludeUnplayed"),
+                new[] { false, true },
+                ShowcaseWidgetOptions.GetFinishNextIncludeUnplayed(_settings),
+                value => ShowcaseWidgetOptions.SetFinishNextIncludeUnplayed(_settings, value),
+                OnOffLabel);
+            AddNumberRow(
+                container,
+                Localize("LOCPlayAch_Showcase_FinishNextMinimumProgress"),
+                () => ShowcaseWidgetOptions.GetFinishNextMinimumProgress(_settings),
+                value => ShowcaseWidgetOptions.SetFinishNextMinimumProgress(_settings, value));
+            AddNumberRow(
+                container,
+                Localize("LOCPlayAch_Showcase_FinishNextMaxRemaining"),
+                () => ShowcaseWidgetOptions.GetFinishNextMaxRemaining(_settings),
+                value => ShowcaseWidgetOptions.SetFinishNextMaxRemaining(_settings, value));
+            return container;
         }
 
         private static void ApplyAchievementGridSourceRows(
