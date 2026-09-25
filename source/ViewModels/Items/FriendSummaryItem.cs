@@ -1,5 +1,6 @@
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
@@ -248,14 +249,42 @@ namespace PlayniteAchievements.ViewModels.Items
         public int CollectionLevel
         {
             get => _collectionLevel;
-            set => SetValue(ref _collectionLevel, Math.Max(0, value));
+            set
+            {
+                if (SetValueAndReturn(ref _collectionLevel, Math.Max(0, value)))
+                {
+                    OnPropertyChanged(nameof(CollectionMastery));
+                }
+            }
         }
 
         public int PrestigeLevel
         {
             get => _prestigeLevel;
-            set => SetValue(ref _prestigeLevel, Math.Max(0, value));
+            set
+            {
+                if (SetValueAndReturn(ref _prestigeLevel, Math.Max(0, value)))
+                {
+                    OnPropertyChanged(nameof(PrestigeMastery));
+                }
+            }
         }
+
+        /// <summary>
+        /// Completed mastery passes. The level counts on across passes of a fixed length, so the
+        /// pass count follows from the level alone.
+        /// </summary>
+        [DontSerialize]
+        [IgnoreDataMember]
+        public int CollectionMastery => _collectionLevel / MasteryPassLevels;
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public int PrestigeMastery => _prestigeLevel / MasteryPassLevels;
+
+        private static readonly int MasteryPassLevels = Math.Max(
+            1,
+            AchievementLevelCurveSettings.ModernDefault.MaxDisplayLevel);
 
         public int RecentUnlockCount
         {
