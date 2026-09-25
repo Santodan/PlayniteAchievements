@@ -53,6 +53,45 @@
                 </Style.Triggers>
             </Style>
 
+            <!-- Overhangs the badge's right margin so the star reads as attached to the badge
+                 without widening the badge column. -->
+            <Style x:Key="ScoreCardMasteryStarStyle" TargetType="Viewbox">
+                <Setter Property="Width" Value="18"/>
+                <Setter Property="Height" Value="18"/>
+                <Setter Property="Margin" Value="0,0,3,-3"/>
+                <Setter Property="HorizontalAlignment" Value="Right"/>
+                <Setter Property="VerticalAlignment" Value="Bottom"/>
+                <Setter Property="IsHitTestVisible" Value="False"/>
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Setter Property="Effect" Value="{StaticResource BadgeShadow}"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding HasMastery}" Value="True">
+                        <Setter Property="Visibility" Value="Visible"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="Width" Value="26"/>
+                        <Setter Property="Height" Value="26"/>
+                        <Setter Property="Margin" Value="0,0,4,-4"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- Fixed white on the fixed rainbow art, like the badge art itself. -->
+            <Style x:Key="ScoreCardMasteryNumberTextStyle" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{DynamicResource CommonFont}"/>
+                <Setter Property="FontSize" Value="44"/>
+                <Setter Property="FontWeight" Value="Black"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,10,0,0"/>
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect BlurRadius="6" ShadowDepth="0" Color="Black" Opacity="0.85"/>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <!-- The label is the only thing separating the Collection card from the Prestige
                  card when both are on screen, so it is tracked and heavier than the old caption. -->
             <Style x:Key="ScoreCardLabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
@@ -186,7 +225,7 @@
                     <Border Style="{StaticResource ScoreCardTooltipBorderStyle}"
                             BorderBrush="{Binding AccentBrush}">
                         <StackPanel>
-                            <TextBlock Text="{Binding TierText}"
+                            <TextBlock Text="{Binding TooltipTitleText}"
                                        Style="{StaticResource ScoreCardTooltipTitleTextStyle}"
                                        Foreground="{Binding AccentBrush}"/>
 
@@ -240,9 +279,20 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <Image Grid.Column="0"
-                       Source="{Binding BadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
-                       Style="{StaticResource ScoreCardBadgeStyle}"/>
+                <Grid Grid.Column="0" VerticalAlignment="Center">
+                    <Image Source="{Binding BadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
+                           Style="{StaticResource ScoreCardBadgeStyle}"/>
+
+                    <!-- Mastery star pinned to the badge's lower right, carrying the pass count. The
+                         Viewbox scales the number with the star so it fits at both card sizes. -->
+                    <Viewbox Style="{StaticResource ScoreCardMasteryStarStyle}">
+                        <Grid Width="128" Height="128">
+                            <Image Source="{DynamicResource ScoreBadgeMasteryStar}"/>
+                            <TextBlock Text="{Binding MasteryBadgeText}"
+                                       Style="{StaticResource ScoreCardMasteryNumberTextStyle}"/>
+                        </Grid>
+                    </Viewbox>
+                </Grid>
 
                 <Grid Grid.Column="1">
                     <Grid.RowDefinitions>
