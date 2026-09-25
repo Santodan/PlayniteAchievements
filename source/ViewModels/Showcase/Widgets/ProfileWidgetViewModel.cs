@@ -253,25 +253,28 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ShowcaseProfileMedalMode mode)
         {
             var medals = new List<ProfileMedalViewModel>();
-            if (mode == ShowcaseProfileMedalMode.Trophy)
+            if (mode != ShowcaseProfileMedalMode.Trophy)
             {
-                // Trophy grades stand alone: they already carry the sense of a finished game
-                // through the platinum, so the completions medal would double-count it.
+                // Completions, not completed games: a game with several capstones is finished
+                // several times over, and the medal sits beside rarity counts that are all totals
+                // of things earned rather than counts of games.
+                AddMedal(medals, "BadgeCompletedGame", snapshot.Completions);
+                AddMedal(medals, "BadgeRarityUltraRare", snapshot.TotalUltraRare);
+                AddMedal(medals, "BadgeRarityRare", snapshot.TotalRare);
+                AddMedal(medals, "BadgeRarityUncommon", snapshot.TotalUncommon);
+                AddMedal(medals, "BadgeRarityCommon", snapshot.TotalCommon);
+            }
+
+            if (mode != ShowcaseProfileMedalMode.Rarity)
+            {
+                // Trophy grades alone skip the completions medal: they already carry the sense of
+                // a finished game through the platinum. Both keeps it from the rarity row.
                 AddMedal(medals, "TrophyPlatinum", snapshot.TotalPlatinum);
                 AddMedal(medals, "TrophyGold", snapshot.TotalGold);
                 AddMedal(medals, "TrophySilver", snapshot.TotalSilver);
                 AddMedal(medals, "TrophyBronze", snapshot.TotalBronze);
-                return medals;
             }
 
-            // Completions, not completed games: a game with several capstones is finished several
-            // times over, and the medal sits beside rarity counts that are all totals of things
-            // earned rather than counts of games.
-            AddMedal(medals, "BadgeCompletedGame", snapshot.Completions);
-            AddMedal(medals, "BadgeRarityUltraRare", snapshot.TotalUltraRare);
-            AddMedal(medals, "BadgeRarityRare", snapshot.TotalRare);
-            AddMedal(medals, "BadgeRarityUncommon", snapshot.TotalUncommon);
-            AddMedal(medals, "BadgeRarityCommon", snapshot.TotalCommon);
             return medals;
         }
 
