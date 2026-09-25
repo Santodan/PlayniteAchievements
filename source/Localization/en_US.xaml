@@ -1498,7 +1498,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_GameSummaries">Game Summaries Grid</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MosaicContent_Achievements">Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MosaicContent_Games">Games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_AchievementGridSource_All">All achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_AchievementGridSource_All">Unlocked achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_AchievementGridSource_Pinned">Pinned collection</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameGridSource_Library">All games</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameGridSource_Pinned">Pinned collection</sys:String>
