@@ -333,13 +333,6 @@ namespace PlayniteAchievements.Models
         private const string IncludeHiddenAchievements = "IncludeHiddenAchievements";
         private const string InfoPanel = "InfoPanel";
 
-        /// <summary>
-        /// Most tiles a single game may contribute to an Unlock Next mosaic. The pool the overview
-        /// builder hydrates retains a bounded slice per game, so the choices stop well below it
-        /// rather than offering an unlimited option the pool could not honour.
-        /// </summary>
-        public static readonly IReadOnlyList<int> MaxPerGameChoices = new[] { 1, 2, 3, 5, 10 };
-
         /// <summary>Stat keys the profile stat slots show when the option is unset.</summary>
         public static readonly IReadOnlyList<string> DefaultProfileStatKeys = new[]
         {
@@ -645,6 +638,11 @@ namespace PlayniteAchievements.Models
             ShowcaseWidgetInstanceSettings settings,
             TimelineRange value) => settings?.SetOption(LastPlayedWindow, value);
 
+        /// <summary>
+        /// Most rows a single game may contribute to Unlock Next. The pool the overview builder
+        /// hydrates retains a bounded slice per game, so the value caps at 10, well below it,
+        /// rather than accepting an amount the pool could not honour.
+        /// </summary>
         public static int GetMaxPerGame(ShowcaseWidgetInstanceSettings settings) =>
             Clamp(settings?.GetOption(MaxPerGame, 1) ?? 1, 1, 10);
 
