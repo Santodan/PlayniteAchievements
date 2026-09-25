@@ -188,10 +188,11 @@ namespace PlayniteAchievements.Models.Settings
         public string BackgroundPath { get; set; }
 
         /// <summary>
-        /// Per-provider overrides for the platform profile links. A provider without an entry
-        /// (or with a blank URL) uses the link derived from its stored identity, when one can be.
+        /// The platform profile links, in display order. Null means the user never edited them,
+        /// and the profile shows a link for every enabled provider that knows the signed-in
+        /// user's name; once saved the list is exactly what shows (empty shows none).
         /// </summary>
-        public List<ShowcaseProfileLink> Links { get; set; } = new List<ShowcaseProfileLink>();
+        public List<ShowcaseProfileLink> Links { get; set; }
 
         public ShowcaseProfileSettings Clone()
         {
@@ -201,7 +202,7 @@ namespace PlayniteAchievements.Models.Settings
                 Subtitle = Subtitle,
                 AvatarPath = AvatarPath,
                 BackgroundPath = BackgroundPath,
-                Links = (Links ?? new List<ShowcaseProfileLink>())
+                Links = Links?
                     .Where(link => link != null)
                     .Select(link => link.Clone())
                     .ToList()
@@ -210,24 +211,22 @@ namespace PlayniteAchievements.Models.Settings
     }
 
     /// <summary>
-    /// One platform's profile link on the profile widget: a manual URL replacing the derived
-    /// one, or <see cref="Hidden"/> to drop the platform's link entirely.
+    /// One profile link on the profile widget: the platform whose icon it shows, and either the
+    /// user's name on that platform (turned into the page address by the platform's provider) or
+    /// a full link used as-is. A blank value falls back to the signed-in user's stored name.
     /// </summary>
     public sealed class ShowcaseProfileLink
     {
         public string ProviderKey { get; set; }
 
-        public string Url { get; set; }
-
-        public bool Hidden { get; set; }
+        public string Value { get; set; }
 
         public ShowcaseProfileLink Clone()
         {
             return new ShowcaseProfileLink
             {
                 ProviderKey = ProviderKey,
-                Url = Url,
-                Hidden = Hidden
+                Value = Value
             };
         }
     }
