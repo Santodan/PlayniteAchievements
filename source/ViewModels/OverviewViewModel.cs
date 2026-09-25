@@ -970,6 +970,70 @@ namespace PlayniteAchievements.ViewModels
 
         public ScoreCardViewModel PrestigeScoreCard { get; } = new ScoreCardViewModel(ScoreCardType.Prestige);
 
+        // TEMP(mastery-preview): session-only score overrides for previewing mastery score cards.
+        // Nothing here is persisted or reaches the snapshot or theme state.
+        private bool _masteryPreviewEnabled;
+        private int _masteryPreviewMastery = 1;
+        private int _masteryPreviewLevel;
+        private int _masteryPreviewProgress = 50;
+
+        public bool MasteryPreviewEnabled
+        {
+            get => _masteryPreviewEnabled;
+            set
+            {
+                if (_masteryPreviewEnabled == value)
+                {
+                    return;
+                }
+
+                SetValue(ref _masteryPreviewEnabled, value);
+                ApplyScoreCards();
+            }
+        }
+
+        public int MasteryPreviewMastery
+        {
+            get => _masteryPreviewMastery;
+            set => SetMasteryPreviewValue(ref _masteryPreviewMastery, value, 0, 150, nameof(MasteryPreviewMastery));
+        }
+
+        public int MasteryPreviewLevel
+        {
+            get => _masteryPreviewLevel;
+            set => SetMasteryPreviewValue(ref _masteryPreviewLevel, value, 0, 249, nameof(MasteryPreviewLevel));
+        }
+
+        public int MasteryPreviewProgress
+        {
+            get => _masteryPreviewProgress;
+            set => SetMasteryPreviewValue(ref _masteryPreviewProgress, value, 0, 99, nameof(MasteryPreviewProgress));
+        }
+
+        private void SetMasteryPreviewValue(ref int field, int value, int min, int max, string propertyName)
+        {
+            value = Math.Max(min, Math.Min(max, value));
+            if (field == value)
+            {
+                return;
+            }
+
+            SetValue(ref field, value, propertyName);
+            if (_masteryPreviewEnabled)
+            {
+                ApplyScoreCards();
+            }
+        }
+
+        private int GetMasteryPreviewScore()
+        {
+            var level = (_masteryPreviewMastery * 250) + _masteryPreviewLevel;
+            var start = AchievementLevelCalculator.GetScoreForLevel(level);
+            var next = AchievementLevelCalculator.GetScoreForLevel(level + 1);
+            return start + (int)((long)(next - start) * _masteryPreviewProgress / 100);
+        }
+        // END TEMP(mastery-preview)
+
         public bool ShowOverviewPieCharts =>
             ShowOverviewGamesPieChart ||
             ShowOverviewProviderPieChart ||
@@ -2409,6 +2473,15 @@ namespace PlayniteAchievements.ViewModels
         private void ApplyScoreCards()
         {
             var useUniformRarityBadges = UseUniformRarityBadges;
+            // TEMP(mastery-preview)
+            if (_masteryPreviewEnabled)
+            {
+                var previewScore = GetMasteryPreviewScore();
+                CollectionScoreCard.ApplyFromScore(previewScore, useUniformRarityBadges);
+                PrestigeScoreCard.ApplyFromScore(previewScore, useUniformRarityBadges);
+                return;
+            }
+
             CollectionScoreCard.Apply(
                 CollectorScore,
                 CollectorLevel,
