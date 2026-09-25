@@ -59,6 +59,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public int PrestigeLevel { get; set; }
         public double PrestigeLevelProgress { get; set; }
         public string PrestigeRank { get; set; } = "Bronze5";
+        public int CollectorMastery { get; set; }
+        public int PrestigeMastery { get; set; }
 
         public List<AchievementDetail> AllAchievements { get; set; } = new List<AchievementDetail>();
         public List<AchievementDetail> AllAchievementsUnlockAsc { get; set; } = new List<AchievementDetail>();
