@@ -516,6 +516,7 @@ namespace PlayniteAchievements.Models.Achievements
             SetStaticScoreBadge(resources, "ScoreBadgeGoldHexagon", "BadgeGoldHexagon");
             SetStaticScoreBadge(resources, "ScoreBadgePlatinumHexagon", "BadgePlatinumHexagon");
             SetStaticScoreBadge(resources, "ScoreBadgeCompletedGame", "BadgeCompletedGame");
+            SetStaticScoreBadge(resources, "ScoreBadgeMasteryStar", "BadgeMasteryStar");
 
             void SetGeneratedBadge(ResourceDictionary target, RarityTier tier, string badgeKey)
             {
@@ -552,6 +553,7 @@ namespace PlayniteAchievements.Models.Achievements
                 "ScoreBadgeGoldHexagon",
                 "ScoreBadgePlatinumHexagon",
                 "ScoreBadgeCompletedGame",
+                "ScoreBadgeMasteryStar",
                 "TrophyBronze",
                 "TrophySilver",
                 "TrophyGold",
