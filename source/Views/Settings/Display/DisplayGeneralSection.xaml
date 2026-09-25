@@ -210,6 +210,12 @@
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                     <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewCollectionScoreCard}">
+                        <CheckBox IsChecked="{Binding Persisted.ShowOverviewCollectionScoreCard}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewPrestigeScoreCard}">
+                        <CheckBox IsChecked="{Binding Persisted.ShowOverviewPrestigeScoreCard}"/>
+                    </controls:SettingRow>
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowOverviewGamesPieChart}">
                         <CheckBox IsChecked="{Binding Persisted.ShowOverviewGamesPieChart}"/>
                     </controls:SettingRow>
