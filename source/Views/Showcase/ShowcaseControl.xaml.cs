@@ -62,6 +62,10 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly List<string> _mergePreviewBlockIds = new List<string>();
         private FrameworkElement _cutGhost;
 
+        // Hover previews of a cut or merge's resulting blocks: outlines only, created on hover
+        // and removed on leave, so they cost a couple of elements and never re-render a widget.
+        private readonly List<FrameworkElement> _layoutPreviewGhosts = new List<FrameworkElement>();
+
         // The selected empty block's in-block + button, hidden while an overlay copy takes
         // hit-test priority over the cut lines; restored on the next handle rebuild.
         private Button _suppressedAddButton;
@@ -237,6 +241,7 @@ namespace PlayniteAchievements.Views.Showcase
             _rowRulerTexts.Clear();
             _layoutHandles.Clear();
             _cutGhost = null;
+            _layoutPreviewGhosts.Clear();
             _suppressedAddButton = null;
             DashboardGrid.RowDefinitions.Clear();
             DashboardGrid.ColumnDefinitions.Clear();
@@ -891,6 +896,20 @@ namespace PlayniteAchievements.Views.Showcase
             // the gripper wins while the cut line stays grabbable along its remaining length.
             Panel.SetZIndex(thumb, 39);
             var pageId = CurrentPage.PageId;
+            thumb.MouseEnter += (_, __) =>
+            {
+                if (!thumb.IsDragging)
+                {
+                    ShowSplitPreview(block, vertical, boundary);
+                }
+            };
+            thumb.MouseLeave += (_, __) =>
+            {
+                if (!thumb.IsDragging)
+                {
+                    ClearLayoutPreview();
+                }
+            };
             thumb.DragStarted += (_, __) =>
             {
                 _cutCandidate = boundary;
@@ -919,11 +938,13 @@ namespace PlayniteAchievements.Views.Showcase
                 {
                     _cutCandidate = best;
                     MoveCutGhost(vertical, best);
+                    ShowSplitPreview(block, vertical, best);
                 }
             };
             thumb.DragCompleted += (_, args) =>
             {
                 HideCutGhost();
+                ClearLayoutPreview();
                 thumb.Opacity = 1.0;
                 if (!args.Canceled)
                 {
@@ -1323,10 +1344,96 @@ namespace PlayniteAchievements.Views.Showcase
                     wash,
                     System.Windows.Media.Animation.HandoffBehavior.SnapshotAndReplace);
             }
+
+            ShowMergePreview(closure);
+        }
+
+        // The closure's bounding rectangle is the merged block (TryGetMergePreview only returns
+        // rectangular closures).
+        private void ShowMergePreview(IReadOnlyList<ShowcaseBlockSettings> closure)
+        {
+            if (closure == null || closure.Count == 0)
+            {
+                return;
+            }
+
+            var row = closure.Min(member => member.Row);
+            var column = closure.Min(member => member.Column);
+            var rowEnd = closure.Max(member => member.Row + member.RowSpan);
+            var columnEnd = closure.Max(member => member.Column + member.ColumnSpan);
+            ShowLayoutPreview(new[] { (row, column, rowEnd - row, columnEnd - column) });
+        }
+
+        private void ShowSplitPreview(ShowcaseBlockSettings block, bool vertical, int boundary)
+        {
+            if (vertical)
+            {
+                ShowLayoutPreview(new[]
+                {
+                    (block.Row, block.Column, block.RowSpan, boundary - block.Column),
+                    (block.Row, boundary, block.RowSpan, block.Column + block.ColumnSpan - boundary)
+                });
+            }
+            else
+            {
+                ShowLayoutPreview(new[]
+                {
+                    (block.Row, block.Column, boundary - block.Row, block.ColumnSpan),
+                    (boundary, block.Column, block.Row + block.RowSpan - boundary, block.ColumnSpan)
+                });
+            }
+        }
+
+        // Accent outlines with a faint wash, inset and rounded like real block containers.
+        // Not hit-testable, so they never steal the hover that shows them.
+        private void ShowLayoutPreview(
+            IEnumerable<(int Row, int Column, int RowSpan, int ColumnSpan)> cells)
+        {
+            ClearLayoutPreview();
+            foreach (var cell in cells)
+            {
+                if (cell.RowSpan <= 0 || cell.ColumnSpan <= 0)
+                {
+                    continue;
+                }
+
+                var wash = new Border { Opacity = 0.14 };
+                wash.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.Accent");
+                wash.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
+                var ghost = new Grid
+                {
+                    Margin = new Thickness(4),
+                    IsHitTestVisible = false
+                };
+                var outline = new Border { BorderThickness = new Thickness(2) };
+                outline.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.Accent");
+                outline.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
+                ghost.Children.Add(wash);
+                ghost.Children.Add(outline);
+                Grid.SetRow(ghost, cell.Row);
+                Grid.SetColumn(ghost, cell.Column);
+                Grid.SetRowSpan(ghost, cell.RowSpan);
+                Grid.SetColumnSpan(ghost, cell.ColumnSpan);
+                // Above the blocks and the cut line, below the drag ghost line.
+                Panel.SetZIndex(ghost, 44);
+                _layoutPreviewGhosts.Add(ghost);
+                DashboardGrid.Children.Add(ghost);
+            }
+        }
+
+        private void ClearLayoutPreview()
+        {
+            foreach (var ghost in _layoutPreviewGhosts)
+            {
+                DashboardGrid.Children.Remove(ghost);
+            }
+
+            _layoutPreviewGhosts.Clear();
         }
 
         private void ClearMergePreviewGlow()
         {
+            ClearLayoutPreview();
             foreach (var blockId in _mergePreviewBlockIds)
             {
                 if (!_blockVisuals.TryGetValue(blockId, out var state) ||
