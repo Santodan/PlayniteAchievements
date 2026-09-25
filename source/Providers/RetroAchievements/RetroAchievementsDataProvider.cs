@@ -21,7 +21,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.RetroAchievements
 {
-    internal sealed class RetroAchievementsDataProvider : DataProviderBase<RetroAchievementsSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IInGameProgressSource, IDisposable
+    internal sealed class RetroAchievementsDataProvider : DataProviderBase<RetroAchievementsSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IInGameProgressSource, IDisposable
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_RetroAchievements",
@@ -88,6 +88,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_RetroAchievements");
         public string ProviderKey => "RetroAchievements";
         public string ProviderIconKey => "ProviderIconRetroAchievements";
+
+        public string ProfileUrlPattern => "https://retroachievements.org/user/{0}";
+
+        public string BuildProfileUrl(string user) => ProfileLinkUrls.Format(ProfileUrlPattern, user);
+
+        public string GetCurrentUserProfileName() => ProviderSettings.RaUsername;
         public string ProviderColorHex => "#FFD700";
         public ISessionManager AuthSession => null;
 
