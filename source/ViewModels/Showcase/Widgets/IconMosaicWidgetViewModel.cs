@@ -47,10 +47,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected override void Refresh()
         {
             var achievements = Projection?.MosaicAchievements ?? Array.Empty<AchievementDisplayItem>();
-            var baseSize = Density == WidgetViewportDensity.Compact
-                ? 32
-                : Density == WidgetViewportDensity.Expanded ? 54 : 42;
-            IconSize = Math.Round(baseSize * ShowcaseWidgetOptions.GetMosaicScale(Projection?.Instance) / 100d);
+            // A set size is fixed; unset follows density (standard density is the default size).
+            IconSize = ShowcaseWidgetOptions.GetMosaicIconSizeOverride(Projection?.Instance)
+                ?? (Density == WidgetViewportDensity.Compact
+                    ? 32
+                    : Density == WidgetViewportDensity.Expanded ? 54 : ShowcaseWidgetOptions.DefaultMosaicIconSize);
             TileMargin = new Thickness(ShowcaseWidgetOptions.GetMosaicSpacing(Projection?.Instance));
 
             // Glow on/off is a per-widget option; the glow ANIMATION stays a global setting.
