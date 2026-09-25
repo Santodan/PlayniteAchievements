@@ -370,6 +370,21 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCPlayAch_Showcase_ItemCount"),
                         () => ShowcaseWidgetOptions.GetMosaicCount(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicCount(_settings, value));
+                    // Size scales the density-based tile size; spacing is the gap around each tile.
+                    AddChoice(
+                        panel,
+                        Localize("LOCPlayAch_Settings_Style_SizeHeader"),
+                        ShowcaseWidgetOptions.MosaicScaleChoices.ToArray(),
+                        ShowcaseWidgetOptions.GetMosaicScale(_settings),
+                        value => ShowcaseWidgetOptions.SetMosaicScale(_settings, value),
+                        value => PercentFormatter.FormatWhole(value));
+                    AddChoice(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_TileSpacing"),
+                        ShowcaseWidgetOptions.MosaicSpacingChoices.ToArray(),
+                        ShowcaseWidgetOptions.GetMosaicSpacing(_settings),
+                        value => ShowcaseWidgetOptions.SetMosaicSpacing(_settings, value),
+                        CountLabel);
                     break;
                 case ShowcaseWidgetKind.ScreenshotSlideshow:
                     FrameworkElement slideshowGameCollectionRow = null;
