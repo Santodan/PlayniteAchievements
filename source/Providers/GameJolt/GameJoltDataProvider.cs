@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Providers.GameJolt
     /// Playnite plugin (whose GameId is the numeric GameJolt game id) and games given a manual GameJolt
     /// id override. Achievement data is read from GameJolt's cookie-authenticated site-api.
     /// </summary>
-    internal sealed class GameJoltDataProvider : DataProviderBase<GameJoltSettings>, IDataProvider, IProviderOverride
+    internal sealed class GameJoltDataProvider : DataProviderBase<GameJoltSettings>, IDataProvider, IProfileLinkProvider, IProviderOverride
     {
         // GameJolt Library (third-party Playnite plugin) extension id. Games it imports carry the numeric
         // GameJolt game id as Game.GameId, which the site-api trophy endpoints take directly.
@@ -58,6 +58,12 @@ namespace PlayniteAchievements.Providers.GameJolt
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_GameJolt");
         public string ProviderKey => "GameJolt";
         public string ProviderIconKey => "ProviderIconGameJolt";
+
+        public string ProfileUrlPattern => "https://gamejolt.com/@{0}";
+
+        public string BuildProfileUrl(string user) => ProfileLinkUrls.Format(ProfileUrlPattern, user);
+
+        public string GetCurrentUserProfileName() => ProviderSettings.UserId;
         public string ProviderColorHex => "#CCFF00";
 
         public bool IsAuthenticated => _sessionManager?.IsAuthenticated ?? false;
