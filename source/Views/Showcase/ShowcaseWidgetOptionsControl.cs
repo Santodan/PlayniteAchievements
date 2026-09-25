@@ -96,6 +96,13 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetProfileFullBleed(_settings),
                         value => ShowcaseWidgetOptions.SetProfileFullBleed(_settings, value),
                         OnOffLabel);
+                    AddChoice(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_ProfileLinks"),
+                        new[] { true, false },
+                        ShowcaseWidgetOptions.GetProfileShowLinks(_settings),
+                        value => ShowcaseWidgetOptions.SetProfileShowLinks(_settings, value),
+                        OnOffLabel);
                     AddProfileStatSlots(panel);
                     break;
                 case ShowcaseWidgetKind.Scores:
