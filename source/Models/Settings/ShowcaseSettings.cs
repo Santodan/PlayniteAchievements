@@ -187,6 +187,12 @@ namespace PlayniteAchievements.Models.Settings
 
         public string BackgroundPath { get; set; }
 
+        /// <summary>
+        /// Per-provider overrides for the platform profile links. A provider without an entry
+        /// (or with a blank URL) uses the link derived from its stored identity, when one can be.
+        /// </summary>
+        public List<ShowcaseProfileLink> Links { get; set; } = new List<ShowcaseProfileLink>();
+
         public ShowcaseProfileSettings Clone()
         {
             return new ShowcaseProfileSettings
@@ -194,7 +200,34 @@ namespace PlayniteAchievements.Models.Settings
                 DisplayName = DisplayName,
                 Subtitle = Subtitle,
                 AvatarPath = AvatarPath,
-                BackgroundPath = BackgroundPath
+                BackgroundPath = BackgroundPath,
+                Links = (Links ?? new List<ShowcaseProfileLink>())
+                    .Where(link => link != null)
+                    .Select(link => link.Clone())
+                    .ToList()
+            };
+        }
+    }
+
+    /// <summary>
+    /// One platform's profile link on the profile widget: a manual URL replacing the derived
+    /// one, or <see cref="Hidden"/> to drop the platform's link entirely.
+    /// </summary>
+    public sealed class ShowcaseProfileLink
+    {
+        public string ProviderKey { get; set; }
+
+        public string Url { get; set; }
+
+        public bool Hidden { get; set; }
+
+        public ShowcaseProfileLink Clone()
+        {
+            return new ShowcaseProfileLink
+            {
+                ProviderKey = ProviderKey,
+                Url = Url,
+                Hidden = Hidden
             };
         }
     }
