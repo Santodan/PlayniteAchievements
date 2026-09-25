@@ -736,18 +736,15 @@ namespace PlayniteAchievements.Tests.Models
             var snapshot = new OverviewDataSnapshot { Achievements = items };
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements };
 
-            // The resolver hands back every achievement uncapped, unlocked-recent-first with the
-            // locked tail last; the widget view model applies the MaxRows cap after its
-            // control-bar search filter. Repeat calls reuse the per-snapshot cached list.
+            // The resolver hands back every unlocked achievement uncapped, newest first. Locked rows
+            // (the snapshot's pinned goals) stay out of this source. The widget view model applies
+            // the MaxRows cap after its control-bar search filter. Repeat calls reuse the
+            // per-snapshot cached list.
+            var unlocked = items.Where(item => item.Unlocked)
+                .OrderByDescending(item => item.UnlockTimeUtc)
+                .ToList();
             var rows = ShowcaseWidgetProjectionService.ResolveAllAchievements(snapshot);
-            Assert.AreEqual(items.Count, rows.Count);
-            CollectionAssert.AreEqual(
-                items.Where(item => item.Unlocked)
-                    .OrderByDescending(item => item.UnlockTimeUtc)
-                    .Concat(items.Where(item => !item.Unlocked)
-                        .OrderByDescending(item => item.UnlockTimeUtc))
-                    .ToList(),
-                rows.ToList());
+            CollectionAssert.AreEqual(unlocked, rows.ToList());
             Assert.AreSame(rows, ShowcaseWidgetProjectionService.ResolveAllAchievements(snapshot));
 
             var catalog = new GridOptionsCatalog();
@@ -759,8 +756,34 @@ namespace PlayniteAchievements.Tests.Models
                 new ShowcaseSettings(),
                 instance,
                 gridOptions: catalog);
-            Assert.AreEqual(items.Count, built.AchievementRows.Count);
+            Assert.AreEqual(unlocked.Count, built.AchievementRows.Count);
             Assert.AreSame(catalog.GetAchievement(surfaceKey), built.GridWidgetOptions);
+        }
+
+        [TestMethod]
+        public void AchievementsGrid_UnlockNextSourceDrawsFromThePoolAndRequestsIt()
+        {
+            var gameId = Guid.NewGuid();
+            var candidate = new AchievementDisplayItem
+            {
+                PlayniteGameId = gameId,
+                ApiName = "next",
+                Unlocked = false,
+                GlobalPercentUnlocked = 40
+            };
+            var snapshot = new OverviewDataSnapshot
+            {
+                UnlockNextCandidates = new List<AchievementDisplayItem> { candidate },
+                UnlockNextPoolBuilt = true
+            };
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements };
+            ShowcaseWidgetOptions.SetAchievementGridSource(instance, ShowcaseAchievementGridSource.UnlockNext);
+            ShowcaseWidgetOptions.SetLastPlayedWindow(instance, TimelineRange.All);
+
+            var built = ShowcaseWidgetProjectionService.Build(snapshot, new ShowcaseSettings(), instance);
+
+            CollectionAssert.AreEqual(new[] { candidate }, built.AchievementRows.ToList());
+            Assert.IsTrue(ShowcaseWidgetOptions.RequiresUnlockNextPool(instance));
         }
 
         [TestMethod]
