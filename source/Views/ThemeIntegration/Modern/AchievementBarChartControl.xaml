@@ -4,6 +4,7 @@
                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                    xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
+                   xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
                    xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                    xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
                    mc:Ignorable="d"
@@ -90,7 +91,14 @@
                             Series="{Binding TimelineViewModel.TimelineSeries, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                             LegendLocation="None"
                             Hoverable="True"
+                            TooltipTimeout="0:0:0.1"
                             DisableAnimations="True">
+            <!-- Theme-facing: Playnite's own popup and text keys, which themes restyle. -->
+            <lvc:CartesianChart.DataTooltip>
+                <controls:CartesianChartTooltip SurfaceBrush="{DynamicResource PopupBackgroundBrush}"
+                                                OutlineBrush="{DynamicResource PopupBorderBrush}"
+                                                Foreground="{DynamicResource TextBrush}"/>
+            </lvc:CartesianChart.DataTooltip>
             <lvc:CartesianChart.Resources>
                 <Style TargetType="lvc:ColumnSeries" BasedOn="{StaticResource PlayAch.ChartColumnSeriesStyle}"/>
             </lvc:CartesianChart.Resources>
