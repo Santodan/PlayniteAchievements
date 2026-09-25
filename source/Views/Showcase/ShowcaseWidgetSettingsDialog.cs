@@ -329,24 +329,17 @@ namespace PlayniteAchievements.Views.Showcase
                     UpdateLinkCaption(caption, link);
                 };
 
-                AddLinkButton(row, 2, "", "LOCPlayAch_Showcase_MoveEarlier", index > 0,
+                // IcoFont arrow-up, arrow-down, and trash, as mapped in Playnite's shipped icofont.ttf.
+                AddLinkButton(row, 2, "\uEA5E", "LOCPlayAch_Showcase_MoveEarlier", index > 0,
                     () => MoveLink(index, -1));
-                AddLinkButton(row, 3, "", "LOCPlayAch_Showcase_MoveLater", index < _links.Count - 1,
+                AddLinkButton(row, 3, "\uEA5B", "LOCPlayAch_Showcase_MoveLater", index < _links.Count - 1,
                     () => MoveLink(index, 1));
 
-                var remove = new Button
-                {
-                    Content = Localize("LOCPlayAch_Button_Remove"),
-                    MinWidth = 72
-                };
-                remove.SetResourceReference(MarginProperty, "PlayAch.Thickness.Left.Sm");
-                remove.Click += (_, __) =>
+                AddLinkButton(row, 4, "\uEE09", "LOCPlayAch_Button_Remove", true, () =>
                 {
                     _links.RemoveAt(index);
                     RenderLinks();
-                };
-                Grid.SetColumn(remove, 4);
-                row.Children.Add(remove);
+                });
                 _linksPanel.Children.Add(row);
 
                 if (index == focusIndex)
