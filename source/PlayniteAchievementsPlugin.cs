@@ -2041,19 +2041,23 @@ namespace PlayniteAchievements
 
         /// <summary>
         /// Drops the cached library projection when the showcase starts needing the Unlock Next
-        /// candidate pool, so the next build hydrates it. Only the false-to-true flip matters; a
-        /// widget dropping the source leaves a harmless pool behind until the next rebuild.
+        /// candidate pool, or gains an achievement pin the cached projection never hydrated, so
+        /// the next build fills them in. Only the Unlock Next false-to-true flip matters; a widget
+        /// dropping the source leaves a harmless pool behind until the next rebuild.
         /// </summary>
         private void OnShowcaseConfigurationChanged(object sender, EventArgs e)
         {
-            var required = ShowcaseWidgetOptions.RequiresUnlockNextPool(Settings?.Persisted?.Showcase);
-            if (!required || _unlockNextPoolRequired)
+            var showcase = Settings?.Persisted?.Showcase;
+            var required = ShowcaseWidgetOptions.RequiresUnlockNextPool(showcase);
+            var poolNewlyRequired = required && !_unlockNextPoolRequired;
+            _unlockNextPoolRequired = required;
+
+            var pinsUnhydrated = _libraryProjectionService?.OverviewMissesAchievementPins(showcase) == true;
+            if (!poolNewlyRequired && !pinsUnhydrated)
             {
-                _unlockNextPoolRequired = required;
                 return;
             }
 
-            _unlockNextPoolRequired = true;
             _libraryProjectionService?.Invalidate();
             ScheduleStartPageInvalidate();
         }
