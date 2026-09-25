@@ -453,7 +453,7 @@
                 <!-- Right: Collection and Prestige score cards, Overview subview only. -->
                 <StackPanel Grid.Row="1"
                             Grid.Column="1"
-                            Orientation="Horizontal"
+                            Orientation="Vertical"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
                             MaxWidth="740"
@@ -473,6 +473,7 @@
                         </Style>
                     </StackPanel.Style>
 
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <controls:ScoreCardControl Width="300"
                                                ScoreCard="{Binding CollectionScoreCard}"
                                                Visibility="{Binding ShowOverviewCollectionScoreCard, Converter={StaticResource BoolToVis}}"/>
@@ -488,6 +489,38 @@
                     <controls:ScoreCardControl Width="300"
                                                ScoreCard="{Binding PrestigeScoreCard}"
                                                Visibility="{Binding ShowOverviewPrestigeScoreCard, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
+
+                    <!-- TEMP(mastery-preview): overrides both cards with a chosen mastery, level and
+                         progress. Hardcoded English on purpose; remove before release. -->
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,4,0,0"
+                                TextElement.FontSize="{DynamicResource PlayAch.FontSize.Caption}">
+                        <CheckBox Content="Preview mastery"
+                                  IsChecked="{Binding MasteryPreviewEnabled}"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,12,0"/>
+                        <TextBlock Text="Mastery" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" Margin="0,0,4,0"/>
+                        <Slider Width="110" Minimum="0" Maximum="150" TickFrequency="1" IsSnapToTickEnabled="True"
+                                SmallChange="1" LargeChange="5" VerticalAlignment="Center"
+                                IsEnabled="{Binding MasteryPreviewEnabled}"
+                                Value="{Binding MasteryPreviewMastery}"/>
+                        <TextBlock Text="{Binding MasteryPreviewMastery}" Width="28" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" Margin="4,0,10,0"/>
+                        <TextBlock Text="Level in pass" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" Margin="0,0,4,0"/>
+                        <Slider Width="140" Minimum="0" Maximum="249" TickFrequency="1" IsSnapToTickEnabled="True"
+                                SmallChange="1" LargeChange="10" VerticalAlignment="Center"
+                                IsEnabled="{Binding MasteryPreviewEnabled}"
+                                Value="{Binding MasteryPreviewLevel}"/>
+                        <TextBlock Text="{Binding MasteryPreviewLevel}" Width="28" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" Margin="4,0,10,0"/>
+                        <TextBlock Text="Progress %" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" Margin="0,0,4,0"/>
+                        <Slider Width="90" Minimum="0" Maximum="99" TickFrequency="1" IsSnapToTickEnabled="True"
+                                SmallChange="1" LargeChange="10" VerticalAlignment="Center"
+                                IsEnabled="{Binding MasteryPreviewEnabled}"
+                                Value="{Binding MasteryPreviewProgress}"/>
+                        <TextBlock Text="{Binding MasteryPreviewProgress}" Width="22" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" Margin="4,0,0,0"/>
+                    </StackPanel>
+                    <!-- END TEMP(mastery-preview) -->
                 </StackPanel>
 
                 <!-- Right: showcase page/edit controls, re-hosted from ShowcaseControl so the
