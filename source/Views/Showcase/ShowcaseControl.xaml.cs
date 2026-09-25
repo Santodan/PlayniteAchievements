@@ -1346,26 +1346,39 @@ namespace PlayniteAchievements.Views.Showcase
             var rowEnd = closure.Max(member => member.Row + member.RowSpan);
             var columnEnd = closure.Max(member => member.Column + member.ColumnSpan);
             ShowLayoutPreview(
-                new[] { (row, column, rowEnd - row, columnEnd - column) },
+                new[] { (row, column, rowEnd - row, columnEnd - column, BlockInset) },
                 closure.Select(member => member.BlockId));
         }
 
+        // The container's inset on each side; two neighbouring blocks sit 2 x this apart.
+        private static readonly Thickness BlockInset = new Thickness(4);
+
+        // Extra room each half leaves at the cut side, so the preview's gap is clearly wider than
+        // the ordinary space between blocks and the new boundary reads at a glance (a still gap,
+        // not an animation). The outer edges keep the block's own inset.
+        private const double SplitPreviewGap = 8;
+
         private void ShowSplitPreview(ShowcaseBlockSettings block, bool vertical, int boundary)
         {
+            var cut = BlockInset.Left + SplitPreviewGap;
             if (vertical)
             {
                 ShowLayoutPreview(new[]
                 {
-                    (block.Row, block.Column, block.RowSpan, boundary - block.Column),
-                    (block.Row, boundary, block.RowSpan, block.Column + block.ColumnSpan - boundary)
+                    (block.Row, block.Column, block.RowSpan, boundary - block.Column,
+                        new Thickness(BlockInset.Left, BlockInset.Top, cut, BlockInset.Bottom)),
+                    (block.Row, boundary, block.RowSpan, block.Column + block.ColumnSpan - boundary,
+                        new Thickness(cut, BlockInset.Top, BlockInset.Right, BlockInset.Bottom))
                 }, new[] { block.BlockId });
             }
             else
             {
                 ShowLayoutPreview(new[]
                 {
-                    (block.Row, block.Column, boundary - block.Row, block.ColumnSpan),
-                    (boundary, block.Column, block.Row + block.RowSpan - boundary, block.ColumnSpan)
+                    (block.Row, block.Column, boundary - block.Row, block.ColumnSpan,
+                        new Thickness(BlockInset.Left, BlockInset.Top, BlockInset.Right, cut)),
+                    (boundary, block.Column, block.Row + block.RowSpan - boundary, block.ColumnSpan,
+                        new Thickness(BlockInset.Left, cut, BlockInset.Right, BlockInset.Bottom))
                 }, new[] { block.BlockId });
             }
         }
@@ -1376,7 +1389,7 @@ namespace PlayniteAchievements.Views.Showcase
         // the click rather than as extra borders on top of the current layout. Not hit-testable,
         // so it never steals the hover that shows it.
         private void ShowLayoutPreview(
-            IEnumerable<(int Row, int Column, int RowSpan, int ColumnSpan)> cells,
+            IEnumerable<(int Row, int Column, int RowSpan, int ColumnSpan, Thickness Margin)> cells,
             IEnumerable<string> replacedBlockIds)
         {
             ClearLayoutPreview();
@@ -1407,7 +1420,7 @@ namespace PlayniteAchievements.Views.Showcase
                 outline.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
                 var ghost = new Grid
                 {
-                    Margin = new Thickness(4),
+                    Margin = cell.Margin,
                     IsHitTestVisible = false
                 };
                 ghost.Children.Add(wash);
