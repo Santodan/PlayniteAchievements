@@ -372,10 +372,13 @@ namespace PlayniteAchievements.Views.Showcase
 
         private void AddLinkButton(Grid row, int column, string glyph, string toolTipKey, bool enabled, Action onClick)
         {
+            // No fixed width: the implicit button padding clipped the glyph out of a 30px box.
             var button = new Button
             {
                 Content = glyph,
-                Width = 30,
+                MinWidth = 30,
+                MinHeight = 30,
+                Padding = new Thickness(6, 0, 6, 0),
                 IsEnabled = enabled,
                 ToolTip = Localize(toolTipKey)
             };
