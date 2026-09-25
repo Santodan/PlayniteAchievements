@@ -1455,6 +1455,10 @@
     <sys:String x:Key="LOCPlayAch_Showcase_LastPlayedWindow">Played within</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MaxPerGame">Most per game</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_IncludeHiddenAchievements">Include hidden achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_FinishNextCriterion_FewestRemaining">Fewest remaining</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_FinishNextMinimumProgress">Minimum progress (%)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_FinishNextMaxRemaining">Most remaining (0 = any)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_FinishNextIncludeUnplayed">Include unplayed games</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ScreenshotVariant_All">All</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ScreenshotVariant_Clean">Clean</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ScreenshotVariant_Notification">Notification</sys:String>
