@@ -391,9 +391,11 @@
       </Grid>
     </DataTemplate>
 
-    <!-- IconMosaic: centered wrap of reused AchievementCompactItemControl icons. -->
+    <!-- IconMosaic: centered wrap of reused AchievementCompactItemControl icons. A click opens
+         the View Achievements window on the achievement, as the compact lists do. -->
     <DataTemplate DataType="{x:Type widgets:IconMosaicWidgetViewModel}">
         <ListBox ItemsSource="{Binding Items}"
+                 showcase:ShowcaseMosaicClickBehavior.IsEnabled="True"
                  Background="Transparent"
                  BorderThickness="0"
                  Padding="6"
@@ -689,9 +691,12 @@
                                           ShowMetadataRegion="{Binding GridOptions.ShowMetadataRegion, FallbackValue=True}"/>
     </DataTemplate>
 
-    <!-- GameMosaic: dense wrap of game cover tiles; pinned-source tiles get a reorder/unpin menu. -->
+    <!-- GameMosaic: dense wrap of game cover tiles. A click opens the game in the library; the
+         right-click menu (ShowcaseMosaicClickBehavior) offers Open and, for pinned-source
+         tiles, reorder/unpin. -->
     <DataTemplate DataType="{x:Type widgets:GameMosaicWidgetViewModel}">
         <ListBox ItemsSource="{Binding Tiles}"
+                 showcase:ShowcaseMosaicClickBehavior.IsEnabled="True"
                  Background="Transparent"
                  BorderThickness="0"
                  Padding="0"
@@ -731,8 +736,7 @@
                              needs (bloom blur 14 + depth 2, ray reach ~0.275 of the art per side);
                              at the dense margin the neighbors' art paints over the overflow and
                              only the rays' pale inner copies survive in the gutters. -->
-                        <Grid ToolTip="{Binding GameName}"
-                              ContextMenuService.IsEnabled="{Binding IsPinnable}">
+                        <Grid ToolTip="{Binding GameName}">
                             <Grid.Style>
                                 <Style TargetType="Grid">
                                     <Setter Property="Margin" Value="6"/>
@@ -743,17 +747,6 @@
                                     </Style.Triggers>
                                 </Style>
                             </Grid.Style>
-                            <Grid.ContextMenu>
-                                <ContextMenu>
-                                    <MenuItem Header="{DynamicResource LOCPlayAch_Showcase_MoveEarlier}"
-                                              Command="{Binding MoveEarlierCommand}"/>
-                                    <MenuItem Header="{DynamicResource LOCPlayAch_Showcase_MoveLater}"
-                                              Command="{Binding MoveLaterCommand}"/>
-                                    <Separator/>
-                                    <MenuItem Header="{DynamicResource LOCPlayAch_Showcase_RemoveFromCollection}"
-                                              Command="{Binding UnpinCommand}"/>
-                                </ContextMenu>
-                            </Grid.ContextMenu>
                             <!-- Completion glow: the game summaries grid's rays and edge line,
                                  with the aura underlay below carrying the bloom, gated on the
                                  same soft/ray tier selections and pulse toggle exposed as
