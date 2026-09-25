@@ -329,6 +329,10 @@ namespace PlayniteAchievements.Models
         private const string SortDescending = "SortDescending";
         private const string UnlockNextCriterionOption = "UnlockNextCriterion";
         private const string LastPlayedWindow = "LastPlayedWindow";
+        private const string FinishNextCriterionOption = "FinishNextCriterion";
+        private const string FinishNextMinimumProgress = "FinishNextMinimumProgress";
+        private const string FinishNextMaxRemaining = "FinishNextMaxRemaining";
+        private const string FinishNextIncludeUnplayed = "FinishNextIncludeUnplayed";
         private const string MaxPerGame = "MaxPerGame";
         private const string IncludeHiddenAchievements = "IncludeHiddenAchievements";
         private const string InfoPanel = "InfoPanel";
@@ -631,6 +635,37 @@ namespace PlayniteAchievements.Models
         /// Shares no key with <see cref="ShowcaseTimelineOptions"/>, whose range means a chart
         /// window rather than a library filter.
         /// </summary>
+        public static FinishNextCriterion GetFinishNextCriterion(ShowcaseWidgetInstanceSettings settings) =>
+            GetEnum(settings, FinishNextCriterionOption, FinishNextCriterion.ClosestToCompletion);
+
+        public static void SetFinishNextCriterion(
+            ShowcaseWidgetInstanceSettings settings,
+            FinishNextCriterion value) => settings?.SetOption(FinishNextCriterionOption, value);
+
+        /// <summary>Finish Next only lists games at least this far along, in percent (0-99).</summary>
+        public static int GetFinishNextMinimumProgress(ShowcaseWidgetInstanceSettings settings) =>
+            Clamp(settings?.GetOption(FinishNextMinimumProgress, 0) ?? 0, 0, 99);
+
+        public static void SetFinishNextMinimumProgress(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(FinishNextMinimumProgress, Clamp(value, 0, 99));
+
+        /// <summary>Finish Next only lists games with at most this many achievements left; 0 means any.</summary>
+        public static int GetFinishNextMaxRemaining(ShowcaseWidgetInstanceSettings settings) =>
+            Clamp(settings?.GetOption(FinishNextMaxRemaining, 0) ?? 0, 0, 9999);
+
+        public static void SetFinishNextMaxRemaining(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(FinishNextMaxRemaining, Clamp(value, 0, 9999));
+
+        /// <summary>
+        /// Whether Finish Next keeps games with no last-played date inside a played-within window
+        /// (they have nothing to compare, so a window otherwise drops them).
+        /// </summary>
+        public static bool GetFinishNextIncludeUnplayed(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.GetOption(FinishNextIncludeUnplayed, false) ?? false;
+
+        public static void SetFinishNextIncludeUnplayed(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(FinishNextIncludeUnplayed, value);
+
         public static TimelineRange GetLastPlayedWindow(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, LastPlayedWindow, TimelineRange.OneMonth);
 
