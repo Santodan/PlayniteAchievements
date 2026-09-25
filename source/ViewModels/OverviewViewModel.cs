@@ -2228,7 +2228,11 @@ namespace PlayniteAchievements.ViewModels
                 // forward keeps the mosaic populated between full rebuilds.
                 UnlockNextCandidates = _latestSnapshot?.UnlockNextCandidates
                     ?? new List<AchievementDisplayItem>(),
-                UnlockNextPoolBuilt = _latestSnapshot?.UnlockNextPoolBuilt ?? false
+                UnlockNextPoolBuilt = _latestSnapshot?.UnlockNextPoolBuilt ?? false,
+                // The pinned-locked rows a delta keeps are the last full build's, so the pins it
+                // accounted for are too.
+                AchievementPinKeysAtBuild = _latestSnapshot?.AchievementPinKeysAtBuild
+                    ?? new HashSet<string>(StringComparer.Ordinal)
             };
 
             for (var i = 0; i < snapshot.RecentAchievements.Count; i++)
