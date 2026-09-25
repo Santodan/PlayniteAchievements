@@ -615,7 +615,7 @@ namespace PlayniteAchievements
             return GameRowContextMenuBuilder.CreateOpenMenu(
                 resourceOwner,
                 gameId,
-                () => OpenStartPageGameInLibrary(gameId),
+                () => OpenGameInLibrary(gameId),
                 PlayniteApi,
                 _logger);
         }
@@ -635,7 +635,8 @@ namespace PlayniteAchievements
             return item;
         }
 
-        private void OpenStartPageGameInLibrary(Guid gameId)
+        /// <summary>Restores the main window and selects the game in the library view.</summary>
+        internal void OpenGameInLibrary(Guid gameId)
         {
             if (gameId == Guid.Empty)
             {
