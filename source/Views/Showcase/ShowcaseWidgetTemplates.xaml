@@ -41,7 +41,7 @@
                 ClipToBounds="True">
             <StackPanel>
                 <TextBlock Text="{Binding Value}"
-                           Foreground="{DynamicResource PlayAch.Brush.Accent}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
                            FontWeight="SemiBold"
                            FontSize="{DynamicResource PlayAch.FontSize.SectionHeader}"
                            TextWrapping="Wrap"/>
