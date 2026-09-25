@@ -119,7 +119,6 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             Assert.AreEqual(3, card.Mastery);
             Assert.IsTrue(card.HasMastery);
-            Assert.AreEqual("3", card.MasteryBadgeText);
             Assert.AreEqual("Mastery 3", card.MasteryText);
             Assert.AreEqual("Bronze IV", card.TierText);
             Assert.AreEqual(760, card.Level);
@@ -132,14 +131,14 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void MasteryBadgeText_CapsAtTwoDigits()
+        public void MasteryText_CountsEveryPass()
         {
             var card = new ScoreCardViewModel(ScoreCardType.Collection);
 
             card.ApplyFromScore(AchievementLevelCalculator.GetScoreForLevel(150 * 250), useUniformRarityBadges: false);
 
             Assert.AreEqual(150, card.Mastery);
-            Assert.AreEqual("99+", card.MasteryBadgeText);
+            Assert.AreEqual("Mastery 150", card.MasteryText);
         }
 
         [TestMethod]
