@@ -76,7 +76,7 @@ namespace PlayniteAchievements.Views.Showcase
                     AddChoice(
                         panel,
                         Localize("LOCPlayAch_Showcase_ProfileMedals"),
-                        new[] { ShowcaseProfileMedalMode.Rarity, ShowcaseProfileMedalMode.Trophy },
+                        new[] { ShowcaseProfileMedalMode.Rarity, ShowcaseProfileMedalMode.Trophy, ShowcaseProfileMedalMode.Both },
                         ShowcaseWidgetOptions.GetProfileMedalMode(_settings),
                         value => ShowcaseWidgetOptions.SetProfileMedalMode(_settings, value),
                         ProfileMedalModeName);
