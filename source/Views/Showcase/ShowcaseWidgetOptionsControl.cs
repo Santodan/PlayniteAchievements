@@ -590,7 +590,35 @@ namespace PlayniteAchievements.Views.Showcase
                     break;
             }
 
+            AddGridDisplaySettingsButton(panel);
             return panel;
+        }
+
+        /// <summary>
+        /// For the grid widget kinds: opens the same display settings popup as the grid's own
+        /// right-click Display Settings entry, for this widget's surface. The popup edits the live
+        /// grid options record and persists itself, independent of this dialog's Save/Cancel.
+        /// </summary>
+        private void AddGridDisplaySettingsButton(Panel panel)
+        {
+            var surfaceKey = ShowcaseGridSurfaces.ResolveWidgetSurface(_settings.Kind, _settings.InstanceId);
+            if (surfaceKey == null)
+            {
+                return;
+            }
+
+            var kind = ShowcaseGridSurfaces.IsAchievementSurface(surfaceKey)
+                ? GridOptionKind.Achievement
+                : GridOptionKind.GameSummaries;
+            var button = new Button
+            {
+                Content = Localize("LOCPlayAch_Menu_DisplaySettings"),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                MinWidth = 120
+            };
+            button.SetResourceReference(MarginProperty, "PlayAch.Thickness.Top.Md");
+            button.Click += (_, __) => Dialogs.GridDisplaySettingsDialog.Show(kind, surfaceKey, null);
+            panel.Children.Add(button);
         }
 
         /// <summary>
