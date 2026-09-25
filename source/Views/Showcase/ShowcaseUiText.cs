@@ -56,6 +56,21 @@ namespace PlayniteAchievements.Views.Showcase
         public static string MosaicSourceName(ShowcaseMosaicSource value) =>
             EnumValueName("LOCPlayAch_Showcase_MosaicSource_", value);
 
+        // Closest to completion and easiest share the Unlock Next labels; only Fewest remaining is
+        // its own string.
+        public static string FinishNextCriterionName(FinishNextCriterion value)
+        {
+            switch (value)
+            {
+                case FinishNextCriterion.FewestRemaining:
+                    return Localize("LOCPlayAch_Showcase_FinishNextCriterion_FewestRemaining");
+                case FinishNextCriterion.EasiestRemaining:
+                    return UnlockNextCriterionName(UnlockNextCriterion.Easiest);
+                default:
+                    return UnlockNextCriterionName(UnlockNextCriterion.ClosestToCompletion);
+            }
+        }
+
         public static string UnlockNextCriterionName(UnlockNextCriterion value) =>
             EnumValueName("LOCPlayAch_Showcase_UnlockNextCriterion_", value);
 
