@@ -65,6 +65,8 @@ namespace PlayniteAchievements.Views.Showcase
         // Hover previews of a cut or merge's resulting blocks: outlines only, created on hover
         // and removed on leave, so they cost a couple of elements and never re-render a widget.
         private readonly List<FrameworkElement> _layoutPreviewGhosts = new List<FrameworkElement>();
+        private readonly List<(Border Chrome, Visibility Previous)> _layoutPreviewHiddenChrome =
+            new List<(Border Chrome, Visibility Previous)>();
 
         // The selected empty block's in-block + button, hidden while an overlay copy takes
         // hit-test priority over the cut lines; restored on the next handle rebuild.
@@ -242,6 +244,7 @@ namespace PlayniteAchievements.Views.Showcase
             _layoutHandles.Clear();
             _cutGhost = null;
             _layoutPreviewGhosts.Clear();
+            _layoutPreviewHiddenChrome.Clear();
             _suppressedAddButton = null;
             DashboardGrid.RowDefinitions.Clear();
             DashboardGrid.ColumnDefinitions.Clear();
@@ -1311,6 +1314,9 @@ namespace PlayniteAchievements.Views.Showcase
         // Lights the closure that WOULD merge using each block's existing drop-glow layer.
         // Guarded by DragVisualKind.None on set and clear so a hover can never restyle or
         // clear live drag-and-drop visuals.
+        // The merge preview is the merged block's single outline, drawn in place of the members'
+        // own outlines (not on top of them, and without the per-block glow), so the page shows
+        // the one shape the click produces.
         private void ShowMergePreviewGlow(string firstBlockId, string secondBlockId)
         {
             ClearMergePreviewGlow();
@@ -1324,30 +1330,8 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
-            foreach (var member in closure)
-            {
-                if (!_blockVisuals.TryGetValue(member.BlockId, out var state) ||
-                    state?.Glow == null ||
-                    state.DragVisual != DragVisualKind.None)
-                {
-                    continue;
-                }
-
-                _mergePreviewBlockIds.Add(member.BlockId);
-                state.Glow.Visibility = Visibility.Visible;
-                var wash = new System.Windows.Media.Animation.DoubleAnimation(
-                    0,
-                    0.22,
-                    TimeSpan.FromMilliseconds(120));
-                state.Glow.BeginAnimation(
-                    OpacityProperty,
-                    wash,
-                    System.Windows.Media.Animation.HandoffBehavior.SnapshotAndReplace);
-            }
-
             ShowMergePreview(closure);
         }
-
         // The closure's bounding rectangle is the merged block (TryGetMergePreview only returns
         // rectangular closures).
         private void ShowMergePreview(IReadOnlyList<ShowcaseBlockSettings> closure)
@@ -1361,7 +1345,9 @@ namespace PlayniteAchievements.Views.Showcase
             var column = closure.Min(member => member.Column);
             var rowEnd = closure.Max(member => member.Row + member.RowSpan);
             var columnEnd = closure.Max(member => member.Column + member.ColumnSpan);
-            ShowLayoutPreview(new[] { (row, column, rowEnd - row, columnEnd - column) });
+            ShowLayoutPreview(
+                new[] { (row, column, rowEnd - row, columnEnd - column) },
+                closure.Select(member => member.BlockId));
         }
 
         private void ShowSplitPreview(ShowcaseBlockSettings block, bool vertical, int boundary)
@@ -1372,7 +1358,7 @@ namespace PlayniteAchievements.Views.Showcase
                 {
                     (block.Row, block.Column, block.RowSpan, boundary - block.Column),
                     (block.Row, boundary, block.RowSpan, block.Column + block.ColumnSpan - boundary)
-                });
+                }, new[] { block.BlockId });
             }
             else
             {
@@ -1380,18 +1366,32 @@ namespace PlayniteAchievements.Views.Showcase
                 {
                     (block.Row, block.Column, boundary - block.Row, block.ColumnSpan),
                     (boundary, block.Column, block.Row + block.RowSpan - boundary, block.ColumnSpan)
-                });
+                }, new[] { block.BlockId });
             }
         }
 
-        // A dashed accent outline over a faint wash, inset well inside the real block edges so it
-        // reads as "the block you'll get" rather than as another grid line. Not hit-testable, so
-        // it never steals the hover that shows it.
-        private const double LayoutPreviewInset = 14;
+        // Each preview shape sits exactly where a real block would (the container's 4px inset,
+        // outline thickness and corner radius), in the accent outline over a faint wash, and the
+        // outlines of the blocks it replaces hide while it shows: the page reads as the result of
+        // the click rather than as extra borders on top of the current layout. Not hit-testable,
+        // so it never steals the hover that shows it.
         private void ShowLayoutPreview(
-            IEnumerable<(int Row, int Column, int RowSpan, int ColumnSpan)> cells)
+            IEnumerable<(int Row, int Column, int RowSpan, int ColumnSpan)> cells,
+            IEnumerable<string> replacedBlockIds)
         {
             ClearLayoutPreview();
+            foreach (var blockId in replacedBlockIds ?? Enumerable.Empty<string>())
+            {
+                if (blockId != null &&
+                    _blockVisuals.TryGetValue(blockId, out var state) &&
+                    state?.EditChrome != null &&
+                    state.DragVisual == DragVisualKind.None)
+                {
+                    _layoutPreviewHiddenChrome.Add((state.EditChrome, state.EditChrome.Visibility));
+                    state.EditChrome.Visibility = Visibility.Hidden;
+                }
+            }
+
             foreach (var cell in cells)
             {
                 if (cell.RowSpan <= 0 || cell.ColumnSpan <= 0)
@@ -1399,23 +1399,17 @@ namespace PlayniteAchievements.Views.Showcase
                     continue;
                 }
 
-                var wash = new Border { Opacity = 0.05 };
+                var wash = new Border { Opacity = 0.06 };
                 wash.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.Accent");
                 wash.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
+                var outline = new Border { BorderThickness = new Thickness(2) };
+                outline.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.Accent");
+                outline.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
                 var ghost = new Grid
                 {
-                    Margin = new Thickness(LayoutPreviewInset),
+                    Margin = new Thickness(4),
                     IsHitTestVisible = false
                 };
-                var outline = new System.Windows.Shapes.Rectangle
-                {
-                    StrokeThickness = 1.5,
-                    StrokeDashArray = new System.Windows.Media.DoubleCollection { 4d, 3d },
-                    RadiusX = 6,
-                    RadiusY = 6,
-                    Opacity = 0.75
-                };
-                outline.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "PlayAch.Brush.Accent");
                 ghost.Children.Add(wash);
                 ghost.Children.Add(outline);
                 Grid.SetRow(ghost, cell.Row);
@@ -1437,8 +1431,17 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             _layoutPreviewGhosts.Clear();
-        }
+            foreach (var hidden in _layoutPreviewHiddenChrome)
+            {
+                // Only undo our own hide; a chrome refresh during the hover already set its own state.
+                if (hidden.Chrome.Visibility == Visibility.Hidden)
+                {
+                    hidden.Chrome.Visibility = hidden.Previous;
+                }
+            }
 
+            _layoutPreviewHiddenChrome.Clear();
+        }
         private void ClearMergePreviewGlow()
         {
             ClearLayoutPreview();
