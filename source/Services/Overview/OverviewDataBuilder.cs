@@ -447,6 +447,8 @@ namespace PlayniteAchievements.Services.Overview
                         appearanceSettings);
                     if (displayItem != null)
                     {
+                        // As the full build does: Playnite's name and art, not the provider's.
+                        ApplyGamePresentation(displayItem, presentation);
                         fragment.Achievements.Add(displayItem);
                     }
                 }
@@ -466,6 +468,7 @@ namespace PlayniteAchievements.Services.Overview
                                 appearanceSettings);
                             if (recentItem != null)
                             {
+                                ApplyGamePresentation(recentItem, presentation);
                                 fragment.RecentAchievements.Add(recentItem);
                             }
                         }
@@ -636,7 +639,10 @@ namespace PlayniteAchievements.Services.Overview
                     _logger?.Debug($"[Overview] Failed to load pinned game data for {entry.Key}: {ex.Message}");
                 }
 
-                if (gameData?.Achievements == null)
+                // An excluded game contributes nothing to summary surfaces, matching the delta path
+                // (BuildGameFragment returns no fragment for it); otherwise its pins appeared on a
+                // full build and turned into placeholders on the next delta.
+                if (gameData?.Achievements == null || gameData.ExcludedFromSummaries)
                 {
                     continue;
                 }
@@ -836,6 +842,7 @@ namespace PlayniteAchievements.Services.Overview
                     Points = achievement.Points,
                     ScaledPoints = achievement.ScaledPoints,
                     Category = achievement.Category,
+                    ProviderCategory = achievement.ProviderCategory,
                     CategoryType = achievement.CategoryType,
                     TrophyType = achievement.TrophyType,
                     Hidden = achievement.Hidden,
