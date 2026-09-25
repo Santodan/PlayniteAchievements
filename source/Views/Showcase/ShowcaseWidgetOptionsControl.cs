@@ -188,13 +188,11 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetPointsGrouping(_settings),
                         value => ShowcaseWidgetOptions.SetPointsGrouping(_settings, value),
                         PointsGroupingName);
-                    AddChoice(
+                    AddNumberRow(
                         panel,
                         Localize("LOCPlayAch_Showcase_TopN"),
-                        new[] { 5, 8, 10, 15, 25 },
-                        ShowcaseWidgetOptions.GetTopN(_settings),
-                        value => ShowcaseWidgetOptions.SetTopN(_settings, value),
-                        CountLabel);
+                        () => ShowcaseWidgetOptions.GetTopN(_settings),
+                        value => ShowcaseWidgetOptions.SetTopN(_settings, value));
                     break;
                 case ShowcaseWidgetKind.IconMosaic:
                     // The collapsed Mosaic widget: the Content choice flips between the
@@ -448,16 +446,11 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetScreenshotVariant(_settings),
                         value => ShowcaseWidgetOptions.SetScreenshotVariant(_settings, value),
                         ScreenshotVariantName);
-                    AddChoice(
+                    AddNumberRow(
                         panel,
-                        Localize("LOCPlayAch_Showcase_Interval"),
-                        new[] { 3, 5, 8, 15, 30 },
-                        ShowcaseWidgetOptions.GetSlideshowIntervalSeconds(_settings),
-                        value => ShowcaseWidgetOptions.SetSlideshowIntervalSeconds(_settings, value),
-                        value => string.Format(
-                            FormattingCulture.Current,
-                            Localize("LOCPlayAch_Showcase_Seconds"),
-                            value));
+                        Localize("LOCPlayAch_Showcase_Interval") + " (s)",
+                        () => ShowcaseWidgetOptions.GetSlideshowIntervalSeconds(_settings),
+                        value => ShowcaseWidgetOptions.SetSlideshowIntervalSeconds(_settings, value));
                     AddChoice(
                         panel,
                         Localize("LOCPlayAch_Showcase_FitMode"),
@@ -623,13 +616,11 @@ namespace PlayniteAchievements.Views.Showcase
                     value => ShowcaseWidgetOptions.SetUnlockNextCriterion(_settings, value),
                     UnlockNextCriterionName),
                 AddLastPlayedWindowChoice(panel),
-                AddChoice(
+                AddNumberRow(
                     panel,
                     Localize("LOCPlayAch_Showcase_MaxPerGame"),
-                    ShowcaseWidgetOptions.MaxPerGameChoices.ToArray(),
-                    ShowcaseWidgetOptions.GetMaxPerGame(_settings),
-                    value => ShowcaseWidgetOptions.SetMaxPerGame(_settings, value),
-                    CountLabel),
+                    () => ShowcaseWidgetOptions.GetMaxPerGame(_settings),
+                    value => ShowcaseWidgetOptions.SetMaxPerGame(_settings, value)),
                 AddChoice(
                     panel,
                     Localize("LOCPlayAch_Showcase_IncludeHiddenAchievements"),
@@ -942,8 +933,6 @@ namespace PlayniteAchievements.Views.Showcase
                 ShowcaseWidgetOptions.GetMosaicSortDescending(_settings),
                 value => ShowcaseWidgetOptions.SetMosaicSortDescending(_settings, value),
                 SortDirectionLabel);
-
-        private static string CountLabel(int value) => value.ToString("N0", FormattingCulture.Current);
 
         private static string OnOffLabel(bool value) => value
             ? Localize("LOCPlayAch_Settings_Override_On")
