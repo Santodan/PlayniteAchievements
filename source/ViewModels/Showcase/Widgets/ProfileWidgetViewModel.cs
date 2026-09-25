@@ -60,6 +60,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private bool _showMedals;
         private bool _showStatStrip;
         private int _statColumns = 4;
+        private bool _isCentered;
+        private bool _isFullBleed;
+        private Thickness _contentPadding;
+        private CornerRadius _backgroundCornerRadius;
+        private int _backgroundDecodePixel = 320;
 
         public BulkObservableCollection<ProfileMedalViewModel> Medals { get; } =
             new BulkObservableCollection<ProfileMedalViewModel>();
@@ -94,6 +99,39 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         /// <summary>Strip columns: one per stat up to four, wrapping to extra rows past that.</summary>
         public int StatColumns { get => _statColumns; private set => SetValue(ref _statColumns, value); }
 
+        /// <summary>Avatar stacked above the text, with every block centered.</summary>
+        public bool IsCentered
+        {
+            get => _isCentered;
+            private set
+            {
+                if (SetValueAndReturn(ref _isCentered, value))
+                {
+                    OnPropertyChanged(nameof(TextAlignment));
+                }
+            }
+        }
+
+        public TextAlignment TextAlignment => IsCentered ? TextAlignment.Center : TextAlignment.Left;
+
+        /// <summary>
+        /// The widget host drops its body inset for a full-bleed profile, so the background
+        /// reaches the card edge; <see cref="ContentPadding"/> then restores the inset for the
+        /// foreground alone.
+        /// </summary>
+        public bool IsFullBleed { get => _isFullBleed; private set => SetValue(ref _isFullBleed, value); }
+
+        public Thickness ContentPadding { get => _contentPadding; private set => SetValue(ref _contentPadding, value); }
+
+        /// <summary>
+        /// Rounds the full-bleed background to the card's inner corners (section radius less the
+        /// border), since the card clips to its bounding rectangle, not its rounded outline. The
+        /// top corners stay square under a custom-title header.
+        /// </summary>
+        public CornerRadius BackgroundCornerRadius { get => _backgroundCornerRadius; private set => SetValue(ref _backgroundCornerRadius, value); }
+
+        public int BackgroundDecodePixel { get => _backgroundDecodePixel; private set => SetValue(ref _backgroundDecodePixel, value); }
+
         protected override void Refresh()
         {
             var resolved = Projection?.ResolvedProfile ?? ShowcaseProfileResolver.Resolve(
@@ -104,6 +142,15 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
             BackgroundPath = resolved.BackgroundPath;
             HasBackground = !string.IsNullOrWhiteSpace(resolved.BackgroundPath);
+
+            IsCentered = ShowcaseWidgetOptions.GetProfileCentered(Projection?.Instance);
+            IsFullBleed = ShowcaseWidgetOptions.GetProfileFullBleed(Projection?.Instance);
+            ContentPadding = IsFullBleed ? new Thickness(GetBodyInset(Density)) : new Thickness(0);
+            var hasHeader = !string.IsNullOrWhiteSpace(Projection?.Instance?.CustomTitle);
+            var top = IsFullBleed && !hasHeader ? InnerCornerRadius : 0;
+            var bottom = IsFullBleed ? InnerCornerRadius : 0;
+            BackgroundCornerRadius = new CornerRadius(top, top, bottom, bottom);
+            BackgroundDecodePixel = IsFullBleed ? 640 : 320;
 
             AvatarPath = resolved.AvatarPath;
             HasAvatar = !string.IsNullOrWhiteSpace(resolved.AvatarPath);
@@ -129,6 +176,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ShowStatStrip = Stats.Count > 0;
             StatColumns = Math.Max(1, Math.Min(4, Stats.Count));
         }
+
+        /// <summary><c>PlayAch.Radius.Section</c> (8) less <c>PlayAch.Thickness.Border</c> (1).</summary>
+        private const double InnerCornerRadius = 7;
 
         private static IReadOnlyList<ProfileMedalViewModel> BuildMedals(
             OverviewDataSnapshot snapshot,
