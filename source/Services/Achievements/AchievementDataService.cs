@@ -542,7 +542,7 @@ namespace PlayniteAchievements.Services.Achievements
                 summaryData.Games,
                 customizationByGameId,
                 summaryData.Achievements);
-            ApplyAchievementSummaryCustomization(achievementDetails, customizationByGameId);
+            ApplyAchievementSummaryCustomization(achievementDetails, customizationByGameId, summaryData);
 
             return summaryData;
         }
@@ -682,6 +682,9 @@ namespace PlayniteAchievements.Services.Achievements
                 ExcludedFromSummaries = hasCustomData
                     ? customData.ExcludedFromSummaries == true
                     : Persisted?.ExcludedFromSummariesGameIds?.Contains(gameId) == true,
+                // Same as GameCustomDataLookup: a manual link owns unlock times, so the override
+                // applier must skip its unlock-time fields here exactly as the per-game path does.
+                HasManualLink = hasCustomData && customData.ManualLink != null,
                 UseSeparateLockedIcons = useSeparateLockedIconsDefault ||
                     (hasCustomData
                         ? customData.UseSeparateLockedIconsOverride == true
@@ -1153,9 +1156,16 @@ namespace PlayniteAchievements.Services.Achievements
                 (total > 0 && unlocked >= total);
         }
 
+        /// <param name="timeline">
+        /// The summary whose unlock-date counts SQL bucketed by the recorded unlock time. An
+        /// unlock-time override moves its row's count to the overridden date (or drops it when the
+        /// override clears the time), matching the Overview's delta rebuild, which counts rows by
+        /// their overridden time; otherwise the calendar changed between full and delta builds.
+        /// </param>
         private void ApplyAchievementSummaryCustomization(
             IList<CachedRecentUnlockData> achievements,
-            IReadOnlyDictionary<Guid, SummaryCustomizationData> customizationByGameId)
+            IReadOnlyDictionary<Guid, SummaryCustomizationData> customizationByGameId,
+            CachedSummaryData timeline)
         {
             if (achievements == null || achievements.Count == 0)
             {
@@ -1198,11 +1208,13 @@ namespace PlayniteAchievements.Services.Achievements
                 // overview's recent-unlock entries would show the provider's title and points
                 // while the list showed the user's.
                 var userOverride = ResolveSummaryOverride(resolved, apiName);
+                achievement.ProviderCategory = achievement.ProviderCategory ?? achievement.Category;
                 if (userOverride != null)
                 {
                     if (!string.IsNullOrWhiteSpace(userOverride.Category))
                     {
-                        achievement.Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(userOverride.Category);
+                        // NormalizePath, as the hydrator does, so a nested path survives.
+                        achievement.Category = CategoryPathHelper.NormalizePath(userOverride.Category);
                     }
 
                     if (!string.IsNullOrWhiteSpace(userOverride.CategoryType))
@@ -1210,7 +1222,11 @@ namespace PlayniteAchievements.Services.Achievements
                         achievement.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(userOverride.CategoryType);
                     }
 
+                    var countedDate = achievement.Unlocked && achievement.UnlockTimeUtc.HasValue
+                        ? Common.DateTimeUtilities.AsUtcKind(achievement.UnlockTimeUtc.Value).Date
+                        : (DateTime?)null;
                     AchievementOverrideApplier.Apply(achievement, userOverride, resolved.HasManualLink);
+                    MoveTimelineCount(timeline, achievement, countedDate);
                 }
 
                 achievement.AchievementNote = userOverride?.Note;
@@ -1231,6 +1247,82 @@ namespace PlayniteAchievements.Services.Achievements
                         achievement.PlayniteGameId.Value);
                 }
             }
+        }
+
+        private static void MoveTimelineCount(
+            CachedSummaryData timeline,
+            CachedRecentUnlockData achievement,
+            DateTime? countedDate)
+        {
+            if (timeline == null || !countedDate.HasValue)
+            {
+                return;
+            }
+
+            var newDate = achievement.UnlockTimeUtc.HasValue
+                ? Common.DateTimeUtilities.AsUtcKind(achievement.UnlockTimeUtc.Value).Date
+                : (DateTime?)null;
+            if (newDate == countedDate)
+            {
+                return;
+            }
+
+            var gameCounts = achievement.PlayniteGameId.HasValue &&
+                             timeline.UnlockCountsByDateByGame != null &&
+                             timeline.UnlockCountsByDateByGame.TryGetValue(achievement.PlayniteGameId.Value, out var counts)
+                ? counts
+                : null;
+            // Only a row SQL actually counted is moved; a date missing from the bucket means it was
+            // not (a filtered row, or a read without the timeline), and there is nothing to move.
+            if (!Decrement(timeline.GlobalUnlockCountsByDate, countedDate.Value))
+            {
+                return;
+            }
+
+            Decrement(gameCounts, countedDate.Value);
+            if (newDate.HasValue)
+            {
+                Increment(timeline.GlobalUnlockCountsByDate, newDate.Value);
+                if (achievement.PlayniteGameId.HasValue && timeline.UnlockCountsByDateByGame != null)
+                {
+                    if (gameCounts == null)
+                    {
+                        gameCounts = new Dictionary<DateTime, int>();
+                        timeline.UnlockCountsByDateByGame[achievement.PlayniteGameId.Value] = gameCounts;
+                    }
+
+                    Increment(gameCounts, newDate.Value);
+                }
+            }
+        }
+
+        private static bool Decrement(IDictionary<DateTime, int> counts, DateTime date)
+        {
+            if (counts == null || !counts.TryGetValue(date, out var count) || count <= 0)
+            {
+                return false;
+            }
+
+            if (count == 1)
+            {
+                counts.Remove(date);
+            }
+            else
+            {
+                counts[date] = count - 1;
+            }
+
+            return true;
+        }
+
+        private static void Increment(IDictionary<DateTime, int> counts, DateTime date)
+        {
+            if (counts == null)
+            {
+                return;
+            }
+
+            counts[date] = counts.TryGetValue(date, out var count) ? count + 1 : 1;
         }
 
         /// <summary>

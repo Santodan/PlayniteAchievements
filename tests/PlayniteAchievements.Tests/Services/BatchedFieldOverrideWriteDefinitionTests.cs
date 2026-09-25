@@ -115,7 +115,9 @@ namespace PlayniteAchievements.Tests.Services
 
             // Understating either flag leaves the edit in the store with nothing on screen
             // re-reading it, or leaves the override mirror stale for points and trophy type.
-            StringAssert.Contains(body, "affectsSummary |= write.Field != AchievementEditableField.UnlockTimeUtc");
+            // Every field, the unlock time included, is shown on summary rows and moves their
+            // unlock-date counts, so the summary flag is unconditional.
+            StringAssert.Contains(body, "var affectsSummary = true;");
             StringAssert.Contains(body, "write.Field == AchievementEditableField.Points");
             StringAssert.Contains(body, "write.Field == AchievementEditableField.TrophyType");
         }

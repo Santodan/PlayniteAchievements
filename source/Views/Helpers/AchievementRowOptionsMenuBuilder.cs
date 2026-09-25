@@ -473,6 +473,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             normalizedMap[context.ApiName] = merged;
             CurrentOverridesService?.SetAchievementCategoryTypeOverrides(context.GameId, normalizedMap);
+            NotifySummaryRowsChanged(context.GameId);
             context.ApplyCategoryType(merged);
         }
 
@@ -492,6 +493,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             normalizedMap[context.ApiName] = remaining;
             CurrentOverridesService?.SetAchievementCategoryTypeOverrides(context.GameId, normalizedMap);
+            NotifySummaryRowsChanged(context.GameId);
             context.ApplyCategoryType(remaining);
         }
 
@@ -572,6 +574,7 @@ namespace PlayniteAchievements.Views.Helpers
             var normalizedMap = CloneStringMap(map);
             normalizedMap[context.ApiName] = normalizedCategory;
             CurrentOverridesService?.SetAchievementCategoryOverrides(context.GameId, normalizedMap);
+            NotifySummaryRowsChanged(context.GameId);
             context.ApplyCategoryLabel(normalizedCategory);
             return true;
         }
@@ -596,6 +599,8 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             CurrentOverridesService?.SetAchievementCategoryOverrides(context.GameId, categoryMap, typeMap);
+
+            NotifySummaryRowsChanged(context.GameId);
             return true;
         }
 
@@ -681,6 +686,7 @@ namespace PlayniteAchievements.Views.Helpers
                 context.GameId,
                 context.ApiName,
                 dialog.SavedNote);
+            NotifySummaryRowsChanged(context.GameId);
             context.ApplyNote(dialog.SavedNote);
             onChanged?.Invoke();
         }
@@ -735,6 +741,18 @@ namespace PlayniteAchievements.Views.Helpers
             return ResourceProvider.GetString(key);
         }
 
+        // Category, category-type and note writes stay out of the store's summary flag, which would
+        // undo the projection's deferred warm (see ManageCustomDataInvalidationDefinitionTests), so
+        // they repaint only the clicked row. The Manage editor raises this same scoped invalidation
+        // for its edits; without it the summary memo, the Overview's per-game delta, the Showcase
+        // and the start page all kept showing the old value.
+        private static void NotifySummaryRowsChanged(Guid gameId)
+        {
+            if (gameId != Guid.Empty)
+            {
+                PlayniteAchievementsPlugin.Instance?.CacheManager?.NotifyCacheInvalidated(new[] { gameId });
+            }
+        }
         private static AchievementOverridesService CurrentOverridesService =>
             PlayniteAchievementsPlugin.Instance?.AchievementOverridesService;
 

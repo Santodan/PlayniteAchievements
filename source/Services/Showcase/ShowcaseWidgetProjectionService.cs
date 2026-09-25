@@ -667,16 +667,33 @@ namespace PlayniteAchievements.Services.Showcase
         {
             return (items ?? Array.Empty<ShowcaseAchievementItem>())
                 .Where(item => item != null)
-                .Select(item => item.IsMissing
-                    ? new AchievementDisplayItem
-                    {
-                        PlayniteGameId = item.Pin?.GameId,
-                        ApiName = item.Pin?.ApiName,
-                        DisplayName = item.Pin?.LastKnownAchievementName,
-                        GameName = item.Pin?.LastKnownGameName
-                    }
-                    : item.Achievement)
+                .Select(item => item.IsMissing ? CreatePlaceholderRow(item.Pin) : item.Achievement)
                 .ToList();
+        }
+
+        /// <summary>
+        /// A pin with no matching row (its achievement was renamed, filtered, or its game is gone).
+        /// It is not a locked achievement, only an unresolved one, so it shows its last-known name
+        /// unmasked: with the default appearance its blank detail read as locked, and the spoiler
+        /// settings covered its icon, name and description as if it were a hidden achievement.
+        /// </summary>
+        private static AchievementDisplayItem CreatePlaceholderRow(PinnedAchievementReference pin)
+        {
+            var row = new AchievementDisplayItem
+            {
+                PlayniteGameId = pin?.GameId,
+                ApiName = pin?.ApiName,
+                DisplayName = pin?.LastKnownAchievementName,
+                GameName = pin?.LastKnownGameName
+            };
+            row.ApplyAppearanceSettings(new AchievementDisplayItem.AppearanceSettingsSnapshot
+            {
+                ShowHiddenIcon = true,
+                ShowHiddenTitle = true,
+                ShowHiddenDescription = true,
+                ShowLockedIcon = true
+            });
+            return row;
         }
 
         /// <summary>

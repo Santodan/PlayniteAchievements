@@ -869,9 +869,9 @@ namespace PlayniteAchievements.Services.Achievements
             //
             // Points and trophy type additionally move SQL-resolved aggregates, via the override
             // mirror. The rest are applied in code over the rows, so they need the re-read but not
-            // the mirror. Only the unlock-time override changes nothing on a row the user can see:
-            // the summary's last-unlock comes from the real recorded time in UserAchievements.
-            var affectsSummaryData = field != AchievementEditableField.UnlockTimeUtc;
+            // the mirror. That includes the unlock time: summary rows show the overridden date, and
+            // the summary's unlock-date counts follow it (ApplyAchievementSummaryCustomization).
+            const bool affectsSummaryData = true;
             var affectsOverrideMirror =
                 field == AchievementEditableField.Points ||
                 field == AchievementEditableField.TrophyType;
@@ -935,11 +935,11 @@ namespace PlayniteAchievements.Services.Achievements
             // The flags are the union over the fields written, for the reasons the single-value
             // overload documents: a mirrored field anywhere in the batch means the batch moves
             // the mirror.
-            var affectsSummary = false;
+            // Every editable field is displayed on summary rows, so any write affects the summary.
+            var affectsSummary = true;
             var affectsMirror = false;
             foreach (var write in resolved)
             {
-                affectsSummary |= write.Field != AchievementEditableField.UnlockTimeUtc;
                 affectsMirror |=
                     write.Field == AchievementEditableField.Points ||
                     write.Field == AchievementEditableField.TrophyType;

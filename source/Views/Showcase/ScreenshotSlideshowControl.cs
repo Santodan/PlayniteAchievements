@@ -76,6 +76,9 @@ namespace PlayniteAchievements.Views.Showcase
         private IReadOnlyList<AchievementDisplayItem> _rowsSource;
         private Dictionary<string, AchievementDisplayItem> _rowsByKey;
         private int _indexVersion;
+        private int _indexedVersion = -1;
+        private bool _indexBuildInFlight;
+        private object _rowsVersion;
 
         public ScreenshotSlideshowControl(ShowcaseWidgetInstanceSettings settings)
         {
@@ -188,21 +191,23 @@ namespace PlayniteAchievements.Views.Showcase
         }
 
         /// <summary>
-        /// Achievement rows the info panel resolves captures against. Rebuilt collections arrive as
-        /// fresh row objects, so reference inequality is the signal that the index is stale.
+        /// Achievement rows the info panel resolves captures against. <paramref name="rowsVersion"/>
+        /// is the snapshot that owns them: the Overview's delta updates that snapshot's row list in
+        /// place and hands out a new snapshot object, so the list reference alone never changed and
+        /// the index kept pointing at replaced rows. The previous index keeps serving until the
+        /// rebuilt one lands, so an update never blanks the panel.
         /// </summary>
-        public void SetAchievementRows(IReadOnlyList<AchievementDisplayItem> rows)
+        public void SetAchievementRows(IReadOnlyList<AchievementDisplayItem> rows, object rowsVersion)
         {
-            if (ReferenceEquals(_rowsSource, rows))
+            if (ReferenceEquals(_rowsVersion, rowsVersion) && ReferenceEquals(_rowsSource, rows))
             {
                 return;
             }
 
             _rowsSource = rows;
-            _rowsByKey = null;
+            _rowsVersion = rowsVersion;
             _indexVersion++;
             EnsureInfoPanelIndex();
-            UpdateInfoPanelContent();
         }
 
         /// <summary>
@@ -809,18 +814,24 @@ namespace PlayniteAchievements.Views.Showcase
         private void EnsureInfoPanelIndex()
         {
             if (ShowcaseWidgetOptions.GetInfoPanelPosition(_settings) == ShowcaseInfoPanelPosition.Off ||
-                _rowsByKey != null)
+                (_rowsByKey != null && _indexedVersion == _indexVersion) ||
+                // One build at a time: a burst of delta updates would otherwise index the whole
+                // library once per update in parallel. The finishing build starts the latest one.
+                _indexBuildInFlight)
             {
                 return;
             }
 
-            var rows = _rowsSource;
-            if (rows == null || rows.Count == 0)
+            // Copied here, on the UI thread that mutates the live list, so the background build
+            // never enumerates it mid-update.
+            var rows = _rowsSource?.ToArray();
+            if (rows == null || rows.Length == 0)
             {
                 return;
             }
 
             var version = _indexVersion;
+            _indexBuildInFlight = true;
             Task.Run(() => CaptureAchievementIndex.Build(
                     rows,
                     row => row.GameName,
@@ -828,16 +839,25 @@ namespace PlayniteAchievements.Views.Showcase
                 .ContinueWith(
                     task =>
                     {
-                        if (version != _indexVersion)
+                        _indexBuildInFlight = false;
+                        if (task.Status != TaskStatus.RanToCompletion)
                         {
                             return;
                         }
 
+                        if (version != _indexVersion)
+                        {
+                            // Superseded while building: index the current rows instead.
+                            EnsureInfoPanelIndex();
+                            return;
+                        }
+
                         _rowsByKey = task.Result;
+                        _indexedVersion = version;
                         UpdateInfoPanelContent();
                     },
                     CancellationToken.None,
-                    TaskContinuationOptions.OnlyOnRanToCompletion,
+                    TaskContinuationOptions.None,
                     TaskScheduler.FromCurrentSynchronizationContext());
         }
 

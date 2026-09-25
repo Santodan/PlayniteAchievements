@@ -236,6 +236,51 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void CustomAchievementTotals_UseTheUsersOverrides()
+        {
+            var gameId = Guid.NewGuid();
+            var apiName = CustomAchievementProjectionService.BuildApiName("a");
+            var summary = new CachedSummaryData();
+            var customData = new Dictionary<Guid, GameCustomDataFile>
+            {
+                [gameId] = new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    CustomAchievements = new List<CustomAchievementDefinition>
+                    {
+                        new CustomAchievementDefinition
+                        {
+                            Id = "a",
+                            DisplayName = "A",
+                            Unlocked = true,
+                            UnlockTimeUtc = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc),
+                            Points = 10,
+                            TrophyType = "bronze"
+                        }
+                    },
+                    AchievementOverrides = new Dictionary<string, AchievementOverride>
+                    {
+                        [apiName] = new AchievementOverride { Points = 50, TrophyType = "gold" }
+                    }
+                }
+            };
+
+            CustomAchievementSummaryMerger.Merge(
+                summary,
+                customData,
+                new HashSet<Guid>(),
+                recentAchievementDetailLimit: 0,
+                resolveGameName: _ => "Game",
+                managedCustomIconService: null);
+
+            var game = summary.Games.Single();
+            Assert.AreEqual(50, game.Points, "The game's points follow the override, as its row does.");
+            Assert.AreEqual(1, game.TrophyGoldTotal);
+            Assert.AreEqual(1, game.TrophyGoldCount);
+            Assert.AreEqual(0, game.TrophyBronzeTotal);
+        }
+
+        [TestMethod]
         public void CustomCapstones_CountTowardTheFinishBadgeAndItsPlatinumIdentity()
         {
             var gameId = Guid.NewGuid();
