@@ -612,10 +612,21 @@ namespace PlayniteAchievements.Models
         /// </summary>
         public static bool RequiresUnlockNextPool(ShowcaseWidgetInstanceSettings settings)
         {
-            return settings != null &&
-                settings.Kind == ShowcaseWidgetKind.IconMosaic &&
-                GetMosaicContent(settings) == ShowcaseMosaicContent.Achievements &&
-                GetMosaicSource(settings) == ShowcaseMosaicSource.UnlockNext;
+            if (settings == null)
+            {
+                return false;
+            }
+
+            switch (settings.Kind)
+            {
+                case ShowcaseWidgetKind.IconMosaic:
+                    return GetMosaicContent(settings) == ShowcaseMosaicContent.Achievements &&
+                        GetMosaicSource(settings) == ShowcaseMosaicSource.UnlockNext;
+                case ShowcaseWidgetKind.RecentAchievements:
+                    return GetAchievementGridSource(settings) == ShowcaseAchievementGridSource.UnlockNext;
+                default:
+                    return false;
+            }
         }
 
         /// <summary>
