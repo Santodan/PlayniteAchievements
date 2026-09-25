@@ -163,6 +163,12 @@ namespace PlayniteAchievements.Services.Cache
 
         public string Category { get; set; }
 
+        /// <summary>
+        /// The provider's category label from before a user rename replaced <see cref="Category"/>,
+        /// which default category art is looked up by (as on the per-game path).
+        /// </summary>
+        public string ProviderCategory { get; set; }
+
         public string CategoryType { get; set; }
 
         public string TrophyType { get; set; }
