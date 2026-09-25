@@ -1,0 +1,56 @@
+<UserControl x:Class="PlayniteAchievements.Views.Controls.CartesianChartTooltip"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             x:Name="TooltipRoot"
+             Focusable="False"
+             IsHitTestVisible="False">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="CartesianTooltipBoolToVis"/>
+    </UserControl.Resources>
+
+    <!-- Same shell as PieChartTooltip. SurfaceBrush/OutlineBrush/Foreground default to the plugin
+         popup brushes in code and a chart can override them (theme-facing charts pass Playnite
+         keys). Dedicated brushes rather than Background: the UserControl template would paint a
+         Background as a square behind the rounded corners. -->
+    <Border Background="{Binding SurfaceBrush, ElementName=TooltipRoot}"
+            BorderBrush="{Binding OutlineBrush, ElementName=TooltipRoot}"
+            BorderThickness="1"
+            CornerRadius="4"
+            IsHitTestVisible="False"
+            Padding="8,4">
+        <StackPanel>
+            <TextBlock Text="{Binding Header, ElementName=TooltipRoot}"
+                       Foreground="{Binding Foreground, ElementName=TooltipRoot}"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,2"
+                       Visibility="{Binding HasHeader, ElementName=TooltipRoot, Converter={StaticResource CartesianTooltipBoolToVis}}"/>
+            <ItemsControl ItemsSource="{Binding Rows, ElementName=TooltipRoot}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type controls:CartesianChartTooltipRow}">
+                        <StackPanel Orientation="Horizontal" Margin="0,1">
+                            <Rectangle Width="10"
+                                       Height="10"
+                                       RadiusX="2"
+                                       RadiusY="2"
+                                       Fill="{Binding Swatch}"
+                                       Margin="0,0,6,0"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Foreground="{Binding Foreground, ElementName=TooltipRoot}"
+                                       Opacity="0.72"
+                                       Margin="0,0,6,0"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding Title}"
+                                       Visibility="{Binding HasTitle, Converter={StaticResource CartesianTooltipBoolToVis}}"/>
+                            <TextBlock Foreground="{Binding Foreground, ElementName=TooltipRoot}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding Value}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</UserControl>
