@@ -1,4 +1,5 @@
 using System;
+using System.Windows;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Showcase;
@@ -24,7 +25,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             double coverHeight,
             int decodePixel,
             bool useCovers = true,
-            bool showCompletionGlow = false)
+            bool showCompletionGlow = false,
+            int spacing = 6)
         {
             _gameId = game.PlayniteGameId;
             _pinCollectionId = pinCollectionId;
@@ -43,6 +45,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             IsPinnable = pinnable && game.PlayniteGameId.HasValue;
             ShowCompletionGlow = showCompletionGlow && game.IsCompleted;
             GlowSpacing = showCompletionGlow;
+            TileMargin = new Thickness(showCompletionGlow ? Math.Max(spacing, GlowClearance) : spacing);
 
             MoveEarlierCommand = new RelayCommand(_ => Move(-1));
             MoveLaterCommand = new RelayCommand(_ => Move(1));
@@ -77,6 +80,14 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         /// copies survive in the gutters.
         /// </summary>
         public bool GlowSpacing { get; }
+
+        /// <summary>
+        /// Space around the tile: the widget's spacing option, raised to the glow's clearance
+        /// while the completion glow is on (see <see cref="GlowSpacing"/>).
+        /// </summary>
+        public Thickness TileMargin { get; }
+
+        private const int GlowClearance = 14;
 
         public RelayCommand MoveEarlierCommand { get; }
 

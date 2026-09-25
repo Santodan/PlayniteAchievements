@@ -269,21 +269,25 @@ namespace PlayniteAchievements.Services.Showcase
                     result.MosaicAchievements = ResolveMosaic(snapshot, settings, instance);
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:
-                    // The collapsed Achievements Grid: every achievement by default, or a pin
-                    // collection's rows with reorder support.
-                    if (ShowcaseWidgetOptions.GetAchievementGridSource(instance) ==
-                        ShowcaseAchievementGridSource.Pinned)
+                    // The collapsed Achievements Grid: every unlocked achievement by default, a pin
+                    // collection's rows with reorder support, or the Unlock Next candidates.
+                    switch (ShowcaseWidgetOptions.GetAchievementGridSource(instance))
                     {
-                        var gridPins = ShowcasePinService.ResolveAchievementCollection(
-                            settings,
-                            ShowcaseWidgetOptions.GetPinCollectionId(instance));
-                        result.ResolvedPinCollectionId = gridPins?.CollectionId;
-                        result.Achievements = ResolvePinnedAchievements(snapshot, gridPins?.Pins);
-                        result.AchievementRows = ResolvePinRowsCached(snapshot, result.Achievements);
-                    }
-                    else
-                    {
-                        result.AchievementRows = ResolveAllAchievements(snapshot);
+                        case ShowcaseAchievementGridSource.Pinned:
+                            var gridPins = ShowcasePinService.ResolveAchievementCollection(
+                                settings,
+                                ShowcaseWidgetOptions.GetPinCollectionId(instance));
+                            result.ResolvedPinCollectionId = gridPins?.CollectionId;
+                            result.Achievements = ResolvePinnedAchievements(snapshot, gridPins?.Pins);
+                            result.AchievementRows = ResolvePinRowsCached(snapshot, result.Achievements);
+                            break;
+                        case ShowcaseAchievementGridSource.UnlockNext:
+                            // Uncapped here: the grid's MaxRows applies after its search filter.
+                            result.AchievementRows = ResolveUnlockNext(snapshot, instance, int.MaxValue);
+                            break;
+                        default:
+                            result.AchievementRows = ResolveAllAchievements(snapshot);
+                            break;
                     }
 
                     break;
@@ -303,6 +307,9 @@ namespace PlayniteAchievements.Services.Showcase
                             break;
                         case ShowcaseGameGridSource.PlayniteFavorites:
                             result.Games = ResolvePlayniteFavorites(snapshot?.GameSummaries);
+                            break;
+                        case ShowcaseGameGridSource.FinishNext:
+                            result.Games = ResolveFinishNextGames(snapshot?.GameSummaries, instance).ToList();
                             break;
                         default:
                             result.Games = ResolveGameSummaries(snapshot, instance);
@@ -697,10 +704,12 @@ namespace PlayniteAchievements.Services.Showcase
         }
 
         /// <summary>
-        /// Every achievement in the snapshot, unlocked-recent-first with the locked tail last,
-        /// so the grid's Default sort reads as newest unlocks. Cached per snapshot because the
-        /// full library is sorted once, not per dashboard rebuild; the MaxRows cap applies in
-        /// the widget view model after its search filter.
+        /// Every unlocked achievement in the snapshot, newest unlock first, so the grid's Default
+        /// sort reads as newest unlocks. The snapshot also carries locked pinned goals (hydrated for
+        /// the pinned widgets); they stay out of this source, where they read as spoiler-covered
+        /// rows among the unlocks. Cached per snapshot because the full library is sorted once, not
+        /// per dashboard rebuild; the MaxRows cap applies in the widget view model after its search
+        /// filter.
         /// </summary>
         public static IReadOnlyList<AchievementDisplayItem> ResolveAllAchievements(
             OverviewDataSnapshot snapshot)
@@ -714,13 +723,33 @@ namespace PlayniteAchievements.Services.Showcase
             if (cache.AllAchievementRows == null)
             {
                 cache.AllAchievementRows = (snapshot.Achievements ?? new List<AchievementDisplayItem>())
-                    .Where(item => item != null)
-                    .OrderByDescending(item => item.Unlocked)
-                    .ThenByDescending(item => item.UnlockTimeUtc ?? DateTime.MinValue)
+                    .Where(item => item != null && item.Unlocked)
+                    .OrderByDescending(item => item.UnlockTimeUtc ?? DateTime.MinValue)
                     .ToList();
             }
 
             return cache.AllAchievementRows;
+        }
+
+        /// <summary>
+        /// The unfinished games closest to done within the instance's last-played window, shared
+        /// by the Finish Next mosaic and grid sources. Unfinished by achievement count rather than
+        /// IsCompleted, which is capstone based: a game can hold its capstone and still have
+        /// achievements left.
+        /// </summary>
+        public static IEnumerable<GameSummaryItem> ResolveFinishNextGames(
+            IEnumerable<GameSummaryItem> summaries,
+            ShowcaseWidgetInstanceSettings instance)
+        {
+            var cutoff = ResolveLastPlayedCutoff(ShowcaseWidgetOptions.GetLastPlayedWindow(instance));
+            return (summaries ?? Enumerable.Empty<GameSummaryItem>())
+                .Where(game => game != null &&
+                    game.TotalAchievements > 0 &&
+                    game.UnlockedAchievements < game.TotalAchievements &&
+                    IsWithinWindow(game, cutoff))
+                .OrderByDescending(CompletionFraction)
+                .ThenBy(game => game.TotalAchievements - game.UnlockedAchievements)
+                .ThenByDescending(game => game.LastPlayed ?? DateTime.MinValue);
         }
 
         /// <summary>Playnite-favorite games, alphabetical.</summary>
@@ -789,18 +818,7 @@ namespace PlayniteAchievements.Services.Showcase
                         .OrderBy(game => game.GameName, StringComparer.CurrentCultureIgnoreCase);
                     break;
                 case ShowcaseGameMosaicSource.FinishNext:
-                    // Unfinished by achievement count rather than IsCompleted, which is capstone
-                    // based: a game can hold its capstone and still have achievements left.
-                    var finishCutoff = ResolveLastPlayedCutoff(
-                        ShowcaseWidgetOptions.GetLastPlayedWindow(instance));
-                    games = summaries
-                        .Where(game => game != null &&
-                            game.TotalAchievements > 0 &&
-                            game.UnlockedAchievements < game.TotalAchievements &&
-                            IsWithinWindow(game, finishCutoff))
-                        .OrderByDescending(CompletionFraction)
-                        .ThenBy(game => game.TotalAchievements - game.UnlockedAchievements)
-                        .ThenByDescending(game => game.LastPlayed ?? DateTime.MinValue);
+                    games = ResolveFinishNextGames(summaries, instance);
                     break;
                 default:
                     games = summaries

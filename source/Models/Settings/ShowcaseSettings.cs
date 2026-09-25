@@ -134,8 +134,15 @@ namespace PlayniteAchievements.Models.Settings
     /// <summary>Row source for the collapsed Achievements Grid widget.</summary>
     public enum ShowcaseAchievementGridSource
     {
+        /// <summary>Every unlocked achievement. Locked rows never mix in (not even pinned goals).</summary>
         All = 0,
-        Pinned = 1
+        Pinned = 1,
+
+        /// <summary>
+        /// Locked achievements worth hunting next, from the same bounded candidate pool and options
+        /// as the Unlock Next mosaic.
+        /// </summary>
+        UnlockNext = 2
     }
 
     /// <summary>Row source for the collapsed Game Summaries Grid widget.</summary>
@@ -143,7 +150,10 @@ namespace PlayniteAchievements.Models.Settings
     {
         Library = 0,
         Pinned = 1,
-        PlayniteFavorites = 2
+        PlayniteFavorites = 2,
+
+        /// <summary>The unfinished games closest to done, as the Finish Next game mosaic ranks them.</summary>
+        FinishNext = 3
     }
 
     public enum ShowcaseImageFitMode

@@ -68,11 +68,17 @@ namespace PlayniteAchievements.Views.Showcase
         public static string MosaicContentName(ShowcaseMosaicContent value) =>
             EnumValueName("LOCPlayAch_Showcase_MosaicContent_", value);
 
+        // The grid sources shared with a mosaic reuse the mosaic's label rather than adding a
+        // second identical string to translate.
         public static string AchievementGridSourceName(ShowcaseAchievementGridSource value) =>
-            EnumValueName("LOCPlayAch_Showcase_AchievementGridSource_", value);
+            value == ShowcaseAchievementGridSource.UnlockNext
+                ? MosaicSourceName(ShowcaseMosaicSource.UnlockNext)
+                : EnumValueName("LOCPlayAch_Showcase_AchievementGridSource_", value);
 
         public static string GameGridSourceName(ShowcaseGameGridSource value) =>
-            EnumValueName("LOCPlayAch_Showcase_GameGridSource_", value);
+            value == ShowcaseGameGridSource.FinishNext
+                ? GameMosaicSourceName(ShowcaseGameMosaicSource.FinishNext)
+                : EnumValueName("LOCPlayAch_Showcase_GameGridSource_", value);
 
         public static string GameMosaicSourceName(ShowcaseGameMosaicSource value) =>
             EnumValueName("LOCPlayAch_Showcase_GameMosaicSource_", value);

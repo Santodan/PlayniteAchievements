@@ -22,7 +22,6 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly ShowcaseWidgetInstanceSettings _settings;
         private readonly Action _persist;
         private readonly bool _publishChanges;
-        private DebouncedSettingsPersist _gridOptionsPersist;
 
         public ShowcaseWidgetOptionsControl(
             ShowcaseWidgetInstanceSettings settings,
@@ -265,33 +264,8 @@ namespace PlayniteAchievements.Views.Showcase
 
                     // Unlock Next ranks during selection, so its criterion replaces the generic
                     // sort rows rather than stacking with them.
-                    unlockNextRows.Add(AddChoice(
-                        achievementMosaicPanel,
-                        Localize("LOCPlayAch_Showcase_UnlockNextCriterion"),
-                        new[]
-                        {
-                            UnlockNextCriterion.NextInLine,
-                            UnlockNextCriterion.Easiest,
-                            UnlockNextCriterion.ClosestToCompletion
-                        },
-                        ShowcaseWidgetOptions.GetUnlockNextCriterion(_settings),
-                        value => ShowcaseWidgetOptions.SetUnlockNextCriterion(_settings, value),
-                        UnlockNextCriterionName));
-                    unlockNextRows.Add(AddLastPlayedWindowChoice(achievementMosaicPanel));
-                    unlockNextRows.Add(AddChoice(
-                        achievementMosaicPanel,
-                        Localize("LOCPlayAch_Showcase_MaxPerGame"),
-                        ShowcaseWidgetOptions.MaxPerGameChoices.ToArray(),
-                        ShowcaseWidgetOptions.GetMaxPerGame(_settings),
-                        value => ShowcaseWidgetOptions.SetMaxPerGame(_settings, value),
-                        CountLabel));
-                    unlockNextRows.Add(AddChoice(
-                        achievementMosaicPanel,
-                        Localize("LOCPlayAch_Showcase_IncludeHiddenAchievements"),
-                        new[] { true, false },
-                        ShowcaseWidgetOptions.GetIncludeHiddenAchievements(_settings),
-                        value => ShowcaseWidgetOptions.SetIncludeHiddenAchievements(_settings, value),
-                        OnOffLabel));
+                    unlockNextRows.AddRange(AddUnlockNextOptions(achievementMosaicPanel));
+
 
                     AddChoice(
                         achievementMosaicPanel,
@@ -396,6 +370,21 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCPlayAch_Showcase_ItemCount"),
                         () => ShowcaseWidgetOptions.GetMosaicCount(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicCount(_settings, value));
+                    // Size scales the density-based tile size; spacing is the gap around each tile.
+                    AddChoice(
+                        panel,
+                        Localize("LOCPlayAch_Settings_Style_SizeHeader"),
+                        ShowcaseWidgetOptions.MosaicScaleChoices.ToArray(),
+                        ShowcaseWidgetOptions.GetMosaicScale(_settings),
+                        value => ShowcaseWidgetOptions.SetMosaicScale(_settings, value),
+                        value => PercentFormatter.FormatWhole(value));
+                    AddChoice(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_TileSpacing"),
+                        ShowcaseWidgetOptions.MosaicSpacingChoices.ToArray(),
+                        ShowcaseWidgetOptions.GetMosaicSpacing(_settings),
+                        value => ShowcaseWidgetOptions.SetMosaicSpacing(_settings, value),
+                        CountLabel);
                     break;
                 case ShowcaseWidgetKind.ScreenshotSlideshow:
                     FrameworkElement slideshowGameCollectionRow = null;
@@ -497,6 +486,7 @@ namespace PlayniteAchievements.Views.Showcase
                     // The collapsed Game Summaries Grid: library scope filters only apply to
                     // the Library source, so their rows hide for the pinned/favorites sources.
                     FrameworkElement gameGridCollectionRow = null;
+                    FrameworkElement gameGridWindowRow = null;
                     var gameGridLibraryPanel = new StackPanel();
                     AddChoice(
                         panel,
@@ -505,7 +495,8 @@ namespace PlayniteAchievements.Views.Showcase
                         {
                             ShowcaseGameGridSource.Library,
                             ShowcaseGameGridSource.Pinned,
-                            ShowcaseGameGridSource.PlayniteFavorites
+                            ShowcaseGameGridSource.PlayniteFavorites,
+                            ShowcaseGameGridSource.FinishNext
                         },
                         ShowcaseWidgetOptions.GetGameGridSource(_settings),
                         value =>
@@ -518,6 +509,13 @@ namespace PlayniteAchievements.Views.Showcase
                                     : Visibility.Collapsed;
                             }
 
+                            if (gameGridWindowRow != null)
+                            {
+                                gameGridWindowRow.Visibility = value == ShowcaseGameGridSource.FinishNext
+                                    ? Visibility.Visible
+                                    : Visibility.Collapsed;
+                            }
+
                             gameGridLibraryPanel.Visibility = value == ShowcaseGameGridSource.Library
                                 ? Visibility.Visible
                                 : Visibility.Collapsed;
@@ -526,6 +524,12 @@ namespace PlayniteAchievements.Views.Showcase
                     gameGridCollectionRow = AddPinCollectionChoice(panel, achievementCollection: false);
                     gameGridCollectionRow.Visibility =
                         ShowcaseWidgetOptions.GetGameGridSource(_settings) == ShowcaseGameGridSource.Pinned
+                            ? Visibility.Visible
+                            : Visibility.Collapsed;
+                    // Finish Next's last-played window, as on the Finish Next game mosaic.
+                    gameGridWindowRow = AddLastPlayedWindowChoice(panel);
+                    gameGridWindowRow.Visibility =
+                        ShowcaseWidgetOptions.GetGameGridSource(_settings) == ShowcaseGameGridSource.FinishNext
                             ? Visibility.Visible
                             : Visibility.Collapsed;
                     panel.Children.Add(gameGridLibraryPanel);
@@ -556,33 +560,32 @@ namespace PlayniteAchievements.Views.Showcase
                 case ShowcaseWidgetKind.RecentAchievements:
                     // The collapsed Achievements Grid: every achievement, or a pin collection.
                     FrameworkElement achievementGridCollectionRow = null;
+                    var achievementGridUnlockNextRows = new List<FrameworkElement>();
                     AddChoice(
                         panel,
                         Localize("LOCPlayAch_Showcase_Source"),
                         new[]
                         {
                             ShowcaseAchievementGridSource.All,
-                            ShowcaseAchievementGridSource.Pinned
+                            ShowcaseAchievementGridSource.Pinned,
+                            ShowcaseAchievementGridSource.UnlockNext
                         },
                         ShowcaseWidgetOptions.GetAchievementGridSource(_settings),
                         value =>
                         {
                             ShowcaseWidgetOptions.SetAchievementGridSource(_settings, value);
-                            if (achievementGridCollectionRow != null)
-                            {
-                                achievementGridCollectionRow.Visibility =
-                                    value == ShowcaseAchievementGridSource.Pinned
-                                        ? Visibility.Visible
-                                        : Visibility.Collapsed;
-                            }
+                            ApplyAchievementGridSourceRows(
+                                achievementGridCollectionRow,
+                                achievementGridUnlockNextRows,
+                                value);
                         },
                         AchievementGridSourceName);
                     achievementGridCollectionRow = AddPinCollectionChoice(panel, achievementCollection: true);
-                    achievementGridCollectionRow.Visibility =
-                        ShowcaseWidgetOptions.GetAchievementGridSource(_settings) ==
-                        ShowcaseAchievementGridSource.Pinned
-                            ? Visibility.Visible
-                            : Visibility.Collapsed;
+                    achievementGridUnlockNextRows.AddRange(AddUnlockNextOptions(panel));
+                    ApplyAchievementGridSourceRows(
+                        achievementGridCollectionRow,
+                        achievementGridUnlockNextRows,
+                        ShowcaseWidgetOptions.GetAchievementGridSource(_settings));
                     break;
                 case ShowcaseWidgetKind.ActivityCalendar:
                     AddRangeChoice(panel);
@@ -590,60 +593,67 @@ namespace PlayniteAchievements.Views.Showcase
                     break;
             }
 
-            AppendGridOptionsEditor(panel);
             return panel;
         }
 
         /// <summary>
-        /// Appends the shared grid display-options editor for the grid widget kinds. The editor
-        /// binds the widget's LIVE catalog record (not the dialog's widget clone), so grid
-        /// display edits are instant-apply, independent of the host's persist callback and of
-        /// the dialog's Save/Cancel, which govern only the title and the widget's own option
-        /// bag. Live grids react to the record directly (bindings plus the grid view models'
-        /// record subscriptions), so edits only need persisting - debounced, because a full
-        /// settings write per checkbox toggle makes the editor visibly laggy.
+        /// The Unlock Next rows (criterion, last-played window, per-game cap, hidden achievements),
+        /// shared by the mosaic and the achievements grid so both sources read the same options.
         /// </summary>
-        private void AppendGridOptionsEditor(Panel panel)
+        private List<FrameworkElement> AddUnlockNextOptions(Panel panel)
         {
-            var catalog = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.GridOptions;
-            var surfaceKey = ShowcaseGridSurfaces.ResolveWidgetSurface(_settings.Kind, _settings.InstanceId);
-            if (catalog == null || surfaceKey == null)
+            return new List<FrameworkElement>
             {
-                return;
-            }
-
-            var editor = new GridOptionsEditor();
-            editor.SetResourceReference(MarginProperty, "PlayAch.Thickness.Top.Md");
-            object options;
-            if (ShowcaseGridSurfaces.IsAchievementSurface(surfaceKey))
-            {
-                // The sort combo's Default (None) keeps the projection order: pin order for
-                // pinned grids, unlock recency for recent grids.
-                options = catalog.GetAchievement(surfaceKey);
-                editor.SurfaceKind = GridOptionKind.Achievement;
-            }
-            else
-            {
-                options = catalog.GetGameSummaries(surfaceKey);
-                editor.SurfaceKind = GridOptionKind.GameSummaries;
-            }
-
-            // Naming the surface rather than setting flags is what keeps this editor and the grid's
-            // own display settings popup showing the same rows: both read GridDisplaySurfaces.
-            editor.SurfaceKey = surfaceKey;
-            editor.Options = options;
-            AttachGridOptionsPersist(options);
-
-            panel.Children.Add(editor);
+                // Unlock Next ranks during selection, so its criterion replaces the generic sort
+                // rows rather than stacking with them.
+                AddChoice(
+                    panel,
+                    Localize("LOCPlayAch_Showcase_UnlockNextCriterion"),
+                    new[]
+                    {
+                        UnlockNextCriterion.NextInLine,
+                        UnlockNextCriterion.Easiest,
+                        UnlockNextCriterion.ClosestToCompletion
+                    },
+                    ShowcaseWidgetOptions.GetUnlockNextCriterion(_settings),
+                    value => ShowcaseWidgetOptions.SetUnlockNextCriterion(_settings, value),
+                    UnlockNextCriterionName),
+                AddLastPlayedWindowChoice(panel),
+                AddChoice(
+                    panel,
+                    Localize("LOCPlayAch_Showcase_MaxPerGame"),
+                    ShowcaseWidgetOptions.MaxPerGameChoices.ToArray(),
+                    ShowcaseWidgetOptions.GetMaxPerGame(_settings),
+                    value => ShowcaseWidgetOptions.SetMaxPerGame(_settings, value),
+                    CountLabel),
+                AddChoice(
+                    panel,
+                    Localize("LOCPlayAch_Showcase_IncludeHiddenAchievements"),
+                    new[] { true, false },
+                    ShowcaseWidgetOptions.GetIncludeHiddenAchievements(_settings),
+                    value => ShowcaseWidgetOptions.SetIncludeHiddenAchievements(_settings, value),
+                    OnOffLabel)
+            };
         }
 
-        private void AttachGridOptionsPersist(object record)
+        private static void ApplyAchievementGridSourceRows(
+            FrameworkElement collectionRow,
+            IEnumerable<FrameworkElement> unlockNextRows,
+            ShowcaseAchievementGridSource source)
         {
-            _gridOptionsPersist = new DebouncedSettingsPersist(
-                this,
-                () => PlayniteAchievementsPlugin.Instance?.PersistSettingsForUi(),
-                () => PlayniteAchievementsPlugin.Instance?.IsSettingsEditSessionActive == true);
-            _gridOptionsPersist.Watch(record);
+            if (collectionRow != null)
+            {
+                collectionRow.Visibility = source == ShowcaseAchievementGridSource.Pinned
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
+
+            foreach (var row in unlockNextRows ?? Enumerable.Empty<FrameworkElement>())
+            {
+                row.Visibility = source == ShowcaseAchievementGridSource.UnlockNext
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
         }
 
         private static readonly TimelineRange[] RangeChoices =

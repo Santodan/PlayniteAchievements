@@ -480,7 +480,7 @@
                         GlowWhenLocked="{Binding DataContext.GlowWhenLocked, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                         AnimateRarityGlows="{Binding DataContext.AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                         UseLargeRarityGlow="True"
-                        Margin="6"/>
+                        Margin="{Binding DataContext.TileMargin, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
@@ -800,17 +800,10 @@
                              needs (bloom blur 14 + depth 2, ray reach ~0.275 of the art per side);
                              at the dense margin the neighbors' art paints over the overflow and
                              only the rays' pale inner copies survive in the gutters. -->
-                        <Grid ToolTip="{Binding GameName}">
-                            <Grid.Style>
-                                <Style TargetType="Grid">
-                                    <Setter Property="Margin" Value="6"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding GlowSpacing}" Value="True">
-                                            <Setter Property="Margin" Value="14"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Grid.Style>
+                        <!-- TileMargin is the widget's spacing, raised to the glow clearance
+                             while the completion glow is on. -->
+                        <Grid ToolTip="{Binding GameName}"
+                              Margin="{Binding TileMargin}">
                             <!-- Completion glow: the game summaries grid's rays and edge line,
                                  with the aura underlay below carrying the bloom, gated on the
                                  same soft/ray tier selections and pulse toggle exposed as

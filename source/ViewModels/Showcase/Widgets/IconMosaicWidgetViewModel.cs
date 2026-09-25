@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Windows;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
@@ -18,6 +19,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     public sealed class IconMosaicWidgetViewModel : ShowcaseWidgetViewModelBase
     {
         private double _iconSize = 42;
+        private Thickness _tileMargin = new Thickness(6);
         private bool _showRarityGlow = true;
         private bool _animateRarityGlows = true;
         private bool _glowWhenLocked;
@@ -27,6 +29,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             new BulkObservableCollection<AchievementDisplayItem>();
 
         public double IconSize { get => _iconSize; private set => SetValue(ref _iconSize, value); }
+
+        /// <summary>Space around each tile, from the widget's spacing option.</summary>
+        public Thickness TileMargin { get => _tileMargin; private set => SetValue(ref _tileMargin, value); }
 
         public bool ShowRarityGlow { get => _showRarityGlow; private set => SetValue(ref _showRarityGlow, value); }
 
@@ -42,9 +47,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected override void Refresh()
         {
             var achievements = Projection?.MosaicAchievements ?? Array.Empty<AchievementDisplayItem>();
-            IconSize = Density == WidgetViewportDensity.Compact
+            var baseSize = Density == WidgetViewportDensity.Compact
                 ? 32
                 : Density == WidgetViewportDensity.Expanded ? 54 : 42;
+            IconSize = Math.Round(baseSize * ShowcaseWidgetOptions.GetMosaicScale(Projection?.Instance) / 100d);
+            TileMargin = new Thickness(ShowcaseWidgetOptions.GetMosaicSpacing(Projection?.Instance));
 
             // Glow on/off is a per-widget option; the glow ANIMATION stays a global setting.
             ShowRarityGlow = ShowcaseWidgetOptions.GetMosaicShowRarityGlow(Projection?.Instance);

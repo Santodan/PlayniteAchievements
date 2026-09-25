@@ -1407,6 +1407,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_TopN">Top entries</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Source">Source</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ItemCount">Item count</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_TileSpacing">Tile spacing</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Variant">Show</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Interval">Interval</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_FitMode">Fit</sys:String>
@@ -1498,7 +1499,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_GameSummaries">Game Summaries Grid</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MosaicContent_Achievements">Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MosaicContent_Games">Games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_AchievementGridSource_All">All achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_AchievementGridSource_All">Unlocked achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_AchievementGridSource_Pinned">Pinned collection</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameGridSource_Library">All games</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameGridSource_Pinned">Pinned collection</sys:String>

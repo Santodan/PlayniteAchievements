@@ -25,9 +25,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var useCovers = ShowcaseWidgetOptions.GetGameMosaicUseCovers(Projection?.Instance);
             var showCompletionGlow =
                 ShowcaseWidgetOptions.GetGameMosaicShowCompletionGlow(Projection?.Instance);
-            var coverWidth = Density == WidgetViewportDensity.Compact
+            var baseWidth = Density == WidgetViewportDensity.Compact
                 ? 44d
                 : Density == WidgetViewportDensity.Expanded ? 72d : 56d;
+            var coverWidth = Math.Round(baseWidth * ShowcaseWidgetOptions.GetMosaicScale(Projection?.Instance) / 100d);
+            var spacing = ShowcaseWidgetOptions.GetMosaicSpacing(Projection?.Instance);
             // Icon tiles are square; cover tiles keep the portrait box-art ratio.
             var coverHeight = useCovers ? Math.Round(coverWidth * 1.4) : coverWidth;
             var decodePixel = Math.Max(64, (int)Math.Ceiling(coverHeight * 2));
@@ -42,7 +44,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                     coverHeight,
                     decodePixel,
                     useCovers,
-                    showCompletionGlow)));
+                    showCompletionGlow,
+                    spacing)));
         }
 
         /// <summary>

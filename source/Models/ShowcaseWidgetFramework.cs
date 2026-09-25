@@ -322,6 +322,8 @@ namespace PlayniteAchievements.Models
         private const string ProfileFullBleed = "ProfileFullBleed";
         private const string ProfileCentered = "ProfileCentered";
         private const string ProfileLinks = "ProfileLinks";
+        private const string MosaicScale = "MosaicScale";
+        private const string MosaicSpacing = "MosaicSpacing";
         private const string Sort = "Sort";
         private const string SortDescending = "SortDescending";
         private const string UnlockNextCriterionOption = "UnlockNextCriterion";
@@ -539,6 +541,29 @@ namespace PlayniteAchievements.Models
             ShowcaseWidgetInstanceSettings settings,
             ShowcaseMosaicSource value) => settings?.SetOption(Source, value);
 
+        /// <summary>Tile size choices, as a percentage of the density-based size.</summary>
+        public static readonly IReadOnlyList<int> MosaicScaleChoices = new[] { 50, 75, 100, 125, 150, 200 };
+
+        /// <summary>Space around each tile, in pixels; 6 is the original fixed margin.</summary>
+        public static readonly IReadOnlyList<int> MosaicSpacingChoices = new[] { 0, 2, 4, 6, 10, 14, 20 };
+
+        /// <summary>
+        /// Mosaic tile size as a percentage of the density-based default, for both achievement
+        /// icons and game covers, so one choice reads the same at every widget size.
+        /// </summary>
+        public static int GetMosaicScale(ShowcaseWidgetInstanceSettings settings) =>
+            Clamp(settings?.GetOption(MosaicScale, 100) ?? 100, 50, 200);
+
+        public static void SetMosaicScale(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(MosaicScale, Clamp(value, 50, 200));
+
+        /// <summary>Space around each mosaic tile, in pixels.</summary>
+        public static int GetMosaicSpacing(ShowcaseWidgetInstanceSettings settings) =>
+            Clamp(settings?.GetOption(MosaicSpacing, 6) ?? 6, 0, 20);
+
+        public static void SetMosaicSpacing(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(MosaicSpacing, Clamp(value, 0, 20));
+
         public static int GetMosaicCount(ShowcaseWidgetInstanceSettings settings) =>
             Clamp(settings?.GetOption(Count, 24) ?? 24, 1, 200);
 
@@ -612,10 +637,21 @@ namespace PlayniteAchievements.Models
         /// </summary>
         public static bool RequiresUnlockNextPool(ShowcaseWidgetInstanceSettings settings)
         {
-            return settings != null &&
-                settings.Kind == ShowcaseWidgetKind.IconMosaic &&
-                GetMosaicContent(settings) == ShowcaseMosaicContent.Achievements &&
-                GetMosaicSource(settings) == ShowcaseMosaicSource.UnlockNext;
+            if (settings == null)
+            {
+                return false;
+            }
+
+            switch (settings.Kind)
+            {
+                case ShowcaseWidgetKind.IconMosaic:
+                    return GetMosaicContent(settings) == ShowcaseMosaicContent.Achievements &&
+                        GetMosaicSource(settings) == ShowcaseMosaicSource.UnlockNext;
+                case ShowcaseWidgetKind.RecentAchievements:
+                    return GetAchievementGridSource(settings) == ShowcaseAchievementGridSource.UnlockNext;
+                default:
+                    return false;
+            }
         }
 
         /// <summary>

@@ -184,8 +184,16 @@ namespace PlayniteAchievements.Tests.Views
             AssertEnumKeys<ShowcaseScreenshotVariant>(localization, "LOCPlayAch_Showcase_ScreenshotVariant_");
             AssertEnumKeys<ShowcaseSlideshowSource>(localization, "LOCPlayAch_Showcase_SlideshowSource_");
             AssertEnumKeys<ShowcaseMosaicContent>(localization, "LOCPlayAch_Showcase_MosaicContent_");
-            AssertEnumKeys<ShowcaseAchievementGridSource>(localization, "LOCPlayAch_Showcase_AchievementGridSource_");
-            AssertEnumKeys<ShowcaseGameGridSource>(localization, "LOCPlayAch_Showcase_GameGridSource_");
+            // Unlock Next and Finish Next reuse the mosaic's labels (ShowcaseUiText), which the
+            // MosaicSource and GameMosaicSource assertions cover.
+            AssertEnumKeys<ShowcaseAchievementGridSource>(
+                localization,
+                "LOCPlayAch_Showcase_AchievementGridSource_",
+                value => value != ShowcaseAchievementGridSource.UnlockNext);
+            AssertEnumKeys<ShowcaseGameGridSource>(
+                localization,
+                "LOCPlayAch_Showcase_GameGridSource_",
+                value => value != ShowcaseGameGridSource.FinishNext);
             AssertEnumKeys<ShowcaseImageFitMode>(localization, "LOCPlayAch_Showcase_ImageFit_");
             AssertEnumKeys<ShowcaseGameMosaicSource>(localization, "LOCPlayAch_Showcase_GameMosaicSource_");
             AssertEnumKeys<UnlockNextCriterion>(localization, "LOCPlayAch_Showcase_UnlockNextCriterion_");
@@ -290,7 +298,8 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(mosaicViewModel, "AnimateRarityGlows");
             StringAssert.Contains(widgetTemplates, "AchievementCompactItemControl");
             StringAssert.Contains(widgetTemplates, "UseLargeRarityGlow=\"True\"");
-            StringAssert.Contains(widgetTemplates, "Margin=\"6\"");
+            // Tile spacing is a widget option now (6 by default), bound through the view model.
+            StringAssert.Contains(widgetTemplates, "Margin=\"{Binding DataContext.TileMargin");
         }
 
         [TestMethod]
