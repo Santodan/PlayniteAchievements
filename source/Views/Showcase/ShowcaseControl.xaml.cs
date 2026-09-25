@@ -83,6 +83,15 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly System.Windows.Threading.DispatcherTimer _snapshotRefreshTimer;
         private bool _snapshotRefreshPending;
 
+        // Edit-mode size labels: each column's width along the top edge, each row's height along
+        // the left. Refreshed at most every TrackRulerInterval while the window resizes or a
+        // gripper drags, so they track live without re-reading layout on every mouse move.
+        private static readonly TimeSpan TrackRulerInterval = TimeSpan.FromMilliseconds(30);
+        private readonly System.Windows.Threading.DispatcherTimer _trackRulerTimer;
+        private readonly List<FrameworkElement> _trackRulers = new List<FrameworkElement>();
+        private readonly List<TextBlock> _columnRulerTexts = new List<TextBlock>();
+        private readonly List<TextBlock> _rowRulerTexts = new List<TextBlock>();
+
         internal ShowcaseControl(
             OverviewViewModel overview,
             PlayniteAchievementsSettings settings,
@@ -99,6 +108,15 @@ namespace PlayniteAchievements.Views.Showcase
                 Interval = TimeSpan.FromMilliseconds(1000)
             };
             _snapshotRefreshTimer.Tick += SnapshotRefreshTimer_Tick;
+            // Render priority: the tick reads the tracks' ActualWidth/ActualHeight, which the
+            // layout pass after a resize or drag has settled by then.
+            _trackRulerTimer = new System.Windows.Threading.DispatcherTimer(
+                System.Windows.Threading.DispatcherPriority.Render)
+            {
+                Interval = TrackRulerInterval
+            };
+            _trackRulerTimer.Tick += TrackRulerTimer_Tick;
+            DashboardGrid.SizeChanged += (_, __) => ScheduleTrackRulerUpdate();
             _overview.SnapshotChanged += Overview_SnapshotChanged;
             ShowcaseConfigurationEvents.Changed += ShowcaseConfigurationEvents_Changed;
             EnsureLayout();
@@ -150,6 +168,7 @@ namespace PlayniteAchievements.Views.Showcase
             ClearDragVisuals();
             _disposed = true;
             _snapshotRefreshTimer.Stop();
+            _trackRulerTimer.Stop();
             // The cached widget bodies hold PersistedSettings-subscribed grids and slideshow
             // timers that only release in Dispose; drop them explicitly rather than relying
             // on Unloaded, which WPF does not guarantee.
@@ -213,6 +232,9 @@ namespace PlayniteAchievements.Views.Showcase
             DashboardGrid.Children.Clear();
             _blockVisuals.Clear();
             _trackGrippers.Clear();
+            _trackRulers.Clear();
+            _columnRulerTexts.Clear();
+            _rowRulerTexts.Clear();
             _layoutHandles.Clear();
             _cutGhost = null;
             _suppressedAddButton = null;
@@ -281,8 +303,89 @@ namespace PlayniteAchievements.Views.Showcase
                 DashboardGrid.Children.Add(CreateTrackGripper(vertical: false, boundary, nearEdge: false));
             }
 
+            AddTrackRulers();
             UpdateTrackGripperVisibility();
         }
+
+        // One label per track, centred on it: columns along the top edge, rows along the left.
+        // Centred rather than at the boundaries, so they never sit under the grippers.
+        private void AddTrackRulers()
+        {
+            for (var index = 0; index < PageGridSize; index++)
+            {
+                var column = CreateTrackRuler(out var columnText);
+                Grid.SetRow(column, 0);
+                Grid.SetColumn(column, index);
+                column.HorizontalAlignment = HorizontalAlignment.Center;
+                column.VerticalAlignment = VerticalAlignment.Top;
+                column.Margin = new Thickness(0, 2, 0, 0);
+                _columnRulerTexts.Add(columnText);
+                DashboardGrid.Children.Add(column);
+
+                var row = CreateTrackRuler(out var rowText);
+                Grid.SetRow(row, index);
+                Grid.SetColumn(row, 0);
+                row.HorizontalAlignment = HorizontalAlignment.Left;
+                row.VerticalAlignment = VerticalAlignment.Center;
+                row.Margin = new Thickness(2, 0, 0, 0);
+                _rowRulerTexts.Add(rowText);
+                DashboardGrid.Children.Add(row);
+            }
+        }
+
+        private FrameworkElement CreateTrackRuler(out TextBlock text)
+        {
+            text = new TextBlock();
+            text.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            text.SetResourceReference(TextBlock.FontSizeProperty, "PlayAch.FontSize.Caption");
+            var ruler = new Border
+            {
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(4, 0, 4, 1),
+                Opacity = 0.9,
+                IsHitTestVisible = false,
+                Child = text
+            };
+            ruler.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.PopupSurface");
+            ruler.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.PopupBorder");
+            // Above the block layer, like the grippers.
+            Panel.SetZIndex(ruler, 41);
+            _trackRulers.Add(ruler);
+            return ruler;
+        }
+
+        // A throttle rather than a trailing debounce: during a drag the first change schedules a
+        // tick and later ones ride it, so the labels keep moving instead of waiting for a pause.
+        private void ScheduleTrackRulerUpdate()
+        {
+            if (!_disposed && EditLayoutButton.IsChecked == true && !_trackRulerTimer.IsEnabled)
+            {
+                _trackRulerTimer.Start();
+            }
+        }
+
+        private void TrackRulerTimer_Tick(object sender, EventArgs e)
+        {
+            _trackRulerTimer.Stop();
+            if (_disposed || EditLayoutButton.IsChecked != true)
+            {
+                return;
+            }
+
+            for (var index = 0; index < _columnRulerTexts.Count && index < DashboardGrid.ColumnDefinitions.Count; index++)
+            {
+                _columnRulerTexts[index].Text = FormatTrackPixels(DashboardGrid.ColumnDefinitions[index].ActualWidth);
+            }
+
+            for (var index = 0; index < _rowRulerTexts.Count && index < DashboardGrid.RowDefinitions.Count; index++)
+            {
+                _rowRulerTexts[index].Text = FormatTrackPixels(DashboardGrid.RowDefinitions[index].ActualHeight);
+            }
+        }
+
+        private static string FormatTrackPixels(double size) =>
+            Math.Round(size).ToString("N0", PlayniteAchievements.Common.FormattingCulture.Current) + " px";
 
         private System.Windows.Controls.Primitives.Thumb CreateTrackGripper(
             bool vertical,
@@ -363,6 +466,13 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 gripper.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
             }
+
+            foreach (var ruler in _trackRulers)
+            {
+                ruler.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            ScheduleTrackRulerUpdate();
         }
 
         private void AdjustTrackWeights(bool vertical, int boundary, double pixelDelta)
@@ -394,6 +504,7 @@ namespace PlayniteAchievements.Views.Showcase
             weights[boundary] = first;
             weights[boundary + 1] = pairSum - first;
             ApplyTrackWeights(vertical, weights);
+            ScheduleTrackRulerUpdate();
         }
 
         private double[] ReadTrackWeights(bool vertical)
@@ -438,6 +549,7 @@ namespace PlayniteAchievements.Views.Showcase
             ApplyTrackWeights(vertical: true, ShowcaseLayoutService.NormalizeTrackWeights(null, PageGridSize));
             SaveAndPublish();
             _layoutSignature = ComputeLayoutSignature();
+            ScheduleTrackRulerUpdate();
         }
 
 
