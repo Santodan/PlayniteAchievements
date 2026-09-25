@@ -31,6 +31,8 @@ namespace PlayniteAchievements.Services.Library
         // period does.
         private static readonly TimeSpan ScopedWarmIdleDelay = TimeSpan.FromSeconds(20);
 
+        private const string OverviewCacheKey = "overview";
+
         private readonly object _sync = new object();
         private readonly AchievementDataService _achievementDataService;
         private readonly IReadOnlyList<IDataProvider> _providers;
@@ -104,7 +106,7 @@ namespace PlayniteAchievements.Services.Library
             CancellationToken token)
         {
             var snapshot = GetOrBuild(
-                "overview",
+                OverviewCacheKey,
                 useCache: true,
                 build: () => BuildOverview(settings ?? _settings, token));
             return snapshot?.OverviewSnapshot ?? new OverviewDataSnapshot();
@@ -138,6 +140,26 @@ namespace PlayniteAchievements.Services.Library
 
             hydratedGameCount = snapshot?.HydratedGameCount;
             return snapshot?.LibraryState ?? new LibraryRuntimeState();
+        }
+
+        /// <summary>
+        /// Whether the overview projection that consumers would be served next predates an
+        /// achievement pin, so its locked pinned rows are incomplete. A build still in flight
+        /// read the pins when it started and cannot be checked, so it counts as stale.
+        /// </summary>
+        public bool OverviewMissesAchievementPins(ShowcaseSettings showcase)
+        {
+            lock (_sync)
+            {
+                if (_inFlight.ContainsKey(OverviewCacheKey))
+                {
+                    return true;
+                }
+
+                return _cache.TryGetValue(OverviewCacheKey, out var cached) &&
+                       cached?.OverviewSnapshot != null &&
+                       !cached.OverviewSnapshot.HasSeenAchievementPins(showcase);
+            }
         }
 
         public void Invalidate()
