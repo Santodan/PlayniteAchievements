@@ -322,7 +322,8 @@ namespace PlayniteAchievements.Models
         private const string ProfileFullBleed = "ProfileFullBleed";
         private const string ProfileCentered = "ProfileCentered";
         private const string ProfileLinks = "ProfileLinks";
-        private const string MosaicScale = "MosaicScale";
+        private const string MosaicIconSize = "MosaicIconSize";
+        private const string MosaicCoverWidth = "MosaicCoverWidth";
         private const string MosaicSpacing = "MosaicSpacing";
         private const string Sort = "Sort";
         private const string SortDescending = "SortDescending";
@@ -541,28 +542,54 @@ namespace PlayniteAchievements.Models
             ShowcaseWidgetInstanceSettings settings,
             ShowcaseMosaicSource value) => settings?.SetOption(Source, value);
 
-        /// <summary>Tile size choices, as a percentage of the density-based size.</summary>
-        public static readonly IReadOnlyList<int> MosaicScaleChoices = new[] { 50, 75, 100, 125, 150, 200 };
+        /// <summary>Standard-density achievement icon size, shown when no size is set.</summary>
+        public const int DefaultMosaicIconSize = 42;
 
-        /// <summary>Space around each tile, in pixels; 6 is the original fixed margin.</summary>
-        public static readonly IReadOnlyList<int> MosaicSpacingChoices = new[] { 0, 2, 4, 6, 10, 14, 20 };
+        /// <summary>Standard-density game cover width, shown when no size is set.</summary>
+        public const int DefaultMosaicCoverWidth = 56;
 
         /// <summary>
-        /// Mosaic tile size as a percentage of the density-based default, for both achievement
-        /// icons and game covers, so one choice reads the same at every widget size.
+        /// A fixed achievement icon size in pixels, or null to follow the widget's density (the
+        /// original behaviour). The editor shows <see cref="DefaultMosaicIconSize"/> until set.
         /// </summary>
-        public static int GetMosaicScale(ShowcaseWidgetInstanceSettings settings) =>
-            Clamp(settings?.GetOption(MosaicScale, 100) ?? 100, 50, 200);
+        public static int? GetMosaicIconSizeOverride(ShowcaseWidgetInstanceSettings settings) =>
+            GetPixelOverride(settings, MosaicIconSize);
 
-        public static void SetMosaicScale(ShowcaseWidgetInstanceSettings settings, int value) =>
-            settings?.SetOption(MosaicScale, Clamp(value, 50, 200));
+        public static int GetMosaicIconSize(ShowcaseWidgetInstanceSettings settings) =>
+            GetMosaicIconSizeOverride(settings) ?? DefaultMosaicIconSize;
 
-        /// <summary>Space around each mosaic tile, in pixels.</summary>
+        public static void SetMosaicIconSize(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(MosaicIconSize, Clamp(value, MinMosaicTileSize, MaxMosaicTileSize));
+
+        /// <summary>A fixed game cover width in pixels, or null to follow the widget's density.</summary>
+        public static int? GetMosaicCoverWidthOverride(ShowcaseWidgetInstanceSettings settings) =>
+            GetPixelOverride(settings, MosaicCoverWidth);
+
+        public static int GetMosaicCoverWidth(ShowcaseWidgetInstanceSettings settings) =>
+            GetMosaicCoverWidthOverride(settings) ?? DefaultMosaicCoverWidth;
+
+        public static void SetMosaicCoverWidth(ShowcaseWidgetInstanceSettings settings, int value) =>
+            settings?.SetOption(MosaicCoverWidth, Clamp(value, MinMosaicTileSize, MaxMosaicTileSize));
+
+        private const int MinMosaicTileSize = 16;
+        private const int MaxMosaicTileSize = 256;
+
+        private static int? GetPixelOverride(ShowcaseWidgetInstanceSettings settings, string key)
+        {
+            if (settings?.Options == null || !settings.Options.ContainsKey(key))
+            {
+                return null;
+            }
+
+            return Clamp(settings.GetOption(key, 0), MinMosaicTileSize, MaxMosaicTileSize);
+        }
+
+        /// <summary>Space around each mosaic tile, in pixels (0-40); 6 is the original fixed margin.</summary>
         public static int GetMosaicSpacing(ShowcaseWidgetInstanceSettings settings) =>
-            Clamp(settings?.GetOption(MosaicSpacing, 6) ?? 6, 0, 20);
+            Clamp(settings?.GetOption(MosaicSpacing, 6) ?? 6, 0, 40);
 
         public static void SetMosaicSpacing(ShowcaseWidgetInstanceSettings settings, int value) =>
-            settings?.SetOption(MosaicSpacing, Clamp(value, 0, 20));
+            settings?.SetOption(MosaicSpacing, Clamp(value, 0, 40));
 
         public static int GetMosaicCount(ShowcaseWidgetInstanceSettings settings) =>
             Clamp(settings?.GetOption(Count, 24) ?? 24, 1, 200);
