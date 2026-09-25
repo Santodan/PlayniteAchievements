@@ -72,6 +72,8 @@ namespace PlayniteAchievements.Services.Achievements
                     continue;
                 }
 
+                ApplyUserOverrides(visible, customData);
+
                 if (!gamesByGameId.TryGetValue(gameId, out var game))
                 {
                     game = new CachedGameSummaryData
@@ -184,6 +186,39 @@ namespace PlayniteAchievements.Services.Achievements
                 (achievement.TrophyType ?? string.Empty).Trim(),
                 "platinum",
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// The user's per-achievement overrides, applied before anything is summed. The projected
+        /// details are fresh copies, so this is safe; without it the game's points, trophy counts
+        /// and timeline used the definition's values while each row showed the override. The rows
+        /// get the same record again in the summary customization, which sets the same values.
+        /// </summary>
+        private static void ApplyUserOverrides(IEnumerable<AchievementDetail> achievements, GameCustomDataFile customData)
+        {
+            if (customData?.AchievementOverrides == null || customData.AchievementOverrides.Count == 0)
+            {
+                return;
+            }
+
+            var overrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in customData.AchievementOverrides)
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
+                {
+                    overrides[pair.Key.Trim()] = pair.Value;
+                }
+            }
+
+            var hasManualLink = customData.ManualLink != null;
+            foreach (var achievement in achievements)
+            {
+                var apiName = achievement?.ApiName?.Trim();
+                if (!string.IsNullOrEmpty(apiName) && overrides.TryGetValue(apiName, out var entry))
+                {
+                    AchievementOverrideApplier.Apply(achievement, entry, hasManualLink);
+                }
+            }
         }
 
         private static void Accumulate(
