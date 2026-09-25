@@ -38,10 +38,11 @@
                 </Style.Triggers>
             </Style>
 
-            <!-- Badge column: the tier badge, with the mastery line under it once a pass is done. -->
-            <Style x:Key="ScoreCardBadgeColumnStyle" TargetType="StackPanel">
-                <Setter Property="Orientation" Value="Vertical"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
+            <!-- Badge column: spans the text column's height, the tier badge centered in what the
+                 mastery line (docked to the bottom, level with the caption) leaves over. -->
+            <Style x:Key="ScoreCardBadgeColumnStyle" TargetType="DockPanel">
+                <Setter Property="LastChildFill" Value="True"/>
+                <Setter Property="VerticalAlignment" Value="Stretch"/>
                 <Setter Property="Margin" Value="0,0,10,0"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
@@ -51,14 +52,15 @@
             </Style>
 
             <Style x:Key="ScoreCardBadgeStyle" TargetType="Image" BasedOn="{StaticResource RarityIcon}">
-                <Setter Property="Width" Value="32"/>
-                <Setter Property="Height" Value="36"/>
+                <Setter Property="Width" Value="38"/>
+                <Setter Property="Height" Value="43"/>
                 <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
                 <Setter Property="Effect" Value="{StaticResource BadgeShadow}"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
-                        <Setter Property="Width" Value="48"/>
-                        <Setter Property="Height" Value="54"/>
+                        <Setter Property="Width" Value="54"/>
+                        <Setter Property="Height" Value="61"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -292,18 +294,18 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Style="{StaticResource ScoreCardBadgeColumnStyle}">
-                    <Image Source="{Binding BadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
-                           Style="{StaticResource ScoreCardBadgeStyle}"/>
-
+                <DockPanel Grid.Column="0" Style="{StaticResource ScoreCardBadgeColumnStyle}">
                     <!-- The completed-game badge marks mastery, as it marks the Master tier. -->
-                    <StackPanel Style="{StaticResource ScoreCardMasteryLineStyle}">
+                    <StackPanel DockPanel.Dock="Bottom" Style="{StaticResource ScoreCardMasteryLineStyle}">
                         <Image Source="{DynamicResource ScoreBadgeCompletedGame}"
                                Style="{StaticResource ScoreCardMasteryIconStyle}"/>
                         <TextBlock Text="{Binding MasteryText}"
                                    Style="{StaticResource ScoreCardMasteryTextStyle}"/>
                     </StackPanel>
-                </StackPanel>
+
+                    <Image Source="{Binding BadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
+                           Style="{StaticResource ScoreCardBadgeStyle}"/>
+                </DockPanel>
 
                 <Grid Grid.Column="1">
                     <Grid.RowDefinitions>
