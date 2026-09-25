@@ -1384,8 +1384,10 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        // Accent outlines with a faint wash, inset and rounded like real block containers.
-        // Not hit-testable, so they never steal the hover that shows them.
+        // A dashed accent outline over a faint wash, inset well inside the real block edges so it
+        // reads as "the block you'll get" rather than as another grid line. Not hit-testable, so
+        // it never steals the hover that shows it.
+        private const double LayoutPreviewInset = 14;
         private void ShowLayoutPreview(
             IEnumerable<(int Row, int Column, int RowSpan, int ColumnSpan)> cells)
         {
@@ -1397,17 +1399,23 @@ namespace PlayniteAchievements.Views.Showcase
                     continue;
                 }
 
-                var wash = new Border { Opacity = 0.14 };
+                var wash = new Border { Opacity = 0.05 };
                 wash.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.Accent");
                 wash.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
                 var ghost = new Grid
                 {
-                    Margin = new Thickness(4),
+                    Margin = new Thickness(LayoutPreviewInset),
                     IsHitTestVisible = false
                 };
-                var outline = new Border { BorderThickness = new Thickness(2) };
-                outline.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.Accent");
-                outline.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
+                var outline = new System.Windows.Shapes.Rectangle
+                {
+                    StrokeThickness = 1.5,
+                    StrokeDashArray = new System.Windows.Media.DoubleCollection { 4d, 3d },
+                    RadiusX = 6,
+                    RadiusY = 6,
+                    Opacity = 0.75
+                };
+                outline.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "PlayAch.Brush.Accent");
                 ghost.Children.Add(wash);
                 ghost.Children.Add(outline);
                 Grid.SetRow(ghost, cell.Row);
