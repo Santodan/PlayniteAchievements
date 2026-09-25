@@ -178,7 +178,7 @@
                         <DataTemplate>
                             <StackPanel Margin="3,2,10,2">
                                 <TextBlock Text="{Binding Value}"
-                                           Foreground="{DynamicResource PlayAch.Brush.Accent}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            FontWeight="SemiBold"
                                            FontSize="{DynamicResource PlayAch.FontSize.SectionHeader}"
                                            TextWrapping="Wrap"/>
