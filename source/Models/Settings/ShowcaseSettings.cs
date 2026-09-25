@@ -97,6 +97,22 @@ namespace PlayniteAchievements.Models.Settings
     /// during selection rather than as a re-arrangement afterwards, so it decides which
     /// achievements make the cut, not just the order they appear in.
     /// </summary>
+    /// <summary>How Finish Next ranks the unfinished games (mosaic and grid alike).</summary>
+    public enum FinishNextCriterion
+    {
+        /// <summary>Highest completion percentage first.</summary>
+        ClosestToCompletion = 0,
+
+        /// <summary>Fewest achievements left first.</summary>
+        FewestRemaining = 1,
+
+        /// <summary>
+        /// The games whose remaining achievements are the most commonly earned first, by the
+        /// rarity tiers still locked.
+        /// </summary>
+        EasiestRemaining = 2
+    }
+
     public enum UnlockNextCriterion
     {
         /// <summary>The game's own order, so each tile is the next thing in that game's list.</summary>
