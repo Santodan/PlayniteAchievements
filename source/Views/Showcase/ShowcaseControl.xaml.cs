@@ -342,14 +342,10 @@ namespace PlayniteAchievements.Views.Showcase
 
         private FrameworkElement CreateTrackRuler(out TextBlock text)
         {
-            // Compact (small text, no border) so as much of it as possible fits in the overhang.
-            text = new TextBlock
-            {
-                FontSize = 10,
-                LineHeight = 12,
-                LineStackingStrategy = LineStackingStrategy.BlockLineHeight
-            };
+            // Caption text with no border, so the pill stays slim enough to sit mostly in the overhang.
+            text = new TextBlock();
             text.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            text.SetResourceReference(TextBlock.FontSizeProperty, "PlayAch.FontSize.Caption");
             var ruler = new Border
             {
                 CornerRadius = new CornerRadius(3),
