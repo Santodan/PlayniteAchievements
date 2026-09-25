@@ -101,11 +101,6 @@ namespace PlayniteAchievements.ViewModels
 
         public string MasteryText => FormatMastery(Mastery);
 
-        /// <summary>The number drawn on the badge's mastery star, kept to two characters' width.</summary>
-        public string MasteryBadgeText => Mastery > 99
-            ? "99+"
-            : Mastery.ToString(FormattingCulture.Current);
-
         public string TooltipTitleText => HasMastery
             ? FormatPair(TierText, MasteryText)
             : TierText;
@@ -295,7 +290,6 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(Mastery));
             OnPropertyChanged(nameof(HasMastery));
             OnPropertyChanged(nameof(MasteryText));
-            OnPropertyChanged(nameof(MasteryBadgeText));
             OnPropertyChanged(nameof(TooltipTitleText));
             OnPropertyChanged(nameof(CaptionText));
             OnPropertyChanged(nameof(PointsUntilNextLevelText));
