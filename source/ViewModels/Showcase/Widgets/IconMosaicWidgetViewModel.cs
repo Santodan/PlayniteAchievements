@@ -21,6 +21,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private bool _showRarityGlow = true;
         private bool _animateRarityGlows = true;
         private bool _glowWhenLocked;
+        private readonly WidgetRevealScope _reveals = new WidgetRevealScope();
 
         public BulkObservableCollection<AchievementDisplayItem> Items { get; } =
             new BulkObservableCollection<AchievementDisplayItem>();
@@ -52,37 +53,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             AnimateRarityGlows =
                 PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.AnimateRarityGlows ?? true;
 
-            var next = OrderAchievements(achievements).ToList();
-            CarryRevealsForward(next);
-            CollectionHelper.Replace(Items, next);
+            // The widget's own copies of any revealable tiles, so a reveal stays in this widget.
+            CollectionHelper.Replace(Items, _reveals.Map(OrderAchievements(achievements)));
         }
-
-        /// <summary>
-        /// A tile revealed by a click stays revealed when a snapshot rebuild hands the mosaic new
-        /// row objects for the same achievements, as the compact lists keep theirs across item
-        /// rebuilds. Rows the projection hands back unchanged already carry their state.
-        /// </summary>
-        private void CarryRevealsForward(IReadOnlyList<AchievementDisplayItem> next)
-        {
-            var revealed = new HashSet<string>(
-                Items.Where(item => item?.IsRevealed == true).Select(RevealKey),
-                StringComparer.OrdinalIgnoreCase);
-            if (revealed.Count == 0)
-            {
-                return;
-            }
-
-            foreach (var item in next)
-            {
-                if (item != null && !item.IsRevealed && revealed.Contains(RevealKey(item)))
-                {
-                    item.IsRevealed = true;
-                }
-            }
-        }
-
-        private static string RevealKey(AchievementDisplayItem item) =>
-            AchievementDisplayItem.MakeRevealKey(item.PlayniteGameId, item.ApiName, item.GameName);
 
         /// <summary>
         /// Applies the widget's configured sort over the projected tiles. None preserves the
