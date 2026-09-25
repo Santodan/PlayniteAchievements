@@ -25,10 +25,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var useCovers = ShowcaseWidgetOptions.GetGameMosaicUseCovers(Projection?.Instance);
             var showCompletionGlow =
                 ShowcaseWidgetOptions.GetGameMosaicShowCompletionGlow(Projection?.Instance);
-            var baseWidth = Density == WidgetViewportDensity.Compact
-                ? 44d
-                : Density == WidgetViewportDensity.Expanded ? 72d : 56d;
-            var coverWidth = Math.Round(baseWidth * ShowcaseWidgetOptions.GetMosaicScale(Projection?.Instance) / 100d);
+            // A set width is fixed; unset follows density (standard density is the default width).
+            double coverWidth = ShowcaseWidgetOptions.GetMosaicCoverWidthOverride(Projection?.Instance)
+                ?? (Density == WidgetViewportDensity.Compact
+                    ? 44
+                    : Density == WidgetViewportDensity.Expanded ? 72 : ShowcaseWidgetOptions.DefaultMosaicCoverWidth);
             var spacing = ShowcaseWidgetOptions.GetMosaicSpacing(Projection?.Instance);
             // Icon tiles are square; cover tiles keep the portrait box-art ratio.
             var coverHeight = useCovers ? Math.Round(coverWidth * 1.4) : coverWidth;
