@@ -1418,7 +1418,6 @@
     <sys:String x:Key="LOCPlayAch_Showcase_CustomTitle">Title</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Day">{0} day</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Days">{0} days</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_Seconds">{0} seconds</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Hours">{0:N0} h</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ThousandsHours">{0:N1}k h</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_PerDay">{0:N1}/day</sys:String>
