@@ -127,12 +127,18 @@ namespace PlayniteAchievements
             DependencyObject menuSource)
         {
             var menu = BuildStartPageBaseRowContextMenu(data, resourceOwner);
-            AchievementRowOptionsMenuBuilder.AppendAchievementOptions(
+            var appendedAchievementOptions = AchievementRowOptionsMenuBuilder.AppendAchievementOptions(
                 menu,
                 data,
                 resourceOwner,
                 onChanged,
                 menuSource);
+            if (!appendedAchievementOptions)
+            {
+                // Game rows get no achievement options, which is where display settings are
+                // appended for achievement rows; add the entry here so every grid row has it.
+                GridDisplaySettingsMenuBuilder.Append(menu, resourceOwner, menuSource);
+            }
 
             return menu.Items.Count > 0 ? menu : null;
         }
