@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Providers.Exophase
     /// Full data provider for Exophase achievement tracking.
     /// Supports automatic game claiming by platform and per-game overrides.
     /// </summary>
-    internal sealed class ExophaseDataProvider : DataProviderBase<ExophaseSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride
+    internal sealed class ExophaseDataProvider : DataProviderBase<ExophaseSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride
     {
         // Optional value: an empty slug means auto-detect via game-name/platform search.
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
@@ -63,6 +63,12 @@ namespace PlayniteAchievements.Providers.Exophase
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Exophase");
         public string ProviderKey => "Exophase";
         public string ProviderIconKey => "ProviderIconExophase";
+
+        public string ProfileUrlPattern => "https://www.exophase.com/user/{0}/";
+
+        public string BuildProfileUrl(string user) => ProfileLinkUrls.Format(ProfileUrlPattern, user);
+
+        public string GetCurrentUserProfileName() => ProviderSettings.UserId;
         public string ProviderColorHex => "#2f8ab3";
 
         /// <summary>
