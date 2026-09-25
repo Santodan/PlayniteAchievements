@@ -321,6 +321,7 @@ namespace PlayniteAchievements.Models
         private const string ProfileMedals = "ProfileMedals";
         private const string ProfileFullBleed = "ProfileFullBleed";
         private const string ProfileCentered = "ProfileCentered";
+        private const string ProfileLinks = "ProfileLinks";
         private const string Sort = "Sort";
         private const string SortDescending = "SortDescending";
         private const string UnlockNextCriterionOption = "UnlockNextCriterion";
@@ -503,6 +504,13 @@ namespace PlayniteAchievements.Models
 
         public static void SetProfileCentered(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(ProfileCentered, value);
+
+        /// <summary>Whether the profile shows its row of clickable platform profile links.</summary>
+        public static bool GetProfileShowLinks(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.GetOption(ProfileLinks, true) ?? true;
+
+        public static void SetProfileShowLinks(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(ProfileLinks, value);
 
         public static GameActivityScope GetGameActivityScope(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, ActivityScope, GameActivityScope.All);
@@ -774,6 +782,7 @@ namespace PlayniteAchievements.Models
                     ShowcaseWidgetOptions.SetProfileMedalMode(settings, ShowcaseProfileMedalMode.Rarity);
                     ShowcaseWidgetOptions.SetProfileFullBleed(settings, false);
                     ShowcaseWidgetOptions.SetProfileCentered(settings, false);
+                    ShowcaseWidgetOptions.SetProfileShowLinks(settings, true);
                     break;
                 case ShowcaseWidgetKind.Timeline:
                     ShowcaseTimelineOptions.SetRange(settings, TimelineRange.ThreeMonths);
