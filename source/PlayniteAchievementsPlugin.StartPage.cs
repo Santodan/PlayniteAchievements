@@ -579,33 +579,17 @@ namespace PlayniteAchievements
             var game = PlayniteApi?.Database?.Games?.Get(gameId);
             if (game != null)
             {
-                menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Menu_ClearData",
-                    () => ClearSingleGameData(game)));
-
-                var excludedFromSummaries = IsGameExcludedFromSummaries(gameId);
-                menu.Items.Add(CreateStartPageMenuItem(
+                // Same Maintenance grouping as the Overview's game rows.
+                menu.Items.Add(GameRowContextMenuBuilder.CreateMaintenanceMenu(
                     resourceOwner,
-                    excludedFromSummaries
-                        ? "LOCPlayAch_Common_Action_IncludeInSummaries"
-                        : "LOCPlayAch_Common_Action_ExcludeFromSummaries",
-                    () => ToggleExcludedFromSummaries(new[] { game })));
-
-                var excludedFromRefreshes = IsGameExcluded(gameId);
-                menu.Items.Add(CreateStartPageMenuItem(
-                    resourceOwner,
-                    excludedFromRefreshes
-                        ? "LOCPlayAch_Menu_IncludeInRefreshes"
-                        : "LOCPlayAch_Menu_ExcludeFromRefreshes",
+                    IsGameExcludedFromSummaries(gameId),
+                    IsGameExcluded(gameId),
+                    () => ClearSingleGameData(game),
+                    () => ToggleExcludedFromSummaries(new[] { game }),
                     () => ToggleExcludedFromRefreshes(
                         new[] { game },
                         clearDataWhenExcluding: false,
-                        confirmWhenClearingData: false)));
-
-                menu.Items.Add(CreateStartPageMenuItem(
-                    resourceOwner,
-                    excludedFromRefreshes
-                        ? "LOCPlayAch_Menu_IncludeInRefreshesAndRefresh"
-                        : "LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData",
+                        confirmWhenClearingData: false),
                     () => ToggleExcludedFromRefreshesAndRefresh(new[] { game })));
             }
         }
