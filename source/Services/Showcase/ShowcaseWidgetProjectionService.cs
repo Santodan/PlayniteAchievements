@@ -742,14 +742,61 @@ namespace PlayniteAchievements.Services.Showcase
             ShowcaseWidgetInstanceSettings instance)
         {
             var cutoff = ResolveLastPlayedCutoff(ShowcaseWidgetOptions.GetLastPlayedWindow(instance));
-            return (summaries ?? Enumerable.Empty<GameSummaryItem>())
+            var includeUnplayed = ShowcaseWidgetOptions.GetFinishNextIncludeUnplayed(instance);
+            var minimumFraction = ShowcaseWidgetOptions.GetFinishNextMinimumProgress(instance) / 100d;
+            var maxRemaining = ShowcaseWidgetOptions.GetFinishNextMaxRemaining(instance);
+            var eligible = (summaries ?? Enumerable.Empty<GameSummaryItem>())
                 .Where(game => game != null &&
                     game.TotalAchievements > 0 &&
                     game.UnlockedAchievements < game.TotalAchievements &&
-                    IsWithinWindow(game, cutoff))
-                .OrderByDescending(CompletionFraction)
-                .ThenBy(game => game.TotalAchievements - game.UnlockedAchievements)
-                .ThenByDescending(game => game.LastPlayed ?? DateTime.MinValue);
+                    (IsWithinWindow(game, cutoff) || (includeUnplayed && game.LastPlayed == null)) &&
+                    CompletionFraction(game) >= minimumFraction &&
+                    (maxRemaining == 0 || Remaining(game) <= maxRemaining));
+
+            IOrderedEnumerable<GameSummaryItem> ranked;
+            switch (ShowcaseWidgetOptions.GetFinishNextCriterion(instance))
+            {
+                case FinishNextCriterion.FewestRemaining:
+                    ranked = eligible
+                        .OrderBy(Remaining)
+                        .ThenByDescending(CompletionFraction);
+                    break;
+                case FinishNextCriterion.EasiestRemaining:
+                    ranked = eligible
+                        .OrderByDescending(RemainingEase)
+                        .ThenBy(Remaining);
+                    break;
+                default:
+                    ranked = eligible
+                        .OrderByDescending(CompletionFraction)
+                        .ThenBy(Remaining);
+                    break;
+            }
+
+            return ranked.ThenByDescending(game => game.LastPlayed ?? DateTime.MinValue);
+        }
+
+        private static int Remaining(GameSummaryItem game) =>
+            Math.Max(0, game.TotalAchievements - game.UnlockedAchievements);
+
+        /// <summary>
+        /// How commonly earned a game's remaining achievements are, 0 (all ultra rare) to 1 (all
+        /// common), from the locked count in each rarity tier. A game with no tier data sits in the
+        /// middle rather than first or last.
+        /// </summary>
+        private static double RemainingEase(GameSummaryItem game)
+        {
+            var common = Math.Max(0, game.TotalCommonPossible - game.CommonCount);
+            var uncommon = Math.Max(0, game.TotalUncommonPossible - game.UncommonCount);
+            var rare = Math.Max(0, game.TotalRarePossible - game.RareCount);
+            var ultraRare = Math.Max(0, game.TotalUltraRarePossible - game.UltraRareCount);
+            var total = common + uncommon + rare + ultraRare;
+            if (total == 0)
+            {
+                return 0.5;
+            }
+
+            return (common + (uncommon * 2d / 3d) + (rare / 3d)) / total;
         }
 
         /// <summary>Playnite-favorite games, alphabetical.</summary>
