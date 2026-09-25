@@ -52,8 +52,37 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             AnimateRarityGlows =
                 PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.AnimateRarityGlows ?? true;
 
-            CollectionHelper.Replace(Items, OrderAchievements(achievements));
+            var next = OrderAchievements(achievements).ToList();
+            CarryRevealsForward(next);
+            CollectionHelper.Replace(Items, next);
         }
+
+        /// <summary>
+        /// A tile revealed by a click stays revealed when a snapshot rebuild hands the mosaic new
+        /// row objects for the same achievements, as the compact lists keep theirs across item
+        /// rebuilds. Rows the projection hands back unchanged already carry their state.
+        /// </summary>
+        private void CarryRevealsForward(IReadOnlyList<AchievementDisplayItem> next)
+        {
+            var revealed = new HashSet<string>(
+                Items.Where(item => item?.IsRevealed == true).Select(RevealKey),
+                StringComparer.OrdinalIgnoreCase);
+            if (revealed.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var item in next)
+            {
+                if (item != null && !item.IsRevealed && revealed.Contains(RevealKey(item)))
+                {
+                    item.IsRevealed = true;
+                }
+            }
+        }
+
+        private static string RevealKey(AchievementDisplayItem item) =>
+            AchievementDisplayItem.MakeRevealKey(item.PlayniteGameId, item.ApiName, item.GameName);
 
         /// <summary>
         /// Applies the widget's configured sort over the projected tiles. None preserves the
