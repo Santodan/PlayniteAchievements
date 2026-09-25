@@ -307,8 +307,14 @@ namespace PlayniteAchievements.Views.Showcase
             UpdateTrackGripperVisibility();
         }
 
-        // One label per track, centred on it: columns along the top edge, rows along the left.
-        // Centred rather than at the boundaries, so they never sit under the grippers.
+        // How far the labels hang past the grid's top and left edges: the control's own 10px
+        // margin around the dashboard, so they sit outside the grid without resizing it and
+        // without reaching past this control's bounds into an ancestor's clip.
+        private const double TrackRulerOverhang = 10;
+
+        // One label per track, centred on it: columns above the top edge, rows (turned to read
+        // along the edge) left of the left edge. Centred rather than at the boundaries, so they
+        // never sit under the grippers.
         private void AddTrackRulers()
         {
             for (var index = 0; index < PageGridSize; index++)
@@ -318,7 +324,7 @@ namespace PlayniteAchievements.Views.Showcase
                 Grid.SetColumn(column, index);
                 column.HorizontalAlignment = HorizontalAlignment.Center;
                 column.VerticalAlignment = VerticalAlignment.Top;
-                column.Margin = new Thickness(0, 2, 0, 0);
+                column.Margin = new Thickness(0, -TrackRulerOverhang, 0, 0);
                 _columnRulerTexts.Add(columnText);
                 DashboardGrid.Children.Add(column);
 
@@ -327,7 +333,8 @@ namespace PlayniteAchievements.Views.Showcase
                 Grid.SetColumn(row, 0);
                 row.HorizontalAlignment = HorizontalAlignment.Left;
                 row.VerticalAlignment = VerticalAlignment.Center;
-                row.Margin = new Thickness(2, 0, 0, 0);
+                row.Margin = new Thickness(-TrackRulerOverhang, 0, 0, 0);
+                row.LayoutTransform = new System.Windows.Media.RotateTransform(-90);
                 _rowRulerTexts.Add(rowText);
                 DashboardGrid.Children.Add(row);
             }
@@ -335,20 +342,23 @@ namespace PlayniteAchievements.Views.Showcase
 
         private FrameworkElement CreateTrackRuler(out TextBlock text)
         {
-            text = new TextBlock();
+            // Compact (small text, no border) so as much of it as possible fits in the overhang.
+            text = new TextBlock
+            {
+                FontSize = 10,
+                LineHeight = 12,
+                LineStackingStrategy = LineStackingStrategy.BlockLineHeight
+            };
             text.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
-            text.SetResourceReference(TextBlock.FontSizeProperty, "PlayAch.FontSize.Caption");
             var ruler = new Border
             {
-                BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(3),
-                Padding = new Thickness(4, 0, 4, 1),
+                Padding = new Thickness(4, 0, 4, 0),
                 Opacity = 0.9,
                 IsHitTestVisible = false,
                 Child = text
             };
             ruler.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.PopupSurface");
-            ruler.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.PopupBorder");
             // Above the block layer, like the grippers.
             Panel.SetZIndex(ruler, 41);
             _trackRulers.Add(ruler);
