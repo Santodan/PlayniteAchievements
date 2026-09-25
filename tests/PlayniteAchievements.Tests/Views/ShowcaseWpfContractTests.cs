@@ -298,7 +298,8 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(mosaicViewModel, "AnimateRarityGlows");
             StringAssert.Contains(widgetTemplates, "AchievementCompactItemControl");
             StringAssert.Contains(widgetTemplates, "UseLargeRarityGlow=\"True\"");
-            StringAssert.Contains(widgetTemplates, "Margin=\"6\"");
+            // Tile spacing is a widget option now (6 by default), bound through the view model.
+            StringAssert.Contains(widgetTemplates, "Margin=\"{Binding DataContext.TileMargin");
         }
 
         [TestMethod]
