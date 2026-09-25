@@ -158,6 +158,12 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         /// <summary>Sort hook applied between the filter and the MaxRows cap; identity by default.</summary>
         protected virtual IEnumerable<TItem> OrderItems(IEnumerable<TItem> items) => items;
 
+        /// <summary>
+        /// Last step before the rows reach the grid, after the filter, sort and cap: identity by
+        /// default. Must return the same objects for the same inputs, or every refresh resets the grid.
+        /// </summary>
+        protected virtual IEnumerable<TItem> ScopeVisibleItems(IEnumerable<TItem> visible) => visible;
+
         /// <summary>The grid-options members whose edits require re-running <see cref="RefreshItems"/>.</summary>
         protected virtual bool ShouldRefreshItemsFor(string propertyName)
         {
@@ -180,9 +186,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected void RefreshItems()
         {
             var items = SelectItems(Projection) ?? Array.Empty<TItem>();
-            var visible = DisplayGridRowLimitHelper.Limit(
+            var visible = ScopeVisibleItems(DisplayGridRowLimitHelper.Limit(
                 OrderItems(FilterItems(items)),
-                (GridOptions as GridCommonOptions)?.MaxRows);
+                (GridOptions as GridCommonOptions)?.MaxRows)).ToList();
 
             // Replacing the collection resets the grid, which rebuilds every row (and re-resolves
             // its art). The projection hands back the same row objects when nothing changed, so
@@ -312,6 +318,12 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 propertyName == nameof(AchievementGridOptions.SortMode) ||
                 propertyName == nameof(AchievementGridOptions.SortDescending);
         }
+
+        private readonly WidgetRevealScope _reveals = new WidgetRevealScope();
+
+        // This grid's own copies of any revealable rows, so a reveal stays in this widget.
+        protected override IEnumerable<AchievementDisplayItem> ScopeVisibleItems(
+            IEnumerable<AchievementDisplayItem> visible) => _reveals.Map(visible);
     }
 
     /// <summary>
