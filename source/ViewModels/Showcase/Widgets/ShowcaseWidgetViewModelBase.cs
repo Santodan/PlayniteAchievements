@@ -41,6 +41,15 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         }
 
         protected abstract void Refresh();
+
+        /// <summary>
+        /// The widget host's body inset per density. A widget whose host drops the inset (the
+        /// full-bleed profile) reapplies it to its own foreground.
+        /// </summary>
+        public static double GetBodyInset(WidgetViewportDensity density) =>
+            density == WidgetViewportDensity.Compact
+                ? 6
+                : density == WidgetViewportDensity.Expanded ? 10 : 8;
     }
 
     /// <summary>

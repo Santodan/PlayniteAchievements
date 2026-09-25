@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -31,6 +32,7 @@ namespace PlayniteAchievements.Views.Showcase
         private TextBox _profileSubtitleBox;
         private TextBox _avatarBox;
         private TextBox _backgroundBox;
+        private readonly List<ProfileLinkRow> _linkRows = new List<ProfileLinkRow>();
 
         private ShowcaseWidgetSettingsDialog(
             ShowcaseWidgetInstanceSettings widget,
@@ -188,6 +190,142 @@ namespace PlayniteAchievements.Views.Showcase
                 panel,
                 Localize("LOCPlayAch_Showcase_ProfileBackground"),
                 _workingProfile.BackgroundPath);
+            BuildProfileLinks(panel);
+        }
+
+        /// <summary>
+        /// One row per enabled platform (plus any platform already holding a saved link): a URL
+        /// box that replaces the derived link when filled, and a Hide toggle. The derived link,
+        /// when there is one, shows as the box's tooltip, and a blank box keeps using it.
+        /// </summary>
+        private void BuildProfileLinks(Panel panel)
+        {
+            var header = CreateLabel(Localize("LOCPlayAch_Showcase_ProfileLinks"));
+            panel.Children.Add(header);
+
+            IReadOnlyList<Models.Friends.FriendIdentity> identities = null;
+            try
+            {
+                identities = PlayniteAchievementsPlugin.Instance?.FriendCacheManager?.LoadCurrentUserIdentities();
+            }
+            catch (Exception ex)
+            {
+                LogManager.GetLogger().Debug($"[Showcase] Profile link identities unavailable: {ex.Message}");
+            }
+
+            var derivedByProvider = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var identity in identities ?? Array.Empty<Models.Friends.FriendIdentity>())
+            {
+                var url = ShowcaseProfileResolver.DeriveProfileUrl(identity?.ProviderKey, identity?.ExternalUserId);
+                if (url != null && !derivedByProvider.ContainsKey(identity.ProviderKey))
+                {
+                    derivedByProvider[identity.ProviderKey] = url;
+                }
+            }
+
+            var saved = (_workingProfile.Links ?? new List<ShowcaseProfileLink>())
+                .Where(link => !string.IsNullOrWhiteSpace(link?.ProviderKey))
+                .GroupBy(link => link.ProviderKey.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+            var registry = PlayniteAchievementsPlugin.Instance?.ProviderRegistry;
+            var providerKeys = (registry?.GetAllProviders() ?? Array.Empty<Providers.IDataProvider>())
+                .Select(provider => provider?.ProviderKey)
+                .Where(key => !string.IsNullOrWhiteSpace(key) &&
+                              !string.Equals(key, "Manual", StringComparison.OrdinalIgnoreCase) &&
+                              (registry.IsProviderEnabled(key) || saved.ContainsKey(key)))
+                .ToList();
+
+            foreach (var key in providerKeys)
+            {
+                saved.TryGetValue(key, out var link);
+                derivedByProvider.TryGetValue(key, out var derived);
+                _linkRows.Add(AddLinkRow(panel, key, link, derived));
+            }
+        }
+
+        private ProfileLinkRow AddLinkRow(Panel panel, string providerKey, ShowcaseProfileLink link, string derived)
+        {
+            var row = new Grid();
+            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Sm");
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var label = new TextBlock
+            {
+                Text = Providers.ProviderRegistry.GetLocalizedName(providerKey),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            label.SetResourceReference(MarginProperty, "PlayAch.Thickness.Right.Sm");
+            label.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            row.Children.Add(label);
+            var box = new TextBox
+            {
+                Text = link?.Url ?? string.Empty,
+                MinHeight = 30,
+                Padding = new Thickness(7, 4, 7, 4),
+                ToolTip = derived
+            };
+            Grid.SetColumn(box, 1);
+            row.Children.Add(box);
+            var hide = new CheckBox
+            {
+                Content = Localize("LOCPlayAch_Common_Hide"),
+                IsChecked = link?.Hidden == true,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            hide.SetResourceReference(MarginProperty, "PlayAch.Thickness.Left.Sm");
+            Grid.SetColumn(hide, 2);
+            row.Children.Add(hide);
+            panel.Children.Add(row);
+            return new ProfileLinkRow(providerKey, box, hide);
+        }
+
+        // Rows the dialog showed replace their saved entries; entries for platforms it did not
+        // show (a provider since disabled) are kept as they were. An entry is only stored when it
+        // carries something: a manual URL or a hide.
+        private List<ShowcaseProfileLink> CollectProfileLinks()
+        {
+            var shown = new HashSet<string>(
+                _linkRows.Select(row => row.ProviderKey),
+                StringComparer.OrdinalIgnoreCase);
+            var links = (_workingProfile.Links ?? new List<ShowcaseProfileLink>())
+                .Where(link => link != null && !shown.Contains(link.ProviderKey ?? string.Empty))
+                .Select(link => link.Clone())
+                .ToList();
+            foreach (var row in _linkRows)
+            {
+                var url = row.UrlBox.Text?.Trim();
+                var hidden = row.HideBox.IsChecked == true;
+                if (!string.IsNullOrWhiteSpace(url) || hidden)
+                {
+                    links.Add(new ShowcaseProfileLink
+                    {
+                        ProviderKey = row.ProviderKey,
+                        Url = string.IsNullOrWhiteSpace(url) ? null : url,
+                        Hidden = hidden
+                    });
+                }
+            }
+
+            return links;
+        }
+
+        private sealed class ProfileLinkRow
+        {
+            public ProfileLinkRow(string providerKey, TextBox urlBox, CheckBox hideBox)
+            {
+                ProviderKey = providerKey;
+                UrlBox = urlBox;
+                HideBox = hideBox;
+            }
+
+            public string ProviderKey { get; }
+
+            public TextBox UrlBox { get; }
+
+            public CheckBox HideBox { get; }
         }
 
         private void Save_Click(object sender, RoutedEventArgs e)
@@ -209,6 +347,7 @@ namespace PlayniteAchievements.Views.Showcase
                     _backgroundBox.Text,
                     _workingProfile.BackgroundPath,
                     "background");
+                profile.Links = CollectProfileLinks();
             }
 
             Saved = true;

@@ -80,6 +80,29 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetProfileMedalMode(_settings),
                         value => ShowcaseWidgetOptions.SetProfileMedalMode(_settings, value),
                         ProfileMedalModeName);
+                    AddChoice(
+                        panel,
+                        Localize("LOCPlayAch_Settings_Display_Alignment"),
+                        new[] { false, true },
+                        ShowcaseWidgetOptions.GetProfileCentered(_settings),
+                        value => ShowcaseWidgetOptions.SetProfileCentered(_settings, value),
+                        value => Localize(value
+                            ? "LOCPlayAch_Settings_GridAlignment_Center"
+                            : "LOCPlayAch_Settings_GridAlignment_Left"));
+                    AddChoice(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_ProfileFullBleed"),
+                        new[] { true, false },
+                        ShowcaseWidgetOptions.GetProfileFullBleed(_settings),
+                        value => ShowcaseWidgetOptions.SetProfileFullBleed(_settings, value),
+                        OnOffLabel);
+                    AddChoice(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_ProfileLinks"),
+                        new[] { true, false },
+                        ShowcaseWidgetOptions.GetProfileShowLinks(_settings),
+                        value => ShowcaseWidgetOptions.SetProfileShowLinks(_settings, value),
+                        OnOffLabel);
                     AddProfileStatSlots(panel);
                     break;
                 case ShowcaseWidgetKind.Scores:

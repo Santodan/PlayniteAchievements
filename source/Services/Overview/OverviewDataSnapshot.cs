@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using PlayniteAchievements.Models.Friends;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -26,6 +27,53 @@ namespace PlayniteAchievements.Services.Overview
         /// starts needing the pool triggers a rebuild off this flag.
         /// </summary>
         public bool UnlockNextPoolBuilt { get; set; }
+
+        /// <summary>
+        /// Every achievement pin (see <see cref="AchievementPinKey"/>) the build considered when it
+        /// hydrated locked pinned rows into <see cref="Achievements"/>. A pin added afterwards is
+        /// absent here, so its locked row was never hydrated; consumers rebuild off
+        /// <see cref="HasSeenAchievementPins"/>. A pin whose game data is unavailable stays in
+        /// the set, so it does not trigger a rebuild on every configuration change.
+        /// </summary>
+        public HashSet<string> AchievementPinKeysAtBuild { get; set; } =
+            new HashSet<string>(StringComparer.Ordinal);
+
+        public static string AchievementPinKey(Guid gameId, string apiName) =>
+            gameId.ToString("N") + "|" + (apiName ?? string.Empty).ToUpperInvariant();
+
+        /// <summary>Whether this snapshot's build already accounted for every current achievement pin.</summary>
+        public bool HasSeenAchievementPins(ShowcaseSettings showcase)
+        {
+            var collections = showcase?.AchievementPinCollections;
+            if (collections == null)
+            {
+                return true;
+            }
+
+            foreach (var collection in collections)
+            {
+                if (collection?.Pins == null)
+                {
+                    continue;
+                }
+
+                foreach (var pin in collection.Pins)
+                {
+                    if (pin == null || pin.GameId == Guid.Empty || string.IsNullOrWhiteSpace(pin.ApiName))
+                    {
+                        continue;
+                    }
+
+                    if (AchievementPinKeysAtBuild == null ||
+                        !AchievementPinKeysAtBuild.Contains(AchievementPinKey(pin.GameId, pin.ApiName)))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
         public Dictionary<DateTime, int> GlobalUnlockCountsByDate { get; set; } =
             new Dictionary<DateTime, int>();
 

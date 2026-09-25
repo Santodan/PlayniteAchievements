@@ -319,6 +319,9 @@ namespace PlayniteAchievements.Models
         private const string Content = "Content";
         private const string ProfileStats = "ProfileStats";
         private const string ProfileMedals = "ProfileMedals";
+        private const string ProfileFullBleed = "ProfileFullBleed";
+        private const string ProfileCentered = "ProfileCentered";
+        private const string ProfileLinks = "ProfileLinks";
         private const string Sort = "Sort";
         private const string SortDescending = "SortDescending";
         private const string UnlockNextCriterionOption = "UnlockNextCriterion";
@@ -481,6 +484,33 @@ namespace PlayniteAchievements.Models
         public static void SetProfileMedalMode(
             ShowcaseWidgetInstanceSettings settings,
             ShowcaseProfileMedalMode value) => settings?.SetOption(ProfileMedals, value);
+
+        /// <summary>
+        /// Whether the profile background fills the whole card, edge to edge, instead of sitting
+        /// inside the body inset. The foreground content keeps the inset either way.
+        /// </summary>
+        public static bool GetProfileFullBleed(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.GetOption(ProfileFullBleed, false) ?? false;
+
+        public static void SetProfileFullBleed(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(ProfileFullBleed, value);
+
+        /// <summary>
+        /// Whether the profile stacks the avatar above the name and centers the identity, medal
+        /// row, and stat strip, instead of the avatar-beside-text left-aligned layout.
+        /// </summary>
+        public static bool GetProfileCentered(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.GetOption(ProfileCentered, false) ?? false;
+
+        public static void SetProfileCentered(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(ProfileCentered, value);
+
+        /// <summary>Whether the profile shows its row of clickable platform profile links.</summary>
+        public static bool GetProfileShowLinks(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.GetOption(ProfileLinks, true) ?? true;
+
+        public static void SetProfileShowLinks(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(ProfileLinks, value);
 
         public static GameActivityScope GetGameActivityScope(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, ActivityScope, GameActivityScope.All);
@@ -750,6 +780,9 @@ namespace PlayniteAchievements.Models
                     break;
                 case ShowcaseWidgetKind.Profile:
                     ShowcaseWidgetOptions.SetProfileMedalMode(settings, ShowcaseProfileMedalMode.Rarity);
+                    ShowcaseWidgetOptions.SetProfileFullBleed(settings, false);
+                    ShowcaseWidgetOptions.SetProfileCentered(settings, false);
+                    ShowcaseWidgetOptions.SetProfileShowLinks(settings, true);
                     break;
                 case ShowcaseWidgetKind.Timeline:
                     ShowcaseTimelineOptions.SetRange(settings, TimelineRange.ThreeMonths);

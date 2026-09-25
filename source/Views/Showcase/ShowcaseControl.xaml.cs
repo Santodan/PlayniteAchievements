@@ -2214,7 +2214,7 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             EnsureLayout();
-            EnsureUnlockNextPool();
+            EnsureSnapshotCoversLayout();
             if (string.Equals(ComputeLayoutSignature(), _layoutSignature, StringComparison.Ordinal))
             {
                 RefreshWidgetData(includeCachedHosts: false);
@@ -2228,10 +2228,17 @@ namespace PlayniteAchievements.Views.Showcase
         // the exception: its locked achievements are not in the snapshot at all, and the overview
         // builder only hydrates them when a widget asks. Switching a mosaic to that source is
         // therefore the one option edit that needs the snapshot rebuilt.
-        private void EnsureUnlockNextPool()
+        //
+        // A new achievement pin is the same case: the snapshot only holds unlocked rows plus the
+        // locked pinned rows hydrated at build time, so a pin the build never saw would render as
+        // a bare placeholder until the next rebuild.
+        private void EnsureSnapshotCoversLayout()
         {
-            if (!ShowcaseWidgetOptions.RequiresUnlockNextPool(Layout) ||
-                _overview.LatestSnapshot?.UnlockNextPoolBuilt == true)
+            var snapshot = _overview.LatestSnapshot;
+            var needsUnlockNextPool = ShowcaseWidgetOptions.RequiresUnlockNextPool(Layout) &&
+                                      snapshot?.UnlockNextPoolBuilt != true;
+            var needsPinHydration = snapshot != null && !snapshot.HasSeenAchievementPins(Layout);
+            if (!needsUnlockNextPool && !needsPinHydration)
             {
                 return;
             }

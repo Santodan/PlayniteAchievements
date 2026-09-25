@@ -216,11 +216,13 @@ namespace PlayniteAchievements.Views.Showcase
 
         private void RebuildBody()
         {
-            BodyHost.Margin = _viewport.Density == WidgetViewportDensity.Compact
-                ? new Thickness(6)
-                : _viewport.Density == WidgetViewportDensity.Expanded
-                    ? new Thickness(10)
-                    : new Thickness(8);
+            // A full-bleed profile takes the whole card; its view model reapplies the same inset
+            // to the foreground so only the background reaches the edge.
+            var fullBleed = _projection?.Instance?.Kind == ShowcaseWidgetKind.Profile &&
+                            ShowcaseWidgetOptions.GetProfileFullBleed(_projection.Instance);
+            BodyHost.Margin = fullBleed
+                ? new Thickness(0)
+                : new Thickness(ShowcaseWidgetViewModelBase.GetBodyInset(_viewport.Density));
             if (_projection?.Instance == null)
             {
                 SetBodyContent(CreateEmptyText());

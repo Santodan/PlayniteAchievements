@@ -12,7 +12,7 @@ namespace PlayniteAchievements.Tests.Views
     public class ShowcaseWpfContractTests
     {
         [TestMethod]
-        public void Overview_RegistersAlwaysAvailableThirdTabAndRemovesHeaderScores()
+        public void Overview_RegistersAlwaysAvailableThirdTabAndGatesHeaderScoresPerCard()
         {
             var xaml = ReadRepoFile("source", "Views", "OverviewControl.xaml");
             var code = ReadRepoFile("source", "Views", "OverviewControl.xaml.cs");
@@ -23,7 +23,12 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(
                 xaml,
                 "Visibility=\"{Binding EnableFriendsFeatures, Converter={StaticResource BoolToVis}}\"");
-            Assert.IsFalse(xaml.Contains("<controls:ScoreCardControl"));
+            StringAssert.Contains(
+                xaml,
+                "Visibility=\"{Binding ShowOverviewCollectionScoreCard, Converter={StaticResource BoolToVis}}\"");
+            StringAssert.Contains(
+                xaml,
+                "Visibility=\"{Binding ShowOverviewPrestigeScoreCard, Converter={StaticResource BoolToVis}}\"");
             StringAssert.Contains(
                 code,
                 "_lastSelectedSubView == OverviewSubView.Friends");

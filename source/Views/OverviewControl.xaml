@@ -450,6 +450,46 @@
                     </StackPanel>
                 </StackPanel>
 
+                <!-- Right: Collection and Prestige score cards, Overview subview only. -->
+                <StackPanel Grid.Row="1"
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            MaxWidth="740"
+                            Margin="18,0,0,0">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding ShowOverviewScoreCards}" Value="True"/>
+                                        <Condition Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Overview}"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <controls:ScoreCardControl Width="300"
+                                               ScoreCard="{Binding CollectionScoreCard}"
+                                               Visibility="{Binding ShowOverviewCollectionScoreCard, Converter={StaticResource BoolToVis}}"/>
+
+                    <Border Background="{DynamicResource PlayAch.Brush.ControlBorder}"
+                            Opacity="{StaticResource PlayAch.Opacity.Disabled}"
+                            VerticalAlignment="Center"
+                            Width="1"
+                            Height="42"
+                            Margin="12,2"
+                            Visibility="{Binding ShowOverviewScoreCardDivider, Converter={StaticResource BoolToVis}}"/>
+
+                    <controls:ScoreCardControl Width="300"
+                                               ScoreCard="{Binding PrestigeScoreCard}"
+                                               Visibility="{Binding ShowOverviewPrestigeScoreCard, Converter={StaticResource BoolToVis}}"/>
+                </StackPanel>
+
                 <!-- Right: showcase page/edit controls, re-hosted from ShowcaseControl so the
                      dashboard below keeps the full tab-content height. -->
                 <ContentControl x:Name="ShowcaseHeaderHost"
@@ -814,7 +854,11 @@
                                                         Series="{Binding GlobalTimeline.TimelineSeries}"
                                                         LegendLocation="None"
                                                         Hoverable="True"
+                                                        TooltipTimeout="0:0:0.1"
                                                         DisableAnimations="True">
+                                        <lvc:CartesianChart.DataTooltip>
+                                            <controls:CartesianChartTooltip/>
+                                        </lvc:CartesianChart.DataTooltip>
                                         <lvc:CartesianChart.Resources>
                                             <Style TargetType="lvc:ColumnSeries">
                                                 <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Accent}" />
