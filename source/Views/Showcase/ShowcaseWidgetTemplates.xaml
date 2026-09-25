@@ -11,6 +11,7 @@
     <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility"/>
     <converters:ResourceKeyToImageSourceConverter x:Key="ShowcaseResourceKeyToImage"/>
     <converters:RaritySelectionIncludesCompletedConverter x:Key="RaritySelectionIncludesCompleted"/>
+    <converters:ProviderIconConverter x:Key="ShowcaseProviderIcon"/>
 
     <!-- Mosaics can hold 64 tiles, each carrying artwork, a glow effect, and a ray burst that
          redraws while it is on screen. A plain ItemsControl in a ScrollViewer realizes all of
@@ -176,6 +177,61 @@
                                    FontSize="{DynamicResource PlayAch.FontSize.Caption}"
                                    TextWrapping="Wrap"
                                    Visibility="{Binding ShowSubtitle, Converter={StaticResource BoolToVis}}"/>
+                        <!-- Platform profile links: one provider icon per link, opening the
+                             profile page in the browser. -->
+                        <ItemsControl ItemsSource="{Binding Links}"
+                                      Margin="0,6,0,0"
+                                      Focusable="False"
+                                      Visibility="{Binding ShowLinks, Converter={StaticResource BoolToVis}}">
+                            <ItemsControl.Style>
+                                <Style TargetType="ItemsControl">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCentered}" Value="True">
+                                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ItemsControl.Style>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Command="{Binding OpenCommand}"
+                                            ToolTip="{Binding ToolTip}"
+                                            Cursor="Hand"
+                                            Focusable="False"
+                                            Margin="0,0,8,2">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="LinkBorder"
+                                                        Background="Transparent"
+                                                        Opacity="0.85">
+                                                    <Image Width="18"
+                                                           Height="18"
+                                                           SnapsToDevicePixels="True"
+                                                           RenderOptions.BitmapScalingMode="HighQuality">
+                                                        <Image.Source>
+                                                            <MultiBinding Converter="{StaticResource ShowcaseProviderIcon}">
+                                                                <Binding Path="IconKey"/>
+                                                                <Binding Path="ColorHex"/>
+                                                            </MultiBinding>
+                                                        </Image.Source>
+                                                    </Image>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="LinkBorder" Property="Opacity" Value="1"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <ItemsControl ItemsSource="{Binding Medals}"
                                       Margin="0,6,0,0"
                                       Visibility="{Binding ShowMedals, Converter={StaticResource BoolToVis}}">
