@@ -89,8 +89,8 @@ namespace PlayniteAchievements.Views.Showcase
         private static readonly TimeSpan TrackRulerInterval = TimeSpan.FromMilliseconds(30);
         private readonly System.Windows.Threading.DispatcherTimer _trackRulerTimer;
         private readonly List<FrameworkElement> _trackRulers = new List<FrameworkElement>();
-        private readonly List<TextBlock> _columnRulerTexts = new List<TextBlock>();
-        private readonly List<TextBlock> _rowRulerTexts = new List<TextBlock>();
+        private readonly List<TextBox> _columnRulerTexts = new List<TextBox>();
+        private readonly List<TextBox> _rowRulerTexts = new List<TextBox>();
 
         internal ShowcaseControl(
             OverviewViewModel overview,
@@ -314,51 +314,198 @@ namespace PlayniteAchievements.Views.Showcase
 
         // One label per track, centred on it: columns above the top edge, rows (turned to read
         // along the edge) left of the left edge. Centred rather than at the boundaries, so they
-        // never sit under the grippers.
+        // never sit under the grippers. Each is an editable box: typing a size is the precise
+        // way to set a track, where a drag only lands within a pixel or two.
         private void AddTrackRulers()
         {
             for (var index = 0; index < PageGridSize; index++)
             {
-                var column = CreateTrackRuler(out var columnText);
+                var column = CreateTrackRuler(vertical: true, index, out var columnBox);
                 Grid.SetRow(column, 0);
                 Grid.SetColumn(column, index);
                 column.HorizontalAlignment = HorizontalAlignment.Center;
                 column.VerticalAlignment = VerticalAlignment.Top;
                 column.Margin = new Thickness(0, -TrackRulerOverhang, 0, 0);
-                _columnRulerTexts.Add(columnText);
+                _columnRulerTexts.Add(columnBox);
                 DashboardGrid.Children.Add(column);
 
-                var row = CreateTrackRuler(out var rowText);
+                var row = CreateTrackRuler(vertical: false, index, out var rowBox);
                 Grid.SetRow(row, index);
                 Grid.SetColumn(row, 0);
                 row.HorizontalAlignment = HorizontalAlignment.Left;
                 row.VerticalAlignment = VerticalAlignment.Center;
                 row.Margin = new Thickness(-TrackRulerOverhang, 0, 0, 0);
                 row.LayoutTransform = new System.Windows.Media.RotateTransform(-90);
-                _rowRulerTexts.Add(rowText);
+                _rowRulerTexts.Add(rowBox);
                 DashboardGrid.Children.Add(row);
             }
         }
 
-        private FrameworkElement CreateTrackRuler(out TextBlock text)
+        // A bare text host rather than the theme's TextBox template, whose border, padding and
+        // minimum height would not fit the overhang.
+        private static readonly ControlTemplate TrackRulerBoxTemplate = CreateTrackRulerBoxTemplate();
+
+        // Marks a box whose Enter or Escape already settled the edit.
+        private static readonly object TrackRulerEditHandled = new object();
+
+        private static ControlTemplate CreateTrackRulerBoxTemplate()
+        {
+            var host = new FrameworkElementFactory(typeof(Decorator)) { Name = "PART_ContentHost" };
+            return new ControlTemplate(typeof(TextBox)) { VisualTree = host };
+        }
+
+        private FrameworkElement CreateTrackRuler(bool vertical, int index, out TextBox box)
         {
             // Caption text with no border, so the pill stays slim enough to sit mostly in the overhang.
-            text = new TextBlock();
-            text.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
-            text.SetResourceReference(TextBlock.FontSizeProperty, "PlayAch.FontSize.Caption");
+            var editor = new TextBox
+            {
+                Template = TrackRulerBoxTemplate,
+                BorderThickness = new Thickness(0),
+                Background = System.Windows.Media.Brushes.Transparent,
+                Padding = new Thickness(0),
+                MinWidth = 0,
+                MinHeight = 0,
+                TextAlignment = TextAlignment.Center,
+                Cursor = Cursors.IBeam,
+                AcceptsReturn = false
+            };
+            editor.SetResourceReference(TextBox.ForegroundProperty, "PlayAch.Brush.Text");
+            editor.SetResourceReference(TextBox.CaretBrushProperty, "PlayAch.Brush.Text");
+            editor.SetResourceReference(TextBox.FontSizeProperty, "PlayAch.FontSize.Caption");
+            editor.GotKeyboardFocus += (_, __) =>
+            {
+                // Just the number while editing; the unit comes back with the next refresh.
+                editor.Text = FormatTrackNumber(ReadTrackSize(vertical, index));
+                editor.SelectAll();
+            };
+            editor.PreviewMouseLeftButtonDown += (_, args) =>
+            {
+                if (!editor.IsKeyboardFocusWithin)
+                {
+                    editor.Focus();
+                    args.Handled = true;
+                }
+            };
+            editor.KeyDown += (_, args) =>
+            {
+                if (args.Key == Key.Enter)
+                {
+                    CommitTrackRulerEdit(vertical, index, editor.Text);
+                    // Losing focus below must not commit again: the layout has not caught up yet,
+                    // so a second pass would read the old size and apply the change twice.
+                    editor.Tag = TrackRulerEditHandled;
+                    args.Handled = true;
+                    Keyboard.ClearFocus();
+                    FocusSelectedBlock();
+                }
+                else if (args.Key == Key.Escape)
+                {
+                    editor.Tag = TrackRulerEditHandled;
+                    args.Handled = true;
+                    Keyboard.ClearFocus();
+                    FocusSelectedBlock();
+                }
+            };
+            editor.LostKeyboardFocus += (_, __) =>
+            {
+                if (ReferenceEquals(editor.Tag, TrackRulerEditHandled))
+                {
+                    editor.Tag = null;
+                    ScheduleTrackRulerUpdate();
+                    return;
+                }
+
+                CommitTrackRulerEdit(vertical, index, editor.Text);
+            };
+
             var ruler = new Border
             {
                 CornerRadius = new CornerRadius(3),
                 Padding = new Thickness(4, 0, 4, 0),
                 Opacity = 0.9,
-                IsHitTestVisible = false,
-                Child = text
+                Child = editor
             };
             ruler.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.PopupSurface");
             // Above the block layer, like the grippers.
             Panel.SetZIndex(ruler, 41);
             _trackRulers.Add(ruler);
+            box = editor;
             return ruler;
+        }
+
+        private double ReadTrackSize(bool vertical, int index)
+        {
+            if (vertical)
+            {
+                return index < DashboardGrid.ColumnDefinitions.Count
+                    ? DashboardGrid.ColumnDefinitions[index].ActualWidth
+                    : 0;
+            }
+
+            return index < DashboardGrid.RowDefinitions.Count
+                ? DashboardGrid.RowDefinitions[index].ActualHeight
+                : 0;
+        }
+
+        // Moves the boundary after the track (before it, for the last track) by the difference, the
+        // same weight transfer a drag makes, so the neighbour absorbs it and the grid never changes
+        // size. The track clamps to its min/max weight like a drag does; the label then shows what
+        // it actually landed on.
+        private void CommitTrackRulerEdit(bool vertical, int index, string text)
+        {
+            if (_disposed || EditLayoutButton.IsChecked != true)
+            {
+                return;
+            }
+
+            var digits = new string((text ?? string.Empty).Where(char.IsDigit).ToArray());
+            if (!int.TryParse(digits, out var target) || target <= 0)
+            {
+                ScheduleTrackRulerUpdate();
+                return;
+            }
+
+            if (MoveTrackToSize(vertical, index, target))
+            {
+                // Layout rounding can land the star-sized track a pixel off the typed size; once
+                // the layout has settled, correct by that remainder (a single pass, so a size the
+                // min/max weight clamp refuses cannot loop).
+                Dispatcher.BeginInvoke(
+                    new Action(() =>
+                    {
+                        if (!_disposed && EditLayoutButton.IsChecked == true)
+                        {
+                            MoveTrackToSize(vertical, index, target);
+                            CommitTrackWeights();
+                            ScheduleTrackRulerUpdate();
+                        }
+                    }),
+                    System.Windows.Threading.DispatcherPriority.ContextIdle);
+                CommitTrackWeights();
+            }
+
+            ScheduleTrackRulerUpdate();
+        }
+
+        private bool MoveTrackToSize(bool vertical, int index, int target)
+        {
+            var count = vertical ? DashboardGrid.ColumnDefinitions.Count : DashboardGrid.RowDefinitions.Count;
+            var delta = target - Math.Round(ReadTrackSize(vertical, index));
+            if (count < 2 || index >= count || delta == 0)
+            {
+                return false;
+            }
+
+            if (index < count - 1)
+            {
+                AdjustTrackWeights(vertical, index, delta);
+            }
+            else
+            {
+                AdjustTrackWeights(vertical, index - 1, -delta);
+            }
+
+            return true;
         }
 
         // A throttle rather than a trailing debounce: during a drag the first change schedules a
@@ -379,19 +526,28 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
-            for (var index = 0; index < _columnRulerTexts.Count && index < DashboardGrid.ColumnDefinitions.Count; index++)
+            for (var index = 0; index < _columnRulerTexts.Count; index++)
             {
-                _columnRulerTexts[index].Text = FormatTrackPixels(DashboardGrid.ColumnDefinitions[index].ActualWidth);
+                UpdateTrackRulerText(_columnRulerTexts[index], ReadTrackSize(vertical: true, index));
             }
 
-            for (var index = 0; index < _rowRulerTexts.Count && index < DashboardGrid.RowDefinitions.Count; index++)
+            for (var index = 0; index < _rowRulerTexts.Count; index++)
             {
-                _rowRulerTexts[index].Text = FormatTrackPixels(DashboardGrid.RowDefinitions[index].ActualHeight);
+                UpdateTrackRulerText(_rowRulerTexts[index], ReadTrackSize(vertical: false, index));
             }
         }
 
-        private static string FormatTrackPixels(double size) =>
-            Math.Round(size).ToString("N0", PlayniteAchievements.Common.FormattingCulture.Current) + " px";
+        // A box being typed in keeps what the user typed.
+        private static void UpdateTrackRulerText(TextBox box, double size)
+        {
+            if (!box.IsKeyboardFocusWithin)
+            {
+                box.Text = FormatTrackNumber(size) + " px";
+            }
+        }
+
+        private static string FormatTrackNumber(double size) =>
+            Math.Round(size).ToString("0", PlayniteAchievements.Common.FormattingCulture.Current);
 
         private System.Windows.Controls.Primitives.Thumb CreateTrackGripper(
             bool vertical,
