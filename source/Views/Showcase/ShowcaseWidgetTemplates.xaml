@@ -329,7 +329,11 @@
                                             Hoverable="True"
                                             DisableAnimations="True"
                                             Margin="6,2,6,0"
+                                            TooltipTimeout="0:0:0.1"
                                             Visibility="{Binding ShowChart, Converter={StaticResource BoolToVis}}">
+                            <lvc:CartesianChart.DataTooltip>
+                                <controls:CartesianChartTooltip/>
+                            </lvc:CartesianChart.DataTooltip>
                             <lvc:CartesianChart.Series>
                                 <lvc:LineSeries Title="{Binding Card.Label}"
                                                 Values="{Binding HistoryValues}"
@@ -495,7 +499,11 @@
                 <lvc:CartesianChart Series="{Binding Timeline.TimelineSeries}"
                                     LegendLocation="None"
                                     Hoverable="True"
+                                    TooltipTimeout="0:0:0.1"
                                     DisableAnimations="True">
+                    <lvc:CartesianChart.DataTooltip>
+                        <controls:CartesianChartTooltip/>
+                    </lvc:CartesianChart.DataTooltip>
                     <lvc:CartesianChart.Resources>
                         <Style TargetType="lvc:ColumnSeries">
                             <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Accent}"/>
