@@ -1076,6 +1076,21 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CloneAndCopyFrom_PreserveHiddenManageSidebarStatGroups()
+        {
+            const ManageSidebarStatGroups hidden = ManageSidebarStatGroups.Rarity | ManageSidebarStatGroups.Notes;
+            var source = new PersistedSettings { HiddenManageSidebarStatGroups = hidden };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.AreEqual(ManageSidebarStatGroups.None, new PersistedSettings().HiddenManageSidebarStatGroups);
+            Assert.AreEqual(hidden, clone.HiddenManageSidebarStatGroups);
+            Assert.AreEqual(hidden, target.HiddenManageSidebarStatGroups);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveColumnHeaderVisibilityAndColumnOrder()
         {
             var source = new PersistedSettings
