@@ -115,6 +115,10 @@ namespace PlayniteAchievements.Views
             _refreshEntryPoint = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
             _friendsOverviewDataCoordinator = friendsOverviewDataCoordinator;
             _launchContext = launchContext;
+            if (launchContext == OverviewLaunchContext.Popout)
+            {
+                HeaderCaptionSpacerRow.Height = new GridLength(0);
+            }
             // Playnite raises ItemUpdated for every game property change - playtime ticks while a
             // game runs, install state, metadata edits - and a library sync fires them in bursts.
             // Each refresh rebuilds the whole projection, so the window is long enough that a
