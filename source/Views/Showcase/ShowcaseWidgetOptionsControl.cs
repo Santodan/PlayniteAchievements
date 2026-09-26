@@ -82,13 +82,16 @@ namespace PlayniteAchievements.Views.Showcase
                         ProfileMedalModeName);
                     AddChoice(
                         panel,
-                        Localize("LOCPlayAch_Settings_Display_Alignment"),
-                        new[] { false, true },
-                        ShowcaseWidgetOptions.GetProfileCentered(_settings),
-                        value => ShowcaseWidgetOptions.SetProfileCentered(_settings, value),
-                        value => Localize(value
-                            ? "LOCPlayAch_Settings_GridAlignment_Center"
-                            : "LOCPlayAch_Settings_GridAlignment_Left"));
+                        Localize("LOCPlayAch_Showcase_ProfileLayout"),
+                        new[]
+                        {
+                            ShowcaseProfileLayout.Left,
+                            ShowcaseProfileLayout.Centered,
+                            ShowcaseProfileLayout.Stacked
+                        },
+                        ShowcaseWidgetOptions.GetProfileLayout(_settings),
+                        value => ShowcaseWidgetOptions.SetProfileLayout(_settings, value),
+                        ProfileLayoutName);
                     AddChoice(
                         panel,
                         Localize("LOCPlayAch_Showcase_ProfileFullBleed"),
