@@ -153,19 +153,19 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     return Record(record, hashes, isMatch, $"Archive '{candidate}'");
                 }
 
-                var entries = ArchiveUtils.GetCandidateEntries(candidate);
-                for (var i = 0; i < entries.Count; i++)
+                // Entries are produced lazily; stopping at a match skips the rest of the archive.
+                foreach (var input in ArchiveUtils.EnumerateHashInputs(candidate, hasher.SupportsForwardOnlyInput))
                 {
                     cancel.ThrowIfCancellationRequested();
 
-                    var entry = entries[i];
-                    using (var tmp = ArchiveUtils.ExtractEntryToTempFile(candidate, entry))
+                    using (input)
                     {
-                        var hashes = await hasher.ComputeHashesAsync(tmp.Path, cancel).ConfigureAwait(false);
-                        var matched = Record(record, hashes, isMatch, $"ArchiveEntry '{entry.Key}'");
+                        var hashes = await hasher.ComputeHashesAsync(input.Source, cancel).ConfigureAwait(false);
+                        var matched = Record(record, hashes, isMatch, $"ArchiveEntry '{input.EntryKey}'");
                         if (matched != null)
                         {
-                            record.Complete = i == entries.Count - 1;
+                            // Later entries were never read, so the recorded hashes may be partial.
+                            record.Complete = false;
                             return matched;
                         }
                     }
