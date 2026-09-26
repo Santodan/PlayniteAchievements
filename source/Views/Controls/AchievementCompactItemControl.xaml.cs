@@ -72,12 +72,55 @@ namespace PlayniteAchievements.Views.Controls
                 typeof(AchievementCompactItemControl),
                 new PropertyMetadata(RaritySelection.None));
 
+        public static readonly DependencyProperty ShowRarityBarOverrideProperty =
+            DependencyProperty.Register(
+                nameof(ShowRarityBarOverride),
+                typeof(bool?),
+                typeof(AchievementCompactItemControl),
+                new PropertyMetadata(null, OnRarityBarInputChanged));
+
+        public static readonly DependencyProperty RarityBarVisibleProperty =
+            DependencyProperty.Register(
+                nameof(RarityBarVisible),
+                typeof(bool),
+                typeof(AchievementCompactItemControl),
+                new PropertyMetadata(false));
+
         public static readonly DependencyProperty ShowHardcoreBorderProperty =
             DependencyProperty.Register(
                 nameof(ShowHardcoreBorder),
                 typeof(bool),
                 typeof(AchievementCompactItemControl),
                 new PropertyMetadata(true));
+
+        /// <summary>
+        /// A host's own rarity bar choice. Null follows the achievement's appearance setting (the
+        /// global compact-list one); a host with its own option, like the mosaic widget, sets it,
+        /// so the choice stays in that host instead of being written onto rows other surfaces share.
+        /// </summary>
+        public bool? ShowRarityBarOverride
+        {
+            get => (bool?)GetValue(ShowRarityBarOverrideProperty);
+            set => SetValue(ShowRarityBarOverrideProperty, value);
+        }
+
+        /// <summary>Whether the rarity bar shows: the host override when set, else the item's setting.</summary>
+        public bool RarityBarVisible
+        {
+            get => (bool)GetValue(RarityBarVisibleProperty);
+            private set => SetValue(RarityBarVisibleProperty, value);
+        }
+
+        private static void OnRarityBarInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            (d as AchievementCompactItemControl)?.UpdateRarityBarVisibility();
+        }
+
+        private void UpdateRarityBarVisibility()
+        {
+            RarityBarVisible = ShowRarityBarOverride ??
+                ((DataContext as AchievementDisplayItem)?.ShowRarityBar == true);
+        }
 
         /// <summary>
         /// Gets or sets the size of the achievement icon (both width and height).
@@ -207,6 +250,7 @@ namespace PlayniteAchievements.Views.Controls
             DetachItemGlowWatch(e.OldValue as AchievementDisplayItem);
             AttachItemGlowWatch(e.NewValue as AchievementDisplayItem);
             UpdateRarityGlowEligibility();
+            UpdateRarityBarVisibility();
         }
 
         private void AttachItemGlowWatch(AchievementDisplayItem item)
@@ -243,6 +287,12 @@ namespace PlayniteAchievements.Views.Controls
                 e.PropertyName == nameof(AchievementDisplayItem.Unlocked))
             {
                 UpdateRarityGlowEligibility();
+            }
+
+            if (string.IsNullOrEmpty(e.PropertyName) ||
+                e.PropertyName == nameof(AchievementDisplayItem.ShowRarityBar))
+            {
+                UpdateRarityBarVisibility();
             }
         }
 
