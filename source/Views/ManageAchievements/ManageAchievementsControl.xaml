@@ -84,63 +84,12 @@
                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                 CornerRadius="{StaticResource PlayAch.Radius.Card}"
                 Padding="{StaticResource PlayAch.Thickness.CardPadding}">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="12" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="16" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <controls:WidthFollowingDecorator Grid.Row="2">
-                    <Border Height="190"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
-                            ClipToBounds="False"
-                            Background="Transparent">
-                        <Image Stretch="Uniform"
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="Center"
-                               helpers:AsyncImage.Uri="{Binding GameImagePath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
-                               helpers:AsyncImage.DecodePixel="480" />
-                    </Border>
-                </controls:WidthFollowingDecorator>
-
-                <ScrollViewer Grid.Row="4"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel>
-                        <RadioButton x:Name="OverviewTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Overview}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overview}" />
-                        <!-- Not gated on HasAchievementData: it is the Custom tab widened to every
-                             achievement, so it must stay reachable for a game with no cached
-                             achievements, where custom ones are authored. -->
-                        <RadioButton x:Name="EditorTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Editor}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Editor}" />
-
-                        <RadioButton x:Name="CategoryTabButton"
-                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Category}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
-
-                        <RadioButton x:Name="NotificationsTabButton"
-                                     Content="{DynamicResource LOCPlayAch_Settings_TabNotifications}"
-                                     Style="{StaticResource NavTabRadioStyle}"
-                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Notifications}" />
-                    </StackPanel>
-                </ScrollViewer>
-
-                <!-- Always-visible stats, pinned under the nav so every tab shows them. Right-click
+            <DockPanel LastChildFill="True">
+                <!-- Always-visible stats, docked at the bottom so every tab shows them. Right-click
                      shows or hides stat groups for every game. Transparent background so the
                      gaps between chips take the right-click too. -->
                 <Border x:Name="SidebarStatsHost"
-                        Grid.Row="5"
+                        DockPanel.Dock="Bottom"
                         Background="Transparent"
                         MouseRightButtonUp="SidebarStatsHost_MouseRightButtonUp"
                         BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
@@ -345,7 +294,56 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
-            </Grid>
+
+                <!-- The tabs never scroll: the cover takes what height is left, up to 190, and
+                     shrinks first when the window is short or the stats run long. -->
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="*" MaxHeight="190" />
+                        <RowDefinition Height="16" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <controls:WidthFollowingDecorator Grid.Row="2">
+                        <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                                ClipToBounds="False"
+                                Background="Transparent">
+                            <Image Stretch="Uniform"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   helpers:AsyncImage.Uri="{Binding GameImagePath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
+                                   helpers:AsyncImage.DecodePixel="480" />
+                        </Border>
+                    </controls:WidthFollowingDecorator>
+
+                    <StackPanel Grid.Row="4">
+                        <RadioButton x:Name="OverviewTabButton"
+                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Overview}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overview}" />
+                        <!-- Not gated on HasAchievementData: it is the Custom tab widened to every
+                             achievement, so it must stay reachable for a game with no cached
+                             achievements, where custom ones are authored. -->
+                        <RadioButton x:Name="EditorTabButton"
+                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Editor}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Editor}" />
+
+                        <RadioButton x:Name="CategoryTabButton"
+                                     Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Category}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}"
+                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
+
+                        <RadioButton x:Name="NotificationsTabButton"
+                                     Content="{DynamicResource LOCPlayAch_Settings_TabNotifications}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Notifications}" />
+                    </StackPanel>
+                </Grid>
+            </DockPanel>
         </Border>
 
         <Border x:Name="ManageAchievementsContentHost"
