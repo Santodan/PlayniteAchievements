@@ -64,6 +64,23 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void BuildBreakdown_CountsFilteredAndNoted()
+        {
+            var filtered = Achievement("a", unlocked: false, points: null, category: null);
+            filtered.IsFiltered = true;
+            var summaryFiltered = Achievement("b", unlocked: false, points: null, category: null);
+            summaryFiltered.IsFilteredFromSummaries = true;
+            summaryFiltered.AchievementNote = "check the map";
+            var blankNote = Achievement("c", unlocked: false, points: null, category: null);
+            blankNote.AchievementNote = "   ";
+
+            var breakdown = ManageOverviewSummaryBuilder.BuildBreakdown(new[] { filtered, summaryFiltered, blankNote });
+
+            Assert.AreEqual(2, breakdown.FilteredCount);
+            Assert.AreEqual(1, breakdown.NoteCount);
+        }
+
+        [TestMethod]
         public void BuildCapstones_PairsNamesWithNonDefaultCategories()
         {
             var game = Achievement("a", unlocked: true, points: null, category: null);
