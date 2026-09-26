@@ -311,30 +311,93 @@ namespace PlayniteAchievements.Tests.Models
             ShowcaseWidgetOptions.SetMosaicSource(mosaic, ShowcaseMosaicSource.UnlockNext);
             ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.All);
 
-            // One per game by default, and the game's own order decides which one.
-            ShowcaseWidgetOptions.SetUnlockNextCriterion(mosaic, UnlockNextCriterion.NextInLine);
-            CollectionAssert.AreEqual(
-                new[] { "near-first", "barely-first" },
-                ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
-
-            // Easiest leads with the highest global percentage, not the lowest order index.
-            ShowcaseWidgetOptions.SetUnlockNextCriterion(mosaic, UnlockNextCriterion.Easiest);
+            // One per game by default. Closest to completion (the default) leads with the nearly
+            // finished game, and within each game with its most commonly earned leftover.
             CollectionAssert.AreEqual(
                 new[] { "near-easy", "barely-easy" },
                 ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
 
-            // Closest to completion puts the nearly finished game's whole slice first.
-            ShowcaseWidgetOptions.SetUnlockNextCriterion(mosaic, UnlockNextCriterion.ClosestToCompletion);
+            // The nearly finished game fills its cap before the next game starts.
             ShowcaseWidgetOptions.SetMaxPerGame(mosaic, 2);
             CollectionAssert.AreEqual(
-                new[] { "near-first", "barely-first", "near-easy", "barely-easy" },
+                new[] { "near-easy", "near-first", "barely-easy", "barely-first" },
                 ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
 
-            // The count caps the result after the round-robin.
+            // Easiest is one list by global percentage across games.
+            ShowcaseWidgetOptions.SetUnlockNextCriterion(mosaic, UnlockNextCriterion.Easiest);
+            CollectionAssert.AreEqual(
+                new[] { "near-easy", "barely-easy", "barely-first", "near-first" },
+                ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
+
+            // The count caps the ranked list.
             ShowcaseWidgetOptions.SetMosaicCount(mosaic, 3);
+            CollectionAssert.AreEqual(
+                new[] { "near-easy", "barely-easy", "barely-first" },
+                ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
+        }
+
+        [TestMethod]
+        public void UnlockNext_MaxPerGameIsACapNotAQuota()
+        {
+            var easyGame = Guid.NewGuid();
+            var hardGame = Guid.NewGuid();
+            var snapshot = new OverviewDataSnapshot
+            {
+                GameSummaries = new List<GameSummaryItem>
+                {
+                    new GameSummaryItem
+                    {
+                        PlayniteGameId = easyGame,
+                        TotalAchievements = 10,
+                        UnlockedAchievements = 5,
+                        LastPlayed = DateTime.Now.AddDays(-1)
+                    },
+                    new GameSummaryItem
+                    {
+                        PlayniteGameId = hardGame,
+                        TotalAchievements = 10,
+                        UnlockedAchievements = 8,
+                        LastPlayed = DateTime.Now.AddDays(-1)
+                    }
+                },
+                UnlockNextPoolBuilt = true,
+                UnlockNextCandidates = new List<AchievementDisplayItem>
+                {
+                    LockedCandidate(easyGame, "easy-90", order: 0, percent: 90),
+                    LockedCandidate(easyGame, "easy-80", order: 1, percent: 80),
+                    LockedCandidate(easyGame, "easy-70", order: 2, percent: 70),
+                    LockedCandidate(hardGame, "hard-30", order: 0, percent: 30),
+                    LockedCandidate(hardGame, "hard-5", order: 1, percent: 5)
+                }
+            };
+            var settings = new ShowcaseSettings();
+            var mosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            ShowcaseWidgetOptions.SetMosaicSource(mosaic, ShowcaseMosaicSource.UnlockNext);
+            ShowcaseWidgetOptions.SetLastPlayedWindow(mosaic, TimelineRange.All);
+            ShowcaseWidgetOptions.SetUnlockNextCriterion(mosaic, UnlockNextCriterion.Easiest);
+            ShowcaseWidgetOptions.SetMosaicCount(mosaic, 3);
+
+            ShowcaseWidgetOptions.SetMaxPerGame(mosaic, 2);
+            CollectionAssert.AreEqual(
+                new[] { "easy-90", "easy-80", "hard-30" },
+                ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
+
+            // With room for three per game, the hard game earns no slot at all.
+            ShowcaseWidgetOptions.SetMaxPerGame(mosaic, 3);
+            CollectionAssert.AreEqual(
+                new[] { "easy-90", "easy-80", "easy-70" },
+                ApiNames(ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic)));
+        }
+
+        [TestMethod]
+        public void UnlockNext_StoredNextInLineFallsBackToClosestToCompletion()
+        {
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
+            instance.Options["UnlockNextCriterion"] = "NextInLine";
+
             Assert.AreEqual(
-                3,
-                ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic).Count);
+                UnlockNextCriterion.ClosestToCompletion,
+                ShowcaseWidgetOptions.GetUnlockNextCriterion(instance));
         }
 
         [TestMethod]
