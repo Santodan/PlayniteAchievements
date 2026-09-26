@@ -32,6 +32,8 @@ namespace PlayniteAchievements.Providers.Steam
         private readonly object _cacheLock = new object();
         private readonly Dictionary<int, Task<SteamHuntersAchievementGroupsResponse>> _groupsByAppId =
             new Dictionary<int, Task<SteamHuntersAchievementGroupsResponse>>();
+        private readonly Dictionary<int, Task<List<SteamHuntersAchievement>>> _achievementsByAppId =
+            new Dictionary<int, Task<List<SteamHuntersAchievement>>>();
         private int _consecutiveFailures;
 
         public SteamHuntersCategoryEnricher(
@@ -49,6 +51,7 @@ namespace PlayniteAchievements.Providers.Steam
             lock (_cacheLock)
             {
                 _groupsByAppId.Clear();
+                _achievementsByAppId.Clear();
             }
 
             Interlocked.Exchange(ref _consecutiveFailures, 0);
@@ -87,6 +90,11 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             ApplyGroups(achievements, response.Groups, response.GroupBy, gameName);
+
+            // After ApplyGroups, which resets every achievement's type, so the Unobtainable tag
+            // is re-derived on each refresh rather than accumulating.
+            var obtainability = await GetAchievementsAsync(appId, cancel).ConfigureAwait(false);
+            ApplyObtainability(achievements, obtainability);
 
             if (playniteGameId.HasValue && playniteGameId.Value != Guid.Empty)
             {
@@ -304,6 +312,51 @@ namespace PlayniteAchievements.Providers.Steam
             return updated;
         }
 
+        // Adds Unobtainable to achievements SteamHunters' moderators mark Unobtainable. Broken-but-
+        // obtainable and conditionally obtainable achievements can still be earned, so they get
+        // no type.
+        internal static int ApplyObtainability(
+            IList<AchievementDetail> achievements,
+            IList<SteamHuntersAchievement> steamHuntersAchievements)
+        {
+            if (achievements == null || achievements.Count == 0 ||
+                steamHuntersAchievements == null || steamHuntersAchievements.Count == 0)
+            {
+                return 0;
+            }
+
+            var unobtainableApiNames = new HashSet<string>(
+                steamHuntersAchievements
+                    .Where(item => item?.Obtainability == SteamHuntersObtainability.Unobtainable)
+                    .Select(item => NormalizeApiName(item.ApiName))
+                    .Where(apiName => apiName != null),
+                StringComparer.OrdinalIgnoreCase);
+            if (unobtainableApiNames.Count == 0)
+            {
+                return 0;
+            }
+
+            var updated = 0;
+            foreach (var achievement in achievements)
+            {
+                var apiName = NormalizeApiName(achievement?.ApiName);
+                if (apiName == null || !unobtainableApiNames.Contains(apiName))
+                {
+                    continue;
+                }
+
+                var combined = AchievementCategoryTypeHelper.Combine(
+                    new[] { achievement.CategoryType, AchievementCategoryTypeHelper.UnobtainableCategoryType });
+                if (!string.Equals(achievement.CategoryType, combined, StringComparison.Ordinal))
+                {
+                    achievement.CategoryType = combined;
+                    updated++;
+                }
+            }
+
+            return updated;
+        }
+
         // The includeMultiplayerGroup group only ever holds base-game achievements, so it has no
         // DlcAppId; the "game" grouping mode never produces it.
         internal static bool IsMultiplayerGroup(string groupBy, SteamHuntersAchievementGroup group)
@@ -379,6 +432,49 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 _logger?.Warn(ex, $"[SteamHunters] Group fetch failed for appId={appId}; category enrichment skipped.");
                 RecordFailure();
+                return null;
+            }
+        }
+
+        // Cached per app like the groups. Obtainability is optional enrichment on top of the
+        // groups, so a failure here is logged by the client and never counts toward the fetch
+        // backoff; the backoff does skip it once groups have stopped loading.
+        private Task<List<SteamHuntersAchievement>> GetAchievementsAsync(
+            int appId,
+            CancellationToken cancel)
+        {
+            lock (_cacheLock)
+            {
+                if (!_achievementsByAppId.TryGetValue(appId, out var task))
+                {
+                    task = FetchAchievementsAsync(appId, cancel);
+                    _achievementsByAppId[appId] = task;
+                }
+
+                return task;
+            }
+        }
+
+        private async Task<List<SteamHuntersAchievement>> FetchAchievementsAsync(
+            int appId,
+            CancellationToken cancel)
+        {
+            if (Volatile.Read(ref _consecutiveFailures) >= MaxConsecutiveFailures)
+            {
+                return null;
+            }
+
+            try
+            {
+                return await _apiClient.GetAchievementsAsync(appId, cancel).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[SteamHunters] Obtainability fetch failed for appId={appId}.");
                 return null;
             }
         }
