@@ -632,22 +632,55 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool HasAchievementData
         {
             get => _hasAchievementData;
-            private set => SetValue(ref _hasAchievementData, value);
+            private set
+            {
+                if (SetValueAndReturn(ref _hasAchievementData, value))
+                {
+                    OnPropertyChanged(nameof(SidebarAnyStatsVisible));
+                }
+            }
         }
 
-        // Sidebar stat groups: hidden globally through the sidebar's right-click menu.
+        // Sidebar stat groups: each is on screen when the game has data for it and it is not hidden
+        // through the sidebar's right-click menu, which hides it for every game.
 
-        public bool ShowSidebarCapstones => IsSidebarStatGroupShown(ManageSidebarStatGroups.Capstones);
+        public bool SidebarCapstonesVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Capstones) && OverviewSummary.Capstones.IsVisible;
 
-        public bool ShowSidebarRarity => IsSidebarStatGroupShown(ManageSidebarStatGroups.Rarity);
+        public bool SidebarRarityVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Rarity) && OverviewSummary.HasRarity;
 
-        public bool ShowSidebarTrophies => IsSidebarStatGroupShown(ManageSidebarStatGroups.Trophies);
+        public bool SidebarTrophiesVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Trophies) && OverviewSummary.HasTrophies;
 
-        public bool ShowSidebarPoints => IsSidebarStatGroupShown(ManageSidebarStatGroups.Points);
+        public bool SidebarPointsVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Points) && OverviewSummary.Points.IsVisible;
 
-        public bool ShowSidebarGoals => IsSidebarStatGroupShown(ManageSidebarStatGroups.Goals);
+        public bool SidebarGoalsVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Goals) && OverviewSummary.Goals.IsVisible;
 
-        public bool ShowSidebarCategorized => IsSidebarStatGroupShown(ManageSidebarStatGroups.Categorized);
+        public bool SidebarCategorizedVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Categorized) && OverviewSummary.Categorized.IsVisible;
+
+        public bool SidebarOtherStatsVisible =>
+            SidebarPointsVisible || SidebarGoalsVisible || SidebarCategorizedVisible;
+
+        /// <summary>Whether anything shows under the completion bar, which gates its separator.</summary>
+        public bool SidebarAnyStatsVisible =>
+            HasAchievementData &&
+            (SidebarCapstonesVisible || SidebarRarityVisible || SidebarTrophiesVisible || SidebarOtherStatsVisible);
+
+        private void RaiseSidebarStatVisibility()
+        {
+            OnPropertyChanged(nameof(SidebarCapstonesVisible));
+            OnPropertyChanged(nameof(SidebarRarityVisible));
+            OnPropertyChanged(nameof(SidebarTrophiesVisible));
+            OnPropertyChanged(nameof(SidebarPointsVisible));
+            OnPropertyChanged(nameof(SidebarGoalsVisible));
+            OnPropertyChanged(nameof(SidebarCategorizedVisible));
+            OnPropertyChanged(nameof(SidebarOtherStatsVisible));
+            OnPropertyChanged(nameof(SidebarAnyStatsVisible));
+        }
 
         public bool IsSidebarStatGroupShown(ManageSidebarStatGroups group)
         {
@@ -667,13 +700,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 ? persisted.HiddenManageSidebarStatGroups & ~group
                 : persisted.HiddenManageSidebarStatGroups | group;
             _persistSettingsForUi?.Invoke();
-
-            OnPropertyChanged(nameof(ShowSidebarCapstones));
-            OnPropertyChanged(nameof(ShowSidebarRarity));
-            OnPropertyChanged(nameof(ShowSidebarTrophies));
-            OnPropertyChanged(nameof(ShowSidebarPoints));
-            OnPropertyChanged(nameof(ShowSidebarGoals));
-            OnPropertyChanged(nameof(ShowSidebarCategorized));
+            RaiseSidebarStatVisibility();
         }
 
         public bool IsRefreshing
@@ -725,7 +752,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public ManageOverviewSummary OverviewSummary
         {
             get => _overviewSummary;
-            private set => SetValue(ref _overviewSummary, value ?? ManageOverviewSummary.Empty);
+            private set
+            {
+                if (SetValueAndReturn(ref _overviewSummary, value ?? ManageOverviewSummary.Empty))
+                {
+                    RaiseSidebarStatVisibility();
+                }
+            }
         }
 
         // Both of these are cache hits once the snapshot is warm and a full load when it is not,
