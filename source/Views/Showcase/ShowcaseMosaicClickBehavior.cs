@@ -67,13 +67,13 @@ namespace PlayniteAchievements.Views.Showcase
 
             if (TryResolveAchievement(source, out var item, out _))
             {
-                // Reveal keeps priority only for a hidden achievement's cover: that tile is left
-                // for the item control's own preview handler, which reveals it. Every other tile
-                // opens on the first click, including a merely locked one behind the locked-icon
-                // cover or one revealable only for its title or description, which the tile does
-                // not draw. Handling it here also keeps the item control from spending the click
-                // on that reveal.
-                if (item.IsIconHidden || item.PlayniteGameId == null)
+                // Reveal keeps priority only while the tile shows a cover (the hidden or the
+                // locked-icon one): that tile is left for the item control's own preview handler,
+                // which reveals it. A tile whose icon shows can still be revealable for its title
+                // or description, which the tile does not draw, so it opens on the first click.
+                // Handling it here also keeps the item control from spending the click on that
+                // invisible reveal.
+                if (item.IsIconHidden || item.IsLockedIconHidden || item.PlayniteGameId == null)
                 {
                     return;
                 }
