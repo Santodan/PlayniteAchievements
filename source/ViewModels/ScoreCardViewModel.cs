@@ -113,6 +113,11 @@ namespace PlayniteAchievements.ViewModels
             ? FormatPair(TierText, MasteryText)
             : TierText;
 
+        /// <summary>Tooltip title for compact cards, which can collapse to the badge alone.</summary>
+        public string CompactTooltipTitleText => HasMastery
+            ? FormatPair(CompactTierText, MasteryText)
+            : CompactTierText;
+
         /// <summary>The card's single caption line: where you are, and what the bar is filling toward.</summary>
         public string CaptionText => FormatPair(LevelText, PointsUntilNextLevelText);
 
@@ -310,6 +315,7 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(HasMastery));
             OnPropertyChanged(nameof(MasteryText));
             OnPropertyChanged(nameof(TooltipTitleText));
+            OnPropertyChanged(nameof(CompactTooltipTitleText));
             OnPropertyChanged(nameof(CaptionText));
             OnPropertyChanged(nameof(PointsUntilNextLevelText));
             OnPropertyChanged(nameof(TooltipLevelLabel));
