@@ -1432,6 +1432,8 @@
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileMedalMode_Rarity">Rarity tiers</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileMedalMode_Trophy">Trophy grades</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileFullBleed">Full-size background</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ProfileLayout">Layout</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ProfileLayout_Stacked">Stacked</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileLinks">Profile links</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_PieMode_CompletedGames">Completions</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_PieMode_Provider">Provider distribution</sys:String>
