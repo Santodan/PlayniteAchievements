@@ -746,6 +746,12 @@ namespace PlayniteAchievements.Views.Helpers
             if (gameId != Guid.Empty)
             {
                 PlayniteAchievementsPlugin.Instance?.CacheManager?.NotifyCacheInvalidated(new[] { gameId });
+
+                // These writes do not affect summary data, so the store's own notification skips
+                // the theme's library-wide lists, which carry this game's labels and notes as
+                // well. The same call the Manage window makes after its edits; it logs its own
+                // failures.
+                PlayniteAchievementsPlugin.Instance?.ThemeIntegrationService?.NotifyCustomDataChanged(gameId);
             }
         }
         private static AchievementOverridesService CurrentOverridesService =>
