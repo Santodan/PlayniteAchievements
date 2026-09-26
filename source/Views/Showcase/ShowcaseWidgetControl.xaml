@@ -17,7 +17,10 @@
             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
             CornerRadius="{StaticResource PlayAch.Radius.Section}"
             ClipToBounds="True">
-        <Grid>
+        <!-- Clipped to the card's rounded inner outline in code (OnRootContentSizeChanged):
+             ClipToBounds only clips to the rectangle, so full-bleed content drew over the
+             rounded corners and the border. -->
+        <Grid x:Name="RootContent" SizeChanged="OnRootContentSizeChanged">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
