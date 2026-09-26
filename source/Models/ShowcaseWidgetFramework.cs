@@ -629,7 +629,7 @@ namespace PlayniteAchievements.Models
             settings?.SetOption(SortDescending, value);
 
         public static UnlockNextCriterion GetUnlockNextCriterion(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, UnlockNextCriterionOption, UnlockNextCriterion.NextInLine);
+            GetEnum(settings, UnlockNextCriterionOption, UnlockNextCriterion.ClosestToCompletion);
 
         public static void SetUnlockNextCriterion(
             ShowcaseWidgetInstanceSettings settings,
