@@ -88,7 +88,7 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.AreEqual("https://i.retroachievements.org/Badge/12345_lock.png", soft.LockedIconPath);
 
             var hard = achievements.Single(item => item.ApiName == "102");
-            Assert.AreEqual("Base|Progression|Hardcore", hard.CategoryType);
+            Assert.AreEqual("Base|WinCondition|Hardcore", hard.CategoryType);
             Assert.AreEqual(new DateTime(2025, 6, 12, 2, 0, 0, DateTimeKind.Utc), hard.UnlockTimeUtc);
             // A win condition means the game was beaten, not finished; mastering a set is plain
             // 100% and needs no capstone, so RetroAchievements supplies none.
@@ -183,7 +183,7 @@ namespace PlayniteAchievements.Tests.Providers
                 setCategoryType: "Base");
 
             Assert.AreEqual("Base|Progression", baseSet.Single(item => item.ApiName == "301").CategoryType);
-            Assert.AreEqual("Base|Progression|Hardcore", baseSet.Single(item => item.ApiName == "302").CategoryType);
+            Assert.AreEqual("Base|WinCondition|Hardcore", baseSet.Single(item => item.ApiName == "302").CategoryType);
             Assert.AreEqual("Base|Missable", baseSet.Single(item => item.ApiName == "303").CategoryType);
             Assert.AreEqual("Base|Missable|Softcore", baseSet.Single(item => item.ApiName == "304").CategoryType);
             Assert.AreEqual("Base", baseSet.Single(item => item.ApiName == "305").CategoryType);
@@ -196,12 +196,12 @@ namespace PlayniteAchievements.Tests.Providers
                 setCategoryType: "Subset");
 
             Assert.AreEqual("Subset|Missable", subset.Single(item => item.ApiName == "303").CategoryType);
-            Assert.AreEqual("Subset|Progression|Hardcore", subset.Single(item => item.ApiName == "302").CategoryType);
+            Assert.AreEqual("Subset|WinCondition|Hardcore", subset.Single(item => item.ApiName == "302").CategoryType);
 
             // Without a set type the achievement type still combines with the unlock mode, and an
             // untyped locked achievement stays untyped.
             var noSet = RetroAchievementsAchievementMapper.ParseAchievements(gameInfo, rarityStats: "casual");
-            Assert.AreEqual("Progression|Hardcore", noSet.Single(item => item.ApiName == "302").CategoryType);
+            Assert.AreEqual("WinCondition|Hardcore", noSet.Single(item => item.ApiName == "302").CategoryType);
             Assert.IsNull(noSet.Single(item => item.ApiName == "305").CategoryType);
         }
 
