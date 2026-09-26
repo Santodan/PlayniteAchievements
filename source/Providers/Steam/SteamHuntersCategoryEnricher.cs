@@ -15,6 +15,11 @@ namespace PlayniteAchievements.Providers.Steam
         internal const string BaseCategoryType = "Base";
         internal const string DlcCategoryType = "DLC";
         internal const string UpdateCategoryType = "Update";
+        internal const string MultiplayerCategoryType = "Multiplayer";
+
+        // The group name the includeMultiplayerGroup request flag gives base-game achievements
+        // tagged Multiplayer.
+        private const string MultiplayerGroupName = "Multiplayer";
 
         // Enrichment is best-effort: after consecutive failed fetches, stop calling out for the
         // rest of the session (until ClearCache) so an unreachable steamhunters.com cannot stall
@@ -121,6 +126,12 @@ namespace PlayniteAchievements.Providers.Steam
 
             foreach (var group in groups)
             {
+                // Multiplayer achievements share the base category, which the base entry covers.
+                if (IsMultiplayerGroup(groupBy, group))
+                {
+                    continue;
+                }
+
                 // DLC art comes from the DLC's own appId whenever a group carries one -- launch or
                 // update alike -- while the "game" grouping mode always uses the base banner. Keyed
                 // on the DlcAppId signal directly so DLC-update groups ("DLC|Update") still map to
@@ -257,11 +268,18 @@ namespace PlayniteAchievements.Providers.Steam
             for (var i = 0; i < (groups?.Count ?? 0); i++)
             {
                 var group = groups[i];
-                var type = ResolveCategoryType(groupBy, group);
-                var label = NormalizeGroupLabel(group, gameName)
-                    ?? (string.Equals(type, BaseCategoryType, StringComparison.Ordinal)
-                        ? baseFallbackLabel
-                        : null);
+                var isMultiplayer = IsMultiplayerGroup(groupBy, group);
+                var type = isMultiplayer
+                    ? AchievementCategoryTypeHelper.Combine(new[] { BaseCategoryType, MultiplayerCategoryType })
+                    : ResolveCategoryType(groupBy, group);
+                // Multiplayer achievements are still base-game achievements, so they keep the
+                // base category label rather than becoming a "Multiplayer" category.
+                var label = isMultiplayer
+                    ? baseFallbackLabel
+                    : NormalizeGroupLabel(group, gameName)
+                        ?? (string.Equals(type, BaseCategoryType, StringComparison.Ordinal)
+                            ? baseFallbackLabel
+                            : null);
 
                 foreach (var apiName in group?.AchievementApiNames ?? Enumerable.Empty<string>())
                 {
@@ -284,6 +302,16 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             return updated;
+        }
+
+        // The includeMultiplayerGroup group only ever holds base-game achievements, so it has no
+        // DlcAppId; the "game" grouping mode never produces it.
+        internal static bool IsMultiplayerGroup(string groupBy, SteamHuntersAchievementGroup group)
+        {
+            return group != null &&
+                   !group.DlcAppId.HasValue &&
+                   !string.Equals(groupBy, "game", StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(group.Name?.Trim(), MultiplayerGroupName, StringComparison.OrdinalIgnoreCase);
         }
 
         private static string ResolveCategoryType(string groupBy, SteamHuntersAchievementGroup group)
