@@ -270,13 +270,19 @@ namespace PlayniteAchievements.Views.Showcase
             };
             _mediaFrame = mediaFrame;
             mediaFrame.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.Border");
+            // One click opens fullscreen, as the hand cursor promises (it used to take a double
+            // click). A click on the transport buttons is theirs, not the frame's.
             mediaFrame.MouseLeftButtonUp += (_, args) =>
             {
-                if (args.ClickCount > 1)
+                if (args.Handled ||
+                    Views.Helpers.VisualTreeHelpers.FindVisualParent<System.Windows.Controls.Primitives.ButtonBase>(
+                        args.OriginalSource as DependencyObject) != null)
                 {
-                    OpenFullscreen();
-                    args.Handled = true;
+                    return;
                 }
+
+                OpenFullscreen();
+                args.Handled = true;
             };
             // The pause/fullscreen transport only shows while the pointer is over the image, so
             // the idle slideshow stays chrome-free.
