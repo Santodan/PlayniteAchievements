@@ -143,7 +143,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public bool ShowStatStrip { get => _showStatStrip; private set => SetValue(ref _showStatStrip, value); }
 
-        /// <summary>Strip columns: one per stat up to four, wrapping to extra rows past that.</summary>
+        /// <summary>Strip columns: one per stat up to four, balanced across rows past that.</summary>
         public int StatColumns { get => _statColumns; private set => SetValue(ref _statColumns, value); }
 
         /// <summary>Stacked layout: avatar above the text, every line centered.</summary>
@@ -155,12 +155,26 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 if (SetValueAndReturn(ref _isStacked, value))
                 {
                     OnPropertyChanged(nameof(TextAlignment));
+                    OnPropertyChanged(nameof(CenterStats));
                 }
             }
         }
 
         /// <summary>Centered layout: the left layout's blocks, unchanged, centered across the card.</summary>
-        public bool IsCenteredRow { get => _isCenteredRow; private set => SetValue(ref _isCenteredRow, value); }
+        public bool IsCenteredRow
+        {
+            get => _isCenteredRow;
+            private set
+            {
+                if (SetValueAndReturn(ref _isCenteredRow, value))
+                {
+                    OnPropertyChanged(nameof(CenterStats));
+                }
+            }
+        }
+
+        /// <summary>Both centered layouts center a short last row of stats under the full rows.</summary>
+        public bool CenterStats => IsStacked || IsCenteredRow;
 
         public TextAlignment TextAlignment => IsStacked ? TextAlignment.Center : TextAlignment.Left;
 
@@ -219,7 +233,10 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
             Stats.ReplaceAll(BuildStatStrip());
             ShowStatStrip = Stats.Count > 0;
-            StatColumns = Math.Max(1, Math.Min(4, Stats.Count));
+            // At most four per row, spread evenly across the rows: five stats read as 3 + 2
+            // rather than 4 + 1.
+            var statRows = Math.Max(1, (int)Math.Ceiling(Stats.Count / 4.0));
+            StatColumns = Math.Max(1, (int)Math.Ceiling(Stats.Count / (double)statRows));
         }
 
         // Rebuilt only when the resolved links change, so an unrelated re-projection does not
