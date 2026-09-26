@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
     /// here that becomes a real single-track MODE1/2048 cue sheet.
     /// </summary>
     [TestClass]
-    public class RcheevosGoldenHashTests
+    public partial class RcheevosGoldenHashTests
     {
         private const int Console3do = 43;
         private const int ConsoleAmstradPc = 37;

@@ -271,6 +271,7 @@
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\DiscUtilsFacade.cs" Link="Source\Providers\RetroAchievements\Hashing\DiscUtilsFacade.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\HashUtils.cs" Link="Source\Providers\RetroAchievements\Hashing\HashUtils.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\IRaHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\IRaHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\RaHashSource.cs" Link="Source\Providers\RetroAchievements\Hashing\RaHashSource.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\PceCdCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\PceCdCustomHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\PsxCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\PsxCustomHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\SegaCdSaturnCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\SegaCdSaturnCustomHasher.cs" />

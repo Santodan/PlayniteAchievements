@@ -231,7 +231,7 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
             return data;
         }
 
-        private sealed class JunkRegion
+        internal sealed class JunkRegion
         {
             public long Start;
             public int Length;
@@ -240,7 +240,7 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
 
         // GameCube-shaped image: disc magic, then mixed content with junk regions that start and
         // end inside 0x8000 blocks, as Dolphin's junk detection produces, plus an all-zero stretch.
-        private static byte[] BuildGameCubeLikeImage(int size, List<JunkRegion> junk, int seed)
+        internal static byte[] BuildGameCubeLikeImage(int size, List<JunkRegion> junk, int seed)
         {
             var data = BuildMixedImage(size, seed);
             data[0x1C] = 0xC2; data[0x1D] = 0x33; data[0x1E] = 0x9F; data[0x1F] = 0x3D;
@@ -269,7 +269,7 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
             return data;
         }
 
-        private static byte[] EncodeCso(byte[] iso, int blockSize, byte version)
+        internal static byte[] EncodeCso(byte[] iso, int blockSize, byte version)
         {
             var blocks = (iso.Length + blockSize - 1) / blockSize;
             var index = new uint[blocks + 1];
@@ -331,7 +331,7 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
             return output.ToArray();
         }
 
-        private enum RvzTestCompression : uint
+        internal enum RvzTestCompression : uint
         {
             None = 0,
             Zstd = 5
@@ -340,7 +340,7 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         // Follows WIARVZFileReader<true>::Convert for a GameCube disc: one raw data entry starting
         // at 0x80, groups of chunk_size from the rounded-down offset 0, RVZ pack records for junk,
         // zero groups stored with data_size 0, and zstd-compressed tables when compressing.
-        private static byte[] EncodeRvz(byte[] iso, List<JunkRegion> junk, RvzTestCompression compression, int chunkSize)
+        internal static byte[] EncodeRvz(byte[] iso, List<JunkRegion> junk, RvzTestCompression compression, int chunkSize)
         {
             const int header1Size = 0x48;
             const int header2Size = 0xDC;
