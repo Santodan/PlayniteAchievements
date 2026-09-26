@@ -54,6 +54,38 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
             AssertSourceHash(ConsoleGameCube, RaHashSource.FromSeekableStream(rvz, RvzUtils.OpenStream(rvz)), expected[0]);
         }
 
+        // A zipped cue sheet is extracted with the track it references (by relative name, from a
+        // subfolder) while audio tracks are skipped; the hash is the cue's golden hash.
+        [TestMethod]
+        public void Psx_Cd_StandardIso_FromZippedCue()
+        {
+            var zip = Path.Combine(_dir, "disc.zip");
+            using (var archive = System.IO.Compression.ZipFile.Open(zip, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                void Add(string name, byte[] data)
+                {
+                    using (var s = archive.CreateEntry(name).Open()) s.Write(data, 0, data.Length);
+                }
+
+                Add("Disc/game.cue", Encoding.ASCII.GetBytes("FILE \"game.bin\" BINARY\r\n  TRACK 01 MODE1/2048\r\n    INDEX 01 00:00:00\r\n"));
+                Add("Disc/game.bin", RepackAsStandardIso(GeneratePsxBin("SLUS_007.45", 0x07D800)));
+                Add("Disc/track02.wav", new byte[4096]);
+            }
+
+            var hasher = RaHasherFactory.Create(ConsolePlayStation, new PlayniteAchievementsSettings(), logger: null);
+            var hashes = new List<string>();
+            foreach (var input in ArchiveUtils.EnumerateHashInputs(zip, hasher.SupportsForwardOnlyInput))
+            {
+                using (input)
+                {
+                    StringAssert.EndsWith(input.EntryKey, "game.cue");
+                    hashes.AddRange(hasher.ComputeHashesAsync(input.Source, CancellationToken.None).GetAwaiter().GetResult());
+                }
+            }
+
+            CollectionAssert.Contains(hashes, "db433fb038cde4fb15c144e8c7dea6e3");
+        }
+
         // Forward-only input (an archive entry stream) must hash exactly like the file itself.
         [DataTestMethod]
         [DataRow(1, "md", "full")]
