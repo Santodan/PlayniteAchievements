@@ -42,7 +42,7 @@ namespace PlayniteAchievements.ViewModels.Items
         /// <summary>Unlocked goals over all goals.</summary>
         public ManageOverviewStat Goals { get; set; } = ManageOverviewStat.None;
 
-        // Group visibility for the sidebar, so a group with nothing to show leaves no gap.
+        // Whether any stat in a multi-chip sidebar group has something to show.
 
         public bool HasRarity =>
             RarityCommon.IsVisible || RarityUncommon.IsVisible || RarityRare.IsVisible || RarityUltraRare.IsVisible;
@@ -50,7 +50,11 @@ namespace PlayniteAchievements.ViewModels.Items
         public bool HasTrophies =>
             TrophyBronze.IsVisible || TrophySilver.IsVisible || TrophyGold.IsVisible || TrophyPlatinum.IsVisible;
 
-        public bool HasOtherStats => Points.IsVisible || Goals.IsVisible || Categorized.IsVisible;
+        /// <summary>Filtered achievements over all achievements.</summary>
+        public ManageOverviewStat Filtered { get; set; } = ManageOverviewStat.None;
+
+        /// <summary>Achievements with a note over all achievements.</summary>
+        public ManageOverviewStat Notes { get; set; } = ManageOverviewStat.None;
 
         public IReadOnlyList<ManageOverviewCustomizationChip> Customizations { get; set; } =
             Array.Empty<ManageOverviewCustomizationChip>();
