@@ -29,6 +29,12 @@
                         <Setter Property="Padding" Value="15,13"/>
                         <Setter Property="MinHeight" Value="96"/>
                     </DataTrigger>
+                    <!-- The showcase block's surface, so the Overview header matches the showcase
+                         Scores widget instead of tinting by tier. -->
+                    <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.GridSurface}"/>
+                        <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Section}"/>
+                    </DataTrigger>
                     <DataTrigger Binding="{Binding Flat, ElementName=Root}" Value="True">
                         <Setter Property="Background" Value="Transparent"/>
                         <Setter Property="BorderThickness" Value="0"/>
@@ -47,6 +53,9 @@
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
                         <Setter Property="Margin" Value="0,0,14,0"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding BadgeOnly, ElementName=Root}" Value="True">
+                        <Setter Property="Margin" Value="0"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -232,14 +241,36 @@
                 <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
             </Style>
 
-            <!-- Only compact cards drop the caption, so only their tooltip needs the next level.
-                 The tooltip sits outside the control's namescope; Compact reaches it through Tag. -->
+            <!-- The tooltip sits outside the control's namescope, so the control reaches it as the
+                 ToolTip's Tag. Only compact cards drop the caption, so only their tooltip needs
+                 the next level; badge-only cards also drop the tier and points, so the title
+                 names the score and carries the points. -->
+            <Style x:Key="ScoreCardTooltipTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource ScoreCardTooltipTitleTextStyle}">
+                <Setter Property="Text" Value="{Binding TooltipTitleText}"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Tag.Compact, RelativeSource={RelativeSource AncestorType=ToolTip}}" Value="True">
+                        <Setter Property="Text" Value="{Binding CompactTooltipTitleText}"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardTooltipPointsStyle" TargetType="TextBlock" BasedOn="{StaticResource ScoreCardTooltipValueTextStyle}">
+                <Setter Property="Margin" Value="12,0,0,6"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Tag.BadgeOnly, RelativeSource={RelativeSource AncestorType=ToolTip}}" Value="True">
+                        <Setter Property="Visibility" Value="Visible"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
             <Style x:Key="ScoreCardTooltipNextLevelStyle" TargetType="StackPanel">
                 <Setter Property="Visibility" Value="Collapsed"/>
                 <Style.Triggers>
                     <MultiDataTrigger>
                         <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ToolTip}}" Value="True"/>
+                            <Condition Binding="{Binding Tag.Compact, RelativeSource={RelativeSource AncestorType=ToolTip}}" Value="True"/>
                             <Condition Binding="{Binding HasNextLevel}" Value="True"/>
                         </MultiDataTrigger.Conditions>
                         <Setter Property="Visibility" Value="Visible"/>
@@ -258,7 +289,7 @@
 
     <Grid DataContext="{Binding ScoreCard, ElementName=Root}">
         <Border Style="{StaticResource ScoreCardPanelStyle}"
-                Tag="{Binding Compact, ElementName=Root}">
+                Tag="{Binding ElementName=Root}">
             <Border.ToolTip>
                 <ToolTip DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
                          Tag="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
@@ -276,9 +307,17 @@
                     <Border Style="{StaticResource ScoreCardTooltipBorderStyle}"
                             BorderBrush="{Binding AccentBrush}">
                         <StackPanel>
-                            <TextBlock Text="{Binding TooltipTitleText}"
-                                       Style="{StaticResource ScoreCardTooltipTitleTextStyle}"
-                                       Foreground="{Binding AccentBrush}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource ScoreCardTooltipTitleStyle}"
+                                           Foreground="{Binding AccentBrush}"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding PointsText}"
+                                           Style="{StaticResource ScoreCardTooltipPointsStyle}"/>
+                            </Grid>
 
                             <Border Style="{StaticResource ScoreCardTooltipSeparatorStyle}"/>
                             <Grid Style="{StaticResource ScoreCardTooltipRowStyle}">
@@ -366,6 +405,9 @@
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
                                     <Setter Property="VerticalAlignment" Value="Center"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding BadgeOnly, ElementName=Root}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
