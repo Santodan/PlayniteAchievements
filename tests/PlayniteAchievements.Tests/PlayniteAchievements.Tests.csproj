@@ -267,7 +267,10 @@
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsCandidateHasher.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsCandidateHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\CueSheetParser.cs" Link="Source\Providers\RetroAchievements\Hashing\CueSheetParser.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\CueTrackReader.cs" Link="Source\Providers\RetroAchievements\Hashing\CueTrackReader.cs" />
-    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\DiscImageReader.cs" Link="Source\Providers\RetroAchievements\Hashing\DiscImageReader.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\DiscImage.cs" Link="Source\Providers\RetroAchievements\Hashing\DiscImage.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\DiscTrack.cs" Link="Source\Providers\RetroAchievements\Hashing\DiscTrack.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Iso9660SectorLocator.cs" Link="Source\Providers\RetroAchievements\Hashing\Iso9660SectorLocator.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\M3uPlaylistHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\M3uPlaylistHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\DiscBasedHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\DiscBasedHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\DiscUtilsFacade.cs" Link="Source\Providers\RetroAchievements\Hashing\DiscUtilsFacade.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\HashUtils.cs" Link="Source\Providers\RetroAchievements\Hashing\HashUtils.cs" />

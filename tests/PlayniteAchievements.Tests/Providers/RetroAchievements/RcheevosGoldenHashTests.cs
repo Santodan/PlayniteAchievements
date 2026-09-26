@@ -76,23 +76,6 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         private const int ConsoleWonderSwan = 53;
         private const int ConsoleZxSpectrum = 59;
 
-        private const string JaguarAudioTracksRejected =
-            "rcheevos mismatch: plugin rejects AUDIO cue tracks; rcheevos hashes the first track of the second session";
-        private const string DreamcastNoGdi =
-            "rcheevos mismatch: plugin has no .gdi support";
-        private const string DreamcastFirstDataTrack =
-            "rcheevos mismatch: plugin reads the first data track with track-relative LBAs; rcheevos reads track 3 / last track at absolute LBAs";
-        private const string CuePartialSector =
-            "rcheevos mismatch: plugin cue reader requires whole 2048-byte sectors; the rcheevos fixture bin is 512 bytes";
-        private const string FullFileM3u =
-            "rcheevos mismatch: whole-file hasher hashes the .m3u text instead of expanding the playlist";
-        private const string NeoContentHash =
-            "rcheevos mismatch: plugin hashes the arcade filename for .neo; rcheevos hashes the ROM payload after the 4096-byte NEO header";
-        private const string Atari7800HeaderByte0 =
-            "rcheevos mismatch: plugin requires header byte0 == 0x01; rcheevos only checks \"ATARI7800\" at offset 1";
-        private const string ScvHeaderNotSkipped =
-            "rcheevos mismatch: plugin hashes Super Cassette Vision as whole file; rcheevos skips a 32-byte \"EmuSCV\" header";
-
         private string _dir;
 
         [TestInitialize]
@@ -204,7 +187,6 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
             "    INDEX 01 00:00:00\n";
 
         [TestMethod]
-        [Ignore(JaguarAudioTracksRejected)]
         public void AtariJaguarCd()
         {
             var path = WriteText("game.cue", JaguarCueTwoSessions);
@@ -213,7 +195,6 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(JaguarAudioTracksRejected)]
         public void AtariJaguarCd_Byteswapped()
         {
             var path = WriteText("game.cue", JaguarCueTwoSessions);
@@ -222,7 +203,6 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(JaguarAudioTracksRejected)]
         public void AtariJaguarCd_Track3()
         {
             var path = WriteText("game.cue", JaguarCueSecondSessionTrack3);
@@ -259,11 +239,10 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(JaguarAudioTracksRejected)]
         public void AtariJaguarCd_Homebrew()
         {
-            // rcheevos also overrides _rc_hash_jaguar_cd_homebrew_hash with "4e4114b2675eff21bb77dd41e141ddd6";
-            // the plugin's homebrew hash is a constant, so that override has no equivalent here.
+            // rcheevos overrides _rc_hash_jaguar_cd_homebrew_hash with the fixture bootloader's hash;
+            // the hasher's internal constructor takes the same override.
             var image = GenerateJaguarCdBin(2, 45760, true);
             var image2 = GenerateJaguarCdBin(2, 986742, true);
             image2[0x60] = 0x21;
@@ -276,13 +255,16 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
             var path = WriteText("game.cue", JaguarCueSecondSessionTrack3);
             WriteFile("track02.bin", image2);
             WriteFile("track03.bin", image);
-            AssertHash(ConsoleAtariJaguarCd, path, "3fdf70e362c845524c9e447aacaed0a9");
+
+            var hasher = new PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers.AtariJaguarCdCustomHasher(
+                logger: null, homebrewHashOverride: "4e4114b2675eff21bb77dd41e141ddd6");
+            var hashes = hasher.ComputeHashesAsync(path, CancellationToken.None).GetAwaiter().GetResult();
+            CollectionAssert.AreEqual(new[] { "3fdf70e362c845524c9e447aacaed0a9" }, hashes.ToArray());
         }
 
         // ===== Dreamcast (test_hash_disc.c) =====
 
         [TestMethod]
-        [Ignore(DreamcastNoGdi)]
         public void Dreamcast_SingleBin()
         {
             // The mock cdreader serves track N of a .gdi as trackNN.bin with 2048-byte sectors.
@@ -292,7 +274,6 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(DreamcastNoGdi)]
         public void Dreamcast_SplitBin()
         {
             var image = GenerateDreamcastBin(548106, 1830912);
@@ -334,14 +315,12 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(DreamcastFirstDataTrack)]
         public void Dreamcast_Cue()
         {
             AssertHash(ConsoleDreamcast, WriteDreamcastCueFixture(), "c952864c3364591d2a8793ce2cfbf3a0");
         }
 
         [TestMethod]
-        [Ignore(DreamcastFirstDataTrack)]
         public void Dreamcast_CueBuffered()
         {
             // Differs from Dreamcast_Cue only in rcheevos's buffered iterator input; the file hash is identical.
@@ -360,11 +339,10 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         // ===== Neo Geo CD (test_hash_disc.c) =====
 
         // rcheevos's generate_iso9660_bin places the root directory in sector 17 with no volume descriptor set
-        // terminator. rcheevos's reader tolerates that; DiscUtils rejects it ("Volume is not ISO-9660"). Each
-        // ISO-based case therefore also runs as *_StandardIso: the same files, byte for byte, repacked by
-        // DiscUtils CDBuilder. The golden MD5 depends only on file names and contents, so it still applies.
-        private const string DiscUtilsRejectsFixture =
-            "rcheevos mismatch: DiscUtils rejects rcheevos's minimal ISO9660 layout (no volume descriptor set terminator); see _StandardIso variant";
+        // terminator. DiscUtils rejects it ("Volume is not ISO-9660"), so these cases exercise the port of rcheevos's
+        // directory walk that DiscUtilsFacade falls back to. Each also runs as *_StandardIso: the same files, byte
+        // for byte, repacked by DiscUtils CDBuilder, which exercises the DiscUtils path. The golden MD5 depends only
+        // on file names and contents, so it applies to both.
 
         private static byte[] NeoGeoCdImage()
         {
@@ -392,21 +370,18 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(DiscUtilsRejectsFixture)]
         public void NeoGeoCd() => AssertHash(ConsoleNeoGeoCd, WriteMockCueImage(NeoGeoCdImage()), "96f35b20c6cf902286da45e81a50b2a3");
 
         [TestMethod]
         public void NeoGeoCd_StandardIso() => AssertHash(ConsoleNeoGeoCd, WriteMockCueImage(RepackAsStandardIso(NeoGeoCdImage())), "96f35b20c6cf902286da45e81a50b2a3");
 
         [TestMethod]
-        [Ignore(DiscUtilsRejectsFixture)]
         public void NeoGeoCd_MultiplePrg() => AssertHash(ConsoleNeoGeoCd, WriteMockCueImage(NeoGeoCdMultiplePrgImage()), "d62df483c4786d3c63f27b6c5f17eeca");
 
         [TestMethod]
         public void NeoGeoCd_MultiplePrg_StandardIso() => AssertHash(ConsoleNeoGeoCd, WriteMockCueImage(RepackAsStandardIso(NeoGeoCdMultiplePrgImage())), "d62df483c4786d3c63f27b6c5f17eeca");
 
         [TestMethod]
-        [Ignore(DiscUtilsRejectsFixture)]
         public void NeoGeoCd_LowercaseIplContents() => AssertHash(ConsoleNeoGeoCd, WriteMockCueImage(NeoGeoCdLowercaseIplImage()), "96f35b20c6cf902286da45e81a50b2a3");
 
         [TestMethod]
@@ -484,28 +459,24 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(DiscUtilsRejectsFixture)]
         public void Psx_Cd() => AssertHash(ConsolePlayStation, WriteMockCueImage(GeneratePsxBin("SLUS_007.45", 0x07D800)), "db433fb038cde4fb15c144e8c7dea6e3");
 
         [TestMethod]
         public void Psx_Cd_StandardIso() => AssertHash(ConsolePlayStation, WriteMockCueImage(RepackAsStandardIso(GeneratePsxBin("SLUS_007.45", 0x07D800))), "db433fb038cde4fb15c144e8c7dea6e3");
 
         [TestMethod]
-        [Ignore(DiscUtilsRejectsFixture)]
         public void Psx_Cd_NoSystemCnf() => AssertHash(ConsolePlayStation, WriteMockCueImage(PsxNoSystemCnfImage()), "e494c79a7315be0dc3e8571c45df162c");
 
         [TestMethod]
         public void Psx_Cd_NoSystemCnf_StandardIso() => AssertHash(ConsolePlayStation, WriteMockCueImage(RepackAsStandardIso(PsxNoSystemCnfImage())), "e494c79a7315be0dc3e8571c45df162c");
 
         [TestMethod]
-        [Ignore(DiscUtilsRejectsFixture)]
         public void Psx_Cd_ExeInSubfolder() => AssertHash(ConsolePlayStation, WriteMockCueImage(GeneratePsxBin("bin\\SCES_012.37", 0x07D800)), "674018e23a4052113665dfb264e9c2fc");
 
         [TestMethod]
         public void Psx_Cd_ExeInSubfolder_StandardIso() => AssertHash(ConsolePlayStation, WriteMockCueImage(RepackAsStandardIso(GeneratePsxBin("bin\\SCES_012.37", 0x07D800))), "674018e23a4052113665dfb264e9c2fc");
 
         [TestMethod]
-        [Ignore(DiscUtilsRejectsFixture)]
         public void Psx_Cd_ExtraSlash() => AssertHash(ConsolePlayStation, WriteMockCueImage(GeneratePsxBin("\\SLUS_007.45", 0x07D800)), "db433fb038cde4fb15c144e8c7dea6e3");
 
         [TestMethod]
@@ -514,13 +485,11 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         // ===== PlayStation 2 (test_hash_disc.c) =====
 
         [TestMethod]
-        [Ignore(DiscUtilsRejectsFixture)]
         public void Ps2_Iso() => AssertHash(ConsolePlayStation2, WriteFile("game.iso", GeneratePs2Bin("SLUS_200.64", 0x07D800)), "01a517e4ad72c6c2654d1b839be7579d");
 
         [TestMethod]
         public void Ps2_Iso_StandardIso() => AssertHash(ConsolePlayStation2, WriteFile("game.iso", RepackAsStandardIso(GeneratePs2Bin("SLUS_200.64", 0x07D800))), "01a517e4ad72c6c2654d1b839be7579d");
 
-        // Passes on the raw fixture only because DiscUtils cannot open it; the _StandardIso variant exercises the BOOT2 lookup.
         [TestMethod]
         public void Ps2_Psx() => AssertNoHash(ConsolePlayStation2, WriteMockCueImage(GeneratePsxBin("SLUS_007.45", 0x07D800)));
 
@@ -546,13 +515,11 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(DiscUtilsRejectsFixture)]
         public void Psp() => AssertHash(ConsolePsp, WriteFile("game.iso", PspImage()), "27ec2f9b7238b2ef29af31ddd254f201");
 
         [TestMethod]
         public void Psp_StandardIso() => AssertHash(ConsolePsp, WriteFile("game.iso", RepackAsStandardIso(PspImage())), "27ec2f9b7238b2ef29af31ddd254f201");
 
-        // Passes on the raw fixture only because DiscUtils cannot open it; the _StandardIso variant exercises the PARAM.SFO lookup.
         [TestMethod]
         public void Psp_Video() => AssertNoHash(ConsolePsp, WriteFile("game.iso", PspVideoImage()));
 
@@ -569,7 +536,6 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         // ===== Sega CD / Saturn (test_hash_disc.c) =====
 
         [TestMethod]
-        [Ignore(CuePartialSector)]
         public void SegaCd()
         {
             var image = GenerateGenericFile(512);
@@ -597,7 +563,6 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(CuePartialSector)]
         public void Saturn()
         {
             var image = GenerateGenericFile(512);
@@ -624,7 +589,7 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         [TestMethod] public void M3u_AppleII_Dsk() => AssertM3u(ConsoleAppleII, "test.dsk", 143360, "88be638f4d78b4072109e55f13e8a0ac");
         [TestMethod] public void FullFile_Commodore64_Nib() => AssertFullFile(ConsoleCommodore64, "test.nib", 327936, "e7767d32b23e3fa62c5a250a08caeba3");
         [TestMethod] public void FullFile_Commodore64_D64() => AssertFullFile(ConsoleCommodore64, "test.d64", 174848, "ecd5a8ef4e77f2e9469d9b6e891394f0");
-        [TestMethod] [Ignore(FullFileM3u)] public void M3u_Commodore64_D64() => AssertM3u(ConsoleCommodore64, "test.d64", 174848, "ecd5a8ef4e77f2e9469d9b6e891394f0");
+        [TestMethod] public void M3u_Commodore64_D64() => AssertM3u(ConsoleCommodore64, "test.d64", 174848, "ecd5a8ef4e77f2e9469d9b6e891394f0");
         [TestMethod] public void FullFile_Msx_Dsk() => AssertFullFile(ConsoleMsx, "test.dsk", 737280, "0e73fe94e5f2e2d8216926eae512b7a6");
         [TestMethod] public void M3u_Msx_Dsk() => AssertM3u(ConsoleMsx, "test.dsk", 737280, "0e73fe94e5f2e2d8216926eae512b7a6");
         [TestMethod] public void FullFile_Pc8800_D88() => AssertFullFile(ConsolePc8800, "test.d88", 348288, "8cca4121bf87200f45e91b905a9f5afd");
@@ -747,7 +712,6 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(NeoContentHash)]
         public void Neo()
         {
             var path = WriteFile("game.neo", GenerateNeoFile(131072, "Test Game", "TestCorp"));
@@ -756,7 +720,6 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(NeoContentHash)]
         public void Neo_HeaderVariants()
         {
             var path1 = WriteFile("game1.neo", GenerateNeoFile(131072, "Test Game", "TestCorp"));
@@ -769,7 +732,6 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(NeoContentHash)]
         public void Neo_BadMagic()
         {
             var image = GenerateNeoFile(131072, "Test Game", "TestCorp");
@@ -828,7 +790,6 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
-        [Ignore(Atari7800HeaderByte0)]
         public void Atari7800_WithHeader()
         {
             var path = WriteFile("test.a78", GenerateAtari7800File(16, true));
@@ -963,7 +924,6 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         // ===== Super Cassette Vision (test_hash_rom.c) =====
 
         [TestMethod]
-        [Ignore(ScvHeaderNotSkipped)]
         public void ScvCart()
         {
             var image = GenerateGenericFile(32768 + 32);
@@ -991,7 +951,7 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         [TestMethod] public void FullFile_MagnavoxOdyssey2_Bin() => AssertFullFile(ConsoleMagnavoxOdyssey2, "test.bin", 4096, "572686c3a073162e4ec6eff86e6f6e3a");
         [TestMethod] public void FullFile_MasterSystem_Sms() => AssertFullFile(ConsoleMasterSystem, "test.sms", 131072, "a0f425b23200568132ba76b2405e3933");
         [TestMethod] public void FullFile_MegaDrive_Md() => AssertFullFile(ConsoleMegaDrive, "test.md", 1048576, "da9461b3b0f74becc3ccf6c2a094c516");
-        [TestMethod] [Ignore(FullFileM3u)] public void M3u_MegaDrive_Md() => AssertM3u(ConsoleMegaDrive, "test.md", 1048576, "da9461b3b0f74becc3ccf6c2a094c516");
+        [TestMethod] public void M3u_MegaDrive_Md() => AssertM3u(ConsoleMegaDrive, "test.md", 1048576, "da9461b3b0f74becc3ccf6c2a094c516");
         [TestMethod] public void FullFile_MegaDuck_Bin() => AssertFullFile(ConsoleMegaDuck, "test.bin", 65536, "8e6576cd5c21e44e0bbfc4480577b040");
         [TestMethod] public void FullFile_NeoGeoPocket_Ngc() => AssertFullFile(ConsoleNeoGeoPocket, "test.ngc", 2097152, "cf86acf519625a25a17b1246975e90ae");
         [TestMethod] public void FullFile_Oric_Tap() => AssertFullFile(ConsoleOric, "test.tap", 18119, "953a2baa3232c63286aeae36b2172cef");
