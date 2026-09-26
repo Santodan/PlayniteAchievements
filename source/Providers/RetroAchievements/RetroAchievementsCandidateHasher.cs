@@ -84,7 +84,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 throw;
             }
-            catch (Exception ex) when ((ex is IOException && !(ex is EndOfStreamException)) || ex is UnauthorizedAccessException)
+            catch (Exception ex) when (HashUtils.IsTransientReadFailure(ex))
             {
                 // Locked or unreadable right now; retry on the next refresh instead of recording a miss.
                 _logger?.Warn(ex, $"[RA] Could not read '{candidate}': {ex.Message}");
@@ -124,24 +124,21 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             var archiveScanning = raSettings?.EnableArchiveScanning == true;
 
-            // CSO files need to be decompressed before hashing
+            // CSO and RVZ images are read in place: only the blocks the hasher touches are decoded.
             if (ArchiveUtils.IsCsoPath(candidate) && archiveScanning)
             {
-                _logger?.Info($"[RA] Decompressing CSO file: '{candidate}'");
-                using (var tmpIso = CsoUtils.DecompressToTempFile(candidate))
+                using (var source = RaHashSource.FromSeekableStream(candidate, CsoUtils.OpenStream(candidate)))
                 {
-                    var hashes = await hasher.ComputeHashesAsync(tmpIso.Path, cancel).ConfigureAwait(false);
+                    var hashes = await hasher.ComputeHashesAsync(source, cancel).ConfigureAwait(false);
                     return Record(record, hashes, isMatch, $"CSO file '{candidate}'");
                 }
             }
 
-            // RVZ files need to be decompressed before hashing
             if (ArchiveUtils.IsRvzPath(candidate) && archiveScanning)
             {
-                _logger?.Info($"[RA] Decompressing RVZ file: '{candidate}'");
-                using (var tmpIso = RvzUtils.DecompressToTempFile(candidate))
+                using (var source = RaHashSource.FromSeekableStream(candidate, RvzUtils.OpenStream(candidate)))
                 {
-                    var hashes = await hasher.ComputeHashesAsync(tmpIso.Path, cancel).ConfigureAwait(false);
+                    var hashes = await hasher.ComputeHashesAsync(source, cancel).ConfigureAwait(false);
                     return Record(record, hashes, isMatch, $"RVZ file '{candidate}'");
                 }
             }
