@@ -41,6 +41,20 @@ namespace PlayniteAchievements.Views.Showcase
                 ? Localize("LOCPlayAch_Common_None")
                 : EnumValueName("LOCPlayAch_Showcase_ScoreMode_", value);
 
+        // Left and Centered reuse the grid alignment labels; only Stacked is its own string.
+        public static string ProfileLayoutName(ShowcaseProfileLayout value)
+        {
+            switch (value)
+            {
+                case ShowcaseProfileLayout.Centered:
+                    return Localize("LOCPlayAch_Settings_GridAlignment_Center");
+                case ShowcaseProfileLayout.Stacked:
+                    return Localize("LOCPlayAch_Showcase_ProfileLayout_Stacked");
+                default:
+                    return Localize("LOCPlayAch_Settings_GridAlignment_Left");
+            }
+        }
+
         // Both reuses the score cards' "Both" rather than adding a second identical string.
         public static string ProfileMedalModeName(ShowcaseProfileMedalMode value) =>
             value == ShowcaseProfileMedalMode.Both
