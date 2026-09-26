@@ -14,6 +14,8 @@
     <PackageReference Include="HtmlAgilityPack" Version="1.11.62" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="protobuf-net" Version="2.0.0.668" />
+    <PackageReference Include="SharpCompress" Version="0.26.0" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.6.5" />
     <PackageReference Include="System.ValueTuple" Version="4.5.0" />
     <PackageReference Include="XamlAnimatedGif" Version="2.3.2" />
   </ItemGroup>
@@ -274,6 +276,12 @@
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\SegaCdSaturnCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\SegaCdSaturnCustomHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\RaConsoleHashingSpec.cs" Link="Source\Providers\RetroAchievements\Hashing\RaConsoleHashingSpec.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\RaHasherFactory.cs" Link="Source\Providers\RetroAchievements\Hashing\RaHasherFactory.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\ArchiveUtils.cs" Link="Source\Providers\RetroAchievements\Hashing\ArchiveUtils.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\CsoUtils.cs" Link="Source\Providers\RetroAchievements\Hashing\CsoUtils.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\CsoStream.cs" Link="Source\Providers\RetroAchievements\Hashing\CsoStream.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\RvzUtils.cs" Link="Source\Providers\RetroAchievements\Hashing\RvzUtils.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\RvzStream.cs" Link="Source\Providers\RetroAchievements\Hashing\RvzStream.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\RvzLaggedFibonacciGenerator.cs" Link="Source\Providers\RetroAchievements\Hashing\RvzLaggedFibonacciGenerator.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\ArcadeFilenameHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\ArcadeFilenameHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\ArduboyHexNormalizeHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\ArduboyHexNormalizeHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\AtariJaguarCdCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\AtariJaguarCdCustomHasher.cs" />
