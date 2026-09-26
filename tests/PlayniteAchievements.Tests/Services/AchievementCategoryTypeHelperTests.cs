@@ -21,12 +21,18 @@ namespace PlayniteAchievements.Tests.Services
         public void Normalize_CanonicalizesProgressionAliasesInCanonicalOrder()
         {
             Assert.AreEqual("Progression", AchievementCategoryTypeHelper.Normalize("progression"));
-            Assert.AreEqual("Progression", AchievementCategoryTypeHelper.Normalize("win_condition"));
             Assert.AreEqual("Progression", AchievementCategoryTypeHelper.Normalize("story"));
-            Assert.AreEqual("Base|Progression|Missable", AchievementCategoryTypeHelper.Normalize("Base|Missable|Progression"));
+            Assert.AreEqual("WinCondition", AchievementCategoryTypeHelper.Normalize("win_condition"));
+            Assert.AreEqual("WinCondition", AchievementCategoryTypeHelper.Normalize("Win Condition"));
+            Assert.AreEqual(
+                "Base|Progression|WinCondition|Missable",
+                AchievementCategoryTypeHelper.Normalize("Missable|WinCondition|Base|Progression"));
             CollectionAssert.Contains(
                 AchievementCategoryTypeHelper.AssignableCategoryTypes.ToList(),
                 "Progression");
+            CollectionAssert.Contains(
+                AchievementCategoryTypeHelper.AssignableCategoryTypes.ToList(),
+                "WinCondition");
         }
 
         [TestMethod]
