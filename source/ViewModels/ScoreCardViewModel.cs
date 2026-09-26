@@ -81,6 +81,11 @@ namespace PlayniteAchievements.ViewModels
             ? L("LOCPlayAch_Score_Collection")
             : L("LOCPlayAch_Score_Prestige");
 
+        /// <summary>The score's name without "Score", for hosts that fold it into the tier line.</summary>
+        public string ShortLabel => ScoreType == ScoreCardType.Collection
+            ? L("LOCPlayAch_Showcase_ScoreMode_Collection")
+            : L("LOCPlayAch_Showcase_ScoreMode_Prestige");
+
         public string ScoreText => Score.ToString("N0", FormattingCulture.Current);
 
         public string PointsText => string.Format(
@@ -93,6 +98,9 @@ namespace PlayniteAchievements.ViewModels
             Level);
 
         public string TierText => AchievementRankPresentation.FormatRank(Rank);
+
+        /// <summary>The tier line of the compact card, which has no separate label line.</summary>
+        public string CompactTierText => FormatPair(ShortLabel, TierText);
 
         /// <summary>Completed passes through the rank ladder; 0 until level 250.</summary>
         public int Mastery => _snapshot?.Mastery ?? 0;
@@ -123,7 +131,16 @@ namespace PlayniteAchievements.ViewModels
             GetLevelWithinRank(_snapshot),
             Math.Max(1, _snapshot.LevelsInRank));
 
-        public string TooltipNextRankLabel => IsAtNextRankCeiling(_snapshot)
+        /// <summary>False at max level, where the next-rank row already states it.</summary>
+        public bool HasNextLevel => _snapshot?.IsMaxLevel != true;
+
+        public string TooltipNextLevelLabel => FormatNextLevel(_snapshot);
+
+        public string TooltipNextLevelValueText => string.Format(
+            L("LOCPlayAch_Score_PointsFormat"),
+            Math.Max(0, _snapshot?.PointsUntilNextLevel ?? 0).ToString("N0", FormattingCulture.Current));
+
+        public string TooltipNextRankLabel =>IsAtNextRankCeiling(_snapshot)
             ? L("LOCPlayAch_Score_Tooltip_MaxLevel")
             : FormatNextRank(_snapshot);
 
@@ -283,10 +300,12 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(Rank));
             OnPropertyChanged(nameof(UseUniformRarityBadges));
             OnPropertyChanged(nameof(Label));
+            OnPropertyChanged(nameof(ShortLabel));
             OnPropertyChanged(nameof(ScoreText));
             OnPropertyChanged(nameof(PointsText));
             OnPropertyChanged(nameof(LevelText));
             OnPropertyChanged(nameof(TierText));
+            OnPropertyChanged(nameof(CompactTierText));
             OnPropertyChanged(nameof(Mastery));
             OnPropertyChanged(nameof(HasMastery));
             OnPropertyChanged(nameof(MasteryText));
@@ -297,6 +316,9 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(TooltipLevelValueText));
             OnPropertyChanged(nameof(TooltipRankPositionLabel));
             OnPropertyChanged(nameof(TooltipRankPositionValueText));
+            OnPropertyChanged(nameof(HasNextLevel));
+            OnPropertyChanged(nameof(TooltipNextLevelLabel));
+            OnPropertyChanged(nameof(TooltipNextLevelValueText));
             OnPropertyChanged(nameof(TooltipNextRankLabel));
             OnPropertyChanged(nameof(TooltipNextRankValueText));
             OnPropertyChanged(nameof(BadgeIconKey));
