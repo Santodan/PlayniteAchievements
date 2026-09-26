@@ -22,6 +22,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private Thickness _tileMargin = new Thickness(6);
         private bool _isSeamless;
         private bool _showRarityGlow = true;
+        private bool _showRarityBar;
         private bool _animateRarityGlows = true;
         private bool _glowWhenLocked;
         private readonly WidgetRevealScope _reveals = new WidgetRevealScope();
@@ -41,6 +42,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         public bool IsSeamless { get => _isSeamless; private set => SetValue(ref _isSeamless, value); }
 
         public bool ShowRarityGlow { get => _showRarityGlow; private set => SetValue(ref _showRarityGlow, value); }
+
+        /// <summary>This widget's rarity bar choice, applied through the tile rather than the shared rows.</summary>
+        public bool ShowRarityBar { get => _showRarityBar; private set => SetValue(ref _showRarityBar, value); }
 
         /// <summary>
         /// Whether the tiles may glow while locked. Every other source shows earned achievements,
@@ -65,6 +69,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
             // Glow on/off is a per-widget option; the glow ANIMATION stays a global setting.
             ShowRarityGlow = ShowcaseWidgetOptions.GetMosaicShowRarityGlow(Projection?.Instance);
+            ShowRarityBar = ShowcaseWidgetOptions.GetMosaicShowRarityBar(Projection?.Instance);
             GlowWhenLocked = ShowcaseWidgetOptions.GetMosaicSource(Projection?.Instance) ==
                 ShowcaseMosaicSource.UnlockNext;
             AnimateRarityGlows =
