@@ -2142,6 +2142,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             else
             {
                 RefreshCustomProviderState();
+
+                // The rows are kept for the unsaved authored edits, but categories persist on
+                // every gesture and sit outside that signature. Without this, a category another
+                // tab created or moved stayed out of the pickers until the window was reopened.
+                RefreshAssignmentState();
             }
         }
 
