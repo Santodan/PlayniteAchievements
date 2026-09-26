@@ -182,6 +182,17 @@ namespace PlayniteAchievements.Views.Showcase
             control.RebuildBody();
         }
 
+        // PlayAch.Radius.Section (8) less PlayAch.Thickness.Border (1): the border's inner curve.
+        private const double InnerCornerRadius = 7;
+
+        private void OnRootContentSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            RootContent.Clip = new System.Windows.Media.RectangleGeometry(
+                new Rect(e.NewSize),
+                InnerCornerRadius,
+                InnerCornerRadius);
+        }
+
         private void OnSizeChanged(object sender, SizeChangedEventArgs e)
         {
             var next = WidgetViewportState.Classify(e.NewSize.Width, e.NewSize.Height);
