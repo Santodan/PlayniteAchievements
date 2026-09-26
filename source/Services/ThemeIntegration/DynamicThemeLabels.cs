@@ -34,6 +34,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 ("DLC", "LOCPlayAch_ManageAchievements_Category_Type_DLC", "DLC"),
                 ("Singleplayer", "LOCPlayAch_ManageAchievements_Category_Type_Singleplayer", "Singleplayer"),
                 ("Multiplayer", "LOCPlayAch_ManageAchievements_Category_Type_Multiplayer", "Multiplayer"),
+                ("Progression", "LOCPlayAch_ManageAchievements_Category_Type_Progression", "Progression"),
                 ("Collectable", "LOCPlayAch_ManageAchievements_Category_Type_Collectable", "Collectable"),
                 ("Missable", "LOCPlayAch_ManageAchievements_Category_Type_Missable", "Missable"),
                 ("Difficulty", "LOCPlayAch_ManageAchievements_Category_Type_Difficulty", "Difficulty"),
