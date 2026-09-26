@@ -7787,9 +7787,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     OnPropertyChanged(nameof(EffectiveCategoryTypeValue));
                     OnPropertyChanged(nameof(CategoryTypeDisplayText));
+                    OnPropertyChanged(nameof(IsMissable));
                 }
             }
         }
+
+        /// <summary>
+        /// True when the effective category type includes Missable. Drives the status column's
+        /// missable lock fill and tooltip.
+        /// </summary>
+        public bool IsMissable => AchievementCategoryTypeHelper.IsMissable(EffectiveCategoryTypeValue);
 
         public string CategoryTypeDisplayText
         {

@@ -39,6 +39,7 @@
     <Color x:Key="PlayAch.Color.ActionLink">#4CC9F0</Color>
     <Color x:Key="PlayAch.Color.CompletedGame">#2196F3</Color>
     <Color x:Key="PlayAch.Color.ErrorText">#FFE07070</Color>
+    <Color x:Key="PlayAch.Color.MissableLock">#FFE04848</Color>
     <Color x:Key="PlayAch.Color.ProviderSteam">#B0B0B0</Color>
     <Color x:Key="PlayAch.Color.ProviderBattleNet">#14B8A6</Color>
     <Color x:Key="PlayAch.Color.ProviderEA">#E11D48</Color>
@@ -118,6 +119,7 @@
         <GradientStop Offset="1.00" Color="#2196F3"/>
     </LinearGradientBrush>
     <SolidColorBrush x:Key="PlayAch.Brush.ErrorText" Color="{StaticResource PlayAch.Color.ErrorText}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.MissableLock" Color="{StaticResource PlayAch.Color.MissableLock}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderSteam" Color="{StaticResource PlayAch.Color.ProviderSteam}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderBattleNet" Color="{StaticResource PlayAch.Color.ProviderBattleNet}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderEA" Color="{StaticResource PlayAch.Color.ProviderEA}"/>

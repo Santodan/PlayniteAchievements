@@ -203,6 +203,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowOverviewBarCharts = source.ShowOverviewBarCharts;
             target.ShowTopMenuBarButton = source.ShowTopMenuBarButton;
             target.ShowCompletedProgressColoring = source.ShowCompletedProgressColoring;
+            target.TintMissableLocks = source.TintMissableLocks;
             target.UseExophaseForSteamFriendOwnership = source.UseExophaseForSteamFriendOwnership;
             target.ShowFriendSpoilers = source.ShowFriendSpoilers;
             target.FriendsOverviewRecentUnlockLimit = source.FriendsOverviewRecentUnlockLimit;

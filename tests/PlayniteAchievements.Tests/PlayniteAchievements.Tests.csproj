@@ -386,6 +386,7 @@
     <Compile Include="..\..\source\Views\Converters\WholePercentToTextConverter.cs" Link="Source\Views\Converters\WholePercentToTextConverter.cs" />
     <Compile Include="..\..\source\Views\Converters\ImageFitDimensionConverter.cs" Link="Source\Views\Converters\ImageFitDimensionConverter.cs" />
     <Compile Include="..\..\source\Views\Converters\ProviderIconConverter.cs" Link="Source\Views\Converters\ProviderIconConverter.cs" />
+    <Compile Include="..\..\source\Views\Converters\AchievementStatusToolTipConverter.cs" Link="Source\Views\Converters\AchievementStatusToolTipConverter.cs" />
     <Compile Include="..\..\source\Models\AuthOutcome.cs" Link="Source\Models\AuthOutcome.cs" />
     <Compile Include="..\..\source\Models\AuthProbeResult.cs" Link="Source\Models\AuthProbeResult.cs" />
     <Compile Include="..\..\source\Models\CacheDeltaEventArgs.cs" Link="Source\Models\CacheDeltaEventArgs.cs" />

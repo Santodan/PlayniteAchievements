@@ -13,6 +13,10 @@ namespace PlayniteAchievements.Services.Achievements
 
         public const string SoftcoreCategoryType = "Softcore";
         public const string HardcoreCategoryType = "Hardcore";
+        public const string MissableCategoryType = "Missable";
+
+        public static bool IsMissable(string categoryType) =>
+            ParseValues(categoryType).Contains(MissableCategoryType);
 
         private static readonly string[] CanonicalOrder =
         {
