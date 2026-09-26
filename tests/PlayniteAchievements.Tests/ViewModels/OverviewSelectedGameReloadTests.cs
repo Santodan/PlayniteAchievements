@@ -76,26 +76,51 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void APerGameDelta_StillReloadsWhenTheInPlaceRestampRefuses()
+        public void APerGameDelta_ForTheSelectedGame_AlwaysReloadsIt()
         {
             var source = ReadViewModel();
 
             // The delta path is the other half of the safety argument: a real data change for the
             // selected game reaches the rows without going through the property setter at all.
-            StringAssert.Contains(
-                source,
-                "if (SelectedGame?.PlayniteGameId == gameId && !ApplySelectedGameIconOverrides(gameId))",
-                "A delta for the selected game must still re-stamp its rows in place.");
-
+            // Reloading only when the icon re-stamp refused left every other customization -- a
+            // category created or renamed in the Manage window above all -- out of the pane for as
+            // long as the game stayed selected.
             var deltaBranch = Between(
                 source,
-                "if (SelectedGame?.PlayniteGameId == gameId && !ApplySelectedGameIconOverrides(gameId))",
+                "if (SelectedGame?.PlayniteGameId == gameId)",
                 "if (fragment.Achievements != null");
             StringAssert.Contains(
                 deltaBranch,
+                "ApplySelectedGameIconOverrides(gameId);",
+                "The in-place re-stamp stays as the immediate visual.");
+            StringAssert.Contains(
+                deltaBranch,
                 "_selectedGameReloadRequested = true;",
-                "And when it cannot, it must fall back to a reload -- the path that keeps the " +
-                "short circuit from swallowing a genuine data change.");
+                "Every delta for the selected game must reach the reload.");
+            Assert.IsFalse(
+                deltaBranch.Contains("!ApplySelectedGameIconOverrides"),
+                "Gating the reload on the icon re-stamp is the regression.");
+        }
+
+        [TestMethod]
+        public void TheReload_KeepsTheSearch_WhileASelectionClearsIt()
+        {
+            var source = ReadViewModel();
+
+            // Every delta for the selected game now reloads it, so a reload that cleared the
+            // search would wipe what the user typed on each edit.
+            var reload = Between(
+                source,
+                "private async Task ReloadSelectedGameIfRequestedAsync()",
+                "private void RemarkCapturePresence(");
+            StringAssert.Contains(reload, "resetSearch: false");
+
+            var load = Between(
+                source,
+                "private async Task<bool> LoadSelectedGameAchievementsAsync(",
+                "if (targetGameId == null)");
+            StringAssert.Contains(load, "bool resetSearch = true");
+            StringAssert.Contains(load, "if (resetSearch)");
         }
 
         private static string Between(string source, string start, string end)
