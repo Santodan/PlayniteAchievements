@@ -635,6 +635,47 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             private set => SetValue(ref _hasAchievementData, value);
         }
 
+        // Sidebar stat groups: hidden globally through the sidebar's right-click menu.
+
+        public bool ShowSidebarCapstones => IsSidebarStatGroupShown(ManageSidebarStatGroups.Capstones);
+
+        public bool ShowSidebarRarity => IsSidebarStatGroupShown(ManageSidebarStatGroups.Rarity);
+
+        public bool ShowSidebarTrophies => IsSidebarStatGroupShown(ManageSidebarStatGroups.Trophies);
+
+        public bool ShowSidebarPoints => IsSidebarStatGroupShown(ManageSidebarStatGroups.Points);
+
+        public bool ShowSidebarGoals => IsSidebarStatGroupShown(ManageSidebarStatGroups.Goals);
+
+        public bool ShowSidebarCategorized => IsSidebarStatGroupShown(ManageSidebarStatGroups.Categorized);
+
+        public bool IsSidebarStatGroupShown(ManageSidebarStatGroups group)
+        {
+            var hidden = _settings?.Persisted?.HiddenManageSidebarStatGroups ?? ManageSidebarStatGroups.None;
+            return (hidden & group) == 0;
+        }
+
+        public void SetSidebarStatGroupShown(ManageSidebarStatGroups group, bool shown)
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null || IsSidebarStatGroupShown(group) == shown)
+            {
+                return;
+            }
+
+            persisted.HiddenManageSidebarStatGroups = shown
+                ? persisted.HiddenManageSidebarStatGroups & ~group
+                : persisted.HiddenManageSidebarStatGroups | group;
+            _persistSettingsForUi?.Invoke();
+
+            OnPropertyChanged(nameof(ShowSidebarCapstones));
+            OnPropertyChanged(nameof(ShowSidebarRarity));
+            OnPropertyChanged(nameof(ShowSidebarTrophies));
+            OnPropertyChanged(nameof(ShowSidebarPoints));
+            OnPropertyChanged(nameof(ShowSidebarGoals));
+            OnPropertyChanged(nameof(ShowSidebarCategorized));
+        }
+
         public bool IsRefreshing
         {
             get => _isRefreshing;
