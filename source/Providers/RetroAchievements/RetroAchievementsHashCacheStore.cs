@@ -55,6 +55,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         public List<RaHashCacheDependency> Dependencies { get; set; }
         public List<string> Hashes { get; set; }
         public bool Complete { get; set; }
+
+        /// <summary>
+        /// The hashing rules the hashes were computed under. Records from other versions are
+        /// hashed again, so a hasher fix reaches files whose bytes did not change.
+        /// </summary>
+        public int RulesVersion { get; set; }
     }
 
     internal sealed class RaHashCacheDependency

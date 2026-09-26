@@ -16,6 +16,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements
     /// </summary>
     internal sealed class RetroAchievementsCandidateHasher
     {
+        /// <summary>
+        /// Bump when any hasher's output can change for the same bytes, so recorded misses and
+        /// partial records are recomputed. 1: rcheevos cdreader port and hasher parity fixes.
+        /// </summary>
+        internal const int HashRulesVersion = 1;
+
         private readonly ILogger _logger;
 
         public RetroAchievementsCandidateHasher(ILogger logger)
@@ -72,7 +78,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 HasherName = hasher.Name,
                 Dependencies = RetroAchievementsHashCacheStore.CaptureDependencySnapshot(candidate),
                 Hashes = new List<string>(),
-                Complete = true
+                Complete = true,
+                RulesVersion = HashRulesVersion
             };
 
             string matched;
@@ -106,7 +113,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 string.Equals(c?.Path, candidate, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(c?.HasherName, hasherName, StringComparison.Ordinal));
 
-            if (record == null || record.Hashes == null)
+            if (record == null || record.Hashes == null || record.RulesVersion != HashRulesVersion)
             {
                 return null;
             }

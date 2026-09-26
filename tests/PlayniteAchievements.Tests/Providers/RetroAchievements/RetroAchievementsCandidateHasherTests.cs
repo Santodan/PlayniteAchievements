@@ -120,6 +120,21 @@ namespace PlayniteAchievements.Tests.Providers.RetroAchievements
         }
 
         [TestMethod]
+        public void RecordFromOlderHashRules_IsHashedAgain()
+        {
+            var rom = Path.Combine(_dir, "game.nes");
+            File.WriteAllBytes(rom, GenerateNesFile(32, withHeader: true));
+            var first = Hash(rom, ConsoleNes, _ => false);
+            Assert.AreEqual(RetroAchievementsCandidateHasher.HashRulesVersion, first.Record.RulesVersion);
+
+            first.Record.RulesVersion = RetroAchievementsCandidateHasher.HashRulesVersion - 1;
+            var entry = new RaHashCacheEntry { Candidates = new List<RaHashCacheCandidate> { first.Record } };
+
+            var second = Hash(rom, ConsoleNes, _ => false, entry);
+            Assert.IsFalse(second.FromCache, "a hasher fix must reach unchanged files");
+        }
+
+        [TestMethod]
         public void PartialRecordWithoutMatch_IsHashedAgain()
         {
             var rom = Path.Combine(_dir, "game.nes");
