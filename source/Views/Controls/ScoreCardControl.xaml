@@ -359,6 +359,17 @@
                 </DockPanel>
 
                 <Grid Grid.Column="1">
+                    <!-- Compact cards are only two rows high; center them against the badge column
+                         so any extra height from the badge or mastery line is not left below the bar. -->
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
