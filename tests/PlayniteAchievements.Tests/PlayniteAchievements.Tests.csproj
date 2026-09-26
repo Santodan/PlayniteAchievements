@@ -272,6 +272,24 @@
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\PceCdCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\PceCdCustomHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\PsxCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\PsxCustomHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\SegaCdSaturnCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\SegaCdSaturnCustomHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\RaConsoleHashingSpec.cs" Link="Source\Providers\RetroAchievements\Hashing\RaConsoleHashingSpec.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\RaHasherFactory.cs" Link="Source\Providers\RetroAchievements\Hashing\RaHasherFactory.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\ArcadeFilenameHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\ArcadeFilenameHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\ArduboyHexNormalizeHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\ArduboyHexNormalizeHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\AtariJaguarCdCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\AtariJaguarCdCustomHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\DreamcastCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\DreamcastCustomHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\GameCubeCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\GameCubeCustomHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\HeaderMagicSkipHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\HeaderMagicSkipHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\HeaderSizeModSkipHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\HeaderSizeModSkipHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\Md5FullFileHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\Md5FullFileHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\MultiDiskMd5Hasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\MultiDiskMd5Hasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\N64EndianSwapHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\N64EndianSwapHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\NdsCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\NdsCustomHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\NeoGeoCdCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\NeoGeoCdCustomHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\PcFxCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\PcFxCustomHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\Ps2CustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\Ps2CustomHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\PspCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\PspCustomHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\ThreeDoCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\ThreeDoCustomHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\PlatformMapping\ConsoleMapping.cs" Link="Source\Providers\RetroAchievements\PlatformMapping\ConsoleMapping.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseSettings.cs" Link="Source\Providers\Exophase\ExophaseSettings.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseFriendPlatformMatcher.cs" Link="Source\Providers\Exophase\ExophaseFriendPlatformMatcher.cs" />
