@@ -636,29 +636,33 @@ namespace PlayniteAchievements.Steam.Tests
         }
 
         [TestMethod]
-        public void ApplyObtainability_TagsOnlyUnobtainableAchievements()
+        public void ApplyObtainability_TagsUnobtainableAndBrokenAchievements()
         {
             // Mirrors Team Fortress 2's YouTube achievements (Unobtainable) beside a broken but
-            // obtainable one, which can still be earned and so stays untagged.
+            // obtainable one, which is typed Unobtainable too, and a conditionally obtainable
+            // one, which stays untagged.
             var achievements = new List<AchievementDetail>
             {
                 new AchievementDetail { ApiName = "TF_REPLAY_YOUTUBE_VIEWS_TIER1", CategoryType = "Base" },
                 new AchievementDetail { ApiName = "broken_ach", CategoryType = "Base|Update" },
+                new AchievementDetail { ApiName = "conditional_ach", CategoryType = "Base" },
                 new AchievementDetail { ApiName = "normal_ach", CategoryType = "Base" }
             };
             var steamHuntersAchievements = new List<SteamHuntersAchievement>
             {
                 new SteamHuntersAchievement { ApiName = "tf_replay_youtube_views_tier1", Obtainability = SteamHuntersObtainability.Unobtainable },
                 new SteamHuntersAchievement { ApiName = "broken_ach", Obtainability = SteamHuntersObtainability.BrokenButObtainable },
+                new SteamHuntersAchievement { ApiName = "conditional_ach", Obtainability = SteamHuntersObtainability.ConditionallyObtainable },
                 new SteamHuntersAchievement { ApiName = "normal_ach", Obtainability = SteamHuntersObtainability.Obtainable }
             };
 
             var updated = SteamHuntersCategoryEnricher.ApplyObtainability(achievements, steamHuntersAchievements);
 
-            Assert.AreEqual(1, updated);
+            Assert.AreEqual(2, updated);
             Assert.AreEqual("Base|Unobtainable", achievements[0].CategoryType);
-            Assert.AreEqual("Base|Update", achievements[1].CategoryType);
+            Assert.AreEqual("Base|Update|Unobtainable", achievements[1].CategoryType);
             Assert.AreEqual("Base", achievements[2].CategoryType);
+            Assert.AreEqual("Base", achievements[3].CategoryType);
         }
 
         [TestMethod]
