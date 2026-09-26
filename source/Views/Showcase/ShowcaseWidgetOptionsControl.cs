@@ -650,9 +650,8 @@ namespace PlayniteAchievements.Views.Showcase
                     Localize("LOCPlayAch_Showcase_UnlockNextCriterion"),
                     new[]
                     {
-                        UnlockNextCriterion.NextInLine,
-                        UnlockNextCriterion.Easiest,
-                        UnlockNextCriterion.ClosestToCompletion
+                        UnlockNextCriterion.ClosestToCompletion,
+                        UnlockNextCriterion.Easiest
                     },
                     ShowcaseWidgetOptions.GetUnlockNextCriterion(_settings),
                     value => ShowcaseWidgetOptions.SetUnlockNextCriterion(_settings, value),
