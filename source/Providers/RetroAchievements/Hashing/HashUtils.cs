@@ -11,7 +11,94 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
     {
         public const int MaxHashBytes = 64 * 1024 * 1024;
 
+        // FileStream's own buffer; reads of ReadChunkSize or more bypass it.
+        public const int FileBufferSize = 64 * 1024;
+        private const int ReadChunkSize = 256 * 1024;
+
         private static readonly byte[] NewlineByte = { (byte)'\n' };
+
+        /// <summary>
+        /// True for failures caused by the file being unavailable right now (locked by another
+        /// process, access denied, network share dropped) rather than by its contents. Content
+        /// failures are deterministic for unchanged bytes and can be recorded as a miss; these
+        /// cannot. A plain IOException is not transient: DiscUtils raises one for images that
+        /// are not ISO-9660.
+        /// </summary>
+        public static bool IsTransientReadFailure(Exception ex)
+        {
+            if (ex is UnauthorizedAccessException || ex is FileNotFoundException || ex is DirectoryNotFoundException)
+            {
+                return true;
+            }
+
+            if (ex is IOException)
+            {
+                switch (ex.HResult & 0xFFFF)
+                {
+                    case 32:   // ERROR_SHARING_VIOLATION
+                    case 33:   // ERROR_LOCK_VIOLATION
+                    case 53:   // ERROR_BAD_NETPATH
+                    case 55:   // ERROR_DEV_NOT_EXIST
+                    case 64:   // ERROR_NETNAME_DELETED
+                    case 67:   // ERROR_BAD_NET_NAME
+                    case 121:  // ERROR_SEM_TIMEOUT
+                    case 1231: // ERROR_NETWORK_UNREACHABLE
+                        return true;
+                }
+            }
+
+            return ex?.InnerException != null && IsTransientReadFailure(ex.InnerException);
+        }
+
+        public static FileStream OpenSequential(string filePath)
+        {
+            return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, FileBufferSize, FileOptions.SequentialScan);
+        }
+
+        /// <summary>Advances past <paramref name="count"/> bytes, reading them when the stream cannot seek.</summary>
+        public static void Skip(Stream stream, long count)
+        {
+            if (count <= 0)
+            {
+                return;
+            }
+
+            if (stream.CanSeek)
+            {
+                stream.Seek(count, SeekOrigin.Current);
+                return;
+            }
+
+            var buffer = new byte[(int)Math.Min(count, ReadChunkSize)];
+            while (count > 0)
+            {
+                var read = stream.Read(buffer, 0, (int)Math.Min(buffer.Length, count));
+                if (read <= 0)
+                {
+                    return;
+                }
+
+                count -= read;
+            }
+        }
+
+        /// <summary>Reads until <paramref name="count"/> bytes arrive or the stream ends.</summary>
+        public static int ReadFull(Stream stream, byte[] buffer, int offset, int count)
+        {
+            var total = 0;
+            while (total < count)
+            {
+                var read = stream.Read(buffer, offset + total, count - total);
+                if (read <= 0)
+                {
+                    break;
+                }
+
+                total += read;
+            }
+
+            return total;
+        }
 
         public static string ToHexLower(byte[] hashBytes)
         {
@@ -66,7 +153,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
                 throw new ArgumentException("File path is required.", nameof(filePath));
             }
 
-            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var stream = OpenSequential(filePath))
             {
                 if (startOffset > 0)
                 {
@@ -85,7 +172,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
             return await ComputeMd5HexFromStreamAsync(stream, maxBytes, cancel, transform: null).ConfigureAwait(false);
         }
 
-        public static async Task<string> ComputeMd5HexFromStreamAsync(
+        /// <summary>
+        /// MD5 of up to <paramref name="maxBytes"/> (capped at <see cref="MaxHashBytes"/>) from the
+        /// stream's current position. Reads run synchronously in whole chunks on one thread-pool
+        /// hop, so <paramref name="transform"/> always sees full chunks except at the end.
+        /// </summary>
+        public static Task<string> ComputeMd5HexFromStreamAsync(
             Stream stream,
             long maxBytes,
             CancellationToken cancel,
@@ -93,30 +185,42 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         {
             if (stream == null) throw new ArgumentNullException(nameof(stream));
 
-            using (var md5 = MD5.Create())
+            return Task.Run(() =>
             {
-                var remaining = Math.Min(maxBytes, MaxHashBytes);
-                var buffer = new byte[64 * 1024];
-
-                while (remaining > 0)
+                using (var md5 = MD5.Create())
                 {
-                    cancel.ThrowIfCancellationRequested();
+                    AppendStream(md5, stream, maxBytes, cancel, transform);
+                    md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                    return ToHexLower(md5.Hash);
+                }
+            }, cancel);
+        }
 
-                    var toRead = (int)Math.Min(buffer.Length, remaining);
-                    var read = await stream.ReadAsync(buffer, 0, toRead, cancel).ConfigureAwait(false);
-                    if (read <= 0)
-                    {
-                        break;
-                    }
+        private static void AppendStream(HashAlgorithm hash, Stream stream, long maxBytes, CancellationToken cancel, Action<byte[], int> transform)
+        {
+            var remaining = Math.Min(maxBytes, MaxHashBytes);
+            var buffer = new byte[(int)Math.Max(1, Math.Min(ReadChunkSize, remaining))];
 
-                    transform?.Invoke(buffer, read);
+            while (remaining > 0)
+            {
+                cancel.ThrowIfCancellationRequested();
 
-                    md5.TransformBlock(buffer, 0, read, null, 0);
-                    remaining -= read;
+                var toRead = (int)Math.Min(buffer.Length, remaining);
+                var read = ReadFull(stream, buffer, 0, toRead);
+                if (read <= 0)
+                {
+                    break;
                 }
 
-                md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-                return ToHexLower(md5.Hash);
+                transform?.Invoke(buffer, read);
+
+                hash.TransformBlock(buffer, 0, read, null, 0);
+                remaining -= read;
+
+                if (read < toRead)
+                {
+                    break;
+                }
             }
         }
 
@@ -183,7 +287,31 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         public static async Task<string> ComputeMd5HexForNormalizedTextAsync(string filePath, CancellationToken cancel)
         {
             var data = await ReadFilePrefixAsync(filePath, MaxHashBytes, cancel).ConfigureAwait(false);
+            return ComputeMd5HexForNormalizedText(data);
+        }
 
+        public static Task<string> ComputeMd5HexForNormalizedTextAsync(Stream stream, CancellationToken cancel)
+        {
+            return Task.Run(() =>
+            {
+                using (var buffer = new MemoryStream())
+                {
+                    var chunk = new byte[ReadChunkSize];
+                    int read;
+                    while (buffer.Length < MaxHashBytes &&
+                           (read = stream.Read(chunk, 0, (int)Math.Min(chunk.Length, MaxHashBytes - buffer.Length))) > 0)
+                    {
+                        cancel.ThrowIfCancellationRequested();
+                        buffer.Write(chunk, 0, read);
+                    }
+
+                    return ComputeMd5HexForNormalizedText(buffer.ToArray());
+                }
+            }, cancel);
+        }
+
+        private static string ComputeMd5HexForNormalizedText(byte[] data)
+        {
             using (var md5 = MD5.Create())
             {
                 var idx = 0;
@@ -286,25 +414,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         /// <param name="stream">The stream to read from.</param>
         /// <param name="maxBytes">Maximum number of bytes to process (capped at MaxHashBytes).</param>
         /// <param name="cancel">Cancellation token for the operation.</param>
-        public static async Task AppendStreamAsync(HashAlgorithm hash, Stream stream, long maxBytes, CancellationToken cancel)
+        public static Task AppendStreamAsync(HashAlgorithm hash, Stream stream, long maxBytes, CancellationToken cancel)
         {
             if (hash == null) throw new ArgumentNullException(nameof(hash));
             if (stream == null) throw new ArgumentNullException(nameof(stream));
 
-            var remaining = Math.Min(maxBytes, MaxHashBytes);
-            var buffer = new byte[64 * 1024];
-
-            while (remaining > 0)
-            {
-                cancel.ThrowIfCancellationRequested();
-
-                var toRead = (int)Math.Min(buffer.Length, remaining);
-                var read = await stream.ReadAsync(buffer, 0, toRead, cancel).ConfigureAwait(false);
-                if (read <= 0) break;
-
-                hash.TransformBlock(buffer, 0, read, null, 0);
-                remaining -= read;
-            }
+            return Task.Run(() => AppendStream(hash, stream, maxBytes, cancel, null), cancel);
         }
 
         /// <summary>
