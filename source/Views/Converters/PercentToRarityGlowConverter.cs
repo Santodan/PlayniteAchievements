@@ -34,6 +34,10 @@ namespace PlayniteAchievements.Views.Converters
     ///
     /// ConverterParameter is the blur radius, letting compact surfaces ask for a tighter glow than
     /// full-size icons.
+    ///
+    /// An optional third value says whether the achievement has real rarity data (a rarity
+    /// percent). Unknown rarity is stored as Common, so without it a Common glow would also light
+    /// achievements whose rarity is simply missing. Absent, it is treated as present.
     /// </summary>
     public class RarityGlowForTiersConverter : IMultiValueConverter
     {
@@ -47,9 +51,12 @@ namespace PlayniteAchievements.Views.Converters
             }
 
             // Unset during initialization, before the host control's binding has produced a value.
-            // Treated as every tier so the glow is never silently dropped mid-startup.
-            var selection = values[1] is RaritySelection selected ? selected : RaritySelection.All;
-            if (!selection.Contains(tier))
+            // Treated as the default selection so the glow is never silently dropped mid-startup.
+            var selection = values[1] is RaritySelection selected
+                ? selected
+                : RaritySelectionExtensions.DefaultSoftGlowTiers;
+            var hasRarityData = values.Length < 3 || !(values[2] is bool known) || known;
+            if (!selection.GlowsFor(tier, hasRarityData))
             {
                 return null;
             }
@@ -87,12 +94,14 @@ namespace PlayniteAchievements.Views.Converters
     /// - Rare: Gold (#FFD700)
     /// - Uncommon: Silver (#C0C0C0)
     /// - Common: No glow (null)
+    /// Takes no tier selection, so it keeps Common unlit itself. Kept for themes that reference its
+    /// resource key; the plugin's own surfaces use <see cref="RarityGlowForTiersConverter"/>.
     /// </summary>
     public class PercentToRarityGlowConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (!(value is RarityTier tier))
+            if (!(value is RarityTier tier) || tier == RarityTier.Common)
             {
                 return null;
             }
@@ -113,7 +122,7 @@ namespace PlayniteAchievements.Views.Converters
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (!(value is RarityTier tier))
+            if (!(value is RarityTier tier) || tier == RarityTier.Common)
             {
                 return null;
             }
@@ -130,7 +139,7 @@ namespace PlayniteAchievements.Views.Converters
     /// <summary>
     /// Returns a glossy metallic gradient brush in the rarity color (matching the rarity badge
     /// sheen), used as a crisp shiny border for Hardcore RetroAchievements icons in place of the
-    /// soft glow. Common has no rarity glow, but still gets a Hardcore border.
+    /// soft glow. Every tier, Common included, gets a Hardcore border.
     /// </summary>
     public class RarityToShineBrushConverter : IValueConverter
     {
