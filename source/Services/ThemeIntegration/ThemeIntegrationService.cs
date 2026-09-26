@@ -4479,7 +4479,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 ["WinCondition"] = CategoryType("WinCondition"),
                 ["Collectable"] = CategoryType("Collectable"),
                 ["Missable"] = CategoryType("Missable"),
-                ["Difficulty"] = CategoryType("Difficulty"),
+                [AchievementCategoryTypeHelper.UnobtainableCategoryType] = CategoryType(AchievementCategoryTypeHelper.UnobtainableCategoryType),                ["Difficulty"] = CategoryType("Difficulty"),
                 ["Stackable"] = CategoryType("Stackable"),
                 [AchievementCategoryTypeHelper.SoftcoreCategoryType] = CategoryType(AchievementCategoryTypeHelper.SoftcoreCategoryType),
                 [AchievementCategoryTypeHelper.HardcoreCategoryType] = CategoryType(AchievementCategoryTypeHelper.HardcoreCategoryType),

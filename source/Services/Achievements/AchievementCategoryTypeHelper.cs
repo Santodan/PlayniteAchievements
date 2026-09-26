@@ -15,8 +15,13 @@ namespace PlayniteAchievements.Services.Achievements
         public const string HardcoreCategoryType = "Hardcore";
         public const string MissableCategoryType = "Missable";
 
+        public const string UnobtainableCategoryType = "Unobtainable";
+
         public static bool IsMissable(string categoryType) =>
             ParseValues(categoryType).Contains(MissableCategoryType);
+
+        public static bool IsUnobtainable(string categoryType) =>
+            ParseValues(categoryType).Contains(UnobtainableCategoryType);
 
         private static readonly string[] CanonicalOrder =
         {
@@ -31,6 +36,7 @@ namespace PlayniteAchievements.Services.Achievements
             "WinCondition",
             "Collectable",
             "Missable",
+            UnobtainableCategoryType,
             "Difficulty",
             "Stackable",
             SoftcoreCategoryType,
@@ -97,7 +103,7 @@ namespace PlayniteAchievements.Services.Achievements
                 ["collectible"] = "Collectable",
                 ["missable"] = "Missable",
                 ["miss-able"] = "Missable",
-                ["difficulty"] = "Difficulty",
+                ["unobtainable"] = UnobtainableCategoryType,                ["difficulty"] = "Difficulty",
                 ["diff"] = "Difficulty",
                 ["stackable"] = "Stackable",
                 ["stack"] = "Stackable",

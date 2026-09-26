@@ -16,8 +16,8 @@ namespace PlayniteAchievements.Views.Converters
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
             // values[0] = Unlocked, [1] = IsCapstone, [2] = IsGoal, [3] = IsFiltered,
-            // [4] = IsFilteredFromSummaries, [5] = IsMissable
-            if (values == null || values.Length < 6)
+            // [4] = IsFilteredFromSummaries, [5] = IsMissable, [6] = IsUnobtainable
+            if (values == null || values.Length < 7)
             {
                 return DependencyProperty.UnsetValue;
             }
@@ -43,10 +43,10 @@ namespace PlayniteAchievements.Views.Converters
                 qualifiers.Add(ResourceProvider.GetString("LOCPlayAch_Dynamic_Capstone"));
             }
 
-            if (!unlocked && Flag(values[5]))
+            if (!unlocked)
             {
-                qualifiers.Add(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Category_Type_Missable"));
-            }
+                AddTypeQualifier(qualifiers, values[5], "Missable");
+                AddTypeQualifier(qualifiers, values[6], "Unobtainable");            }
 
             var state = ResourceProvider.GetString(unlocked ? "LOCPlayAch_Common_Unlocked" : "LOCPlayAch_Common_Locked");
             return qualifiers.Count == 0
@@ -60,5 +60,13 @@ namespace PlayniteAchievements.Views.Converters
         }
 
         private static bool Flag(object value) => value is bool b && b;
+
+        private static void AddTypeQualifier(List<string> qualifiers, object flag, string categoryType)
+        {
+            if (Flag(flag))
+            {
+                qualifiers.Add(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Category_Type_" + categoryType));
+            }
+        }
     }
 }

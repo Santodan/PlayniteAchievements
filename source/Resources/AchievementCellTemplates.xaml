@@ -33,7 +33,8 @@
                  UseLayoutRounding="True"
                  SnapsToDevicePixels="True">
             <!-- Transparent background so the whole icon box, not just the glyph ink, shows the
-                 tooltip. IsMissable falls back to False for row types that do not carry it. -->
+                 tooltip. The category-type flags fall back to False for row types that do not
+                 carry them. -->
             <Grid Width="18" Height="18" Background="Transparent">
                 <Grid.ToolTip>
                     <MultiBinding Converter="{StaticResource AchievementStatusToolTipConverter}">
@@ -43,7 +44,7 @@
                         <Binding Path="IsFiltered" FallbackValue="False"/>
                         <Binding Path="IsFilteredFromSummaries" FallbackValue="False"/>
                         <Binding Path="IsMissable" FallbackValue="False"/>
-                    </MultiBinding>
+                        <Binding Path="IsUnobtainable" FallbackValue="False"/>                    </MultiBinding>
                 </Grid.ToolTip>
                 <Path Data="{StaticResource GeoCheck}"
                       Stroke="{DynamicResource PlayAch.Brush.Glyph}"
@@ -139,6 +140,9 @@
                                     <DataTrigger Binding="{Binding IsMissable, FallbackValue=False}" Value="True">
                                         <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Status.MissableLock}"/>
                                     </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsUnobtainable, FallbackValue=False}" Value="True">
+                                        <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Status.MissableLock}"/>
+                                    </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </Path.Style>
@@ -172,6 +176,9 @@
                             <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Glyph}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsMissable, FallbackValue=False}" Value="True">
+                                    <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Status.MissableLock}"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsUnobtainable, FallbackValue=False}" Value="True">
                                     <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Status.MissableLock}"/>
                                 </DataTrigger>
                                 <MultiDataTrigger>

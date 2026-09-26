@@ -993,7 +993,7 @@ namespace PlayniteAchievements.ViewModels.Items
                     OnPropertyChanged(nameof(CategoryTypeDisplay));
                     OnPropertyChanged(nameof(IsHardcore));
                     OnPropertyChanged(nameof(IsMissable));
-                }
+                    OnPropertyChanged(nameof(IsUnobtainable));                }
             }
         }
 
@@ -1014,6 +1014,11 @@ namespace PlayniteAchievements.ViewModels.Items
         /// </summary>
         public bool IsMissable => AchievementCategoryTypeHelper.IsMissable(CategoryType);
 
+        /// <summary>
+        /// True when the achievement's category type includes Unobtainable (can no longer be
+        /// earned). Drives the status column's lock fill and tooltip alongside Missable.
+        /// </summary>
+        public bool IsUnobtainable => AchievementCategoryTypeHelper.IsUnobtainable(CategoryType);
         public string CategoryLabel
         {
             get => _categoryLabel;

@@ -15,10 +15,11 @@ namespace PlayniteAchievements.Tests.Views
             bool goal = false,
             bool filtered = false,
             bool filteredFromSummaries = false,
-            bool missable = false)
+            bool missable = false,
+            bool unobtainable = false)
         {
             return _converter.Convert(
-                new object[] { unlocked, capstone, goal, filtered, filteredFromSummaries, missable },
+                new object[] { unlocked, capstone, goal, filtered, filteredFromSummaries, missable, unobtainable },
                 typeof(object),
                 null,
                 null);
@@ -35,6 +36,13 @@ namespace PlayniteAchievements.Tests.Views
         public void LockedMissableAppendsMissable()
         {
             Assert.AreEqual("Locked (Missable)", Convert(unlocked: false, missable: true));
+        }
+
+        [TestMethod]
+        public void LockedUnobtainableAppendsUnobtainable()
+        {
+            Assert.AreEqual("Locked (Unobtainable)", Convert(unlocked: false, unobtainable: true));
+            Assert.AreEqual("Unlocked", Convert(unlocked: true, unobtainable: true));
         }
 
         [TestMethod]
@@ -70,6 +78,8 @@ namespace PlayniteAchievements.Tests.Views
             Assert.IsTrue(AchievementCategoryTypeHelper.IsMissable("miss-able"));
             Assert.IsFalse(AchievementCategoryTypeHelper.IsMissable("Base|DLC"));
             Assert.IsFalse(AchievementCategoryTypeHelper.IsMissable(null));
+            Assert.IsTrue(AchievementCategoryTypeHelper.IsUnobtainable("Base|Unobtainable"));
+            Assert.IsFalse(AchievementCategoryTypeHelper.IsUnobtainable("Base|Missable"));
         }
     }
 }

@@ -636,6 +636,44 @@ namespace PlayniteAchievements.Steam.Tests
         }
 
         [TestMethod]
+        public void ApplyObtainability_TagsOnlyUnobtainableAchievements()
+        {
+            // Mirrors Team Fortress 2's YouTube achievements (Unobtainable) beside a broken but
+            // obtainable one, which can still be earned and so stays untagged.
+            var achievements = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "TF_REPLAY_YOUTUBE_VIEWS_TIER1", CategoryType = "Base" },
+                new AchievementDetail { ApiName = "broken_ach", CategoryType = "Base|Update" },
+                new AchievementDetail { ApiName = "normal_ach", CategoryType = "Base" }
+            };
+            var steamHuntersAchievements = new List<SteamHuntersAchievement>
+            {
+                new SteamHuntersAchievement { ApiName = "tf_replay_youtube_views_tier1", Obtainability = SteamHuntersObtainability.Unobtainable },
+                new SteamHuntersAchievement { ApiName = "broken_ach", Obtainability = SteamHuntersObtainability.BrokenButObtainable },
+                new SteamHuntersAchievement { ApiName = "normal_ach", Obtainability = SteamHuntersObtainability.Obtainable }
+            };
+
+            var updated = SteamHuntersCategoryEnricher.ApplyObtainability(achievements, steamHuntersAchievements);
+
+            Assert.AreEqual(1, updated);
+            Assert.AreEqual("Base|Unobtainable", achievements[0].CategoryType);
+            Assert.AreEqual("Base|Update", achievements[1].CategoryType);
+            Assert.AreEqual("Base", achievements[2].CategoryType);
+        }
+
+        [TestMethod]
+        public void ApplyObtainability_NoDataLeavesTypesAlone()
+        {
+            var achievements = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "a", CategoryType = "DLC" }
+            };
+
+            Assert.AreEqual(0, SteamHuntersCategoryEnricher.ApplyObtainability(achievements, null));
+            Assert.AreEqual("DLC", achievements[0].CategoryType);
+        }
+
+        [TestMethod]
         public void BuildCategoryImagePlan_MultiplayerGroup_GetsNoEntry()
         {
             var groups = new List<SteamHuntersAchievementGroup>
