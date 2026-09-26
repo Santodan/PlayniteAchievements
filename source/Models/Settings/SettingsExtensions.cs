@@ -88,6 +88,8 @@ namespace PlayniteAchievements.Models.Settings
             target.OpenSettingsHotkey = source.OpenSettingsHotkey;
             target.CategoryModeHotkey = source.CategoryModeHotkey;
             target.TestUnlockHotkey = source.TestUnlockHotkey;
+
+            target.HiddenManageSidebarStatGroups = source.HiddenManageSidebarStatGroups;
             target.EnableCaptureTestFolder = source.EnableCaptureTestFolder;
 
             // Notification Settings
