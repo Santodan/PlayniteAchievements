@@ -34,6 +34,13 @@ namespace PlayniteAchievements.Views.Controls
                 typeof(ScoreCardControl),
                 new PropertyMetadata(false));
 
+        public static readonly DependencyProperty BadgeOnlyProperty =
+            DependencyProperty.Register(
+                nameof(BadgeOnly),
+                typeof(bool),
+                typeof(ScoreCardControl),
+                new PropertyMetadata(false));
+
         public ScoreCardControl()
         {
             InitializeComponent();
@@ -69,6 +76,16 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (bool)GetValue(CompactProperty);
             set => SetValue(CompactProperty, value);
+        }
+
+        /// <summary>
+        /// Shows only the badge (and mastery line), with the tier and points moved into the
+        /// tooltip, for hosts too narrow for the text.
+        /// </summary>
+        public bool BadgeOnly
+        {
+            get => (bool)GetValue(BadgeOnlyProperty);
+            set => SetValue(BadgeOnlyProperty, value);
         }
     }
 }
