@@ -26,7 +26,7 @@ namespace PlayniteAchievements.Providers.GuildWars2
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 // Historical: content that has been retired and can no longer be earned.
-                ["A9F7378E-9C8A-48CC-9505-3094E661D5F6"] = "Missable",
+                ["A9F7378E-9C8A-48CC-9505-3094E661D5F6"] = "Unobtainable",
 
                 // Collections.
                 ["45410F60-AB66-4146-A0F7-CE99250C4CB0"] = "Collectable",
