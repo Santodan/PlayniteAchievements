@@ -2837,6 +2837,17 @@ namespace PlayniteAchievements.Models.Settings
 
         #endregion
 
+        private ManageSidebarStatGroups _hiddenManageSidebarStatGroups = ManageSidebarStatGroups.None;
+
+        /// <summary>
+        /// Stat chip groups hidden from the Manage Achievements sidebar, for every game.
+        /// </summary>
+        public ManageSidebarStatGroups HiddenManageSidebarStatGroups
+        {
+            get => _hiddenManageSidebarStatGroups;
+            set => SetValue(ref _hiddenManageSidebarStatGroups, value);
+        }
+
         #region Clone Method
 
         /// <summary>
@@ -2909,6 +2920,8 @@ namespace PlayniteAchievements.Models.Settings
                 CategoryModeHotkey = this.CategoryModeHotkey,
                 TestUnlockHotkey = this.TestUnlockHotkey,
                 EnableCaptureTestFolder = this.EnableCaptureTestFolder,
+
+                HiddenManageSidebarStatGroups = this.HiddenManageSidebarStatGroups,
 
                 // Notification Settings
                 EnableNotifications = this.EnableNotifications,
