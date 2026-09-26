@@ -82,8 +82,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 // Unlocked achievements are classified by the mode they were earned in;
                 // locked achievements keep the default (null) mode. The set-membership type
                 // (the base set -> "Base", a subset -> "Subset"), RA's achievement type
-                // (progression and win_condition -> "Progression", missable -> "Missable") and
-                // the unlock mode combine in canonical order (e.g. "Base|Progression|Hardcore").
+                // (progression -> "Progression", win_condition -> "WinCondition", missable ->
+                // "Missable") and the unlock mode combine in canonical order
+                // (e.g. "Base|WinCondition|Hardcore").
                 var unlockModeType = earnedInHardcore ? "Hardcore" : earnedSoftcore ? "Softcore" : null;
                 var categoryType = AchievementCategoryTypeHelper.Combine(
                     new[] { setCategoryType, MapAchievementType(ach.Type), unlockModeType });
@@ -255,16 +256,16 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         }
 
         /// <summary>
-        /// The category type for RA's achievement type. A win condition is part of beating the
-        /// game, so it counts as progression; untyped achievements get no type.
+        /// The category type for RA's achievement type. Untyped achievements get no type.
         /// </summary>
         internal static string MapAchievementType(string raType)
         {
             switch (raType?.Trim().ToLowerInvariant())
             {
                 case "progression":
-                case "win_condition":
                     return "Progression";
+                case "win_condition":
+                    return "WinCondition";
                 case "missable":
                     return "Missable";
                 default:
