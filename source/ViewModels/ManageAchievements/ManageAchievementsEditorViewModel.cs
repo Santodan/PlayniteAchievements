@@ -4055,22 +4055,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            var categoryOrder = resolved?.AchievementCategoryOrder;
-            var labels = new List<string>(AchievementRows.Count);
-            labels.AddRange(AchievementRows
-                .Select(row => row?.EffectiveCategoryLabel)
-                .Where(label => !string.IsNullOrWhiteSpace(label)));
-            labels.AddRange(resolved?.AchievementCategoryImageOverrides?.Keys ?? Enumerable.Empty<string>());
-            labels.AddRange(categoryOrder ?? new List<string>());
-            var summaryCategory = resolved?.GameSummaryCategory;
-            if (!string.IsNullOrWhiteSpace(summaryCategory?.Label))
-            {
-                labels.Add(summaryCategory.Label);
-            }
-
-            var ordered = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryTree(
-                labels.Where(label => !string.IsNullOrWhiteSpace(label)),
-                categoryOrder);
+            var ordered = CategoryPickerResolver.BuildGameCategoryLabels(
+                AchievementRows.Select(row => row?.EffectiveCategoryLabel),
+                resolved?.AchievementCategoryOrder,
+                resolved?.AchievementCategoryImageOverrides?.Keys,
+                resolved?.GameSummaryCategory?.Label);
 
             // The pickers rebuild their option rows once per collection event, so an unchanged
             // label set has to raise none.
