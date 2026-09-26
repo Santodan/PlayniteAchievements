@@ -80,6 +80,33 @@ namespace PlayniteAchievements.Services.Achievements
     internal static class CategoryPickerResolver
     {
         /// <summary>
+        /// Every category a game has, in tree order: the labels its achievements carry, plus the
+        /// ones that exist only as user state - an entry in the stored order, an art override, the
+        /// summary pick. The one definition of "this game's categories" every picker offers, so a
+        /// category created empty is listed wherever one can be chosen.
+        /// </summary>
+        /// <remarks>
+        /// A category is otherwise only a label some achievement carries, so a list built from the
+        /// achievements alone drops a category created to be filled later.
+        /// </remarks>
+        public static List<string> BuildGameCategoryLabels(
+            IEnumerable<string> achievementLabels,
+            IReadOnlyList<string> categoryOrder,
+            IEnumerable<string> artOverrideLabels,
+            string summaryCategoryLabel)
+        {
+            var labels = new List<string>();
+            labels.AddRange(achievementLabels ?? Enumerable.Empty<string>());
+            labels.AddRange(artOverrideLabels ?? Enumerable.Empty<string>());
+            labels.AddRange(categoryOrder ?? (IEnumerable<string>)Array.Empty<string>());
+            labels.Add(summaryCategoryLabel);
+
+            return AchievementCategoryFilterOrderHelper.BuildOrderedCategoryTree(
+                labels.Where(label => !string.IsNullOrWhiteSpace(label)),
+                categoryOrder);
+        }
+
+        /// <summary>
         /// Builds the options for a set of existing labels, arranged as the tree they describe:
         /// pre-order, siblings contiguous, each row carrying the connectors that place it.
         ///
