@@ -4476,6 +4476,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 ["Singleplayer"] = CategoryType("Singleplayer"),
                 ["Multiplayer"] = CategoryType("Multiplayer"),
                 ["Progression"] = CategoryType("Progression"),
+                ["WinCondition"] = CategoryType("WinCondition"),
                 ["Collectable"] = CategoryType("Collectable"),
                 ["Missable"] = CategoryType("Missable"),
                 ["Difficulty"] = CategoryType("Difficulty"),
