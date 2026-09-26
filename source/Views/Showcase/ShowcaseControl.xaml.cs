@@ -29,6 +29,7 @@ namespace PlayniteAchievements.Views.Showcase
         private bool _publishingConfigurationChange;
         private bool _disposed;
         private string _layoutSignature;
+        private string _builtPageId;
         private Point _dragStart;
         private string _selectedBlockId;
         private string _dragSourceBlockId;
@@ -287,6 +288,7 @@ namespace PlayniteAchievements.Views.Showcase
             // the editor shortcuts need: PreviewKeyDown only fires while focus is inside this
             // control. Without this, the first paste worked and every later one did nothing.
             FocusSelectedBlock();
+            _builtPageId = CurrentPage.PageId;
             _layoutSignature = ComputeLayoutSignature();
         }
 
@@ -1612,7 +1614,7 @@ namespace PlayniteAchievements.Views.Showcase
                 if (!string.IsNullOrWhiteSpace(current?.WidgetInstanceId))
                 {
                     ShowcaseLayoutService.DeleteWidget(Layout, current.WidgetInstanceId);
-                    SaveAndReassignWidgets();
+                    SaveAndApplyBlocks();
                 }
             };
             layers.Children.Add(deleteButton);
@@ -1829,7 +1831,7 @@ namespace PlayniteAchievements.Views.Showcase
                             return;
                         }
 
-                        SaveAndReassignWidgets();
+                        SaveAndApplyBlocks();
                     });
                 item.IsEnabled = !captured.SingleInstancePerPage ||
                     !CurrentPage.Blocks
@@ -1891,7 +1893,7 @@ namespace PlayniteAchievements.Views.Showcase
                     secondBlockId,
                     preferredWidgetInstanceId))
             {
-                SaveAndRebuild();
+                SaveAndApplyBlocks();
             }
         }
 
@@ -2067,7 +2069,7 @@ namespace PlayniteAchievements.Views.Showcase
                 // Stop the target clock before the visuals change. The drag source's finally
                 // block also clears the states after WPF ends the operation.
                 ClearDragVisuals();
-                SaveAndReassignWidgets();
+                SaveAndApplyBlocks();
             }
 
             e.Handled = true;
@@ -2237,24 +2239,32 @@ namespace PlayniteAchievements.Views.Showcase
             SaveAndRebuild();
         }
 
-        // A widget move or swap keeps the block partition intact and only changes which widget each
-        // block hosts, so the existing widget controls are re-parented between block containers
+        // Widget moves and swaps, merges, and cuts all keep the page and its grid size, so the
+        // existing block containers are repositioned and the existing widget controls re-parented
         // instead of being recreated - rebuilding would re-inflate every data grid and chart on the
-        // page. Returns false (and leaves the visuals untouched) if anything about the page no
-        // longer lines up, so the caller can fall back to a full rebuild.
-        private bool TryReassignWidgetHostsInPlace()
+        // page. Only blocks that appeared get a new container, and only blocks that disappeared
+        // lose theirs. Returns false before touching anything when the page or grid size differs,
+        // so the caller can fall back to a full rebuild.
+        private bool TryApplyBlocksInPlace()
         {
             if (_disposed || _blockVisuals.Count == 0)
             {
                 return false;
             }
 
-            var blocks = CurrentPage.Blocks;
-            if (blocks.Count != _blockVisuals.Count ||
-                blocks.Any(block => !_blockVisuals.ContainsKey(block.BlockId)))
+            var gridSize = PageGridSize;
+            if (!string.Equals(_builtPageId, CurrentPage?.PageId, StringComparison.OrdinalIgnoreCase) ||
+                DashboardGrid.RowDefinitions.Count != gridSize ||
+                DashboardGrid.ColumnDefinitions.Count != gridSize)
             {
                 return false;
             }
+
+            var blocks = CurrentPage.Blocks;
+            ApplyTrackWeights(vertical: false, ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.RowWeights, gridSize));
+            ApplyTrackWeights(vertical: true, ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.ColumnWeights, gridSize));
+            ClearMergePreviewGlow();
+            HideCutGhost();
 
             var hostsByInstanceId = new Dictionary<string, ShowcaseWidgetControl>(StringComparer.OrdinalIgnoreCase);
             foreach (var state in _blockVisuals.Values)
@@ -2263,6 +2273,55 @@ namespace PlayniteAchievements.Views.Showcase
                 {
                     hostsByInstanceId[state.Widget.InstanceId] = state.Host;
                 }
+            }
+
+            var liveIds = new HashSet<string>(blocks.Select(block => block.BlockId), StringComparer.OrdinalIgnoreCase);
+            foreach (var removedId in _blockVisuals.Keys.Where(id => !liveIds.Contains(id)).ToList())
+            {
+                var removed = _blockVisuals[removedId];
+                // Detach the content first so a surviving widget's control can move to its new block.
+                (removed.Container?.Child as Grid)?.Children.Clear();
+                DashboardGrid.Children.Remove(removed.Container);
+                _blockVisuals.Remove(removedId);
+            }
+
+            if (EditLayoutButton.IsChecked == true && !liveIds.Contains(_selectedBlockId ?? string.Empty))
+            {
+                _selectedBlockId = blocks.FirstOrDefault()?.BlockId;
+            }
+
+            var snapshot = _overview.LatestSnapshot ?? new OverviewDataSnapshot();
+            foreach (var block in blocks)
+            {
+                if (_blockVisuals.TryGetValue(block.BlockId, out var existing))
+                {
+                    existing.Block = block;
+                    existing.Container.Tag = block;
+                }
+                else
+                {
+                    // An empty shell: the assignment pass below installs its widget control or +.
+                    var created = CreateBlockContainer(
+                        new ShowcaseBlockSettings
+                        {
+                            BlockId = block.BlockId,
+                            Row = block.Row,
+                            Column = block.Column,
+                            RowSpan = block.RowSpan,
+                            ColumnSpan = block.ColumnSpan
+                        },
+                        snapshot);
+                    created.Tag = block;
+                    _blockVisuals[block.BlockId].Block = block;
+                    // Below the ZIndex'd overlays either way; first keeps child order stable.
+                    DashboardGrid.Children.Insert(0, created);
+                }
+
+                var container = _blockVisuals[block.BlockId].Container;
+                Grid.SetRow(container, block.Row);
+                Grid.SetColumn(container, block.Column);
+                Grid.SetRowSpan(container, block.RowSpan);
+                Grid.SetColumnSpan(container, block.ColumnSpan);
             }
 
             var assignments = new List<(BlockVisualState State, ShowcaseWidgetInstanceSettings Widget, ShowcaseWidgetControl Host)>();
@@ -2327,6 +2386,9 @@ namespace PlayniteAchievements.Views.Showcase
                 RefreshBlockChrome(assignment.State);
             }
 
+            UpdateLayoutHandles();
+            ApplyPendingCutVisual();
+            FocusSelectedBlock();
             _layoutSignature = ComputeLayoutSignature();
             return true;
         }
@@ -2448,11 +2510,11 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        // Persists a widget add/move/swap/delete, keeping the built widget controls in place.
-        private void SaveAndReassignWidgets()
+        // Persists a widget add/move/swap/delete, merge, or cut, keeping the built widget controls in place.
+        private void SaveAndApplyBlocks()
         {
             SaveAndPublish();
-            if (!TryReassignWidgetHostsInPlace())
+            if (!TryApplyBlocksInPlace())
             {
                 Rebuild();
             }
@@ -2836,7 +2898,7 @@ namespace PlayniteAchievements.Views.Showcase
                     StringComparison.OrdinalIgnoreCase))?.BlockId;
             }
 
-            SaveAndRebuild();
+            SaveAndApplyBlocks();
         }
 
         private List<ShowcaseBlockSettings> FindAdjacentBlocks(
@@ -3137,7 +3199,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             CopyGridSurfaceOptions(_clipboardWidget, copy);
             SelectBlockAfterPaste(block);
-            SaveAndReassignWidgets();
+            SaveAndApplyBlocks();
         }
 
         private void MoveCutWidgetInto(ShowcaseBlockSettings block, ShowcaseWidgetInstanceSettings cutWidget)
@@ -3173,7 +3235,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             SetPendingCut(null);
             SelectBlockAfterPaste(block);
-            SaveAndReassignWidgets();
+            SaveAndApplyBlocks();
         }
 
         // Pasting over an occupant orphans it, and the orphan sweep in SaveAndPublish then
