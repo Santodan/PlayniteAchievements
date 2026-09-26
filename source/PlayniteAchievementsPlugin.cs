@@ -1872,6 +1872,11 @@ namespace PlayniteAchievements
                 _logger?.Debug(ex, $"Failed to refresh theme state after custom-data change for gameId={gameId}.");
             }
 
+            // The per-game friend comparison caches its snapshot until something invalidates it,
+            // and its rows carry this game's own category labels. Nothing else on this path
+            // reached it, so a category edit stayed out of that window even across a reopen.
+            _friendGameAchievementsDataCoordinator?.InvalidateGame(gameId);
+
             if (affectsSummaryData)
             {
                 InvalidateStartPageData();
