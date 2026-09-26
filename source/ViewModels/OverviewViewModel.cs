@@ -3280,9 +3280,9 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
-        /// Rebuilds the selected game's rows for the deltas the in-place re-stamp could not cover.
-        /// This is the path that clears a removed icon override, and it costs the right pane's
-        /// search text, so it runs only when the re-stamp refused.
+        /// Rebuilds the selected game's rows after a delta or snapshot touched that game, so its
+        /// labels, category filter and grouping follow the change. The right pane's search text is
+        /// kept, since the user is still on the same game.
         /// </summary>
         private async Task ReloadSelectedGameIfRequestedAsync()
         {
