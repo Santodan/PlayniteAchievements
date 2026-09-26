@@ -297,7 +297,7 @@
                             <MultiDataTrigger>
                                 <MultiDataTrigger.Conditions>
                                     <Condition Binding="{Binding HasRarityPercent}" Value="True"/>
-                                    <Condition Binding="{Binding ShowRarityBar}" Value="True"/>
+                                    <Condition Binding="{Binding RarityBarVisible, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Visible"/>
                             </MultiDataTrigger>
