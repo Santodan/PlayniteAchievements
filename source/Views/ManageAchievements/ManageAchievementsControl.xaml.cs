@@ -637,6 +637,56 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }), DispatcherPriority.Input);
         }
 
+        // Sidebar stat groups in the order the sidebar shows them; null marks a separator.
+        private static readonly Tuple<Models.Settings.ManageSidebarStatGroups, string>[] SidebarStatMenuEntries =
+        {
+            Tuple.Create(Models.Settings.ManageSidebarStatGroups.Capstones, "LOCPlayAch_Dynamic_Capstone"),
+            null,
+            Tuple.Create(Models.Settings.ManageSidebarStatGroups.Rarity, "LOCPlayAch_Column_Rarity"),
+            Tuple.Create(Models.Settings.ManageSidebarStatGroups.Trophies, "LOCPlayAch_Column_Trophy"),
+            null,
+            Tuple.Create(Models.Settings.ManageSidebarStatGroups.Points, "LOCPlayAch_Column_Points"),
+            Tuple.Create(Models.Settings.ManageSidebarStatGroups.Goals, "LOCPlayAch_ManageAchievements_Editor_Goal"),
+            Tuple.Create(Models.Settings.ManageSidebarStatGroups.Categorized, "LOCPlayAch_ManageAchievements_Overview_Categorized"),
+            Tuple.Create(Models.Settings.ManageSidebarStatGroups.Filtered, "LOCPlayAch_Menu_Filters"),
+            Tuple.Create(Models.Settings.ManageSidebarStatGroups.Notes, "LOCPlayAch_ManageAchievements_Tab_Notes")
+        };
+
+        private void SidebarStatsHost_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel == null)
+            {
+                return;
+            }
+
+            var menu = new ContextMenu();
+            foreach (var entry in SidebarStatMenuEntries)
+            {
+                if (entry == null)
+                {
+                    menu.Items.Add(new Separator());
+                    continue;
+                }
+
+                var group = entry.Item1;
+                var item = new MenuItem
+                {
+                    Header = ResourceProvider.GetString(entry.Item2),
+                    IsCheckable = true,
+                    StaysOpenOnClick = true,
+                    IsChecked = _viewModel.IsSidebarStatGroupShown(group)
+                };
+                item.Click += (_, __) => _viewModel?.SetSidebarStatGroupShown(group, item.IsChecked);
+                menu.Items.Add(item);
+            }
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
+            menu.PlacementTarget = SidebarStatsHost;
+            menu.Placement = PlacementMode.MousePoint;
+            menu.IsOpen = true;
+            e.Handled = true;
+        }
+
         private static IEnumerable<T> FindVisualChildren<T>(DependencyObject root)
             where T : DependencyObject
         {
