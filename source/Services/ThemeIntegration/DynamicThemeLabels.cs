@@ -38,7 +38,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 ("WinCondition", "LOCPlayAch_ManageAchievements_Category_Type_WinCondition", "Win Condition"),
                 ("Collectable", "LOCPlayAch_ManageAchievements_Category_Type_Collectable", "Collectable"),
                 ("Missable", "LOCPlayAch_ManageAchievements_Category_Type_Missable", "Missable"),
-                ("Difficulty", "LOCPlayAch_ManageAchievements_Category_Type_Difficulty", "Difficulty"),
+                ("Unobtainable", "LOCPlayAch_ManageAchievements_Category_Type_Unobtainable", "Unobtainable"),                ("Difficulty", "LOCPlayAch_ManageAchievements_Category_Type_Difficulty", "Difficulty"),
                 ("Stackable", "LOCPlayAch_ManageAchievements_Category_Type_Stackable", "Stackable"),
                 ("Softcore", "LOCPlayAch_ManageAchievements_Category_Type_Softcore", "Softcore"),
                 ("Hardcore", "LOCPlayAch_ManageAchievements_Category_Type_Hardcore", "Hardcore"),
