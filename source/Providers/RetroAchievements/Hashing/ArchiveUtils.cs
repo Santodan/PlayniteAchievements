@@ -169,7 +169,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         {
             // One sequential pass writes everything the hashers could need; picking files by random
             // access would decompress the archive again for each one.
-            var keep = new HashSet<string>(wanted.Select(e => e.Key).Concat(cues.Select(c => c.Key)), StringComparer.OrdinalIgnoreCase);
+            var keep =new HashSet<string>(wanted.Select(e => e.Key).Concat(cues.Select(c => c.Key)), StringComparer.OrdinalIgnoreCase);
             var written = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var referencedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -183,9 +183,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
                         continue;
                     }
 
-                    // Cue-referenced tracks are not always among the largest entries, so keep every
-                    // non-audio file whose name a cue could reference when cues are present.
-                    if (!keep.Contains(entry.Key) && !(cues.Count > 0 && !IsAudioEntry(entry.Key) && IsPlausibleRomEntry(entry.Key)))
+                    // Cue-referenced tracks are not always among the largest entries and may be audio
+                    // (Atari Jaguar CD reads an audio track), so keep every file a cue could reference.
+                    if (!keep.Contains(entry.Key) && !(cues.Count > 0 && IsPlausibleRomEntry(entry.Key)))
                     {
                         continue;
                     }
