@@ -3297,7 +3297,8 @@ namespace PlayniteAchievements.ViewModels
 
             await LoadSelectedGameAchievementsAsync(
                 gameId,
-                _selectedGameLoadCts?.Token ?? CancellationToken.None);
+                _selectedGameLoadCts?.Token ?? CancellationToken.None,
+                resetSearch: false);
         }
 
         /// <summary>
@@ -4438,10 +4439,17 @@ namespace PlayniteAchievements.ViewModels
             UpdateContextualPieCharts(BuildPieChartSnapshotFromCurrentState());
         }
 
-        private async Task<bool> LoadSelectedGameAchievementsAsync(Guid? targetGameId, CancellationToken cancellationToken)
+        private async Task<bool> LoadSelectedGameAchievementsAsync(
+            Guid? targetGameId,
+            CancellationToken cancellationToken,
+            bool resetSearch = true)
         {
-            // Reset right search when selecting a game
-            RightSearchText = string.Empty;
+            // Reset right search when selecting a game. A reload of the game already selected
+            // keeps it: that is the data changing under the user, not the user moving on.
+            if (resetSearch)
+            {
+                RightSearchText = string.Empty;
+            }
 
             if (targetGameId == null)
             {
