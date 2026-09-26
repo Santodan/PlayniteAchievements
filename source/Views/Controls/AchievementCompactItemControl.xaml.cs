@@ -63,7 +63,7 @@ namespace PlayniteAchievements.Views.Controls
                 nameof(SoftGlowTiers),
                 typeof(RaritySelection),
                 typeof(AchievementCompactItemControl),
-                new PropertyMetadata(RaritySelection.All));
+                new PropertyMetadata(RaritySelectionExtensions.DefaultSoftGlowTiers));
 
         public static readonly DependencyProperty RayGlowTiersProperty =
             DependencyProperty.Register(

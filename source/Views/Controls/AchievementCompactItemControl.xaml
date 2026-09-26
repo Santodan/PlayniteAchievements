@@ -115,6 +115,7 @@
               SnapsToDevicePixels="True">
             <!-- Rays glow style: arrows riding the icon's own silhouette, replacing the soft halo. -->
             <controls:RarityRayBurst Rarity="{Binding Rarity}"
+                                     HasRarityData="{Binding HasRarityPercent}"
                                      SubjectUri="{Binding DisplayIcon, Mode=OneWay}">
                 <controls:RarityRayBurst.Style>
                     <Style TargetType="controls:RarityRayBurst">
@@ -174,6 +175,7 @@
                                         <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="8">
                                             <Binding Path="Rarity"/>
                                             <Binding Path="SoftGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementCompactItemControl}"/>
+                                            <Binding Path="HasRarityPercent"/>
                                         </MultiBinding>
                                     </Setter.Value>
                                 </Setter>
@@ -184,7 +186,15 @@
                                     <Condition Binding="{Binding UseLargeRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Visible"/>
-                                <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource PercentToRarityGlow}}"/>
+                                <Setter Property="Effect">
+                                    <Setter.Value>
+                                        <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="20">
+                                            <Binding Path="Rarity"/>
+                                            <Binding Path="SoftGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementCompactItemControl}"/>
+                                            <Binding Path="HasRarityPercent"/>
+                                        </MultiBinding>
+                                    </Setter.Value>
+                                </Setter>
                             </MultiDataTrigger>
                             <!-- Hardcore achievements use a solid border instead of the soft glow. -->
                             <MultiDataTrigger>
@@ -235,6 +245,7 @@
                                         <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="3">
                                             <Binding Path="Rarity"/>
                                             <Binding Path="RayGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementCompactItemControl}"/>
+                                            <Binding Path="HasRarityPercent"/>
                                         </MultiBinding>
                                     </Setter.Value>
                                 </Setter>

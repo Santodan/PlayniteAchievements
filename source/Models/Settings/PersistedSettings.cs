@@ -158,7 +158,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _animateRarityGlows = true;
         // Completion is included by default because the completed-game glow shipped on; the rays stay
         // opt-in for everything.
-        private RaritySelection _rarityGlowSoftTiers = RaritySelection.All | RaritySelection.Completed;
+        private RaritySelection _rarityGlowSoftTiers = RaritySelectionExtensions.DefaultSoftGlowTiers;
         private RaritySelection _rarityGlowRayTiers = RaritySelection.None;
         private bool _showHardcoreBorder = true;
         private double _rarityGlowPulseMinOpacity = 0.6;
@@ -191,6 +191,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showCompactListRarityBar = true;
         private bool _progressColumnAlignmentDefaulted = false;
         private bool _inlineSurfaceTransparencySeeded = true;
+        private bool _commonGlowTierCleared = false;
 
         private GridAlignment _gridColumnHeaderAlignment = GridAlignment.Center;
         private GridAlignment _gridCellAlignment = GridAlignment.Left;
@@ -1842,8 +1843,8 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// Which rarity tiers get the soft halo around unlocked icons. Membership is exact, so a tier
-        /// with its bit clear shows no halo at all. Defaults to every tier, which is the original
-        /// behavior.
+        /// with its bit clear shows no halo at all. Defaults to every tier except Common, plus
+        /// completion.
         /// </summary>
         public RaritySelection RarityGlowSoftTiers
         {
@@ -2184,6 +2185,19 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _inlineSurfaceTransparencySeeded;
             set => SetValue(ref _inlineSurfaceTransparencySeeded, value);
+        }
+
+        /// <summary>
+        /// One-time bookkeeping flag: true once the Common bit has been cleared from the saved glow
+        /// tier selections. Before Common could glow, the soft-glow default was every tier, so
+        /// existing configs carry a Common bit the user never chose. Defaults to false everywhere,
+        /// like <see cref="ProgressColumnAlignmentDefaulted"/>; the migration is the only thing that
+        /// flips it true.
+        /// </summary>
+        public bool CommonGlowTierCleared
+        {
+            get => _commonGlowTierCleared;
+            set => SetValue(ref _commonGlowTierCleared, value);
         }
 
         /// <summary>
@@ -3048,6 +3062,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowCompactListRarityBar = this.ShowCompactListRarityBar,
                 ProgressColumnAlignmentDefaulted = this.ProgressColumnAlignmentDefaulted,
                 InlineSurfaceTransparencySeeded = this.InlineSurfaceTransparencySeeded,
+                CommonGlowTierCleared = this.CommonGlowTierCleared,
                 GridColumnHeaderAlignment = this.GridColumnHeaderAlignment,
                 GridCellAlignment = this.GridCellAlignment,
                 GridCellVerticalAlignment = this.GridCellVerticalAlignment,

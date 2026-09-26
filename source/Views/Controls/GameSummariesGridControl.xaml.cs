@@ -395,7 +395,7 @@ namespace PlayniteAchievements.Views.Controls
                 nameof(SoftGlowTiers),
                 typeof(RaritySelection),
                 typeof(GameSummariesGridControl),
-                new PropertyMetadata(RaritySelection.All | RaritySelection.Completed));
+                new PropertyMetadata(RaritySelectionExtensions.DefaultSoftGlowTiers));
 
         public RaritySelection SoftGlowTiers
         {

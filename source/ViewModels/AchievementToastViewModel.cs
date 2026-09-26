@@ -268,9 +268,10 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Whether this unlock's tier is one of the tiers selected for the soft halo. The card's outer
-        /// border glow is unaffected — it is not a per-tier effect.
+        /// border glow is not a per-tier effect, except that Common takes it only when this is true
+        /// (see <see cref="BorderGlowEffect"/>).
         /// </summary>
-        public bool HasSoftGlowTier => _settings.RarityGlowSoftTiers.Contains(_rarity);
+        public bool HasSoftGlowTier => _settings.RarityGlowSoftTiers.GlowsFor(_rarity, HasRarityData);
 
         /// <summary>
         /// True on a real achievement unlock when the game is complete after it (all
@@ -877,7 +878,7 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         private bool HasRaySelection => UsesCompletionColors
             ? _settings.RarityGlowRayTiers.IncludesCompleted()
-            : _settings.RarityGlowRayTiers.Contains(_rarity);
+            : _settings.RarityGlowRayTiers.GlowsFor(_rarity, HasRarityData);
 
         // Rarity-colored glow on the toast card border (replaces the default drop shadow when
         // the border-glow option is on). Toast surface only. Completion uses the completed glow.
@@ -934,12 +935,14 @@ namespace PlayniteAchievements.ViewModels
 
         // Cloned to an unfrozen copy so the card's border-glow pulse can animate its Opacity
         // (the shared GetGlow/GetCompletedGlow instances are frozen and immutable), and so its
-        // BlurRadius can be widened to the border-glow radius. Null for Common rarity (no glow).
+        // BlurRadius can be widened to the border-glow radius. Common takes it only when Common is
+        // among the soft-glow tiers (with real rarity data); every other tier takes it regardless.
         public Effect BorderGlowEffect
         {
             get
             {
-                if (!HasBorderGlow)
+                if (!HasBorderGlow ||
+                    (!UsesCompletionColors && _rarity == RarityTier.Common && !HasSoftGlowTier))
                 {
                     return null;
                 }

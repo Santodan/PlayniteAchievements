@@ -491,6 +491,7 @@
                  they are traced from the same icon SubjectUri names. Hardcore keeps its crisp shine
                  border instead. The icon carries Margin="2", so the track is inset to match. -->
             <controls:RarityRayBurst Rarity="{Binding Rarity}"
+                                     HasRarityData="{Binding HasRarityPercent}"
                                      SubjectUri="{Binding DisplayIcon}"
                                      SubjectInset="2">
                 <controls:RarityRayBurst.Style>
@@ -575,6 +576,7 @@
                                             <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="20">
                                                 <Binding Path="Rarity"/>
                                                 <Binding Path="SoftGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
+                                                <Binding Path="HasRarityPercent"/>
                                             </MultiBinding>
                                         </Setter.Value>
                                     </Setter>
@@ -628,6 +630,7 @@
                                             <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="4">
                                                 <Binding Path="Rarity"/>
                                                 <Binding Path="RayGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
+                                                <Binding Path="HasRarityPercent"/>
                                             </MultiBinding>
                                         </Setter.Value>
                                     </Setter>

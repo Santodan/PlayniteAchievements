@@ -1,17 +1,25 @@
 using System;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using PlayniteAchievements.Models.Achievements;
 
 namespace PlayniteAchievements.Models.Settings
 {
     /// <summary>
-    /// Seeds the transparent inline-surface resource overrides (GridSurface, ControlSurface) into
-    /// existing user configs. Runs before settings deserialization so the seeded entries persist
-    /// through the load, and is gated by the <see cref="PersistedSettings.InlineSurfaceTransparencySeeded"/>
-    /// flag so it runs exactly once: after seeding it stamps the flag, after which a user's own
+    /// One-time appearance migrations, run before settings deserialization so their writes persist
+    /// through the load. Each step is gated by its own flag and stamps it when done.
+    ///
+    /// Inline surfaces: seeds the transparent inline-surface resource overrides (GridSurface,
+    /// ControlSurface) into existing user configs, gated by
+    /// <see cref="PersistedSettings.InlineSurfaceTransparencySeeded"/>. After seeding, a user's own
     /// later choice -- including switching a surface back to Follow Playnite (which removes the
     /// entry) -- is respected and never re-seeded. Fresh installs default the flag true and seed
-    /// the overrides in the plugin-reference constructor, so this migration is a no-op for them.
+    /// the overrides in the plugin-reference constructor, so this step is a no-op for them.
+    ///
+    /// Common glow: clears the Common bit from the saved glow tier selections, gated by
+    /// <see cref="PersistedSettings.CommonGlowTierCleared"/>. Common could not glow before, and the
+    /// old soft-glow default of every tier saved that bit, so without this every existing config
+    /// would start glowing Common.
     /// </summary>
     public static class AppearanceSettingsMigration
     {
@@ -31,7 +39,9 @@ namespace PlayniteAchievements.Models.Settings
                     return json;
                 }
 
-                return SeedInlineSurfaceTransparency(persisted)
+                var changed = SeedInlineSurfaceTransparency(persisted);
+                changed |= ClearCommonGlowTier(persisted);
+                return changed
                     ? root.ToString(Formatting.None)
                     : json;
             }
@@ -77,6 +87,38 @@ namespace PlayniteAchievements.Models.Settings
 
             persisted[flagName] = true;
             return true;
+        }
+
+        /// <summary>
+        /// Removes the Common bit from the soft and ray glow tier selections where present, leaving
+        /// every other bit as the user set it, then stamps the one-time flag.
+        /// </summary>
+        private static bool ClearCommonGlowTier(JObject persisted)
+        {
+            const string flagName = nameof(PersistedSettings.CommonGlowTierCleared);
+
+            var flag = persisted[flagName];
+            if (flag != null && flag.Type == JTokenType.Boolean && flag.Value<bool>())
+            {
+                return false;
+            }
+
+            ClearCommonBit(persisted, nameof(PersistedSettings.RarityGlowSoftTiers));
+            ClearCommonBit(persisted, nameof(PersistedSettings.RarityGlowRayTiers));
+
+            persisted[flagName] = true;
+            return true;
+        }
+
+        private static void ClearCommonBit(JObject persisted, string propertyName)
+        {
+            var token = persisted[propertyName];
+            if (token == null || token.Type != JTokenType.Integer)
+            {
+                return;
+            }
+
+            persisted[propertyName] = token.Value<int>() & ~(int)RaritySelection.Common;
         }
     }
 }

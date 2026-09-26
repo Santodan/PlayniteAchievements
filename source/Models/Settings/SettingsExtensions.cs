@@ -210,6 +210,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowCompactListRarityBar = source.ShowCompactListRarityBar;
             target.ProgressColumnAlignmentDefaulted = source.ProgressColumnAlignmentDefaulted;
             target.InlineSurfaceTransparencySeeded = source.InlineSurfaceTransparencySeeded;
+            target.CommonGlowTierCleared = source.CommonGlowTierCleared;
             target.GridColumnHeaderAlignment = source.GridColumnHeaderAlignment;
             target.GridCellAlignment = source.GridCellAlignment;
             target.GridCellVerticalAlignment = source.GridCellVerticalAlignment;

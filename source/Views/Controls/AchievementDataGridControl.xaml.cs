@@ -469,7 +469,7 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         public static readonly DependencyProperty SoftGlowTiersProperty =
             DependencyProperty.Register(nameof(SoftGlowTiers), typeof(RaritySelection),
-                typeof(AchievementDataGridControl), new PropertyMetadata(RaritySelection.All));
+                typeof(AchievementDataGridControl), new PropertyMetadata(RaritySelectionExtensions.DefaultSoftGlowTiers));
 
         /// <summary>
         /// Gets or sets which rarity tiers show the soft halo in this grid.

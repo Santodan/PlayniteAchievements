@@ -56,6 +56,7 @@ namespace PlayniteAchievements.Models.Tests
                 @"{
                     ""Persisted"": {
                         ""InlineSurfaceTransparencySeeded"": true,
+                        ""CommonGlowTierCleared"": true,
                         ""ResourceOverrides"": {
                             ""PlayAch.Brush.ControlSurface"": { ""Mode"": 2, ""CustomValue"": ""#00000000"" }
                         }
@@ -71,6 +72,44 @@ namespace PlayniteAchievements.Models.Tests
             var overrides = (JObject)persisted["ResourceOverrides"];
             Assert.IsNull(overrides[GridSurfaceKey]);
             Assert.IsNotNull(overrides[ControlSurfaceKey]);
+        }
+
+        [TestMethod]
+        public void MigrateFromJson_ClearsCommonGlowBit_WhenFlagAbsent()
+        {
+            // The old soft default (every tier plus completion) and a hand-set ray selection.
+            const string json =
+                @"{ ""Persisted"": { ""RarityGlowSoftTiers"": 31, ""RarityGlowRayTiers"": 9 } }";
+
+            var persisted = MigratePersisted(json);
+
+            Assert.AreEqual(30, persisted["RarityGlowSoftTiers"].Value<int>());
+            Assert.AreEqual(8, persisted["RarityGlowRayTiers"].Value<int>());
+            Assert.AreEqual(true, persisted["CommonGlowTierCleared"].Value<bool>());
+        }
+
+        [TestMethod]
+        public void MigrateFromJson_KeepsCommonGlowBit_WhenFlagAlreadySet()
+        {
+            // The user opted Common in after the one-time clear.
+            const string json =
+                @"{ ""Persisted"": { ""CommonGlowTierCleared"": true, ""RarityGlowSoftTiers"": 31 } }";
+
+            var persisted = MigratePersisted(json);
+
+            Assert.AreEqual(31, persisted["RarityGlowSoftTiers"].Value<int>());
+        }
+
+        [TestMethod]
+        public void MigrateFromJson_OnlyStampsCommonGlowFlag_WhenTiersAbsent()
+        {
+            const string json = @"{ ""Persisted"": { ""GlobalLanguage"": ""english"" } }";
+
+            var persisted = MigratePersisted(json);
+
+            Assert.IsNull(persisted["RarityGlowSoftTiers"]);
+            Assert.IsNull(persisted["RarityGlowRayTiers"]);
+            Assert.AreEqual(true, persisted["CommonGlowTierCleared"].Value<bool>());
         }
 
         private static JObject MigratePersisted(string json)

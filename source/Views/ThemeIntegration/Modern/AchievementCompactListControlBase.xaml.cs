@@ -94,7 +94,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// </summary>
         public static readonly DependencyProperty SoftGlowTiersProperty =
             DependencyProperty.Register(nameof(SoftGlowTiers), typeof(RaritySelection),
-                typeof(AchievementCompactListControlBase), new PropertyMetadata(RaritySelection.All));
+                typeof(AchievementCompactListControlBase), new PropertyMetadata(RaritySelectionExtensions.DefaultSoftGlowTiers));
 
         /// <summary>
         /// Gets or sets which rarity tiers show the soft halo in this list.
