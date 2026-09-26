@@ -20,6 +20,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     {
         private double _iconSize = 42;
         private Thickness _tileMargin = new Thickness(6);
+        private bool _isSeamless;
         private bool _showRarityGlow = true;
         private bool _animateRarityGlows = true;
         private bool _glowWhenLocked;
@@ -32,6 +33,12 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         /// <summary>Space around each tile, from the widget's spacing option.</summary>
         public Thickness TileMargin { get => _tileMargin; private set => SetValue(ref _tileMargin, value); }
+
+        /// <summary>
+        /// Zero spacing: the wrap panel also stops spreading leftover row width between tiles,
+        /// so the tiles touch.
+        /// </summary>
+        public bool IsSeamless { get => _isSeamless; private set => SetValue(ref _isSeamless, value); }
 
         public bool ShowRarityGlow { get => _showRarityGlow; private set => SetValue(ref _showRarityGlow, value); }
 
@@ -52,7 +59,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ?? (Density == WidgetViewportDensity.Compact
                     ? 32
                     : Density == WidgetViewportDensity.Expanded ? 54 : ShowcaseWidgetOptions.DefaultMosaicIconSize);
-            TileMargin = new Thickness(ShowcaseWidgetOptions.GetMosaicSpacing(Projection?.Instance));
+            var spacing = ShowcaseWidgetOptions.GetMosaicSpacing(Projection?.Instance);
+            TileMargin = new Thickness(spacing);
+            IsSeamless = spacing == 0;
 
             // Glow on/off is a per-widget option; the glow ANIMATION stays a global setting.
             ShowRarityGlow = ShowcaseWidgetOptions.GetMosaicShowRarityGlow(Projection?.Instance);
