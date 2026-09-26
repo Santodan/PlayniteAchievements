@@ -49,6 +49,21 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void BuildBreakdown_CountsCapstones()
+        {
+            var game = Achievement("a", unlocked: true, points: null, category: null);
+            game.IsCapstone = true;
+            var dlc = Achievement("b", unlocked: false, points: null, category: "DLC");
+            dlc.IsCapstone = true;
+            var notCapstone = Achievement("c", unlocked: true, points: null, category: "DLC");
+
+            var breakdown = ManageOverviewSummaryBuilder.BuildBreakdown(new[] { game, dlc, notCapstone });
+
+            Assert.AreEqual(2, breakdown.CapstoneCount);
+            Assert.AreEqual(1, breakdown.UnlockedCapstoneCount);
+        }
+
+        [TestMethod]
         public void BuildCapstones_PairsNamesWithNonDefaultCategories()
         {
             var game = Achievement("a", unlocked: true, points: null, category: null);
