@@ -126,15 +126,16 @@ namespace PlayniteAchievements.Models.Settings
         EasiestRemaining = 2
     }
 
+    // 0 was NextInLine; a stored "NextInLine" no longer parses and falls back to the default.
     public enum UnlockNextCriterion
     {
-        /// <summary>The game's own order, so each tile is the next thing in that game's list.</summary>
-        NextInLine = 0,
-
         /// <summary>Highest global unlock percentage first: what most players already have.</summary>
         Easiest = 1,
 
-        /// <summary>Achievements belonging to the games closest to being finished.</summary>
+        /// <summary>
+        /// The games closest to being finished first, each game's most commonly earned locked
+        /// achievements first within it.
+        /// </summary>
         ClosestToCompletion = 2
     }
 
