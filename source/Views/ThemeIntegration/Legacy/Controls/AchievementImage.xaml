@@ -36,7 +36,8 @@
                   UseLayoutRounding="True"
                   SnapsToDevicePixels="True">
                 <!-- Rays glow style: a rotating sunburst behind the icon, replacing the soft halo. -->
-                <controls:RarityRayBurst Rarity="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Rarity}">
+                <controls:RarityRayBurst Rarity="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Rarity}"
+                                         HasRarityData="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=HasRarityPercent}">
                     <!-- Same icon the layers below draw, chosen the same way, so the track is traced
                          from whichever variant is actually on screen. -->
                     <controls:RarityRayBurst.SubjectUri>
@@ -116,6 +117,7 @@
                                             <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="20">
                                                 <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Rarity"/>
                                                 <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="SoftGlowTiers"/>
+                                                <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="HasRarityPercent"/>
                                             </MultiBinding>
                                         </Setter.Value>
                                     </Setter>
@@ -182,6 +184,7 @@
                                             <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="4">
                                                 <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Rarity"/>
                                                 <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="RayGlowTiers"/>
+                                                <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="HasRarityPercent"/>
                                             </MultiBinding>
                                         </Setter.Value>
                                     </Setter>
