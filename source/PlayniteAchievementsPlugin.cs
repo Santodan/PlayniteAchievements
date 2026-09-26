@@ -2084,7 +2084,15 @@ namespace PlayniteAchievements
             var poolNewlyRequired = required && !_unlockNextPoolRequired;
             _unlockNextPoolRequired = required;
 
-            var pinsUnhydrated = _libraryProjectionService?.OverviewMissesAchievementPins(showcase) == true;
+            // Only a change to the pin set can leave the projection missing a pin. Layout edits
+            // (merge, split, resize, widget options) leave the pins alone, and checking the
+            // projection on each of them counted any in-flight build as stale, restarting a
+            // whole-library rebuild on every click.
+            var pinKeys = CollectAchievementPinKeys(showcase);
+            var pinsChanged = !pinKeys.SetEquals(_lastAchievementPinKeys);
+            _lastAchievementPinKeys = pinKeys;
+            var pinsUnhydrated = pinsChanged &&
+                _libraryProjectionService?.OverviewMissesAchievementPins(showcase) == true;
             if (!poolNewlyRequired && !pinsUnhydrated)
             {
                 return;
@@ -2092,6 +2100,25 @@ namespace PlayniteAchievements
 
             _libraryProjectionService?.Invalidate();
             ScheduleStartPageInvalidate();
+        }
+
+        private HashSet<string> _lastAchievementPinKeys = new HashSet<string>(StringComparer.Ordinal);
+
+        private static HashSet<string> CollectAchievementPinKeys(ShowcaseSettings showcase)
+        {
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var collection in showcase?.AchievementPinCollections ?? new List<PinnedAchievementCollection>())
+            {
+                foreach (var pin in collection?.Pins ?? new List<PinnedAchievementReference>())
+                {
+                    if (pin != null && pin.GameId != Guid.Empty && !string.IsNullOrWhiteSpace(pin.ApiName))
+                    {
+                        keys.Add(Services.Overview.OverviewDataSnapshot.AchievementPinKey(pin.GameId, pin.ApiName));
+                    }
+                }
+            }
+
+            return keys;
         }
 
         // === Game selection wiring ===
