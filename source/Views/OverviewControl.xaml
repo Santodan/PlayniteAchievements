@@ -299,12 +299,14 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ROW 0: Header with Title, Scores, and Refresh Buttons -->
+        <!-- ROW 0: Header with Title, Scores, and Refresh Buttons. In the sidebar the view sits
+             under the main window's 25px caption; the empty first row keeps the controls below it
+             so the strip stays draggable. -->
+
         <Border Grid.Row="0"
                 Background="Transparent"
                 BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
-                Padding="8,0,8,4"
-                WindowChrome.IsHitTestVisibleInChrome="True">
+                Padding="8,0,8,4">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="BorderThickness" Value="0,0,0,1"/>
