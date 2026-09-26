@@ -116,9 +116,16 @@
                 <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Emphasis}"/>
                 <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
+            <!-- Text lives in the style so the Compact trigger can fold the label into the tier. -->
             <Style x:Key="ScoreCardTierTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="Text" Value="{Binding TierText}"/>
                 <Setter Property="FontSize" Value="15"/>
                 <Setter Property="FontWeight" Value="Bold"/>
                 <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
@@ -128,6 +135,10 @@
                     <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
                         <Setter Property="FontSize" Value="22"/>
                         <Setter Property="Margin" Value="0,3,0,0"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                        <Setter Property="Text" Value="{Binding CompactTierText}"/>
+                        <Setter Property="Margin" Value="0"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -173,6 +184,9 @@
                     <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
                         <Setter Property="Margin" Value="0,7,0,0"/>
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
                 </Style.Triggers>
             </Style>
 
@@ -213,6 +227,21 @@
                 <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
             </Style>
 
+            <!-- Only compact cards drop the caption, so only their tooltip needs the next level.
+                 The tooltip sits outside the control's namescope; Compact reaches it through Tag. -->
+            <Style x:Key="ScoreCardTooltipNextLevelStyle" TargetType="StackPanel">
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ToolTip}}" Value="True"/>
+                            <Condition Binding="{Binding HasNextLevel}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Visibility" Value="Visible"/>
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+
             <Style x:Key="ScoreCardTooltipSeparatorStyle" TargetType="Border">
                 <Setter Property="Height" Value="1"/>
                 <Setter Property="Margin" Value="0,5,0,0"/>
@@ -223,9 +252,11 @@
     </UserControl.Resources>
 
     <Grid DataContext="{Binding ScoreCard, ElementName=Root}">
-        <Border Style="{StaticResource ScoreCardPanelStyle}">
+        <Border Style="{StaticResource ScoreCardPanelStyle}"
+                Tag="{Binding Compact, ElementName=Root}">
             <Border.ToolTip>
                 <ToolTip DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                         Tag="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
                          Placement="Bottom"
                          HorizontalOffset="0"
                          VerticalOffset="4"
@@ -269,6 +300,21 @@
                                            Text="{Binding TooltipRankPositionValueText}"
                                            Style="{StaticResource ScoreCardTooltipValueTextStyle}"/>
                             </Grid>
+
+                            <StackPanel Style="{StaticResource ScoreCardTooltipNextLevelStyle}">
+                                <Border Style="{StaticResource ScoreCardTooltipSeparatorStyle}"/>
+                                <Grid Style="{StaticResource ScoreCardTooltipRowStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding TooltipNextLevelLabel}"
+                                               Style="{StaticResource ScoreCardTooltipLabelTextStyle}"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding TooltipNextLevelValueText}"
+                                               Style="{StaticResource ScoreCardTooltipValueTextStyle}"/>
+                                </Grid>
+                            </StackPanel>
 
                             <Border Style="{StaticResource ScoreCardTooltipSeparatorStyle}"/>
                             <Grid Style="{StaticResource ScoreCardTooltipRowStyle}">
@@ -327,7 +373,6 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0"
-                                   Text="{Binding TierText}"
                                    Style="{StaticResource ScoreCardTierTextStyle}"
                                    Foreground="{Binding AccentBrush}"/>
                         <TextBlock Grid.Column="1"
