@@ -103,7 +103,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private bool _isCentered;
         private bool _isFullBleed;
         private Thickness _contentPadding;
-        private CornerRadius _backgroundCornerRadius;
         private int _backgroundDecodePixel = 320;
         private bool _showLinks;
         private string _linksSignature;
@@ -170,13 +169,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public Thickness ContentPadding { get => _contentPadding; private set => SetValue(ref _contentPadding, value); }
 
-        /// <summary>
-        /// Rounds the full-bleed background to the card's inner corners (section radius less the
-        /// border), since the card clips to its bounding rectangle, not its rounded outline. The
-        /// top corners stay square under a custom-title header.
-        /// </summary>
-        public CornerRadius BackgroundCornerRadius { get => _backgroundCornerRadius; private set => SetValue(ref _backgroundCornerRadius, value); }
-
         public int BackgroundDecodePixel { get => _backgroundDecodePixel; private set => SetValue(ref _backgroundDecodePixel, value); }
 
         protected override void Refresh()
@@ -193,10 +185,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             IsCentered = ShowcaseWidgetOptions.GetProfileCentered(Projection?.Instance);
             IsFullBleed = ShowcaseWidgetOptions.GetProfileFullBleed(Projection?.Instance);
             ContentPadding = IsFullBleed ? new Thickness(GetBodyInset(Density)) : new Thickness(0);
-            var hasHeader = !string.IsNullOrWhiteSpace(Projection?.Instance?.CustomTitle);
-            var top = IsFullBleed && !hasHeader ? InnerCornerRadius : 0;
-            var bottom = IsFullBleed ? InnerCornerRadius : 0;
-            BackgroundCornerRadius = new CornerRadius(top, top, bottom, bottom);
             BackgroundDecodePixel = IsFullBleed ? 640 : 320;
 
             AvatarPath = resolved.AvatarPath;
@@ -244,9 +232,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
             ShowLinks = Links.Count > 0;
         }
-
-        /// <summary><c>PlayAch.Radius.Section</c> (8) less <c>PlayAch.Thickness.Border</c> (1).</summary>
-        private const double InnerCornerRadius = 7;
 
         private static IReadOnlyList<ProfileMedalViewModel> BuildMedals(
             OverviewDataSnapshot snapshot,
