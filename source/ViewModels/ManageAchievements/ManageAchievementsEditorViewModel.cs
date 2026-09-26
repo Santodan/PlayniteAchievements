@@ -633,6 +633,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _undoJournal.Clear();
                 RaiseHistoryState();
                 _isApplyingUndo = false;
+
+                // Set above for a cascade this failed write never started. Left on, the next
+                // external change would be taken for this editor's own and never reach the rows.
+                SuppressExternalRefresh = false;
                 return;
             }
 
