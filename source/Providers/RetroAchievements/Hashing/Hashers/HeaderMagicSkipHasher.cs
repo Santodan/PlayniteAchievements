@@ -12,11 +12,18 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
     {
         private readonly IReadOnlyList<byte[]> _magicPrefixes;
         private readonly int _skipBytes;
+        private readonly int _magicOffset;
 
-        public HeaderMagicSkipHasher(IReadOnlyList<byte[]> magicPrefixes, int skipBytes)
+        /// <summary>
+        /// Skips <paramref name="skipBytes"/> when one of <paramref name="magicPrefixes"/> appears at
+        /// <paramref name="magicOffset"/> and the file is longer than the header, as the rcheevos
+        /// header checks do (hash_rom.c: rc_hash_7800, rc_hash_lynx, rc_hash_nes, rc_hash_scv).
+        /// </summary>
+        public HeaderMagicSkipHasher(IReadOnlyList<byte[]> magicPrefixes, int skipBytes, int magicOffset = 0)
         {
             _magicPrefixes = magicPrefixes ?? throw new ArgumentNullException(nameof(magicPrefixes));
             _skipBytes = Math.Max(0, skipBytes);
+            _magicOffset = Math.Max(0, magicOffset);
         }
 
         public string Name => $"MD5 (magic header skip {_skipBytes} bytes)";
@@ -37,11 +44,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
             }
 
             // One pass: read the header, then hash [offset, MaxHashBytes) of the same stream.
-            var header = new byte[maxMagicLen];
+            var header = new byte[_magicOffset + maxMagicLen];
             using (var stream = source.Open())
             {
                 var read = HashUtils.ReadFull(stream, header, 0, header.Length);
-                var offset = HasMagic(header, read) ? _skipBytes : 0;
+                var bufferedSize = Math.Min(source.Length, HashUtils.MaxHashBytes);
+                var offset = bufferedSize > _skipBytes && HasMagic(header, read) ? _skipBytes : 0;
 
                 using (var md5 = MD5.Create())
                 {
@@ -69,12 +77,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
         {
             foreach (var magic in _magicPrefixes)
             {
-                if (magic == null || magic.Length == 0 || read < magic.Length) continue;
+                if (magic == null || magic.Length == 0 || read < _magicOffset + magic.Length) continue;
 
                 var matches = true;
                 for (var i = 0; i < magic.Length; i++)
                 {
-                    if (header[i] != magic[i])
+                    if (header[_magicOffset + i] != magic[i])
                     {
                         matches = false;
                         break;

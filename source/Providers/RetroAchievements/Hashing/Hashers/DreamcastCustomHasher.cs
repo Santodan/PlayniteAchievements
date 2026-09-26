@@ -2,7 +2,6 @@ using Playnite.SDK;
 using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -10,84 +9,105 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 {
+    /// <summary>rc_hash_dreamcast (hash_disc.c:326-412).</summary>
     internal sealed class DreamcastCustomHasher : DiscBasedHasher
     {
+        private static readonly byte[] Marker = Encoding.ASCII.GetBytes("SEGA SEGAKATANA ");
+
         public DreamcastCustomHasher(ILogger logger) : base(logger) { }
 
         public override string Name => "Dreamcast (IP.BIN + boot executable MD5)";
 
-        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
+        protected override Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
+        {
+            return Task.Run(() => Compute(source, cancel), cancel);
+        }
+
+        private IReadOnlyList<string> Compute(RaHashSource source, CancellationToken cancel)
         {
             var filePath = source.Path;
+            var image = DiscImage.Open(source);
             var meta = new byte[256];
-            using (var image = DiscImageReader.Open(source))
+
+            // Track 3 is the GD-ROM data track holding IP.BIN; MIL-CDs keep it in the first data track.
+            var track = image.OpenTrack(DiscTrackSelector.Track(3));
+            try
             {
-                if (await HashUtils.ReadExactlyAsync(image.Stream, meta, 0, meta.Length, cancel).ConfigureAwait(false) != meta.Length)
+                if (track != null)
                 {
-                    return Array.Empty<string>();
+                    track.ReadSector(track.FirstTrackSector, meta, 0, meta.Length);
                 }
-            }
 
-            var marker = Encoding.ASCII.GetBytes("SEGA SEGAKATANA ");
-            for (var i = 0; i < marker.Length; i++)
-            {
-                if (meta[i] != marker[i])
+                if (!HashUtils.MatchesAt(meta, 0, Marker))
                 {
-                    WarnOnce($"[RA] {Name}: Missing SEGA SEGAKATANA marker: {filePath}");
-                    return Array.Empty<string>();
-                }
-            }
-
-            var exeName = ExtractBootFileName(meta);
-            if (string.IsNullOrWhiteSpace(exeName))
-            {
-                WarnOnce($"[RA] {Name}: Boot executable not specified on IP.BIN: {filePath}");
-                return Array.Empty<string>();
-            }
-
-            using (var md5 = MD5.Create())
-            {
-                md5.TransformBlock(meta, 0, meta.Length, null, 0);
-
-                try
-                {
-                    using (var iso = new DiscUtilsFacade(source))
-                    using (var exeStream = iso.OpenFileOrNull(exeName))
+                    track?.Dispose();
+                    track = image.OpenTrack(DiscTrackSelector.FirstData);
+                    if (track == null)
                     {
-                        if (exeStream == null)
-                        {
-                            WarnOnce($"[RA] {Name}: Could not locate boot executable '{exeName}': {filePath}");
-                            return Array.Empty<string>();
-                        }
+                        return Array.Empty<string>();
+                    }
 
-                        var maxBytes = Math.Min(HashUtils.MaxHashBytes, exeStream.Length);
-                        await HashUtils.AppendStreamAsync(md5, exeStream, maxBytes, cancel).ConfigureAwait(false);
+                    Array.Clear(meta, 0, meta.Length);
+                    track.ReadSector(track.FirstTrackSector, meta, 0, meta.Length);
+                    if (!HashUtils.MatchesAt(meta, 0, Marker))
+                    {
+                        WarnOnce($"[RA] {Name}: Missing SEGA SEGAKATANA marker: {filePath}");
+                        return Array.Empty<string>();
                     }
                 }
-                catch (Exception ex)
+
+                // The boot file name is 96 bytes into IP.BIN, padded with spaces.
+                var nameLength = 0;
+                while (nameLength < 16 && !IsSpace(meta[96 + nameLength]))
                 {
-                    WarnOnce($"[RA] {Name}: Failed to read ISO filesystem: {filePath}", ex);
+                    nameLength++;
+                }
+
+                if (nameLength == 0)
+                {
+                    WarnOnce($"[RA] {Name}: Boot executable not specified on IP.BIN: {filePath}");
                     return Array.Empty<string>();
                 }
 
-                md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-                return new[] { HashUtils.ToHexLower(md5.Hash) };
+                var exeName = Encoding.ASCII.GetString(meta, 96, nameLength);
+                var sector = Iso9660SectorLocator.FindFileSector(track, exeName, out var size);
+                if (sector == 0)
+                {
+                    WarnOnce($"[RA] {Name}: Could not locate boot executable '{exeName}': {filePath}");
+                    return Array.Empty<string>();
+                }
+
+                cancel.ThrowIfCancellationRequested();
+
+                // The boot executable is normally in the last track when it is not in the IP.BIN track.
+                if (track.ReadSector(sector, new byte[1], 0, 1) == 0)
+                {
+                    track.Dispose();
+                    track = image.OpenTrack(DiscTrackSelector.Last);
+                }
+
+                using (var md5 = MD5.Create())
+                {
+                    md5.TransformBlock(meta, 0, meta.Length, null, 0);
+                    if (!Iso9660SectorLocator.HashFile(md5, track, sector, size))
+                    {
+                        WarnOnce($"[RA] {Name}: Could not read boot executable '{exeName}': {filePath}");
+                        return Array.Empty<string>();
+                    }
+
+                    md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                    return new[] { HashUtils.ToHexLower(md5.Hash) };
+                }
+            }
+            finally
+            {
+                track?.Dispose();
             }
         }
 
-        private static string ExtractBootFileName(byte[] ipBin)
+        private static bool IsSpace(byte b)
         {
-            var start = 96;
-            var maxLen = 16;
-            var len = 0;
-            while (len < maxLen && start + len < ipBin.Length && !char.IsWhiteSpace((char)ipBin[start + len]))
-            {
-                len++;
-            }
-
-            if (len == 0) return null;
-
-            return Encoding.ASCII.GetString(ipBin, start, len);
+            return b == ' ' || (b >= '\t' && b <= '\r');
         }
     }
 }

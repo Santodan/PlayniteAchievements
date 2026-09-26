@@ -2,7 +2,6 @@ using Playnite.SDK;
 using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -10,8 +9,11 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 {
+    /// <summary>rc_hash_psx (hash_disc.c:928-979).</summary>
     internal sealed class PsxCustomHasher : DiscBasedHasher
     {
+        private const string FallbackExecutable = "PSX.EXE";
+
         public PsxCustomHasher(ILogger logger) : base(logger) { }
 
         public override string Name => "PlayStation (SYSTEM.CNF BOOT + executable MD5)";
@@ -21,107 +23,149 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
             var filePath = source.Path;
             using (var iso = new DiscUtilsFacade(source))
             {
-                var exeName = await FindBootExecutableAsync(iso, bootKey: "BOOT", cdromPrefix: "cdrom:", cancel).ConfigureAwait(false);
-                if (string.IsNullOrWhiteSpace(exeName))
+                // Fall back to PSX.EXE when SYSTEM.CNF is missing, has no BOOT line, or names a missing file.
+                var exeName = FindBootExecutableName(iso, "BOOT", "cdrom:");
+                long start = 0;
+                long length = 0;
+                if (exeName == null || !iso.TryGetFileExtent(exeName, out start, out length))
                 {
-                    exeName = "PSX.EXE";
+                    exeName = FallbackExecutable;
+                    if (!iso.TryGetFileExtent(exeName, out start, out length))
+                    {
+                        WarnOnce($"[RA] {Name}: Could not locate primary executable: {filePath}");
+                        return Array.Empty<string>();
+                    }
                 }
 
-                using (var exeStream = iso.OpenFileOrNull(exeName))
+                var header = new byte[32];
+                if (iso.ReadAt(start, header, header.Length) < header.Length)
                 {
-                    if (exeStream == null)
+                    return Array.Empty<string>();
+                }
+
+                // The PS-X EXE header stores the executable size at offset 28, excluding the 2048-byte header.
+                var size = (uint)length;
+                if (HashUtils.MatchesAt(header, 0, Encoding.ASCII.GetBytes("PS-X EX")))
+                {
+                    size = unchecked(HashUtils.ReadUInt32LE(header, 28) + 2048u);
+                }
+
+                using (var md5 = MD5.Create())
+                {
+                    // Some games share one engine and differ only by the boot file name, so it is hashed too.
+                    var exeNameBytes = Encoding.ASCII.GetBytes(exeName);
+                    md5.TransformBlock(exeNameBytes, 0, exeNameBytes.Length, null, 0);
+
+                    if (!await iso.AppendFileAsync(md5, start, size, cancel).ConfigureAwait(false))
                     {
-                        WarnOnce($"[RA] {Name}: Could not locate primary executable '{exeName}': {filePath}");
                         return Array.Empty<string>();
                     }
 
-                    var header = new byte[32];
-                    var read = await HashUtils.ReadExactlyAsync(exeStream, header, 0, header.Length, cancel).ConfigureAwait(false);
-                    if (read < header.Length)
-                    {
-                        return Array.Empty<string>();
-                    }
-
-                    // Reset for hashing.
-                    exeStream.Seek(0, SeekOrigin.Begin);
-
-                    var sizeToHash = (long)exeStream.Length;
-                    if (HashUtils.MatchesAt(header, 0, Encoding.ASCII.GetBytes("PS-X EXE")))
-                    {
-                        // 4-byte size at offset 28, does not include header; add 2048.
-                        var exeSize = HashUtils.ReadUInt32LE(header, 28);
-                        sizeToHash = Math.Min(sizeToHash, (long)exeSize + 2048);
-                    }
-
-                    sizeToHash = Math.Min(sizeToHash, HashUtils.MaxHashBytes);
-
-                    using (var md5 = MD5.Create())
-                    {
-                        var exeNameBytes = Encoding.ASCII.GetBytes(exeName);
-                        md5.TransformBlock(exeNameBytes, 0, exeNameBytes.Length, null, 0);
-
-                        await HashUtils.AppendStreamAsync(md5, exeStream, sizeToHash, cancel).ConfigureAwait(false);
-
-                        md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-                        return new[] { HashUtils.ToHexLower(md5.Hash) };
-                    }
+                    md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                    return new[] { HashUtils.ToHexLower(md5.Hash) };
                 }
             }
         }
 
-        private static async Task<string> FindBootExecutableAsync(DiscUtilsFacade iso, string bootKey, string cdromPrefix, CancellationToken cancel)
+        /// <summary>
+        /// rc_hash_find_playstation_executable (hash_disc.c:866-926): the boot file named by the
+        /// first line of SYSTEM.CNF that starts with <paramref name="bootKey"/> followed by '=',
+        /// with <paramref name="cdromPrefix"/> and leading backslashes removed and anything from
+        /// ';' or whitespace on dropped. Null when SYSTEM.CNF or the line is missing.
+        /// </summary>
+        internal static string FindBootExecutableName(DiscUtilsFacade iso, string bootKey, string cdromPrefix)
         {
-            using (var cnfStream = iso.OpenFileOrNull("SYSTEM.CNF"))
+            if (!iso.TryGetFileExtent("SYSTEM.CNF", out var start, out _))
             {
-                if (cnfStream == null)
-                {
-                    return null;
-                }
+                return null;
+            }
 
-                using (var reader = new StreamReader(cnfStream, Encoding.ASCII, detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: true))
-                {
-                    var content = await reader.ReadToEndAsync().ConfigureAwait(false);
-                    cancel.ThrowIfCancellationRequested();
+            // rcheevos reads the first sector of SYSTEM.CNF, less one byte for a terminator.
+            var buffer = new byte[DiscTrack.CookedSectorSize - 1];
+            var length = iso.ReadAt(start, buffer, buffer.Length);
 
-                    var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var raw in lines)
+            var key = Encoding.ASCII.GetBytes(bootKey);
+            var prefix = Encoding.ASCII.GetBytes(cdromPrefix);
+            var end = Array.IndexOf(buffer, (byte)0, 0, length);
+            if (end < 0)
+            {
+                end = length;
+            }
+
+            var ptr = 0;
+            while (ptr < end)
+            {
+                if (MatchesAt(buffer, ptr, end, key))
+                {
+                    ptr += key.Length;
+                    while (ptr < end && IsSpace(buffer[ptr]))
                     {
-                        var line = raw.Trim();
-                        if (!line.StartsWith(bootKey, StringComparison.OrdinalIgnoreCase))
+                        ptr++;
+                    }
+
+                    if (ptr < end && buffer[ptr] == '=')
+                    {
+                        ptr++;
+                        while (ptr < end && IsSpace(buffer[ptr]))
                         {
-                            continue;
+                            ptr++;
                         }
 
-                        var rest = line.Substring(bootKey.Length).TrimStart();
-                        if (!rest.StartsWith("=", StringComparison.Ordinal))
+                        if (MatchesAt(buffer, ptr, end, prefix))
                         {
-                            continue;
+                            ptr += prefix.Length;
                         }
 
-                        rest = rest.Substring(1).TrimStart();
-                        if (rest.StartsWith(cdromPrefix, StringComparison.OrdinalIgnoreCase))
+                        while (ptr < end && buffer[ptr] == '\\')
                         {
-                            rest = rest.Substring(cdromPrefix.Length);
+                            ptr++;
                         }
 
-                        while (rest.StartsWith("\\", StringComparison.Ordinal))
+                        var nameStart = ptr;
+                        while (ptr < end && !IsSpace(buffer[ptr]) && buffer[ptr] != ';')
                         {
-                            rest = rest.Substring(1);
+                            ptr++;
                         }
 
-                        var end = rest.IndexOfAny(new[] { ' ', '\t', ';' });
-                        if (end >= 0)
-                        {
-                            rest = rest.Substring(0, end);
-                        }
-
-                        return string.IsNullOrWhiteSpace(rest) ? null : rest;
+                        // exe_name is a 64-byte buffer.
+                        var nameLength = Math.Min(ptr - nameStart, 63);
+                        return nameLength > 0 ? Encoding.ASCII.GetString(buffer, nameStart, nameLength) : null;
                     }
                 }
+
+                // Advance to the start of the next line.
+                while (ptr < end && buffer[ptr] != '\n')
+                {
+                    ptr++;
+                }
+
+                ptr++;
             }
 
             return null;
         }
+
+        private static bool MatchesAt(byte[] buffer, int offset, int end, byte[] expected)
+        {
+            if (offset + expected.Length > end)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < expected.Length; i++)
+            {
+                if (buffer[offset + i] != expected[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool IsSpace(byte b)
+        {
+            return b == ' ' || (b >= '\t' && b <= '\r');
+        }
     }
 }
-
