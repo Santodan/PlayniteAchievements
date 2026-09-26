@@ -46,6 +46,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ShowCompletionGlow = showCompletionGlow && game.IsCompleted;
             GlowSpacing = showCompletionGlow;
             TileMargin = new Thickness(showCompletionGlow ? Math.Max(spacing, GlowClearance) : spacing);
+            IsSeamless = spacing == 0 && !showCompletionGlow;
 
             MoveEarlierCommand = new RelayCommand(_ => Move(-1));
             MoveLaterCommand = new RelayCommand(_ => Move(1));
@@ -86,6 +87,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         /// while the completion glow is on (see <see cref="GlowSpacing"/>).
         /// </summary>
         public Thickness TileMargin { get; }
+
+        /// <summary>Flush with its neighbours: square corners, so zero spacing leaves no gaps.</summary>
+        public bool IsSeamless { get; }
 
         private const int GlowClearance = 14;
 
