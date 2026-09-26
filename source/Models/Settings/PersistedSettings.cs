@@ -191,7 +191,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showCompactListRarityBar = true;
         private bool _progressColumnAlignmentDefaulted = false;
         private bool _inlineSurfaceTransparencySeeded = true;
-        private bool _commonGlowTierCleared = false;
+        private bool _commonGlowTierCleared = true;
 
         private GridAlignment _gridColumnHeaderAlignment = GridAlignment.Center;
         private GridAlignment _gridCellAlignment = GridAlignment.Left;
@@ -2188,11 +2188,12 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// One-time bookkeeping flag: true once the Common bit has been cleared from the saved glow
-        /// tier selections. Before Common could glow, the soft-glow default was every tier, so
-        /// existing configs carry a Common bit the user never chose. Defaults to false everywhere,
-        /// like <see cref="ProgressColumnAlignmentDefaulted"/>; the migration is the only thing that
-        /// flips it true.
+        /// True when this config's glow tier selections use the current meaning of the Common bit.
+        /// Before Common could glow, the soft-glow default was every tier, so configs saved by
+        /// earlier builds carry a Common bit the user never chose; the migration clears that bit
+        /// once, for configs whose JSON lacks this flag. Defaults true because every config this
+        /// build writes already uses the current meaning, so a Common tier the user checks is never
+        /// cleared on a later launch, including one checked in the very first session.
         /// </summary>
         public bool CommonGlowTierCleared
         {
