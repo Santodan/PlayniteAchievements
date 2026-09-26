@@ -15,6 +15,8 @@ namespace PlayniteAchievements.Models.Settings
         Trophies = 1 << 2,
         Points = 1 << 3,
         Goals = 1 << 4,
-        Categorized = 1 << 5
+        Categorized = 1 << 5,
+        Filtered = 1 << 6,
+        Notes = 1 << 7
     }
 }
