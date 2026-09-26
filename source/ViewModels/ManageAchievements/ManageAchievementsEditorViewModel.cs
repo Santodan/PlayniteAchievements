@@ -4069,6 +4069,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, ordered);
+
+            // The category filter holds its own copy of this list, and only a full reload used to
+            // retake it: a category created, renamed or first filed here stayed out of the filter
+            // until the window was reopened. Past the unchanged-set return, so it costs nothing on
+            // the assignments that leave the set alone.
+            RebuildFilterOptions();
         }
 
         private void SyncTypeOptionsToEditTarget()
