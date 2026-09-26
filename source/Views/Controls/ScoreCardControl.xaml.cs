@@ -27,6 +27,13 @@ namespace PlayniteAchievements.Views.Controls
                 typeof(ScoreCardControl),
                 new PropertyMetadata(false));
 
+        public static readonly DependencyProperty CompactProperty =
+            DependencyProperty.Register(
+                nameof(Compact),
+                typeof(bool),
+                typeof(ScoreCardControl),
+                new PropertyMetadata(false));
+
         public ScoreCardControl()
         {
             InitializeComponent();
@@ -52,6 +59,16 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (bool)GetValue(FlatProperty);
             set => SetValue(FlatProperty, value);
+        }
+
+        /// <summary>
+        /// Folds the label into the tier line and moves the level caption into the tooltip, for
+        /// hosts with little vertical room (the Overview header).
+        /// </summary>
+        public bool Compact
+        {
+            get => (bool)GetValue(CompactProperty);
+            set => SetValue(CompactProperty, value);
         }
     }
 }
