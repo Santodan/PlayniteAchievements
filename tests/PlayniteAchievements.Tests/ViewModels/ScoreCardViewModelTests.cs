@@ -94,6 +94,34 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void CompactTierText_FoldsTheShortLabelIntoTheTier()
+        {
+            var collection = new ScoreCardViewModel(ScoreCardType.Collection);
+            var prestige = new ScoreCardViewModel(ScoreCardType.Prestige);
+
+            collection.Apply(12345, 42, 67, "Gold3", useUniformRarityBadges: false);
+            prestige.Apply(12345, 42, 67, "Silver2", useUniformRarityBadges: false);
+
+            Assert.AreEqual("Collection · Gold III", collection.CompactTierText);
+            Assert.AreEqual("Prestige · Silver II", prestige.CompactTierText);
+        }
+
+        [TestMethod]
+        public void TooltipNextLevel_StatesTheLevelTheBarIsFillingToward()
+        {
+            var snapshot = AchievementLevelCalculator.CalculateModern(MidRankScore);
+            var card = new ScoreCardViewModel(ScoreCardType.Collection);
+
+            card.ApplyFromScore(MidRankScore, useUniformRarityBadges: false);
+
+            Assert.IsTrue(card.HasNextLevel);
+            Assert.AreEqual($"Lv {snapshot.DisplayLevel + 1}", card.TooltipNextLevelLabel);
+            Assert.AreEqual(
+                snapshot.PointsUntilNextLevel.ToString("N0") + " pts",
+                card.TooltipNextLevelValueText);
+        }
+
+        [TestMethod]
         public void Mastery_IsAbsentBeforeTheFirstPassCompletes()
         {
             var card = new ScoreCardViewModel(ScoreCardType.Prestige);
