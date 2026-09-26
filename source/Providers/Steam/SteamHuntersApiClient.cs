@@ -29,6 +29,8 @@ namespace PlayniteAchievements.Providers.Steam
         /// steamhunters.com tarpits the .NET HTTP stack's TLS fingerprint, so the browser is
         /// the only reliable transport; the JSON endpoint renders as a plain-text document,
         /// so the page text is the raw JSON body. Returns null on failure.
+        /// includeMultiplayerGroup moves base-game achievements tagged Multiplayer out of the
+        /// base game into a group of their own, named "Multiplayer" and carrying no DlcAppId.
         /// </summary>
         public async Task<SteamHuntersAchievementGroupsResponse> GetAchievementGroupsAsync(
             int appId,
@@ -40,7 +42,8 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             var url = BaseUrl + "/GetAchievementGroups/v1?appId=" +
-                appId.ToString(CultureInfo.InvariantCulture);
+                appId.ToString(CultureInfo.InvariantCulture) +
+                "&includeMultiplayerGroup=true";
 
             var body = await _fetchPageText(url, cancel).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(body))
