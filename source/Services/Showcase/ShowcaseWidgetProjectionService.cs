@@ -1142,8 +1142,8 @@ namespace PlayniteAchievements.Services.Showcase
 
         /// <summary>
         /// Locked achievements to hunt next, narrowed out of the snapshot's bounded candidate pool
-        /// by the widget's window, hidden-achievement choice, and per-game cap, then ranked by its
-        /// criterion. The pool itself is config-independent, so every option edit is answered here
+        /// by the widget's window and hidden-achievement choice, ranked by its criterion, then
+        /// capped per game. The pool itself is config-independent, so every option edit is answered here
         /// without rebuilding the snapshot.
         /// </summary>
         public static IReadOnlyList<AchievementDisplayItem> ResolveUnlockNext(
@@ -1166,30 +1166,28 @@ namespace PlayniteAchievements.Services.Showcase
                 (includeHidden || !candidate.Achievement.Hidden) &&
                 IsWithinWindow(candidate.Game, cutoff));
 
-            // Round-robin across games so the per-game cap spreads tiles over the library instead
-            // of letting one grindy game fill the mosaic.
+            // The per-game cap is a ceiling, not a quota: walking one ranked list means a game only
+            // appears when its achievements earn a slot, and no game is handed a hard achievement
+            // just so every game gets a tile.
             var perGame = ShowcaseWidgetOptions.GetMaxPerGame(instance);
-            var groups = eligible
-                .GroupBy(candidate => candidate.Achievement.PlayniteGameId ?? Guid.Empty)
-                .Select(group => OrderWithinGame(group, criterion).Take(perGame).ToList())
-                .OrderBy(group => group, CreateGroupComparer(criterion))
-                .ToList();
-
+            var takenPerGame = new Dictionary<Guid, int>();
             var result = new List<AchievementDisplayItem>();
-            for (var round = 0; round < perGame && result.Count < count; round++)
+            foreach (var candidate in Rank(eligible, criterion))
             {
-                foreach (var group in groups)
+                if (result.Count >= count)
                 {
-                    if (result.Count >= count)
-                    {
-                        break;
-                    }
-
-                    if (round < group.Count)
-                    {
-                        result.Add(group[round].Achievement);
-                    }
+                    break;
                 }
+
+                var gameId = candidate.Achievement.PlayniteGameId ?? Guid.Empty;
+                takenPerGame.TryGetValue(gameId, out var taken);
+                if (taken >= perGame)
+                {
+                    continue;
+                }
+
+                takenPerGame[gameId] = taken + 1;
+                result.Add(candidate.Achievement);
             }
 
             return result;
@@ -1299,58 +1297,26 @@ namespace PlayniteAchievements.Services.Showcase
         private static string UnlockNextKey(Guid gameId, string apiName) =>
             gameId.ToString("N") + "|" + (apiName ?? string.Empty);
 
-        private static IEnumerable<UnlockNextCandidate> OrderWithinGame(
+        /// <summary>
+        /// One ranked list across every game. Easiest leads with the most commonly earned;
+        /// Closest to completion leads with the games nearest done and, within a game, with its
+        /// most commonly earned leftovers rather than its hardest.
+        /// </summary>
+        private static IEnumerable<UnlockNextCandidate> Rank(
             IEnumerable<UnlockNextCandidate> candidates,
             UnlockNextCriterion criterion)
         {
-            switch (criterion)
-            {
-                case UnlockNextCriterion.Easiest:
-                    // Achievements with no global percentage are not known to be easy, so they
-                    // sort behind every achievement that has one rather than winning the slot.
-                    return candidates
-                        .OrderByDescending(candidate =>
-                            candidate.Achievement.GlobalPercentUnlocked.HasValue)
-                        .ThenByDescending(candidate =>
-                            candidate.Achievement.GlobalPercentUnlocked ?? 0)
-                        .ThenBy(candidate => candidate.Achievement.DefaultOrderIndex)
-                        .ThenBy(candidate => candidate.Achievement.ApiName, StringComparer.OrdinalIgnoreCase);
-                default:
-                    return candidates
-                        .OrderBy(candidate => candidate.Achievement.DefaultOrderIndex)
-                        .ThenBy(candidate => candidate.Achievement.ApiName, StringComparer.OrdinalIgnoreCase);
-            }
-        }
+            var ranked = criterion == UnlockNextCriterion.Easiest
+                ? candidates.OrderBy(candidate => 0)
+                : candidates.OrderByDescending(candidate => candidate.CompletionFraction);
 
-        /// <summary>
-        /// Orders whole games against each other, which decides which games lead the round-robin.
-        /// </summary>
-        private static IComparer<List<UnlockNextCandidate>> CreateGroupComparer(
-            UnlockNextCriterion criterion)
-        {
-            return Comparer<List<UnlockNextCandidate>>.Create((left, right) =>
-            {
-                var first = left.FirstOrDefault();
-                var second = right.FirstOrDefault();
-                if (first == null || second == null)
-                {
-                    return first == second ? 0 : first == null ? 1 : -1;
-                }
-
-                switch (criterion)
-                {
-                    case UnlockNextCriterion.Easiest:
-                        var leftPercent = first.Achievement.GlobalPercentUnlocked ?? -1;
-                        var rightPercent = second.Achievement.GlobalPercentUnlocked ?? -1;
-                        return rightPercent.CompareTo(leftPercent);
-                    case UnlockNextCriterion.ClosestToCompletion:
-                        return second.CompletionFraction.CompareTo(first.CompletionFraction);
-                    default:
-                        var leftPlayed = first.Game?.LastPlayed ?? DateTime.MinValue;
-                        var rightPlayed = second.Game?.LastPlayed ?? DateTime.MinValue;
-                        return rightPlayed.CompareTo(leftPlayed);
-                }
-            });
+            // Achievements with no global percentage are not known to be easy, so they sort
+            // behind every achievement that has one rather than winning the slot.
+            return ranked
+                .ThenByDescending(candidate => candidate.Achievement.GlobalPercentUnlocked.HasValue)
+                .ThenByDescending(candidate => candidate.Achievement.GlobalPercentUnlocked ?? 0)
+                .ThenBy(candidate => candidate.Achievement.DefaultOrderIndex)
+                .ThenBy(candidate => candidate.Achievement.ApiName, StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
