@@ -28,35 +28,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
                    string.Equals(Path.GetExtension(filePath), ".cue", StringComparison.OrdinalIgnoreCase);
         }
 
-        public static bool HasReadableDataTrack(string cuePath)
-        {
-            return TryResolveFirstDataTrack(cuePath, out _, out _);
-        }
-
-        public static bool TryGetDataTrackDependencies(
-            string cuePath,
-            out IReadOnlyList<string> dependencyPaths,
-            out string error)
-        {
-            dependencyPaths = Array.Empty<string>();
-            if (!TryResolveFirstDataTrack(cuePath, out var layout, out error))
-            {
-                return false;
-            }
-
-            var paths = new[]
-                {
-                    Path.GetFullPath(cuePath),
-                    Path.GetFullPath(layout.ResolvedPath)
-                }
-                .Where(p => !string.IsNullOrWhiteSpace(p))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            dependencyPaths = paths;
-            return paths.Count > 0;
-        }
-
         /// <summary>
         /// Opens the 2048-byte payload view of the cue's first data track. The returned stream owns
         /// the track file.

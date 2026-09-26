@@ -170,9 +170,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 return false;
             }
 
-            if (CueTrackReader.IsCuePath(path))
+            // Any existing track counts: Atari Jaguar CD cues hold only audio tracks.
+            if (CueTrackReader.IsCuePath(path) || DiscImage.IsGdiPath(path))
             {
-                return CueTrackReader.HasReadableDataTrack(path);
+                return DiscImage.GetImageFiles(path).Count > 1;
             }
 
             return File.Exists(path) || ArchiveUtils.IsArchivePath(path);
