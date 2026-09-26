@@ -992,6 +992,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 {
                     OnPropertyChanged(nameof(CategoryTypeDisplay));
                     OnPropertyChanged(nameof(IsHardcore));
+                    OnPropertyChanged(nameof(IsMissable));
                 }
             }
         }
@@ -1006,6 +1007,12 @@ namespace PlayniteAchievements.ViewModels.Items
         public bool IsHardcore =>
             AchievementCategoryTypeHelper.ParseValues(CategoryType)
                 .Contains(AchievementCategoryTypeHelper.HardcoreCategoryType);
+
+        /// <summary>
+        /// True when the achievement's category type includes Missable. Drives the status
+        /// column's missable lock fill and tooltip.
+        /// </summary>
+        public bool IsMissable => AchievementCategoryTypeHelper.IsMissable(CategoryType);
 
         public string CategoryLabel
         {
