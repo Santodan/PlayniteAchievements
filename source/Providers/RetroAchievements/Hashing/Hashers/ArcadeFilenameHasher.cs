@@ -10,8 +10,11 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
     {
         public string Name => "Arcade (MD5 of filename)";
 
-        public Task<IReadOnlyList<string>> ComputeHashesAsync(string filePath, CancellationToken cancel)
+        public bool SupportsForwardOnlyInput => true;
+
+        public Task<IReadOnlyList<string>> ComputeHashesAsync(RaHashSource source, CancellationToken cancel)
         {
+            var filePath = source.Path;
             var filename = Path.GetFileName(filePath);
             var nameNoExt = Path.GetFileNameWithoutExtension(filename);
 

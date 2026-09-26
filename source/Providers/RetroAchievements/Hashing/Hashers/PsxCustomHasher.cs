@@ -16,9 +16,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         public override string Name => "PlayStation (SYSTEM.CNF BOOT + executable MD5)";
 
-        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
+        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
         {
-            using (var iso = new DiscUtilsFacade(filePath))
+            var filePath = source.Path;
+            using (var iso = new DiscUtilsFacade(source))
             {
                 var exeName = await FindBootExecutableAsync(iso, bootKey: "BOOT", cdromPrefix: "cdrom:", cancel).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(exeName))

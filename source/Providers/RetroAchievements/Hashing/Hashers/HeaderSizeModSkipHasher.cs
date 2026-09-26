@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -23,10 +22,11 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         public string Name => "MD5 (size-based header skip)";
 
-        public async Task<IReadOnlyList<string>> ComputeHashesAsync(string filePath, CancellationToken cancel)
+        public bool SupportsForwardOnlyInput => true;
+
+        public async Task<IReadOnlyList<string>> ComputeHashesAsync(RaHashSource source, CancellationToken cancel)
         {
-            var fileInfo = new FileInfo(filePath);
-            var fileSize = fileInfo.Exists ? fileInfo.Length : 0;
+            var fileSize = source.Length;
 
             long offset = 0;
 
@@ -46,12 +46,15 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
             }
 
             var maxBytes = Math.Max(0, (long)HashUtils.MaxHashBytes - offset);
-            var hash = await HashUtils
-                .ComputeMd5HexFromFileAsync(filePath, startOffset: offset, maxBytes: maxBytes, cancel)
-                .ConfigureAwait(false);
+            using (var stream = source.Open())
+            {
+                HashUtils.Skip(stream, offset);
+                var hash = await HashUtils
+                    .ComputeMd5HexFromStreamAsync(stream, maxBytes, cancel)
+                    .ConfigureAwait(false);
 
-            return new[] { hash };
+                return new[] { hash };
+            }
         }
     }
 }
-

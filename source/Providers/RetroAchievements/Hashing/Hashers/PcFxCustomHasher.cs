@@ -16,9 +16,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         public override string Name => "PC-FX (boot header + program sectors MD5)";
 
-        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
+        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
         {
-            using (var image = DiscImageReader.Open(filePath))
+            var filePath = source.Path;
+            using (var image = DiscImageReader.Open(source))
             using (var md5 = MD5.Create())
             {
                 // PC-FX marker in sector 0.
@@ -32,7 +33,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                 if (!HashUtils.MatchesAt(markerBuf, 0, marker))
                 {
                     // Some PC-FX images still identify as PCE CDs.
-                    return await new PceCdCustomHasher(Logger).ComputeHashesAsync(filePath, cancel).ConfigureAwait(false);
+                    return await new PceCdCustomHasher(Logger).ComputeHashesAsync(source, cancel).ConfigureAwait(false);
                 }
 
                 // First 128 bytes of sector 1 are hashed.

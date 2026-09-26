@@ -15,15 +15,20 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         private readonly DiscFileSystemReader _fs;
 
         public DiscUtilsFacade(string isoPath)
+            : this(RaHashSource.FromFile(isoPath))
         {
-            if (string.IsNullOrWhiteSpace(isoPath)) throw new ArgumentException("ISO path is required.", nameof(isoPath));
+        }
+
+        public DiscUtilsFacade(RaHashSource source)
+        {
+            if (source == null || string.IsNullOrWhiteSpace(source.Path)) throw new ArgumentException("Disc image is required.", nameof(source));
 
             DiscImageReader image = null;
             DiscFileSystemReader fs = null;
 
             try
             {
-                image = DiscImageReader.Open(isoPath);
+                image = DiscImageReader.Open(source);
                 fs = new DiscFileSystemReader(image.Stream, leaveOpen: true);
             }
             catch

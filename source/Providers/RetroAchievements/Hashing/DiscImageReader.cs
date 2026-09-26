@@ -21,6 +21,22 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         public bool IsCue { get; }
         public long Length => _stream.Length;
 
+        /// <summary>
+        /// Opens a disc image from a file (cue sheets resolve to their data track) or from a
+        /// stream, which is read as a plain image with <paramref name="sectorSizeForPlainFile"/>.
+        /// </summary>
+        public static DiscImageReader Open(RaHashSource source, int sectorSizeForPlainFile = 2048)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+
+            if (source.IsFile)
+            {
+                return Open(source.Path, sectorSizeForPlainFile);
+            }
+
+            return new DiscImageReader(source.Open(), sectorSizeForPlainFile, isCue: false);
+        }
+
         public static DiscImageReader Open(string filePath, int sectorSizeForPlainFile = 2048)
         {
             if (string.IsNullOrWhiteSpace(filePath))
@@ -39,7 +55,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
             }
 
             return new DiscImageReader(
-                new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite),
+                new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, HashUtils.FileBufferSize),
                 sectorSizeForPlainFile,
                 isCue: false);
         }

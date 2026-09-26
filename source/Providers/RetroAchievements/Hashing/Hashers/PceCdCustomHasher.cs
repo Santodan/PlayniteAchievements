@@ -16,9 +16,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         public override string Name => "PC Engine CD (title + boot code MD5)";
 
-        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
+        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
         {
-            using (var image = DiscImageReader.Open(filePath))
+            var filePath = source.Path;
+            using (var image = DiscImageReader.Open(source))
             {
                 // Read 128 bytes from sector 1.
                 var header = new byte[128];
@@ -57,7 +58,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                 }
 
                 // GameExpress: hash BOOT.BIN from Joliet filesystem if present and not huge.
-                using (var iso = new DiscUtilsFacade(filePath))
+                using (var iso = new DiscUtilsFacade(source))
                 using (var boot = iso.OpenFileOrNull("BOOT.BIN"))
                 {
                     if (boot == null)

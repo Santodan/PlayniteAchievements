@@ -15,11 +15,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         public override string Name => "3DO (OperaFS header + LaunchMe MD5)";
 
-        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
+        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
         {
+            var filePath = source.Path;
             var operafsIdentifier = new byte[] { 0x01, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x01 };
 
-            using (var image = DiscImageReader.Open(filePath))
+            using (var image = DiscImageReader.Open(source))
             using (var md5 = MD5.Create())
             {
                 var sector0 = new byte[2048];

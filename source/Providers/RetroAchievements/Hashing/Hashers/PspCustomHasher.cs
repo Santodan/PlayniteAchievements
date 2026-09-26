@@ -15,18 +15,22 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         public override string Name => "PSP (PARAM.SFO + EBOOT.BIN MD5)";
 
-        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
+        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
         {
+            var filePath = source.Path;
             // Hash PBP as whole file.
             if (filePath.EndsWith(".pbp", StringComparison.OrdinalIgnoreCase))
             {
-                var hash = await HashUtils
-                    .ComputeMd5HexFromFileAsync(filePath, startOffset: 0, maxBytes: HashUtils.MaxHashBytes, cancel)
-                    .ConfigureAwait(false);
-                return new[] { hash };
+                using (var pbp = source.Open())
+                {
+                    var hash = await HashUtils
+                        .ComputeMd5HexFromStreamAsync(pbp, HashUtils.MaxHashBytes, cancel)
+                        .ConfigureAwait(false);
+                    return new[] { hash };
+                }
             }
 
-            using (var iso = new DiscUtilsFacade(filePath))
+            using (var iso = new DiscUtilsFacade(source))
             using (var md5 = MD5.Create())
             {
                 using (var paramStream = iso.OpenFileOrNull("PSP_GAME\\PARAM.SFO"))

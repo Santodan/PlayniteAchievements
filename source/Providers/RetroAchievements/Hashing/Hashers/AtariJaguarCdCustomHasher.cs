@@ -20,15 +20,16 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         public override string Name => "Atari Jaguar CD (boot code MD5)";
 
-        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
+        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
         {
-            var sectorSize = CueTrackReader.IsCuePath(filePath) ? 2048 : GuessSectorSize(filePath);
+            var filePath = source.Path;
+            var sectorSize = CueTrackReader.IsCuePath(filePath) ? 2048 : GuessSectorSize(source.Length);
             if (sectorSize <= 0)
             {
                 return Array.Empty<string>();
             }
 
-            using (var image = DiscImageReader.Open(filePath, sectorSize))
+            using (var image = DiscImageReader.Open(source, sectorSize))
             using (var md5 = MD5.Create())
             {
                 var buffer = new byte[image.SectorSize];
@@ -119,9 +120,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
             }
         }
 
-        private static int GuessSectorSize(string filePath)
+        private static int GuessSectorSize(long len)
         {
-            var len = new FileInfo(filePath).Length;
             if (len > 0 && len % 2352 == 0) return 2352;
             if (len > 0 && len % 2048 == 0) return 2048;
             return 2048;

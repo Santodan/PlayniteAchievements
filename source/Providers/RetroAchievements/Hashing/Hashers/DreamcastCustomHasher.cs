@@ -16,10 +16,11 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         public override string Name => "Dreamcast (IP.BIN + boot executable MD5)";
 
-        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
+        protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(RaHashSource source, CancellationToken cancel)
         {
+            var filePath = source.Path;
             var meta = new byte[256];
-            using (var image = DiscImageReader.Open(filePath))
+            using (var image = DiscImageReader.Open(source))
             {
                 if (await HashUtils.ReadExactlyAsync(image.Stream, meta, 0, meta.Length, cancel).ConfigureAwait(false) != meta.Length)
                 {
@@ -50,7 +51,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
                 try
                 {
-                    using (var iso = new DiscUtilsFacade(filePath))
+                    using (var iso = new DiscUtilsFacade(source))
                     using (var exeStream = iso.OpenFileOrNull(exeName))
                     {
                         if (exeStream == null)
