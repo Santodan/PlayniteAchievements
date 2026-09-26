@@ -34,7 +34,13 @@ namespace PlayniteAchievements.ViewModels
         private readonly PlayniteAchievementsSettings _settings;
         private readonly GameSummaryItemBuilder _summaryBuilder;
         private readonly Services.Captures.CaptureLibraryService _captureLibrary;
+        private readonly Services.GameCustomData.GameCustomDataStore _customDataStore;
         private readonly Guid _gameId;
+
+        // Coalesces a burst of customization writes for this game into one reload.
+        private static readonly TimeSpan CustomDataReloadDelay = TimeSpan.FromMilliseconds(250);
+        private DispatcherTimer _customDataReloadTimer;
+        private bool _isDisposed;
         private Guid? _activeRefreshOperationId;
         private bool _isApplyingTimelineState;
 
@@ -171,6 +177,15 @@ namespace PlayniteAchievements.ViewModels
             if (_captureLibrary != null)
             {
                 _captureLibrary.CapturesChanged += OnCapturesChanged;
+            }
+
+            // Customizations - categories above all - reach this window only through the store:
+            // they are not a cache update, and most of them do not affect summary data, so
+            // neither refresh event above fires for them.
+            _customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (_customDataStore != null)
+            {
+                _customDataStore.CustomDataChanged += OnCustomDataChanged;
             }
 
             // Restore the previous session's sort/filter state for this game (if any) before
@@ -692,6 +707,41 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        private void OnCustomDataChanged(object sender, Services.GameCustomData.GameCustomDataChangedEventArgs e)
+        {
+            if (e == null || e.PlayniteGameId != _gameId)
+            {
+                return;
+            }
+
+            // Posted rather than invoked: the store raises this from inside its write.
+            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(ScheduleCustomDataReload));
+        }
+
+        private void ScheduleCustomDataReload()
+        {
+            // A write posted just before the window closed still lands here.
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            if (_customDataReloadTimer == null)
+            {
+                _customDataReloadTimer = new DispatcherTimer { Interval = CustomDataReloadDelay };
+                _customDataReloadTimer.Tick += OnCustomDataReloadTimerTick;
+            }
+
+            _customDataReloadTimer.Stop();
+            _customDataReloadTimer.Start();
+        }
+
+        private void OnCustomDataReloadTimerTick(object sender, EventArgs e)
+        {
+            _customDataReloadTimer?.Stop();
+            LoadGameData();
+        }
+
         private void OnCacheDeltaUpdated(object sender, CacheDeltaEventArgs e)
         {
             if (e?.IsFullReset != true)
@@ -1131,6 +1181,7 @@ namespace PlayniteAchievements.ViewModels
 
         public void Dispose()
         {
+            _isDisposed = true;
             SaveGridState();
 
             if (_settings != null)
@@ -1147,6 +1198,18 @@ namespace PlayniteAchievements.ViewModels
             if (_captureLibrary != null)
             {
                 _captureLibrary.CapturesChanged -= OnCapturesChanged;
+            }
+
+            // The store outlives every window, so a missed unsubscribe roots this view model.
+            if (_customDataStore != null)
+            {
+                _customDataStore.CustomDataChanged -= OnCustomDataChanged;
+            }
+            if (_customDataReloadTimer != null)
+            {
+                _customDataReloadTimer.Stop();
+                _customDataReloadTimer.Tick -= OnCustomDataReloadTimerTick;
+                _customDataReloadTimer = null;
             }
             if (_progressHideTimer != null)
             {
