@@ -312,9 +312,8 @@ namespace PlayniteAchievements.Providers.Steam
             return updated;
         }
 
-        // Adds Unobtainable to achievements SteamHunters' moderators mark Unobtainable. Broken-but-
-        // obtainable and conditionally obtainable achievements can still be earned, so they get
-        // no type.
+        // Adds Unobtainable to achievements SteamHunters' moderators mark Unobtainable or broken
+        // but obtainable. Conditionally obtainable achievements get no type.
         internal static int ApplyObtainability(
             IList<AchievementDetail> achievements,
             IList<SteamHuntersAchievement> steamHuntersAchievements)
@@ -327,7 +326,8 @@ namespace PlayniteAchievements.Providers.Steam
 
             var unobtainableApiNames = new HashSet<string>(
                 steamHuntersAchievements
-                    .Where(item => item?.Obtainability == SteamHuntersObtainability.Unobtainable)
+                    .Where(item => item?.Obtainability == SteamHuntersObtainability.Unobtainable ||
+                                   item?.Obtainability == SteamHuntersObtainability.BrokenButObtainable)
                     .Select(item => NormalizeApiName(item.ApiName))
                     .Where(apiName => apiName != null),
                 StringComparer.OrdinalIgnoreCase);
