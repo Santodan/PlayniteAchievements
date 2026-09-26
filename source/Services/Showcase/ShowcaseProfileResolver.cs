@@ -143,9 +143,41 @@ namespace PlayniteAchievements.Services.Showcase
             return NormalizeUrl(ProfileUrlBuilder?.Invoke(providerKey, text));
         }
 
-        // User names never carry a scheme or a slash, so either marks a pasted address.
-        private static bool LooksLikeLink(string text) =>
-            text.Contains("://") || (text.Contains("/") && text.Contains("."));
+        // Suffixes that mark a bare host ("mysite.com") as a link. A fixed list rather than any
+        // dotted word, because some platforms (Epic) allow periods in user names: "john.smith"
+        // stays a name, and a name that does end in one of these needs its full profile link.
+        private static readonly HashSet<string> LinkSuffixes = new HashSet<string>(
+            new[]
+            {
+                "com", "net", "org", "io", "gg", "tv", "me", "co", "app", "dev", "info", "xyz",
+                "uk", "us", "ca", "au", "de", "fr", "jp", "eu", "ru", "br", "nl", "es", "it"
+            },
+            StringComparer.OrdinalIgnoreCase);
+
+        // User names never carry a scheme, a "www." prefix, or a slash, so any of those marks a
+        // pasted address, as does a bare host ending in a known suffix.
+        private static bool LooksLikeLink(string text)
+        {
+            if (text.Contains("://") || text.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (text.Any(char.IsWhiteSpace))
+            {
+                return false;
+            }
+
+            if (text.Contains("/") && text.Contains("."))
+            {
+                return true;
+            }
+
+            var lastDot = text.LastIndexOf('.');
+            return lastDot > 0 &&
+                   text.All(ch => char.IsLetterOrDigit(ch) || ch == '.' || ch == '-') &&
+                   LinkSuffixes.Contains(text.Substring(lastDot + 1));
+        }
 
         private static void AddLink(List<ShowcaseProfileLinkProjection> links, string providerKey, string url)
         {
