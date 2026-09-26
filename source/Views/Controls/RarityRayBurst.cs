@@ -89,6 +89,21 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
+        /// Whether the subject has real rarity data. Unknown rarity is stored as Common, so a Common
+        /// subject draws rays only when this is true. Defaults true for call sites that do not bind it.
+        /// </summary>
+        public static readonly DependencyProperty HasRarityDataProperty =
+            DependencyProperty.Register(
+                nameof(HasRarityData), typeof(bool), typeof(RarityRayBurst),
+                new PropertyMetadata(true, OnAppearanceAffectingChanged));
+
+        public bool HasRarityData
+        {
+            get => (bool)GetValue(HasRarityDataProperty);
+            set => SetValue(HasRarityDataProperty, value);
+        }
+
+        /// <summary>
         /// When true the rays take the completed-game gradient colors instead of a rarity tier, for the
         /// completion glow on game and category art. Completed art has no tier of its own, so the call
         /// site gates it on the selection's completion entry rather than on <see cref="RayGlowTiers"/>.
@@ -526,7 +541,7 @@ namespace PlayniteAchievements.Views.Controls
                 return false;
             }
 
-            return UseCompletedColors || RayGlowTiers.Contains(Rarity);
+            return UseCompletedColors || RayGlowTiers.GlowsFor(Rarity, HasRarityData);
         }
 
         /// <summary>
