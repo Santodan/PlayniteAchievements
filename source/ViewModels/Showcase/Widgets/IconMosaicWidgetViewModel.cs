@@ -84,7 +84,10 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ShowcaseWidgetOptions.GetMosaicSortDescending(Projection?.Instance)
                     ? ListSortDirection.Descending
                     : ListSortDirection.Ascending);
-            if (spec.PreservesSourceOrder)
+            // Unlock Next ranks during selection and hides the sort rows, so a sort stored while
+            // another source was selected must not re-arrange its tiles.
+            if (spec.PreservesSourceOrder ||
+                ShowcaseWidgetOptions.GetMosaicSource(Projection?.Instance) == ShowcaseMosaicSource.UnlockNext)
             {
                 return achievements;
             }
