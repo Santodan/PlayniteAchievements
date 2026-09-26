@@ -456,7 +456,7 @@
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
-                            MaxWidth="740"
+                            MaxWidth="780"
                             Margin="18,0,0,0">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
@@ -473,7 +473,8 @@
                         </Style>
                     </StackPanel.Style>
 
-                    <controls:ScoreCardControl Width="300"
+                    <controls:ScoreCardControl Width="360"
+                                               Compact="True"
                                                ScoreCard="{Binding CollectionScoreCard}"
                                                Visibility="{Binding ShowOverviewCollectionScoreCard, Converter={StaticResource BoolToVis}}"/>
 
@@ -485,7 +486,8 @@
                             Margin="12,2"
                             Visibility="{Binding ShowOverviewScoreCardDivider, Converter={StaticResource BoolToVis}}"/>
 
-                    <controls:ScoreCardControl Width="300"
+                    <controls:ScoreCardControl Width="360"
+                                               Compact="True"
                                                ScoreCard="{Binding PrestigeScoreCard}"
                                                Visibility="{Binding ShowOverviewPrestigeScoreCard, Converter={StaticResource BoolToVis}}"/>
                 </StackPanel>
