@@ -40,6 +40,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public int GoalCount { get; set; }
 
         public int UnlockedGoalCount { get; set; }
+
+        public int CapstoneCount { get; set; }
+
+        public int UnlockedCapstoneCount { get; set; }
     }
 
     /// <summary>
@@ -83,6 +87,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     if (achievement.Unlocked)
                     {
                         breakdown.UnlockedGoalCount++;
+                    }
+                }
+
+                if (achievement.IsCapstone)
+                {
+                    breakdown.CapstoneCount++;
+                    if (achievement.Unlocked)
+                    {
+                        breakdown.UnlockedCapstoneCount++;
                     }
                 }
 
