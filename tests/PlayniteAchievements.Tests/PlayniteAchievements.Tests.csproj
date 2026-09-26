@@ -264,6 +264,7 @@
     <Compile Include="..\..\source\Providers\EmuLibrary\EmuLibrarySettingsReader.cs" Link="Source\Providers\EmuLibrary\EmuLibrarySettingsReader.cs" />
     <Compile Include="..\..\source\Providers\EmuLibrary\EmuLibraryPathResolver.cs" Link="Source\Providers\EmuLibrary\EmuLibraryPathResolver.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsHashCacheStore.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsHashCacheStore.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsCandidateHasher.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsCandidateHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\CueSheetParser.cs" Link="Source\Providers\RetroAchievements\Hashing\CueSheetParser.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\CueTrackReader.cs" Link="Source\Providers\RetroAchievements\Hashing\CueTrackReader.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\DiscImageReader.cs" Link="Source\Providers\RetroAchievements\Hashing\DiscImageReader.cs" />
