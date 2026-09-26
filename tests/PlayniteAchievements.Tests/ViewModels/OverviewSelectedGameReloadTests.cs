@@ -85,10 +85,13 @@ namespace PlayniteAchievements.Tests.ViewModels
             // Reloading only when the icon re-stamp refused left every other customization -- a
             // category created or renamed in the Manage window above all -- out of the pane for as
             // long as the game stayed selected.
+            // Anchored on the branch's own comment: the same condition appears earlier, in the
+            // branch that drops a removed game.
             var deltaBranch = Between(
                 source,
-                "if (SelectedGame?.PlayniteGameId == gameId)",
+                "// The delta replaces the library rows but not the selected game's",
                 "if (fragment.Achievements != null");
+            StringAssert.Contains(deltaBranch, "if (SelectedGame?.PlayniteGameId == gameId)");
             StringAssert.Contains(
                 deltaBranch,
                 "ApplySelectedGameIconOverrides(gameId);",
