@@ -1245,6 +1245,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _categoryEditsPendingPropagation = false;
             _gameDataSnapshotProvider?.Invalidate();
             _editorRefreshPending = true;
+
+            // The overview's categorized count and customization chips come from the shell
+            // reload, which nothing on the Category tab schedules. Coalesced, and paid once per
+            // exit from the tab like the rest of this.
+            _viewModel?.ScheduleShellReload();
         }
 
         private void CategoryViewModel_DeferredLibraryRefreshRequired(object sender, EventArgs e)
