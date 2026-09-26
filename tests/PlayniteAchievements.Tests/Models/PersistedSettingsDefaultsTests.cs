@@ -28,6 +28,17 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void Constructor_MarksCommonGlowTierAsCleared()
+        {
+            // A config this build writes must never be re-migrated, or a Common tier the user
+            // checked would be cleared on the next launch.
+            var settings = new PersistedSettings();
+
+            Assert.IsTrue(settings.CommonGlowTierCleared);
+            Assert.IsFalse(settings.RarityGlowSoftTiers.Contains(RarityTier.Common));
+        }
+
+        [TestMethod]
         public void Constructor_DefaultsCaptureResolutionsToNative()
         {
             var settings = new PersistedSettings();
