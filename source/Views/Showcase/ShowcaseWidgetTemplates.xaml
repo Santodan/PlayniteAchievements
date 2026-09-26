@@ -5,8 +5,7 @@
                     xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
                     xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
                     xmlns:showcase="clr-namespace:PlayniteAchievements.Views.Showcase"
-                    xmlns:widgets="clr-namespace:PlayniteAchievements.ViewModels.Showcase.Widgets"
-                    xmlns:wpftk="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel">
+                    xmlns:widgets="clr-namespace:PlayniteAchievements.ViewModels.Showcase.Widgets">
 
     <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility"/>
     <converters:ResourceKeyToImageSourceConverter x:Key="ShowcaseResourceKeyToImage"/>
@@ -291,9 +290,11 @@
                                Fill="{DynamicResource PlayAch.Brush.Border}"
                                Opacity="0.4"
                                SnapsToDevicePixels="True"/>
-                    <ItemsControl ItemsSource="{Binding Stats}" Margin="0,6,0,0">                        <ItemsControl.ItemsPanel>
+                    <ItemsControl ItemsSource="{Binding Stats}" Margin="0,6,0,0">
+                        <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <UniformGrid Columns="{Binding StatColumns}"/>
+                                <showcase:ShowcaseStatGridPanel Columns="{Binding StatColumns}"
+                                                                CenterLastRow="{Binding CenterStats}"/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
@@ -474,21 +475,10 @@
                  VirtualizingPanel.VirtualizationMode="Recycling">
             <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <wpftk:VirtualizingWrapPanel Orientation="Horizontal"
-                                                 VirtualizingPanel.CacheLengthUnit="Item"
-                                                 VirtualizingPanel.VirtualizationMode="Recycling">
-                        <!-- Uniform spreads each row's leftover width between tiles; at zero
-                             spacing that would still leave gaps, so the tiles pack flush. -->
-                        <wpftk:VirtualizingWrapPanel.Style>
-                            <Style TargetType="wpftk:VirtualizingWrapPanel">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsSeamless}" Value="True">
-                                        <Setter Property="SpacingMode" Value="None"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </wpftk:VirtualizingWrapPanel.Style>
-                    </wpftk:VirtualizingWrapPanel>
+                    <!-- Packs the tiles at the spacing option's gap and centers them. -->
+                    <showcase:ShowcaseMosaicWrapPanel Orientation="Horizontal"
+                                                      VirtualizingPanel.CacheLengthUnit="Item"
+                                                      VirtualizingPanel.VirtualizationMode="Recycling"/>
                 </ItemsPanelTemplate>
             </ListBox.ItemsPanel>
             <ListBox.ItemTemplate>
@@ -793,21 +783,10 @@
                  VirtualizingPanel.VirtualizationMode="Recycling">
             <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <wpftk:VirtualizingWrapPanel Orientation="Horizontal"
-                                                 VirtualizingPanel.CacheLengthUnit="Item"
-                                                 VirtualizingPanel.VirtualizationMode="Recycling">
-                        <!-- Uniform spreads each row's leftover width between tiles; at zero
-                             spacing that would still leave gaps, so the tiles pack flush. -->
-                        <wpftk:VirtualizingWrapPanel.Style>
-                            <Style TargetType="wpftk:VirtualizingWrapPanel">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsSeamless}" Value="True">
-                                        <Setter Property="SpacingMode" Value="None"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </wpftk:VirtualizingWrapPanel.Style>
-                    </wpftk:VirtualizingWrapPanel>
+                    <!-- Packs the tiles at the spacing option's gap and centers them. -->
+                    <showcase:ShowcaseMosaicWrapPanel Orientation="Horizontal"
+                                                      VirtualizingPanel.CacheLengthUnit="Item"
+                                                      VirtualizingPanel.VirtualizationMode="Recycling"/>
                 </ItemsPanelTemplate>
             </ListBox.ItemsPanel>
             <ListBox.ItemTemplate>
