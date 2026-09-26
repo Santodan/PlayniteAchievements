@@ -1053,12 +1053,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void RefreshAssignableCategoryOptions()
         {
-            CollectionHelper.SynchronizeCollection(
-                AssignableCategoryOptions,
-                CategoryRows
-                    .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
-                    .Select(row => row.CategoryLabel)
-                    .ToList());
+            var labels = CategoryRows
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.CategoryLabel))
+                .Select(row => row.CategoryLabel)
+                .ToList();
+            CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, labels);
+
+            // The Assign sub-tab's category filter orders itself by this canonical list, which
+            // only the reload used to take. A rename or re-parent then fell to the end of the
+            // filter out of tree order, and a flat drag or an order-only reset never reached the
+            // filter at all. The rendered rows are the tree order the user sees.
+            _canonicalCategoryLabelFilterOptions = labels;
+            RefreshCategoryLabelOptions();
         }
 
         private void CategoryMetadataRow_PropertyChanged(object sender, PropertyChangedEventArgs e)
