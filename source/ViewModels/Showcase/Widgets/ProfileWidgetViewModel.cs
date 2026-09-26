@@ -100,7 +100,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private bool _showMedals;
         private bool _showStatStrip;
         private int _statColumns = 4;
-        private bool _isCentered;
+        private bool _isStacked;
+        private bool _isCenteredRow;
         private bool _isFullBleed;
         private Thickness _contentPadding;
         private int _backgroundDecodePixel = 320;
@@ -145,20 +146,23 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         /// <summary>Strip columns: one per stat up to four, wrapping to extra rows past that.</summary>
         public int StatColumns { get => _statColumns; private set => SetValue(ref _statColumns, value); }
 
-        /// <summary>Avatar stacked above the text, with every block centered.</summary>
-        public bool IsCentered
+        /// <summary>Stacked layout: avatar above the text, every line centered.</summary>
+        public bool IsStacked
         {
-            get => _isCentered;
+            get => _isStacked;
             private set
             {
-                if (SetValueAndReturn(ref _isCentered, value))
+                if (SetValueAndReturn(ref _isStacked, value))
                 {
                     OnPropertyChanged(nameof(TextAlignment));
                 }
             }
         }
 
-        public TextAlignment TextAlignment => IsCentered ? TextAlignment.Center : TextAlignment.Left;
+        /// <summary>Centered layout: the left layout's blocks, unchanged, centered across the card.</summary>
+        public bool IsCenteredRow { get => _isCenteredRow; private set => SetValue(ref _isCenteredRow, value); }
+
+        public TextAlignment TextAlignment => IsStacked ? TextAlignment.Center : TextAlignment.Left;
 
         /// <summary>
         /// The widget host drops its body inset for a full-bleed profile, so the background
@@ -182,7 +186,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             BackgroundPath = resolved.BackgroundPath;
             HasBackground = !string.IsNullOrWhiteSpace(resolved.BackgroundPath);
 
-            IsCentered = ShowcaseWidgetOptions.GetProfileCentered(Projection?.Instance);
+            var layout = ShowcaseWidgetOptions.GetProfileLayout(Projection?.Instance);
+            IsStacked = layout == ShowcaseProfileLayout.Stacked;
+            IsCenteredRow = layout == ShowcaseProfileLayout.Centered;
             IsFullBleed = ShowcaseWidgetOptions.GetProfileFullBleed(Projection?.Instance);
             ContentPadding = IsFullBleed ? new Thickness(GetBodyInset(Density)) : new Thickness(0);
             BackgroundDecodePixel = IsFullBleed ? 640 : 320;
