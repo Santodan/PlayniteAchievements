@@ -6,6 +6,7 @@
              xmlns:views="clr-namespace:PlayniteAchievements.Views.ManageAchievements"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="700"
              d:DesignWidth="1050">
@@ -51,13 +52,28 @@
                     </Setter.Value>
                 </Setter>
             </Style>
+
+            <!-- Sidebar stats: one full-width chip per row, icon or label left, value right. -->
+            <Style x:Key="SidebarStatChipStyle" TargetType="Border" BasedOn="{StaticResource MetaChipStyle}">
+                <Setter Property="Margin" Value="0,0,0,3" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+            <Style x:Key="SidebarStatValueStyle" TargetType="TextBlock" BasedOn="{StaticResource ChipCountTextStyle}">
+                <Setter Property="Grid.Column" Value="1" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="SidebarStatGroupStyle" TargetType="StackPanel">
+                <Setter Property="Margin" Value="0,0,0,6" />
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
     <Border Background="{DynamicResource PlayAch.Brush.Window.Background}" Padding="12">
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="245" />
+            <!-- As wide as the longest tab name or stat row; the cover follows that width. -->
+            <ColumnDefinition Width="Auto" MinWidth="150" />
             <ColumnDefinition Width="12" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
@@ -78,17 +94,18 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="2"
-                        Height="190"
-                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
-                        ClipToBounds="False"
-                        Background="Transparent">
-                    <Image Stretch="Uniform"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           helpers:AsyncImage.Uri="{Binding GameImagePath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
-                           helpers:AsyncImage.DecodePixel="480" />
-                </Border>
+                <controls:WidthFollowingDecorator Grid.Row="2">
+                    <Border Height="190"
+                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            ClipToBounds="False"
+                            Background="Transparent">
+                        <Image Stretch="Uniform"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               helpers:AsyncImage.Uri="{Binding GameImagePath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
+                               helpers:AsyncImage.DecodePixel="480" />
+                    </Border>
+                </controls:WidthFollowingDecorator>
 
                 <ScrollViewer Grid.Row="4"
                               VerticalScrollBarVisibility="Auto"
@@ -139,92 +156,167 @@
                                        Text="{Binding CompletionSummary}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        FontWeight="SemiBold"
+                                       Margin="12,0,0,0"
                                        HorizontalAlignment="Right" />
                         </Grid>
                         <ProgressBar Value="{Binding CompletionPercentValue, Mode=OneWay}"
                                      Maximum="100"
                                      Height="6"
-                                     Margin="0,6,0,8" />
+                                     Margin="0,6,0,10" />
 
-                        <WrapPanel Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}">
-                            <Border Style="{StaticResource MetaChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Common}"
-                                    Visibility="{Binding OverviewSummary.RarityCommon.IsVisible, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityCommon}" />
-                                    <TextBlock Style="{StaticResource ChipCountTextStyle}" Text="{Binding OverviewSummary.RarityCommon.Text}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource MetaChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Uncommon}"
-                                    Visibility="{Binding OverviewSummary.RarityUncommon.IsVisible, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityUncommon}" />
-                                    <TextBlock Style="{StaticResource ChipCountTextStyle}" Text="{Binding OverviewSummary.RarityUncommon.Text}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource MetaChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Rare}"
-                                    Visibility="{Binding OverviewSummary.RarityRare.IsVisible, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityRare}" />
-                                    <TextBlock Style="{StaticResource ChipCountTextStyle}" Text="{Binding OverviewSummary.RarityRare.Text}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource MetaChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
-                                    Visibility="{Binding OverviewSummary.RarityUltraRare.IsVisible, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityUltraRare}" />
-                                    <TextBlock Style="{StaticResource ChipCountTextStyle}" Text="{Binding OverviewSummary.RarityUltraRare.Text}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource MetaChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}"
-                                    Visibility="{Binding OverviewSummary.TrophyPlatinum.IsVisible, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource TrophyPlatinum}" />
-                                    <TextBlock Style="{StaticResource ChipCountTextStyle}" Text="{Binding OverviewSummary.TrophyPlatinum.Text}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource MetaChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Gold}"
-                                    Visibility="{Binding OverviewSummary.TrophyGold.IsVisible, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource TrophyGold}" />
-                                    <TextBlock Style="{StaticResource ChipCountTextStyle}" Text="{Binding OverviewSummary.TrophyGold.Text}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource MetaChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Silver}"
-                                    Visibility="{Binding OverviewSummary.TrophySilver.IsVisible, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource TrophySilver}" />
-                                    <TextBlock Style="{StaticResource ChipCountTextStyle}" Text="{Binding OverviewSummary.TrophySilver.Text}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource MetaChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Bronze}"
-                                    Visibility="{Binding OverviewSummary.TrophyBronze.IsVisible, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource TrophyBronze}" />
-                                    <TextBlock Style="{StaticResource ChipCountTextStyle}" Text="{Binding OverviewSummary.TrophyBronze.Text}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource MetaChipStyle}"
-                                    Visibility="{Binding OverviewSummary.Points.IsVisible, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Style="{StaticResource ChipTextStyle}" Text="{DynamicResource LOCPlayAch_Column_Points}" />
-                                    <TextBlock Style="{StaticResource ChipCountTextStyle}" Text="{Binding OverviewSummary.Points.Text}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource MetaChipStyle}"
-                                    Visibility="{Binding OverviewSummary.Goals.IsVisible, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Style="{StaticResource ChipTextStyle}" Text="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}" />
-                                    <TextBlock Style="{StaticResource ChipCountTextStyle}" Text="{Binding OverviewSummary.Goals.Text}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource MetaChipStyle}"
-                                    Visibility="{Binding OverviewSummary.Categorized.IsVisible, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Style="{StaticResource ChipTextStyle}" Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_Categorized}" />
-                                    <TextBlock Style="{StaticResource ChipCountTextStyle}" Text="{Binding OverviewSummary.Categorized.Text}" />
-                                </StackPanel>
-                            </Border>
-                        </WrapPanel>
+                        <Border BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
+                                BorderThickness="0,1,0,0"
+                                Margin="0,0,0,10"
+                                Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}" />
+
+                        <!-- Grouped rarity, capstones, trophies (lowest first), then the rest. A group with
+                             nothing to show collapses so it leaves no gap. -->
+                        <StackPanel Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
+                                        Visibility="{Binding OverviewSummary.HasRarity, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Common}"
+                                        Visibility="{Binding OverviewSummary.RarityCommon.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityCommon}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityCommon.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Uncommon}"
+                                        Visibility="{Binding OverviewSummary.RarityUncommon.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityUncommon}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityUncommon.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Rare}"
+                                        Visibility="{Binding OverviewSummary.RarityRare.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityRare}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityRare.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
+                                        Visibility="{Binding OverviewSummary.RarityUltraRare.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeRarityUltraRare}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityUltraRare.Text}" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
+                                        Visibility="{Binding OverviewSummary.Capstones.IsVisible, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{Binding OverviewSummary.Capstones.ToolTip}"
+                                        Visibility="{Binding OverviewSummary.Capstones.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource BadgeCompletedGame}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Capstones.Text}" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
+                                        Visibility="{Binding OverviewSummary.HasTrophies, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Bronze}"
+                                        Visibility="{Binding OverviewSummary.TrophyBronze.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource TrophyBronze}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophyBronze.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Silver}"
+                                        Visibility="{Binding OverviewSummary.TrophySilver.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource TrophySilver}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophySilver.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Gold}"
+                                        Visibility="{Binding OverviewSummary.TrophyGold.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource TrophyGold}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophyGold.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}"
+                                        Visibility="{Binding OverviewSummary.TrophyPlatinum.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Image Style="{StaticResource OverviewBadgeImageStyle}" Source="{DynamicResource TrophyPlatinum}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophyPlatinum.Text}" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
+                                        Visibility="{Binding OverviewSummary.HasOtherStats, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource SidebarStatChipStyle}"
+                                        Visibility="{Binding OverviewSummary.Points.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCPlayAch_Column_Points}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Points.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}"
+                                        Visibility="{Binding OverviewSummary.Goals.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCPlayAch_ManageAchievements_Editor_Goal}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Goals.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}"
+                                        Visibility="{Binding OverviewSummary.Categorized.IsVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_Categorized}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Categorized.Text}" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </Grid>
