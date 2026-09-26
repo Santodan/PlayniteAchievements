@@ -64,6 +64,19 @@ namespace PlayniteAchievements.Models.Settings
     /// completions medal outright rather than adding to them, so a PlayStation-shaped library
     /// reads as trophies and nothing else; Both shows the rarity row followed by the grades.
     /// </summary>
+    /// <summary>How the profile card arranges its avatar, text, medals and stat strip.</summary>
+    public enum ShowcaseProfileLayout
+    {
+        /// <summary>Avatar beside the text, everything left-aligned.</summary>
+        Left = 0,
+
+        /// <summary>The same blocks, unchanged, centered across the card.</summary>
+        Centered = 1,
+
+        /// <summary>Avatar stacked above the text, every line centered.</summary>
+        Stacked = 2
+    }
+
     public enum ShowcaseProfileMedalMode
     {
         Rarity = 0,
