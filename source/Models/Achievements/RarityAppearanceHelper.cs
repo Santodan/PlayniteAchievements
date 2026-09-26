@@ -375,13 +375,13 @@ namespace PlayniteAchievements.Models.Achievements
                 });
         }
 
+        /// <summary>
+        /// The tier-colored glow at <paramref name="blurRadius"/>, for any tier including Common.
+        /// Whether a tier glows at all is the caller's decision (see
+        /// <see cref="RaritySelectionExtensions.GlowsFor"/>).
+        /// </summary>
         public static DropShadowEffect GetGlow(RarityTier tier, double blurRadius, PersistedSettings settings = null)
         {
-            if (tier == RarityTier.Common)
-            {
-                return null;
-            }
-
             var color = GetBaseColor(tier, settings);
             var effect = new DropShadowEffect
             {
