@@ -51,6 +51,24 @@ namespace PlayniteAchievements.Models.Achievements
         {
             return (selection & RaritySelection.Completed) != RaritySelection.None;
         }
+
+        /// <summary>
+        /// The soft-glow selection a fresh install starts with: every tier but Common, plus
+        /// completion. Common glows only when the user opts in.
+        /// </summary>
+        public const RaritySelection DefaultSoftGlowTiers =
+            RaritySelection.Uncommon | RaritySelection.Rare | RaritySelection.UltraRare |
+            RaritySelection.Completed;
+
+        /// <summary>
+        /// Whether a glow selection lights up an achievement of <paramref name="tier"/>. Common also
+        /// requires real rarity data, because an achievement with no rarity percent is stored as
+        /// Common and must not glow as if it were one.
+        /// </summary>
+        public static bool GlowsFor(this RaritySelection selection, RarityTier tier, bool hasRarityData)
+        {
+            return selection.Contains(tier) && (tier != RarityTier.Common || hasRarityData);
+        }
     }
 
     /// <summary>
