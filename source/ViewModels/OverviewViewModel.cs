@@ -2078,11 +2078,14 @@ namespace PlayniteAchievements.ViewModels
             _selectedGamePipeline.Invalidate(gameId);
 
             // The delta replaces the library rows but not the selected game's, which are their own
-            // instances built by the pipeline. Without this an icon override set from the Manage
-            // window sat in the store until something re-assigned SelectedGame -- in practice, a
-            // refresh -- and the grid kept showing the provider's art.
-            if (SelectedGame?.PlayniteGameId == gameId && !ApplySelectedGameIconOverrides(gameId))
+            // instances built by the pipeline. The icon patch is the immediate visual; the reload
+            // is what brings the rest -- category labels, the category filter and grouping, and
+            // everything else a customization moves. Reloading only when the patch failed left a
+            // category created or renamed in the Manage window missing from this pane for as long
+            // as the game stayed selected.
+            if (SelectedGame?.PlayniteGameId == gameId)
             {
+                ApplySelectedGameIconOverrides(gameId);
                 _selectedGameReloadRequested = true;
             }
 
