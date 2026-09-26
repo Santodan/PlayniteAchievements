@@ -50,6 +50,13 @@ namespace PlayniteAchievements.Views
                 typeof(OverviewControl),
                 new PropertyMetadata(false));
 
+        public static readonly DependencyProperty ScoreCardsBadgeOnlyProperty =
+            DependencyProperty.Register(
+                nameof(ScoreCardsBadgeOnly),
+                typeof(bool),
+                typeof(OverviewControl),
+                new PropertyMetadata(false));
+
         private static OverviewSubView _lastSelectedSubView = OverviewSubView.Overview;
 
         private readonly OverviewViewModel _viewModel;
@@ -82,6 +89,13 @@ namespace PlayniteAchievements.Views
         public OverviewControl()
         {
             InitializeComponent();
+        }
+
+        /// <summary>True when the header is too narrow for full score cards.</summary>
+        public bool ScoreCardsBadgeOnly
+        {
+            get => (bool)GetValue(ScoreCardsBadgeOnlyProperty);
+            set => SetValue(ScoreCardsBadgeOnlyProperty, value);
         }
 
         internal OverviewControl(
@@ -450,6 +464,42 @@ namespace PlayniteAchievements.Views
             LeaveFriendsSubViewIfDisabled();
         }
 
+        private void ScoreCardsSlot_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (e.WidthChanged)
+            {
+                UpdateScoreCardsBadgeOnly();
+            }
+        }
+
+        /// <summary>
+        /// Collapses the header score cards to their badges when the space the header leaves them
+        /// is narrower than the full cards need.
+        /// </summary>
+        private void UpdateScoreCardsBadgeOnly()
+        {
+            if (_viewModel == null || ScoreCardsSlot == null || ScoreCardsSlot.ActualWidth <= 0)
+            {
+                return;
+            }
+
+            var count = (_viewModel.ShowOverviewCollectionScoreCard ? 1 : 0) +
+                        (_viewModel.ShowOverviewPrestigeScoreCard ? 1 : 0);
+            if (count == 0)
+            {
+                return;
+            }
+
+            var cardWidth = TryFindResource("OverviewScoreCardWidth") is double width ? width : 360d;
+            var needed = ScoreCardsPanel.Margin.Left + (count * cardWidth);
+            if (count > 1)
+            {
+                needed += ScoreCardsDivider.Width + ScoreCardsDivider.Margin.Left + ScoreCardsDivider.Margin.Right;
+            }
+
+            ScoreCardsBadgeOnly = ScoreCardsSlot.ActualWidth < needed;
+        }
+
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (_viewModel == null || e == null) return;
@@ -475,6 +525,13 @@ namespace PlayniteAchievements.Views
                 || e.PropertyName == nameof(OverviewViewModel.ShowOverviewBarCharts))
             {
                 UpdatePieChartLayout();
+            }
+
+            if (string.IsNullOrEmpty(e.PropertyName)
+                || e.PropertyName == nameof(OverviewViewModel.ShowOverviewCollectionScoreCard)
+                || e.PropertyName == nameof(OverviewViewModel.ShowOverviewPrestigeScoreCard))
+            {
+                UpdateScoreCardsBadgeOnly();
             }
 
             if (e.PropertyName != nameof(OverviewViewModel.IsGameSelected) &&
