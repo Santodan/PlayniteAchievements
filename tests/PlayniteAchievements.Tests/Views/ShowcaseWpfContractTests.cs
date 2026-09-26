@@ -293,7 +293,7 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(itemCode, "ShowRarityGlowProperty");
             StringAssert.Contains(itemCode, "AnimateRarityGlowsProperty");
             StringAssert.Contains(itemCode, "UseLargeRarityGlowProperty");
-            StringAssert.Contains(itemXaml, "Converter={StaticResource PercentToRarityGlow}");
+            StringAssert.Contains(itemXaml, "Converter=\"{StaticResource RarityGlowForTiers}\" ConverterParameter=\"20\"");
             StringAssert.Contains(mosaicViewModel, "GetMosaicShowRarityGlow");
             StringAssert.Contains(mosaicViewModel, "AnimateRarityGlows");
             StringAssert.Contains(widgetTemplates, "AchievementCompactItemControl");
