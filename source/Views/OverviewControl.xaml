@@ -301,7 +301,7 @@
 
         <!-- ROW 0: Header with Title, Scores, and Refresh Buttons. In the sidebar the view sits
              under the main window's 25px caption; the empty first row keeps the controls below it
-             so the strip stays draggable. -->
+             so the strip stays draggable. Popouts have their own title strip and collapse it. -->
 
         <Border Grid.Row="0"
                 Background="Transparent"
@@ -319,7 +319,7 @@
             </Border.Style>
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="24"/>
+                    <RowDefinition x:Name="HeaderCaptionSpacerRow" Height="24"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
