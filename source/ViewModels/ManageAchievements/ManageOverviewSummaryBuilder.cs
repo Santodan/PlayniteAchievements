@@ -44,6 +44,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public int CapstoneCount { get; set; }
 
         public int UnlockedCapstoneCount { get; set; }
+
+        /// <summary>Achievements filtered from views or from summaries.</summary>
+        public int FilteredCount { get; set; }
+
+        public int NoteCount { get; set; }
     }
 
     /// <summary>
@@ -97,6 +102,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     {
                         breakdown.UnlockedCapstoneCount++;
                     }
+                }
+
+                if (achievement.IsFiltered || achievement.IsFilteredFromSummaries)
+                {
+                    breakdown.FilteredCount++;
+                }
+
+                if (HasText(achievement.AchievementNote))
+                {
+                    breakdown.NoteCount++;
                 }
 
                 var label = CategoryPathHelper.NormalizePath(
