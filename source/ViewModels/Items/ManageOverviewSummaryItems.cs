@@ -22,6 +22,9 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public ManageOverviewStat RarityUltraRare { get; set; } = ManageOverviewStat.None;
 
+        /// <summary>Unlocked capstones over all capstones; the tooltip names them.</summary>
+        public ManageOverviewStat Capstones { get; set; } = ManageOverviewStat.None;
+
         public ManageOverviewStat TrophyPlatinum { get; set; } = ManageOverviewStat.None;
 
         public ManageOverviewStat TrophyGold { get; set; } = ManageOverviewStat.None;
@@ -39,6 +42,16 @@ namespace PlayniteAchievements.ViewModels.Items
         /// <summary>Unlocked goals over all goals.</summary>
         public ManageOverviewStat Goals { get; set; } = ManageOverviewStat.None;
 
+        // Group visibility for the sidebar, so a group with nothing to show leaves no gap.
+
+        public bool HasRarity =>
+            RarityCommon.IsVisible || RarityUncommon.IsVisible || RarityRare.IsVisible || RarityUltraRare.IsVisible;
+
+        public bool HasTrophies =>
+            TrophyBronze.IsVisible || TrophySilver.IsVisible || TrophyGold.IsVisible || TrophyPlatinum.IsVisible;
+
+        public bool HasOtherStats => Points.IsVisible || Goals.IsVisible || Categorized.IsVisible;
+
         public IReadOnlyList<ManageOverviewCustomizationChip> Customizations { get; set; } =
             Array.Empty<ManageOverviewCustomizationChip>();
 
@@ -50,15 +63,19 @@ namespace PlayniteAchievements.ViewModels.Items
     {
         public static readonly ManageOverviewStat None = new ManageOverviewStat(null, false);
 
-        public ManageOverviewStat(string text, bool isVisible)
+        public ManageOverviewStat(string text, bool isVisible, string toolTip = null)
         {
             Text = text;
             IsVisible = isVisible;
+            ToolTip = toolTip;
         }
 
         public string Text { get; }
 
         public bool IsVisible { get; }
+
+        /// <summary>Detail behind the stat, or null to fall back to the chip's own tooltip.</summary>
+        public string ToolTip { get; }
     }
 
     /// <summary>
