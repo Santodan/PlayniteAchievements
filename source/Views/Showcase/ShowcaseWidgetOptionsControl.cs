@@ -22,6 +22,7 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly ShowcaseWidgetInstanceSettings _settings;
         private readonly Action _persist;
         private readonly bool _publishChanges;
+        private DebouncedSettingsPersist _gridOptionsPersist;
 
         public ShowcaseWidgetOptionsControl(
             ShowcaseWidgetInstanceSettings settings,
@@ -590,35 +591,60 @@ namespace PlayniteAchievements.Views.Showcase
                     break;
             }
 
-            AddGridDisplaySettingsButton(panel);
+            AppendGridOptionsEditor(panel);
             return panel;
         }
 
         /// <summary>
-        /// For the grid widget kinds: opens the same display settings popup as the grid's own
-        /// right-click Display Settings entry, for this widget's surface. The popup edits the live
-        /// grid options record and persists itself, independent of this dialog's Save/Cancel.
+        /// Appends the shared grid display-options editor for the grid widget kinds. The editor
+        /// binds the widget's LIVE catalog record (not the dialog's widget clone), so grid
+        /// display edits are instant-apply, independent of the host's persist callback and of
+        /// the dialog's Save/Cancel, which govern only the title and the widget's own option
+        /// bag. Live grids react to the record directly (bindings plus the grid view models'
+        /// record subscriptions), so edits only need persisting - debounced, because a full
+        /// settings write per checkbox toggle makes the editor visibly laggy.
         /// </summary>
-        private void AddGridDisplaySettingsButton(Panel panel)
+        private void AppendGridOptionsEditor(Panel panel)
         {
+            var catalog = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.GridOptions;
             var surfaceKey = ShowcaseGridSurfaces.ResolveWidgetSurface(_settings.Kind, _settings.InstanceId);
-            if (surfaceKey == null)
+            if (catalog == null || surfaceKey == null)
             {
                 return;
             }
 
-            var kind = ShowcaseGridSurfaces.IsAchievementSurface(surfaceKey)
-                ? GridOptionKind.Achievement
-                : GridOptionKind.GameSummaries;
-            var button = new Button
+            var editor = new GridOptionsEditor();
+            editor.SetResourceReference(MarginProperty, "PlayAch.Thickness.Top.Md");
+            object options;
+            if (ShowcaseGridSurfaces.IsAchievementSurface(surfaceKey))
             {
-                Content = Localize("LOCPlayAch_Menu_DisplaySettings"),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                MinWidth = 120
-            };
-            button.SetResourceReference(MarginProperty, "PlayAch.Thickness.Top.Md");
-            button.Click += (_, __) => Dialogs.GridDisplaySettingsDialog.Show(kind, surfaceKey, null);
-            panel.Children.Add(button);
+                // The sort combo's Default (None) keeps the projection order: pin order for
+                // pinned grids, unlock recency for recent grids.
+                options = catalog.GetAchievement(surfaceKey);
+                editor.SurfaceKind = GridOptionKind.Achievement;
+            }
+            else
+            {
+                options = catalog.GetGameSummaries(surfaceKey);
+                editor.SurfaceKind = GridOptionKind.GameSummaries;
+            }
+
+            // Naming the surface rather than setting flags is what keeps this editor and the grid's
+            // own display settings popup showing the same rows: both read GridDisplaySurfaces.
+            editor.SurfaceKey = surfaceKey;
+            editor.Options = options;
+            AttachGridOptionsPersist(options);
+
+            panel.Children.Add(editor);
+        }
+
+        private void AttachGridOptionsPersist(object record)
+        {
+            _gridOptionsPersist = new DebouncedSettingsPersist(
+                this,
+                () => PlayniteAchievementsPlugin.Instance?.PersistSettingsForUi(),
+                () => PlayniteAchievementsPlugin.Instance?.IsSettingsEditSessionActive == true);
+            _gridOptionsPersist.Watch(record);
         }
 
         /// <summary>
