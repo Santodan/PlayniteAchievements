@@ -136,9 +136,13 @@
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- Always-visible stats: completion and the rarity, trophy, points, goal and
-                     categorized counts, pinned under the nav so every tab shows them. -->
-                <Border Grid.Row="5"
+                <!-- Always-visible stats, pinned under the nav so every tab shows them. Right-click
+                     shows or hides stat groups for every game. Transparent background so the
+                     gaps between chips take the right-click too. -->
+                <Border x:Name="SidebarStatsHost"
+                        Grid.Row="5"
+                        Background="Transparent"
+                        MouseRightButtonUp="SidebarStatsHost_MouseRightButtonUp"
                         BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                         BorderThickness="0,1,0,0"
                         Margin="0,10,0,0"
@@ -167,15 +171,15 @@
                         <Border BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                                 BorderThickness="0,1,0,0"
                                 Margin="0,0,0,10"
-                                Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}" />
+                                Visibility="{Binding SidebarAnyStatsVisible, Converter={StaticResource BoolToVis}}" />
 
-                        <!-- Capstones, then rarity and trophies (highest first), then the rest. A group with
-                             nothing to show collapses so it leaves no gap. -->
-                        <StackPanel Visibility="{Binding HasAchievementData, Converter={StaticResource BoolToVis}}">
+                        <!-- Capstones, then rarity and trophies (highest first), then the rest. A group collapses
+                             when the game has nothing for it or it is hidden from the right-click menu. -->
+                        <StackPanel Visibility="{Binding SidebarAnyStatsVisible, Converter={StaticResource BoolToVis}}">
                             <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
-                                        Visibility="{Binding OverviewSummary.Capstones.IsVisible, Converter={StaticResource BoolToVis}}">
+                                        Visibility="{Binding SidebarCapstonesVisible, Converter={StaticResource BoolToVis}}">
                                 <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{Binding OverviewSummary.Capstones.ToolTip}"
-                                        Visibility="{Binding OverviewSummary.Capstones.IsVisible, Converter={StaticResource BoolToVis}}">
+                                        Visibility="{Binding SidebarCapstonesVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -187,7 +191,7 @@
                                 </Border>
                             </StackPanel>
                             <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
-                                        Visibility="{Binding OverviewSummary.HasRarity, Converter={StaticResource BoolToVis}}">
+                                        Visibility="{Binding SidebarRarityVisible, Converter={StaticResource BoolToVis}}">
                                 <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
                                         Visibility="{Binding OverviewSummary.RarityUltraRare.IsVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
@@ -234,7 +238,7 @@
                                 </Border>
                             </StackPanel>
                             <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
-                                        Visibility="{Binding OverviewSummary.HasTrophies, Converter={StaticResource BoolToVis}}">
+                                        Visibility="{Binding SidebarTrophiesVisible, Converter={StaticResource BoolToVis}}">
                                 <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}"
                                         Visibility="{Binding OverviewSummary.TrophyPlatinum.IsVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
@@ -281,9 +285,9 @@
                                 </Border>
                             </StackPanel>
                             <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
-                                        Visibility="{Binding OverviewSummary.HasOtherStats, Converter={StaticResource BoolToVis}}">
+                                        Visibility="{Binding SidebarOtherStatsVisible, Converter={StaticResource BoolToVis}}">
                                 <Border Style="{StaticResource SidebarStatChipStyle}"
-                                        Visibility="{Binding OverviewSummary.Points.IsVisible, Converter={StaticResource BoolToVis}}">
+                                        Visibility="{Binding SidebarPointsVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -294,7 +298,7 @@
                                     </Grid>
                                 </Border>
                                 <Border Style="{StaticResource SidebarStatChipStyle}"
-                                        Visibility="{Binding OverviewSummary.Goals.IsVisible, Converter={StaticResource BoolToVis}}">
+                                        Visibility="{Binding SidebarGoalsVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -305,7 +309,7 @@
                                     </Grid>
                                 </Border>
                                 <Border Style="{StaticResource SidebarStatChipStyle}"
-                                        Visibility="{Binding OverviewSummary.Categorized.IsVisible, Converter={StaticResource BoolToVis}}">
+                                        Visibility="{Binding SidebarCategorizedVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -313,6 +317,28 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_Categorized}" />
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Categorized.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}"
+                                        Visibility="{Binding SidebarFilteredVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCPlayAch_Menu_Filters}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Filtered.Text}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SidebarStatChipStyle}"
+                                        Visibility="{Binding SidebarNotesVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource ChipTextStyle}" VerticalAlignment="Center" Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Notes}" />
+                                        <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.Notes.Text}" />
                                     </Grid>
                                 </Border>
                             </StackPanel>
