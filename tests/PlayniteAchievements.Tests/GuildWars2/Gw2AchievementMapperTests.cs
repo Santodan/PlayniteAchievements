@@ -212,11 +212,11 @@ namespace PlayniteAchievements.GuildWars2.Tests
         }
 
         [TestMethod]
-        public void BuildAchievements_ClassifiesTheHistoricalGroupAsMissable()
+        public void BuildAchievements_ClassifiesTheHistoricalGroupAsUnobtainable()
         {
             var results = Build();
 
-            Assert.AreEqual("Missable", Find(results, "5:t1").CategoryType);
+            Assert.AreEqual("Unobtainable", Find(results, "5:t1").CategoryType);
             Assert.IsNull(Find(results, "1:t1").CategoryType, "an ordinary group carries no classification");
         }
 
