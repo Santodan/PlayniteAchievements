@@ -16,16 +16,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// </summary>
     public sealed class GameMosaicWidgetViewModel : ShowcaseWidgetViewModelBase
     {
-        private bool _isSeamless;
 
         public BulkObservableCollection<GameTileViewModel> Tiles { get; } =
             new BulkObservableCollection<GameTileViewModel>();
-
-        /// <summary>
-        /// Zero spacing without the glow: the wrap panel stops spreading leftover row width
-        /// between tiles and the covers lose their rounded corners, so the tiles touch.
-        /// </summary>
-        public bool IsSeamless { get => _isSeamless; private set => SetValue(ref _isSeamless, value); }
 
         protected override void Refresh()
         {
@@ -39,8 +32,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                     ? 44
                     : Density == WidgetViewportDensity.Expanded ? 72 : ShowcaseWidgetOptions.DefaultMosaicCoverWidth);
             var spacing = ShowcaseWidgetOptions.GetMosaicSpacing(Projection?.Instance);
-            // The glow needs its clearance, so glowing tiles never sit flush.
-            IsSeamless = spacing == 0 && !showCompletionGlow;
             // Icon tiles are square; cover tiles keep the portrait box-art ratio.
             var coverHeight = useCovers ? Math.Round(coverWidth * 1.4) : coverWidth;
             var decodePixel = Math.Max(64, (int)Math.Ceiling(coverHeight * 2));
