@@ -23,8 +23,11 @@ namespace PlayniteAchievements.Providers.Riot
 
         private const string AssetPathPrefix = "/lol-game-data/assets/";
 
-        /// <summary>Category type applied to challenges that can no longer be progressed.</summary>
+        /// <summary>Category type applied to challenges whose end date is still ahead.</summary>
         private const string MissableCategoryType = "Missable";
+
+        /// <summary>Category type applied to challenges that can no longer be progressed.</summary>
+        private const string UnobtainableCategoryType = "Unobtainable";
 
         private const string IsCategoryTag = "isCategory";
         private const string ParentTag = "parent";
@@ -85,7 +88,7 @@ namespace PlayniteAchievements.Providers.Riot
         /// top-level category ids to localized labels, since CommunityDragon exposes them only as
         /// raw codes (IMAGINATION, EXPERTISE, ...).
         /// </summary>
-        /// <param name="nowUtc">Reference time for deciding whether a challenge has retired.</param>
+        /// <param name="nowUtc">Reference time for deciding whether a timed challenge is still open.</param>
         public static List<AchievementDetail> BuildAchievements(
             CDragonChallengeFile metadata,
             RiotPlayerChallengeState playerState,
@@ -178,7 +181,7 @@ namespace PlayniteAchievements.Providers.Riot
             var playerRank = RiotChallengeLevels.GetRank(playerInfo?.Level);
             var value = playerInfo?.Value ?? 0d;
             var category = ResolveCategory(challenge, allChallenges, categoryDisplayNames);
-            var categoryType = IsRetired(challenge, nowUtc) ? MissableCategoryType : null;
+            var categoryType = ResolveTimedCategoryType(challenge, nowUtc);
             var description = FirstNonBlank(challenge.Description, challenge.DescriptionShort);
 
             foreach (var tier in ladder)
@@ -492,15 +495,22 @@ namespace PlayniteAchievements.Providers.Riot
             return segments.Count == 0 ? null : CategoryPathHelper.JoinRaw(segments.ToArray());
         }
 
-        private static bool IsRetired(CDragonChallenge challenge, DateTime nowUtc)
+        // A challenge with an end date is Missable until it passes and Unobtainable afterwards;
+        // one without an end date gets no timed type.
+        private static string ResolveTimedCategoryType(CDragonChallenge challenge, DateTime nowUtc)
         {
             if (challenge.EndTimestamp <= 0)
             {
-                return false;
+                return null;
             }
 
             var end = ToUtc(challenge.EndTimestamp);
-            return end.HasValue && end.Value <= nowUtc;
+            if (!end.HasValue)
+            {
+                return null;
+            }
+
+            return end.Value <= nowUtc ? UnobtainableCategoryType : MissableCategoryType;
         }
 
         private static bool IsCategoryNode(CDragonChallenge challenge)
