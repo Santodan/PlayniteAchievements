@@ -62,6 +62,11 @@
                         <Setter Property="Width" Value="54"/>
                         <Setter Property="Height" Value="61"/>
                     </DataTrigger>
+                    <!-- Sized to the compact card's two rows (tier line and bar). -->
+                    <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
+                        <Setter Property="Width" Value="28"/>
+                        <Setter Property="Height" Value="32"/>
+                    </DataTrigger>
                 </Style.Triggers>
             </Style>
 
