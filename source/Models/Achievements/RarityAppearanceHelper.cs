@@ -267,6 +267,32 @@ namespace PlayniteAchievements.Models.Achievements
             resources["PlayAch.Brush.Progress.CompletedFill"] = CreateCompletedProgressFillBrush(settings);
         }
 
+        /// <summary>
+        /// Publishes the lock fill for locked Missable achievements in the status column: the
+        /// fixed missable red when the tint is on, otherwise the glyph brush the other locks use.
+        /// Runtime-only key with no static definition, so a control-level merge of DesignTokens
+        /// cannot shadow the application-scope value.
+        /// </summary>
+        public static void ApplyMissableLockResource(ResourceDictionary resources, PersistedSettings settings = null)
+        {
+            if (resources == null)
+            {
+                return;
+            }
+
+            var persisted = settings ?? _activeSettings;
+            var sourceKey = persisted?.TintMissableLocks == false
+                ? "PlayAch.Brush.Glyph"
+                : "PlayAch.Brush.MissableLock";
+            var brush = resources.Contains(sourceKey)
+                ? resources[sourceKey]
+                : Application.Current?.TryFindResource(sourceKey);
+            if (brush != null)
+            {
+                resources["PlayAch.Brush.Status.MissableLock"] = brush;
+            }
+        }
+
         public static Color GetCompletedStartColor(PersistedSettings settings = null)
         {
             var persisted = settings ?? _activeSettings;
@@ -487,6 +513,7 @@ namespace PlayniteAchievements.Models.Achievements
             SetGeneratedBadge(resources, RarityTier.UltraRare, "BadgePlatinumHexagon");
             ApplyCompletedGameBrushResource(resources, settings);
             ApplyCompletedProgressFillResource(resources, settings);
+            ApplyMissableLockResource(resources, settings);
             var completedBadge = CreateCompletedBadgeImage(settings);
             resources["BadgeCompletedGame"] = completedBadge;
             // Runtime-only alias with no static definition in RarityBadges.xaml, mirroring the
