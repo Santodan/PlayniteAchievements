@@ -845,6 +845,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 RarityUncommon = Stat(stats.UncommonCount, stats.TotalUncommonPossible),
                 RarityRare = Stat(stats.RareCount, stats.TotalRarePossible),
                 RarityUltraRare = Stat(stats.UltraRareCount, stats.TotalUltraRarePossible),
+                Capstones = breakdown.CapstoneCount > 0
+                    ? new ManageOverviewStat(
+                        FormatProgress(breakdown.UnlockedCapstoneCount, breakdown.CapstoneCount),
+                        true,
+                        BuildCapstoneToolTip(achievements))
+                    : ManageOverviewStat.None,
                 TrophyPlatinum = Stat(stats.TrophyPlatinumCount, stats.TrophyPlatinumTotal),
                 TrophyGold = Stat(stats.TrophyGoldCount, stats.TrophyGoldTotal),
                 TrophySilver = Stat(stats.TrophySilverCount, stats.TrophySilverTotal),
