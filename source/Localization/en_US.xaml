@@ -1456,7 +1456,6 @@
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_PlayniteFavorites">Playnite favorites</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_FinishNext">Finish next</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion">Hunt for</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion_NextInLine">Next in line</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion_Easiest">Easiest to get</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion_ClosestToCompletion">Closest to completion</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_LastPlayedWindow">Played within</sys:String>
