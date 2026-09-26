@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
@@ -87,6 +88,57 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
             }
 
             return new DiscImage(source, null, null);
+        }
+
+        /// <summary>
+        /// The image file followed by every existing track file a cue sheet or .gdi references,
+        /// data and audio alike, since hashers read tracks other than the first (Dreamcast's last
+        /// track, Jaguar CD's second session). A plain image lists only itself.
+        /// </summary>
+        public static IReadOnlyList<string> GetImageFiles(string imagePath)
+        {
+            var files = new List<string>();
+            if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
+            {
+                return files;
+            }
+
+            files.Add(System.IO.Path.GetFullPath(imagePath));
+
+            IEnumerable<string> referenced = Enumerable.Empty<string>();
+            if (CueTrackReader.IsCuePath(imagePath))
+            {
+                if (CueSheetParser.TryParseFile(imagePath, out var sheet, out _))
+                {
+                    referenced = sheet.Files.Select(f => f?.FileName);
+                }
+            }
+            else if (IsGdiPath(imagePath))
+            {
+                try
+                {
+                    referenced = File.ReadAllText(imagePath, Encoding.Default).Split('\n')
+                        .Skip(1)
+                        .Select(SplitGdiLine)
+                        .Where(fields => fields.Count >= 5)
+                        .Select(fields => fields[4]);
+                }
+                catch (IOException)
+                {
+                }
+            }
+
+            foreach (var name in referenced)
+            {
+                var path = CueTrackReader.ResolveTrackPath(imagePath, name);
+                if (!string.IsNullOrWhiteSpace(path) && File.Exists(path) &&
+                    !files.Contains(path, StringComparer.OrdinalIgnoreCase))
+                {
+                    files.Add(path);
+                }
+            }
+
+            return files;
         }
 
         /// <summary>Opens the selected track, or returns null when the image has no such track.</summary>

@@ -191,16 +191,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             var dependencies = new List<RaHashCacheDependency>();
 
-            IReadOnlyList<string> dependencyPaths = null;
-            if (CueTrackReader.IsCuePath(matchedPath) &&
-                CueTrackReader.TryGetDataTrackDependencies(matchedPath, out var cueDependencies, out _))
-            {
-                dependencyPaths = cueDependencies;
-            }
-            else if (!string.IsNullOrWhiteSpace(matchedPath))
-            {
-                dependencyPaths = new[] { matchedPath };
-            }
+            // Cue sheets and .gdi files list every track file, so editing any track invalidates the entry.
+            IReadOnlyList<string> dependencyPaths = CueTrackReader.IsCuePath(matchedPath) || DiscImage.IsGdiPath(matchedPath)
+                ? DiscImage.GetImageFiles(matchedPath)
+                : string.IsNullOrWhiteSpace(matchedPath) ? null : new[] { matchedPath };
 
             if (dependencyPaths == null)
             {
