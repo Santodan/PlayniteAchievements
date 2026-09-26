@@ -62,9 +62,10 @@ namespace PlayniteAchievements.Services.Overview
         }
 
         /// <summary>
-        /// The locked rows worth retaining for one game: the head of its own order (what "next in
-        /// line" and "closest to completion" read) plus the most commonly unlocked (what "easiest"
-        /// reads). Hidden rows stay in; the projection drops them unless the widget opts in.
+        /// The locked rows worth retaining for one game: the most commonly unlocked (what both
+        /// criteria rank by) plus the head of its own order, which carries achievements that have
+        /// no global percentage. Hidden rows stay in; the projection drops them unless the widget
+        /// opts in.
         /// </summary>
         public static IReadOnlyList<AchievementDetail> SelectAchievements(
             IEnumerable<AchievementDetail> achievements)
