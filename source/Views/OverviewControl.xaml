@@ -288,6 +288,20 @@
                 </Style.Triggers>
             </Style>
 
+            <!-- Header score cards. Code-behind reads the width to decide when the header is too
+                 narrow for full cards and collapses them to badges. -->
+            <sys:Double x:Key="OverviewScoreCardWidth">360</sys:Double>
+            <Style x:Key="OverviewScoreCardStyle" TargetType="controls:ScoreCardControl">
+                <Setter Property="Width" Value="{StaticResource OverviewScoreCardWidth}"/>
+                <Setter Property="Compact" Value="True"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding ScoreCardsBadgeOnly, ElementName=OverviewControlRoot}" Value="True">
+                        <Setter Property="Width" Value="NaN"/>
+                        <Setter Property="BadgeOnly" Value="True"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -452,8 +466,17 @@
                     </StackPanel>
                 </StackPanel>
 
+                <!-- Measures the width the header leaves for the score cards; the star column's
+                     width does not depend on the cards, so collapsing them cannot feed back. -->
+                <Border x:Name="ScoreCardsSlot"
+                        Grid.Row="1"
+                        Grid.Column="1"
+                        IsHitTestVisible="False"
+                        SizeChanged="ScoreCardsSlot_SizeChanged"/>
+
                 <!-- Right: Collection and Prestige score cards, Overview subview only. -->
-                <StackPanel Grid.Row="1"
+                <StackPanel x:Name="ScoreCardsPanel"
+                            Grid.Row="1"
                             Grid.Column="1"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
@@ -475,12 +498,12 @@
                         </Style>
                     </StackPanel.Style>
 
-                    <controls:ScoreCardControl Width="360"
-                                               Compact="True"
+                    <controls:ScoreCardControl Style="{StaticResource OverviewScoreCardStyle}"
                                                ScoreCard="{Binding CollectionScoreCard}"
                                                Visibility="{Binding ShowOverviewCollectionScoreCard, Converter={StaticResource BoolToVis}}"/>
 
-                    <Border Background="{DynamicResource PlayAch.Brush.ControlBorder}"
+                    <Border x:Name="ScoreCardsDivider"
+                            Background="{DynamicResource PlayAch.Brush.ControlBorder}"
                             Opacity="{StaticResource PlayAch.Opacity.Disabled}"
                             VerticalAlignment="Center"
                             Width="1"
@@ -488,8 +511,7 @@
                             Margin="12,2"
                             Visibility="{Binding ShowOverviewScoreCardDivider, Converter={StaticResource BoolToVis}}"/>
 
-                    <controls:ScoreCardControl Width="360"
-                                               Compact="True"
+                    <controls:ScoreCardControl Style="{StaticResource OverviewScoreCardStyle}"
                                                ScoreCard="{Binding PrestigeScoreCard}"
                                                Visibility="{Binding ShowOverviewPrestigeScoreCard, Converter={StaticResource BoolToVis}}"/>
                 </StackPanel>
