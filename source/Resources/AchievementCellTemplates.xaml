@@ -10,6 +10,8 @@
         <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/TrophyBadges.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
+    <converters:AchievementStatusToolTipConverter x:Key="AchievementStatusToolTipConverter"/>
+
     <!-- =======================
          ACHIEVEMENT TEMPLATES
          ======================= -->
@@ -30,7 +32,19 @@
                  HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                  UseLayoutRounding="True"
                  SnapsToDevicePixels="True">
-            <Grid Width="18" Height="18">
+            <!-- Transparent background so the whole icon box, not just the glyph ink, shows the
+                 tooltip. IsMissable falls back to False for row types that do not carry it. -->
+            <Grid Width="18" Height="18" Background="Transparent">
+                <Grid.ToolTip>
+                    <MultiBinding Converter="{StaticResource AchievementStatusToolTipConverter}">
+                        <Binding Path="Unlocked"/>
+                        <Binding Path="IsCapstone" FallbackValue="False"/>
+                        <Binding Path="IsGoal" FallbackValue="False"/>
+                        <Binding Path="IsFiltered" FallbackValue="False"/>
+                        <Binding Path="IsFilteredFromSummaries" FallbackValue="False"/>
+                        <Binding Path="IsMissable" FallbackValue="False"/>
+                    </MultiBinding>
+                </Grid.ToolTip>
                 <Path Data="{StaticResource GeoCheck}"
                       Stroke="{DynamicResource PlayAch.Brush.Glyph}"
                       StrokeThickness="2.3"
@@ -111,11 +125,23 @@
                     <Path Stretch="None"
                           Width="18"
                           Height="18"
-                          Fill="{DynamicResource PlayAch.Brush.Glyph}"
                           UseLayoutRounding="True"
                           SnapsToDevicePixels="True"
                           HorizontalAlignment="Center"
                           VerticalAlignment="Center">
+                        <!-- Fill set in the style, not as an attribute, so the missable trigger
+                             can override it. The lock only shows while locked, so the trigger
+                             needs no Unlocked condition. -->
+                        <Path.Style>
+                            <Style TargetType="Path">
+                                <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Glyph}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMissable, FallbackValue=False}" Value="True">
+                                        <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Status.MissableLock}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
                         <Path.Data>
                             <CombinedGeometry GeometryCombineMode="Exclude">
                                 <CombinedGeometry.Geometry1>
@@ -134,7 +160,6 @@
                 </Grid>
 
                 <Path Data="{StaticResource GeoLock}"
-                      Fill="{DynamicResource PlayAch.Brush.Glyph}"
                       Stretch="Uniform"
                       Width="18"
                       Height="18"
@@ -144,7 +169,11 @@
                     <Path.Style>
                         <Style TargetType="Path">
                             <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Glyph}"/>
                             <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMissable, FallbackValue=False}" Value="True">
+                                    <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Status.MissableLock}"/>
+                                </DataTrigger>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding IsFiltered, FallbackValue=False}" Value="False"/>
