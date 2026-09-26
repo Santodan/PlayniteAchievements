@@ -84,7 +84,12 @@ namespace PlayniteAchievements.Views.Showcase
             if (TryResolveGameTile(source, out var tile, out _) && tile.GameId.HasValue)
             {
                 e.Handled = true;
-                plugin.OpenGameInLibrary(tile.GameId.Value);
+                // Switching Playnite to its library view takes a moment; run it after this click
+                // finishes so the press itself is not held up waiting on the switch.
+                var gameId = tile.GameId.Value;
+                ((DependencyObject)sender).Dispatcher.BeginInvoke(
+                    new Action(() => plugin.OpenGameInLibrary(gameId)),
+                    System.Windows.Threading.DispatcherPriority.Background);
             }
         }
 
