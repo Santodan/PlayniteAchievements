@@ -308,6 +308,7 @@ namespace PlayniteAchievements.Models
         private const string Shuffle = "Shuffle";
         private const string HideCompleted = "HideCompleted";
         private const string ShowRarityGlow = "ShowRarityGlow";
+        private const string ShowRarityBar = "ShowRarityBar";
         private const string UseCoverImages = "UseCoverImages";
         private const string ShowCompletionGlow = "ShowCompletionGlow";
         private const string ShowCenterPercentage = "ShowCenterPercentage";
@@ -590,6 +591,13 @@ namespace PlayniteAchievements.Models
 
         public static void SetMosaicCount(ShowcaseWidgetInstanceSettings settings, int value) =>
             settings?.SetOption(Count, Clamp(value, 1, 200));
+
+        /// <summary>Whether achievement mosaic tiles show the rarity bar along their bottom edge.</summary>
+        public static bool GetMosaicShowRarityBar(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.GetOption(ShowRarityBar, false) ?? false;
+
+        public static void SetMosaicShowRarityBar(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(ShowRarityBar, value);
 
         public static bool GetMosaicShowRarityGlow(ShowcaseWidgetInstanceSettings settings) =>
             settings?.GetOption(ShowRarityGlow, true) ?? true;
