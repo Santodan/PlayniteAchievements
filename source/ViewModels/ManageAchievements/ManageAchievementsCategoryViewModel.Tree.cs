@@ -1517,12 +1517,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>
         /// Records whether a write skipped the library-wide passes, and passes the flag straight
-        /// back so it can wrap the argument at the call site. A write that did fan out clears the
-        /// debt rather than adding to it: it has already brought the library surfaces up to date.
+        /// back so it can wrap the argument at the call site. The debt only accumulates: a write
+        /// that did fan out reaches the summary listeners through the store, but not the surfaces
+        /// that follow the scoped cache invalidation the flush raises -- the friends views among
+        /// them -- so clearing on it dropped every earlier edit from those surfaces for good.
         /// </summary>
         private bool MarkLibraryRefreshDeferred(bool affectsSummaryData)
         {
-            _hasDeferredLibraryRefresh = !affectsSummaryData;
+            _hasDeferredLibraryRefresh |= !affectsSummaryData;
             return affectsSummaryData;
         }
 
