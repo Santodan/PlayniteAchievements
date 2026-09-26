@@ -1,50 +1,29 @@
-using System;
-using System.Windows;
+using System.ComponentModel;
 using WpfToolkit.Controls;
 
 namespace PlayniteAchievements.Views.Showcase
 {
     /// <summary>
-    /// The mosaics' virtualizing wrap panel, with the tiles centered in the widget. The base
-    /// panel's Uniform spacing sizes its gaps against a full row, so a mosaic with fewer tiles
-    /// than fit on one row sat against the left edge, and its None spacing packed every row
-    /// left. Here the occupied columns are packed (the tile margin is the spacing option's
-    /// gap) and the unused width splits evenly on both sides. A shorter last row stays on the
-    /// column grid, aligned under the rows above it.
+    /// The mosaics' virtualizing wrap panel, with every line of tiles centered in the widget.
+    /// The default Uniform spacing sizes its gaps against a full row, so a mosaic with fewer
+    /// tiles than fit on one row sat against the left edge. Here the tiles pack at the spacing
+    /// option's gap (the tile margin) and each line splits its unused width evenly on both sides.
     /// </summary>
+    /// <remarks>
+    /// Only public properties are set: the plugin compiles against VirtualizingWrapPanel 1.5.4,
+    /// but Playnite loads its own 2.x build, whose protected members differ (overriding the
+    /// arrange against 1.5.4 internals threw MissingMethodException at runtime). The 2.x
+    /// IsGridLayoutEnabled property, which makes each line center on its own tile count rather
+    /// than a full row's, is absent from 1.5.4, so it is set by name when present.
+    /// </remarks>
     public sealed class ShowcaseMosaicWrapPanel : VirtualizingWrapPanel
     {
         public ShowcaseMosaicWrapPanel()
         {
-            // None keeps the base extent to the packed columns, matching the arrange below.
-            SpacingMode = SpacingMode.None;
-        }
-
-        protected override Size ArrangeOverride(Size finalSize)
-        {
-            var offset = Offset;
-            var columns = Math.Max(1, Math.Min(itemsPerRowCount, Items.Count));
-            var left = Math.Max(0, (finalSize.Width - (childSize.Width * columns)) / 2);
-            for (var i = 0; i < InternalChildren.Count; i++)
-            {
-                var child = InternalChildren[i];
-                if (finalSize.Height == 0)
-                {
-                    child.Arrange(new Rect(0, 0, 0, 0));
-                    continue;
-                }
-
-                var index = GetItemIndexFromChildIndex(i);
-                var column = index % Math.Max(1, itemsPerRowCount);
-                var row = index / Math.Max(1, itemsPerRowCount);
-                child.Arrange(new Rect(
-                    left + (column * childSize.Width) - offset.X,
-                    (row * childSize.Height) - offset.Y,
-                    childSize.Width,
-                    childSize.Height));
-            }
-
-            return finalSize;
+            SpacingMode = SpacingMode.StartAndEndOnly;
+            DependencyPropertyDescriptor
+                .FromName("IsGridLayoutEnabled", typeof(VirtualizingWrapPanel), typeof(VirtualizingWrapPanel))
+                ?.SetValue(this, false);
         }
     }
 }
