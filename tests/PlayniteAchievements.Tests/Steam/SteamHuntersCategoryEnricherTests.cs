@@ -574,5 +574,84 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.AreEqual("Base|Update", achievements[0].CategoryType);
             Assert.AreEqual("Base Label", achievements[0].Category);
         }
+
+        [TestMethod]
+        public void ApplyGroups_MultiplayerGroup_TypesAsBaseMultiplayerUnderBaseLabel()
+        {
+            // Mirrors Portal 2 with includeMultiplayerGroup=true: the co-op achievements come
+            // back as a DlcAppId-less group named "Multiplayer" beside a real update group.
+            var achievements = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "coop_ach" },
+                new AchievementDetail { ApiName = "update_ach" },
+                new AchievementDetail { ApiName = "base_ach" }
+            };
+            var groups = new List<SteamHuntersAchievementGroup>
+            {
+                new SteamHuntersAchievementGroup
+                {
+                    Name = "Multiplayer",
+                    AchievementApiNames = new List<string> { "coop_ach" }
+                },
+                new SteamHuntersAchievementGroup
+                {
+                    Name = "Steam Summer Camp",
+                    AchievementApiNames = new List<string> { "update_ach" }
+                }
+            };
+
+            SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "Portal 2");
+
+            Assert.AreEqual("Base|Multiplayer", achievements[0].CategoryType);
+            Assert.AreEqual("Portal 2", achievements[0].Category);
+            Assert.AreEqual("Base|Update", achievements[1].CategoryType);
+            Assert.AreEqual("Steam Summer Camp", achievements[1].Category);
+            Assert.AreEqual("Base", achievements[2].CategoryType);
+            Assert.AreEqual("Portal 2", achievements[2].Category);
+        }
+
+        [TestMethod]
+        public void ApplyGroups_MultiplayerNamedDlcGroup_StaysDlcUpdate()
+        {
+            // Only the DlcAppId-less group is the includeMultiplayerGroup group; a DLC update
+            // that happens to be named "Multiplayer" keeps its DLC typing.
+            var achievements = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "dlc_ach" }
+            };
+            var groups = new List<SteamHuntersAchievementGroup>
+            {
+                new SteamHuntersAchievementGroup
+                {
+                    Name = "Multiplayer",
+                    DlcAppId = 42,
+                    DlcAppName = "Expansion",
+                    AchievementApiNames = new List<string> { "dlc_ach" }
+                }
+            };
+
+            SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups, "dlcandupdate", "My Game");
+
+            Assert.AreEqual("DLC|Update", achievements[0].CategoryType);
+        }
+
+        [TestMethod]
+        public void BuildCategoryImagePlan_MultiplayerGroup_GetsNoEntry()
+        {
+            var groups = new List<SteamHuntersAchievementGroup>
+            {
+                new SteamHuntersAchievementGroup
+                {
+                    Name = "Multiplayer",
+                    AchievementApiNames = new List<string> { "coop_ach" }
+                }
+            };
+
+            var plan = SteamHuntersCategoryEnricher.BuildCategoryImagePlan(groups, "dlcandupdate", "Portal 2", 620);
+
+            Assert.AreEqual(1, plan.Count);
+            Assert.AreEqual("Portal 2", plan[0].Key);
+            Assert.AreEqual(620, plan[0].Value);
+        }
     }
 }
