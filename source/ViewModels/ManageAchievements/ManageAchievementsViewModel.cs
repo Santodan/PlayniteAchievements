@@ -662,8 +662,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool SidebarCategorizedVisible =>
             IsSidebarStatGroupShown(ManageSidebarStatGroups.Categorized) && OverviewSummary.Categorized.IsVisible;
 
+        public bool SidebarFilteredVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Filtered) && OverviewSummary.Filtered.IsVisible;
+
+        public bool SidebarNotesVisible =>
+            IsSidebarStatGroupShown(ManageSidebarStatGroups.Notes) && OverviewSummary.Notes.IsVisible;
+
         public bool SidebarOtherStatsVisible =>
-            SidebarPointsVisible || SidebarGoalsVisible || SidebarCategorizedVisible;
+            SidebarPointsVisible || SidebarGoalsVisible || SidebarCategorizedVisible ||
+            SidebarFilteredVisible || SidebarNotesVisible;
 
         /// <summary>Whether anything shows under the completion bar, which gates its separator.</summary>
         public bool SidebarAnyStatsVisible =>
@@ -678,6 +685,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(SidebarPointsVisible));
             OnPropertyChanged(nameof(SidebarGoalsVisible));
             OnPropertyChanged(nameof(SidebarCategorizedVisible));
+            OnPropertyChanged(nameof(SidebarFilteredVisible));
+            OnPropertyChanged(nameof(SidebarNotesVisible));
             OnPropertyChanged(nameof(SidebarOtherStatsVisible));
             OnPropertyChanged(nameof(SidebarAnyStatsVisible));
         }
@@ -935,6 +944,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     ? Stat(breakdown.CategorizedCount, stats.TotalAchievements)
                     : ManageOverviewStat.None,
                 Goals = Stat(breakdown.UnlockedGoalCount, breakdown.GoalCount),
+                // Like Categorized, shown only once there is something to count.
+                Filtered = breakdown.FilteredCount > 0
+                    ? Stat(breakdown.FilteredCount, stats.TotalAchievements)
+                    : ManageOverviewStat.None,
+                Notes = breakdown.NoteCount > 0
+                    ? Stat(breakdown.NoteCount, stats.TotalAchievements)
+                    : ManageOverviewStat.None,
                 Customizations = ManageOverviewSummaryBuilder.BuildCustomizationCounts(customData)
                     .Select(entry => new ManageOverviewCustomizationChip(
                         L(entry.LabelKey),
