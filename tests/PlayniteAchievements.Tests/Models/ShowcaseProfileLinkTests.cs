@@ -55,6 +55,24 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void BuildLinkUrl_TreatsWwwAndKnownSuffixHostsAsLinks()
+        {
+            Assert.AreEqual(
+                "https://www.mysite.net/",
+                ShowcaseProfileResolver.BuildLinkUrl("PSN", "www.mysite.net"));
+            Assert.AreEqual(
+                "https://mysite.com/",
+                ShowcaseProfileResolver.BuildLinkUrl("PSN", "mysite.com"));
+            Assert.AreEqual(
+                "https://my-site.gg/",
+                ShowcaseProfileResolver.BuildLinkUrl("PSN", "my-site.gg"));
+            // Dotted user names without a known suffix stay names.
+            Assert.AreEqual(
+                "https://psnprofiles.com/john.smith",
+                ShowcaseProfileResolver.BuildLinkUrl("PSN", "john.smith"));
+        }
+
+        [TestMethod]
         public void NormalizeUrl_AddsHttpsAndRejectsOtherSchemes()
         {
             Assert.AreEqual(
