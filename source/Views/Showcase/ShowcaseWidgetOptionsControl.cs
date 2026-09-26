@@ -264,6 +264,11 @@ namespace PlayniteAchievements.Views.Showcase
                         Localize("LOCPlayAch_Settings_ToastShowRarityGlow"),
                         ShowcaseWidgetOptions.GetMosaicShowRarityGlow(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicShowRarityGlow(_settings, value));
+                    AddToggle(
+                        achievementMosaicPanel,
+                        Localize("LOCPlayAch_Settings_ShowCompactListRarityBar"),
+                        ShowcaseWidgetOptions.GetMosaicShowRarityBar(_settings),
+                        value => ShowcaseWidgetOptions.SetMosaicShowRarityBar(_settings, value));
                     achievementSortRows.Add(AddChoice(
                         achievementMosaicPanel,
                         Localize("LOCPlayAch_Settings_SortBy"),
