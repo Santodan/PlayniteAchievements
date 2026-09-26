@@ -391,6 +391,10 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         private double _prestigeLevelProgress;
         [DontSerialize]
         private string _prestigeRank = "Bronze5";
+        [DontSerialize]
+        private int _collectorMastery;
+        [DontSerialize]
+        private int _prestigeMastery;
 
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _steamGames = new BulkObservableCollection<GameAchievementSummary>();
@@ -1650,6 +1654,25 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _prestigeRank;
             set => SetValue(ref _prestigeRank, value ?? "Bronze5");
+        }
+
+        /// <summary>
+        /// Completed passes through the collection rank ladder (level 250 per pass). CollectorRank
+        /// restarts at Bronze5 each pass while CollectorLevel keeps counting.
+        /// </summary>
+        [DontSerialize]
+        public int CollectorMastery
+        {
+            get => _collectorMastery;
+            set => SetValue(ref _collectorMastery, value < 0 ? 0 : value);
+        }
+
+        /// <summary>Completed passes through the prestige rank ladder; see CollectorMastery.</summary>
+        [DontSerialize]
+        public int PrestigeMastery
+        {
+            get => _prestigeMastery;
+            set => SetValue(ref _prestigeMastery, value < 0 ? 0 : value);
         }
 
         [DontSerialize]

@@ -48,6 +48,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.PrestigeLevel),
             nameof(PlayniteAchievementsSettings.PrestigeLevelProgress),
             nameof(PlayniteAchievementsSettings.PrestigeRank),
+            nameof(PlayniteAchievementsSettings.CollectorMastery),
+            nameof(PlayniteAchievementsSettings.PrestigeMastery),
             nameof(PlayniteAchievementsSettings.Level),
             nameof(PlayniteAchievementsSettings.LevelProgress),
             nameof(PlayniteAchievementsSettings.Rank),

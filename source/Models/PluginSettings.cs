@@ -2224,6 +2224,20 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
+        public int CollectorMastery
+        {
+            get => ModernTheme.CollectorMastery;
+            set => ModernTheme.CollectorMastery = value;
+        }
+
+        [DontSerialize]
+        public int PrestigeMastery
+        {
+            get => ModernTheme.PrestigeMastery;
+            set => ModernTheme.PrestigeMastery = value;
+        }
+
+        [DontSerialize]
         public int Level
         {
             get => LegacyTheme.Level;

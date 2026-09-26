@@ -38,17 +38,71 @@
                 </Style.Triggers>
             </Style>
 
-            <Style x:Key="ScoreCardBadgeStyle" TargetType="Image" BasedOn="{StaticResource RarityIcon}">
-                <Setter Property="Width" Value="32"/>
-                <Setter Property="Height" Value="36"/>
+            <!-- Badge column: spans the text column's height, the tier badge centered in what the
+                 mastery line (docked to the bottom, level with the caption) leaves over. -->
+            <Style x:Key="ScoreCardBadgeColumnStyle" TargetType="DockPanel">
+                <Setter Property="LastChildFill" Value="True"/>
+                <Setter Property="VerticalAlignment" Value="Stretch"/>
                 <Setter Property="Margin" Value="0,0,10,0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="Margin" Value="0,0,14,0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardBadgeStyle" TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                <Setter Property="Width" Value="38"/>
+                <Setter Property="Height" Value="43"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
                 <Setter Property="Effect" Value="{StaticResource BadgeShadow}"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
-                        <Setter Property="Width" Value="48"/>
-                        <Setter Property="Height" Value="54"/>
-                        <Setter Property="Margin" Value="0,0,14,0"/>
+                        <Setter Property="Width" Value="54"/>
+                        <Setter Property="Height" Value="61"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardMasteryLineStyle" TargetType="StackPanel">
+                <Setter Property="Orientation" Value="Horizontal"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,3,0,0"/>
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding HasMastery}" Value="True">
+                        <Setter Property="Visibility" Value="Visible"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="Margin" Value="0,5,0,0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardMasteryIconStyle" TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                <Setter Property="Width" Value="11"/>
+                <Setter Property="Height" Value="12"/>
+                <Setter Property="Margin" Value="0,0,3,0"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="Width" Value="14"/>
+                        <Setter Property="Height" Value="16"/>
+                        <Setter Property="Margin" Value="0,0,4,0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ScoreCardMasteryTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="TextWrapping" Value="NoWrap"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
+                        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -186,7 +240,7 @@
                     <Border Style="{StaticResource ScoreCardTooltipBorderStyle}"
                             BorderBrush="{Binding AccentBrush}">
                         <StackPanel>
-                            <TextBlock Text="{Binding TierText}"
+                            <TextBlock Text="{Binding TooltipTitleText}"
                                        Style="{StaticResource ScoreCardTooltipTitleTextStyle}"
                                        Foreground="{Binding AccentBrush}"/>
 
@@ -240,9 +294,18 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <Image Grid.Column="0"
-                       Source="{Binding BadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
-                       Style="{StaticResource ScoreCardBadgeStyle}"/>
+                <DockPanel Grid.Column="0" Style="{StaticResource ScoreCardBadgeColumnStyle}">
+                    <!-- The completed-game badge marks mastery, as it marks the Master tier. -->
+                    <StackPanel DockPanel.Dock="Bottom" Style="{StaticResource ScoreCardMasteryLineStyle}">
+                        <Image Source="{DynamicResource ScoreBadgeCompletedGame}"
+                               Style="{StaticResource ScoreCardMasteryIconStyle}"/>
+                        <TextBlock Text="{Binding MasteryText}"
+                                   Style="{StaticResource ScoreCardMasteryTextStyle}"/>
+                    </StackPanel>
+
+                    <Image Source="{Binding BadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
+                           Style="{StaticResource ScoreCardBadgeStyle}"/>
+                </DockPanel>
 
                 <Grid Grid.Column="1">
                     <Grid.RowDefinitions>

@@ -6,6 +6,15 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
 
         public int DisplayLevel { get; set; }
 
+        /// <summary>
+        /// Completed passes through the rank ladder, 0 until the first cap is reached. Level and
+        /// DisplayLevel keep counting across passes; Rank restarts at the first rank each pass.
+        /// </summary>
+        public int Mastery { get; set; }
+
+        /// <summary>Level within the current pass, 0 to MaxDisplayLevel - 1 under mastery.</summary>
+        public int PassLevel { get; set; }
+
         public double LevelProgress { get; set; }
 
         public int CurrentLevelStartScore { get; set; }

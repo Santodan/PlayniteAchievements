@@ -94,6 +94,17 @@ namespace PlayniteAchievements.ViewModels
 
         public string TierText => AchievementRankPresentation.FormatRank(Rank);
 
+        /// <summary>Completed passes through the rank ladder; 0 until level 250.</summary>
+        public int Mastery => _snapshot?.Mastery ?? 0;
+
+        public bool HasMastery => Mastery > 0;
+
+        public string MasteryText => FormatMastery(Mastery);
+
+        public string TooltipTitleText => HasMastery
+            ? FormatPair(TierText, MasteryText)
+            : TierText;
+
         /// <summary>The card's single caption line: where you are, and what the bar is filling toward.</summary>
         public string CaptionText => FormatPair(LevelText, PointsUntilNextLevelText);
 
@@ -101,8 +112,9 @@ namespace PlayniteAchievements.ViewModels
 
         public string TooltipLevelLabel => L("LOCPlayAch_Common_Label_Level");
 
+        /// <summary>Level within the current mastery pass, out of the pass length.</summary>
         public string TooltipLevelValueText => FormatCounts(
-            Math.Min(Level, MaxDisplayLevel),
+            GetPassLevel(Level, Mastery),
             MaxDisplayLevel);
 
         public string TooltipRankPositionLabel => L("LOCPlayAch_Score_Tooltip_LevelInTier");
@@ -113,7 +125,7 @@ namespace PlayniteAchievements.ViewModels
 
         public string TooltipNextRankLabel => IsAtNextRankCeiling(_snapshot)
             ? L("LOCPlayAch_Score_Tooltip_MaxLevel")
-            : AchievementRankPresentation.FormatRank(_snapshot.NextRank);
+            : FormatNextRank(_snapshot);
 
         public string TooltipNextRankValueText => IsAtNextRankCeiling(_snapshot)
             ? string.Empty
@@ -275,6 +287,10 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(PointsText));
             OnPropertyChanged(nameof(LevelText));
             OnPropertyChanged(nameof(TierText));
+            OnPropertyChanged(nameof(Mastery));
+            OnPropertyChanged(nameof(HasMastery));
+            OnPropertyChanged(nameof(MasteryText));
+            OnPropertyChanged(nameof(TooltipTitleText));
             OnPropertyChanged(nameof(CaptionText));
             OnPropertyChanged(nameof(PointsUntilNextLevelText));
             OnPropertyChanged(nameof(TooltipLevelLabel));
@@ -313,6 +329,34 @@ namespace PlayniteAchievements.ViewModels
                 ? levelsInRank
                 : snapshot.LevelsCompletedInRank + 1;
             return Math.Max(1, Math.Min(levelsInRank, position));
+        }
+
+        private static int GetPassLevel(int level, int mastery)
+        {
+            var passLevel = (long)level - ((long)mastery * MaxDisplayLevel);
+            return (int)Math.Max(0, Math.Min(MaxDisplayLevel, passLevel));
+        }
+
+        /// <summary>
+        /// The rank after the current one. Past the last rank of a pass the ladder restarts, so the
+        /// next rank is named with the mastery it opens.
+        /// </summary>
+        private static string FormatNextRank(AchievementLevelSnapshot snapshot)
+        {
+            var next = AchievementRankPresentation.FormatRank(snapshot.NextRank);
+            if (snapshot.NextRankValue.HasValue && snapshot.NextRankValue.Value < snapshot.RankValue)
+            {
+                return FormatPair(next, FormatMastery(snapshot.Mastery + 1));
+            }
+
+            return next;
+        }
+
+        private static string FormatMastery(int mastery)
+        {
+            return string.Format(
+                L("LOCPlayAch_Score_MasteryFormat"),
+                Math.Max(0, mastery).ToString("N0", FormattingCulture.Current));
         }
 
         private static bool IsAtNextRankCeiling(AchievementLevelSnapshot snapshot)

@@ -13,6 +13,9 @@ namespace PlayniteAchievements.Tests.ViewModels
         // bar has four solid cells, one part-filled and five empty.
         private const int MidRankScore = 5371;
 
+        // Points in one full pass of the ladder; one more point is Mastery 1, Bronze V.
+        private const int PassLength = 1040480;
+
         [TestMethod]
         public void Labels_UseCollectionAndPrestigeScoreText()
         {
@@ -91,15 +94,51 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void TooltipText_ShowsMaxLevelAtCap()
+        public void Mastery_IsAbsentBeforeTheFirstPassCompletes()
         {
             var card = new ScoreCardViewModel(ScoreCardType.Prestige);
 
-            card.ApplyFromScore(int.MaxValue, useUniformRarityBadges: false);
+            card.ApplyFromScore(PassLength, useUniformRarityBadges: false);
 
-            Assert.AreEqual("Max level reached", card.PointsUntilNextLevelText);
-            Assert.AreEqual("Max level reached", card.TooltipNextRankLabel);
-            Assert.AreEqual(string.Empty, card.TooltipNextRankValueText);
+            Assert.AreEqual(0, card.Mastery);
+            Assert.IsFalse(card.HasMastery);
+            Assert.AreEqual(card.TierText, card.TooltipTitleText);
+            Assert.AreEqual("249/250", card.TooltipLevelValueText);
+            // The rank after Master I opens the next pass, so it is named with that mastery.
+            Assert.AreEqual("Bronze V · Mastery 1", card.TooltipNextRankLabel);
+        }
+
+        [TestMethod]
+        public void Mastery_RestartsTheTierAndKeepsTheLevelAndScore()
+        {
+            var score = (3 * PassLength) + 2801;
+            var snapshot = AchievementLevelCalculator.CalculateModern(score);
+            var card = new ScoreCardViewModel(ScoreCardType.Collection);
+
+            card.ApplyFromScore(score, useUniformRarityBadges: false);
+
+            Assert.AreEqual(3, card.Mastery);
+            Assert.IsTrue(card.HasMastery);
+            Assert.AreEqual("Mastery 3", card.MasteryText);
+            Assert.AreEqual("Bronze IV", card.TierText);
+            Assert.AreEqual(760, card.Level);
+            Assert.AreEqual("Lv 760", card.LevelText);
+            Assert.AreEqual(score.ToString("N0") + " pts", card.PointsText);
+            Assert.AreEqual("10/250", card.TooltipLevelValueText);
+            StringAssert.Contains(card.TooltipTitleText, "Mastery 3");
+            StringAssert.Contains(card.PointsUntilNextLevelText, "Lv 761");
+            Assert.AreEqual(snapshot.Mastery, card.Mastery);
+        }
+
+        [TestMethod]
+        public void MasteryText_CountsEveryPass()
+        {
+            var card = new ScoreCardViewModel(ScoreCardType.Collection);
+
+            card.ApplyFromScore(AchievementLevelCalculator.GetScoreForLevel(150 * 250), useUniformRarityBadges: false);
+
+            Assert.AreEqual(150, card.Mastery);
+            Assert.AreEqual("Mastery 150", card.MasteryText);
         }
 
         [TestMethod]
@@ -131,14 +170,14 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void Segments_AreSolidAtMaxLevel()
+        public void Segments_StartEmptyOnTheFirstRankOfAMastery()
         {
             var card = new ScoreCardViewModel(ScoreCardType.Prestige);
 
-            card.ApplyFromScore(int.MaxValue, useUniformRarityBadges: false);
+            card.ApplyFromScore(PassLength + 1, useUniformRarityBadges: false);
 
             Assert.AreEqual(10, card.Segments.Count);
-            Assert.IsTrue(card.Segments.All(segment => ReferenceEquals(segment.Fill, card.AccentBrush)));
+            Assert.IsTrue(card.Segments.All(segment => ReferenceEquals(segment.Fill, card.AccentTrackBrush)));
         }
 
         [TestMethod]

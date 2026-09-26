@@ -37,8 +37,136 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
             AchievementLevelCurveSettings settings)
         {
             var safeScore = Math.Max(0, score);
-            var snapshot = new AchievementLevelSnapshot();
             settings = AchievementLevelCurveSettings.Normalize(settings);
+            if (!settings.RepeatsAfterMax)
+            {
+                var single = CalculatePass(safeScore, settings);
+                single.PassLevel = single.Level;
+                return single;
+            }
+
+            // Mastery: the ladder repeats every cycleLength points. The pass is computed on the
+            // score inside the current cycle, which never reaches the cap level, then shifted back
+            // onto the running total so levels and score thresholds stay absolute.
+            var cycleLength = GetCycleLength(settings);
+            var mastery = safeScore <= 0 ? 0 : (safeScore - 1) / cycleLength;
+            var offset = (long)mastery * cycleLength;
+            var snapshot = CalculatePass((int)(safeScore - offset), settings);
+            var levelOffset = (long)mastery * settings.MaxDisplayLevel;
+
+            snapshot.Mastery = mastery;
+            snapshot.PassLevel = snapshot.Level;
+            snapshot.Level = ClampToInt(snapshot.Level + levelOffset);
+            snapshot.DisplayLevel = ClampToInt(snapshot.DisplayLevel + levelOffset);
+            snapshot.RankStartLevel = ClampToInt(snapshot.RankStartLevel + levelOffset);
+            snapshot.RankEndLevel = ClampToInt(snapshot.RankEndLevel + levelOffset);
+            snapshot.CurrentLevelStartScore = ClampToInt(snapshot.CurrentLevelStartScore + offset);
+            snapshot.CurrentLevelEndScore = ClampToInt(snapshot.CurrentLevelEndScore + offset);
+
+            if (string.IsNullOrEmpty(snapshot.NextRank))
+            {
+                // Last rank of the pass: the next rank is the first rank of the next mastery.
+                var firstRank = GetOrderedRankThresholds(settings)[0].Rank;
+                var nextPassStart = offset + cycleLength + 1;
+                snapshot.NextRankValue = firstRank;
+                snapshot.NextRank = firstRank.ToString();
+                snapshot.NextRankScoreThreshold = ClampToInt(nextPassStart);
+                snapshot.PointsUntilNextRank = ClampToInt(Math.Max(0, nextPassStart - safeScore));
+            }
+            else
+            {
+                snapshot.NextRankScoreThreshold = ClampToInt(snapshot.NextRankScoreThreshold + offset);
+            }
+
+            return snapshot;
+        }
+
+        /// <summary>
+        /// Start score of an absolute level, counting mastery passes on a repeating curve. The
+        /// inverse of <see cref="Calculate(int, AchievementLevelCurveSettings)"/>'s Level.
+        /// </summary>
+        public static int GetScoreForLevel(int level, AchievementLevelCurveSettings settings = null)
+        {
+            settings = AchievementLevelCurveSettings.Normalize(settings);
+            var safeLevel = Math.Max(0, level);
+            if (!settings.RepeatsAfterMax)
+            {
+                return GetLevelRange(safeLevel, settings).StartScore;
+            }
+
+            var mastery = safeLevel / settings.MaxDisplayLevel;
+            var passLevel = safeLevel % settings.MaxDisplayLevel;
+            return ClampToInt((long)mastery * GetCycleLength(settings) +
+                GetLevelRange(passLevel, settings).StartScore);
+        }
+
+        /// <summary>Points in one full pass: everything below the cap level's start score.</summary>
+        private static int GetCycleLength(AchievementLevelCurveSettings settings)
+        {
+            var key = new CycleKey(
+                settings.InitialLevelSize,
+                settings.BaseLevelGrowth,
+                settings.TopEndEaseStartLevel,
+                settings.TopEndGrowthMultiplier,
+                settings.MaxDisplayLevel);
+            var cached = _cycleCache;
+            if (cached != null && cached.Key.Equals(key))
+            {
+                return cached.Length;
+            }
+
+            var length = Math.Max(1, GetLevelRange(settings.MaxDisplayLevel, settings).StartScore - 1);
+            _cycleCache = new CycleCacheEntry(key, length);
+            return length;
+        }
+
+        private struct CycleKey : IEquatable<CycleKey>
+        {
+            private readonly int _initial;
+            private readonly int _growth;
+            private readonly int _easeStart;
+            private readonly double _multiplier;
+            private readonly int _maxLevel;
+
+            public CycleKey(int initial, int growth, int easeStart, double multiplier, int maxLevel)
+            {
+                _initial = initial;
+                _growth = growth;
+                _easeStart = easeStart;
+                _multiplier = multiplier;
+                _maxLevel = maxLevel;
+            }
+
+            public bool Equals(CycleKey other)
+            {
+                return _initial == other._initial &&
+                    _growth == other._growth &&
+                    _easeStart == other._easeStart &&
+                    _multiplier.Equals(other._multiplier) &&
+                    _maxLevel == other._maxLevel;
+            }
+        }
+
+        private sealed class CycleCacheEntry
+        {
+            public CycleCacheEntry(CycleKey key, int length)
+            {
+                Key = key;
+                Length = length;
+            }
+
+            public CycleKey Key { get; }
+
+            public int Length { get; }
+        }
+
+        private static volatile CycleCacheEntry _cycleCache;
+
+        private static AchievementLevelSnapshot CalculatePass(
+            int safeScore,
+            AchievementLevelCurveSettings settings)
+        {
+            var snapshot = new AchievementLevelSnapshot();
             var range = FindLevelRangeForScore(safeScore, settings);
             var rank = RankFromLevelValue(range.Level, settings);
             var maxInternalLevel = GetMaxInternalLevel(settings);
@@ -351,6 +479,11 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
         {
             var result = (long)current + value;
             return result > int.MaxValue ? int.MaxValue : (int)result;
+        }
+
+        private static int ClampToInt(long value)
+        {
+            return value > int.MaxValue ? int.MaxValue : (int)Math.Max(0, value);
         }
     }
 }

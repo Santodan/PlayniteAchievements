@@ -1941,6 +1941,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.PrestigeLevel = library.PrestigeLevel;
             _settings.ModernTheme.PrestigeLevelProgress = library.PrestigeLevelProgress;
             _settings.ModernTheme.PrestigeRank = library.PrestigeRank;
+            _settings.ModernTheme.CollectorMastery = library.CollectorMastery;
+            _settings.ModernTheme.PrestigeMastery = library.PrestigeMastery;
             _settings.ModernTheme.SteamGames = ProjectGameSummaries(library.SteamGames);
             _settings.ModernTheme.GOGGames = ProjectGameSummaries(library.GOGGames);
             _settings.ModernTheme.EpicGames = ProjectGameSummaries(library.EpicGames);

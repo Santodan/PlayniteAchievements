@@ -106,13 +106,14 @@
     <sys:String x:Key="LOCPlayAch_Score_Prestige">Prestige Score</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Tooltip_LevelInTier">Level in tier</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Tooltip_MaxLevel">Max level reached</sys:String>
+    <sys:String x:Key="LOCPlayAch_Score_MasteryFormat">Mastery {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Tooltip_NextLevelRemainingFormat">{0} until {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Info_Title">Score System</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Info_WindowTitle">Collection and Prestige Scores</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Info_CollectionBody">Collection Score rewards total achievement collecting. Each unlocked achievement gives fixed points from its rarity tier.</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Info_PrestigeBody">Prestige Score rewards rare achievement collecting. Rare achievements are worth many more points than common achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Info_LevelsTitle">Levels and tiers</sys:String>
-    <sys:String x:Key="LOCPlayAch_Score_Info_LevelsBody">Collection and Prestige scores each contribute to a Tier and Level. The first tier is Bronze V, followed by Bronze IV, and continues through Silver, Gold, Platinum, and Master tiers until Master I. Earning 10 levels advances you to the next tier.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Score_Info_LevelsBody">Collection and Prestige scores each contribute to a Tier and Level. The first tier is Bronze V, followed by Bronze IV, and continues through Silver, Gold, Platinum, and Master tiers until Master I. Earning 10 levels advances you to the next tier. Reaching level 250 earns a Mastery and starts the tiers again from Bronze V, while your level and total score keep counting.</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Info_ButtonTooltip">Score system info</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Tier_Master">Master</sys:String>
     <sys:String x:Key="LOCPlayAch_Text_Ellipsis">...</sys:String>

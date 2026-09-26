@@ -321,6 +321,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             state.PrestigeLevel = GetDisplayLevel(scoreSnapshot.PrestigeLevel);
             state.PrestigeLevelProgress = scoreSnapshot.PrestigeLevel?.LevelProgress ?? 0;
             state.PrestigeRank = scoreSnapshot.PrestigeLevel?.Rank ?? "Bronze5";
+            state.CollectorMastery = scoreSnapshot.CollectorLevel?.Mastery ?? 0;
+            state.PrestigeMastery = scoreSnapshot.PrestigeLevel?.Mastery ?? 0;
         }
 
         private static int GetDisplayLevel(AchievementLevelSnapshot snapshot)
