@@ -18,6 +18,18 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void Normalize_CanonicalizesProgressionAliasesInCanonicalOrder()
+        {
+            Assert.AreEqual("Progression", AchievementCategoryTypeHelper.Normalize("progression"));
+            Assert.AreEqual("Progression", AchievementCategoryTypeHelper.Normalize("win_condition"));
+            Assert.AreEqual("Progression", AchievementCategoryTypeHelper.Normalize("story"));
+            Assert.AreEqual("Base|Progression|Missable", AchievementCategoryTypeHelper.Normalize("Base|Missable|Progression"));
+            CollectionAssert.Contains(
+                AchievementCategoryTypeHelper.AssignableCategoryTypes.ToList(),
+                "Progression");
+        }
+
+        [TestMethod]
         public void NormalizeOrDefault_ReturnsStableResultsAcrossRepeatedCalls()
         {
             foreach (var _ in Enumerable.Range(0, 3))
