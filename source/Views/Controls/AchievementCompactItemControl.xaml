@@ -315,30 +315,35 @@
                         </Style.Triggers>
                 </Style>
             </Grid.Style>
-            <ProgressBar Height="14"
+            <ProgressBar Height="12"
                          Maximum="100"
                          Value="{Binding RarityPercentValue, Mode=OneWay}"
                          Background="{StaticResource PlayAch.Brush.Overlay.Shade.80}"
                          Foreground="{DynamicResource PlayAch.Brush.Accent}"
                          BorderThickness="0"/>
-            <!-- The shadow is drawn by a copy behind the text: an Effect on the visible TextBlock
+            <!-- The text is taller than the bar and relies on its shadow to stay legible where it
+                 overhangs. The negative margins let it overflow without growing the row, so the bar
+                 stays pinned to the icon's bottom edge and the text is not layout-clipped.
+                 The shadow is drawn by a copy behind the text: an Effect on the visible TextBlock
                  would rasterize it and soften the glyphs. -->
             <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       FontSize="12"
+                       Margin="0,-8"
+                       FontSize="14"
                        Foreground="Black"
                        IsHitTestVisible="False">
                 <TextBlock.Effect>
-                    <DropShadowEffect Color="Black" ShadowDepth="0" BlurRadius="3" Opacity="1"/>
+                    <DropShadowEffect Color="Black" ShadowDepth="0" BlurRadius="5" Opacity="1"/>
                 </TextBlock.Effect>
             </TextBlock>
             <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       FontSize="12"
+                       Margin="0,-8"
+                       FontSize="14"
                        Foreground="White"/>
         </Grid>
     </Grid>
