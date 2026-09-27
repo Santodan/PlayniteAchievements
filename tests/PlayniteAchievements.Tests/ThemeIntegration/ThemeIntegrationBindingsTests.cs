@@ -97,6 +97,73 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
+        public void SelectedGameBuilder_LatestAchievementIsNewestUnlockNotPinnedGoal()
+        {
+            var gameId = Guid.NewGuid();
+            var goal = Achievement("Pinned Goal", 30.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 1, 12, 0, 0));
+            goal.IsGoal = true;
+            goal.GoalOrderIndex = 0;
+            var data = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                Game = new Game { Id = gameId, Name = "Latest Unlock Game" },
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    goal,
+                    Achievement("Newest", 10.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 3, 12, 0, 0)),
+                    Achievement("Older", 50.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 2, 12, 0, 0)),
+                    Achievement("Locked", 5.0, unlocked: false)
+                }
+            };
+
+            var state = SelectedGameRuntimeStateBuilder.Build(gameId, data);
+
+            Assert.AreEqual("Pinned Goal", state.AchievementsNewestFirst.First().ApiName);
+            Assert.AreEqual("Newest", state.LatestAchievementData?.ApiName);
+            Assert.IsTrue(state.AllAchievements.Contains(state.LatestAchievementData));
+        }
+
+        [TestMethod]
+        public void SelectedGameBuilder_LatestAchievementIsNullWithoutUnlocks()
+        {
+            var gameId = Guid.NewGuid();
+            var data = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                Game = new Game { Id = gameId, Name = "No Unlocks Game" },
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Locked A", 40.0, unlocked: false),
+                    Achievement("Locked B", 5.0, unlocked: false)
+                }
+            };
+
+            var state = SelectedGameRuntimeStateBuilder.Build(gameId, data);
+
+            Assert.IsNull(state.LatestAchievementData);
+            Assert.IsNull(SelectedGameRuntimeState.Empty.LatestAchievementData);
+        }
+
+        [TestMethod]
+        public void ModernBindings_HasLatestAchievementDataFollowsValue()
+        {
+            var bindings = new ModernThemeBindings();
+            var changed = new List<string>();
+            bindings.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+            bindings.LatestAchievementData = Achievement("Latest", 10.0, unlocked: true);
+            Assert.IsTrue(bindings.HasLatestAchievementData);
+            CollectionAssert.Contains(changed, nameof(ModernThemeBindings.HasLatestAchievementData));
+
+            changed.Clear();
+            bindings.LatestAchievementData = null;
+            Assert.IsFalse(bindings.HasLatestAchievementData);
+            CollectionAssert.Contains(changed, nameof(ModernThemeBindings.HasLatestAchievementData));
+        }
+
+        [TestMethod]
         public void SelectedGameBuilder_CarriesCategoryImagesIntoThemeDisplayItems()
         {
             var gameId = Guid.NewGuid();
