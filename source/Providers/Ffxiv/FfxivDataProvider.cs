@@ -22,8 +22,10 @@ namespace PlayniteAchievements.Providers.Ffxiv
     /// Final Fantasy XIV achievement provider backed by the FFXIV Collect API.
     /// FFXIV achievements are account/character-wide, so the resolved set is
     /// attached to the matched FFXIV entry in the Playnite library.
+    /// Exempt from in-game polling: FFXIV Collect reads characters from the Lodestone, which
+    /// updates every few hours, so nothing new can arrive during a play session.
     /// </summary>
-    internal sealed class FfxivDataProvider : DataProviderBase<FfxivSettings>, IDataProvider, IProviderOverride, IDisposable
+    internal sealed class FfxivDataProvider : DataProviderBase<FfxivSettings>, IDataProvider, IProviderOverride, IInGamePollingExempt, IDisposable
     {
         // Presence-only binding: forces a game to be treated as FFXIV (account/character-wide data).
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.None();
