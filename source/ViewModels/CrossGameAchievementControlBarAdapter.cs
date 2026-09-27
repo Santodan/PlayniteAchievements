@@ -22,6 +22,7 @@ namespace PlayniteAchievements.ViewModels
                 SearchTextBuilder.ForRecentAchievement(item?.GameName, item?.DisplayName));
         private readonly Dictionary<Guid, GameSummaryItem> _gamesById = new Dictionary<Guid, GameSummaryItem>();
         private IReadOnlyList<GameSummaryItem> _gamesSource;
+        private int _gamesSourceCount;
         private string _searchText = string.Empty;
         private ObservableCollection<ProviderFilterGroup> _providerFilterGroups =
             new ObservableCollection<ProviderFilterGroup>();
@@ -65,16 +66,18 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Sets the game summaries rows resolve their provider and platforms from. The lookup is
-        /// rebuilt only when a different list arrives.
+        /// rebuilt only when a different list, or the same list at a different length, arrives.
         /// </summary>
         public void UpdateGames(IReadOnlyList<GameSummaryItem> games)
         {
-            if (ReferenceEquals(_gamesSource, games))
+            var count = games?.Count ?? 0;
+            if (ReferenceEquals(_gamesSource, games) && _gamesSourceCount == count)
             {
                 return;
             }
 
             _gamesSource = games;
+            _gamesSourceCount = count;
             _gamesById.Clear();
             foreach (var game in games ?? Array.Empty<GameSummaryItem>())
             {
