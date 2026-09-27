@@ -1367,6 +1367,62 @@ namespace PlayniteAchievements
             }
         }
 
+        /// <summary>
+        /// Asks, as the setting is switched on, whether the games already in the library should get
+        /// their auto capstones now rather than one at a time as each next refreshes.
+        /// </summary>
+        /// <remarks>
+        /// Runs on the tick, like tag sync does, so what it writes stays even if the settings are
+        /// then cancelled; turning the setting off never removes a capstone either.
+        /// </remarks>
+        private void OfferAutoCapstonesForExistingGames()
+        {
+            if (_autoCapstoneGenerator == null)
+            {
+                return;
+            }
+
+            var answer = PlayniteApi.Dialogs.ShowMessage(
+                ResourceProvider.GetString("LOCPlayAch_Settings_AutoCapstoneGeneration_ApplyToExisting"),
+                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (answer != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var gameIds = PlayniteApi.Database.Games
+                .Where(game => game != null)
+                .Select(game => game.Id)
+                .ToList();
+
+            PlayniteApi.Dialogs.ActivateGlobalProgress(
+                async progress =>
+                {
+                    progress.ProgressMaxValue = gameIds.Count;
+                    try
+                    {
+                        await _autoCapstoneGenerator
+                            .GenerateAsync(
+                                gameIds,
+                                progress.CancelToken,
+                                (done, total) => progress.CurrentProgressValue = done)
+                            .ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Cancelled from the dialog: the games not reached get theirs as they
+                        // next refresh.
+                    }
+                },
+                new GlobalProgressOptions(ResourceProvider.GetString("LOCPlayAch_Settings_AutoCapstoneGeneration_Progress"))
+                {
+                    Cancelable = true,
+                    IsIndeterminate = false
+                });
+        }
+
         private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e == null)
@@ -1390,6 +1446,12 @@ namespace PlayniteAchievements
                 e.PropertyName == nameof(PersistedSettings.InGameFriendBatchSize))
             {
                 ReconfigureInGameMonitor();
+            }
+
+            if (e.PropertyName == nameof(PersistedSettings.EnableAutoCapstoneGeneration) &&
+                _settingsViewModel?.Settings?.Persisted?.EnableAutoCapstoneGeneration == true)
+            {
+                OfferAutoCapstonesForExistingGames();
             }
 
             if (e.PropertyName == nameof(PersistedSettings.UseUniformRarityBadges) ||
