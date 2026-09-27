@@ -975,6 +975,12 @@ namespace PlayniteAchievements.Models
         public List<AchievementDetail> AchievementsRarityDesc => ModernTheme.AchievementsRarityDesc ?? EmptyAchievementList;
 
         [DontSerialize]
+        public AchievementDetail LatestAchievementData => ModernTheme.LatestAchievementData;
+
+        [DontSerialize]
+        public bool HasLatestAchievementData => ModernTheme.HasLatestAchievementData;
+
+        [DontSerialize]
         public AchievementRarityStats Common => ModernTheme.Common ?? EmptyRarityStats;
 
         [DontSerialize]
