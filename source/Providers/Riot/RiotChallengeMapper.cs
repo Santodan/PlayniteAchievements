@@ -31,6 +31,8 @@ namespace PlayniteAchievements.Providers.Riot
 
         private const string IsCategoryTag = "isCategory";
         private const string ParentTag = "parent";
+        private const string SeasonTag = "season";
+        private const string ArchivedState = "ARCHIVED";
 
         public static CDragonChallengeFile ParseMetadata(string json)
         {
@@ -55,6 +57,27 @@ namespace PlayniteAchievements.Providers.Riot
         /// <summary>
         /// Parses the <c>challenges/percentiles</c> payload: challenge id to level name to percentile.
         /// </summary>
+        /// <summary>Ids of the challenges the <c>challenges/config</c> list reports as ARCHIVED.</summary>
+        public static IReadOnlyCollection<long> ParseArchivedChallengeIds(string json)
+        {
+            var result = new HashSet<long>();
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return result;
+            }
+
+            var configs = JsonConvert.DeserializeObject<List<RiotChallengeConfigDto>>(json);
+            foreach (var config in configs ?? new List<RiotChallengeConfigDto>())
+            {
+                if (config != null && string.Equals(config.State, ArchivedState, StringComparison.OrdinalIgnoreCase))
+                {
+                    result.Add(config.Id);
+                }
+            }
+
+            return result;
+        }
+
         public static IReadOnlyDictionary<long, IReadOnlyDictionary<string, double>> ParsePercentiles(string json)
         {
             var empty = new Dictionary<long, IReadOnlyDictionary<string, double>>();
@@ -104,6 +127,7 @@ namespace PlayniteAchievements.Providers.Riot
             var playerByChallenge = BuildPlayerIndex(playerState);
             var percentiles = playerState?.LevelPercentiles
                 ?? new Dictionary<long, IReadOnlyDictionary<string, double>>();
+            var archivedIds = new HashSet<long>(playerState?.ArchivedChallengeIds ?? Array.Empty<long>());
 
             foreach (var entry in metadata.Challenges)
             {
@@ -132,6 +156,7 @@ namespace PlayniteAchievements.Providers.Riot
                     challengePercentiles,
                     metadata.Challenges,
                     categoryDisplayNames,
+                    archivedIds,
                     nowUtc));
             }
 
@@ -170,6 +195,7 @@ namespace PlayniteAchievements.Providers.Riot
             IReadOnlyDictionary<string, double> challengePercentiles,
             IReadOnlyDictionary<string, CDragonChallenge> allChallenges,
             IReadOnlyDictionary<string, string> categoryDisplayNames,
+            ISet<long> archivedIds,
             DateTime nowUtc)
         {
             var ladder = BuildThresholdLadder(challenge);
@@ -181,7 +207,7 @@ namespace PlayniteAchievements.Providers.Riot
             var playerRank = RiotChallengeLevels.GetRank(playerInfo?.Level);
             var value = playerInfo?.Value ?? 0d;
             var category = ResolveCategory(challenge, allChallenges, categoryDisplayNames);
-            var categoryType = ResolveTimedCategoryType(challenge, nowUtc);
+            var categoryType = ResolveTimedCategoryType(challengeId, challenge, allChallenges, archivedIds, nowUtc);
             var description = FirstNonBlank(challenge.Description, challenge.DescriptionShort);
 
             foreach (var tier in ladder)
@@ -495,22 +521,93 @@ namespace PlayniteAchievements.Providers.Riot
             return segments.Count == 0 ? null : CategoryPathHelper.JoinRaw(segments.ToArray());
         }
 
-        // A challenge with an end date is Missable until it passes and Unobtainable afterwards;
-        // one without an end date gets no timed type.
-        private static string ResolveTimedCategoryType(CDragonChallenge challenge, DateTime nowUtc)
+        // Unobtainable when Riot's config archives the challenge. Otherwise a challenge with an end
+        // date is Missable until it passes and Unobtainable afterwards, and a seasonal challenge
+        // (one carrying a seasons list or season tag) is Missable in its own year and Unobtainable
+        // after it. Neither CommunityDragon nor Riot's config names the current season, and
+        // seasonal challenges carry no end date, so the year comes from the seasonal set's id
+        // (2022000, 2023009, 2024100, ...). Anything else gets no timed type.
+        private static string ResolveTimedCategoryType(
+            long challengeId,
+            CDragonChallenge challenge,
+            IReadOnlyDictionary<string, CDragonChallenge> allChallenges,
+            ISet<long> archivedIds,
+            DateTime nowUtc)
         {
-            if (challenge.EndTimestamp <= 0)
+            if (archivedIds != null && archivedIds.Contains(challengeId))
+            {
+                return UnobtainableCategoryType;
+            }
+
+            if (challenge.EndTimestamp > 0)
+            {
+                var end = ToUtc(challenge.EndTimestamp);
+                if (end.HasValue)
+                {
+                    return end.Value <= nowUtc ? UnobtainableCategoryType : MissableCategoryType;
+                }
+            }
+
+            var seasonalYear = ResolveSeasonalYear(challengeId, challenge, allChallenges);
+            if (seasonalYear.HasValue)
+            {
+                return seasonalYear.Value < nowUtc.Year ? UnobtainableCategoryType : MissableCategoryType;
+            }
+
+            return null;
+        }
+
+        private static bool IsSeasonal(CDragonChallenge challenge)
+        {
+            return challenge?.Seasons?.Count > 0 ||
+                   (challenge?.Tags != null && challenge.Tags.ContainsKey(SeasonTag));
+        }
+
+        // The year of the seasonal set a seasonal challenge belongs to, read from the first id in
+        // its parent chain (itself first) shaped like a seasonal-set id: seven digits led by the
+        // year. Null for non-seasonal challenges and ones no such id reaches.
+        private static int? ResolveSeasonalYear(
+            long challengeId,
+            CDragonChallenge challenge,
+            IReadOnlyDictionary<string, CDragonChallenge> allChallenges)
+        {
+            if (!IsSeasonal(challenge))
             {
                 return null;
             }
 
-            var end = ToUtc(challenge.EndTimestamp);
-            if (!end.HasValue)
+            var id = challengeId.ToString(CultureInfo.InvariantCulture);
+            var current = challenge;
+            var visited = new HashSet<string>(StringComparer.Ordinal);
+            while (!string.IsNullOrEmpty(id) && visited.Add(id))
             {
-                return null;
+                if (TryParseSeasonalSetYear(id, out var year))
+                {
+                    return year;
+                }
+
+                string parentId = null;
+                if (current?.Tags == null || !current.Tags.TryGetValue(ParentTag, out parentId))
+                {
+                    return null;
+                }
+
+                id = parentId;
+                current = allChallenges != null && parentId != null && allChallenges.TryGetValue(parentId, out var parent)
+                    ? parent
+                    : null;
             }
 
-            return end.Value <= nowUtc ? UnobtainableCategoryType : MissableCategoryType;
+            return null;
+        }
+
+        private static bool TryParseSeasonalSetYear(string id, out int year)
+        {
+            year = 0;
+            return id != null &&
+                   id.Length == 7 &&
+                   id.StartsWith("20", StringComparison.Ordinal) &&
+                   int.TryParse(id.Substring(0, 4), NumberStyles.None, CultureInfo.InvariantCulture, out year);
         }
 
         private static bool IsCategoryNode(CDragonChallenge challenge)
