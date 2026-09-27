@@ -85,6 +85,59 @@ namespace PlayniteAchievements.Views.Settings.General
                 image);
         }
 
+        // TEMP: testing aid for automatic auto capstone generation. The text is hardcoded English on
+        // purpose so nothing reaches Crowdin; remove this handler and its row before release.
+        private void ClearAutoCapstones_Click(object sender, RoutedEventArgs e)
+        {
+            var overrides = _plugin?.AchievementOverridesService;
+            var store = _plugin?.GameCustomDataStore;
+            if (overrides == null || store == null)
+            {
+                return;
+            }
+
+            if (_plugin.PlayniteApi.Dialogs.ShowMessage(
+                    "Remove every auto capstone in the library and clear each game's generation marker?\n\n" +
+                    "Auto capstones added with the Manage Achievements button are removed too. " +
+                    "Platinums that generation nominated stay nominated.",
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var cleared = 0;
+            _plugin.PlayniteApi.Dialogs.ActivateGlobalProgress(progress =>
+            {
+                var records = store.LoadAll();
+                progress.ProgressMaxValue = records.Count;
+                for (var i = 0; i < records.Count; i++)
+                {
+                    var gameId = records[i]?.PlayniteGameId ?? Guid.Empty;
+                    try
+                    {
+                        if (overrides.ClearAutoCapstones(gameId))
+                        {
+                            cleared++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Warn(ex, $"Failed clearing auto capstones for gameId={gameId}.");
+                    }
+
+                    progress.CurrentProgressValue = i + 1;
+                }
+            }, new GlobalProgressOptions("Removing auto capstones...") { Cancelable = false, IsIndeterminate = false });
+
+            _plugin.PlayniteApi.Dialogs.ShowMessage(
+                $"Cleared auto capstones from {cleared} game(s).",
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
         private void ClearUnownedFriendGameData_Click(object sender, RoutedEventArgs e)
         {
             var friendCache = _plugin?.RefreshRuntime?.Cache as IFriendCacheManager;
