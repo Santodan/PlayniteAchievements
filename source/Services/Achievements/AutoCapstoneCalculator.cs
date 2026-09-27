@@ -144,8 +144,12 @@ namespace PlayniteAchievements.Services.Achievements
             IEnumerable<AchievementDetail> achievements,
             string category = null)
         {
+            // Filtered achievements are out of the counts completion is read from, so waiting on
+            // one would hold the capstone locked on a game the summary already calls finished.
             var candidates = (achievements ?? Enumerable.Empty<AchievementDetail>())
-                .Where(achievement => achievement != null)
+                .Where(achievement => achievement != null &&
+                                      !achievement.IsFiltered &&
+                                      !achievement.IsFilteredFromSummaries)
                 .ToList();
 
             var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(category);
