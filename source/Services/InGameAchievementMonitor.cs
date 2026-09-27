@@ -170,6 +170,14 @@ namespace PlayniteAchievements.Services
                 return;
             }
 
+            // Checked before tracking so an exempt game neither runs the auth probe below nor is
+            // reported as having no authenticated provider.
+            if (IsPollingExempt(TryResolveProvider(game)))
+            {
+                _logger?.Info($"[InGameMonitor] Skipped: provider for '{game.Name}' does not change during play.");
+                return;
+            }
+
             GamePollState state;
             lock (_stateLock)
             {
@@ -920,18 +928,15 @@ namespace PlayniteAchievements.Services
                 return false;
             }
 
-            IDataProvider provider;
-            try
+            var provider = TryResolveProvider(state.Game);
+            if (provider == null)
             {
-                provider = _refreshRuntime?.ResolveInGameProvider(state.Game);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, $"[InGameMonitor] Provider resolution failed for {state.Game.Name}.");
-                provider = null;
+                return false;
             }
 
-            if (provider == null)
+            // A reconfigure can move a tracked game onto an exempt provider; returning false
+            // stops it there.
+            if (IsPollingExempt(provider))
             {
                 return false;
             }
@@ -1048,6 +1053,21 @@ namespace PlayniteAchievements.Services
                 $"prongs={DescribeProngs(state)}, targets={nextTargets.Count}.");
             return true;
         }
+
+        private IDataProvider TryResolveProvider(Game game)
+        {
+            try
+            {
+                return _refreshRuntime?.ResolveInGameProvider(game);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[InGameMonitor] Provider resolution failed for {game?.Name}.");
+                return null;
+            }
+        }
+
+        internal static bool IsPollingExempt(IDataProvider provider) => provider is IInGamePollingExempt;
 
         /// <summary>
         /// The prong set servicing a game. The refresh prong is always present; a fast source, when
