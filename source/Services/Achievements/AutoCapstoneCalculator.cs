@@ -128,24 +128,14 @@ namespace PlayniteAchievements.Services.Achievements
             // update group under its own label, typed Base|Update. The main game is the category
             // holding the base-game rows that are not an update, so the capstone sits with it
             // rather than in a default bucket that nothing else is left in.
+            //
+            // Nothing typed to tell the main game by -- categories the user drew up themselves --
+            // leaves no single right place, so the capstone stays in the default category.
             var mainGame = DistinctNamedCategories(scope
                 .Where(achievement => HasGroupType(achievement, BaseCategoryType) &&
                                       !HasGroupType(achievement, UpdateCategoryType))
                 .ToList());
-            if (mainGame.Count == 1)
-            {
-                return mainGame[0];
-            }
-
-            // Still no single answer: the category holding most of what it stands for.
-            return scope
-                .Select(achievement => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category))
-                .Where(label => !IsDefaultCategory(label))
-                .GroupBy(label => label, StringComparer.OrdinalIgnoreCase)
-                .OrderByDescending(group => group.Count())
-                .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.Key)
-                .FirstOrDefault();
+            return mainGame.Count == 1 ? mainGame[0] : null;
         }
 
         /// <summary>
