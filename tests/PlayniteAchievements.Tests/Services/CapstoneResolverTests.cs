@@ -251,6 +251,23 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void FilteredCapstone_NoLongerStandsForFinishing()
+        {
+            // Filtering is how a capstone the user does not want is set aside, so an earned one
+            // must not finish the game on its own once filtered.
+            var filtered = Achievement("auto", true, true);
+            filtered.IsFiltered = true;
+            var counts = CapstoneCompletion.Count(new[]
+            {
+                filtered,
+                Achievement("ordinary", false, false)
+            });
+
+            Assert.IsFalse(counts.IsCompleted);
+            Assert.AreEqual(0, counts.Total);
+        }
+
+        [TestMethod]
         public void EveryCapstoneEarned_IsCompleted()
         {
             var counts = CapstoneCompletion.Count(new[]
