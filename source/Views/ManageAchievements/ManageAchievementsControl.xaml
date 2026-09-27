@@ -66,6 +66,16 @@
             <Style x:Key="SidebarStatGroupStyle" TargetType="StackPanel">
                 <Setter Property="Margin" Value="0,0,0,6" />
             </Style>
+            <!-- Rarity and trophies pair up two per row. Columns are equal and as wide as the widest
+                 chip, so long counts widen the sidebar; a hidden chip drops out and the rest close up.
+                 The negative right margin cancels the right chip's gap so the edges line up. -->
+            <Style x:Key="SidebarStatPairGroupStyle" TargetType="UniformGrid">
+                <Setter Property="Columns" Value="2" />
+                <Setter Property="Margin" Value="0,0,-3,6" />
+            </Style>
+            <Style x:Key="SidebarStatPairChipStyle" TargetType="Border" BasedOn="{StaticResource SidebarStatChipStyle}">
+                <Setter Property="Margin" Value="0,0,3,3" />
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -139,9 +149,9 @@
                                     </Grid>
                                 </Border>
                             </StackPanel>
-                            <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
-                                        Visibility="{Binding SidebarRarityVisible, Converter={StaticResource BoolToVis}}">
-                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
+                            <UniformGrid Style="{StaticResource SidebarStatPairGroupStyle}"
+                                         Visibility="{Binding SidebarRarityVisible, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
                                         Visibility="{Binding OverviewSummary.RarityUltraRare.IsVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -152,7 +162,7 @@
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityUltraRare.Text}" />
                                     </Grid>
                                 </Border>
-                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Rare}"
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Rare}"
                                         Visibility="{Binding OverviewSummary.RarityRare.IsVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -163,7 +173,7 @@
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityRare.Text}" />
                                     </Grid>
                                 </Border>
-                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Uncommon}"
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Uncommon}"
                                         Visibility="{Binding OverviewSummary.RarityUncommon.IsVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -174,7 +184,7 @@
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityUncommon.Text}" />
                                     </Grid>
                                 </Border>
-                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Common}"
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Common}"
                                         Visibility="{Binding OverviewSummary.RarityCommon.IsVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -185,10 +195,10 @@
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityCommon.Text}" />
                                     </Grid>
                                 </Border>
-                            </StackPanel>
-                            <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
-                                        Visibility="{Binding SidebarTrophiesVisible, Converter={StaticResource BoolToVis}}">
-                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}"
+                            </UniformGrid>
+                            <UniformGrid Style="{StaticResource SidebarStatPairGroupStyle}"
+                                         Visibility="{Binding SidebarTrophiesVisible, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}"
                                         Visibility="{Binding OverviewSummary.TrophyPlatinum.IsVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -199,7 +209,7 @@
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophyPlatinum.Text}" />
                                     </Grid>
                                 </Border>
-                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Gold}"
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Gold}"
                                         Visibility="{Binding OverviewSummary.TrophyGold.IsVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -210,7 +220,7 @@
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophyGold.Text}" />
                                     </Grid>
                                 </Border>
-                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Silver}"
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Silver}"
                                         Visibility="{Binding OverviewSummary.TrophySilver.IsVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -221,7 +231,7 @@
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophySilver.Text}" />
                                     </Grid>
                                 </Border>
-                                <Border Style="{StaticResource SidebarStatChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Bronze}"
+                                <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Bronze}"
                                         Visibility="{Binding OverviewSummary.TrophyBronze.IsVisible, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -232,7 +242,7 @@
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophyBronze.Text}" />
                                     </Grid>
                                 </Border>
-                            </StackPanel>
+                            </UniformGrid>
                             <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
                                         Visibility="{Binding SidebarOtherStatsVisible, Converter={StaticResource BoolToVis}}">
                                 <Border Style="{StaticResource SidebarStatChipStyle}"
