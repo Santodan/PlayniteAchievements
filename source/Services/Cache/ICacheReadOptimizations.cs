@@ -35,5 +35,15 @@ namespace PlayniteAchievements.Services.Cache
         /// in the library, before a single provider call.
         /// </remarks>
         HashSet<Guid> GetNoAchievementGameIds();
+
+        /// <summary>
+        /// Which of the asked-for ApiNames the current user has unlocked, per game.
+        /// </summary>
+        /// <remarks>
+        /// For the stored-capstone correction on a bounded summary read, which holds only the most
+        /// recent unlocks and so cannot say whether an older capstone was earned.
+        /// </remarks>
+        Dictionary<Guid, HashSet<string>> LoadUnlockedApiNamesFast(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted);
     }
 }
