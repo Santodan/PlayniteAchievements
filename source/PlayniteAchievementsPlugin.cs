@@ -143,6 +143,7 @@ namespace PlayniteAchievements
         private bool _tagSyncDrainRunning;
         private TagSyncService _tagSyncService;
         private AutoCapstoneMaintainer _autoCapstoneMaintainer;
+        private AutoCapstoneGenerator _autoCapstoneGenerator;
 
         /// <summary>
         /// Games added to the library but not yet refreshed. Held until OnLibraryUpdated so the
@@ -708,7 +709,26 @@ namespace PlayniteAchievements
                         gameId => _achievementDataService?.GetGameAchievementData(gameId),
                         NotifyAchievementUnlocked,
                         _logger);
-                    _refreshCoordinator.RefreshCompleted += gameIds => _autoCapstoneMaintainer?.Maintain(gameIds);
+                    _autoCapstoneGenerator = new AutoCapstoneGenerator(
+                        _gameCustomDataStore,
+                        _achievementOverridesService,
+                        gameId => _achievementDataService?.GetGameAchievementData(gameId),
+                        () => _settingsViewModel?.Settings?.Persisted?.EnableAutoCapstoneGeneration == true,
+                        () => _managedCustomIconService,
+                        _logger);
+
+                    // Maintained first and in line, so a capstone this refresh finished is announced
+                    // before the refresh returns. Generation follows off the refresh's thread: a
+                    // capstone it authors is worked out at authoring and has nothing to announce.
+                    _refreshCoordinator.RefreshCompleted += gameIds =>
+                    {
+                        _autoCapstoneMaintainer?.Maintain(gameIds);
+                        if (_autoCapstoneGenerator != null && gameIds != null)
+                        {
+                            var ids = gameIds.ToList();
+                            _ = Task.Run(() => _autoCapstoneGenerator.GenerateAsync(ids));
+                        }
+                    };
                     _windowTracker = new ActiveGameWindowTracker(_logger);
                     var soundThemeResolver = new AchievementToastTemplateResolver(PlayniteApi, _logger);
                     var pluginInstallDirectory = GetPluginInstallDirectory();
