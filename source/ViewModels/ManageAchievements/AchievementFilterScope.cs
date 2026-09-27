@@ -162,9 +162,28 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// The three real scopes as dropdown choices. <see cref="AchievementFilterScope.Mixed"/> is
-        /// never offered: a control holding it matches no item and renders blank, which is the
-        /// display a disagreeing group wants.
+        /// The scope's name, as the choices and the cell buttons show it. Blank for
+        /// <see cref="AchievementFilterScope.Mixed"/>, which stands for disagreement rather than
+        /// for a scope.
+        /// </summary>
+        public static string GetDisplayText(AchievementFilterScope scope)
+        {
+            switch (scope)
+            {
+                case AchievementFilterScope.All:
+                    return ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Filters_FilterOut");
+                case AchievementFilterScope.Summary:
+                    return ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries");
+                case AchievementFilterScope.None:
+                    return ResourceProvider.GetString("LOCPlayAch_Common_None");
+                default:
+                    return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// The three real scopes as menu choices. <see cref="AchievementFilterScope.Mixed"/> is
+        /// never offered: it is what a disagreeing group displays, never something to pick.
         /// </summary>
         public static IReadOnlyList<AchievementFilterScopeOption> CreateOptions()
         {
@@ -172,13 +191,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 new AchievementFilterScopeOption(
                     AchievementFilterScope.None,
-                    ResourceProvider.GetString("LOCPlayAch_Common_None")),
+                    GetDisplayText(AchievementFilterScope.None)),
                 new AchievementFilterScopeOption(
                     AchievementFilterScope.Summary,
-                    ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries")),
+                    GetDisplayText(AchievementFilterScope.Summary)),
                 new AchievementFilterScopeOption(
                     AchievementFilterScope.All,
-                    ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Filters_FilterOut"))
+                    GetDisplayText(AchievementFilterScope.All))
             };
         }
     }
