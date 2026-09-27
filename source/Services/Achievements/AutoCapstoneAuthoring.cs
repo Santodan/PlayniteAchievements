@@ -39,8 +39,26 @@ namespace PlayniteAchievements.Services.Achievements
             _logger = logger;
         }
 
-        /// <summary>The description every auto capstone is authored with.</summary>
-        public static string Description => ResourceProvider.GetString(AutoCapstoneTemplate.DescriptionKey);
+        private const string CategoryDescriptionKey = "LOCPlayAch_ManageAchievements_Custom_AutoCapstoneCategoryDescription";
+
+        /// <summary>
+        /// The title and description an auto capstone is authored with: the game's name and the
+        /// base game for the whole game, or both naming the category it stands for.
+        /// </summary>
+        /// <param name="category">The category's raw label, or null for the whole game.</param>
+        public static (string Title, string Description) Describe(string gameName, string category)
+        {
+            if (string.IsNullOrWhiteSpace(category))
+            {
+                return (gameName, ResourceProvider.GetString(AutoCapstoneTemplate.DescriptionKey));
+            }
+
+            // The display label, not the raw path, so a nested category reads as the list shows it.
+            var label = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(category);
+            return (
+                gameName + ": " + label,
+                string.Format(ResourceProvider.GetString(CategoryDescriptionKey), label));
+        }
 
         /// <summary>
         /// The game's hydrated achievements, authored ones included, in the order the game shows
@@ -121,12 +139,13 @@ namespace PlayniteAchievements.Services.Achievements
                 .ToList() ?? new List<CustomAchievementDefinition>();
             var id = ResolveUniqueId(existing);
             var apiName = CustomAchievementProjectionService.BuildApiName(id);
+            var (title, description) = Describe(name, normalizedCategory);
 
             var definition = new CustomAchievementDefinition
             {
                 Id = id,
-                DisplayName = name,
-                Description = Description,
+                DisplayName = title,
+                Description = description,
                 Unlocked = derived.Unlocked,
                 UnlockTimeUtc = derived.Unlocked ? derived.UnlockTimeUtc : null,
                 UnlockedIconPath = await MaterializeIconAsync(gameId, game, existing, apiName).ConfigureAwait(false),
