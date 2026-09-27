@@ -110,6 +110,9 @@ namespace PlayniteAchievements.Views.Showcase
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _persist = persist ?? throw new ArgumentNullException(nameof(persist));
             _api = api;
+            // Widgets' control bar choices are saved in their own options across restarts.
+            PlayniteAchievements.ViewModels.Showcase.Widgets.ShowcaseControlBarStates.Store =
+                ShowcaseControlBarStateStore.Instance;
             _snapshotRefreshTimer = new System.Windows.Threading.DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(1000)
@@ -174,6 +177,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             ClearDragVisuals();
             _disposed = true;
+            ShowcaseControlBarStateStore.Instance.Flush();
             _snapshotRefreshTimer.Stop();
             _trackRulerTimer.Stop();
             // The cached widget bodies hold PersistedSettings-subscribed grids and slideshow
