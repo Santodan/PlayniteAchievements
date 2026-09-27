@@ -51,13 +51,44 @@ namespace PlayniteAchievements.Providers.Riot
             var playerData = RiotChallengeMapper.ParsePlayerData(playerJson);
 
             var percentiles = await LoadPercentilesAsync(platform, apiKey, cancel).ConfigureAwait(false);
+            var archived = await LoadArchivedChallengeIdsAsync(platform, apiKey, cancel).ConfigureAwait(false);
 
             return new RiotPlayerChallengeState
             {
                 PlayerKey = puuid,
                 Challenges = playerData?.Challenges ?? new List<RiotChallengeInfoDto>(),
-                LevelPercentiles = percentiles
+                LevelPercentiles = percentiles,
+                ArchivedChallengeIds = archived
             };
+        }
+
+        /// <summary>
+        /// Archived state only feeds the Unobtainable type, so a failure here must not fail the
+        /// refresh; the mapper then falls back to end dates and seasonal years.
+        /// </summary>
+        private async Task<IReadOnlyCollection<long>> LoadArchivedChallengeIdsAsync(
+            string platform,
+            string apiKey,
+            CancellationToken cancel)
+        {
+            try
+            {
+                var json = await _client.GetChallengeConfigJsonAsync(platform, apiKey, cancel).ConfigureAwait(false);
+                return RiotChallengeMapper.ParseArchivedChallengeIds(json);
+            }
+            catch (System.OperationCanceledException)
+            {
+                throw;
+            }
+            catch (RiotAuthorizationException)
+            {
+                throw;
+            }
+            catch (System.Exception ex)
+            {
+                _logger?.Warn(ex, "[Riot] Could not load challenge config; archived challenges will not be marked Unobtainable.");
+                return new HashSet<long>();
+            }
         }
 
         /// <summary>
