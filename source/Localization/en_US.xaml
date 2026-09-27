@@ -277,7 +277,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_DeleteConfirmSingle">Delete "{0}"? {1} achievement(s) will move back to the Default category.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Filter_Label">Filter by Category Label</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Filter_Type">Filter by Category Type</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_FilterScopeTooltip">Apply a filter to every achievement in this category and its subcategories. Shows blank when they differ.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_FilterScopeTooltip">Apply a filter to every achievement in this category. Subcategories keep their own. Shows blank when they differ.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Hint">Set categories for this game's achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_InputPlaceholder">Category label for selected achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Indent">Make subcategory of the category above</sys:String>
