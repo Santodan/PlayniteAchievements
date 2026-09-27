@@ -315,6 +315,10 @@
                         </Style.Triggers>
                 </Style>
             </Grid.Style>
+            <!-- Accent underlay: the bar's half-black track sits over it, so the unfilled part reads
+                 as a dimmed accent and the filled part as the full accent. -->
+            <Border Background="{DynamicResource PlayAch.Brush.Accent}"
+                    IsHitTestVisible="False"/>
             <ProgressBar Height="12"
                          Maximum="100"
                          Value="{Binding RarityPercentValue, Mode=OneWay}"
