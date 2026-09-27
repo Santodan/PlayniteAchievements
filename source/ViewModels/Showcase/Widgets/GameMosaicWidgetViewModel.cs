@@ -16,8 +16,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// </summary>
     public sealed class GameMosaicWidgetViewModel : ShowcaseMosaicWidgetViewModelBase
     {
-        private readonly GameSummaryGridControlBarAdapter _controlBarAdapter =
-            new GameSummaryGridControlBarAdapter();
+        // The widget instance's shared adapter, so the filters survive view model swaps.
+        private readonly ShowcaseControlBarSlot<GameSummaryGridControlBarAdapter> _controlBarSlot;
 
         // Tiles are reused per game while the layout inputs stay the same, so a filter pass or an
         // unrelated refresh syncs the existing tiles instead of re-creating (and re-decoding) them.
@@ -27,8 +27,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public GameMosaicWidgetViewModel()
         {
-            _controlBarAdapter.FilterChanged += (_, __) => RefreshTiles();
-            ControlBar = _controlBarAdapter.ControlBar;
+            _controlBarSlot = new ShowcaseControlBarSlot<GameSummaryGridControlBarAdapter>(RefreshTiles);
         }
 
         public BulkObservableCollection<GameTileViewModel> Tiles { get; } =
@@ -71,16 +70,23 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         protected override void RefreshTiles()
         {
-            IEnumerable<GameSummaryItem> games = Projection?.Games ?? Array.Empty<GameSummaryItem>();
-            if (ShowControlBar)
+            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
             {
-                var list = games.Where(game => game != null).ToList();
-                _controlBarAdapter.UpdateOptions(list);
-                games = _controlBarAdapter.Apply(list);
+                ControlBar = _controlBarSlot.Adapter.ControlBar;
             }
 
-            var capped = games
+            // The filter stays in effect while the bar is hidden; only the dropdown's options,
+            // which nothing can see then, skip their refresh.
+            var adapter = _controlBarSlot.Adapter;
+            var list = (Projection?.Games ?? Array.Empty<GameSummaryItem>())
                 .Where(game => game != null)
+                .ToList();
+            if (ShowControlBar)
+            {
+                adapter.UpdateOptions(list);
+            }
+
+            var capped = adapter.Apply(list)
                 .Take(ShowcaseWidgetOptions.GetGameMosaicCount(Projection?.Instance));
             CollectionHelper.Replace(Tiles, OrderGames(capped).Select(GetTile));
         }
