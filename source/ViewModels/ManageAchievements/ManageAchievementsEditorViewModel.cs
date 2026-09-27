@@ -3250,11 +3250,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // for the category it was filed in rather than silently widening to the whole game.
             var scope = category ??
                         (row.IsWholeGameAutoCapstone ? null : NormalizeText(row.EffectiveCategoryLabel));
-            var derived = AutoCapstoneCalculator.Derive(
-                _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements?
-                    .Where(achievement => string.IsNullOrWhiteSpace(apiName) ||
-                                          !string.Equals(achievement?.ApiName, apiName, StringComparison.OrdinalIgnoreCase)),
-                scope);
+            var others = _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements?
+                .Where(achievement => string.IsNullOrWhiteSpace(apiName) ||
+                                      !string.Equals(achievement?.ApiName, apiName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var derived = AutoCapstoneCalculator.Derive(others, scope);
+
+            // An existing capstone left alone in its category stands for the whole game again,
+            // the same way the post-refresh maintenance reads it.
+            if (derived == null && category == null && scope != null)
+            {
+                derived = AutoCapstoneCalculator.Derive(others);
+            }
+
             if (derived == null)
             {
                 return;
