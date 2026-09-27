@@ -322,26 +322,24 @@
             <Border Background="{DynamicResource PlayAch.Brush.Accent}"
                     Opacity="0.3"
                     IsHitTestVisible="False"/>
-            <ProgressBar Height="12"
+            <ProgressBar Height="14"
                          Maximum="100"
                          Value="{Binding RarityPercentValue, Mode=OneWay}"
                          Background="Transparent"
                          Foreground="{DynamicResource PlayAch.Brush.Accent}"
                          BorderThickness="0"/>
-            <!-- The text is taller than the bar and overhangs it upward only, relying on its shadow
-                 to stay legible above the bar. It is bottom-aligned, and the -2 bottom margin absorbs
-                 the font's descent so the digits sit just above the bar's bottom edge. The negative
-                 top margin lets it overflow without growing the row, so the bar stays pinned to the
-                 icon's bottom edge and the text is not layout-clipped.
+            <!-- The text's line box is slightly taller than the bar; the negative margins keep it from
+                 growing the row, so the bar stays pinned to the icon's bottom edge and the text is
+                 not layout-clipped.
                  The shadow is drawn by copies behind the text: an Effect on the visible TextBlock
                  would rasterize it and soften the glyphs. A wide blur darkens the surrounding area
                  and a tight one gives the glyphs a firm outline. -->
             <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
-                       VerticalAlignment="Bottom"
-                       Margin="0,-12,0,-2"
-                       FontSize="14"
+                       VerticalAlignment="Center"
+                       Margin="0,-2"
+                       FontSize="12"
                        FontWeight="SemiBold"
                        Foreground="Black"
                        IsHitTestVisible="False">
@@ -352,9 +350,9 @@
             <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
-                       VerticalAlignment="Bottom"
-                       Margin="0,-12,0,-2"
-                       FontSize="14"
+                       VerticalAlignment="Center"
+                       Margin="0,-2"
+                       FontSize="12"
                        FontWeight="SemiBold"
                        Foreground="Black"
                        IsHitTestVisible="False">
@@ -365,9 +363,9 @@
             <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
-                       VerticalAlignment="Bottom"
-                       Margin="0,-12,0,-2"
-                       FontSize="14"
+                       VerticalAlignment="Center"
+                       Margin="0,-2"
+                       FontSize="12"
                        FontWeight="SemiBold"
                        Foreground="White"/>
         </Grid>
