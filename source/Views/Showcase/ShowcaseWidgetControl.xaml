@@ -38,11 +38,11 @@
                     <TextBlock x:Name="GlyphText"
                                Width="18"
                                Margin="0,0,6,0"
-                               FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                               FontFamily="Segoe MDL2 Assets"
                                Foreground="{DynamicResource PlayAch.Brush.Accent}"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
-                               FontSize="11"/>
+                               FontSize="12"/>
                     <TextBlock x:Name="TitleText"
                                Grid.Column="1"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
