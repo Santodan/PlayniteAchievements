@@ -179,9 +179,21 @@ namespace PlayniteAchievements.ViewModels.Items
         public static ObservableCollection<ProviderFilterGroup> Rebuild(
             IEnumerable<GameSummaryItem> games,
             IEnumerable<ProviderFilterGroup> existingGroups,
-            Action onSelectionChanged)
+            Action onSelectionChanged,
+            IReadOnlyDictionary<string, List<string>> seedSelections = null)
         {
+            // Seed selections (restored state) apply to providers the existing groups do not
+            // cover; a live group's own selection always wins.
             var priorSelections = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var seed in seedSelections ?? new Dictionary<string, List<string>>())
+            {
+                if (!string.IsNullOrWhiteSpace(seed.Key) && seed.Value?.Count > 0)
+                {
+                    priorSelections[seed.Key.Trim()] =
+                        new HashSet<string>(seed.Value.Where(name => !string.IsNullOrWhiteSpace(name)), StringComparer.OrdinalIgnoreCase);
+                }
+            }
+
             var priorExpanded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var existing in existingGroups ?? Enumerable.Empty<ProviderFilterGroup>())
             {
