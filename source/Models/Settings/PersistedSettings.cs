@@ -68,7 +68,6 @@ namespace PlayniteAchievements.Models.Settings
         private int _friendsPeriodicUpdateHours = 24;
         private bool _enableInGamePolling = true;
         private bool _enableAutoCapstoneGeneration = false;
-        private bool _autoCapstonesMigrated = false;
         private int _inGamePollIntervalSeconds = 15;
         private bool _inGamePollRefreshFriends = false;
         private int _inGameFriendRefreshMultiplier = 4;
@@ -875,17 +874,6 @@ namespace PlayniteAchievements.Models.Settings
             get => _enableAutoCapstoneGeneration;
             set => SetValue(ref _enableAutoCapstoneGeneration, value);
         }
-
-        /// <summary>
-        /// True once existing auto capstones have been brought in line with the base-game wording,
-        /// the stored whole-game scope and main-game filing. Set only by that migration.
-        /// </summary>
-        public bool AutoCapstonesMigrated
-        {
-            get => _autoCapstonesMigrated;
-            set => SetValue(ref _autoCapstonesMigrated, value);
-        }
-
         public int InGamePollIntervalSeconds
         {
             get => _inGamePollIntervalSeconds;
@@ -2943,7 +2931,6 @@ namespace PlayniteAchievements.Models.Settings
                 FriendsPeriodicUpdateHours = this.FriendsPeriodicUpdateHours,
                 EnableInGamePolling = this.EnableInGamePolling,
                 EnableAutoCapstoneGeneration = this.EnableAutoCapstoneGeneration,
-                AutoCapstonesMigrated = this.AutoCapstonesMigrated,
                 InGamePollIntervalSeconds = this.InGamePollIntervalSeconds,
                 InGamePollRefreshFriends = this.InGamePollRefreshFriends,
                 InGameFriendRefreshMultiplier = this.InGameFriendRefreshMultiplier,
