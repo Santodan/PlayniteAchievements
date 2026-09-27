@@ -1214,7 +1214,7 @@ namespace PlayniteAchievements
             try
             {
                 _logger.Info(
-                    $"[Startup] Playnite Achievements {ReadManifestVersion() ?? "<unknown>"}; " +
+                    $"[Startup] Playnite Achievements {Common.PluginManifest.Version ?? "<unknown>"}; " +
                     $"playnite={PlayniteApi?.ApplicationInfo?.ApplicationVersion?.ToString() ?? "<unknown>"}, " +
                     $"mode={PlayniteApi?.ApplicationInfo?.Mode.ToString() ?? "<unknown>"}, " +
                     $"portable={PlayniteApi?.ApplicationInfo?.IsPortable.ToString() ?? "<unknown>"}.");
@@ -1223,38 +1223,6 @@ namespace PlayniteAchievements
             {
                 _logger.Debug(ex, "[Startup] Could not log the startup banner.");
             }
-        }
-
-        /// <summary>
-        /// Reads <c>Version</c> from the manifest shipped next to the plugin assembly. The assembly
-        /// itself carries no meaningful version, so extension.yaml is the only source that matches
-        /// the number users see in Playnite's add-on list.
-        /// </summary>
-        private static string ReadManifestVersion()
-        {
-            var assemblyDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            if (string.IsNullOrWhiteSpace(assemblyDirectory))
-            {
-                return null;
-            }
-
-            var manifestPath = Path.Combine(assemblyDirectory, "extension.yaml");
-            if (!File.Exists(manifestPath))
-            {
-                return null;
-            }
-
-            foreach (var line in File.ReadAllLines(manifestPath))
-            {
-                var trimmed = line.Trim();
-                if (trimmed.StartsWith("Version:", StringComparison.OrdinalIgnoreCase))
-                {
-                    var value = trimmed.Substring("Version:".Length).Trim().Trim('"', '\'');
-                    return string.IsNullOrWhiteSpace(value) ? null : value;
-                }
-            }
-
-            return null;
         }
 
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
