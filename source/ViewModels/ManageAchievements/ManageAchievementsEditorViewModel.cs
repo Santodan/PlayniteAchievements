@@ -3002,35 +3002,40 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Drops the stored order for the whole game, so the list falls back to the order the
-        /// providers hand over. Unlike reverting a selection there is nothing to re-seat: the
-        /// positional list goes entirely.
-        /// </summary>
-        private const string PlatinumTrophyType = AutoCapstoneTemplate.PlatinumTrophyType;
-
-        /// <summary>
         /// Makes the game's platinum trophy its capstone, authoring one when the game has no
         /// platinum of its own.
         /// </summary>
+        /// <remarks>
+        /// Nominating and authoring go through <see cref="AutoCapstoneAuthoring"/>, the same code
+        /// automatic generation runs, so the button and the setting write exactly the same thing.
+        /// </remarks>
         private async Task ApplyAutoCapstoneAsync()
         {
             MarkUndoIntent(EditorEditIntent.Atomic("AutoCapstone", "LOCPlayAch_ManageAchievements_Custom_AutoCapstone"));
 
             try
             {
-                // One capstone stands for one category, so the first thing to settle is which. A
-                // game whose achievements all sit in one category has only one answer and is never
-                // asked; anything else is a choice the user has to make, because adding a capstone
-                // to a category means the game is not finished until that category is.
-                if (!TryResolveAutoCapstoneCategory(out var category))
+                var authoring = PlayniteAchievementsPlugin.Instance?.AutoCapstoneAuthoring;
+                if (authoring == null)
                 {
                     return;
                 }
 
-                // An auto capstone this category already has is brought up to date rather than
+                // One capstone stands for one category or for the whole game, so the first thing
+                // to settle is which. A game whose achievements all sit in one category has only
+                // one answer and is never asked.
+                if (!TryResolveAutoCapstoneCategory(out var category, out var singleCategory))
+                {
+                    return;
+                }
+
+                // An auto capstone standing for the same thing is brought up to date rather than
                 // joined by a second one.
                 var existing = AchievementRows.FirstOrDefault(row =>
-                    row?.IsAutoCapstone == true && IsInCategory(row, category));
+                    row?.IsAutoCapstone == true &&
+                    (category == null
+                        ? row.IsWholeGameAutoCapstone || singleCategory
+                        : IsInCategory(row, category)));
                 if (existing != null)
                 {
                     ApplyAutoCapstoneDerivation(existing);
@@ -3044,22 +3049,56 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 // Adopting a real platinum only makes sense for the game as a whole: a platinum is
                 // never awarded for finishing one DLC, so a category capstone is always authored.
-                var platinum = category == null ? ResolvePlatinumCapstoneRow() : null;
-                if (platinum != null)
+                if (category == null)
                 {
-                    SetCapstoneForRow(platinum, true);
-                    SelectRowAndScrollTo(platinum);
-                    SetStatus(null, false);
-                    return;
+                    var platinum = AutoCapstoneAuthoring.SelectPlatinum(authoring.LoadAchievementsInOrder(_gameId));
+                    var platinumRow = FindRow(platinum?.ApiName);
+                    if (platinumRow != null)
+                    {
+                        if (authoring.NominatePlatinum(_gameId, platinum))
+                        {
+                            OnCapstoneWritten(platinumRow, true);
+                        }
+
+                        SelectRowAndScrollTo(platinumRow);
+                        SetStatus(null, false);
+                        return;
+                    }
                 }
 
-                await CreateCapstoneAchievementAsync(category).ConfigureAwait(true);
+                var apiName = await authoring.AuthorAsync(_gameId, category).ConfigureAwait(true);
+
+                // Rebuilt from the store rather than patched: the capstone, its filing and its
+                // nomination were all written there, and the rows are read back from it.
+                _gameDataSnapshotProvider?.Invalidate();
+                RaiseAssignmentsChanged();
+                ReloadData();
+
+                var authored = FindRow(apiName);
+                if (authored != null)
+                {
+                    SelectRowAndScrollTo(authored);
+                    CapstoneChanged?.Invoke(this, new CapstoneChangedEventArgs(apiName, authored.DisplayName));
+                }
+
+                SetStatus(null, false);
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed applying the automatic capstone for gameId={_gameId}.");
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
             }
+        }
+
+        private AchievementEditorRow FindRow(string apiName)
+        {
+            var normalized = NormalizeText(apiName);
+            return string.IsNullOrWhiteSpace(normalized)
+                ? null
+                : AchievementRows.FirstOrDefault(row => string.Equals(
+                    row?.OriginalApiName,
+                    normalized,
+                    StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>Selects a row the editor picked, and asks the grid to show it.</summary>
@@ -3071,10 +3110,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>
         /// Which category the auto capstone should stand for. Null means the game as a whole, which
-        /// is the answer whenever its achievements all sit in one category.
+        /// is the answer whenever its achievements all sit in one category, and one the user can
+        /// choose when they do not.
         /// </summary>
+        /// <param name="singleCategory">True when the game has only the one category to offer.</param>
         /// <returns>False when the user dismissed the choice, so nothing should be written.</returns>
-        private bool TryResolveAutoCapstoneCategory(out string category)
+        private bool TryResolveAutoCapstoneCategory(out string category, out bool singleCategory)
         {
             category = null;
 
@@ -3087,31 +3128,40 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // One category, or none to speak of: the capstone stands for the whole game, exactly as
             // it did before a game could hold more than one.
-            if (categories.Count <= 1)
+            singleCategory = categories.Count <= 1;
+            if (singleCategory)
             {
                 return true;
             }
 
             var chosen = PromptForAutoCapstoneCategory(categories);
-            if (string.IsNullOrWhiteSpace(chosen))
+            if (chosen == null)
             {
                 return false;
             }
 
-            category = chosen;
+            category = chosen.Length == 0 ? null : chosen;
             return true;
         }
 
         /// <summary>
-        /// Asks which category to stand for, listing the game's categories by their display label.
+        /// Asks which category to stand for, listing the whole base game first and then the game's
+        /// categories by their display label.
         /// </summary>
+        /// <returns>
+        /// The chosen category's raw label, an empty string for the whole base game -- what
+        /// automatic generation authors -- or null when the choice was dismissed.
+        /// </returns>
         private string PromptForAutoCapstoneCategory(IReadOnlyList<string> categories)
         {
-            var options = categories
+            var wholeGame = new GenericItemOption(
+                L("LOCPlayAch_ManageAchievements_Category_Type_Base", "Base"),
+                string.Empty);
+            var options = new List<GenericItemOption> { wholeGame };
+            options.AddRange(categories
                 .Select(label => new GenericItemOption(
                     AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(label),
-                    label))
-                .ToList();
+                    label)));
 
             var selected = API.Instance?.Dialogs?.ChooseItemWithSearch(
                 options,
@@ -3120,16 +3170,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 L("LOCPlayAch_Capstone_ChooseCategory", "Which category should this capstone stand for?"));
 
             // Description carries the raw label; the name is the localized display path.
-            return selected?.Description;
+            if (selected == null)
+            {
+                return null;
+            }
+
+            return ReferenceEquals(selected, wholeGame) ? string.Empty : selected.Description ?? string.Empty;
         }
 
         private static bool IsInCategory(AchievementEditorRow row, string category)
         {
-            if (category == null)
-            {
-                return true;
-            }
-
             return string.Equals(
                 AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.EffectiveCategoryLabel),
                 AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(category),
@@ -3137,103 +3187,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// The platinum trophy that stands for finishing the game, or null when it has none.
+        /// Works an existing auto capstone's rarity and unlock out from the achievements it stands
+        /// for, through the same call the post-refresh maintenance makes so the two cannot drift.
         /// </summary>
-        /// <remarks>
-        /// Several platinums means DLC trophy sets alongside the base game's, and only the base
-        /// game's marks the game complete. Providers type the group rather than leaving it to the
-        /// label, so the base one is read off that type instead of guessed from the category text.
-        /// When nothing is typed -- a game whose trophies were authored or came from a provider
-        /// that does not group them -- the earliest in the achievement order wins, that order being
-        /// what the list is showing.
-        /// </remarks>
-        private AchievementEditorRow ResolvePlatinumCapstoneRow()
-        {
-            return AutoCapstoneTemplate.SelectPlatinum(
-                AchievementRows.Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName)),
-                row => row.TrophyType,
-                row => row.EffectiveCategoryTypeValue);
-        }
-
-        /// <summary>
-        /// Authors the achievement that stands for finishing the game and makes it the capstone.
-        /// </summary>
-        /// <remarks>
-        /// Its locked art is left unset on purpose: an achievement without one is drawn as a
-        /// greyscale of its unlocked art already, which is what a locked platinum should look like,
-        /// and storing a second copy of the same image would only be another file to keep in step.
-        /// </remarks>
-        private async Task CreateCapstoneAchievementAsync(string category)
-        {
-            var game = API.Instance?.Database?.Games?.Get(_gameId);
-            var row = AchievementEditorRow.CreateNew(AchievementRows.Count + 1);
-            AssignStableId(row);
-            row.DisplayName = NormalizeText(game?.Name) ?? row.DisplayName;
-            row.Description = L(
-                "LOCPlayAch_ManageAchievements_Custom_AutoCapstoneDescription",
-                "Obtain all Achievements.");
-            row.TrophyType = PlatinumTrophyType;
-            row.Hidden = false;
-            row.IsAutoCapstone = true;
-            row.IsWholeGameAutoCapstone = category == null;
-
-            // Derived here as well as on every refresh, so a game that is already finished gets a
-            // capstone that is already unlocked -- and the first refresh after this sees no
-            // crossing to announce.
-            ApplyAutoCapstoneDerivation(row, category);
-
-            // A source path, not a cached one: the save materializes it into this game's icon
-            // cache the same way it does an icon dropped onto any other authored achievement.
-            row.UnlockedIconPath = AutoCapstoneTemplate.ResolveIconSource(game, _logger);
-
-            AttachRow(row);
-            AchievementRows.Add(row);
-            SelectRowAndScrollTo(row);
-            RefreshComputedState();
-            await SaveAsync().ConfigureAwait(true);
-
-            if (string.IsNullOrWhiteSpace(row.OriginalApiName))
-            {
-                // The save refused it, and its own validation message says why.
-                return;
-            }
-
-            // A capstone sits in the category it stands for, which is what lets the resolver and
-            // the maintainer both find it again from the row alone. A chosen category is filed
-            // outright; without one the capstone falls back to wherever the achievements it stands
-            // for are filed, when they agree on a single place.
-            //
-            // Filed before it is nominated: nominating displaces whatever capstone already stands
-            // for the same category, and that category is read from the filing, so nominating first
-            // would displace the default category's capstone instead of the chosen one's.
-            //
-            // Only at authoring: unlike the rarity this is a starting point, not something kept in
-            // step, so moving it afterwards sticks.
-            var filing = category ?? AutoCapstoneCalculator
-                .Derive(_gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements?
-                    .Where(achievement => !string.Equals(achievement?.ApiName, row.OriginalApiName, StringComparison.OrdinalIgnoreCase)))
-                ?.Category;
-            if (!string.IsNullOrWhiteSpace(filing))
-            {
-                row.CategoryLabel = filing;
-                PersistCategoryAssignmentsFromRows();
-            }
-
-            SetCapstoneForRow(row, true);
-
-            // Only when the game already carries an order: pinning it otherwise would author one
-            // for every achievement just to place this one.
-            if (HasCustomOrder)
-            {
-                PersistCurrentOrder();
-            }
-        }
-
-        /// <summary>
-        /// Works the capstone's rarity and unlock out from the achievements it stands for, through
-        /// the same rules the post-refresh maintenance uses so the two cannot drift apart.
-        /// </summary>
-        private void ApplyAutoCapstoneDerivation(AchievementEditorRow row, string category = null)
+        private void ApplyAutoCapstoneDerivation(AchievementEditorRow row)
         {
             if (row == null)
             {
@@ -3245,24 +3202,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // would be worked out from the grouping as it stood before that edit.
             _gameDataSnapshotProvider?.Invalidate();
 
-            var apiName = NormalizeText(row.OriginalApiName);
-            // A whole-game capstone stays whole-game wherever it is filed. Any other keeps standing
-            // for the category it was filed in rather than silently widening to the whole game.
-            var scope = category ??
-                        (row.IsWholeGameAutoCapstone ? null : NormalizeText(row.EffectiveCategoryLabel));
-            var others = _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements?
-                .Where(achievement => string.IsNullOrWhiteSpace(apiName) ||
-                                      !string.Equals(achievement?.ApiName, apiName, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            var derived = AutoCapstoneCalculator.Derive(others, scope);
-
-            // An existing capstone left alone in its category stands for the whole game again,
-            // the same way the post-refresh maintenance reads it.
-            if (derived == null && category == null && scope != null)
-            {
-                derived = AutoCapstoneCalculator.Derive(others);
-            }
-
+            var derived = AutoCapstoneCalculator.DeriveForCapstone(
+                _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements,
+                NormalizeText(row.OriginalApiName),
+                row.IsWholeGameAutoCapstone,
+                NormalizeText(row.EffectiveCategoryLabel));
             if (derived == null)
             {
                 return;
@@ -3273,6 +3217,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.UnlockTime = derived.Unlocked ? derived.UnlockTimeUtc : null;
         }
 
+        /// <summary>
+        /// Drops the stored order for the whole game, so the list falls back to the order the
+        /// providers hand over. Unlike reverting a selection there is nothing to re-seat: the
+        /// positional list goes entirely.
+        /// </summary>
         private void ResetOrder()
         {
             using var perfScope = Common.PerfScope.Start(
@@ -4322,24 +4271,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             try
             {
                 _achievementOverridesService.SetCapstone(_gameId, apiName, isCapstone);
-
-                // Re-seeded from the store, so the rows are right whatever the snapshot holds. The
-                // snapshot is only read here for categories and names, which a capstone write does
-                // not move, so this deliberately runs before the invalidation below and pays for no
-                // re-hydration of its own.
-                RefreshAssignmentState();
-
-                // The snapshot caches hydrated data until something drops it, and the host's own
-                // invalidation is debounced. A reload landing inside that window would rebuild
-                // these rows from pre-write data and put the capstone flag back as it was, which
-                // is what left the status glyph stale on some clicks and not others.
-                _gameDataSnapshotProvider?.Invalidate();
-
-                CapstoneChanged?.Invoke(
-                    this,
-                    new CapstoneChangedEventArgs(
-                        isCapstone ? apiName : null,
-                        isCapstone ? row.DisplayName : null));
+                OnCapstoneWritten(row, isCapstone);
             }
             catch (Exception ex)
             {
@@ -4347,6 +4279,33 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
                 RefreshAssignmentState();
             }
+        }
+
+        /// <summary>
+        /// Brings the rows and listeners in line with a capstone write that has already been made,
+        /// whether by <see cref="SetCapstoneForRow"/> or by the shared auto capstone authoring.
+        /// </summary>
+        private void OnCapstoneWritten(AchievementEditorRow row, bool isCapstone)
+        {
+            var apiName = NormalizeText(row?.OriginalApiName);
+
+            // Re-seeded from the store, so the rows are right whatever the snapshot holds. The
+            // snapshot is only read here for categories and names, which a capstone write does
+            // not move, so this deliberately runs before the invalidation below and pays for no
+            // re-hydration of its own.
+            RefreshAssignmentState();
+
+            // The snapshot caches hydrated data until something drops it, and the host's own
+            // invalidation is debounced. A reload landing inside that window would rebuild
+            // these rows from pre-write data and put the capstone flag back as it was, which
+            // is what left the status glyph stale on some clicks and not others.
+            _gameDataSnapshotProvider?.Invalidate();
+
+            CapstoneChanged?.Invoke(
+                this,
+                new CapstoneChangedEventArgs(
+                    isCapstone ? apiName : null,
+                    isCapstone ? row?.DisplayName : null));
         }
 
         /// <summary>
