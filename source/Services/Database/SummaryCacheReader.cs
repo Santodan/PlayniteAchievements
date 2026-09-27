@@ -157,6 +157,109 @@ namespace PlayniteAchievements.Services.Database
                 : LoadCachedSummaryData(0, playniteGameId);
         }
 
+        private sealed class UnlockedApiNameRow
+        {
+            public string CacheKey { get; set; }
+            public string PlayniteGameId { get; set; }
+            public string ApiName { get; set; }
+        }
+
+        /// <summary>
+        /// ApiNames per game allowed by the parameter-count limit of one query.
+        /// </summary>
+        private const int UnlockedApiNameChunkSize = 400;
+
+        /// <summary>
+        /// Which of the asked-for achievements the current user has unlocked, per game.
+        /// </summary>
+        /// <remarks>
+        /// For the stored-capstone correction on a bounded summary read. That read carries only
+        /// the most recent unlocks, so it cannot say whether an older capstone was earned; asking
+        /// for exactly the capstones keeps the answer to a handful of rows per game instead of
+        /// every unlock in the library, which the bound exists to avoid.
+        /// </remarks>
+        public Dictionary<Guid, HashSet<string>> LoadUnlockedApiNames(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted)
+        {
+            var result = new Dictionary<Guid, HashSet<string>>();
+            if (wanted == null || wanted.Count == 0)
+            {
+                return result;
+            }
+
+            var apiNames = wanted.Values
+                .Where(set => set != null)
+                .SelectMany(set => set)
+                .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (apiNames.Count == 0)
+            {
+                return result;
+            }
+
+            return _store.WithReadDb(db =>
+            {
+                for (var offset = 0; offset < apiNames.Count; offset += UnlockedApiNameChunkSize)
+                {
+                    var chunk = apiNames.Skip(offset).Take(UnlockedApiNameChunkSize).ToList();
+                    var placeholders = string.Join(", ", chunk.Select(_ => "?"));
+                    var rows = db.Load<UnlockedApiNameRow>(
+                        @"WITH LatestProgress AS (
+                            SELECT
+                                ugp.Id AS UserGameProgressId,
+                                TRIM(ugp.CacheKey) AS CacheKey,
+                                g.PlayniteGameId AS PlayniteGameId,
+                                ROW_NUMBER() OVER (
+                                    PARTITION BY ugp.CacheKey
+                                    ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
+                                ) AS RowNum
+                            FROM UserGameProgress ugp
+                            INNER JOIN Users u ON u.Id = ugp.UserId
+                            INNER JOIN Games g ON g.Id = ugp.GameId
+                            WHERE u.IsCurrentUser = 1
+                              AND ugp.CacheKey IS NOT NULL
+                              AND TRIM(ugp.CacheKey) <> ''
+                        )
+                        SELECT
+                            lp.CacheKey AS CacheKey,
+                            lp.PlayniteGameId AS PlayniteGameId,
+                            ad.ApiName AS ApiName
+                        FROM LatestProgress lp
+                        INNER JOIN UserAchievements ua
+                            ON ua.UserGameProgressId = lp.UserGameProgressId
+                           AND ua.Unlocked = 1
+                        INNER JOIN AchievementDefinitions ad ON ad.Id = ua.AchievementDefinitionId
+                        WHERE lp.RowNum = 1
+                          AND ad.ApiName IN (" + placeholders + ");",
+                        chunk.Cast<object>().ToArray()).ToList();
+
+                    foreach (var row in rows)
+                    {
+                        var playniteGameId = ResolveCachedPlayniteGameId(row?.CacheKey, row?.PlayniteGameId);
+                        var apiName = row?.ApiName?.Trim();
+                        if (!playniteGameId.HasValue ||
+                            string.IsNullOrWhiteSpace(apiName) ||
+                            !wanted.TryGetValue(playniteGameId.Value, out var asked) ||
+                            asked?.Contains(apiName) != true)
+                        {
+                            continue;
+                        }
+
+                        if (!result.TryGetValue(playniteGameId.Value, out var set))
+                        {
+                            set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            result[playniteGameId.Value] = set;
+                        }
+
+                        set.Add(apiName);
+                    }
+                }
+
+                return result;
+            });
+        }
+
         public CachedSummaryData LoadCachedSummaryData(
             int recentAchievementDetailLimit = 0,
             Guid? scopeGameId = null)
