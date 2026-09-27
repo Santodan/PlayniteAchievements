@@ -62,6 +62,8 @@ namespace PlayniteAchievements.Services.Achievements
     {
         private const string BaseCategoryType = "Base";
 
+        private const string UpdateCategoryType = "Update";
+
         /// <summary>
         /// The group types that say an achievement belongs to something other than the base game.
         /// Update is not among them: a base-game update is still the base game, and the providers
@@ -106,24 +108,62 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// The one category the whole scope sits in, or null when they are spread across several or
-        /// all sit in the default bucket.
+        /// The category the scope belongs in: the one it all sits in, or when the base game spans
+        /// several, the main game's. Null when any of it sits in the default bucket.
         /// </summary>
         private static string ResolveSharedCategory(List<AchievementDetail> scope)
         {
-            var labels = scope
-                .Select(achievement => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            if (labels.Count != 1)
+            var labels = DistinctNamedCategories(scope);
+            if (labels.Count == 1)
+            {
+                return labels[0];
+            }
+
+            if (labels.Count == 0)
             {
                 return null;
             }
 
-            var shared = labels[0];
-            return string.Equals(shared, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
-                ? null
-                : shared;
+            // The base game spread over several categories: SteamHunters files each post-launch
+            // update group under its own label, typed Base|Update. The main game is the category
+            // holding the base-game rows that are not an update, so the capstone sits with it
+            // rather than in a default bucket that nothing else is left in.
+            var mainGame = DistinctNamedCategories(scope
+                .Where(achievement => HasGroupType(achievement, BaseCategoryType) &&
+                                      !HasGroupType(achievement, UpdateCategoryType))
+                .ToList());
+            if (mainGame.Count == 1)
+            {
+                return mainGame[0];
+            }
+
+            // Still no single answer: the category holding most of what it stands for.
+            return scope
+                .Select(achievement => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category))
+                .Where(label => !IsDefaultCategory(label))
+                .GroupBy(label => label, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(group => group.Count())
+                .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.Key)
+                .FirstOrDefault();
+        }
+
+        /// <summary>
+        /// The distinct categories <paramref name="achievements"/> sit in, or empty when any of
+        /// them sits in the default bucket, which then has as good a claim as a named one.
+        /// </summary>
+        private static List<string> DistinctNamedCategories(List<AchievementDetail> achievements)
+        {
+            var labels = achievements
+                .Select(achievement => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            return labels.Any(IsDefaultCategory) ? new List<string>() : labels;
+        }
+
+        private static bool IsDefaultCategory(string label)
+        {
+            return string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool HasGroupType(AchievementDetail achievement, string groupType)
