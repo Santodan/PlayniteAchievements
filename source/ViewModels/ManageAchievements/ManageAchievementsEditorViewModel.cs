@@ -1974,22 +1974,37 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>
-        /// Marks the row standing for the auto capstone, the rows being built from achievements
+        /// Marks the rows standing for auto capstones, the rows being built from achievements
         /// rather than from the definitions that carry the mark.
         /// </summary>
+        /// <remarks>
+        /// Every one of them: a game can hold one per category, and the save writes the mark back
+        /// from the row, so a row left unmarked here would lose it and stop being maintained.
+        /// </remarks>
         private void ApplyAutoCapstoneMarker(GameCustomDataFile data)
         {
-            var marked = data?.CustomAchievements?.FirstOrDefault(definition => definition?.IsAutoCapstone == true);
-            var apiName = marked == null
-                ? null
-                : CustomAchievementProjectionService.BuildApiName(marked.Id);
+            var marked = new Dictionary<string, CustomAchievementDefinition>(StringComparer.OrdinalIgnoreCase);
+            foreach (var definition in data?.CustomAchievements ?? Enumerable.Empty<CustomAchievementDefinition>())
+            {
+                if (definition?.IsAutoCapstone == true)
+                {
+                    marked[CustomAchievementProjectionService.BuildApiName(definition.Id)] = definition;
+                }
+            }
+
             foreach (var row in AchievementRows)
             {
-                if (row != null)
+                if (row == null)
                 {
-                    row.IsAutoCapstone = !string.IsNullOrWhiteSpace(apiName) &&
-                                         string.Equals(row.OriginalApiName, apiName, StringComparison.OrdinalIgnoreCase);
+                    continue;
                 }
+
+                var apiName = row.OriginalApiName;
+                var definition = !string.IsNullOrWhiteSpace(apiName) && marked.TryGetValue(apiName, out var match)
+                    ? match
+                    : null;
+                row.IsAutoCapstone = definition != null;
+                row.IsWholeGameAutoCapstone = definition?.IsWholeGameAutoCapstone == true;
             }
         }
 
@@ -3156,6 +3171,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.TrophyType = PlatinumTrophyType;
             row.Hidden = false;
             row.IsAutoCapstone = true;
+            row.IsWholeGameAutoCapstone = category == null;
 
             // Derived here as well as on every refresh, so a game that is already finished gets a
             // capstone that is already unlocked -- and the first refresh after this sees no
@@ -3226,9 +3242,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _gameDataSnapshotProvider?.Invalidate();
 
             var apiName = NormalizeText(row.OriginalApiName);
-            // The row's own category when it has one, so an existing auto capstone keeps standing
+            // A whole-game capstone stays whole-game wherever it is filed. Any other keeps standing
             // for the category it was filed in rather than silently widening to the whole game.
-            var scope = category ?? NormalizeText(row.EffectiveCategoryLabel);
+            var scope = category ??
+                        (row.IsWholeGameAutoCapstone ? null : NormalizeText(row.EffectiveCategoryLabel));
             var derived = AutoCapstoneCalculator.Derive(
                 _gameDataSnapshotProvider?.GetHydratedGameData()?.Achievements?
                     .Where(achievement => string.IsNullOrWhiteSpace(apiName) ||
@@ -7296,6 +7313,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <inheritdoc cref="CustomAchievementDefinition.IsWholeGameAutoCapstone"/>
+        public bool IsWholeGameAutoCapstone { get; internal set; }
+
         /// <summary>
         /// The file stem an overriding image is copied to inside the plugin's icon cache, so a
         /// local file or URL survives being moved or going offline.
@@ -8892,7 +8912,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 TrophyType = NormalizeText(TrophyType),
                 Hidden = Hidden,
                 IsAutoCapstone = IsAutoCapstone,
-                Rarity = string.IsNullOrWhiteSpace(Rarity) ? "Common" : Rarity.Trim()
+                IsWholeGameAutoCapstone = IsAutoCapstone && IsWholeGameAutoCapstone,
+                Rarity =string.IsNullOrWhiteSpace(Rarity) ? "Common" : Rarity.Trim()
             };
 
             if (CanEditUnlockTime && !IsValidTime)
