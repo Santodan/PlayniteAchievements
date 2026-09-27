@@ -160,7 +160,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // Every edit this tab makes is already stored by the time the user sees it, so the
             // history is built from the writes themselves rather than from an uncommitted buffer.
             _gameCustomDataStore.CustomDataWritten += GameCustomDataStore_CustomDataWritten;
-            UndoCommand = new RelayCommand(_ => Undo(), _ => CanUndo && !IsSaving);
+
+            // Background capstone writes wait for this to close rather than land underneath it,
+            // where the next save would overwrite them or they would join the user's undo.
+            OpenEditorRegistry.Open(_gameId);
+            UndoCommand =new RelayCommand(_ => Undo(), _ => CanUndo && !IsSaving);
             RedoCommand = new RelayCommand(_ => Redo(), _ => CanRedo && !IsSaving);
 
             CustomProviderOptions = new ObservableCollection<CustomProviderOption>();
@@ -262,6 +266,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly List<string> _currentUndoApiNames = new List<string>();
 
         private DispatcherTimer _undoStepTimer;
+        private bool _isDetached;
 
         /// <summary>
         /// Set while a step is being reversed, so the write that reverses it is not itself
@@ -2192,6 +2197,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // history could introduce.
             _gameCustomDataStore.CustomDataWritten -= GameCustomDataStore_CustomDataWritten;
             _undoJournal.Clear();
+            if (!_isDetached)
+            {
+                _isDetached = true;
+                OpenEditorRegistry.Close(_gameId);
+            }
 
             // The history is session-scoped, so the art it was holding for a redo goes with it.
             DiscardRetainedIconArt();
