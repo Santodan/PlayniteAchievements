@@ -124,6 +124,22 @@ namespace PlayniteAchievements.Services
 
         public event Action<Guid> ProgressApplied;
 
+        /// <summary>
+        /// Brings a game's auto capstones up to date after an in-game write, before its unlocks
+        /// are announced, so the 100% check reads the capstone as the write left it rather than
+        /// as a locked achievement still to earn.
+        /// </summary>
+        public Action<Guid> MaintainCapstones { get; set; }
+
+        /// <summary>
+        /// The capstone unlocks held back for a tracked game, sent after the achievement that
+        /// earned them and ahead of the game-complete notification.
+        /// </summary>
+        public Func<Guid, IReadOnlyList<AchievementUnlockedEventArgs>> TakeCapstoneAnnouncements { get; set; }
+
+        /// <summary>True while the monitor is tracking a running game.</summary>
+        public bool IsMonitoring(Guid gameId) => gameId != Guid.Empty && IsTracked(gameId);
+
         public InGameAchievementMonitor(
             IPlayniteAPI api,
             PlayniteAchievementsSettings settings,
@@ -333,6 +349,10 @@ namespace PlayniteAchievements.Services
 
             sessionCancellation?.Cancel();
             DisposeSubscriptions(subscriptions);
+
+            // A capstone held for this session and never sent belongs to it; left in place it
+            // would ride along with an unrelated unlock in a later session.
+            TakeCapstoneAnnouncements?.Invoke(game.Id);
             _logger?.Info($"[InGameMonitor] Stopped for {game.Name}.");
             cts?.Cancel();
             sessionCancellation?.Dispose();
@@ -401,6 +421,58 @@ namespace PlayniteAchievements.Services
                 {
                     Stop(state.Game);
                 }
+            }
+        }
+
+        private void RunCapstoneMaintenance(Guid gameId)
+        {
+            try
+            {
+                MaintainCapstones?.Invoke(gameId);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[InGameMonitor] Auto capstone maintenance failed for gameId={gameId}.");
+            }
+        }
+
+        /// <summary>
+        /// Sends the capstone unlocks held for a game, anchored like the unlocks they follow.
+        /// </summary>
+        /// <param name="emitted">
+        /// Whether this batch announced any of its own unlocks. When it did not -- they predate the
+        /// session, or the baseline was still being taken -- the capstone they finished is just as
+        /// old, and is dropped rather than announced on its own.
+        /// </param>
+        private void AnnounceHeldCapstones(
+            Guid gameId,
+            bool emitted,
+            DateTime observedUtc,
+            InGameUnlockAnchorPolicy anchorPolicy,
+            TimeSpan anchorBias)
+        {
+            var held = TakeCapstoneAnnouncements?.Invoke(gameId);
+            if (!emitted || held == null || held.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var args in held)
+            {
+                if (args == null)
+                {
+                    continue;
+                }
+
+                var videoAnchor = InGameUnlockAnchorSelector.Select(
+                    anchorPolicy,
+                    args.UnlockTimeUtc,
+                    observedUtc,
+                    anchorBias);
+                args.ObservedUtc = observedUtc;
+                args.VideoAnchorUtc = videoAnchor.Utc;
+                args.VideoAnchorSource = videoAnchor.Source;
+                _notifyUnlocked?.Invoke(args);
             }
         }
 
@@ -719,6 +791,7 @@ namespace PlayniteAchievements.Services
 
             if (write.Changed)
             {
+                RunCapstoneMaintenance(state.Game.Id);
                 ProgressApplied?.Invoke(state.Game.Id);
             }
 
@@ -740,6 +813,8 @@ namespace PlayniteAchievements.Services
                     anchorPolicy,
                     anchorBias);
             }
+
+            AnnounceHeldCapstones(state.Game.Id, emittableKeys.Count > 0, observedUtc, anchorPolicy, anchorBias);
 
             if (completion != null)
             {
@@ -1205,6 +1280,16 @@ namespace PlayniteAchievements.Services
                                 // resolves to ProviderReported.
                                 InGameUnlockAnchorSelector.ResolvePolicy(state.Registration),
                                 state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero);
+
+                        // The refresh above already brought the capstone up to date; its unlock
+                        // was held so it lands here, after the achievement that earned it.
+                        AnnounceHeldCapstones(
+                            state.Game.Id,
+                            keys.Count > 0,
+                            observedUtc,
+                            InGameUnlockAnchorSelector.ResolvePolicy(state.Registration),
+                            state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero);
+
                         if (completion != null)
                         {
                             _notifyUnlocked?.Invoke(completion);
