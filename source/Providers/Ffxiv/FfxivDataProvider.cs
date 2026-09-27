@@ -43,6 +43,7 @@ namespace PlayniteAchievements.Providers.Ffxiv
         private readonly object _initLock = new object();
         private FfxivApiClient _apiClient;
         private FfxivCatalogCache _catalogCache;
+        private FfxivCharacterCache _characterCache;
 
         public FfxivDataProvider(ILogger logger, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
         {
@@ -138,12 +139,17 @@ namespace PlayniteAchievements.Providers.Ffxiv
             }
 
             var characterId = resolution.CharacterId;
-            var catalog = await _catalogCache.GetCatalogAsync(_apiClient, cancel).ConfigureAwait(false);
+            var catalog = await _catalogCache.GetCatalogAsync(_apiClient, characterId, cancel).ConfigureAwait(false);
 
             FfxivCharacter character;
             try
             {
-                character = await _apiClient.FetchCharacterAsync(characterId, cancel).ConfigureAwait(false);
+                // Every refresh path lands here, so the minimum fetch interval holds no matter
+                // what asked for the refresh or how often.
+                character = await _characterCache.GetAsync(
+                    characterId,
+                    token => _apiClient.FetchCharacterAsync(characterId, token),
+                    cancel).ConfigureAwait(false);
             }
             catch (FfxivCharacterNotIndexedException ex)
             {
@@ -378,6 +384,11 @@ namespace PlayniteAchievements.Providers.Ffxiv
                 if (_catalogCache == null)
                 {
                     _catalogCache = new FfxivCatalogCache(_logger, _pluginUserDataPath);
+                }
+
+                if (_characterCache == null)
+                {
+                    _characterCache = new FfxivCharacterCache(_logger, _pluginUserDataPath);
                 }
             }
         }
