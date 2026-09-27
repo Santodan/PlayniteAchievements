@@ -18,8 +18,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// </summary>
     public sealed class IconMosaicWidgetViewModel : ShowcaseMosaicWidgetViewModelBase
     {
-        private readonly CrossGameAchievementControlBarAdapter _controlBarAdapter =
-            new CrossGameAchievementControlBarAdapter();
+        // The widget instance's shared adapter, so the filters survive view model swaps.
+        private readonly ShowcaseControlBarSlot<CrossGameAchievementControlBarAdapter> _controlBarSlot;
         private double _iconSize = 42;
         private Thickness _tileMargin = new Thickness(6);
         private bool _showRarityGlow = true;
@@ -52,8 +52,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public IconMosaicWidgetViewModel()
         {
-            _controlBarAdapter.FilterChanged += (_, __) => RefreshTiles();
-            ControlBar = _controlBarAdapter.ControlBar;
+            _controlBarSlot = new ShowcaseControlBarSlot<CrossGameAchievementControlBarAdapter>(RefreshTiles);
         }
 
         protected override void RefreshLayout()
@@ -77,17 +76,24 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         protected override void RefreshTiles()
         {
-            IEnumerable<AchievementDisplayItem> achievements =
-                Projection?.MosaicAchievements ?? Array.Empty<AchievementDisplayItem>();
-            if (ShowControlBar)
+            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
             {
-                var list = achievements.Where(item => item != null).ToList();
-                _controlBarAdapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
-                _controlBarAdapter.UpdateOptions(list);
-                achievements = _controlBarAdapter.Apply(list);
+                ControlBar = _controlBarSlot.Adapter.ControlBar;
             }
 
-            var capped = achievements.Take(ShowcaseWidgetOptions.GetMosaicCount(Projection?.Instance)).ToList();
+            // The filter stays in effect while the bar is hidden; only the dropdown's options,
+            // which nothing can see then, skip their refresh.
+            var adapter = _controlBarSlot.Adapter;
+            var list = (Projection?.MosaicAchievements ?? Array.Empty<AchievementDisplayItem>())
+                .Where(item => item != null)
+                .ToList();
+            adapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
+            if (ShowControlBar)
+            {
+                adapter.UpdateOptions(list);
+            }
+
+            var capped = adapter.Apply(list).Take(ShowcaseWidgetOptions.GetMosaicCount(Projection?.Instance)).ToList();
 
             // The widget's own copies of any revealable tiles, so a reveal stays in this widget.
             CollectionHelper.Replace(Items, _reveals.Map(OrderAchievements(capped)));
