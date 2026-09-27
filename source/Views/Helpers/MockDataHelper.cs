@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Services;
@@ -352,6 +353,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             // Keep the preview deterministic: source order is newest-first by default.
             themeData.AchievementsNewestFirst = new List<AchievementDetail>(all);
+            themeData.LatestAchievementData = all.FirstOrDefault(achievement => achievement?.Unlocked == true);
 
             themeData.AchievementsOldestFirst = AchievementSortHelper.CreateSortedDetailList(
                 all,
