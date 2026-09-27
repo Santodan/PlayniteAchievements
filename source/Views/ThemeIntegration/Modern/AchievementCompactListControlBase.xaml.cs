@@ -590,7 +590,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// <summary>
         /// The ScrollViewer this control's own items sit in. Taken from the items host upward rather
         /// than by searching downward: a depth-first walk returns whichever ScrollViewer appears
-        /// first in the tree, which need not be the one that scrolls these items.
+        /// first in the tree, which need not be the one that scrolls these items. The walk stops at
+        /// this control, so a host ScrollViewer outside it (the theme's page) is never returned.
         /// </summary>
         private static ScrollViewer FindScrollViewer(DependencyObject parent)
         {
@@ -603,7 +604,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             if (itemsHost != null)
             {
                 var ancestor = VisualTreeHelper.GetParent(itemsHost);
-                while (ancestor != null)
+                while (ancestor != null && !ReferenceEquals(ancestor, parent))
                 {
                     if (ancestor is ScrollViewer hostScroller)
                     {
