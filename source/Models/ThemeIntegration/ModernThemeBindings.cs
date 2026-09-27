@@ -53,6 +53,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private List<AchievementDetail> _achievementsNewestFirst = new List<AchievementDetail>();
         [DontSerialize]
+        private AchievementDetail _latestAchievementData;
+        [DontSerialize]
         private List<AchievementDetail> _achievementsOldestFirst = new List<AchievementDetail>();
         [DontSerialize]
         private List<AchievementDetail> _achievementsRarityAsc = new List<AchievementDetail>();
@@ -654,6 +656,26 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             get => _achievementsNewestFirst;
             set => SetValue(ref _achievementsNewestFirst, value);
         }
+
+        /// <summary>
+        /// Most recently unlocked achievement for the selected game, or null when none is unlocked.
+        /// Pinned goals do not take precedence here, unlike the head of AchievementsNewestFirst.
+        /// </summary>
+        [DontSerialize]
+        public AchievementDetail LatestAchievementData
+        {
+            get => _latestAchievementData;
+            set
+            {
+                if (SetValueAndReturn(ref _latestAchievementData, value))
+                {
+                    OnPropertyChanged(nameof(HasLatestAchievementData));
+                }
+            }
+        }
+
+        [DontSerialize]
+        public bool HasLatestAchievementData => _latestAchievementData != null;
 
         [DontSerialize]
         public List<AchievementDetail> AchievementsOldestFirst
