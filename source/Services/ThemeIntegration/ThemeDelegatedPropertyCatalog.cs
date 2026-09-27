@@ -232,6 +232,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.AchievementsOldestFirst),
             nameof(PlayniteAchievementsSettings.AchievementsRarityAsc),
             nameof(PlayniteAchievementsSettings.AchievementsRarityDesc),
+            nameof(PlayniteAchievementsSettings.LatestAchievementData),
+            nameof(PlayniteAchievementsSettings.HasLatestAchievementData),
             nameof(PlayniteAchievementsSettings.DynamicAchievements),
             nameof(PlayniteAchievementsSettings.DynamicAchievementsGameKey),
             nameof(PlayniteAchievementsSettings.DynamicAchievementsGameLabel),
