@@ -59,9 +59,14 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     public abstract class ShowcaseMosaicWidgetViewModelBase : ShowcaseWidgetViewModelBase
     {
         private bool _showControlBar;
+        private GridControlBarViewModel _controlBar;
 
         /// <summary>Search/filter bar shown when the widget's Show Control Bar option is on.</summary>
-        public GridControlBarViewModel ControlBar { get; protected set; }
+        public GridControlBarViewModel ControlBar
+        {
+            get => _controlBar;
+            protected set => SetValue(ref _controlBar, value);
+        }
 
         public bool ShowControlBar
         {
@@ -80,8 +85,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected abstract void RefreshLayout();
 
         /// <summary>
-        /// Filters the projected source (only while the control bar is shown, so a hidden bar
-        /// never leaves a filter behind), caps it at Count, sorts, and syncs the tiles in place.
+        /// Filters the projected source through the widget instance's control bar state (which
+        /// stays in effect while the bar is hidden), caps it at Count, sorts, and syncs the tiles
+        /// in place.
         /// </summary>
         protected abstract void RefreshTiles();
     }
@@ -258,24 +264,29 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     public abstract class ShowcaseAchievementGridWidgetViewModelBase
         : ShowcaseGridWidgetViewModelBase<AchievementDisplayItem>
     {
-        private readonly CrossGameAchievementControlBarAdapter _controlBarAdapter =
-            new CrossGameAchievementControlBarAdapter();
+        // The widget instance's shared adapter, so the filters survive view model swaps.
+        private readonly ShowcaseControlBarSlot<CrossGameAchievementControlBarAdapter> _controlBarSlot;
 
         protected ShowcaseAchievementGridWidgetViewModelBase()
         {
-            _controlBarAdapter.FilterChanged += (_, __) => RefreshItems();
-            ControlBar = _controlBarAdapter.ControlBar;
+            _controlBarSlot = new ShowcaseControlBarSlot<CrossGameAchievementControlBarAdapter>(RefreshItems);
         }
 
         protected override IEnumerable<AchievementDisplayItem> FilterItems(
             IEnumerable<AchievementDisplayItem> items)
         {
+            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
+            {
+                ControlBar = _controlBarSlot.Adapter.ControlBar;
+            }
+
+            var adapter = _controlBarSlot.Adapter;
             var list = (items ?? Enumerable.Empty<AchievementDisplayItem>())
                 .Where(item => item != null)
                 .ToList();
-            _controlBarAdapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
-            _controlBarAdapter.UpdateOptions(list);
-            return _controlBarAdapter.Apply(list);
+            adapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
+            adapter.UpdateOptions(list);
+            return adapter.Apply(list);
         }
 
         /// <summary>
@@ -335,22 +346,27 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     public abstract class ShowcaseGameGridWidgetViewModelBase
         : ShowcaseGridWidgetViewModelBase<GameSummaryItem>
     {
-        private readonly GameSummaryGridControlBarAdapter _controlBarAdapter =
-            new GameSummaryGridControlBarAdapter();
+        // The widget instance's shared adapter, so the filters survive view model swaps.
+        private readonly ShowcaseControlBarSlot<GameSummaryGridControlBarAdapter> _controlBarSlot;
 
         protected ShowcaseGameGridWidgetViewModelBase()
         {
-            _controlBarAdapter.FilterChanged += (_, __) => RefreshItems();
-            ControlBar = _controlBarAdapter.ControlBar;
+            _controlBarSlot = new ShowcaseControlBarSlot<GameSummaryGridControlBarAdapter>(RefreshItems);
         }
 
         protected override IEnumerable<GameSummaryItem> FilterItems(IEnumerable<GameSummaryItem> items)
         {
+            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
+            {
+                ControlBar = _controlBarSlot.Adapter.ControlBar;
+            }
+
+            var adapter = _controlBarSlot.Adapter;
             var list = (items ?? Enumerable.Empty<GameSummaryItem>())
                 .Where(item => item != null)
                 .ToList();
-            _controlBarAdapter.UpdateOptions(list);
-            return _controlBarAdapter.Apply(list);
+            adapter.UpdateOptions(list);
+            return adapter.Apply(list);
         }
 
         /// <summary>Sort fallback when the surface record is unavailable.</summary>
