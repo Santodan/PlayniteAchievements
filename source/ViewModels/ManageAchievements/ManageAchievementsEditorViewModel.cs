@@ -3178,12 +3178,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            SetCapstoneForRow(row, true);
-
             // A capstone sits in the category it stands for, which is what lets the resolver and
             // the maintainer both find it again from the row alone. A chosen category is filed
             // outright; without one the capstone falls back to wherever the achievements it stands
             // for are filed, when they agree on a single place.
+            //
+            // Filed before it is nominated: nominating displaces whatever capstone already stands
+            // for the same category, and that category is read from the filing, so nominating first
+            // would displace the default category's capstone instead of the chosen one's.
             //
             // Only at authoring: unlike the rarity this is a starting point, not something kept in
             // step, so moving it afterwards sticks.
@@ -3196,6 +3198,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 row.CategoryLabel = filing;
                 PersistCategoryAssignmentsFromRows();
             }
+
+            SetCapstoneForRow(row, true);
 
             // Only when the game already carries an order: pinning it otherwise would author one
             // for every achievement just to place this one.
