@@ -193,5 +193,40 @@ namespace PlayniteAchievements.Services.Achievements
                 rarest.HasValue ? PercentRarityHelper.GetRarityTier(rarest.Value).ToString() : null,
                 ResolveSharedCategory(scope));
         }
+
+        /// <summary>
+        /// Derives an existing auto capstone's tracked fields from its game's hydrated achievements.
+        /// </summary>
+        /// <param name="apiName">The capstone's own ApiName, left out so it does not wait on itself.</param>
+        /// <param name="isWholeGame">True when it stands for the whole game rather than a category.</param>
+        /// <param name="storedCategory">
+        /// The category its definition carries, used only when the capstone's own row is missing
+        /// from <paramref name="achievements"/>. The row is what carries the category the user
+        /// filed it in; the definition only ever holds the default.
+        /// </param>
+        public static AutoCapstoneDerivation DeriveForCapstone(
+            IEnumerable<AchievementDetail> achievements,
+            string apiName,
+            bool isWholeGame,
+            string storedCategory = null)
+        {
+            var list = (achievements ?? Enumerable.Empty<AchievementDetail>())
+                .Where(achievement => achievement != null)
+                .ToList();
+            var normalizedApiName = (apiName ?? string.Empty).Trim();
+            var own = list.FirstOrDefault(achievement => string.Equals(
+                (achievement.ApiName ?? string.Empty).Trim(),
+                normalizedApiName,
+                StringComparison.OrdinalIgnoreCase));
+
+            var category = isWholeGame ? null : own?.Category ?? storedCategory;
+            return Derive(
+                list.Where(achievement => !ReferenceEquals(achievement, own) &&
+                                          !string.Equals(
+                                              (achievement.ApiName ?? string.Empty).Trim(),
+                                              normalizedApiName,
+                                              StringComparison.OrdinalIgnoreCase)),
+                category);
+        }
     }
 }
