@@ -50,7 +50,7 @@
                         ToolTip="{DynamicResource LOCPlayAch_Settings_TabDisplay}"
                         AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_TabDisplay}">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                        <TextBlock FontFamily="Segoe MDL2 Assets"
                                    FontSize="20" Margin="0,0,10,0" Text="&#xE7F4;" Foreground="{DynamicResource PlayAch.Brush.Accent}"/>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TabDisplay}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                     </StackPanel>
@@ -62,7 +62,7 @@
                         ToolTip="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}"
                         AutomationProperties.Name="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                        <TextBlock FontFamily="Segoe MDL2 Assets"
                                    FontSize="20" Margin="0,0,10,0" Text="&#xE753;" Foreground="{DynamicResource PlayAch.Brush.Accent}"/>
                         <TextBlock Text="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                     </StackPanel>
@@ -74,7 +74,7 @@
                         ToolTip="{DynamicResource LOCPlayAch_ThemeMigration_Title}"
                         AutomationProperties.Name="{DynamicResource LOCPlayAch_ThemeMigration_Title}">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                        <TextBlock FontFamily="Segoe MDL2 Assets"
                                    FontSize="20" Margin="0,0,10,0" Text="&#xE8AB;" Foreground="{DynamicResource PlayAch.Brush.Accent}"/>
                         <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Title}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                     </StackPanel>
