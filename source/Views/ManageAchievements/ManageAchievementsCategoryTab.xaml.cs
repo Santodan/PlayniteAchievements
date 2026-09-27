@@ -299,23 +299,41 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         /// <summary>
-        /// Pushes the picked scope onto the row's category and its subcategories.
+        /// Opens the scope menu for one category row. Built for this click and dropped when it
+        /// closes, so nothing in the recycled cell can raise a write while it rebinds.
         /// </summary>
-        /// <remarks>
-        /// The no-op when the pick matches what the row already holds is what makes this safe in a
-        /// virtualized grid: a recycled container raises SelectionChanged as it rebinds, and the
-        /// rebind always sets the row's own value, so without the comparison scrolling would write.
-        /// </remarks>
-        private void CategoryFilterScopeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void CategoryFilterScopeButton_Click(object sender, RoutedEventArgs e)
         {
-            if (!TryResolveCategoryImageRow(sender as FrameworkElement, out var row) ||
-                !((sender as ComboBox)?.SelectedValue is AchievementFilterScope scope) ||
-                scope == row.FilterScope)
+            var viewModel = ViewModel;
+            if (viewModel == null ||
+                !(sender is Button button) ||
+                !TryResolveCategoryImageRow(button, out var row))
             {
                 return;
             }
 
-            ViewModel?.ApplyCategoryFilterScope(row, scope);
+            var menu = new ContextMenu();
+            foreach (var option in viewModel.FilterScopeOptions)
+            {
+                var scope = option.Value;
+                var scopeItem = new MenuItem
+                {
+                    Header = option.DisplayName,
+                    IsCheckable = true,
+                    IsChecked = row.FilterScope == scope
+                };
+                scopeItem.Click += (_, __) =>
+                {
+                    if (row.FilterScope != scope)
+                    {
+                        viewModel.ApplyCategoryFilterScope(row, scope);
+                    }
+                };
+                menu.Items.Add(scopeItem);
+            }
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
+            SelectorContextMenuHelper.Open(button, menu);
         }
 
         private void SummaryCategoryRadioButton_KeyDown(object sender, KeyEventArgs e)
