@@ -461,6 +461,11 @@
     <!-- IconMosaic: centered wrap of reused AchievementCompactItemControl icons. A click opens
          the View Achievements window on the achievement, as the compact lists do. -->
     <DataTemplate DataType="{x:Type widgets:IconMosaicWidgetViewModel}">
+      <DockPanel>
+        <controls:GridControlBarControl DockPanel.Dock="Top"
+                                        Margin="0,0,0,8"
+                                        ControlBar="{Binding ControlBar}"
+                                        ShowControlBar="{Binding ShowControlBar}"/>
         <ListBox ItemsSource="{Binding Items}"
                  showcase:ShowcaseMosaicClickBehavior.IsEnabled="True"
                  Cursor="Hand"
@@ -494,6 +499,7 @@
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
+      </DockPanel>
     </DataTemplate>
 
     <!-- Pie: reuses PieChartWithRadialIcons with an optional legend docked right. -->
@@ -769,6 +775,11 @@
          right-click menu (ShowcaseMosaicClickBehavior) offers Open and, for pinned-source
          tiles, reorder/unpin. -->
     <DataTemplate DataType="{x:Type widgets:GameMosaicWidgetViewModel}">
+      <DockPanel>
+        <controls:GridControlBarControl DockPanel.Dock="Top"
+                                        Margin="0,0,0,8"
+                                        ControlBar="{Binding ControlBar}"
+                                        ShowControlBar="{Binding ShowControlBar}"/>
         <ListBox ItemsSource="{Binding Tiles}"
                  showcase:ShowcaseMosaicClickBehavior.IsEnabled="True"
                  Cursor="Hand"
@@ -920,6 +931,7 @@
                     </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
+      </DockPanel>
     </DataTemplate>
 
     <!-- ActivityCalendar: contributions-style heatmap of unlocks per day. -->

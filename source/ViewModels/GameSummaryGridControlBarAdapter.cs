@@ -21,6 +21,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly HashSet<string> _selectedActivityFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private string _searchText = string.Empty;
+        private List<GameSummaryItem> _optionGames;
         private ObservableCollection<ProviderFilterGroup> _providerFilterGroups =
             new ObservableCollection<ProviderFilterGroup>();
 
@@ -117,8 +118,17 @@ namespace PlayniteAchievements.ViewModels
 
         public void UpdateOptions(IEnumerable<GameSummaryItem> source)
         {
+            // A filter pass re-feeds the same games; rebuilding then would swap the groups out
+            // from under an open dropdown, so a toggle there would land on a discarded group.
+            var games = (source ?? Enumerable.Empty<GameSummaryItem>()).ToList();
+            if (ProviderFilterGroupBuilder.HasSameGames(_optionGames, games))
+            {
+                return;
+            }
+
+            _optionGames = games;
             ProviderFilterGroups = ProviderFilterGroupBuilder.Rebuild(
-                source,
+                games,
                 ProviderFilterGroups,
                 OnProviderFilterSelectionChanged);
             OnPropertyChanged(nameof(SelectedProviderFilterText));
@@ -128,6 +138,7 @@ namespace PlayniteAchievements.ViewModels
         public void Clear()
         {
             _searchIndex.Clear();
+            _optionGames = null;
             UpdateOptions(null);
         }
 

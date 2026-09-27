@@ -16,8 +16,10 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// Icon size follows density (compact 32 / standard 42 / expanded 54); every size shows the
     /// same icons. Rarity-glow appearance comes from the widget's own per-instance options.
     /// </summary>
-    public sealed class IconMosaicWidgetViewModel : ShowcaseWidgetViewModelBase
+    public sealed class IconMosaicWidgetViewModel : ShowcaseMosaicWidgetViewModelBase
     {
+        private readonly CrossGameAchievementControlBarAdapter _controlBarAdapter =
+            new CrossGameAchievementControlBarAdapter();
         private double _iconSize = 42;
         private Thickness _tileMargin = new Thickness(6);
         private bool _showRarityGlow = true;
@@ -48,9 +50,14 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public bool AnimateRarityGlows { get => _animateRarityGlows; private set => SetValue(ref _animateRarityGlows, value); }
 
-        protected override void Refresh()
+        public IconMosaicWidgetViewModel()
         {
-            var achievements = Projection?.MosaicAchievements ?? Array.Empty<AchievementDisplayItem>();
+            _controlBarAdapter.FilterChanged += (_, __) => RefreshTiles();
+            ControlBar = _controlBarAdapter.ControlBar;
+        }
+
+        protected override void RefreshLayout()
+        {
             // A set size is fixed; unset follows density (standard density is the default size).
             IconSize = ShowcaseWidgetOptions.GetMosaicIconSizeOverride(Projection?.Instance)
                 ?? (Density == WidgetViewportDensity.Compact
@@ -66,9 +73,24 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ShowcaseMosaicSource.UnlockNext;
             AnimateRarityGlows =
                 PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.AnimateRarityGlows ?? true;
+        }
+
+        protected override void RefreshTiles()
+        {
+            IEnumerable<AchievementDisplayItem> achievements =
+                Projection?.MosaicAchievements ?? Array.Empty<AchievementDisplayItem>();
+            if (ShowControlBar)
+            {
+                var list = achievements.Where(item => item != null).ToList();
+                _controlBarAdapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
+                _controlBarAdapter.UpdateOptions(list);
+                achievements = _controlBarAdapter.Apply(list);
+            }
+
+            var capped = achievements.Take(ShowcaseWidgetOptions.GetMosaicCount(Projection?.Instance)).ToList();
 
             // The widget's own copies of any revealable tiles, so a reveal stays in this widget.
-            CollectionHelper.Replace(Items, _reveals.Map(OrderAchievements(achievements)));
+            CollectionHelper.Replace(Items, _reveals.Map(OrderAchievements(capped)));
         }
 
         /// <summary>

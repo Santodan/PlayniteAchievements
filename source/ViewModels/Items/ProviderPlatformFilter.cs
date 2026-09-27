@@ -262,6 +262,31 @@ namespace PlayniteAchievements.ViewModels.Items
             return new ObservableCollection<ProviderFilterGroup>(groups);
         }
 
+        /// <summary>
+        /// True when <paramref name="games"/> holds the same game instances in the same order as
+        /// <paramref name="previous"/>. A filter pass re-feeds the same games, and skipping the
+        /// rebuild then keeps the group instances an open dropdown is showing.
+        /// </summary>
+        public static bool HasSameGames(
+            IReadOnlyList<GameSummaryItem> previous,
+            IReadOnlyList<GameSummaryItem> games)
+        {
+            if (previous == null || games == null || previous.Count != games.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < games.Count; i++)
+            {
+                if (!ReferenceEquals(previous[i], games[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private static string GetProviderFilterDisplayName(string providerKey)
         {
             if (string.IsNullOrWhiteSpace(providerKey))

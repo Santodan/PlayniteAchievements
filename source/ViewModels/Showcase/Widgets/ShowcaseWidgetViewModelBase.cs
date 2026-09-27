@@ -8,7 +8,6 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
-using PlayniteAchievements.Services.Search;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -50,6 +49,41 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             density == WidgetViewportDensity.Compact
                 ? 6
                 : density == WidgetViewportDensity.Expanded ? 10 : 8;
+    }
+
+    /// <summary>
+    /// Base for the mosaic widgets. A refresh re-reads the layout options, then runs the tile
+    /// pass; a control-bar filter change runs only the tile pass. The projection hands over the
+    /// whole source, so the tile pass filters first and applies the Count cap after.
+    /// </summary>
+    public abstract class ShowcaseMosaicWidgetViewModelBase : ShowcaseWidgetViewModelBase
+    {
+        private bool _showControlBar;
+
+        /// <summary>Search/filter bar shown when the widget's Show Control Bar option is on.</summary>
+        public GridControlBarViewModel ControlBar { get; protected set; }
+
+        public bool ShowControlBar
+        {
+            get => _showControlBar;
+            private set => SetValue(ref _showControlBar, value);
+        }
+
+        protected sealed override void Refresh()
+        {
+            ShowControlBar = ShowcaseWidgetOptions.GetMosaicShowControlBar(Projection?.Instance);
+            RefreshLayout();
+            RefreshTiles();
+        }
+
+        /// <summary>Re-reads the widget's size, spacing and appearance options.</summary>
+        protected abstract void RefreshLayout();
+
+        /// <summary>
+        /// Filters the projected source (only while the control bar is shown, so a hidden bar
+        /// never leaves a filter behind), caps it at Count, sorts, and syncs the tiles in place.
+        /// </summary>
+        protected abstract void RefreshTiles();
     }
 
     /// <summary>
@@ -218,62 +252,30 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     }
 
     /// <summary>
-    /// Grid widget base for achievement rows: contributes a search box that filters by game
-    /// and achievement name before the MaxRows cap.
+    /// Grid widget base for achievement rows: contributes the cross-game achievement control bar
+    /// (search plus provider/platform filter) applied before the MaxRows cap.
     /// </summary>
     public abstract class ShowcaseAchievementGridWidgetViewModelBase
         : ShowcaseGridWidgetViewModelBase<AchievementDisplayItem>
     {
-        private readonly SearchTextIndex<AchievementDisplayItem> _searchIndex =
-            new SearchTextIndex<AchievementDisplayItem>(item =>
-                SearchTextBuilder.ForRecentAchievement(item?.GameName, item?.DisplayName));
-        private string _searchText = string.Empty;
+        private readonly CrossGameAchievementControlBarAdapter _controlBarAdapter =
+            new CrossGameAchievementControlBarAdapter();
 
         protected ShowcaseAchievementGridWidgetViewModelBase()
         {
-            ControlBar = new GridControlBarViewModel
-            {
-                Search = new GridSearchControl(
-                    this,
-                    nameof(SearchText),
-                    () => SearchText,
-                    value => SearchText = value,
-                    ResourceProvider.GetString("LOCPlayAch_Filter_Achievements"),
-                    () => SearchText = string.Empty)
-            };
-        }
-
-        public string SearchText
-        {
-            get => _searchText;
-            set
-            {
-                var normalized = value ?? string.Empty;
-                if (string.Equals(_searchText, normalized, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                _searchText = normalized;
-                OnPropertyChanged(nameof(SearchText));
-                RefreshItems();
-            }
+            _controlBarAdapter.FilterChanged += (_, __) => RefreshItems();
+            ControlBar = _controlBarAdapter.ControlBar;
         }
 
         protected override IEnumerable<AchievementDisplayItem> FilterItems(
             IEnumerable<AchievementDisplayItem> items)
         {
-            var query = SearchQuery.From(SearchText);
-            if (!query.HasValue)
-            {
-                return items;
-            }
-
             var list = (items ?? Enumerable.Empty<AchievementDisplayItem>())
                 .Where(item => item != null)
                 .ToList();
-            _searchIndex.Rebuild(list);
-            return list.Where(item => _searchIndex.Matches(item, query));
+            _controlBarAdapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
+            _controlBarAdapter.UpdateOptions(list);
+            return _controlBarAdapter.Apply(list);
         }
 
         /// <summary>

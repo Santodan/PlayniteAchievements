@@ -246,6 +246,7 @@
                 <Grid MinWidth="{Binding MinWidth}">
                     <TextBox x:Name="SearchTextBox"
                              Text="{Binding Text, UpdateSourceTrigger=PropertyChanged, Delay=100}"
+                             KeyDown="SearchTextBox_KeyDown"
                              Style="{StaticResource ClearableSearchTextBoxStyle}"/>
                     <TextBlock Text="{Binding Placeholder}"
                                VerticalAlignment="Center"

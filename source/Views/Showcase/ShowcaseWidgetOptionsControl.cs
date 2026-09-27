@@ -209,6 +209,11 @@ namespace PlayniteAchievements.Views.Showcase
                                 : Visibility.Collapsed;
                         },
                         MosaicContentName);
+                    AddToggle(
+                        panel,
+                        Localize("LOCPlayAch_Settings_ShowGridControlBar"),
+                        ShowcaseWidgetOptions.GetMosaicShowControlBar(_settings),
+                        value => ShowcaseWidgetOptions.SetMosaicShowControlBar(_settings, value));
                     panel.Children.Add(achievementMosaicPanel);
                     panel.Children.Add(gameMosaicPanel);
                     achievementMosaicPanel.Visibility =

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using PlayniteAchievements.Services.Achievements;
@@ -105,6 +106,20 @@ namespace PlayniteAchievements.Views.Controls
             {
                 search.Clear();
             }
+        }
+
+        // Enter submits the search: the delayed binding applies now, and focus leaves the box.
+        private void SearchTextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter || !(sender is TextBox textBox))
+            {
+                return;
+            }
+
+            BindingOperations.GetBindingExpression(textBox, TextBox.TextProperty)?.UpdateSource();
+            FocusManager.SetFocusedElement(FocusManager.GetFocusScope(textBox), null);
+            Keyboard.ClearFocus();
+            e.Handled = true;
         }
 
         private void ActionButton_Click(object sender, RoutedEventArgs e)
