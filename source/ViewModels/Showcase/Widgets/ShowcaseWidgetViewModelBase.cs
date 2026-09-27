@@ -52,6 +52,41 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     }
 
     /// <summary>
+    /// Base for the mosaic widgets. A refresh re-reads the layout options, then runs the tile
+    /// pass; a control-bar filter change runs only the tile pass. The projection hands over the
+    /// whole source, so the tile pass filters first and applies the Count cap after.
+    /// </summary>
+    public abstract class ShowcaseMosaicWidgetViewModelBase : ShowcaseWidgetViewModelBase
+    {
+        private bool _showControlBar;
+
+        /// <summary>Search/filter bar shown when the widget's Show Control Bar option is on.</summary>
+        public GridControlBarViewModel ControlBar { get; protected set; }
+
+        public bool ShowControlBar
+        {
+            get => _showControlBar;
+            private set => SetValue(ref _showControlBar, value);
+        }
+
+        protected sealed override void Refresh()
+        {
+            ShowControlBar = ShowcaseWidgetOptions.GetMosaicShowControlBar(Projection?.Instance);
+            RefreshLayout();
+            RefreshTiles();
+        }
+
+        /// <summary>Re-reads the widget's size, spacing and appearance options.</summary>
+        protected abstract void RefreshLayout();
+
+        /// <summary>
+        /// Filters the projected source (only while the control bar is shown, so a hidden bar
+        /// never leaves a filter behind), caps it at Count, sorts, and syncs the tiles in place.
+        /// </summary>
+        protected abstract void RefreshTiles();
+    }
+
+    /// <summary>
     /// Base for the widgets that render one of the shared data grids. They differ only in the
     /// row type, which projection slice feeds them, and their persisted column surface; the
     /// per-instance surface key and the grid's display-options record are handled here.
