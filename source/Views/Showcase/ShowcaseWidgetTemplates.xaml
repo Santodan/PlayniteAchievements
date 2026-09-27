@@ -67,8 +67,11 @@
                  shadows on the foreground elements keep them legible over the art. An
                  OpacityMask only samples alpha, so the white gradient stops carry no tint.
                  A full-bleed banner follows the card's rounded corners through the widget
-                 host's rounded clip. -->
+                 host's rounded clip. Center alignment keeps the overflowing UniformToFill art
+                 centered in the card; Stretch alignment anchors the overflow at the top-left. -->
             <Image Stretch="UniformToFill"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
                    IsHitTestVisible="False"
                    Visibility="{Binding HasBackground, Converter={StaticResource BoolToVis}}"
                    helpers:AsyncImage.Uri="{Binding BackgroundPath}"
