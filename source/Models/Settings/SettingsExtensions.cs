@@ -64,7 +64,6 @@ namespace PlayniteAchievements.Models.Settings
             target.FriendsPeriodicUpdateHours = source.FriendsPeriodicUpdateHours;
             target.EnableInGamePolling = source.EnableInGamePolling;
             target.EnableAutoCapstoneGeneration = source.EnableAutoCapstoneGeneration;
-            target.AutoCapstonesMigrated = source.AutoCapstonesMigrated;
             target.InGamePollIntervalSeconds = source.InGamePollIntervalSeconds;
             target.InGamePollRefreshFriends = source.InGamePollRefreshFriends;
             target.InGameFriendRefreshMultiplier = source.InGameFriendRefreshMultiplier;
