@@ -81,17 +81,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ControlBar = _controlBarSlot.Adapter.ControlBar;
             }
 
-            // The filter stays in effect while the bar is hidden; only the dropdown's options,
-            // which nothing can see then, skip their refresh.
+            // The filter stays in effect while the bar is hidden. The dropdown lists the whole
+            // library's platforms and rebuilds only when the library's games change.
             var adapter = _controlBarSlot.Adapter;
             var list = (Projection?.MosaicAchievements ?? Array.Empty<AchievementDisplayItem>())
                 .Where(item => item != null)
                 .ToList();
             adapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
-            if (ShowControlBar)
-            {
-                adapter.UpdateOptions(list);
-            }
 
             var capped = adapter.Apply(list).Take(ShowcaseWidgetOptions.GetMosaicCount(Projection?.Instance)).ToList();
 
