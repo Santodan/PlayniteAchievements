@@ -140,6 +140,95 @@
                 </StackPanel>
             </Border>
 
+            <!-- ================== LINKS ================== -->
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <Grid Margin="-4,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.Resources>
+                        <Style x:Key="LinkIconBoxStyle" TargetType="Viewbox">
+                            <Setter Property="Width" Value="20"/>
+                            <Setter Property="Height" Value="20"/>
+                            <Setter Property="Stretch" Value="Uniform"/>
+                            <Setter Property="Margin" Value="0,0,10,0"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                        <Style x:Key="LinkTitleStyle" TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                        </Style>
+                        <Style x:Key="LinkCaptionStyle" TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                            <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+                            <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Muted}"/>
+                            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                        </Style>
+                    </Grid.Resources>
+
+                    <Button Grid.Column="0" Style="{StaticResource CompactLinkButtonStyle}"
+                            Click="OpenLink_Click"
+                            Tag="https://github.com/justin-delano/PlayniteAchievements"
+                            ToolTip="https://github.com/justin-delano/PlayniteAchievements"
+                            AutomationProperties.Name="GitHub">
+                        <DockPanel>
+                            <Viewbox Style="{StaticResource LinkIconBoxStyle}">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="{StaticResource PlayAch.Geometry.Brand.GitHub}"
+                                          Fill="{DynamicResource PlayAch.Brush.Text}"/>
+                                </Canvas>
+                            </Viewbox>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="GitHub" Style="{StaticResource LinkTitleStyle}"/>
+                                <TextBlock Text="justin-delano/PlayniteAchievements" Style="{StaticResource LinkCaptionStyle}"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Button>
+
+                    <Button Grid.Column="1" Style="{StaticResource CompactLinkButtonStyle}"
+                            Click="OpenLink_Click"
+                            Tag="https://discord.gg/hSFvmN6"
+                            ToolTip="https://discord.gg/hSFvmN6"
+                            AutomationProperties.Name="Playnite Discord">
+                        <DockPanel>
+                            <Viewbox Style="{StaticResource LinkIconBoxStyle}">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="{StaticResource PlayAch.Geometry.Brand.Discord}"
+                                          Fill="{StaticResource PlayAch.Brush.Brand.Discord}"/>
+                                </Canvas>
+                            </Viewbox>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Playnite Discord" Style="{StaticResource LinkTitleStyle}"/>
+                                <TextBlock Text="#extensions-forum › PlayniteAchievements" Style="{StaticResource LinkCaptionStyle}"/>
+                                <TextBlock Text="#extensions-devel › PlayniteAchievements Dev" Style="{StaticResource LinkCaptionStyle}"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Button>
+
+                    <Button Grid.Column="2" Style="{StaticResource CompactLinkButtonStyle}"
+                            Click="OpenLink_Click"
+                            Tag="https://ko-fi.com/justindelano"
+                            ToolTip="https://ko-fi.com/justindelano"
+                            AutomationProperties.Name="Ko-fi">
+                        <DockPanel>
+                            <Viewbox Style="{StaticResource LinkIconBoxStyle}">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="{StaticResource PlayAch.Geometry.Brand.Kofi}"
+                                          Fill="{StaticResource PlayAch.Brush.Brand.Kofi}"/>
+                                </Canvas>
+                            </Viewbox>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Ko-fi" Style="{StaticResource LinkTitleStyle}"/>
+                                <TextBlock Text="ko-fi.com/justindelano" Style="{StaticResource LinkCaptionStyle}"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>
