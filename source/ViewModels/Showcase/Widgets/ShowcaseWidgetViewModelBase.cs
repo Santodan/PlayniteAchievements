@@ -285,7 +285,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 .Where(item => item != null)
                 .ToList();
             adapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
-            adapter.UpdateOptions(list);
             return adapter.Apply(list);
         }
 
@@ -365,7 +364,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var list = (items ?? Enumerable.Empty<GameSummaryItem>())
                 .Where(item => item != null)
                 .ToList();
-            adapter.UpdateOptions(list);
+            // The dropdown lists the whole library's platforms, not only the ones shown now.
+            adapter.UpdateOptions(Projection?.Snapshot?.GameSummaries);
             return adapter.Apply(list);
         }
 

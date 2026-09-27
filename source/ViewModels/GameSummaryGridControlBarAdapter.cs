@@ -128,9 +128,66 @@ namespace PlayniteAchievements.ViewModels
             ProviderFilterGroups = ProviderFilterGroupBuilder.Rebuild(
                 games,
                 ProviderFilterGroups,
-                OnProviderFilterSelectionChanged);
+                OnProviderFilterSelectionChanged,
+                PendingPlatformSelections);
+            PendingPlatformSelections = null;
             OnPropertyChanged(nameof(SelectedProviderFilterText));
             ControlBar.Refresh();
+        }
+
+        public override string StateKey => "ControlBar.Games";
+
+        public override ControlBarFilterState CaptureState()
+        {
+            return new ControlBarFilterState
+            {
+                SearchText = SearchText,
+                Platforms = CapturePlatformSelections(ProviderFilterGroups),
+                Progress = SelectedPositions(ProgressFilterOptions, _selectedProgressFilters),
+                Activity = SelectedPositions(ActivityFilterOptions, _selectedActivityFilters)
+            };
+        }
+
+        public override void RestoreState(ControlBarFilterState state)
+        {
+            if (state == null)
+            {
+                return;
+            }
+
+            _searchText = state.SearchText ?? string.Empty;
+            PendingPlatformSelections = state.Platforms;
+            RestorePositions(ProgressFilterOptions, _selectedProgressFilters, state.Progress);
+            RestorePositions(ActivityFilterOptions, _selectedActivityFilters, state.Activity);
+            OnPropertyChanged(nameof(SearchText));
+            OnPropertyChanged(nameof(SelectedProgressFilterText));
+            OnPropertyChanged(nameof(SelectedActivityFilterText));
+        }
+
+        private static List<int> SelectedPositions(IList<string> options, HashSet<string> selected)
+        {
+            var positions = new List<int>();
+            for (var i = 0; i < options.Count; i++)
+            {
+                if (selected.Contains(options[i]))
+                {
+                    positions.Add(i);
+                }
+            }
+
+            return positions;
+        }
+
+        private static void RestorePositions(IList<string> options, HashSet<string> selected, IEnumerable<int> positions)
+        {
+            selected.Clear();
+            foreach (var position in positions ?? Enumerable.Empty<int>())
+            {
+                if (position >= 0 && position < options.Count && !string.IsNullOrWhiteSpace(options[position]))
+                {
+                    selected.Add(options[position].Trim());
+                }
+            }
         }
 
         public void Clear()
