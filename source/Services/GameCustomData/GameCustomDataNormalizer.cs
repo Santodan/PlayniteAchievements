@@ -167,6 +167,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.UseSeparateLockedIconsOverride == true ||
                    !string.IsNullOrWhiteSpace(data.ManualCapstoneApiName) ||
                    data.CapstonesMaterialized ||
+                   // Kept alone as well: dropping a record that carries only this would let
+                   // generation author the capstone the user removed all over again.
+                   data.AutoCapstoneGenerated ||
                    (data.AchievementOrder != null && data.AchievementOrder.Count > 0) ||
                    (data.AchievementCategoryOverrides != null && data.AchievementCategoryOverrides.Count > 0) ||
                    (data.AchievementCategoryTypeOverrides != null && data.AchievementCategoryTypeOverrides.Count > 0) ||
@@ -293,6 +296,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     ? existing.ManualCapstoneApiName
                     : legacy.ManualCapstoneApiName,
                 CapstonesMaterialized = existing.CapstonesMaterialized || legacy.CapstonesMaterialized,
+                AutoCapstoneGenerated = existing.AutoCapstoneGenerated || legacy.AutoCapstoneGenerated,
                 Capstones = NormalizeCapstoneList(existing.CapstonesMaterialized ? existing.Capstones : legacy.Capstones),
                 AchievementOrder = existing.AchievementOrder != null && existing.AchievementOrder.Count > 0
                     ? new List<string>(existing.AchievementOrder)
