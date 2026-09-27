@@ -144,6 +144,7 @@ namespace PlayniteAchievements
         private TagSyncService _tagSyncService;
         private AutoCapstoneMaintainer _autoCapstoneMaintainer;
         private AutoCapstoneGenerator _autoCapstoneGenerator;
+        private AutoCapstoneAuthoring _autoCapstoneAuthoring;
 
         /// <summary>
         /// Games added to the library but not yet refreshed. Held until OnLibraryUpdated so the
@@ -174,6 +175,7 @@ namespace PlayniteAchievements
         public RefreshRuntime RefreshRuntime => _refreshService;
         public AchievementOverridesService AchievementOverridesService => _achievementOverridesService;
         public AutoCapstoneMaintainer AutoCapstoneMaintainer => _autoCapstoneMaintainer;
+        public AutoCapstoneAuthoring AutoCapstoneAuthoring => _autoCapstoneAuthoring;
         public AchievementMarkerToggle AchievementMarkerToggle => _achievementMarkerToggle;
         public AchievementDataService AchievementDataService => _achievementDataService;
         public MemoryImageService ImageService => _imageService;
@@ -709,12 +711,18 @@ namespace PlayniteAchievements
                         gameId => _achievementDataService?.GetGameAchievementData(gameId),
                         NotifyAchievementUnlocked,
                         _logger);
-                    _autoCapstoneGenerator = new AutoCapstoneGenerator(
+                    // One author for the editor's button and automatic generation alike.
+                    _autoCapstoneAuthoring = new AutoCapstoneAuthoring(
                         _gameCustomDataStore,
                         _achievementOverridesService,
                         gameId => _achievementDataService?.GetGameAchievementData(gameId),
-                        () => _settingsViewModel?.Settings?.Persisted?.EnableAutoCapstoneGeneration == true,
                         () => _managedCustomIconService,
+                        _logger);
+                    _autoCapstoneGenerator = new AutoCapstoneGenerator(
+                        _gameCustomDataStore,
+                        _achievementOverridesService,
+                        _autoCapstoneAuthoring,
+                        () => _settingsViewModel?.Settings?.Persisted?.EnableAutoCapstoneGeneration == true,
                         _logger);
 
                     // Maintained first and in line, so a capstone this refresh finished is announced
