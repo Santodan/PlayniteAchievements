@@ -776,6 +776,13 @@ namespace PlayniteAchievements
                         _refreshService,
                         (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
                         NotifyAchievementUnlocked);
+
+                    // A running game's unlocks are announced by the monitor once its write or
+                    // refresh returns, so a capstone that write finished is held for the monitor
+                    // to send after the achievement that earned it.
+                    _autoCapstoneMaintainer.DefersAnnouncements = gameId => _inGameMonitor?.IsMonitoring(gameId) == true;
+                    _inGameMonitor.MaintainCapstones = gameId => _autoCapstoneMaintainer?.Maintain(gameId);
+                    _inGameMonitor.TakeCapstoneAnnouncements = _autoCapstoneMaintainer.TakePendingAnnouncements;
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
                     // Create tag sync service
