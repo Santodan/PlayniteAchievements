@@ -16,6 +16,47 @@ namespace PlayniteAchievements.ViewModels
 
         public abstract GridControlBarViewModel ControlBar { get; }
 
+        /// <summary>Names this adapter's saved state among a widget's options; one per adapter type.</summary>
+        public abstract string StateKey { get; }
+
+        /// <summary>The current search text and filter selections, in a form that can be saved.</summary>
+        public abstract ControlBarFilterState CaptureState();
+
+        /// <summary>
+        /// Restores saved state without raising a filter change. Platform selections wait for the
+        /// next options rebuild, since the dropdown's groups are built from the games.
+        /// </summary>
+        public abstract void RestoreState(ControlBarFilterState state);
+
+        /// <summary>Restored platform selections not yet folded into a rebuild of the groups.</summary>
+        protected Dictionary<string, List<string>> PendingPlatformSelections { get; set; }
+
+        protected Dictionary<string, List<string>> CapturePlatformSelections(IEnumerable<ProviderFilterGroup> groups)
+        {
+            var result = PendingPlatformSelections != null
+                ? new Dictionary<string, List<string>>(PendingPlatformSelections, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var group in groups ?? new List<ProviderFilterGroup>())
+            {
+                if (group == null || string.IsNullOrWhiteSpace(group.ProviderKey))
+                {
+                    continue;
+                }
+
+                var selected = new List<string>(group.SelectedPlatformNames);
+                if (selected.Count > 0)
+                {
+                    result[group.ProviderKey] = selected;
+                }
+                else
+                {
+                    result.Remove(group.ProviderKey);
+                }
+            }
+
+            return result;
+        }
+
         /// <summary>Adds a filter-change listener. The caller must hold a strong reference to it.</summary>
         public void AddFilterListener(Action listener)
         {
@@ -52,5 +93,21 @@ namespace PlayniteAchievements.ViewModels
                 listener();
             }
         }
+    }
+
+    /// <summary>
+    /// A control bar's saved state. Platforms map a provider key to its selected platform names.
+    /// Progress and Activity hold option positions rather than labels, so the saved choice
+    /// survives a change of Playnite language.
+    /// </summary>
+    public sealed class ControlBarFilterState
+    {
+        public string SearchText { get; set; }
+
+        public Dictionary<string, List<string>> Platforms { get; set; }
+
+        public List<int> Progress { get; set; }
+
+        public List<int> Activity { get; set; }
     }
 }
