@@ -105,11 +105,13 @@ namespace PlayniteAchievements.Services.Achievements
                 var current = definitions[index];
                 var apiName = CustomAchievementProjectionService.BuildApiName(current.Id);
 
-                // Everything in its own category except itself: it stands for the others, so
-                // counting itself would leave it waiting on its own unlock.
-                var derived = AutoCapstoneCalculator.Derive(
-                    gameData?.Achievements?.Where(achievement =>
-                        !string.Equals(achievement?.ApiName, apiName, StringComparison.OrdinalIgnoreCase)),
+                // Everything it stands for except itself, so it is not left waiting on its own
+                // unlock. The scope comes from its hydrated row: the definition's category is only
+                // ever the default, while the category the user filed it in lives in the overrides.
+                var derived = AutoCapstoneCalculator.DeriveForCapstone(
+                    gameData?.Achievements,
+                    apiName,
+                    current.IsWholeGameAutoCapstone,
                     current.Category);
                 if (derived == null)
                 {
