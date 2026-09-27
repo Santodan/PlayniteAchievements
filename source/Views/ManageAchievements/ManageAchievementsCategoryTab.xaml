@@ -708,20 +708,22 @@
                                                 Header="{DynamicResource LOCPlayAch_Menu_Filters}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <!-- One way: picking a scope pushes it onto every achievement in
-                                         this category and its subcategories, and the cell then shows
-                                         what they hold. The OneWay binding keeps the view model the
-                                         single writer, and a subtree whose members disagree carries
-                                         Mixed, which matches no item and so renders blank. -->
-                                    <ComboBox ItemsSource="{Binding DataContext.FilterScopeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                              DisplayMemberPath="DisplayName"
-                                              SelectedValuePath="Value"
-                                              SelectedValue="{Binding FilterScope, Mode=OneWay}"
-                                              IsEnabled="{Binding CanEditFilterScope}"
-                                              SelectionChanged="CategoryFilterScopeComboBox_SelectionChanged"
-                                              ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_FilterScopeTooltip}"
-                                              VerticalAlignment="Center"
-                                              Margin="4,0" />
+                                    <!-- A button with a menu built per click, as in the Editor's
+                                         Filters column, rather than a ComboBox: a recycled combo
+                                         raises SelectionChanged while it rebinds, which wrote one
+                                         row's scope onto another during scrolling. A click only
+                                         comes from the user. Picking a scope pushes it onto this
+                                         category's own achievements, and the face then shows what
+                                         they hold, blank when they disagree. -->
+                                    <Button Content="{Binding FilterScopeDisplayText}"
+                                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                                            IsEnabled="{Binding CanEditFilterScope}"
+                                            Click="CategoryFilterScopeButton_Click"
+                                            ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_FilterScopeTooltip}"
+                                            MinHeight="22"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Center"
+                                            Margin="4,0" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
