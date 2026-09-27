@@ -23,6 +23,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly Dictionary<Guid, GameSummaryItem> _gamesById = new Dictionary<Guid, GameSummaryItem>();
         private IReadOnlyList<GameSummaryItem> _gamesSource;
         private int _gamesSourceCount;
+        private List<GameSummaryItem> _optionGames;
         private string _searchText = string.Empty;
         private ObservableCollection<ProviderFilterGroup> _providerFilterGroups =
             new ObservableCollection<ProviderFilterGroup>();
@@ -91,8 +92,17 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>Rebuilds the dropdown from the games behind <paramref name="rows"/>, keeping selections.</summary>
         public void UpdateOptions(IEnumerable<AchievementDisplayItem> rows)
         {
+            // A filter pass re-feeds the same rows; rebuilding then would swap the groups out
+            // from under an open dropdown, so a toggle there would land on a discarded group.
+            var games = ResolveGames(rows);
+            if (ProviderFilterGroupBuilder.HasSameGames(_optionGames, games))
+            {
+                return;
+            }
+
+            _optionGames = games;
             ProviderFilterGroups = ProviderFilterGroupBuilder.Rebuild(
-                ResolveGames(rows),
+                games,
                 ProviderFilterGroups,
                 OnProviderFilterSelectionChanged);
             OnPropertyChanged(nameof(SelectedProviderFilterText));
