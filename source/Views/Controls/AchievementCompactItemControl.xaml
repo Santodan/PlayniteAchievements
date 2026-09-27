@@ -315,7 +315,7 @@
                         </Style.Triggers>
                 </Style>
             </Grid.Style>
-            <ProgressBar Height="12"
+            <ProgressBar Height="14"
                          Maximum="100"
                          Value="{Binding RarityPercentValue, Mode=OneWay}"
                          Background="{StaticResource PlayAch.Brush.Overlay.Shade.80}"
@@ -327,7 +327,7 @@
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       FontSize="10"
+                       FontSize="12"
                        Foreground="Black"
                        IsHitTestVisible="False">
                 <TextBlock.Effect>
@@ -338,7 +338,7 @@
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       FontSize="10"
+                       FontSize="12"
                        Foreground="White"/>
         </Grid>
     </Grid>
