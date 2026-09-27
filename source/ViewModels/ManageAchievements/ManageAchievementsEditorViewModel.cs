@@ -487,8 +487,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void GameCustomDataStore_CustomDataWritten(object sender, GameCustomDataWrittenEventArgs e)
         {
-            if (e == null || e.PlayniteGameId != _gameId)
+            if (e == null || e.PlayniteGameId != _gameId || _isDetached)
             {
+                return;
+            }
+
+            // The store raises this on whichever thread wrote, and the history and its step timer
+            // belong to the UI thread. Queued rather than waited on, so a writer holding a lock the
+            // UI thread wants cannot stall on it.
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.BeginInvoke(new Action(() => GameCustomDataStore_CustomDataWritten(sender, e)));
                 return;
             }
 
