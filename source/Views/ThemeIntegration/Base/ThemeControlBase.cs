@@ -888,6 +888,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 [nameof(ModernThemeBindings.AchievementsOldestFirst)] = nameof(AchievementsOldestFirst),
                 [nameof(ModernThemeBindings.AchievementsRarityAsc)] = nameof(AchievementsRarityAsc),
                 [nameof(ModernThemeBindings.AchievementsRarityDesc)] = nameof(AchievementsRarityDesc),
+                [nameof(ModernThemeBindings.LatestAchievementData)] = nameof(LatestAchievementData),
+                [nameof(ModernThemeBindings.HasLatestAchievementData)] = nameof(HasLatestAchievementData),
                 [nameof(ModernThemeBindings.DynamicAchievements)] = nameof(DynamicAchievements),
                 [nameof(ModernThemeBindings.DynamicAchievementsGameKey)] = nameof(DynamicAchievementsGameKey),
                 [nameof(ModernThemeBindings.DynamicAchievementsGameLabel)] = nameof(DynamicAchievementsGameLabel),
@@ -1042,6 +1044,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             nameof(AchievementsOldestFirst),
             nameof(AchievementsRarityAsc),
             nameof(AchievementsRarityDesc),
+            nameof(LatestAchievementData),
+            nameof(HasLatestAchievementData),
             nameof(DynamicAchievements),
             nameof(DynamicAchievementsGameKey),
             nameof(DynamicAchievementsGameLabel),
@@ -1362,6 +1366,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         public List<AchievementDetail> AchievementsRarityAsc => _modernThemeOverride?.AchievementsRarityAsc ?? _settings?.AchievementsRarityAsc ?? EmptyAchievementList;
 
         public List<AchievementDetail> AchievementsRarityDesc => _modernThemeOverride?.AchievementsRarityDesc ?? _settings?.AchievementsRarityDesc ?? EmptyAchievementList;
+
+        // Null means "no unlocks", so an override answers even when its value is null.
+        public AchievementDetail LatestAchievementData => _modernThemeOverride != null
+            ? _modernThemeOverride.LatestAchievementData
+            : _settings?.LatestAchievementData;
+
+        public bool HasLatestAchievementData => LatestAchievementData != null;
 
         public List<AchievementDetail> DynamicAchievements => _modernThemeOverride?.DynamicAchievements ?? _settings?.DynamicAchievements ?? EmptyAchievementList;
 
