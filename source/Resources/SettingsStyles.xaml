@@ -133,6 +133,16 @@
         </Setter>
     </Style>
 
+    <!-- Smaller left-aligned variant of ProminentLinkButtonStyle for the external links row. -->
+    <Style x:Key="CompactLinkButtonStyle" TargetType="Button" BasedOn="{StaticResource ProminentLinkButtonStyle}">
+        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="Margin" Value="4,0"/>
+        <Setter Property="MinWidth" Value="0"/>
+        <Setter Property="MinHeight" Value="40"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
     <Style x:Key="SectionBorderStyle" TargetType="Border" BasedOn="{StaticResource PlayAch.SectionBorderStyle}"/>
 
 
