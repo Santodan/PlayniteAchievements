@@ -1266,6 +1266,58 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// Removes a game's auto capstones and clears its generation marker, so generation handles
+        /// it afresh. Temporary, for testing generation; a platinum that generation nominated
+        /// stays nominated, since nothing records which nominations it made.
+        /// </summary>
+        /// <returns>True when the game had anything to clear.</returns>
+        public bool ClearAutoCapstones(Guid gameId)
+        {
+            if (gameId == Guid.Empty ||
+                !_gameCustomDataStore.TryLoad(gameId, out var stored) ||
+                stored == null ||
+                (!stored.AutoCapstoneGenerated &&
+                 stored.CustomAchievements?.Any(definition => definition?.IsAutoCapstone == true) != true))
+            {
+                return false;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                var removed = new HashSet<string>(
+                    (customData.CustomAchievements ?? new List<CustomAchievementDefinition>())
+                        .Where(definition => definition?.IsAutoCapstone == true)
+                        .Select(definition => CustomAchievementProjectionService.BuildApiName(definition.Id)),
+                    StringComparer.OrdinalIgnoreCase);
+
+                if (removed.Count > 0)
+                {
+                    customData.CustomAchievements = customData.CustomAchievements
+                        .Where(definition => definition != null && !definition.IsAutoCapstone)
+                        .ToList();
+                    customData.Capstones = customData.Capstones?
+                        .Where(assignment => !removed.Contains((assignment?.ApiName ?? string.Empty).Trim()))
+                        .ToList();
+                    customData.AchievementOrder = customData.AchievementOrder?
+                        .Where(apiName => !removed.Contains((apiName ?? string.Empty).Trim()))
+                        .ToList();
+
+                    var overrides = CloneOverrides(customData);
+                    foreach (var apiName in removed)
+                    {
+                        overrides.Remove(apiName);
+                    }
+
+                    StoreOverrides(customData, overrides);
+                }
+
+                customData.AutoCapstoneGenerated = false;
+            });
+
+            return true;
+        }
+
+        /// <summary>
         /// Marks a game as handled by automatic capstone generation without adding anything, for a
         /// game that already had its capstone or whose platinum was nominated instead.
         /// </summary>
