@@ -1278,9 +1278,6 @@ namespace PlayniteAchievements
                 // no device-open or decode cost; a settings save re-applies the same step.
                 System.Threading.Tasks.Task.Run(() => OnSettingsSavedForUnlockSounds(this, EventArgs.Empty));
 
-                // Once, off the UI thread: it reads each affected game's hydrated achievements.
-                RunAutoCapstoneMigrationOnce();
-
                 // Warm the overview/start-page projection now that the game library is loaded, so
                 // resolved game presentation (cover, icon, playtime, last played, metadata) reflects
                 // Playnite's populated database rather than the blank values an early startup warm
@@ -1376,54 +1373,6 @@ namespace PlayniteAchievements
 
                 RestartBackgroundUpdater();
             }
-        }
-
-        /// <summary>
-        /// Brings auto capstones from earlier versions in line with the current wording, scope and
-        /// filing, the first time this version starts.
-        /// </summary>
-        private void RunAutoCapstoneMigrationOnce()
-        {
-            var persisted = _settingsViewModel?.Settings?.Persisted;
-            if (persisted == null || persisted.AutoCapstonesMigrated || _autoCapstoneAuthoring == null)
-            {
-                return;
-            }
-
-            Task.Run(() =>
-            {
-                try
-                {
-                    var migrated = AutoCapstoneMigration.Run(
-                        _gameCustomDataStore,
-                        _achievementOverridesService,
-                        _autoCapstoneAuthoring,
-                        _autoCapstoneMaintainer,
-                        _logger);
-                    _logger?.Info($"Auto capstone migration updated {migrated} game(s).");
-                }
-                catch (Exception ex)
-                {
-                    // Left unflagged so the next start tries again.
-                    _logger?.Warn(ex, "Auto capstone migration failed.");
-                    return;
-                }
-
-                var dispatcher = PlayniteApi?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-                Action flag = () =>
-                {
-                    persisted.AutoCapstonesMigrated = true;
-                    PersistSettingsForUi();
-                };
-                if (dispatcher != null)
-                {
-                    dispatcher.BeginInvoke(flag);
-                }
-                else
-                {
-                    flag();
-                }
-            });
         }
 
         /// <summary>
