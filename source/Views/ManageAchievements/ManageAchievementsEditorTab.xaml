@@ -626,7 +626,7 @@
                                              starts a drag, which the reorder behavior decides by
                                              column rather than by what was hit. The arrow cursor
                                              marks it as something to read rather than drag. -->
-                                        <Border Width="18"
+                                        <Border Width="14"
                                                 HorizontalAlignment="Left"
                                                 VerticalAlignment="Stretch"
                                                 Margin="-4,0,0,0"
@@ -646,6 +646,7 @@
                                         <TextBlock Tag="DragHandle"
                                                    Text="&#x2630;"
                                                    HorizontalAlignment="Center"
+                                                   Margin="8,0,0,0"
                                                    VerticalAlignment="Center"
                                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                    Opacity="0.65" />
