@@ -15,7 +15,7 @@ namespace PlayniteAchievements.ViewModels
     /// row carries no platform of its own, so the dropdown and its filter go through the game
     /// summary each row belongs to.
     /// </summary>
-    public sealed class CrossGameAchievementControlBarAdapter : PlayniteAchievements.Common.ObservableObject
+    public sealed class CrossGameAchievementControlBarAdapter : SharedControlBarAdapter
     {
         private readonly SearchTextIndex<AchievementDisplayItem> _searchIndex =
             new SearchTextIndex<AchievementDisplayItem>(item =>
@@ -33,9 +33,7 @@ namespace PlayniteAchievements.ViewModels
             ControlBar = CreateControlBar();
         }
 
-        public event EventHandler FilterChanged;
-
-        public GridControlBarViewModel ControlBar { get; }
+        public override GridControlBarViewModel ControlBar { get; }
 
         public string SearchText
         {
@@ -195,11 +193,6 @@ namespace PlayniteAchievements.ViewModels
         {
             OnPropertyChanged(nameof(SelectedProviderFilterText));
             RaiseFilterChanged();
-        }
-
-        private void RaiseFilterChanged()
-        {
-            FilterChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 }

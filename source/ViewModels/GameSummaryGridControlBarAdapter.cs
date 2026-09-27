@@ -11,7 +11,7 @@ using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels
 {
-    public sealed class GameSummaryGridControlBarAdapter : PlayniteAchievements.Common.ObservableObject
+    public sealed class GameSummaryGridControlBarAdapter : SharedControlBarAdapter
     {
         private readonly SearchTextIndex<GameSummaryItem> _searchIndex =
             new SearchTextIndex<GameSummaryItem>(item =>
@@ -41,9 +41,7 @@ namespace PlayniteAchievements.ViewModels
             ControlBar = CreateControlBar();
         }
 
-        public event EventHandler FilterChanged;
-
-        public GridControlBarViewModel ControlBar { get; }
+        public override GridControlBarViewModel ControlBar { get; }
 
         public string SearchText
         {
@@ -93,11 +91,11 @@ namespace PlayniteAchievements.ViewModels
                 .Where(item => item != null)
                 .ToList();
 
-            _searchIndex.Rebuild(items);
             IEnumerable<GameSummaryItem> filtered = items;
             var searchQuery = SearchQuery.From(SearchText);
             if (searchQuery.HasValue)
             {
+                _searchIndex.Rebuild(items);
                 filtered = filtered.Where(item => _searchIndex.Matches(item, searchQuery));
             }
 
@@ -233,11 +231,6 @@ namespace PlayniteAchievements.ViewModels
         {
             OnPropertyChanged(nameof(SelectedProviderFilterText));
             RaiseFilterChanged();
-        }
-
-        private void RaiseFilterChanged()
-        {
-            FilterChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private static bool IsFilterSelected(HashSet<string> selectedValues, string value)

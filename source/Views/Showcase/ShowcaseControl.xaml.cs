@@ -1696,6 +1696,9 @@ namespace PlayniteAchievements.Views.Showcase
 
                 _hostCache.Remove(staleId);
             }
+
+            // Deleted widgets' control bar state goes with them.
+            PlayniteAchievements.ViewModels.Showcase.Widgets.ShowcaseControlBarStates.RemoveExcept(live);
         }
 
         // Reuses the cached control for this widget when there is one, otherwise builds a fresh
