@@ -91,11 +91,11 @@ namespace PlayniteAchievements.ViewModels
                 .Where(item => item != null)
                 .ToList();
 
-            _searchIndex.Rebuild(items);
             IEnumerable<GameSummaryItem> filtered = items;
             var searchQuery = SearchQuery.From(SearchText);
             if (searchQuery.HasValue)
             {
+                _searchIndex.Rebuild(items);
                 filtered = filtered.Where(item => _searchIndex.Matches(item, searchQuery));
             }
 
