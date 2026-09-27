@@ -32,7 +32,7 @@
             <TabItem x:Name="GeneralTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_General}">
                 <TabItem.Header>
                     <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
-                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEF39;"/>
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xE713;"/>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Common_General}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
@@ -43,7 +43,7 @@
             <TabItem x:Name="ProvidersTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}">
                 <TabItem.Header>
                     <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
-                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xef7b;"/>
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xE753;"/>
                         <TextBlock Text="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
@@ -59,7 +59,7 @@
                      Visibility="{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}">
                 <TabItem.Header>
                     <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
-                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xED0D;"/>
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xE716;"/>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Friends}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
@@ -70,7 +70,7 @@
             <TabItem x:Name="DisplayTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_TabDisplay}">
                 <TabItem.Header>
                     <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
-                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEFB3;"/>
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xE7F4;"/>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TabDisplay}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
@@ -81,7 +81,7 @@
             <TabItem x:Name="ThemesTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_Display_Themes}">
                 <TabItem.Header>
                     <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
-                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEFD2;"/>
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xE771;"/>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_Themes}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
@@ -92,7 +92,7 @@
             <TabItem x:Name="NotificationsTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_TabNotifications}">
                 <TabItem.Header>
                     <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
-                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEFAC;"/>
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEA8F;"/>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TabNotifications}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
