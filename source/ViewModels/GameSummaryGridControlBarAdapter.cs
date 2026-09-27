@@ -11,7 +11,7 @@ using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels
 {
-    public sealed class GameSummaryGridControlBarAdapter : PlayniteAchievements.Common.ObservableObject
+    public sealed class GameSummaryGridControlBarAdapter : SharedControlBarAdapter
     {
         private readonly SearchTextIndex<GameSummaryItem> _searchIndex =
             new SearchTextIndex<GameSummaryItem>(item =>
@@ -21,6 +21,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly HashSet<string> _selectedActivityFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private string _searchText = string.Empty;
+        private List<GameSummaryItem> _optionGames;
         private ObservableCollection<ProviderFilterGroup> _providerFilterGroups =
             new ObservableCollection<ProviderFilterGroup>();
 
@@ -40,9 +41,7 @@ namespace PlayniteAchievements.ViewModels
             ControlBar = CreateControlBar();
         }
 
-        public event EventHandler FilterChanged;
-
-        public GridControlBarViewModel ControlBar { get; }
+        public override GridControlBarViewModel ControlBar { get; }
 
         public string SearchText
         {
@@ -92,11 +91,11 @@ namespace PlayniteAchievements.ViewModels
                 .Where(item => item != null)
                 .ToList();
 
-            _searchIndex.Rebuild(items);
             IEnumerable<GameSummaryItem> filtered = items;
             var searchQuery = SearchQuery.From(SearchText);
             if (searchQuery.HasValue)
             {
+                _searchIndex.Rebuild(items);
                 filtered = filtered.Where(item => _searchIndex.Matches(item, searchQuery));
             }
 
@@ -117,8 +116,17 @@ namespace PlayniteAchievements.ViewModels
 
         public void UpdateOptions(IEnumerable<GameSummaryItem> source)
         {
+            // A filter pass re-feeds the same games; rebuilding then would swap the groups out
+            // from under an open dropdown, so a toggle there would land on a discarded group.
+            var games = (source ?? Enumerable.Empty<GameSummaryItem>()).ToList();
+            if (ProviderFilterGroupBuilder.HasSameGames(_optionGames, games))
+            {
+                return;
+            }
+
+            _optionGames = games;
             ProviderFilterGroups = ProviderFilterGroupBuilder.Rebuild(
-                source,
+                games,
                 ProviderFilterGroups,
                 OnProviderFilterSelectionChanged);
             OnPropertyChanged(nameof(SelectedProviderFilterText));
@@ -128,6 +136,7 @@ namespace PlayniteAchievements.ViewModels
         public void Clear()
         {
             _searchIndex.Clear();
+            _optionGames = null;
             UpdateOptions(null);
         }
 
@@ -222,11 +231,6 @@ namespace PlayniteAchievements.ViewModels
         {
             OnPropertyChanged(nameof(SelectedProviderFilterText));
             RaiseFilterChanged();
-        }
-
-        private void RaiseFilterChanged()
-        {
-            FilterChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private static bool IsFilterSelected(HashSet<string> selectedValues, string value)

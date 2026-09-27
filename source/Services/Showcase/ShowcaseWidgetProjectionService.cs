@@ -256,7 +256,7 @@ namespace PlayniteAchievements.Services.Showcase
                                 settings,
                                 ShowcaseWidgetOptions.GetPinCollectionId(instance))?.CollectionId;
                         }
-                        result.Games = ResolveGameMosaic(snapshot, settings, instance);
+                        result.Games = ResolveGameMosaic(snapshot, settings, instance, int.MaxValue);
                         break;
                     }
 
@@ -266,7 +266,7 @@ namespace PlayniteAchievements.Services.Showcase
                             settings,
                             ShowcaseWidgetOptions.GetPinCollectionId(instance))?.CollectionId;
                     }
-                    result.MosaicAchievements = ResolveMosaic(snapshot, settings, instance);
+                    result.MosaicAchievements = ResolveMosaic(snapshot, settings, instance, int.MaxValue);
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:
                     // The collapsed Achievements Grid: every unlocked achievement by default, a pin
@@ -840,10 +840,21 @@ namespace PlayniteAchievements.Services.Showcase
         public static IReadOnlyList<GameSummaryItem> ResolveGameMosaic(
             OverviewDataSnapshot snapshot,
             ShowcaseSettings settings,
-            ShowcaseWidgetInstanceSettings instance)
+            ShowcaseWidgetInstanceSettings instance) =>
+            ResolveGameMosaic(snapshot, settings, instance, ShowcaseWidgetOptions.GetGameMosaicCount(instance));
+
+        /// <summary>
+        /// The game mosaic's source rows in source order, capped at <paramref name="count"/>. The
+        /// widget projection passes no cap so the control-bar filter reaches the whole source,
+        /// and the widget applies the Count option after filtering.
+        /// </summary>
+        public static IReadOnlyList<GameSummaryItem> ResolveGameMosaic(
+            OverviewDataSnapshot snapshot,
+            ShowcaseSettings settings,
+            ShowcaseWidgetInstanceSettings instance,
+            int count)
         {
             var summaries = snapshot?.GameSummaries ?? new List<GameSummaryItem>();
-            var count = ShowcaseWidgetOptions.GetGameMosaicCount(instance);
             IEnumerable<GameSummaryItem> games;
             switch (ShowcaseWidgetOptions.GetGameMosaicSource(instance))
             {
@@ -1093,10 +1104,22 @@ namespace PlayniteAchievements.Services.Showcase
         public static IReadOnlyList<AchievementDisplayItem> ResolveMosaic(
             OverviewDataSnapshot snapshot,
             ShowcaseSettings settings,
-            ShowcaseWidgetInstanceSettings instance)
+            ShowcaseWidgetInstanceSettings instance) =>
+            ResolveMosaic(snapshot, settings, instance, ShowcaseWidgetOptions.GetMosaicCount(instance));
+
+        /// <summary>
+        /// The achievement mosaic's source rows in source order, capped at <paramref name="count"/>.
+        /// The widget projection passes no cap so the control-bar filter reaches the whole source,
+        /// and the widget applies the Count option after filtering. Unlock Next walks its ranking
+        /// greedily, so a later cap keeps the same rows a capped call returns.
+        /// </summary>
+        public static IReadOnlyList<AchievementDisplayItem> ResolveMosaic(
+            OverviewDataSnapshot snapshot,
+            ShowcaseSettings settings,
+            ShowcaseWidgetInstanceSettings instance,
+            int count)
         {
             var source = ShowcaseWidgetOptions.GetMosaicSource(instance);
-            var count = ShowcaseWidgetOptions.GetMosaicCount(instance);
             IEnumerable<AchievementDisplayItem> achievements;
             switch (source)
             {

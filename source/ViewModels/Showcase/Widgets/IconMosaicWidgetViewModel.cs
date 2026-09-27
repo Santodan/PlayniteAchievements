@@ -16,8 +16,10 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// Icon size follows density (compact 32 / standard 42 / expanded 54); every size shows the
     /// same icons. Rarity-glow appearance comes from the widget's own per-instance options.
     /// </summary>
-    public sealed class IconMosaicWidgetViewModel : ShowcaseWidgetViewModelBase
+    public sealed class IconMosaicWidgetViewModel : ShowcaseMosaicWidgetViewModelBase
     {
+        // The widget instance's shared adapter, so the filters survive view model swaps.
+        private readonly ShowcaseControlBarSlot<CrossGameAchievementControlBarAdapter> _controlBarSlot;
         private double _iconSize = 42;
         private Thickness _tileMargin = new Thickness(6);
         private bool _showRarityGlow = true;
@@ -48,9 +50,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public bool AnimateRarityGlows { get => _animateRarityGlows; private set => SetValue(ref _animateRarityGlows, value); }
 
-        protected override void Refresh()
+        public IconMosaicWidgetViewModel()
         {
-            var achievements = Projection?.MosaicAchievements ?? Array.Empty<AchievementDisplayItem>();
+            _controlBarSlot = new ShowcaseControlBarSlot<CrossGameAchievementControlBarAdapter>(RefreshTiles);
+        }
+
+        protected override void RefreshLayout()
+        {
             // A set size is fixed; unset follows density (standard density is the default size).
             IconSize = ShowcaseWidgetOptions.GetMosaicIconSizeOverride(Projection?.Instance)
                 ?? (Density == WidgetViewportDensity.Compact
@@ -66,9 +72,31 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ShowcaseMosaicSource.UnlockNext;
             AnimateRarityGlows =
                 PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.AnimateRarityGlows ?? true;
+        }
+
+        protected override void RefreshTiles()
+        {
+            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
+            {
+                ControlBar = _controlBarSlot.Adapter.ControlBar;
+            }
+
+            // The filter stays in effect while the bar is hidden; only the dropdown's options,
+            // which nothing can see then, skip their refresh.
+            var adapter = _controlBarSlot.Adapter;
+            var list = (Projection?.MosaicAchievements ?? Array.Empty<AchievementDisplayItem>())
+                .Where(item => item != null)
+                .ToList();
+            adapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
+            if (ShowControlBar)
+            {
+                adapter.UpdateOptions(list);
+            }
+
+            var capped = adapter.Apply(list).Take(ShowcaseWidgetOptions.GetMosaicCount(Projection?.Instance)).ToList();
 
             // The widget's own copies of any revealable tiles, so a reveal stays in this widget.
-            CollectionHelper.Replace(Items, _reveals.Map(OrderAchievements(achievements)));
+            CollectionHelper.Replace(Items, _reveals.Map(OrderAchievements(capped)));
         }
 
         /// <summary>

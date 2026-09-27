@@ -382,7 +382,10 @@
     <Compile Include="..\..\source\ViewModels\FriendCompareController.cs" Link="Source\ViewModels\FriendCompareController.cs" />
     <Compile Include="..\..\source\ViewModels\IGridCompareSource.cs" Link="Source\ViewModels\IGridCompareSource.cs" />
     <Compile Include="..\..\source\ViewModels\FriendVsFriendCompareController.cs" Link="Source\ViewModels\FriendVsFriendCompareController.cs" />
+    <Compile Include="..\..\source\ViewModels\CrossGameAchievementControlBarAdapter.cs" Link="Source\ViewModels\CrossGameAchievementControlBarAdapter.cs" />
     <Compile Include="..\..\source\ViewModels\GameSummaryGridControlBarAdapter.cs" Link="Source\ViewModels\GameSummaryGridControlBarAdapter.cs" />
+    <Compile Include="..\..\source\ViewModels\SharedControlBarAdapter.cs" Link="Source\ViewModels\SharedControlBarAdapter.cs" />
+    <Compile Include="..\..\source\ViewModels\Showcase\Widgets\ShowcaseControlBarStates.cs" Link="Source\ViewModels\Showcase\Widgets\ShowcaseControlBarStates.cs" />
     <Compile Include="..\..\source\ViewModels\Items\GridControlBarModels.cs" Link="Source\ViewModels\Items\GridControlBarModels.cs" />
     <Compile Include="..\..\source\ViewModels\Items\ProviderPlatformFilter.cs" Link="Source\ViewModels\Items\ProviderPlatformFilter.cs" />
     <Compile Include="..\..\source\ViewModels\ScoreCardViewModel.cs" Link="Source\ViewModels\ScoreCardViewModel.cs" />
