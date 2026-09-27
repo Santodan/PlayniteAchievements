@@ -65,7 +65,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void FromMemberCounts_ReportsTheScopeAnAgreeingSubtreeHolds()
+        public void FromMemberCounts_ReportsTheScopeAnAgreeingGroupHolds()
         {
             Assert.AreEqual(
                 AchievementFilterScope.All,
@@ -81,21 +81,21 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void FromMemberCounts_ReportsMixedWhenTheSubtreeDisagrees()
+        public void FromMemberCounts_ReportsMixedWhenTheGroupDisagrees()
         {
             Assert.AreEqual(
                 AchievementFilterScope.Mixed,
                 AchievementFilterScopes.FromMemberCounts(total: 4, filteredCount: 1, summaryEffectiveCount: 1));
 
             // Every member is out of summaries but only some are out of the views as well, so the
-            // subtree agrees on nothing a single choice could express.
+            // group agrees on nothing a single choice could express.
             Assert.AreEqual(
                 AchievementFilterScope.Mixed,
                 AchievementFilterScopes.FromMemberCounts(total: 4, filteredCount: 2, summaryEffectiveCount: 4));
         }
 
         [TestMethod]
-        public void FromMemberCounts_TreatsAnEmptySubtreeAsUnfiltered()
+        public void FromMemberCounts_TreatsAnEmptyGroupAsUnfiltered()
         {
             Assert.AreEqual(
                 AchievementFilterScope.None,
@@ -147,12 +147,13 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void SubtreeIndex_GivesAParentItsSubcategoriesAchievements()
+        public void MemberIndex_GivesAParentOnlyItsOwnAchievements()
         {
             var hacksA = Path("Romhacks", "Hacks A");
-            var index = CategorySubtreeIndex.Build(
+            var index = CategoryMemberIndex.Build(
                 new[]
                 {
+                    new Member("Romhacks", "r1"),
                     new Member(hacksA, "a1"),
                     new Member(Path("Romhacks", "Hacks B"), "b1"),
                     new Member("Main Set", "m1")
@@ -160,18 +161,27 @@ namespace PlayniteAchievements.Tests.ViewModels
                 member => member.Category,
                 member => member.ApiName);
 
-            CollectionAssert.AreEquivalent(new[] { "a1", "b1" }, index["Romhacks"]);
+            // A push on a parent must leave its subcategories' scopes alone.
+            CollectionAssert.AreEquivalent(new[] { "r1" }, index["Romhacks"]);
             CollectionAssert.AreEquivalent(new[] { "a1" }, index[hacksA]);
             CollectionAssert.AreEquivalent(new[] { "m1" }, index["Main Set"]);
-            Assert.IsFalse(
-                index["Romhacks"].Contains("m1"),
-                "A push on one category must not reach a sibling category.");
         }
 
         [TestMethod]
-        public void SubtreeIndex_SkipsAchievementsWithoutAnApiName()
+        public void MemberIndex_LeavesAParentWithNothingOfItsOwnOut()
         {
-            var index = CategorySubtreeIndex.Build(
+            var index = CategoryMemberIndex.Build(
+                new[] { new Member(Path("Romhacks", "Hacks A"), "a1") },
+                member => member.Category,
+                member => member.ApiName);
+
+            Assert.IsFalse(index.ContainsKey("Romhacks"));
+        }
+
+        [TestMethod]
+        public void MemberIndex_SkipsAchievementsWithoutAnApiName()
+        {
+            var index = CategoryMemberIndex.Build(
                 new[] { new Member("Romhacks", " "), new Member("Romhacks", "a1") },
                 member => member.Category,
                 member => member.ApiName);
