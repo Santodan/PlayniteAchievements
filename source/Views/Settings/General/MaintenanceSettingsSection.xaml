@@ -43,6 +43,15 @@
                                         MinWidth="130"/>
                             </controls:SettingRow>
 
+                            <!-- TEMP: testing aid for automatic auto capstone generation. Hardcoded
+                                 English on purpose so nothing reaches Crowdin; remove before release. -->
+                            <controls:SettingRow Label="Remove every auto capstone and let generation run again (temporary, for testing)">
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                        Click="ClearAutoCapstones_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        MinWidth="130"/>
+                            </controls:SettingRow>
+
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ClearUnownedFriendData_Description}"
                                                  Margin="0">
                                 <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
