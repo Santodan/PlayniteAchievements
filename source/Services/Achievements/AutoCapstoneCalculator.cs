@@ -259,14 +259,53 @@ namespace PlayniteAchievements.Services.Achievements
                 normalizedApiName,
                 StringComparison.OrdinalIgnoreCase));
 
-            var category = isWholeGame ? null : own?.Category ?? storedCategory;
-            return Derive(
-                list.Where(achievement => !ReferenceEquals(achievement, own) &&
-                                          !string.Equals(
-                                              (achievement.ApiName ?? string.Empty).Trim(),
-                                              normalizedApiName,
-                                              StringComparison.OrdinalIgnoreCase)),
-                category);
+            var others = list
+                .Where(achievement => !ReferenceEquals(achievement, own) &&
+                                      !string.Equals(
+                                          (achievement.ApiName ?? string.Empty).Trim(),
+                                          normalizedApiName,
+                                          StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (isWholeGame)
+            {
+                return Derive(others);
+            }
+
+            // A category capstone left alone in its category -- one authored before the whole-game
+            // scope was stored, on a game whose achievements a provider has since moved into named
+            // categories -- has nothing left to stand for there. It stood for the whole game when
+            // it was authored, so it goes back to doing that rather than never updating again.
+            return Derive(others, own?.Category ?? storedCategory) ?? Derive(others);
+        }
+
+        /// <summary>
+        /// True when an auto capstone that is not marked as whole-game has no other achievement in
+        /// its category, which is the case <see cref="DeriveForCapstone"/> reads as whole-game.
+        /// </summary>
+        public static bool IsAloneInItsCategory(
+            IEnumerable<AchievementDetail> achievements,
+            string apiName)
+        {
+            var list = (achievements ?? Enumerable.Empty<AchievementDetail>())
+                .Where(achievement => achievement != null)
+                .ToList();
+            var normalizedApiName = (apiName ?? string.Empty).Trim();
+            var own = list.FirstOrDefault(achievement => string.Equals(
+                (achievement.ApiName ?? string.Empty).Trim(),
+                normalizedApiName,
+                StringComparison.OrdinalIgnoreCase));
+            if (own == null)
+            {
+                return false;
+            }
+
+            var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(own.Category);
+            return !list.Any(achievement =>
+                !ReferenceEquals(achievement, own) &&
+                string.Equals(
+                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category),
+                    category,
+                    StringComparison.OrdinalIgnoreCase));
         }
     }
 }
