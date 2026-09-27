@@ -67,14 +67,17 @@
                 <Setter Property="Margin" Value="0,0,0,6" />
             </Style>
             <!-- Rarity and trophies pair up two per row. Columns are equal and as wide as the widest
-                 chip, so long counts widen the sidebar; a hidden chip drops out and the rest close up.
-                 The negative right margin cancels the right chip's gap so the edges line up. -->
-            <Style x:Key="SidebarStatPairGroupStyle" TargetType="UniformGrid">
-                <Setter Property="Columns" Value="2" />
-                <Setter Property="Margin" Value="0,0,-3,6" />
+                 chip, so long counts widen the sidebar; a hidden chip drops out and the rest close
+                 up, and a chip left alone on the last row spans both columns. The panel owns the
+                 gaps, so its chips carry no margin; the 9 bottom margin matches a single-column
+                 group's last chip gap plus group gap. -->
+            <Style x:Key="SidebarStatPairGroupStyle" TargetType="controls:PairedRowsPanel">
+                <Setter Property="ColumnGap" Value="3" />
+                <Setter Property="RowGap" Value="3" />
+                <Setter Property="Margin" Value="0,0,0,9" />
             </Style>
             <Style x:Key="SidebarStatPairChipStyle" TargetType="Border" BasedOn="{StaticResource SidebarStatChipStyle}">
-                <Setter Property="Margin" Value="0,0,3,3" />
+                <Setter Property="Margin" Value="0" />
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -149,7 +152,7 @@
                                     </Grid>
                                 </Border>
                             </StackPanel>
-                            <UniformGrid Style="{StaticResource SidebarStatPairGroupStyle}"
+                            <controls:PairedRowsPanel Style="{StaticResource SidebarStatPairGroupStyle}"
                                          Visibility="{Binding SidebarRarityVisible, Converter={StaticResource BoolToVis}}">
                                 <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
                                         Visibility="{Binding OverviewSummary.RarityUltraRare.IsVisible, Converter={StaticResource BoolToVis}}">
@@ -195,8 +198,8 @@
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.RarityCommon.Text}" />
                                     </Grid>
                                 </Border>
-                            </UniformGrid>
-                            <UniformGrid Style="{StaticResource SidebarStatPairGroupStyle}"
+                            </controls:PairedRowsPanel>
+                            <controls:PairedRowsPanel Style="{StaticResource SidebarStatPairGroupStyle}"
                                          Visibility="{Binding SidebarTrophiesVisible, Converter={StaticResource BoolToVis}}">
                                 <Border Style="{StaticResource SidebarStatPairChipStyle}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}"
                                         Visibility="{Binding OverviewSummary.TrophyPlatinum.IsVisible, Converter={StaticResource BoolToVis}}">
@@ -242,7 +245,7 @@
                                         <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="{Binding OverviewSummary.TrophyBronze.Text}" />
                                     </Grid>
                                 </Border>
-                            </UniformGrid>
+                            </controls:PairedRowsPanel>
                             <StackPanel Style="{StaticResource SidebarStatGroupStyle}"
                                         Visibility="{Binding SidebarOtherStatsVisible, Converter={StaticResource BoolToVis}}">
                                 <Border Style="{StaticResource SidebarStatChipStyle}"
