@@ -32,7 +32,6 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var adapter = new CrossGameAchievementControlBarAdapter();
             adapter.UpdateGames(Games());
-            adapter.UpdateOptions(rows);
             return adapter;
         }
 
@@ -85,28 +84,61 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void UpdateOptions_WithSameGames_KeepsGroupInstances()
+        public void Dropdown_ListsEveryLibraryPlatform_NotOnlyThoseInTheRows()
         {
-            var rows = Rows();
-            var adapter = CreateAdapter(rows);
+            var adapter = CreateAdapter(Rows());
+
+            CollectionAssert.AreEquivalent(
+                new[] { "Steam", "Xbox" },
+                adapter.ProviderFilterGroups.Select(group => group.ProviderKey).ToArray());
+        }
+
+        [TestMethod]
+        public void UpdateGames_WithSameGames_KeepsGroupInstances()
+        {
+            var games = Games();
+            var adapter = new CrossGameAchievementControlBarAdapter();
+            adapter.UpdateGames(games);
             var groups = adapter.ProviderFilterGroups;
 
-            adapter.UpdateOptions(rows);
+            adapter.UpdateGames(games);
 
             Assert.AreSame(groups, adapter.ProviderFilterGroups);
         }
 
         [TestMethod]
-        public void UpdateOptions_WithDifferentGames_KeepsSelections()
+        public void UpdateGames_WithDifferentGames_KeepsSelections()
         {
             var rows = Rows();
-            var adapter = CreateAdapter(rows);
+            var games = Games();
+            var adapter = new CrossGameAchievementControlBarAdapter();
+            adapter.UpdateGames(games);
             adapter.ProviderFilterGroups.Single(group => group.ProviderKey == "Xbox").SetAll(true);
 
-            adapter.UpdateOptions(rows.Skip(1).ToArray());
+            adapter.UpdateGames(games.Skip(1).ToArray());
 
             Assert.IsTrue(adapter.ProviderFilterGroups.Single(group => group.ProviderKey == "Xbox").IsFullySelected);
             CollectionAssert.AreEqual(new[] { "Finish the Fight" }, Names(adapter.Apply(rows)));
+        }
+
+        [TestMethod]
+        public void CapturedState_RestoresIntoAFreshAdapter()
+        {
+            var rows = Rows();
+            var original = CreateAdapter(rows);
+            original.ProviderFilterGroups.Single(group => group.ProviderKey == "Steam")
+                .Platforms.Single(platform => platform.PlatformName == "Steam Deck")
+                .IsSelected = true;
+            original.SearchText = "summit";
+
+            var restored = new CrossGameAchievementControlBarAdapter();
+            restored.RestoreState(original.CaptureState());
+            restored.UpdateGames(Games());
+
+            Assert.AreEqual("summit", restored.SearchText);
+            CollectionAssert.AreEqual(new[] { "Steam Deck" },
+                restored.ProviderFilterGroups.Single(group => group.ProviderKey == "Steam").SelectedPlatformNames.ToArray());
+            CollectionAssert.AreEqual(new[] { "Summit" }, Names(restored.Apply(rows)));
         }
     }
 }
