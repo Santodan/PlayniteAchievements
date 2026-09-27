@@ -1224,7 +1224,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 StringComparison.OrdinalIgnoreCase));
             StampIndentAffordances(rows);
             StampCategoryTreeShapes(rows);
-            _subtreeApiNamesByLabel = BuildSubtreeApiNamesByLabel();
+            _memberApiNamesByLabel = BuildMemberApiNamesByLabel();
             StampCategoryFilterScopes(rows);
             ReplaceCategoryRows(rows);
         }
