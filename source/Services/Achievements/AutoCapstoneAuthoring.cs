@@ -19,12 +19,6 @@ namespace PlayniteAchievements.Services.Achievements
     {
         private const string BaseId = "auto-capstone";
 
-        /// <summary>
-        /// The description auto capstones were authored with before it named the base game. Stored
-        /// as a literal in each definition, so the migration recognises it by this text.
-        /// </summary>
-        public const string LegacyDescription = "Obtain all Achievements.";
-
         private readonly GameCustomDataStore _store;
         private readonly AchievementOverridesService _overridesService;
         private readonly Func<Guid, GameAchievementData> _resolveGameData;
