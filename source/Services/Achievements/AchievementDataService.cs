@@ -1109,6 +1109,12 @@ namespace PlayniteAchievements.Services.Achievements
             return result;
         }
 
+        private static bool IsFilteredFromSummary(ResolvedGameCustomData resolved, string apiName)
+        {
+            return resolved?.FilteredAchievementApiNames?.Contains(apiName) == true ||
+                   resolved?.SummaryFilteredAchievementApiNames?.Contains(apiName) == true;
+        }
+
         /// <summary>
         /// Recomputes a summary row's capstone counts and completion from the game's stored set.
         /// </summary>
@@ -1130,6 +1136,16 @@ namespace PlayniteAchievements.Services.Achievements
                 var apiName = NormalizeText(assignment?.ApiName);
                 if (string.IsNullOrWhiteSpace(apiName))
                 {
+                    continue;
+                }
+
+                // A filtered capstone is out of the counts like any filtered achievement, so it no
+                // longer stands for finishing the game either; filtering it is how a capstone the
+                // user does not want is set aside without deleting it. Dropped from the platinums
+                // too, so it does not resurface there as a platinum that is not a capstone.
+                if (IsFilteredFromSummary(resolved, apiName))
+                {
+                    platinums.Remove(apiName);
                     continue;
                 }
 
