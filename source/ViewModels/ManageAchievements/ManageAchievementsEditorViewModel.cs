@@ -3006,13 +3006,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// providers hand over. Unlike reverting a selection there is nothing to re-seat: the
         /// positional list goes entirely.
         /// </summary>
-        private const string PlatinumTrophyType = "platinum";
-
-        private const string BaseCategoryType = "Base";
-
-        /// <summary>The plugin's own mark, the one the notification preview shows.</summary>
-        private const string BrandingIconPackUri =
-            "pack://application:,,,/PlayniteAchievements;component/Resources/BrandingIcon.png";
+        private const string PlatinumTrophyType = AutoCapstoneTemplate.PlatinumTrophyType;
 
         /// <summary>
         /// Makes the game's platinum trophy its capstone, authoring one when the game has no
@@ -3155,20 +3149,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private AchievementEditorRow ResolvePlatinumCapstoneRow()
         {
-            var platinums = AchievementRows
-                .Where(row => row != null &&
-                              !string.IsNullOrWhiteSpace(row.OriginalApiName) &&
-                              string.Equals(NormalizeText(row.TrophyType), PlatinumTrophyType, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            if (platinums.Count <= 1)
-            {
-                return platinums.FirstOrDefault();
-            }
-
-            var baseGame = platinums.FirstOrDefault(row =>
-                AchievementCategoryTypeHelper.ParseValues(row.EffectiveCategoryTypeValue)
-                    .Any(value => string.Equals(value, BaseCategoryType, StringComparison.OrdinalIgnoreCase)));
-            return baseGame ?? platinums[0];
+            return AutoCapstoneTemplate.SelectPlatinum(
+                AchievementRows.Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName)),
+                row => row.TrophyType,
+                row => row.EffectiveCategoryTypeValue);
         }
 
         /// <summary>
@@ -3200,7 +3184,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // A source path, not a cached one: the save materializes it into this game's icon
             // cache the same way it does an icon dropped onto any other authored achievement.
-            row.UnlockedIconPath = ResolveCapstoneIconSource(game);
+            row.UnlockedIconPath = AutoCapstoneTemplate.ResolveIconSource(game, _logger);
 
             AttachRow(row);
             AchievementRows.Add(row);
@@ -3279,69 +3263,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.SetRarityFromSource(derived.GlobalPercentUnlocked, derived.Rarity);
             row.SetUnlockedFromSource(derived.Unlocked);
             row.UnlockTime = derived.Unlocked ? derived.UnlockTimeUtc : null;
-        }
-
-        /// <summary>
-        /// The image to stand the capstone on: the game's own icon, then its cover, then the
-        /// plugin's mark, so it is never left without one.
-        /// </summary>
-        private string ResolveCapstoneIconSource(Playnite.SDK.Models.Game game)
-        {
-            var icon = ResolvePlayniteAssetFile(game?.Icon);
-            if (!string.IsNullOrWhiteSpace(icon))
-            {
-                return icon;
-            }
-
-            var cover = ResolvePlayniteAssetFile(game?.CoverImage);
-            return !string.IsNullOrWhiteSpace(cover) ? cover : ResolveBrandingIconFile();
-        }
-
-        private static string ResolvePlayniteAssetFile(string databasePath)
-        {
-            var normalized = NormalizeText(databasePath);
-            if (string.IsNullOrWhiteSpace(normalized))
-            {
-                return null;
-            }
-
-            var full = API.Instance?.Database?.GetFullFilePath(normalized);
-            return !string.IsNullOrWhiteSpace(full) && File.Exists(full) ? full : null;
-        }
-
-        /// <summary>
-        /// Unpacks the plugin's mark to a file, because an achievement's icon is stored as a path
-        /// and the mark ships inside the assembly.
-        /// </summary>
-        private string ResolveBrandingIconFile()
-        {
-            try
-            {
-                var target = Path.Combine(Path.GetTempPath(), "playniteachievements-capstone.png");
-                if (File.Exists(target))
-                {
-                    return target;
-                }
-
-                var resource = System.Windows.Application.GetResourceStream(new Uri(BrandingIconPackUri));
-                if (resource?.Stream == null)
-                {
-                    return null;
-                }
-
-                using (var source = resource.Stream)
-                using (var file = File.Create(target))
-                {
-                    source.CopyTo(file);
-                }
-
-                return target;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "Failed unpacking the branding icon for the automatic capstone.");
-                return null;
-            }
         }
 
         private void ResetOrder()
