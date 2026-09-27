@@ -1266,56 +1266,6 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Replaces a game's authored achievements and re-files some of them, in one store update.
-        /// For the auto capstone migration, which rewrites definitions and moves capstones together.
-        /// </summary>
-        /// <param name="categoryByApiName">The categories to file achievements in, by ApiName.</param>
-        public void RewriteCustomAchievementsAndFiling(
-            Guid gameId,
-            IReadOnlyList<CustomAchievementDefinition> definitions,
-            IReadOnlyDictionary<string, string> categoryByApiName)
-        {
-            if (gameId == Guid.Empty || definitions == null)
-            {
-                return;
-            }
-
-            _gameCustomDataStore.Update(gameId, customData =>
-            {
-                customData.CustomAchievements = definitions
-                    .Where(definition => definition != null)
-                    .Select(definition => definition.Clone())
-                    .ToList();
-
-                if (categoryByApiName == null || categoryByApiName.Count == 0)
-                {
-                    return;
-                }
-
-                var overrides = CloneOverrides(customData);
-                foreach (var pair in categoryByApiName)
-                {
-                    var apiName = (pair.Key ?? string.Empty).Trim();
-                    var category = AchievementCategoryTypeHelper.NormalizeCategory(pair.Value);
-                    if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(category))
-                    {
-                        continue;
-                    }
-
-                    if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
-                    {
-                        entry = new AchievementOverride();
-                        overrides[apiName] = entry;
-                    }
-
-                    entry.Category = category;
-                }
-
-                StoreOverrides(customData, overrides);
-            });
-        }
-
-        /// <summary>
         /// Removes a game's auto capstones and clears its generation marker, so generation handles
         /// it afresh. Temporary, for testing generation; a platinum that generation nominated
         /// stays nominated, since nothing records which nominations it made.
