@@ -7752,23 +7752,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// details pane's list offers, and is blank for the proxy's mixed state, which stands for
         /// disagreement rather than for a scope.
         /// </summary>
-        public string FilterScopeDisplayText
-        {
-            get
-            {
-                switch (FilterScope)
-                {
-                    case AchievementFilterScope.All:
-                        return ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Filters_FilterOut");
-                    case AchievementFilterScope.Summary:
-                        return ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries");
-                    case AchievementFilterScope.None:
-                        return ResourceProvider.GetString("LOCPlayAch_Common_None");
-                    default:
-                        return string.Empty;
-                }
-            }
-        }
+        public string FilterScopeDisplayText => AchievementFilterScopes.GetDisplayText(FilterScope);
 
         public string CategoryLabel
         {
