@@ -322,14 +322,13 @@
                          Foreground="{DynamicResource PlayAch.Brush.Accent}"
                          BorderThickness="0"/>
             <!-- The shadow is drawn by a copy behind the text: an Effect on the visible TextBlock
-                 would rasterize it and lose the pixel-snapped Display rendering. -->
+                 would rasterize it and soften the glyphs. -->
             <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        FontSize="10"
                        Foreground="Black"
-                       TextOptions.TextFormattingMode="Display"
                        IsHitTestVisible="False">
                 <TextBlock.Effect>
                     <DropShadowEffect Color="Black" ShadowDepth="0" BlurRadius="3" Opacity="1"/>
@@ -340,8 +339,7 @@
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        FontSize="10"
-                       Foreground="White"
-                       TextOptions.TextFormattingMode="Display"/>
+                       Foreground="White"/>
         </Grid>
     </Grid>
 </UserControl>
