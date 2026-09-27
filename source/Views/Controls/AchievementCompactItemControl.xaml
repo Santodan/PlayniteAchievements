@@ -315,27 +315,32 @@
                         </Style.Triggers>
                 </Style>
             </Grid.Style>
-            <!-- Accent underlay: the bar's half-black track sits over it, so the unfilled part reads
-                 as a dimmed accent and the filled part as the full accent. -->
+            <!-- Opaque track: a faint accent over black, so the unfilled part reads as a dark accent
+                 and the icon does not show through behind the text. -->
+            <Border Background="Black"
+                    IsHitTestVisible="False"/>
             <Border Background="{DynamicResource PlayAch.Brush.Accent}"
+                    Opacity="0.3"
                     IsHitTestVisible="False"/>
             <ProgressBar Height="12"
                          Maximum="100"
                          Value="{Binding RarityPercentValue, Mode=OneWay}"
-                         Background="{StaticResource PlayAch.Brush.Overlay.Shade.80}"
+                         Background="Transparent"
                          Foreground="{DynamicResource PlayAch.Brush.Accent}"
                          BorderThickness="0"/>
-            <!-- The text is taller than the bar and relies on its shadow to stay legible where it
-                 overhangs. The negative margins let it overflow without growing the row, so the bar
-                 stays pinned to the icon's bottom edge and the text is not layout-clipped.
+            <!-- The text is taller than the bar and overhangs it upward only, relying on its shadow
+                 to stay legible above the bar. It is bottom-aligned, and the -2 bottom margin absorbs
+                 the font's descent so the digits sit just above the bar's bottom edge. The negative
+                 top margin lets it overflow without growing the row, so the bar stays pinned to the
+                 icon's bottom edge and the text is not layout-clipped.
                  The shadow is drawn by copies behind the text: an Effect on the visible TextBlock
                  would rasterize it and soften the glyphs. A wide blur darkens the surrounding area
                  and a tight one gives the glyphs a firm outline. -->
             <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Margin="0,-8"
+                       VerticalAlignment="Bottom"
+                       Margin="0,-12,0,-2"
                        FontSize="14"
                        FontWeight="SemiBold"
                        Foreground="Black"
@@ -347,8 +352,8 @@
             <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Margin="0,-8"
+                       VerticalAlignment="Bottom"
+                       Margin="0,-12,0,-2"
                        FontSize="14"
                        FontWeight="SemiBold"
                        Foreground="Black"
@@ -360,8 +365,8 @@
             <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Margin="0,-8"
+                       VerticalAlignment="Bottom"
+                       Margin="0,-12,0,-2"
                        FontSize="14"
                        FontWeight="SemiBold"
                        Foreground="White"/>
