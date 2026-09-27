@@ -21,9 +21,7 @@ namespace PlayniteAchievements.ViewModels
             new SearchTextIndex<AchievementDisplayItem>(item =>
                 SearchTextBuilder.ForRecentAchievement(item?.GameName, item?.DisplayName));
         private readonly Dictionary<Guid, GameSummaryItem> _gamesById = new Dictionary<Guid, GameSummaryItem>();
-        private IReadOnlyList<GameSummaryItem> _gamesSource;
-        private int _gamesSourceCount;
-        private List<GameSummaryItem> _optionGames;
+        private List<GameSummaryItem> _libraryGames;
         private string _searchText = string.Empty;
         private ObservableCollection<ProviderFilterGroup> _providerFilterGroups =
             new ObservableCollection<ProviderFilterGroup>();
@@ -64,47 +62,61 @@ namespace PlayniteAchievements.ViewModels
                 ResourceProvider.GetString("LOCPlayAch_Common_Label_Platform"));
 
         /// <summary>
-        /// Sets the game summaries rows resolve their provider and platforms from. The lookup is
-        /// rebuilt only when a different list, or the same list at a different length, arrives.
+        /// Sets the library's game summaries: rows resolve their provider and platforms from them,
+        /// and the dropdown lists every provider and platform among them, not only those in the
+        /// current rows, so a platform stays selectable before any of its achievements appear.
+        /// Nothing is rebuilt while the same games arrive again, which keeps the groups an open
+        /// dropdown is showing.
         /// </summary>
         public void UpdateGames(IReadOnlyList<GameSummaryItem> games)
         {
-            var count = games?.Count ?? 0;
-            if (ReferenceEquals(_gamesSource, games) && _gamesSourceCount == count)
+            games = games ?? Array.Empty<GameSummaryItem>();
+            if (ProviderFilterGroupBuilder.HasSameGames(_libraryGames, games))
             {
                 return;
             }
 
-            _gamesSource = games;
-            _gamesSourceCount = count;
+            _libraryGames = games.ToList();
             _gamesById.Clear();
-            foreach (var game in games ?? Array.Empty<GameSummaryItem>())
+            foreach (var game in _libraryGames)
             {
                 if (game?.PlayniteGameId is Guid id && !_gamesById.ContainsKey(id))
                 {
                     _gamesById[id] = game;
                 }
             }
+
+            ProviderFilterGroups = ProviderFilterGroupBuilder.Rebuild(
+                _libraryGames,
+                ProviderFilterGroups,
+                OnProviderFilterSelectionChanged,
+                PendingPlatformSelections);
+            PendingPlatformSelections = null;
+            OnPropertyChanged(nameof(SelectedProviderFilterText));
+            ControlBar.Refresh();
         }
 
-        /// <summary>Rebuilds the dropdown from the games behind <paramref name="rows"/>, keeping selections.</summary>
-        public void UpdateOptions(IEnumerable<AchievementDisplayItem> rows)
+        public override string StateKey => "ControlBar.Achievements";
+
+        public override ControlBarFilterState CaptureState()
         {
-            // A filter pass re-feeds the same rows; rebuilding then would swap the groups out
-            // from under an open dropdown, so a toggle there would land on a discarded group.
-            var games = ResolveGames(rows);
-            if (ProviderFilterGroupBuilder.HasSameGames(_optionGames, games))
+            return new ControlBarFilterState
+            {
+                SearchText = SearchText,
+                Platforms = CapturePlatformSelections(ProviderFilterGroups)
+            };
+        }
+
+        public override void RestoreState(ControlBarFilterState state)
+        {
+            if (state == null)
             {
                 return;
             }
 
-            _optionGames = games;
-            ProviderFilterGroups = ProviderFilterGroupBuilder.Rebuild(
-                games,
-                ProviderFilterGroups,
-                OnProviderFilterSelectionChanged);
-            OnPropertyChanged(nameof(SelectedProviderFilterText));
-            ControlBar.Refresh();
+            _searchText = state.SearchText ?? string.Empty;
+            OnPropertyChanged(nameof(SearchText));
+            PendingPlatformSelections = state.Platforms;
         }
 
         /// <summary>
