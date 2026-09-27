@@ -324,18 +324,20 @@
             <!-- The text is taller than the bar and relies on its shadow to stay legible where it
                  overhangs. The negative margins let it overflow without growing the row, so the bar
                  stays pinned to the icon's bottom edge and the text is not layout-clipped.
-                 The shadow is drawn by a copy behind the text: an Effect on the visible TextBlock
-                 would rasterize it and soften the glyphs. -->
+                 The shadow is drawn by copies behind the text: an Effect on the visible TextBlock
+                 would rasterize it and soften the glyphs. A wide blur darkens the surrounding area
+                 and a tight one gives the glyphs a firm outline. -->
             <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        Margin="0,-8"
                        FontSize="14"
+                       FontWeight="SemiBold"
                        Foreground="Black"
                        IsHitTestVisible="False">
                 <TextBlock.Effect>
-                    <DropShadowEffect Color="Black" ShadowDepth="0" BlurRadius="5" Opacity="1"/>
+                    <DropShadowEffect Color="Black" ShadowDepth="0" BlurRadius="6" Opacity="1"/>
                 </TextBlock.Effect>
             </TextBlock>
             <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
@@ -344,6 +346,20 @@
                        VerticalAlignment="Center"
                        Margin="0,-8"
                        FontSize="14"
+                       FontWeight="SemiBold"
+                       Foreground="Black"
+                       IsHitTestVisible="False">
+                <TextBlock.Effect>
+                    <DropShadowEffect Color="Black" ShadowDepth="0" BlurRadius="2" Opacity="1"/>
+                </TextBlock.Effect>
+            </TextBlock>
+            <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
+                       Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Margin="0,-8"
+                       FontSize="14"
+                       FontWeight="SemiBold"
                        Foreground="White"/>
         </Grid>
     </Grid>
