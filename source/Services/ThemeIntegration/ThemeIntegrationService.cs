@@ -2058,6 +2058,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.AchievementsOldestFirst = state.AchievementsOldestFirst;
             _settings.ModernTheme.AchievementsRarityAsc = state.AchievementsRarityAsc;
             _settings.ModernTheme.AchievementsRarityDesc = state.AchievementsRarityDesc;
+            _settings.ModernTheme.LatestAchievementData = state.LatestAchievementData;
 
             _settings.LegacyTheme.HasData = true;
             _settings.LegacyTheme.Total = state.AchievementCount;
@@ -2102,6 +2103,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.AchievementsOldestFirst = EmptyAchievementList;
             _settings.ModernTheme.AchievementsRarityAsc = EmptyAchievementList;
             _settings.ModernTheme.AchievementsRarityDesc = EmptyAchievementList;
+            _settings.ModernTheme.LatestAchievementData = null;
 
             _settings.ModernTheme.Common = EmptyRarityStats;
             _settings.ModernTheme.Uncommon = EmptyRarityStats;
