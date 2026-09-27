@@ -169,6 +169,31 @@ namespace PlayniteAchievements.Services.Cache
             return LoadCachedSummaryDataForGameFast(playniteGameId);
         }
 
+        Dictionary<Guid, HashSet<string>> ICacheReadOptimizations.LoadUnlockedApiNamesFast(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted)
+        {
+            try
+            {
+                lock (_sync)
+                {
+                    EnsureReady_Locked("LoadUnlockedApiNamesFast");
+                }
+
+                using (var scope = PerfScope.Start(_logger, "Cache.LoadUnlockedApiNamesFast", thresholdMs: 25))
+                {
+                    scope?.SetContext("games=" + (wanted?.Count ?? 0));
+
+                    // Read off _sync, on the store's read connection, like the summary it corrects.
+                    return _store.LoadUnlockedApiNames(wanted) ?? new Dictionary<Guid, HashSet<string>>();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed reading unlocked capstone ApiNames.");
+                return null;
+            }
+        }
+
         HashSet<Guid> ICacheReadOptimizations.GetNoAchievementGameIds()
         {
             var result = new HashSet<Guid>();
