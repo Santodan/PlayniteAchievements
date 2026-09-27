@@ -88,11 +88,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     all,
                     nameof(AchievementDisplayItem.UnlockTime),
                     ListSortDirection.Ascending));
-            var newestFirst = AchievementSortHelper.CreateGoalsFirstDetailList(
-                AchievementSortHelper.CreateSortedDetailList(
-                    all,
-                    nameof(AchievementDisplayItem.UnlockTime),
-                    ListSortDirection.Descending));
+            var unlockDescending = AchievementSortHelper.CreateSortedDetailList(
+                all,
+                nameof(AchievementDisplayItem.UnlockTime),
+                ListSortDirection.Descending);
+            var newestFirst = AchievementSortHelper.CreateGoalsFirstDetailList(unlockDescending);
+            // Taken before the goals-first partition so a pinned goal cannot stand in for the newest unlock.
+            var latestAchievement = unlockDescending.FirstOrDefault(achievement => achievement?.Unlocked == true);
             var rarityAsc = AchievementSortHelper.CreateGoalsFirstDetailList(
                 AchievementSortHelper.CreateSortedDetailList(
                     all,
@@ -132,7 +134,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 rare,
                 ultra,
                 rareAndUltra,
-                selectedGameSummary);
+                selectedGameSummary,
+                latestAchievement);
         }
 
         private static void ApplyAchievementPresentation(
