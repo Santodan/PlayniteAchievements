@@ -292,6 +292,59 @@ namespace PlayniteAchievements.Tests.Services
             Assert.IsTrue(derived.Unlocked);
         }
 
+        [TestMethod]
+        public void Derive_FilesWithTheMainGameWhenUpdatesHaveTheirOwnCategories()
+        {
+            // SteamHunters files each post-launch update group under its own label, typed
+            // Base|Update, so the base game spans several categories. The capstone belongs with
+            // the rows that are the base game and not an update, not in an empty default bucket.
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", categoryType: "Base", category: "Terraria"),
+                Achievement("b", categoryType: "Base", category: "Terraria"),
+                Achievement("c", categoryType: "Base|Update", category: "Journey's End"),
+                Achievement("d", categoryType: "DLC", category: "Expansion")
+            });
+
+            Assert.AreEqual("Terraria", derived.Category);
+        }
+
+        [TestMethod]
+        public void DeriveForCapstone_CategoryCapstoneAloneInItsCategoryStandsForTheWholeGame()
+        {
+            // Authored before the scope was stored, then left behind in the default category when
+            // a provider moved everything else into named categories.
+            var achievements = new[]
+            {
+                Achievement("a", unlocked: true, category: "Main"),
+                Achievement("b", category: "Main"),
+                Achievement("custom:old", category: "Default")
+            };
+
+            Assert.IsTrue(AutoCapstoneCalculator.IsAloneInItsCategory(achievements, "custom:old"));
+
+            var derived = AutoCapstoneCalculator.DeriveForCapstone(
+                achievements,
+                "custom:old",
+                isWholeGame: false,
+                storedCategory: "Default");
+
+            Assert.IsNotNull(derived);
+            Assert.IsFalse(derived.Unlocked);
+        }
+
+        [TestMethod]
+        public void IsAloneInItsCategory_FalseWhenItsCategoryHoldsOthers()
+        {
+            Assert.IsFalse(AutoCapstoneCalculator.IsAloneInItsCategory(
+                new[]
+                {
+                    Achievement("a", category: "Main"),
+                    Achievement("custom:cap", category: "Main")
+                },
+                "custom:cap"));
+        }
+
         private static AchievementDetail Achievement(
             string apiName,
             bool unlocked = false,
