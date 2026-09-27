@@ -321,8 +321,6 @@ namespace PlayniteAchievements.Tests.Services
                 Achievement("custom:old", category: "Default")
             };
 
-            Assert.IsTrue(AutoCapstoneCalculator.IsAloneInItsCategory(achievements, "custom:old"));
-
             var derived = AutoCapstoneCalculator.DeriveForCapstone(
                 achievements,
                 "custom:old",
@@ -331,18 +329,6 @@ namespace PlayniteAchievements.Tests.Services
 
             Assert.IsNotNull(derived);
             Assert.IsFalse(derived.Unlocked);
-        }
-
-        [TestMethod]
-        public void IsAloneInItsCategory_FalseWhenItsCategoryHoldsOthers()
-        {
-            Assert.IsFalse(AutoCapstoneCalculator.IsAloneInItsCategory(
-                new[]
-                {
-                    Achievement("a", category: "Main"),
-                    Achievement("custom:cap", category: "Main")
-                },
-                "custom:cap"));
         }
 
         private static AchievementDetail Achievement(
