@@ -10,40 +10,41 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     {
         /// <summary>
         /// Each category label mapped to the achievements a push from that row would reach: the
-        /// ones carrying the label, plus everything under it. Built once per row rebuild and reused
-        /// by the re-stamp after a push, which must not pay for a full rebuild.
+        /// ones carrying exactly that label. Subcategories keep their own scope. Built once per row
+        /// rebuild and reused by the re-stamp after a push, which must not pay for a full rebuild.
         /// </summary>
-        private Dictionary<string, List<string>> _subtreeApiNamesByLabel =
+        private Dictionary<string, List<string>> _memberApiNamesByLabel =
             new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
-        /// The scopes the per-category dropdown offers, shared with the editor so both surfaces
+        /// The scopes the per-category menu offers, shared with the editor so both surfaces
         /// name the filter scale the same way.
         /// </summary>
         public IReadOnlyList<AchievementFilterScopeOption> FilterScopeOptions { get; } =
             AchievementFilterScopes.CreateOptions();
 
         /// <summary>
-        /// Pushes one filter scope onto every achievement in a category and its subcategories.
+        /// Pushes one filter scope onto every achievement carrying a category's label. Its
+        /// subcategories are left as they are.
         /// </summary>
         /// <remarks>
         /// One way, and one write. The category stores nothing of its own: the scope lands on the
         /// achievements, and the row then reads back what they hold. The two stored lists are
-        /// replaced wholesale by the writer, so the achievements outside this subtree have to be
+        /// replaced wholesale by the writer, so the achievements outside this category have to be
         /// carried across untouched rather than left to a partial write.
         /// </remarks>
         public void ApplyCategoryFilterScope(
             ManageAchievementsCategoryMetadataItem row,
             AchievementFilterScope scope)
         {
-            // Mixed is what a disagreeing subtree displays, never a choice: pushing it would have
+            // Mixed is what a disagreeing category displays, never a choice: pushing it would have
             // no defined meaning for the members.
             if (row == null || scope == AchievementFilterScope.Mixed)
             {
                 return;
             }
 
-            var apiNames = ResolveSubtreeApiNames(row.CategoryLabel);
+            var apiNames = ResolveMemberApiNames(row.CategoryLabel);
             if (apiNames.Count == 0)
             {
                 return;
@@ -99,7 +100,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         continue;
                     }
 
-                    var apiNames = ResolveSubtreeApiNames(row.CategoryLabel);
+                    var apiNames = ResolveMemberApiNames(row.CategoryLabel);
                     var filteredCount = 0;
                     var summaryEffectiveCount = 0;
                     foreach (var apiName in apiNames)
@@ -112,7 +113,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                         // Filtering an achievement out entirely already takes it out of summaries,
                         // so it counts toward both. Reading the summary flag alone would report a
-                        // fully filtered subtree as disagreeing with itself.
+                        // fully filtered category as disagreeing with itself.
                         if (isFiltered || summaryFiltered.Contains(apiName))
                         {
                             summaryEffectiveCount++;
@@ -128,17 +129,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private List<string> ResolveSubtreeApiNames(string categoryLabel)
+        private List<string> ResolveMemberApiNames(string categoryLabel)
         {
             var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryLabel);
-            return _subtreeApiNamesByLabel.TryGetValue(label, out var apiNames) && apiNames != null
+            return _memberApiNamesByLabel.TryGetValue(label, out var apiNames) && apiNames != null
                 ? apiNames
                 : new List<string>();
         }
 
-        private Dictionary<string, List<string>> BuildSubtreeApiNamesByLabel()
+        private Dictionary<string, List<string>> BuildMemberApiNamesByLabel()
         {
-            return CategorySubtreeIndex.Build(
+            return CategoryMemberIndex.Build(
                 _allRows,
                 achievement => achievement.Category,
                 achievement => achievement.ApiName);
