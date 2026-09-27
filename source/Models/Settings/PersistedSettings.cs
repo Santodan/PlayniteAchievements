@@ -67,6 +67,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableFriendsPeriodicUpdates = false;
         private int _friendsPeriodicUpdateHours = 24;
         private bool _enableInGamePolling = true;
+        private bool _enableAutoCapstoneGeneration = false;
         private int _inGamePollIntervalSeconds = 15;
         private bool _inGamePollRefreshFriends = false;
         private int _inGameFriendRefreshMultiplier = 4;
@@ -864,6 +865,15 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _enableInGamePolling, value);
         }
 
+        /// <summary>
+        /// Gives each game an auto capstone after it refreshes, once per game. Turning it off only
+        /// stops new ones; capstones already generated stay.
+        /// </summary>
+        public bool EnableAutoCapstoneGeneration
+        {
+            get => _enableAutoCapstoneGeneration;
+            set => SetValue(ref _enableAutoCapstoneGeneration, value);
+        }
         public int InGamePollIntervalSeconds
         {
             get => _inGamePollIntervalSeconds;
@@ -2920,6 +2930,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableFriendsPeriodicUpdates = this.EnableFriendsPeriodicUpdates,
                 FriendsPeriodicUpdateHours = this.FriendsPeriodicUpdateHours,
                 EnableInGamePolling = this.EnableInGamePolling,
+                EnableAutoCapstoneGeneration = this.EnableAutoCapstoneGeneration,
                 InGamePollIntervalSeconds = this.InGamePollIntervalSeconds,
                 InGamePollRefreshFriends = this.InGamePollRefreshFriends,
                 InGameFriendRefreshMultiplier = this.InGameFriendRefreshMultiplier,

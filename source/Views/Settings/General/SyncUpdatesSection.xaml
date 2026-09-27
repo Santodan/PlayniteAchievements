@@ -91,6 +91,12 @@
                         </StackPanel>
                     </StackPanel>
 
+                    <!-- Automatic Auto Capstones -->
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableAutoCapstoneGeneration}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_EnableAutoCapstoneGeneration_Description}">
+                        <CheckBox IsChecked="{Binding Persisted.EnableAutoCapstoneGeneration}"/>
+                    </controls:SettingRow>
+
                     <!-- Default Overview Refresh Mode -->
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_DefaultOverviewRefreshMode}"
                                          Hint="{DynamicResource LOCPlayAch_Settings_DefaultOverviewRefreshMode_Description}">

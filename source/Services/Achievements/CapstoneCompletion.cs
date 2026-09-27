@@ -97,6 +97,14 @@ namespace PlayniteAchievements.Services.Achievements
                         "platinum",
                         StringComparison.OrdinalIgnoreCase);
 
+                    // A filtered capstone no longer stands for finishing the game, matching the
+                    // summary path, which drops it from the stored set's count.
+                    var isFiltered = achievement.IsFiltered || achievement.IsFilteredFromSummaries;
+                    if (isFiltered && (achievement.IsCapstone || isPlatinum))
+                    {
+                        continue;
+                    }
+
                     if (achievement.IsCapstone)
                     {
                         total++;

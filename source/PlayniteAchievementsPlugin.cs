@@ -143,6 +143,8 @@ namespace PlayniteAchievements
         private bool _tagSyncDrainRunning;
         private TagSyncService _tagSyncService;
         private AutoCapstoneMaintainer _autoCapstoneMaintainer;
+        private AutoCapstoneGenerator _autoCapstoneGenerator;
+        private AutoCapstoneAuthoring _autoCapstoneAuthoring;
 
         /// <summary>
         /// Games added to the library but not yet refreshed. Held until OnLibraryUpdated so the
@@ -172,6 +174,8 @@ namespace PlayniteAchievements
         public IReadOnlyList<IDataProvider> Providers => _refreshService?.Providers;
         public RefreshRuntime RefreshRuntime => _refreshService;
         public AchievementOverridesService AchievementOverridesService => _achievementOverridesService;
+        public AutoCapstoneMaintainer AutoCapstoneMaintainer => _autoCapstoneMaintainer;
+        public AutoCapstoneAuthoring AutoCapstoneAuthoring => _autoCapstoneAuthoring;
         public AchievementMarkerToggle AchievementMarkerToggle => _achievementMarkerToggle;
         public AchievementDataService AchievementDataService => _achievementDataService;
         public MemoryImageService ImageService => _imageService;
@@ -707,7 +711,32 @@ namespace PlayniteAchievements
                         gameId => _achievementDataService?.GetGameAchievementData(gameId),
                         NotifyAchievementUnlocked,
                         _logger);
-                    _refreshCoordinator.RefreshCompleted += gameIds => _autoCapstoneMaintainer?.Maintain(gameIds);
+                    // One author for the editor's button and automatic generation alike.
+                    _autoCapstoneAuthoring = new AutoCapstoneAuthoring(
+                        _gameCustomDataStore,
+                        _achievementOverridesService,
+                        gameId => _achievementDataService?.GetGameAchievementData(gameId),
+                        () => _managedCustomIconService,
+                        _logger);
+                    _autoCapstoneGenerator = new AutoCapstoneGenerator(
+                        _gameCustomDataStore,
+                        _achievementOverridesService,
+                        _autoCapstoneAuthoring,
+                        () => _settingsViewModel?.Settings?.Persisted?.EnableAutoCapstoneGeneration == true,
+                        _logger);
+
+                    // Maintained first and in line, so a capstone this refresh finished is announced
+                    // before the refresh returns. Generation follows off the refresh's thread: a
+                    // capstone it authors is worked out at authoring and has nothing to announce.
+                    _refreshCoordinator.RefreshCompleted += gameIds =>
+                    {
+                        _autoCapstoneMaintainer?.Maintain(gameIds);
+                        if (_autoCapstoneGenerator != null && gameIds != null)
+                        {
+                            var ids = gameIds.ToList();
+                            _ = Task.Run(() => _autoCapstoneGenerator.GenerateAsync(ids));
+                        }
+                    };
                     _windowTracker = new ActiveGameWindowTracker(_logger);
                     var soundThemeResolver = new AchievementToastTemplateResolver(PlayniteApi, _logger);
                     var pluginInstallDirectory = GetPluginInstallDirectory();
@@ -776,6 +805,13 @@ namespace PlayniteAchievements
                         _refreshService,
                         (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
                         NotifyAchievementUnlocked);
+
+                    // A running game's unlocks are announced by the monitor once its write or
+                    // refresh returns, so a capstone that write finished is held for the monitor
+                    // to send after the achievement that earned it.
+                    _autoCapstoneMaintainer.DefersAnnouncements = gameId => _inGameMonitor?.IsMonitoring(gameId) == true;
+                    _inGameMonitor.MaintainCapstones = gameId => _autoCapstoneMaintainer?.Maintain(gameId);
+                    _inGameMonitor.TakeCapstoneAnnouncements = _autoCapstoneMaintainer.TakePendingAnnouncements;
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
                     // Create tag sync service
@@ -1339,6 +1375,62 @@ namespace PlayniteAchievements
             }
         }
 
+        /// <summary>
+        /// Asks, as the setting is switched on, whether the games already in the library should get
+        /// their auto capstones now rather than one at a time as each next refreshes.
+        /// </summary>
+        /// <remarks>
+        /// Runs on the tick, like tag sync does, so what it writes stays even if the settings are
+        /// then cancelled; turning the setting off never removes a capstone either.
+        /// </remarks>
+        private void OfferAutoCapstonesForExistingGames()
+        {
+            if (_autoCapstoneGenerator == null)
+            {
+                return;
+            }
+
+            var answer = PlayniteApi.Dialogs.ShowMessage(
+                ResourceProvider.GetString("LOCPlayAch_Settings_AutoCapstoneGeneration_ApplyToExisting"),
+                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (answer != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var gameIds = PlayniteApi.Database.Games
+                .Where(game => game != null)
+                .Select(game => game.Id)
+                .ToList();
+
+            PlayniteApi.Dialogs.ActivateGlobalProgress(
+                async progress =>
+                {
+                    progress.ProgressMaxValue = gameIds.Count;
+                    try
+                    {
+                        await _autoCapstoneGenerator
+                            .GenerateAsync(
+                                gameIds,
+                                progress.CancelToken,
+                                (done, total) => progress.CurrentProgressValue = done)
+                            .ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Cancelled from the dialog: the games not reached get theirs as they
+                        // next refresh.
+                    }
+                },
+                new GlobalProgressOptions(ResourceProvider.GetString("LOCPlayAch_Settings_AutoCapstoneGeneration_Progress"))
+                {
+                    Cancelable = true,
+                    IsIndeterminate = false
+                });
+        }
+
         private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e == null)
@@ -1362,6 +1454,12 @@ namespace PlayniteAchievements
                 e.PropertyName == nameof(PersistedSettings.InGameFriendBatchSize))
             {
                 ReconfigureInGameMonitor();
+            }
+
+            if (e.PropertyName == nameof(PersistedSettings.EnableAutoCapstoneGeneration) &&
+                _settingsViewModel?.Settings?.Persisted?.EnableAutoCapstoneGeneration == true)
+            {
+                OfferAutoCapstonesForExistingGames();
             }
 
             if (e.PropertyName == nameof(PersistedSettings.UseUniformRarityBadges) ||

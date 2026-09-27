@@ -834,6 +834,13 @@ namespace PlayniteAchievements.Services.Database
             return _summaryReader.LoadCachedSummaryDataForGame(playniteGameId);
         }
 
+        /// <inheritdoc cref="SummaryCacheReader.LoadUnlockedApiNames"/>
+        public Dictionary<Guid, HashSet<string>> LoadUnlockedApiNames(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted)
+        {
+            return _summaryReader.LoadUnlockedApiNames(wanted);
+        }
+
         internal static Guid? ResolveCachedPlayniteGameId(string cacheKey, string playniteGameId)
         {
             var resolved = ParseGuid(playniteGameId);

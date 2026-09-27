@@ -116,6 +116,14 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public List<CapstoneAssignment> Capstones { get; set; }
 
+        /// <summary>
+        /// True once automatic capstone generation has handled this game, whether it authored an
+        /// auto capstone, nominated an existing platinum, or found one already there. It is never
+        /// handled again, so a capstone the user deleted or reset stays gone; filtering is how a
+        /// generated capstone is set aside.
+        /// </summary>
+        public bool AutoCapstoneGenerated { get; set; }
+
         public List<string> AchievementOrder { get; set; }
 
         /// <inheritdoc cref="AchievementUnlockedIconOverrides"/>
@@ -200,6 +208,7 @@ namespace PlayniteAchievements.Models.Settings
                 UseSeparateLockedIconsOverride = UseSeparateLockedIconsOverride,
                 ManualCapstoneApiName = ManualCapstoneApiName,
                 CapstonesMaterialized = CapstonesMaterialized,
+                AutoCapstoneGenerated = AutoCapstoneGenerated,
                 Capstones = Capstones != null
                     ? Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
                     : null,
@@ -261,6 +270,7 @@ namespace PlayniteAchievements.Models.Settings
                 UseSeparateLockedIconsOverride = UseSeparateLockedIconsOverride,
                 ManualCapstoneApiName = ManualCapstoneApiName,
                 CapstonesMaterialized = CapstonesMaterialized,
+                AutoCapstoneGenerated = AutoCapstoneGenerated,
                 Capstones = Capstones != null
                     ? Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
                     : null,
@@ -330,6 +340,7 @@ namespace PlayniteAchievements.Models.Settings
                 UseSeparateLockedIconsOverride = portable?.UseSeparateLockedIconsOverride,
                 ManualCapstoneApiName = portable?.ManualCapstoneApiName,
                 CapstonesMaterialized = portable?.CapstonesMaterialized ?? false,
+                AutoCapstoneGenerated = portable?.AutoCapstoneGenerated ?? false,
                 Capstones = portable?.Capstones != null
                     ? portable.Capstones.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
                     : null,

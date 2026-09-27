@@ -226,6 +226,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _capstonesMatchPlatinums, value))
                 {
                     OnPropertyChanged(nameof(ShowPlatinumInCompletionSpot));
+                    OnPropertyChanged(nameof(HasTrophyTypes));
                 }
             }
         }
@@ -417,9 +418,14 @@ namespace PlayniteAchievements.ViewModels.Items
         /// The totals, not the earned counts: whether a game has trophies is a fact about the game,
         /// not about progress through it. Reading the earned counts left a PSN game showing rarity
         /// badges until its first unlock and then switching to trophy badges.
+        ///
+        /// A platinum that is the game's capstone does not count: it moves to the finish badge, so
+        /// on its own it would leave the trophy row empty in place of the rarity badges. An auto
+        /// capstone is such a platinum, on games that have no other trophies at all.
         /// </remarks>
         public bool HasTrophyTypes =>
-            TrophyPlatinumTotal > 0 || TrophyGoldTotal > 0 || TrophySilverTotal > 0 || TrophyBronzeTotal > 0;
+            (TrophyPlatinumTotal > 0 && !ShowPlatinumInCompletionSpot) ||
+            TrophyGoldTotal > 0 || TrophySilverTotal > 0 || TrophyBronzeTotal > 0;
 
         public bool HasRarityPieChartData =>
             TotalCommonPossible > 0 ||

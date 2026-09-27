@@ -218,6 +218,119 @@ namespace PlayniteAchievements.Tests.Services
             Assert.IsNull(derived.Category);
         }
 
+        [TestMethod]
+        public void Derive_LeavesFilteredAchievementsOut()
+        {
+            // A filtered achievement is out of the counts completion reads, so the capstone must
+            // not wait on it either.
+            var filtered = Achievement("b");
+            filtered.IsFiltered = true;
+            var summaryFiltered = Achievement("c", percent: 0.5);
+            summaryFiltered.IsFilteredFromSummaries = true;
+
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", unlocked: true, percent: 20, unlockTimeUtc: new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)),
+                filtered,
+                summaryFiltered
+            });
+
+            Assert.IsTrue(derived.Unlocked);
+            Assert.AreEqual(20, derived.GlobalPercentUnlocked);
+        }
+
+        [TestMethod]
+        public void DeriveForCapstone_CategoryCapstoneReadsItsScopeFromItsOwnRow()
+        {
+            // The definition only ever carries the default category; the filing the user chose is
+            // on the hydrated row, and that is the category the capstone stands for.
+            var capstone = Achievement("custom:auto-capstone", category: "Story");
+            var derived = AutoCapstoneCalculator.DeriveForCapstone(
+                new[]
+                {
+                    Achievement("story", unlocked: true, category: "Story"),
+                    Achievement("extra", category: "Extras"),
+                    capstone
+                },
+                "custom:auto-capstone",
+                isWholeGame: false,
+                storedCategory: "Default");
+
+            Assert.IsNotNull(derived);
+            Assert.IsTrue(derived.Unlocked);
+        }
+
+        [TestMethod]
+        public void DeriveForCapstone_WholeGameCapstoneIgnoresWhereItIsFiled()
+        {
+            var derived = AutoCapstoneCalculator.DeriveForCapstone(
+                new[]
+                {
+                    Achievement("story", unlocked: true, category: "Story"),
+                    Achievement("extra", category: "Extras"),
+                    Achievement("custom:auto-capstone", category: "Story")
+                },
+                "custom:auto-capstone",
+                isWholeGame: true);
+
+            Assert.IsNotNull(derived);
+            Assert.IsFalse(derived.Unlocked);
+        }
+
+        [TestMethod]
+        public void DeriveForCapstone_NeverWaitsOnItself()
+        {
+            var derived = AutoCapstoneCalculator.DeriveForCapstone(
+                new[]
+                {
+                    Achievement("a", unlocked: true),
+                    Achievement("custom:auto-capstone")
+                },
+                "custom:auto-capstone",
+                isWholeGame: true);
+
+            Assert.IsTrue(derived.Unlocked);
+        }
+
+        [TestMethod]
+        public void Derive_FilesWithTheMainGameWhenUpdatesHaveTheirOwnCategories()
+        {
+            // SteamHunters files each post-launch update group under its own label, typed
+            // Base|Update, so the base game spans several categories. The capstone belongs with
+            // the rows that are the base game and not an update, not in an empty default bucket.
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", categoryType: "Base", category: "Terraria"),
+                Achievement("b", categoryType: "Base", category: "Terraria"),
+                Achievement("c", categoryType: "Base|Update", category: "Journey's End"),
+                Achievement("d", categoryType: "DLC", category: "Expansion")
+            });
+
+            Assert.AreEqual("Terraria", derived.Category);
+        }
+
+        [TestMethod]
+        public void DeriveForCapstone_CategoryCapstoneAloneInItsCategoryStandsForTheWholeGame()
+        {
+            // Authored before the scope was stored, then left behind in the default category when
+            // a provider moved everything else into named categories.
+            var achievements = new[]
+            {
+                Achievement("a", unlocked: true, category: "Main"),
+                Achievement("b", category: "Main"),
+                Achievement("custom:old", category: "Default")
+            };
+
+            var derived = AutoCapstoneCalculator.DeriveForCapstone(
+                achievements,
+                "custom:old",
+                isWholeGame: false,
+                storedCategory: "Default");
+
+            Assert.IsNotNull(derived);
+            Assert.IsFalse(derived.Unlocked);
+        }
+
         private static AchievementDetail Achievement(
             string apiName,
             bool unlocked = false,

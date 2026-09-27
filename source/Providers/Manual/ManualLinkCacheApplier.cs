@@ -88,6 +88,14 @@ namespace PlayniteAchievements.Providers.Manual
                 cachedData.LastUpdatedUtc = DateTime.UtcNow;
 
                 _cacheManager?.SaveGameData(playniteGameId.ToString(), cachedData);
+
+                // The auto capstone stands for the unlocks just rewritten, and no refresh follows a
+                // hand edit to bring it back into step. Kept quiet: the user marked these by hand,
+                // so there is no unlock to announce.
+                PlayniteAchievementsPlugin.Instance?.AutoCapstoneMaintainer?.Maintain(
+                    playniteGameId,
+                    announceUnlocks: false);
+
                 _cacheManager?.NotifyCacheInvalidated(new[] { playniteGameId });
 
                 // Ensure immediate theme refresh for this game after manual edits.

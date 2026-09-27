@@ -62,6 +62,8 @@ namespace PlayniteAchievements.Services.Achievements
     {
         private const string BaseCategoryType = "Base";
 
+        private const string UpdateCategoryType = "Update";
+
         /// <summary>
         /// The group types that say an achievement belongs to something other than the base game.
         /// Update is not among them: a base-game update is still the base game, and the providers
@@ -106,24 +108,52 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// The one category the whole scope sits in, or null when they are spread across several or
-        /// all sit in the default bucket.
+        /// The category the scope belongs in: the one it all sits in, or when the base game spans
+        /// several, the main game's. Null when any of it sits in the default bucket.
         /// </summary>
         private static string ResolveSharedCategory(List<AchievementDetail> scope)
         {
-            var labels = scope
-                .Select(achievement => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            if (labels.Count != 1)
+            var labels = DistinctNamedCategories(scope);
+            if (labels.Count == 1)
+            {
+                return labels[0];
+            }
+
+            if (labels.Count == 0)
             {
                 return null;
             }
 
-            var shared = labels[0];
-            return string.Equals(shared, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
-                ? null
-                : shared;
+            // The base game spread over several categories: SteamHunters files each post-launch
+            // update group under its own label, typed Base|Update. The main game is the category
+            // holding the base-game rows that are not an update, so the capstone sits with it
+            // rather than in a default bucket that nothing else is left in.
+            //
+            // Nothing typed to tell the main game by -- categories the user drew up themselves --
+            // leaves no single right place, so the capstone stays in the default category.
+            var mainGame = DistinctNamedCategories(scope
+                .Where(achievement => HasGroupType(achievement, BaseCategoryType) &&
+                                      !HasGroupType(achievement, UpdateCategoryType))
+                .ToList());
+            return mainGame.Count == 1 ? mainGame[0] : null;
+        }
+
+        /// <summary>
+        /// The distinct categories <paramref name="achievements"/> sit in, or empty when any of
+        /// them sits in the default bucket, which then has as good a claim as a named one.
+        /// </summary>
+        private static List<string> DistinctNamedCategories(List<AchievementDetail> achievements)
+        {
+            var labels = achievements
+                .Select(achievement => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            return labels.Any(IsDefaultCategory) ? new List<string>() : labels;
+        }
+
+        private static bool IsDefaultCategory(string label)
+        {
+            return string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool HasGroupType(AchievementDetail achievement, string groupType)
@@ -144,8 +174,12 @@ namespace PlayniteAchievements.Services.Achievements
             IEnumerable<AchievementDetail> achievements,
             string category = null)
         {
+            // Filtered achievements are out of the counts completion is read from, so waiting on
+            // one would hold the capstone locked on a game the summary already calls finished.
             var candidates = (achievements ?? Enumerable.Empty<AchievementDetail>())
-                .Where(achievement => achievement != null)
+                .Where(achievement => achievement != null &&
+                                      !achievement.IsFiltered &&
+                                      !achievement.IsFilteredFromSummaries)
                 .ToList();
 
             var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(category);
@@ -188,6 +222,50 @@ namespace PlayniteAchievements.Services.Achievements
                 rarest,
                 rarest.HasValue ? PercentRarityHelper.GetRarityTier(rarest.Value).ToString() : null,
                 ResolveSharedCategory(scope));
+        }
+
+        /// <summary>
+        /// Derives an existing auto capstone's tracked fields from its game's hydrated achievements.
+        /// </summary>
+        /// <param name="apiName">The capstone's own ApiName, left out so it does not wait on itself.</param>
+        /// <param name="isWholeGame">True when it stands for the whole game rather than a category.</param>
+        /// <param name="storedCategory">
+        /// The category its definition carries, used only when the capstone's own row is missing
+        /// from <paramref name="achievements"/>. The row is what carries the category the user
+        /// filed it in; the definition only ever holds the default.
+        /// </param>
+        public static AutoCapstoneDerivation DeriveForCapstone(
+            IEnumerable<AchievementDetail> achievements,
+            string apiName,
+            bool isWholeGame,
+            string storedCategory = null)
+        {
+            var list = (achievements ?? Enumerable.Empty<AchievementDetail>())
+                .Where(achievement => achievement != null)
+                .ToList();
+            var normalizedApiName = (apiName ?? string.Empty).Trim();
+            var own = list.FirstOrDefault(achievement => string.Equals(
+                (achievement.ApiName ?? string.Empty).Trim(),
+                normalizedApiName,
+                StringComparison.OrdinalIgnoreCase));
+
+            var others = list
+                .Where(achievement => !ReferenceEquals(achievement, own) &&
+                                      !string.Equals(
+                                          (achievement.ApiName ?? string.Empty).Trim(),
+                                          normalizedApiName,
+                                          StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (isWholeGame)
+            {
+                return Derive(others);
+            }
+
+            // A category capstone left alone in its category -- one authored before the whole-game
+            // scope was stored, on a game whose achievements a provider has since moved into named
+            // categories -- has nothing left to stand for there. It stood for the whole game when
+            // it was authored, so it goes back to doing that rather than never updating again.
+            return Derive(others, own?.Category ?? storedCategory) ?? Derive(others);
         }
     }
 }

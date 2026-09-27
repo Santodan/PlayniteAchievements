@@ -39,7 +39,47 @@ namespace PlayniteAchievements.Services.Achievements
             _resolveGameData = resolveGameData;
             _notifyUnlocked = notifyUnlocked;
             _logger = logger;
+            OpenEditorRegistry.Closed += OnEditorClosed;
         }
+
+        private readonly HashSet<Guid> _waitingForEditor = new HashSet<Guid>();
+
+        /// <summary>
+        /// Brings a game held back while its editor was open up to date once it closes. Quietly:
+        /// whatever unlock the held write would have announced happened while the user was looking
+        /// at the game, and announcing it on close would read as the editor doing it.
+        /// </summary>
+        private void OnEditorClosed(Guid gameId)
+        {
+            lock (_pendingSync)
+            {
+                if (!_waitingForEditor.Remove(gameId))
+                {
+                    return;
+                }
+            }
+
+            try
+            {
+                Maintain(gameId, announceUnlocks: false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Auto capstone maintenance after the editor closed failed for gameId={gameId}.");
+            }
+        }
+
+        private readonly object _pendingSync = new object();
+        private readonly Dictionary<Guid, List<AchievementUnlockedEventArgs>> _pending =
+            new Dictionary<Guid, List<AchievementUnlockedEventArgs>>();
+
+        /// <summary>
+        /// True for a game whose capstone unlock is announced by someone else. The in-game monitor
+        /// sends a game's own unlocks after the refresh that recorded them returns, so a capstone
+        /// announced from inside that refresh would arrive ahead of the achievement that earned it.
+        /// Such a game's crossings are held for <see cref="TakePendingAnnouncements"/> instead.
+        /// </summary>
+        public Func<Guid, bool> DefersAnnouncements { get; set; }
 
         /// <summary>Maintains every game a refresh touched.</summary>
         public void Maintain(IEnumerable<Guid> gameIds)
@@ -58,13 +98,47 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// The capstone unlocks held for a game whose announcements are deferred, emptying the
+        /// hold. Empty when there are none.
+        /// </summary>
+        public IReadOnlyList<AchievementUnlockedEventArgs> TakePendingAnnouncements(Guid gameId)
+        {
+            lock (_pendingSync)
+            {
+                if (!_pending.TryGetValue(gameId, out var held))
+                {
+                    return Array.Empty<AchievementUnlockedEventArgs>();
+                }
+
+                _pending.Remove(gameId);
+                return held;
+            }
+        }
+
+        /// <summary>
         /// Brings one game's auto capstone up to date, and announces the unlock when the game has
         /// just been finished.
         /// </summary>
-        public void Maintain(Guid gameId)
+        /// <param name="announceUnlocks">
+        /// False to keep the capstone in step without announcing it, for an edit the user made by
+        /// hand rather than an unlock the game reported.
+        /// </param>
+        public void Maintain(Guid gameId, bool announceUnlocks = true)
         {
             if (gameId == Guid.Empty || _store == null || _overridesService == null)
             {
+                return;
+            }
+
+            // The open editor saves the definitions from its own rows, which would overwrite this
+            // write; the game is brought up to date when the editor closes instead.
+            if (OpenEditorRegistry.IsOpen(gameId))
+            {
+                lock (_pendingSync)
+                {
+                    _waitingForEditor.Add(gameId);
+                }
+
                 return;
             }
 
@@ -105,11 +179,13 @@ namespace PlayniteAchievements.Services.Achievements
                 var current = definitions[index];
                 var apiName = CustomAchievementProjectionService.BuildApiName(current.Id);
 
-                // Everything in its own category except itself: it stands for the others, so
-                // counting itself would leave it waiting on its own unlock.
-                var derived = AutoCapstoneCalculator.Derive(
-                    gameData?.Achievements?.Where(achievement =>
-                        !string.Equals(achievement?.ApiName, apiName, StringComparison.OrdinalIgnoreCase)),
+                // Everything it stands for except itself, so it is not left waiting on its own
+                // unlock. The scope comes from its hydrated row: the definition's category is only
+                // ever the default, while the category the user filed it in lives in the overrides.
+                var derived = AutoCapstoneCalculator.DeriveForCapstone(
+                    gameData?.Achievements,
+                    apiName,
+                    current.IsWholeGameAutoCapstone,
                     current.Category);
                 if (derived == null)
                 {
@@ -147,9 +223,33 @@ namespace PlayniteAchievements.Services.Achievements
             // recompute, so one per capstone would pay for it several times over.
             _overridesService.SetCustomAchievements(gameId, replacement);
 
-            foreach (var definition in announce)
+            if (!announceUnlocks || announce.Count == 0)
             {
-                AnnounceUnlock(gameId, definition, gameData);
+                return;
+            }
+
+            var events = announce
+                .Select(definition => BuildUnlockEvent(gameId, definition, gameData))
+                .ToList();
+            if (DefersAnnouncements?.Invoke(gameId) == true)
+            {
+                lock (_pendingSync)
+                {
+                    if (!_pending.TryGetValue(gameId, out var held))
+                    {
+                        held = new List<AchievementUnlockedEventArgs>();
+                        _pending[gameId] = held;
+                    }
+
+                    held.AddRange(events);
+                }
+
+                return;
+            }
+
+            foreach (var args in events)
+            {
+                _notifyUnlocked?.Invoke(args);
             }
         }
 
@@ -162,22 +262,16 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Sends the capstone's unlock down the same path every other unlock takes, flagged as a
-        /// capstone so it gets the completion-grade treatment rather than reading as one more
-        /// achievement.
+        /// The capstone's unlock, for the same path every other unlock takes, flagged as a capstone
+        /// so it gets the completion-grade treatment rather than reading as one more achievement.
         /// </summary>
-        private void AnnounceUnlock(
+        private static AchievementUnlockedEventArgs BuildUnlockEvent(
             Guid gameId,
             CustomAchievementDefinition definition,
             GameAchievementData gameData)
         {
-            if (_notifyUnlocked == null)
-            {
-                return;
-            }
-
             var game = API.Instance?.Database?.Games?.Get(gameId);
-            _notifyUnlocked(new AchievementUnlockedEventArgs
+            return new AchievementUnlockedEventArgs
             {
                 PlayniteGameId = gameId,
                 GameName = game?.Name ?? gameData?.GameName,
@@ -196,7 +290,7 @@ namespace PlayniteAchievements.Services.Achievements
                 ScaledPoints = definition.ScaledPoints,
                 UnlockTimeUtc = definition.UnlockTimeUtc,
                 IsCapstone = true
-            });
+            };
         }
 
         private static string ResolvePlayniteAsset(string databasePath)

@@ -48,6 +48,16 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public bool IsAutoCapstone { get; set; }
 
+        /// <summary>
+        /// True when an auto capstone stands for the whole game rather than for the category it is
+        /// filed in. Where it is filed says nothing about its scope: a whole-game capstone on a game
+        /// whose achievements span several categories is filed in the default one, and reading the
+        /// scope off the filing would narrow it to that category. False for a category capstone,
+        /// and for every auto capstone authored before this was stored, which keep standing for
+        /// wherever they are filed.
+        /// </summary>
+        public bool IsWholeGameAutoCapstone { get; set; }
+
         public CustomAchievementDefinition Clone()
         {
             return new CustomAchievementDefinition
@@ -70,7 +80,8 @@ namespace PlayniteAchievements.Models.Settings
                 GlobalPercentUnlocked = GlobalPercentUnlocked,
                 ProgressNum = ProgressNum,
                 ProgressDenom = ProgressDenom,
-                IsAutoCapstone = IsAutoCapstone
+                IsAutoCapstone = IsAutoCapstone,
+                IsWholeGameAutoCapstone = IsWholeGameAutoCapstone
             };
         }
     }

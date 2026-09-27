@@ -167,6 +167,39 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void NormalizeInternal_KeepsAutoCapstoneScopeAndGenerationMarker()
+        {
+            // Custom achievements are rebuilt field by field on every save, and a record holding
+            // only the marker must survive, or generation would author a deleted capstone again.
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    AutoCapstoneGenerated = true,
+                    CustomAchievements = new List<CustomAchievementDefinition>
+                    {
+                        new CustomAchievementDefinition
+                        {
+                            Id = "auto-capstone",
+                            DisplayName = "Game",
+                            IsAutoCapstone = true,
+                            IsWholeGameAutoCapstone = true
+                        }
+                    }
+                },
+                gameId);
+
+            Assert.IsTrue(normalized.AutoCapstoneGenerated);
+            Assert.IsTrue(normalized.CustomAchievements[0].IsWholeGameAutoCapstone);
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(new GameCustomDataFile
+            {
+                PlayniteGameId = gameId,
+                AutoCapstoneGenerated = true
+            }));
+        }
+
+        [TestMethod]
         public void NormalizeInternal_ManualLink_PreservesDisplayPlatformOverride()
         {
             // NormalizeManualLink rebuilds the link field by field on every save, so an omitted
