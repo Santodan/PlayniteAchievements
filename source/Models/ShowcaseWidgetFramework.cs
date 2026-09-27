@@ -57,6 +57,7 @@ namespace PlayniteAchievements.Models
 
         public string NameKey { get; set; }
 
+        /// <summary>IcoFont codepoint drawn with PlayAch.FontFamily.Icon (Playnite's icofont.ttf).</summary>
         public string GlyphKey { get; set; }
 
         public bool AllowMultipleInstances { get; set; }
@@ -75,17 +76,17 @@ namespace PlayniteAchievements.Models
         private static readonly IReadOnlyList<ShowcaseWidgetDefinition> DefinitionsValue =
             new List<ShowcaseWidgetDefinition>
             {
-                Define(ShowcaseWidgetKind.Profile, "LOCPlayAch_Showcase_Widget_Profile", "", false, true),
-                Define(ShowcaseWidgetKind.Scores, "LOCPlayAch_Showcase_Widget_Scores", "", false, false),
-                Define(ShowcaseWidgetKind.Pie, "LOCPlayAch_Showcase_Widget_Pie", "", true, false),
-                Define(ShowcaseWidgetKind.Timeline, "LOCPlayAch_Showcase_Widget_Timeline", "", true, false),
-                Define(ShowcaseWidgetKind.Statistics, "LOCPlayAch_Showcase_Widget_Statistics", "", true, false),
-                Define(ShowcaseWidgetKind.NativePoints, "LOCPlayAch_Showcase_Widget_NativePoints", "", true, false, hidden: true),
-                Define(ShowcaseWidgetKind.IconMosaic, "LOCPlayAch_Showcase_Widget_IconMosaic", "", true, false),
-                Define(ShowcaseWidgetKind.ScreenshotSlideshow, "LOCPlayAch_Showcase_Widget_ScreenshotSlideshow", "", true, false),
-                Define(ShowcaseWidgetKind.RecentAchievements, "LOCPlayAch_Showcase_Widget_RecentAchievements", "", true, false),
-                Define(ShowcaseWidgetKind.GameSummaries, "LOCPlayAch_Showcase_Widget_GameSummaries", "", true, false),
-                Define(ShowcaseWidgetKind.ActivityCalendar, "LOCPlayAch_Showcase_Widget_ActivityCalendar", "", true, false)
+                Define(ShowcaseWidgetKind.Profile, "LOCPlayAch_Showcase_Widget_Profile", "\uEC8E", false, true),
+                Define(ShowcaseWidgetKind.Scores, "LOCPlayAch_Showcase_Widget_Scores", "\uEDC8", false, false),
+                Define(ShowcaseWidgetKind.Pie, "LOCPlayAch_Showcase_Widget_Pie", "\uE983", true, false),
+                Define(ShowcaseWidgetKind.Timeline, "LOCPlayAch_Showcase_Widget_Timeline", "\uE981", true, false),
+                Define(ShowcaseWidgetKind.Statistics, "LOCPlayAch_Showcase_Widget_Statistics", "\uE979", true, false),
+                Define(ShowcaseWidgetKind.NativePoints, "LOCPlayAch_Showcase_Widget_NativePoints", "\uE96B", true, false, hidden: true),
+                Define(ShowcaseWidgetKind.IconMosaic, "LOCPlayAch_Showcase_Widget_IconMosaic", "\uEF5D", true, false),
+                Define(ShowcaseWidgetKind.ScreenshotSlideshow, "LOCPlayAch_Showcase_Widget_ScreenshotSlideshow", "\uEFBC", true, false),
+                Define(ShowcaseWidgetKind.RecentAchievements, "LOCPlayAch_Showcase_Widget_RecentAchievements", "\uEDD7", true, false),
+                Define(ShowcaseWidgetKind.GameSummaries, "LOCPlayAch_Showcase_Widget_GameSummaries", "\uEA30", true, false),
+                Define(ShowcaseWidgetKind.ActivityCalendar, "LOCPlayAch_Showcase_Widget_ActivityCalendar", "\uEECD", true, false)
             };
 
         public static IReadOnlyList<ShowcaseWidgetDefinition> Definitions => DefinitionsValue;
