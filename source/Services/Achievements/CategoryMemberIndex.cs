@@ -4,24 +4,17 @@ using System.Collections.Generic;
 namespace PlayniteAchievements.Services.Achievements
 {
     /// <summary>
-    /// Maps each category label to everything beneath it, for the surfaces that act on a category
-    /// and its subcategories at once rather than on one label.
+    /// Maps each category label to the achievements carrying exactly that label, for the surfaces
+    /// that act on one category's own members.
     /// </summary>
-    public static class CategorySubtreeIndex
+    public static class CategoryMemberIndex
     {
         /// <summary>
-        /// Groups achievements under their own category and under every ancestor of it.
+        /// Groups achievements under their own normalized category label.
         /// </summary>
         /// <remarks>
-        /// Built by walking each achievement up its own ancestry, so the work is one pass over the
-        /// achievements times the depth of a category path. Asking instead whether each achievement
-        /// sits under each category would cost a descendant test per achievement per category, which
-        /// is the same answer for a great deal more work once a game has many categories.
-        ///
-        /// A parent therefore appears here holding its children's achievements even when nothing
-        /// carries the parent's own label. That is deliberate and is not what the category rows
-        /// count: those count the exact label, because a parent and its children reporting the same
-        /// achievements would double them up in a progress total.
+        /// A parent holds only what carries its own label, never its subcategories' achievements,
+        /// matching how the category rows count their members.
         /// </remarks>
         public static Dictionary<string, List<string>> Build<T>(
             IEnumerable<T> achievements,
@@ -49,17 +42,18 @@ namespace PlayniteAchievements.Services.Achievements
 
                 var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
                     categoryLabelSelector(achievement));
-                while (!string.IsNullOrWhiteSpace(label))
+                if (string.IsNullOrWhiteSpace(label))
                 {
-                    if (!map.TryGetValue(label, out var bucket))
-                    {
-                        bucket = new List<string>();
-                        map[label] = bucket;
-                    }
-
-                    bucket.Add(apiName);
-                    label = CategoryPathHelper.GetParentPath(label);
+                    continue;
                 }
+
+                if (!map.TryGetValue(label, out var bucket))
+                {
+                    bucket = new List<string>();
+                    map[label] = bucket;
+                }
+
+                bucket.Add(apiName);
             }
 
             return map;
