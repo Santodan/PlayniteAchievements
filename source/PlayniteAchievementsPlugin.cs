@@ -1511,6 +1511,8 @@ namespace PlayniteAchievements
         {
             _logger.Info("OnApplicationStopped called.");
             _applicationStarted = false;
+            // A control bar edit in the last second before exit is still waiting on its save.
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.Flush();
             // Stop startup init if still running
             try
             {
