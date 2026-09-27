@@ -315,19 +315,24 @@
                         </Style.Triggers>
                 </Style>
             </Grid.Style>
-            <ProgressBar Height="10"
+            <ProgressBar Height="12"
                          Maximum="100"
                          Value="{Binding RarityPercentValue, Mode=OneWay}"
                          Background="{StaticResource PlayAch.Brush.Overlay.Shade.80}"
                          Foreground="{DynamicResource PlayAch.Brush.Accent}"
                          BorderThickness="0"/>
+            <!-- The shadow keeps the white text legible where it crosses a light accent fill. -->
             <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       FontSize="8"
+                       FontSize="10"
                        FontWeight="SemiBold"
-                       Foreground="White"/>
+                       Foreground="White">
+                <TextBlock.Effect>
+                    <DropShadowEffect Color="Black" ShadowDepth="0" BlurRadius="2" Opacity="0.9"/>
+                </TextBlock.Effect>
+            </TextBlock>
         </Grid>
     </Grid>
 </UserControl>
