@@ -42,31 +42,31 @@ namespace PlayniteAchievements.Views.Settings.General
                 new SettingsNavigationItem(
                     "General",
                     ResourceProvider.GetString("LOCPlayAch_Common_General"),
-                    iconGlyph: "\uEEFA",
+                    iconGlyph: "\uE80F",
                     viewFactory: () => _overviewSection =
                         new GeneralOverviewSection(jumpToTab)),
                 new SettingsNavigationItem(
                     "SyncUpdates",
                     ResourceProvider.GetString("LOCPlayAch_Section_SyncUpdates"),
-                    iconGlyph: "\uEEE6",
+                    iconGlyph: "\uE895",
                     viewFactory: () => _syncUpdatesSection =
                         new SyncUpdatesSection()),
                 new SettingsNavigationItem(
                     "Hotkeys",
                     ResourceProvider.GetString("LOCPlayAch_Hotkeys_Title"),
-                    iconGlyph: "\uEA3E",
+                    iconGlyph: "\uE765",
                     viewFactory: () => _hotkeySection =
                         new HotkeySettingsSection(settings)),
                 new SettingsNavigationItem(
                     "Tagging",
                     ResourceProvider.GetString("LOCPlayAch_Settings_TaggingHeader"),
-                    iconGlyph: "\uF005",
+                    iconGlyph: "\uE8EC",
                     viewFactory: () => _taggingSection =
                         new TaggingSettingsSection(plugin, logger)),
                 new SettingsNavigationItem(
                     "Maintenance",
                     ResourceProvider.GetString("LOCPlayAch_Settings_Maintenance_Title"),
-                    iconGlyph: "\uF014",
+                    iconGlyph: "\uE90F",
                     viewFactory: () => _maintenanceSection =
                         new MaintenanceSettingsSection(settings, plugin, logger))
             };
