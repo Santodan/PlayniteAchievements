@@ -65,7 +65,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _baselineIsSummarySelected;
         private bool _isSummarySelected;
         private AchievementFilterScope _filterScope;
-        private int _subtreeAchievementCount;
+        private int _memberAchievementCount;
 
         private ManageAchievementsCategoryMetadataItem(
             string gameIdText,
@@ -203,49 +203,56 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _isSummarySelected != _baselineIsSummarySelected;
 
         /// <summary>
-        /// What this category's achievements currently agree on, or
+        /// What this category's own achievements currently agree on, or
         /// <see cref="AchievementFilterScope.Mixed"/> when they disagree. Derived from the members
         /// rather than stored: the column pushes a scope onto them and then reads back what they
         /// hold, so an edit made per achievement elsewhere shows up here as a mixed cell instead of
-        /// being contradicted by a remembered category value.
+        /// being contradicted by a remembered category value. Subcategories do not count.
         /// </summary>
         public AchievementFilterScope FilterScope
         {
             get => _filterScope;
-            internal set => SetValue(ref _filterScope, value);
-        }
-
-        /// <summary>
-        /// How many achievements a push from this row would reach: this category plus every
-        /// subcategory beneath it. Deliberately not <see cref="TotalAchievements"/>, which counts
-        /// only what carries this exact label - a parent holding nothing of its own still pushes to
-        /// its whole subtree.
-        /// </summary>
-        public int SubtreeAchievementCount
-        {
-            get => _subtreeAchievementCount;
             internal set
             {
-                if (SetValueAndReturn(ref _subtreeAchievementCount, value))
+                if (SetValueAndReturn(ref _filterScope, value))
+                {
+                    OnPropertyChanged(nameof(FilterScopeDisplayText));
+                }
+            }
+        }
+
+        /// <summary>The scope's name for the Filters cell's button face; blank when mixed.</summary>
+        public string FilterScopeDisplayText => AchievementFilterScopes.GetDisplayText(_filterScope);
+
+        /// <summary>
+        /// How many achievements a push from this row would reach: the ones carrying this exact
+        /// label. Stamped alongside <see cref="FilterScope"/> from the same index the push uses.
+        /// </summary>
+        public int MemberAchievementCount
+        {
+            get => _memberAchievementCount;
+            internal set
+            {
+                if (SetValueAndReturn(ref _memberAchievementCount, value))
                 {
                     OnPropertyChanged(nameof(CanEditFilterScope));
                 }
             }
         }
 
-        /// <summary>False for a category whose subtree holds nothing, so there is nothing to push to.</summary>
-        public bool CanEditFilterScope => _subtreeAchievementCount > 0;
+        /// <summary>False for a category holding no achievements of its own, so there is nothing to push to.</summary>
+        public bool CanEditFilterScope => _memberAchievementCount > 0;
 
         /// <summary>
-        /// Stamps the scope this row's subtree agrees on. Both counts are over the subtree, and
+        /// Stamps the scope this row's own achievements agree on.
         /// <paramref name="summaryEffectiveCount"/> includes the fully filtered, matching how the
         /// two flags are read everywhere else.
         /// </summary>
-        public void SetFilterScopeFromMembers(int subtreeTotal, int filteredCount, int summaryEffectiveCount)
+        public void SetFilterScopeFromMembers(int memberTotal, int filteredCount, int summaryEffectiveCount)
         {
-            SubtreeAchievementCount = subtreeTotal;
+            MemberAchievementCount = memberTotal;
             FilterScope = AchievementFilterScopes.FromMemberCounts(
-                subtreeTotal,
+                memberTotal,
                 filteredCount,
                 summaryEffectiveCount);
         }
