@@ -39,6 +39,34 @@ namespace PlayniteAchievements.Services.Achievements
             _resolveGameData = resolveGameData;
             _notifyUnlocked = notifyUnlocked;
             _logger = logger;
+            OpenEditorRegistry.Closed += OnEditorClosed;
+        }
+
+        private readonly HashSet<Guid> _waitingForEditor = new HashSet<Guid>();
+
+        /// <summary>
+        /// Brings a game held back while its editor was open up to date once it closes. Quietly:
+        /// whatever unlock the held write would have announced happened while the user was looking
+        /// at the game, and announcing it on close would read as the editor doing it.
+        /// </summary>
+        private void OnEditorClosed(Guid gameId)
+        {
+            lock (_pendingSync)
+            {
+                if (!_waitingForEditor.Remove(gameId))
+                {
+                    return;
+                }
+            }
+
+            try
+            {
+                Maintain(gameId, announceUnlocks: false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Auto capstone maintenance after the editor closed failed for gameId={gameId}.");
+            }
         }
 
         private readonly object _pendingSync = new object();
@@ -99,6 +127,18 @@ namespace PlayniteAchievements.Services.Achievements
         {
             if (gameId == Guid.Empty || _store == null || _overridesService == null)
             {
+                return;
+            }
+
+            // The open editor saves the definitions from its own rows, which would overwrite this
+            // write; the game is brought up to date when the editor closes instead.
+            if (OpenEditorRegistry.IsOpen(gameId))
+            {
+                lock (_pendingSync)
+                {
+                    _waitingForEditor.Add(gameId);
+                }
+
                 return;
             }
 
