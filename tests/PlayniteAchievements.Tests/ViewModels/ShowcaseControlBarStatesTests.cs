@@ -41,6 +41,45 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.AreNotSame(staleAdapter, ShowcaseControlBarStates.Get<GameSummaryGridControlBarAdapter>(stale));
         }
 
+        private sealed class FakeStore : IShowcaseControlBarStateStore
+        {
+            public readonly Dictionary<string, string> Saved = new Dictionary<string, string>();
+
+            public string Load(string instanceId, string key) =>
+                Saved.TryGetValue(instanceId + "|" + key, out var state) ? state : null;
+
+            public void Save(string instanceId, string key, string state) =>
+                Saved[instanceId + "|" + key] = state;
+        }
+
+        [TestMethod]
+        public void Store_SavesFilterChangesAndRestoresThemAfterTheRegistryForgets()
+        {
+            var store = new FakeStore();
+            var id = Guid.NewGuid().ToString();
+            ShowcaseControlBarStates.Store = store;
+            try
+            {
+                var adapter = ShowcaseControlBarStates.Get<GameSummaryGridControlBarAdapter>(id);
+                adapter.SearchText = "halo";
+                adapter.SetProgressFilterSelected(adapter.ProgressFilterOptions[1], true);
+                Assert.AreEqual(1, store.Saved.Count);
+
+                // A restart: the registry starts empty and reloads from the store.
+                ShowcaseControlBarStates.RemoveExcept(new HashSet<string>());
+                var restored = ShowcaseControlBarStates.Get<GameSummaryGridControlBarAdapter>(id);
+
+                Assert.AreNotSame(adapter, restored);
+                Assert.AreEqual("halo", restored.SearchText);
+                Assert.IsTrue(restored.IsProgressFilterSelected(restored.ProgressFilterOptions[1]));
+                Assert.IsFalse(restored.IsProgressFilterSelected(restored.ProgressFilterOptions[0]));
+            }
+            finally
+            {
+                ShowcaseControlBarStates.Store = null;
+            }
+        }
+
         [TestMethod]
         public void Slots_ForOneInstance_ShareStateAndEachHearFilterChanges()
         {
