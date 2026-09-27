@@ -168,7 +168,7 @@
     <Compile Include="..\..\source\Services\Achievements\AchievementOrderHelper.cs" Link="Source\Services\Achievements\AchievementOrderHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementCategoryTypeHelper.cs" Link="Source\Services\Achievements\AchievementCategoryTypeHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryPathHelper.cs" Link="Source\Services\Achievements\CategoryPathHelper.cs" />
-    <Compile Include="..\..\source\Services\Achievements\CategorySubtreeIndex.cs" Link="Source\Services\Achievements\CategorySubtreeIndex.cs" />
+    <Compile Include="..\..\source\Services\Achievements\CategoryMemberIndex.cs" Link="Source\Services\Achievements\CategoryMemberIndex.cs" />
     <Compile Include="..\..\source\ViewModels\ManageAchievements\AchievementFilterScope.cs" Link="Source\ViewModels\ManageAchievements\AchievementFilterScope.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryCollapseFilter.cs" Link="Source\Services\Achievements\CategoryCollapseFilter.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryTreeShapeBuilder.cs" Link="Source\Services\Achievements\CategoryTreeShapeBuilder.cs" />
