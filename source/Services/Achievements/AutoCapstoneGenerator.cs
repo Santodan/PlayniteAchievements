@@ -121,6 +121,14 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var stored = _store.TryLoad(gameId, out var data) ? data : null;
+
+            // Checked before hydrating: once the library has been handled, every refresh reaches
+            // here for games with the marker, and hydrating each one only to skip it adds up.
+            if (stored?.AutoCapstoneGenerated == true)
+            {
+                return;
+            }
+
             var gameData = _resolveGameData?.Invoke(gameId);
             var ordered = AchievementOrderHelper.ApplyOrder(
                 gameData?.Achievements ?? new List<AchievementDetail>(),
