@@ -289,9 +289,10 @@ namespace PlayniteAchievements.Views.Helpers
         public static List<int> BuildAbsorberOrder(
             IReadOnlyList<string> keys,
             string protectedColumnKey,
-            string preferredAbsorberKey = null)
+            string preferredAbsorberKey = null,
+            IReadOnlyCollection<string> excludedAbsorberKeys = null)
         {
-            return ColumnSizingPlanner.BuildAbsorberOrder(keys, protectedColumnKey, preferredAbsorberKey);
+            return ColumnSizingPlanner.BuildAbsorberOrder(keys, protectedColumnKey, preferredAbsorberKey, excludedAbsorberKeys);
         }
 
         public static bool KeysEqual(string a, string b)
@@ -536,6 +537,33 @@ namespace PlayniteAchievements.Views.Helpers
             bool useEqualWidthForMissing,
             out Dictionary<string, double> normalized)
         {
+            return TryBuildNormalizedWidths(
+                grid,
+                protectedKey,
+                preferredAbsorberKey,
+                rescaleAll,
+                preferredWidthsByKey,
+                fallbackAvailableWidth,
+                useEqualWidthForMissing,
+                excludedAbsorberKeys: null,
+                out normalized);
+        }
+
+        /// <param name="excludedAbsorberKeys">
+        /// Columns that never absorb a neighbour's delta but still rescale with the viewport; see
+        /// <see cref="ColumnSizingPlanner.TryPlan(IReadOnlyList{string}, IReadOnlyList{double}, IReadOnlyList{double}, string, string, bool, double, IReadOnlyCollection{string}, out Dictionary{string, double})"/>.
+        /// </param>
+        public static bool TryBuildNormalizedWidths(
+            DataGrid grid,
+            string protectedKey,
+            string preferredAbsorberKey,
+            bool rescaleAll,
+            IReadOnlyDictionary<string, double> preferredWidthsByKey,
+            double fallbackAvailableWidth,
+            bool useEqualWidthForMissing,
+            IReadOnlyCollection<string> excludedAbsorberKeys,
+            out Dictionary<string, double> normalized)
+        {
             normalized = null;
             if (grid == null || grid.Columns == null || grid.Columns.Count == 0)
             {
@@ -608,7 +636,7 @@ namespace PlayniteAchievements.Views.Helpers
                     useEqualWidthForMissing ? equalWidth : (double?)null))
                 .ToList();
 
-            return TryBuildNormalizedWidths(
+            return ColumnSizingPlanner.TryPlan(
                 keys,
                 seedWidths,
                 floorWidths,
@@ -616,6 +644,7 @@ namespace PlayniteAchievements.Views.Helpers
                 preferredAbsorberKey,
                 rescaleAll,
                 targetWidth,
+                excludedAbsorberKeys,
                 out normalized);
         }
 
