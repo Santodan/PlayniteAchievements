@@ -7604,7 +7604,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool HasAchievementNote => !string.IsNullOrWhiteSpace(AchievementNote);
 
-        public string NotePreview => AchievementNoteHelper.GetPreviewText(AchievementNote);
+        /// <summary>
+        /// The note on one line with its inline markup intact, for the grid cell. Not truncated
+        /// here: a cut could land inside a marker pair, and the cell trims visually anyway.
+        /// </summary>
+        public string NotePreview => AchievementNoteHelper.GetPreviewText(AchievementNote, maxLength: 0);
 
         public bool IsGoal
         {
