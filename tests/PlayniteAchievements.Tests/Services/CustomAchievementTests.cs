@@ -230,9 +230,11 @@ namespace PlayniteAchievements.Services.Tests
             Assert.IsTrue(summary.HasMoreRecentUnlocks);
             Assert.AreEqual(1, summary.RecentUnlocks.Count);
             Assert.AreEqual(CustomAchievementProjectionService.BuildApiName("solo"), summary.RecentUnlocks[0].ApiName, "newest unlock first");
-            Assert.AreEqual(1, summary.GlobalUnlockCountsByDate[unlockTime.Date]);
-            Assert.AreEqual(1, summary.GlobalUnlockCountsByDate[unlockTime.AddDays(1).Date]);
-            Assert.AreEqual(1, summary.UnlockCountsByDateByGame[existingGameId][unlockTime.Date]);
+            // Timeline keys are local calendar days, so the expected key goes through the same helper.
+            var unlockDay = PlayniteAchievements.Services.Overview.UnlockDayCounts.DayOf(unlockTime);
+            Assert.AreEqual(1, summary.GlobalUnlockCountsByDate[unlockDay]);
+            Assert.AreEqual(1, summary.GlobalUnlockCountsByDate[unlockDay.AddDays(1)]);
+            Assert.AreEqual(1, summary.UnlockCountsByDateByGame[existingGameId][unlockDay]);
         }
 
         [TestMethod]

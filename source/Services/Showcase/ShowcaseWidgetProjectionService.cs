@@ -1025,7 +1025,7 @@ namespace PlayniteAchievements.Services.Showcase
                 deltas.SawUnlocked = true;
                 if (item.UnlockTimeUtc.HasValue)
                 {
-                    var day = item.UnlockTimeUtc.Value.Date;
+                    var day = UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value);
                     deltas.Collection.TryGetValue(day, out var collection);
                     deltas.Collection[day] = collection + item.CollectionScore;
                     deltas.Prestige.TryGetValue(day, out var prestige);

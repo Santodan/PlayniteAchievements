@@ -579,7 +579,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     if (ach.Unlocked && ach.UnlockTimeUtc.HasValue)
                     {
-                        var date = DateTimeUtilities.AsUtcKind(ach.UnlockTimeUtc.Value).Date;
+                        var date = Services.Overview.UnlockDayCounts.DayOf(ach.UnlockTimeUtc.Value);
                         if (unlockCounts.TryGetValue(date, out var existing))
                         {
                             unlockCounts[date] = existing + 1;

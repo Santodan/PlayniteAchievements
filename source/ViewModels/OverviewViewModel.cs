@@ -2212,34 +2212,11 @@ namespace PlayniteAchievements.ViewModels
                     continue;
                 }
 
-                var date = DateTimeUtilities.AsUtcKind(item.UnlockTimeUtc.Value).Date;
-                if (snapshot.GlobalUnlockCountsByDate.TryGetValue(date, out var existing))
-                {
-                    snapshot.GlobalUnlockCountsByDate[date] = existing + 1;
-                }
-                else
-                {
-                    snapshot.GlobalUnlockCountsByDate[date] = 1;
-                }
-
-                if (item.PlayniteGameId.HasValue)
-                {
-                    var gameId = item.PlayniteGameId.Value;
-                    if (!snapshot.UnlockCountsByDateByGame.TryGetValue(gameId, out var gameCounts))
-                    {
-                        gameCounts = new Dictionary<DateTime, int>();
-                        snapshot.UnlockCountsByDateByGame[gameId] = gameCounts;
-                    }
-
-                    if (gameCounts.TryGetValue(date, out var gameExisting))
-                    {
-                        gameCounts[date] = gameExisting + 1;
-                    }
-                    else
-                    {
-                        gameCounts[date] = 1;
-                    }
-                }
+                Services.Overview.UnlockDayCounts.Add(
+                    snapshot.GlobalUnlockCountsByDate,
+                    snapshot.UnlockCountsByDateByGame,
+                    item.PlayniteGameId,
+                    item.UnlockTimeUtc.Value);
             }
 
             Common.LeakWatch.Track("OverviewSnapshot.delta", snapshot);

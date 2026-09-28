@@ -15,6 +15,8 @@ namespace PlayniteAchievements.Services.Cache
         public List<CachedRecentUnlockData> Achievements { get; set; } =
             new List<CachedRecentUnlockData>();
 
+        // Keys are local calendar days produced by Services.Overview.UnlockDayCounts.DayOf
+        // (00:00, Kind Unspecified; compare by value).
         public Dictionary<DateTime, int> GlobalUnlockCountsByDate { get; set; } =
             new Dictionary<DateTime, int>();
 

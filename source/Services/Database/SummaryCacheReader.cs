@@ -92,8 +92,7 @@ namespace PlayniteAchievements.Services.Database
         {
             public string CacheKey { get; set; }
             public string PlayniteGameId { get; set; }
-            public string UnlockDateUtc { get; set; }
-            public long UnlockCount { get; set; }
+            public string UnlockTimeUtc { get; set; }
         }
 
         private sealed class CachedUnlockedScoreRow
@@ -297,14 +296,20 @@ namespace PlayniteAchievements.Services.Database
                     scope?.SetContext("games=" + possibleScoreTotalsByCacheKey.Count);
                 }
 
-                List<CachedUnlockTimelineRow> timelineRows;
-                using (var scope = PerfScope.Start(logger, "Cache.Summary.UnlockTimeline" + tagSuffix, thresholdMs: 25))
-                {
-                    timelineRows = LoadCachedUnlockTimelineRows(db, scopeGameId);
-                    scope?.SetContext("rows=" + timelineRows.Count);
-                }
-
                 var requestedRecentLimit = recentAchievementDetailLimit > 0 ? recentAchievementDetailLimit : 0;
+
+                // The unbounded read below already loads every dated unlock the timeline query
+                // would count (same progress rows, same filter anti-join), so it buckets those
+                // rows instead of running a second scan. Only a bounded read needs this query.
+                var timelineRows = new List<CachedUnlockTimelineRow>();
+                if (requestedRecentLimit > 0)
+                {
+                    using (var scope = PerfScope.Start(logger, "Cache.Summary.UnlockTimeline" + tagSuffix, thresholdMs: 25))
+                    {
+                        timelineRows = LoadCachedUnlockTimelineRows(db, scopeGameId);
+                        scope?.SetContext("rows=" + timelineRows.Count);
+                    }
+                }
                 var boundedRecentLimit = requestedRecentLimit > 0 ? requestedRecentLimit + 1 : 0;
 
                 List<CachedRecentUnlockRow> recentRows;
@@ -387,35 +392,21 @@ namespace PlayniteAchievements.Services.Database
                     });
                 }
 
+                // Bounded reads bucket the dedicated timeline rows; keys are local calendar days.
                 for (var i = 0; i < timelineRows.Count; i++)
                 {
                     var row = timelineRows[i];
-                    if (row == null || row.UnlockCount <= 0)
+                    var unlockTimeUtc = row == null ? null : ParseUtc(row.UnlockTimeUtc);
+                    if (!unlockTimeUtc.HasValue)
                     {
                         continue;
                     }
 
-                    var unlockDate = ParseUtc(row.UnlockDateUtc)?.Date;
-                    if (!unlockDate.HasValue)
-                    {
-                        continue;
-                    }
-
-                    Increment(result.GlobalUnlockCountsByDate, unlockDate.Value, (int)Math.Max(0, row.UnlockCount));
-
-                    var playniteGameId = ResolveCachedPlayniteGameId(row.CacheKey, row.PlayniteGameId);
-                    if (!playniteGameId.HasValue)
-                    {
-                        continue;
-                    }
-
-                    if (!result.UnlockCountsByDateByGame.TryGetValue(playniteGameId.Value, out var gameCounts))
-                    {
-                        gameCounts = new Dictionary<DateTime, int>();
-                        result.UnlockCountsByDateByGame[playniteGameId.Value] = gameCounts;
-                    }
-
-                    Increment(gameCounts, unlockDate.Value, (int)Math.Max(0, row.UnlockCount));
+                    Overview.UnlockDayCounts.Add(
+                        result.GlobalUnlockCountsByDate,
+                        result.UnlockCountsByDateByGame,
+                        ResolveCachedPlayniteGameId(row.CacheKey, row.PlayniteGameId),
+                        unlockTimeUtc.Value);
                 }
 
                 if (requestedRecentLimit > 0 && recentRows.Count > requestedRecentLimit)
@@ -431,6 +422,20 @@ namespace PlayniteAchievements.Services.Database
                     result.RecentUnlocks = mappedAchievements
                         .Where(item => item?.Unlocked == true && item.UnlockTimeUtc.HasValue)
                         .ToList();
+
+                    using (var scope = PerfScope.Start(logger, "Cache.Summary.UnlockTimeline" + tagSuffix, thresholdMs: 25))
+                    {
+                        foreach (var item in result.RecentUnlocks)
+                        {
+                            Overview.UnlockDayCounts.Add(
+                                result.GlobalUnlockCountsByDate,
+                                result.UnlockCountsByDateByGame,
+                                item.PlayniteGameId,
+                                item.UnlockTimeUtc.Value);
+                        }
+
+                        scope?.SetContext("rows=" + result.RecentUnlocks.Count);
+                    }
                 }
                 else
                 {
@@ -650,8 +655,7 @@ namespace PlayniteAchievements.Services.Database
                 SELECT
                     lp.CacheKey AS CacheKey,
                     lp.PlayniteGameId AS PlayniteGameId,
-                    date(ua.UnlockTimeUtc) AS UnlockDateUtc,
-                    COUNT(*) AS UnlockCount
+                    ua.UnlockTimeUtc AS UnlockTimeUtc
                 FROM LatestProgress lp
                 INNER JOIN UserAchievements ua
                     ON ua.UserGameProgressId = lp.UserGameProgressId
@@ -663,11 +667,7 @@ namespace PlayniteAchievements.Services.Database
                                   WHERE ao.PlayniteGameId = lp.PlayniteGameId
                                     AND ao.ApiName = ad.ApiName
                                      AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1))
-                GROUP BY
-                    lp.CacheKey,
-                    lp.PlayniteGameId,
-                    date(ua.UnlockTimeUtc)
-                ORDER BY UnlockDateUtc DESC, lp.CacheKey;", ScopeArgs(scopeGameId)).ToList();
+                ORDER BY ua.UnlockTimeUtc DESC, lp.CacheKey;", ScopeArgs(scopeGameId)).ToList();
         }
 
         private static List<CachedRecentUnlockRow> LoadCachedRecentUnlockRows(
@@ -823,23 +823,6 @@ namespace PlayniteAchievements.Services.Database
             }
 
             return result;
-        }
-
-        private static void Increment(IDictionary<DateTime, int> counts, DateTime date, int amount)
-        {
-            if (counts == null || amount <= 0)
-            {
-                return;
-            }
-
-            if (counts.TryGetValue(date, out var existing))
-            {
-                counts[date] = existing + amount;
-            }
-            else
-            {
-                counts[date] = amount;
-            }
         }
 
         private static int AddClamped(int current, int value)
