@@ -2335,6 +2335,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     {
                         columns.Order = map;
                     }
+                },
+                getLocks: () => GetColumnLayout()?.Locked,
+                setLocks: map =>
+                {
+                    var columns = GetColumnLayout();
+                    if (columns != null)
+                    {
+                        columns.Locked = map;
+                    }
                 });
 
             _columnPersistence.PinnedLeadingKeys = PinnedColumnKeys;
