@@ -83,7 +83,10 @@ namespace PlayniteAchievements.Services.Achievements
         /// <summary>Automatic selection aims for this many bars (nearest on a log scale).</summary>
         public const int TargetBarCount = 24;
 
-        /// <summary>A forced unit escalates to the next coarser one past this many bars.</summary>
+        /// <summary>
+        /// Absolute bar cap; hosts pass a smaller <c>maxBars</c> from their width, because a
+        /// LiveCharts column narrower than its padding renders nothing at all.
+        /// </summary>
         public const int MaxOverrideBarCount = 400;
 
         public const DayOfWeek WeekStart = DayOfWeek.Monday;
@@ -101,7 +104,8 @@ namespace PlayniteAchievements.Services.Achievements
             DateTime startLocalDate,
             DateTime endLocalDate,
             IReadOnlyDictionary<DateTime, int> countsByLocalDate,
-            TimelineGranularity granularity)
+            TimelineGranularity granularity,
+            int maxBars = MaxOverrideBarCount)
         {
             var start = startLocalDate.Date;
             var end = endLocalDate.Date;
@@ -110,7 +114,7 @@ namespace PlayniteAchievements.Services.Achievements
                 end = start;
             }
 
-            var unit = SelectUnit(start, end, granularity);
+            var unit = SelectUnit(start, end, granularity, maxBars);
 
             var periods = new List<DateTime>();
             var indexByPeriod = new Dictionary<DateTime, int>();
@@ -167,38 +171,46 @@ namespace PlayniteAchievements.Services.Achievements
         /// <summary>
         /// Chooses the unit for a window. <see cref="TimelineGranularity.Auto"/> takes the unit whose
         /// bucket count is nearest <see cref="TargetBarCount"/> on a log scale, ties to the finer unit.
-        /// A forced unit escalates while its count exceeds <see cref="MaxOverrideBarCount"/>.
+        /// Either way the unit escalates while its count exceeds <paramref name="maxBars"/> (capped
+        /// at <see cref="MaxOverrideBarCount"/>), so a chart never asks for more columns than fit.
         /// </summary>
-        public static TimelineBucketUnit SelectUnit(DateTime startLocalDate, DateTime endLocalDate, TimelineGranularity granularity)
+        public static TimelineBucketUnit SelectUnit(
+            DateTime startLocalDate,
+            DateTime endLocalDate,
+            TimelineGranularity granularity,
+            int maxBars = MaxOverrideBarCount)
         {
             var start = startLocalDate.Date;
             var end = endLocalDate.Date < start ? start : endLocalDate.Date;
+            var cap = Math.Max(1, Math.Min(maxBars, MaxOverrideBarCount));
 
+            TimelineBucketUnit chosen;
             if (granularity != TimelineGranularity.Auto)
             {
-                var forced = ToUnit(granularity);
-                while (forced < TimelineBucketUnit.Year && CountPeriods(forced, start, end) > MaxOverrideBarCount)
-                {
-                    forced++;
-                }
-
-                return forced;
+                chosen = ToUnit(granularity);
             }
-
-            var best = TimelineBucketUnit.Day;
-            var bestScore = double.MaxValue;
-            foreach (var unit in AllUnits)
+            else
             {
-                var count = CountPeriods(unit, start, end);
-                var score = Math.Abs(Math.Log((double)count / TargetBarCount));
-                if (score < bestScore)
+                chosen = TimelineBucketUnit.Day;
+                var bestScore = double.MaxValue;
+                foreach (var unit in AllUnits)
                 {
-                    bestScore = score;
-                    best = unit;
+                    var count = CountPeriods(unit, start, end);
+                    var score = Math.Abs(Math.Log((double)count / TargetBarCount));
+                    if (score < bestScore)
+                    {
+                        bestScore = score;
+                        chosen = unit;
+                    }
                 }
             }
 
-            return best;
+            while (chosen < TimelineBucketUnit.Year && CountPeriods(chosen, start, end) > cap)
+            {
+                chosen++;
+            }
+
+            return chosen;
         }
 
         /// <summary>Number of periods of <paramref name="unit"/> intersecting the inclusive window.</summary>

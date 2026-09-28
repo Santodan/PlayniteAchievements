@@ -52,6 +52,20 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void MaxBars_EscalatesBothAutoAndOverride()
+        {
+            var year = Jan1.AddDays(364);
+
+            var autoPlan = TimelineBucketing.Build(Jan1, year, NoCounts, TimelineGranularity.Auto, maxBars: 10);
+            Assert.AreEqual(TimelineBucketUnit.Quarter, autoPlan.Unit, "12 months exceed 10 bars, and quarters are the next unit that fits");
+            Assert.IsTrue(autoPlan.Buckets.Count <= 10);
+
+            var dayPlan = TimelineBucketing.Build(Jan1, year, NoCounts, TimelineGranularity.Day, maxBars: 100);
+            Assert.AreEqual(TimelineBucketUnit.Week, dayPlan.Unit, "365 daily bars do not fit in 100, 53 weekly ones do");
+            Assert.IsTrue(dayPlan.Buckets.Count <= 100);
+        }
+
+        [TestMethod]
         public void Override_Month_OnShortWindow_IsOneBucket()
         {
             var plan = TimelineBucketing.Build(new DateTime(2026, 1, 5), new DateTime(2026, 1, 14), NoCounts, TimelineGranularity.Month);
