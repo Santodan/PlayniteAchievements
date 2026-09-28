@@ -39,6 +39,7 @@ namespace PlayniteAchievements.ViewModels
         private TimeWindow _window = TimeWindow.FromPreset(TimelineRange.OneYear);
         private TimelineGranularity _granularity = TimelineGranularity.Auto;
         private TimelineBucketUnit _effectiveUnit = TimelineBucketUnit.Day;
+        private IReadOnlyList<TimelineGranularity> _unavailableGranularities = new TimelineGranularity[0];
         private DateTime? _earliestDate;
         private double _xAxisMax = 1;
         private double _yAxisMax = 1;
@@ -114,6 +115,16 @@ namespace PlayniteAchievements.ViewModels
         {
             get => _effectiveUnit;
             private set => SetValue(ref _effectiveUnit, value);
+        }
+
+        /// <summary>
+        /// Granularity overrides the current window cannot honor within the host's bar cap (Day on
+        /// a multi-year window, say). The picker disables them; the stored choice is left alone.
+        /// </summary>
+        public IReadOnlyList<TimelineGranularity> UnavailableGranularities
+        {
+            get => _unavailableGranularities;
+            private set => SetValue(ref _unavailableGranularities, value);
         }
 
         /// <summary>Earliest local day with an unlock, or null; the lower bound an open custom range uses.</summary>
@@ -224,6 +235,9 @@ namespace PlayniteAchievements.ViewModels
                     var plan = TimelineBucketing.Build(range.Start, range.End, counts, granularity, maxBars);
                     var labels = TimelineAxisTicks.Plan(plan.Buckets, plan.Unit, maxTicks, culture);
                     var scale = NiceScale.ForMax(plan.Max);
+                    var unavailable = new[] { TimelineGranularity.Day, TimelineGranularity.Week, TimelineGranularity.Month }
+                        .Where(candidate => !TimelineBucketing.Fits(candidate, range.Start, range.End, maxBars))
+                        .ToList();
 
                     System.Windows.Application.Current?.Dispatcher?.InvokeIfNeeded(() =>
                     {
@@ -235,6 +249,9 @@ namespace PlayniteAchievements.ViewModels
                             }
 
                             Apply(plan, labels, scale, earliest);
+                            // The stored choice is kept even when it cannot be honored right now;
+                            // the chart escalates on its own and the picker greys the entry out.
+                            UnavailableGranularities = unavailable;
                         }
                         catch (Exception ex)
                         {

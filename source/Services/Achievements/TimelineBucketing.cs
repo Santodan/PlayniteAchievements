@@ -213,6 +213,21 @@ namespace PlayniteAchievements.Services.Achievements
             return chosen;
         }
 
+        /// <summary>
+        /// Whether a forced granularity can be honored for the window without exceeding
+        /// <paramref name="maxBars"/>; Auto always fits because it escalates on its own.
+        /// </summary>
+        public static bool Fits(TimelineGranularity granularity, DateTime startLocalDate, DateTime endLocalDate, int maxBars)
+        {
+            if (granularity == TimelineGranularity.Auto)
+            {
+                return true;
+            }
+
+            var cap = Math.Max(1, Math.Min(maxBars, MaxOverrideBarCount));
+            return CountPeriods(ToUnit(granularity), startLocalDate, endLocalDate) <= cap;
+        }
+
         /// <summary>Number of periods of <paramref name="unit"/> intersecting the inclusive window.</summary>
         public static int CountPeriods(TimelineBucketUnit unit, DateTime startLocalDate, DateTime endLocalDate)
         {
