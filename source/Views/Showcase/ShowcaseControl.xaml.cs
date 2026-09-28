@@ -95,6 +95,34 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly System.Windows.Threading.DispatcherTimer _snapshotRefreshTimer;
         private bool _snapshotRefreshPending;
 
+        // Widget projections are applied one per Background dispatcher pass rather than all in
+        // one operation. A body apply is cheap by itself, but the layout pass it triggers
+        // inflates the widget's template, realizes grid rows and mosaic tiles, and plots its
+        // charts; nine of those in one operation held the UI thread for over a second on open.
+        // Draining one widget per pass lets input, rendering, and the next widget interleave.
+        // The queue is FIFO in enqueue order (visible blocks in reading order first), dedupes by
+        // host, and is emptied by a dashboard rebuild or dispose, which is the only generation
+        // tracking needed while this control is the sole producer.
+        private sealed class WidgetApplyRequest
+        {
+            public ShowcaseWidgetControl Host;
+
+            public ShowcaseWidgetInstanceSettings Widget;
+
+            // Set for a request raised for a visible block; null for a cached off-page host.
+            public string BlockId;
+
+            // True when only the snapshot moved (data refresh), false when the widget's own
+            // configuration changed and a re-projection is required regardless of the snapshot.
+            public bool SnapshotOnly;
+        }
+
+        private readonly Queue<WidgetApplyRequest> _applyQueue = new Queue<WidgetApplyRequest>();
+        private readonly HashSet<ShowcaseWidgetControl> _applyQueued = new HashSet<ShowcaseWidgetControl>();
+        private bool _applyDrainScheduled;
+        private int _applyDrainApplied;
+        private long _applyDrainStartedTicks;
+
         // Edit-mode size labels: each column's width along the top edge, each row's height along
         // the left. Refreshed at most every TrackRulerInterval while the window resizes or a
         // gripper drags, so they track live without re-reading layout on every mouse move.
@@ -187,6 +215,7 @@ namespace PlayniteAchievements.Views.Showcase
             ShowcaseControlBarStateStore.Instance.Flush();
             _snapshotRefreshTimer.Stop();
             _trackRulerTimer.Stop();
+            ClearApplyQueue();
             // The cached widget bodies hold PersistedSettings-subscribed grids and slideshow
             // timers that only release in Dispose; drop them explicitly rather than relying
             // on Unloaded, which WPF does not guarantee.
@@ -250,6 +279,9 @@ namespace PlayniteAchievements.Views.Showcase
             using var perf = PerfScope.Start(Logger, "Showcase.BuildDashboard", thresholdMs: 20);
             DashboardGrid.Children.Clear();
             _blockVisuals.Clear();
+            // Every visible block re-enqueues through CreateWidgetHost below; anything still
+            // queued targets containers this rebuild discards.
+            ClearApplyQueue();
             _trackGrippers.Clear();
             _trackRulers.Clear();
             _columnRulerTexts.Clear();
@@ -1760,21 +1792,132 @@ namespace PlayniteAchievements.Views.Showcase
             // selection work on every click. The widget menu rides on the block container so
             // it stays reachable with the body inert.
             host.IsHitTestVisible = EditLayoutButton.IsChecked != true;
-            var blockId = block.BlockId;
-            Dispatcher.BeginInvoke(
-                new Action(() =>
+            QueueWidgetApply(host, widget, block.BlockId, snapshotOnly: false);
+            return host;
+        }
+
+        private void QueueWidgetApply(
+            ShowcaseWidgetControl host,
+            ShowcaseWidgetInstanceSettings widget,
+            string blockId,
+            bool snapshotOnly)
+        {
+            if (_disposed || host == null || widget == null)
+            {
+                return;
+            }
+
+            if (!_applyQueued.Add(host))
+            {
+                // Already waiting: keep its place, but a configuration change must not be
+                // downgraded to a snapshot-only request that a later guard could skip.
+                if (!snapshotOnly)
                 {
-                    if (_disposed ||
-                        !_blockVisuals.TryGetValue(blockId, out var current) ||
-                        !ReferenceEquals(current?.Host, host))
+                    foreach (var pending in _applyQueue)
                     {
-                        return;
+                        if (ReferenceEquals(pending.Host, host))
+                        {
+                            pending.SnapshotOnly = false;
+                            break;
+                        }
+                    }
+                }
+
+                return;
+            }
+
+            if (_applyQueue.Count == 0)
+            {
+                _applyDrainStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+                _applyDrainApplied = 0;
+            }
+
+            _applyQueue.Enqueue(new WidgetApplyRequest
+            {
+                Host = host,
+                Widget = widget,
+                BlockId = blockId,
+                SnapshotOnly = snapshotOnly
+            });
+            ScheduleApplyDrain();
+        }
+
+        private void ScheduleApplyDrain()
+        {
+            if (_applyDrainScheduled || _disposed || _applyQueue.Count == 0)
+            {
+                return;
+            }
+
+            _applyDrainScheduled = true;
+            Dispatcher.BeginInvoke(
+                new Action(DrainApplyQueue),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        // Applies at most one widget, then re-posts itself. The snapshot is read when the
+        // request runs, not when it was queued, so a widget reached after a newer snapshot
+        // landed projects the newer one and is not queued twice for it.
+        private void DrainApplyQueue()
+        {
+            _applyDrainScheduled = false;
+            if (_disposed)
+            {
+                ClearApplyQueue();
+                return;
+            }
+
+            try
+            {
+                while (_applyQueue.Count > 0)
+                {
+                    var request = _applyQueue.Dequeue();
+                    _applyQueued.Remove(request.Host);
+                    if (!IsLiveRequest(request))
+                    {
+                        continue;
                     }
 
-                    ApplyWidgetProjection(host, widget, _overview.LatestSnapshot);
-                }),
-                System.Windows.Threading.DispatcherPriority.Background);
-            return host;
+                    ApplyWidgetProjection(request.Host, request.Widget, _overview.LatestSnapshot);
+                    _applyDrainApplied++;
+                    break;
+                }
+            }
+            finally
+            {
+                if (_applyQueue.Count > 0)
+                {
+                    ScheduleApplyDrain();
+                }
+                else if (_applyDrainApplied > 0 && PerfScope.PerfTracingEnabled)
+                {
+                    var elapsedMs = (System.Diagnostics.Stopwatch.GetTimestamp() - _applyDrainStartedTicks) * 1000L /
+                                    System.Diagnostics.Stopwatch.Frequency;
+                    Logger.Debug($"[Showcase] apply drain done widgets={_applyDrainApplied} ms={elapsedMs}");
+                    _applyDrainApplied = 0;
+                }
+            }
+        }
+
+        // A request is stale once its host no longer backs the block it was raised for (a
+        // rebuild replaced the container) or, for an off-page host, once the cache dropped it.
+        private bool IsLiveRequest(WidgetApplyRequest request)
+        {
+            if (request.BlockId != null)
+            {
+                return _blockVisuals.TryGetValue(request.BlockId, out var state) &&
+                       ReferenceEquals(state?.Host, request.Host);
+            }
+
+            return !string.IsNullOrWhiteSpace(request.Widget?.InstanceId) &&
+                   _hostCache.TryGetValue(request.Widget.InstanceId, out var live) &&
+                   ReferenceEquals(live, request.Host);
+        }
+
+        private void ClearApplyQueue()
+        {
+            _applyQueue.Clear();
+            _applyQueued.Clear();
         }
 
         // The one place a widget host receives its projection. Apply only sets the Projection
@@ -2729,8 +2872,9 @@ namespace PlayniteAchievements.Views.Showcase
         // would re-run the drag wiring and recreate every control). The per-kind view models update
         // their bindings without discarding their visual tree.
         //
-        // includeCachedHosts re-projects the off-page hosts as well; see the comment on that loop
-        // for why only a snapshot change needs it.
+        // This only enqueues; the apply queue projects one widget per dispatcher pass, visible
+        // blocks first in reading order. includeCachedHosts re-projects the off-page hosts as
+        // well; see the comment on that loop for why only a snapshot change needs it.
         private void RefreshWidgetData(bool includeCachedHosts)
         {
             if (_disposed)
@@ -2744,20 +2888,18 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
-            using var perf = PerfScope.Start(
-                Logger,
-                "Showcase.RefreshWidgetData",
-                thresholdMs: 30,
-                context: $"cached={includeCachedHosts} visible={_blockVisuals.Count} hosts={_hostCache.Count}");
-            var snapshot = _overview.LatestSnapshot;
-            var applied = new HashSet<ShowcaseWidgetControl>();
-            foreach (var visual in _blockVisuals.Values)
+            var queued = new HashSet<ShowcaseWidgetControl>();
+            foreach (var block in CurrentPage.Blocks.OrderBy(block => block.Row).ThenBy(block => block.Column))
             {
-                if (visual?.Host != null && visual.Widget != null)
+                if (!_blockVisuals.TryGetValue(block.BlockId, out var visual) ||
+                    visual?.Host == null ||
+                    visual.Widget == null)
                 {
-                    ApplyWidgetProjection(visual.Host, visual.Widget, snapshot);
-                    applied.Add(visual.Host);
+                    continue;
                 }
+
+                QueueWidgetApply(visual.Host, visual.Widget, block.BlockId, snapshotOnly: includeCachedHosts);
+                queued.Add(visual.Host);
             }
 
             // Re-project the cached hosts for the other pages too, but only when the snapshot
@@ -2784,14 +2926,14 @@ namespace PlayniteAchievements.Views.Showcase
             foreach (var entry in _hostCache)
             {
                 if (entry.Value == null ||
-                    applied.Contains(entry.Value) ||
+                    queued.Contains(entry.Value) ||
                     entry.Value.Projection == null ||
                     !widgetsById.TryGetValue(entry.Key, out var widget))
                 {
                     continue;
                 }
 
-                ApplyWidgetProjection(entry.Value, widget, snapshot);
+                QueueWidgetApply(entry.Value, widget, blockId: null, snapshotOnly: true);
             }
         }
 
@@ -3198,7 +3340,7 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
-            ApplyWidgetProjection(host, widget, _overview.LatestSnapshot);
+            QueueWidgetApply(host, widget, blockId: null, snapshotOnly: false);
         }
 
         // Captures the current page as it renders on screen and saves it as a PNG the user
