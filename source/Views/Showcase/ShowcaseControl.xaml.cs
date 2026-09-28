@@ -2973,10 +2973,10 @@ namespace PlayniteAchievements.Views.Showcase
                 RenameCurrentPage));
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuItem(
-                Localize("LOCPlayAch_ManageAchievements_Overrides_ExportButton"),
+                Localize("LOCPlayAch_Showcase_ExportPage"),
                 ExportCurrentPage));
             menu.Items.Add(MenuItem(
-                Localize("LOCPlayAch_Common_Import"),
+                Localize("LOCPlayAch_Showcase_ImportPage"),
                 ImportPageFromFile));
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuItem(
