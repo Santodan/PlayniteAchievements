@@ -128,8 +128,7 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(widgetXaml, "{DynamicResource PlayAch.Brush.Surface}");
             StringAssert.Contains(widgetXaml, "{DynamicResource PlayAch.Brush.Border}");
             StringAssert.Contains(widgetXaml, "{DynamicResource PlayAch.Brush.Text}");
-            StringAssert.Contains(widgetXaml, "{DynamicResource PlayAch.Brush.Accent}");
-            StringAssert.Contains(widgetXaml, "x:Name=\"GlyphText\"");
+            Assert.IsFalse(widgetXaml.Contains("x:Name=\"GlyphText\""));
             StringAssert.Contains(widgetXaml, "x:Name=\"HeaderBorder\"");
             StringAssert.Contains(widgetXaml, "Visibility=\"Collapsed\"");
             Assert.IsFalse(code.Contains("definition.DescriptionKey"));
