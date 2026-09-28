@@ -755,6 +755,106 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void ActivityCalendar_CustomWindow_EndsOnItsToDate()
+        {
+            var today = new DateTime(2026, 7, 31);
+            var snapshot = new OverviewDataSnapshot
+            {
+                GlobalUnlockCountsByDate = new Dictionary<DateTime, int>
+                {
+                    [new DateTime(2026, 3, 10)] = 2,
+                    [new DateTime(2026, 4, 20)] = 5,   // after To, outside the window
+                    [today] = 1
+                }
+            };
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ActivityCalendar };
+            ShowcaseTimelineOptions.SetWindow(instance, TimeWindow.Custom(new DateTime(2026, 3, 1), new DateTime(2026, 4, 15)));
+
+            var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(snapshot, instance, today);
+
+            Assert.AreEqual(new DateTime(2026, 4, 15), calendar.EndDate);
+            Assert.AreEqual(DayOfWeek.Sunday, calendar.StartDate.DayOfWeek);
+            Assert.IsTrue(calendar.StartDate <= new DateTime(2026, 3, 1));
+            Assert.AreEqual(2, calendar.TotalCount, "only the unlock inside From..To counts");
+        }
+
+        [TestMethod]
+        public void Build_DifferentCustomWindows_DoNotShareCachedCalendars()
+        {
+            var today = new DateTime(2026, 7, 31);
+            var snapshot = new OverviewDataSnapshot
+            {
+                GlobalUnlockCountsByDate = new Dictionary<DateTime, int> { [today.AddDays(-3)] = 4 }
+            };
+            var march = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ActivityCalendar };
+            ShowcaseTimelineOptions.SetWindow(march, TimeWindow.Custom(new DateTime(2026, 3, 1), new DateTime(2026, 3, 31)));
+            var june = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ActivityCalendar };
+            ShowcaseTimelineOptions.SetWindow(june, TimeWindow.Custom(new DateTime(2026, 6, 1), new DateTime(2026, 6, 30)));
+
+            var first = ShowcaseWidgetProjectionService.Build(snapshot, new ShowcaseSettings(), march, today).ActivityCalendar;
+            var second = ShowcaseWidgetProjectionService.Build(snapshot, new ShowcaseSettings(), june, today).ActivityCalendar;
+
+            Assert.AreEqual(new DateTime(2026, 3, 31), first.EndDate);
+            Assert.AreEqual(new DateTime(2026, 6, 30), second.EndDate);
+            Assert.AreSame(first, ShowcaseWidgetProjectionService.Build(snapshot, new ShowcaseSettings(), march, today).ActivityCalendar, "same window reuses the cached calendar");
+        }
+
+        [TestMethod]
+        public void Build_Timeline_HandsOverUnwindowedDayCounts()
+        {
+            var today = new DateTime(2026, 7, 31);
+            var snapshot = new OverviewDataSnapshot
+            {
+                GlobalUnlockCountsByDate = new Dictionary<DateTime, int>
+                {
+                    [new DateTime(2019, 1, 1)] = 3,
+                    [today.AddDays(-2)] = 1,
+                    [today.AddDays(-1)] = -5   // negatives clamp to zero
+                }
+            };
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Timeline };
+            ShowcaseTimelineOptions.SetWindow(instance, TimeWindow.FromPreset(TimelineRange.SevenDays));
+
+            var timeline = ShowcaseWidgetProjectionService.Build(snapshot, new ShowcaseSettings(), instance, today).Timeline;
+
+            Assert.AreEqual(3, timeline[new DateTime(2019, 1, 1)], "the chart windows the counts itself");
+            Assert.AreEqual(1, timeline[today.AddDays(-2)]);
+            Assert.AreEqual(0, timeline[today.AddDays(-1)]);
+        }
+
+        [TestMethod]
+        public void FinishNext_CustomWindow_BoundsLastPlayedOnBothEnds()
+        {
+            var now = new DateTime(2026, 7, 31, 12, 0, 0);
+            GameSummaryItem GameLastPlayed(string name, int daysAgo) => new GameSummaryItem
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                GameName = name,
+                TotalAchievements = 10,
+                UnlockedAchievements = 5,
+                LastPlayed = new DateTime(2026, 7, 31, 12, 0, 0, DateTimeKind.Utc).AddDays(-daysAgo)
+            };
+            var recent = GameLastPlayed("Recent", 10);
+            var inside = GameLastPlayed("Inside", 40);
+            var old = GameLastPlayed("Old", 100);
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
+            ShowcaseWidgetOptions.SetLastPlayedTimeWindow(
+                instance,
+                TimeWindow.Custom(now.Date.AddDays(-50), now.Date.AddDays(-20)));
+
+            var games = ShowcaseWidgetProjectionService
+                .ResolveFinishNextGames(new[] { recent, inside, old }, instance, now)
+                .ToArray();
+
+            CollectionAssert.AreEqual(new[] { inside }, games);
+
+            ShowcaseWidgetOptions.SetLastPlayedTimeWindow(instance, TimeWindow.All);
+            Assert.AreEqual(
+                3,
+                ShowcaseWidgetProjectionService.ResolveFinishNextGames(new[] { recent, inside, old }, instance, now).Count());
+        }
+
+        [TestMethod]
         public void ScoreHistory_AccumulatesPerAchievementScoresWithUndatedBaseline()
         {
             var endDate = new DateTime(2026, 7, 31);
