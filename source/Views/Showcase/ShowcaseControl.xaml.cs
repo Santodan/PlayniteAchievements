@@ -13,6 +13,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.Views.Controls;
 using static PlayniteAchievements.Services.Showcase.ShowcaseGeometry;
 using static PlayniteAchievements.Views.Showcase.ShowcaseUiText;
 
@@ -1664,7 +1665,11 @@ namespace PlayniteAchievements.Views.Showcase
             dropStatusPanel.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.Accent");
             dropStatusPanel.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Card");
             layers.Children.Add(dropStatusPanel);
-            border.Child = layers;
+            // A widget that measures past its cell (a UniformToFill banner, a wrap panel wider
+            // than its column) must not inflate DashboardGrid's desired size: WPF would then
+            // arrange the grid smaller than it asked for and clip it, cutting off the track
+            // grippers and size labels that hang outside its bounds.
+            border.Child = new ClampedDesiredSizeDecorator { Child = layers };
             var visualState = new BlockVisualState
             {
                 Block = block,
@@ -1682,6 +1687,12 @@ namespace PlayniteAchievements.Views.Showcase
             _blockVisuals[block.BlockId] = visualState;
             RefreshBlockChrome(visualState);
             return border;
+        }
+
+        // The block's layer grid sits inside the desired-size clamp CreateBlockContainer wraps it in.
+        private static Grid LayersOf(FrameworkElement container)
+        {
+            return ((container as Border)?.Child as ClampedDesiredSizeDecorator)?.Child as Grid;
         }
 
         // Drops cached controls for widgets that no longer exist, so deleted widgets do not pin
@@ -2289,7 +2300,7 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 var removed = _blockVisuals[removedId];
                 // Detach the content first so a surviving widget's control can move to its new block.
-                (removed.Container?.Child as Grid)?.Children.Clear();
+                LayersOf(removed.Container)?.Children.Clear();
                 DashboardGrid.Children.Remove(removed.Container);
                 _blockVisuals.Remove(removedId);
             }
@@ -2353,7 +2364,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             foreach (var assignment in assignments)
             {
-                var layers = assignment.State.Container?.Child as Grid;
+                var layers = LayersOf(assignment.State.Container);
                 if (layers == null || layers.Children.Count == 0)
                 {
                     return false;
@@ -2412,6 +2423,9 @@ namespace PlayniteAchievements.Views.Showcase
             ShowcaseGridSurfaces.PruneOrphaned(_settings.Persisted?.GridOptions, Layout);
             PruneHostCache();
             _persist();
+            // Stored profile images are shared by content, so a file goes only once no widget
+            // (on any page or the start page) refers to it any more.
+            PlayniteAchievementsPlugin.Instance?.ShowcaseImageStore?.Prune(Layout);
             _publishingConfigurationChange = true;
             try
             {
@@ -3047,7 +3061,7 @@ namespace PlayniteAchievements.Views.Showcase
 
         private void OpenWidgetSettings(ShowcaseWidgetInstanceSettings widget)
         {
-            if (ShowcaseWidgetSettingsDialog.Show(widget, Layout))
+            if (ShowcaseWidgetSettingsDialog.Show(widget))
             {
                 SaveAndRebuild();
             }
@@ -3125,7 +3139,7 @@ namespace PlayniteAchievements.Views.Showcase
         }
 
         // Writes the current page to a .pashowcase package: layout and appearance only, no pin
-        // collections, profile data, or control-bar filter state.
+        // collections or control-bar filter state, and of a profile card only its background.
         private void ExportCurrentPage()
         {
             var page = CurrentPage;
@@ -3197,20 +3211,27 @@ namespace PlayniteAchievements.Views.Showcase
                 path = dialog.FileName;
             }
 
+            ShowcasePagePortableFile portable = null;
             try
             {
-                var portable = ShowcasePagePortableStore.Read(path);
+                portable = ShowcasePagePortableStore.Read(path);
+                var imageStore = PlayniteAchievementsPlugin.Instance?.ShowcaseImageStore;
                 ShowcasePagePortableStore.ApplyPortable(
                     Layout,
                     _settings.Persisted?.GridOptions,
                     portable,
-                    CurrentPage?.PageId);
+                    CurrentPage?.PageId,
+                    extracted => imageStore?.Import(extracted));
                 SaveAndRebuild();
             }
             catch (Exception exception)
             {
                 Logger.Error(exception, "Failed importing showcase page.");
                 ShowPortableFailure(exception);
+            }
+            finally
+            {
+                ShowcasePagePortableStore.DeleteExtractedImages(portable);
             }
         }
 
