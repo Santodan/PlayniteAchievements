@@ -2039,7 +2039,12 @@ namespace PlayniteAchievements.Views.Controls
 
                 if (!_isCategoryMode)
                 {
-                    RecomputeEffectiveAchievements();
+                    // The full view-state pass, not just the source swap: it also gives the
+                    // achievement pane its star height. The XAML row starts at 0 and the flat
+                    // path used to leave it there until Loaded, so the grid's first measure
+                    // realized one row at zero height and every real row was built in a second,
+                    // untimed pass right after. The category path below already does this.
+                    ApplyCategoryViewState();
                     return;
                 }
 
