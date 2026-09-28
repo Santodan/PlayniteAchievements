@@ -819,6 +819,74 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void NormalizeInternal_DropsReferencesToAuthoredAchievementsNoLongerDefined()
+        {
+            // Deleting an authored achievement rewrote the definition list and left its capstone,
+            // order slot, goal, filter and overrides behind, where a new achievement generated
+            // with the same ID inherited them. Provider references are not this rule's to touch.
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    CustomAchievements = new List<CustomAchievementDefinition>
+                    {
+                        new CustomAchievementDefinition { Id = "kept", DisplayName = "Kept" }
+                    },
+                    CapstonesMaterialized = true,
+                    Capstones = new List<CapstoneAssignment>
+                    {
+                        new CapstoneAssignment { ApiName = "custom:gone" },
+                        new CapstoneAssignment { ApiName = "custom:kept" },
+                        new CapstoneAssignment { ApiName = "prov_one" }
+                    },
+                    AchievementOrder = new List<string> { "custom:gone", "prov_one", "custom:kept" },
+                    GoalAchievementApiNames = new List<string> { "custom:gone" },
+                    FilteredAchievementApiNames = new List<string> { "custom:gone", "prov_one" },
+                    SummaryFilteredAchievementApiNames = new List<string> { "custom:gone" },
+                    AchievementOverrides = new Dictionary<string, AchievementOverride>
+                    {
+                        ["custom:gone"] = new AchievementOverride { Category = "Gone", Note = "note" },
+                        ["prov_one"] = new AchievementOverride { Category = "Kept" }
+                    }
+                },
+                gameId);
+
+            CollectionAssert.AreEqual(
+                new[] { "custom:kept", "prov_one" },
+                normalized.Capstones.Select(assignment => assignment.ApiName).ToList());
+            CollectionAssert.AreEqual(new[] { "prov_one", "custom:kept" }, normalized.AchievementOrder);
+            Assert.IsNull(normalized.GoalAchievementApiNames);
+            CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.FilteredAchievementApiNames);
+            Assert.IsNull(normalized.SummaryFilteredAchievementApiNames);
+            CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.AchievementOverrides.Keys.ToList());
+            CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.AchievementCategoryOverrides.Keys.ToList());
+            Assert.IsNull(normalized.AchievementNotes);
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_NoAuthoredAchievements_DropsEveryAuthoredReferenceButKeepsTheSet()
+        {
+            // A whole-game reset nulls the definitions; the materialized flag still means "this
+            // game's capstones are decided", now as an empty set rather than a stale one.
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    CapstonesMaterialized = true,
+                    Capstones = new List<CapstoneAssignment>
+                    {
+                        new CapstoneAssignment { ApiName = "custom:gone" }
+                    }
+                },
+                gameId);
+
+            Assert.IsTrue(normalized.CapstonesMaterialized);
+            Assert.IsNull(normalized.Capstones);
+        }
+
+        [TestMethod]
         public void NormalizeInternal_ExophaseProviderOverride_AllowsEmptyValue()
         {
             var gameId = Guid.NewGuid();
