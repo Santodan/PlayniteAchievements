@@ -96,4 +96,118 @@
         </Style.Triggers>
     </Style>
 
+    <!-- Time window picker: a row of preset chips plus a Custom chip; the Custom row (From/To date
+         pickers and Clear) and the granularity dropdown collapse in compact mode. The chips are
+         RadioButtons in a per-instance group so the strip can be instantiated twice on one view
+         model. Date pickers take the shared PlayAch DatePicker style explicitly because the
+         fullscreen theme ships none and the start page merges no implicit styles. -->
+    <Style TargetType="{x:Type controls:TimeWindowPicker}">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="ChipStyle" Value="{StaticResource PlayAch.TimeRangeChip.Style}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:TimeWindowPicker}">
+                    <StackPanel>
+                        <DockPanel LastChildFill="True">
+                            <ComboBox x:Name="PART_Granularity"
+                                      DockPanel.Dock="Right"
+                                      MinWidth="96"
+                                      MinHeight="26"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Style="{StaticResource PlayAch.ComboBox.BaseStyle}"
+                                      FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                      ItemsSource="{TemplateBinding GranularityItems}"
+                                      DisplayMemberPath="Label"
+                                      Visibility="{Binding ShowGranularity, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
+                            <WrapPanel VerticalAlignment="Center">
+                                <ItemsControl x:Name="PART_Presets"
+                                              ItemsSource="{TemplateBinding PresetItems}"
+                                              IsTabStop="False"
+                                              Focusable="False">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <RadioButton Content="{Binding Label}"
+                                                         IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                         GroupName="{Binding ChipGroupName, RelativeSource={RelativeSource AncestorType={x:Type controls:TimeWindowPicker}}}"
+                                                         Style="{Binding ChipStyle, RelativeSource={RelativeSource AncestorType={x:Type controls:TimeWindowPicker}}}"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <RadioButton x:Name="PART_CustomChip"
+                                             Content="{DynamicResource LOCPlayAch_Common_Custom}"
+                                             GroupName="{TemplateBinding ChipGroupName}"
+                                             Style="{TemplateBinding ChipStyle}"/>
+                            </WrapPanel>
+                        </DockPanel>
+
+                        <WrapPanel x:Name="PART_CustomRow"
+                                   Margin="0,6,0,0"
+                                   Visibility="{Binding IsCustomExpanded, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{DynamicResource LOCPlayAch_DateRange_From}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"
+                                       Foreground="{TemplateBinding Foreground}"
+                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"/>
+                            <DatePicker x:Name="PART_From"
+                                        Style="{StaticResource PlayAch.DatePicker.BaseStyle}"
+                                        Width="132"
+                                        Margin="0,0,12,0"
+                                        VerticalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_DateRange_To}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"
+                                       Foreground="{TemplateBinding Foreground}"
+                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"/>
+                            <Grid Margin="0,0,8,0" VerticalAlignment="Center">
+                                <DatePicker x:Name="PART_To"
+                                            Style="{StaticResource PlayAch.DatePicker.BaseStyle}"
+                                            Width="132"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_DateRange_UntilNow}"
+                                           IsHitTestVisible="False"
+                                           VerticalAlignment="Center"
+                                           Margin="8,0,28,0"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                                           Visibility="{Binding IsToBlank, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
+                            </Grid>
+                            <Button x:Name="PART_Clear"
+                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                    Style="{StaticResource PlayAch.Button.BaseStyle}"
+                                    Padding="8,2"
+                                    MinHeight="26"
+                                    VerticalAlignment="Center"/>
+                        </WrapPanel>
+
+                        <TextBlock x:Name="PART_Error"
+                                   Text="{TemplateBinding ErrorText}"
+                                   Foreground="{DynamicResource PlayAch.Brush.ErrorText}"
+                                   FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                   Margin="0,4,0,0"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding HasError, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsCompact" Value="True">
+                            <Setter TargetName="PART_CustomRow" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="PART_Granularity" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="PART_Error" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="HasError" Value="True">
+                            <Setter TargetName="PART_From" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.ErrorText}"/>
+                            <Setter TargetName="PART_To" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.ErrorText}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>
