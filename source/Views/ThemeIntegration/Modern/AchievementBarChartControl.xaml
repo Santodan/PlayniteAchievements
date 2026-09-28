@@ -54,12 +54,6 @@
                          IsChecked="{Binding TimelineViewModel.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=SevenDays, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                          Command="{Binding TimelineViewModel.SetTimeRangeCommand, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                          CommandParameter="SevenDays"/>
-            <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_14D}"
-                         GroupName="DesktopTimeRange"
-                         Style="{StaticResource TimeRangeButtonStyle}"
-                         IsChecked="{Binding TimelineViewModel.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=FourteenDays, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
-                         Command="{Binding TimelineViewModel.SetTimeRangeCommand, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
-                         CommandParameter="FourteenDays"/>
             <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1M}"
                          GroupName="DesktopTimeRange"
                          Style="{StaticResource TimeRangeButtonStyle}"
