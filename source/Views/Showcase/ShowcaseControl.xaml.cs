@@ -3116,8 +3116,11 @@ namespace PlayniteAchievements.Views.Showcase
             var name = result?.Result == true ? result.SelectedString : null;
             if (!string.IsNullOrWhiteSpace(name))
             {
+                // A rename only shows in the page selector; the built blocks stay as they are.
                 ShowcaseLayoutService.RenamePage(Layout, CurrentPage.PageId, name);
-                SaveAndRebuild();
+                SaveAndPublish();
+                UpdatePageSelector();
+                _layoutSignature = ComputeLayoutSignature();
             }
         }
 
