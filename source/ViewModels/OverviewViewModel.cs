@@ -628,8 +628,6 @@ namespace PlayniteAchievements.ViewModels
 
         private List<AchievementDisplayItem> _allRecentAchievements = new List<AchievementDisplayItem>();
         private List<AchievementDisplayItem> _allSelectedGameAchievements = new List<AchievementDisplayItem>();
-        private readonly HashSet<string> _selectedGameIconOverrideKeys =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private bool _selectedGameReloadRequested;
 
         #endregion
@@ -1176,10 +1174,9 @@ namespace PlayniteAchievements.ViewModels
                 // filters through ResetFilters below. Adopt the new instance so the bindings and
                 // the header see its updated counts, but skip the selection work.
                 //
-                // This cannot swallow a real data change. A per-game delta updates the selected
-                // game's own rows through ApplySelectedGameIconOverrides and, when that cannot
-                // re-stamp them in place, sets _selectedGameReloadRequested and reloads through
-                // ReloadSelectedGameIfRequestedAsync -- neither of which comes through here.
+                // This cannot swallow a real data change. A per-game delta for the selected game
+                // sets _selectedGameReloadRequested and updates its rows in place through
+                // ReloadSelectedGameIfRequestedAsync, which does not come through here.
                 if (!ReferenceEquals(_selectedGame, value)
                     && previousGameId.HasValue
                     && newGameId.HasValue
@@ -2078,14 +2075,13 @@ namespace PlayniteAchievements.ViewModels
             _selectedGamePipeline.Invalidate(gameId);
 
             // The delta replaces the library rows but not the selected game's, which are their own
-            // instances built by the pipeline. The icon patch is the immediate visual; the reload
-            // is what brings the rest -- category labels, the category filter and grouping, and
-            // everything else a customization moves. Reloading only when the patch failed left a
-            // category created or renamed in the Manage window missing from this pane for as long
-            // as the game stayed selected.
+            // instances built by the pipeline. The reload updates those rows in place -- icons,
+            // category labels, the category filter and grouping, and everything else a
+            // customization moves -- so one path covers every facet. Reloading only when an icon
+            // patch failed left a category created or renamed in the Manage window missing from
+            // this pane for as long as the game stayed selected.
             if (SelectedGame?.PlayniteGameId == gameId)
             {
-                ApplySelectedGameIconOverrides(gameId);
                 _selectedGameReloadRequested = true;
             }
 
@@ -2131,67 +2127,6 @@ namespace PlayniteAchievements.ViewModels
             }
 
             return true;
-        }
-
-        /// <summary>
-        /// Re-stamps the selected game's rows from the stored icon overrides, the way
-        /// <see cref="ApplyCapstone"/> re-stamps capstones, so an icon set elsewhere shows without
-        /// rebuilding the grid and losing the right pane's search and scroll.
-        /// Returns false when the rows have to be rebuilt instead.
-        /// </summary>
-        private bool ApplySelectedGameIconOverrides(Guid gameId)
-        {
-            var rows = _allSelectedGameAchievements;
-            if (rows == null || rows.Count == 0)
-            {
-                return true;
-            }
-
-            var keys = ReadIconOverrideKeys(gameId);
-            if (keys.Count == 0 && _selectedGameIconOverrideKeys.Count == 0)
-            {
-                return true;
-            }
-
-            // Removing an override cannot be undone in place: the applier writes only the entries
-            // the store still holds, so a row would keep custom art that no longer has a record.
-            // Only a rebuild reads the provider's own path back out of the cache.
-            if (!_selectedGameIconOverrideKeys.IsSubsetOf(keys))
-            {
-                return false;
-            }
-
-            AchievementIconOverrideHelper.ApplyOverrides(
-                gameId,
-                rows,
-                PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService,
-                item => item.ApiName,
-                (item, path) => item.UnlockedIconPath = path,
-                (item, path) => item.LockedIconPath = path);
-
-            // Replacing an image reuses its managed path, so the writes above are no-ops for the
-            // row even though the file changed. The icon properties carry a cache-bust token read
-            // when they are got, so re-raising them is what repaints.
-            for (var i = 0; i < rows.Count; i++)
-            {
-                rows[i]?.RefreshIconDisplay();
-            }
-
-            CaptureIconOverrideKeys(keys);
-            return true;
-        }
-
-        /// <summary>
-        /// Records which achievements the selected game's rows were built with an icon override
-        /// for, so a later delta can tell a changed override from a removed one.
-        /// </summary>
-        private void CaptureIconOverrideKeys(HashSet<string> keys)
-        {
-            _selectedGameIconOverrideKeys.Clear();
-            if (keys != null)
-            {
-                _selectedGameIconOverrideKeys.UnionWith(keys);
-            }
         }
 
         private static HashSet<string> ReadIconOverrideKeys(Guid gameId)
@@ -3280,9 +3215,10 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
-        /// Rebuilds the selected game's rows after a delta or snapshot touched that game, so its
-        /// labels, category filter and grouping follow the change. The right pane's search text is
-        /// kept, since the user is still on the same game.
+        /// Brings the selected game's rows up to date after a delta or snapshot touched that game,
+        /// so its labels, icons, category filter and grouping follow the change. The rows are
+        /// updated in place and the right pane's search text is kept, since the user is still on
+        /// the same game.
         /// </summary>
         private async Task ReloadSelectedGameIfRequestedAsync()
         {
@@ -3301,7 +3237,7 @@ namespace PlayniteAchievements.ViewModels
             await LoadSelectedGameAchievementsAsync(
                 gameId,
                 _selectedGameLoadCts?.Token ?? CancellationToken.None,
-                resetSearch: false);
+                inPlace: true);
         }
 
         /// <summary>
@@ -4445,11 +4381,12 @@ namespace PlayniteAchievements.ViewModels
         private async Task<bool> LoadSelectedGameAchievementsAsync(
             Guid? targetGameId,
             CancellationToken cancellationToken,
-            bool resetSearch = true)
+            bool inPlace = false)
         {
             // Reset right search when selecting a game. A reload of the game already selected
-            // keeps it: that is the data changing under the user, not the user moving on.
-            if (resetSearch)
+            // keeps it, and keeps its rows: that is the data changing under the user, not the
+            // user moving on.
+            if (!inPlace)
             {
                 RightSearchText = string.Empty;
             }
@@ -4503,10 +4440,14 @@ namespace PlayniteAchievements.ViewModels
                 SelectedGameHasCustomAchievementOrder = hasCustomOrder;
 
                 using (PerfScope.Start(_logger, "Overview.SelectedGameApply", thresholdMs: 25,
-                    context: $"items={items.Count}"))
+                    context: $"items={items.Count} inPlace={inPlace}"))
                 {
+                    if (inPlace)
+                    {
+                        items = MergeIntoShownSelectedGameRows(gameId, items);
+                    }
+
                     _allSelectedGameAchievements = items;
-                    CaptureIconOverrideKeys(ReadIconOverrideKeys(gameId));
                     Services.Captures.CapturePresenceMarker.MarkAchievements(items, _captureLibrary);
                     // Snapshot the natural order before goals are pinned, so removing a goal can put
                     // the achievement back where it belongs instead of leaving it stranded on top.
@@ -4541,6 +4482,46 @@ namespace PlayniteAchievements.ViewModels
                 RefreshSelectedGameHeaderCounts();
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Brings the rows the pane already shows onto a fresh build of the same game, keeping each
+        /// row's instance. The pane's collections then sync with only the achievements that came or
+        /// went to move, so the grid keeps its containers, scroll position and the session flags
+        /// the rows carry, where handing it all-new instances re-realized every row.
+        /// </summary>
+        /// <remarks>
+        /// Keyed on the natural-order list, which holds exactly the rows the last load produced.
+        /// A list for some other game - the selection moved while this load ran - is left alone
+        /// and the fresh rows are used as they are.
+        /// </remarks>
+        private List<AchievementDisplayItem> MergeIntoShownSelectedGameRows(
+            Guid gameId,
+            List<AchievementDisplayItem> fresh)
+        {
+            var shown = _selectedGameDefaultOrderedAchievements;
+            if (shown == null || shown.Count == 0 || shown[0]?.PlayniteGameId != gameId)
+            {
+                return fresh;
+            }
+
+            var iconOverrideKeys = ReadIconOverrideKeys(gameId);
+            return CollectionHelper.MergeByKey(
+                shown,
+                fresh,
+                row => row?.ApiName,
+                (kept, source) =>
+                {
+                    kept.UpdateFrom(source);
+
+                    // Replacing an override image reuses its managed path, so the update raises
+                    // nothing for it. The icon properties read a cache-bust token when they are
+                    // got, so re-raising them is what repaints.
+                    if (!string.IsNullOrWhiteSpace(kept.ApiName) && iconOverrideKeys.Contains(kept.ApiName))
+                    {
+                        kept.RefreshIconDisplay();
+                    }
+                });
         }
 
         private bool IsSelectedGameLoadCurrent(Guid? targetGameId, CancellationToken cancellationToken)
