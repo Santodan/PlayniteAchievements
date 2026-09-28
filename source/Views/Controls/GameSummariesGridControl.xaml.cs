@@ -705,6 +705,18 @@ namespace PlayniteAchievements.Views.Controls
                 GameSummariesGrid,
                 () => GetHeaderAlignmentsByKey(settings));
 
+            EnsureColumnPersistence(settings);
+            _columnPersistence.Attach();
+            _isAttached = true;
+        }
+
+        private void EnsureColumnPersistence(PlayniteAchievementsSettings settings)
+        {
+            if (_columnPersistence != null)
+            {
+                return;
+            }
+
             _columnPersistence = new DataGridColumnLayoutService(
                 GameSummariesGrid,
                 Logger,
@@ -731,8 +743,35 @@ namespace PlayniteAchievements.Views.Controls
                 setLocks: map => GetSurfaceSettings(settings)?.SetLocks(map));
             _columnPersistence.DelayInitialRenderUntilNormalized = DelayInitialRenderUntilNormalized;
             ApplyFriendColumnRestrictions();
-            _columnPersistence.Attach();
-            _isAttached = true;
+        }
+
+        // Applies the persisted column order, visibility, and widths before the first measure.
+        // Loaded (and with it Attach) only runs after the first layout pass, so without this the
+        // first rows are laid out with all thirteen columns visible and the star columns clamped
+        // to MinWidth, then rebuilt once Attach collapses the hidden ones. Runs whenever the
+        // settings key changes before attach and again from OnApplyTemplate as the last chance
+        // before rows realize; both are idempotent and cheap.
+        private void PrepareColumnsForFirstMeasure()
+        {
+            if (_isAttached || GameSummariesGrid == null)
+            {
+                return;
+            }
+
+            var settings = PlayniteAchievementsPlugin.Instance?.Settings;
+            if (settings?.Persisted == null)
+            {
+                return;
+            }
+
+            EnsureColumnPersistence(settings);
+            _columnPersistence.PrepareColumns();
+        }
+
+        public override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+            PrepareColumnsForFirstMeasure();
         }
 
         private static void OnShowColumnHeadersChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -1652,6 +1691,15 @@ namespace PlayniteAchievements.Views.Controls
             control.UpdateColorRarityColumnsByRarity(settings);
             control.UpdateShowNameAboveProgress(settings);
             control.UpdateShowRarityBadgesBelowProgress(settings);
+            if (!control._isAttached && control._columnPersistence != null)
+            {
+                // The surface restrictions were resolved for the previous key; a pre-attach
+                // service is cheap to rebuild for the new one.
+                control._columnPersistence.Dispose();
+                control._columnPersistence = null;
+            }
+
+            control.PrepareColumnsForFirstMeasure();
         }
 
         private static bool IsLegacyImageColumnRuntimeDefaultWidth(string key, double width)
