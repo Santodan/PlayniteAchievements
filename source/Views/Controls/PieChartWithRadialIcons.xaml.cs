@@ -28,6 +28,8 @@ namespace PlayniteAchievements.Views.Controls
         private const double IconCollisionPadding = 4.0;
         private const double SliceHighlightOffset = 5.0;
         private const double LiveChartsRotationOffset = 45.0;
+        // PieAlgorithm.Update subtracts this from the draw-margin diameter before sizing slices.
+        private const double LiveChartsDiameterInset = 10.0;
         private static readonly Duration SliceAnimationDuration = new Duration(TimeSpan.FromMilliseconds(150));
         private static readonly PropertyInfo PiePointViewSliceProperty =
             typeof(PieSlice).Assembly
@@ -70,7 +72,7 @@ namespace PlayniteAchievements.Views.Controls
 
         public static readonly DependencyProperty IconOffsetProperty =
             DependencyProperty.Register(nameof(IconOffset), typeof(double), typeof(PieChartWithRadialIcons),
-                new PropertyMetadata(12.0, OnLayoutPropertyChanged));
+                new PropertyMetadata(12.0, OnIconOffsetChanged));
 
         public static readonly DependencyProperty HighlightedLabelsProperty =
             DependencyProperty.Register(nameof(HighlightedLabels), typeof(ObservableCollection<string>), typeof(PieChartWithRadialIcons),
@@ -195,6 +197,7 @@ namespace PlayniteAchievements.Views.Controls
         public PieChartWithRadialIcons()
         {
             InitializeComponent();
+            UpdateChartMargin();
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
             SizeChanged += OnSizeChanged;
@@ -308,9 +311,26 @@ namespace PlayniteAchievements.Views.Controls
             control.ScheduleCalculation();
         }
 
-        private static void OnLayoutPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        private static void OnIconOffsetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            ((PieChartWithRadialIcons)d).ScheduleCalculation();
+            var control = (PieChartWithRadialIcons)d;
+            control.UpdateChartMargin();
+            control.ScheduleCalculation();
+        }
+
+        /// <summary>
+        /// Reserves the radial icon footprint (offset, half icon, highlight push) beyond the
+        /// rendered pie edge, net of the inset LiveCharts already leaves, so icons stay in bounds.
+        /// </summary>
+        private void UpdateChartMargin()
+        {
+            if (Chart == null)
+            {
+                return;
+            }
+
+            var reserve = Math.Max(0, IconOffset) + (IconSize / 2.0) + SliceHighlightOffset - (LiveChartsDiameterInset / 2.0);
+            Chart.Margin = new Thickness(Math.Max(0, reserve));
         }
 
         private static void OnHighlightedLabelsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -539,7 +559,7 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             double totalValue = chartValues.Sum();
-            double pieRadius = controlSize / 2.0;
+            double pieRadius = GetRenderedPieRadius(seriesList, controlSize);
             double iconRadius = pieRadius + IconOffset;
             double centerX = margin.Left + (availableWidth / 2.0);
             double centerY = margin.Top + (availableHeight / 2.0);
@@ -618,6 +638,24 @@ namespace PlayniteAchievements.Views.Controls
             // Apply all updates in sequence (but computed in single pass above)
             SynchronizePositions(ResolveIconPositions(iconCandidates));
             ApplySliceTransformsBatch(sliceTransformData);
+        }
+
+        /// <summary>
+        /// Outer radius LiveCharts gave the slices; falls back to its sizing formula before the
+        /// slices exist.
+        /// </summary>
+        private static double GetRenderedPieRadius(IReadOnlyList<PieSeries> seriesList, double controlSize)
+        {
+            var renderedRadius = seriesList
+                .Select(GetPieSlice)
+                .Where(slice => slice != null)
+                .Select(slice => slice.Radius)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            return renderedRadius > 0
+                ? renderedRadius
+                : Math.Max(LiveChartsDiameterInset, controlSize - LiveChartsDiameterInset) / 2.0;
         }
 
         private void UpdateCenterPercentage(IReadOnlyList<PieSliceChartData> sliceData, double controlSize)
