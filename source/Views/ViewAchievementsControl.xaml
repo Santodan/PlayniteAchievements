@@ -130,39 +130,12 @@
                 <!-- Collapsible Timeline Section -->
                 <StackPanel Margin="0,12,0,0"
                             Visibility="{Binding IsTimelineVisible, Converter={StaticResource BoolToVis}}">
-                    <!-- Time Range Buttons -->
-                    <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
-                        <RadioButton x:Name="TimelineRangeSevenDaysButton"
-                                     Content="{DynamicResource LOCPlayAch_TimeRange_7D}" GroupName="TimeRange"
-                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                     IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=SevenDays}"
-                                     Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="SevenDays"/>
-                        <RadioButton x:Name="TimelineRangeFourteenDaysButton"
-                                     Content="{DynamicResource LOCPlayAch_TimeRange_14D}" GroupName="TimeRange"
-                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                     IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=FourteenDays}"
-                                     Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="FourteenDays"/>
-                        <RadioButton x:Name="TimelineRangeOneMonthButton"
-                                     Content="{DynamicResource LOCPlayAch_TimeRange_1M}" GroupName="TimeRange"
-                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                     IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneMonth}"
-                                     Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="OneMonth"/>
-                        <RadioButton x:Name="TimelineRangeThreeMonthsButton"
-                                     Content="{DynamicResource LOCPlayAch_TimeRange_3M}" GroupName="TimeRange"
-                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                     IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=ThreeMonths}"
-                                     Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="ThreeMonths"/>
-                        <RadioButton x:Name="TimelineRangeOneYearButton"
-                                     Content="{DynamicResource LOCPlayAch_TimeRange_1Y}" GroupName="TimeRange"
-                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                     IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneYear}"
-                                     Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="OneYear"/>
-                        <RadioButton x:Name="TimelineRangeAllButton"
-                                     Content="{DynamicResource LOCPlayAch_Common_All}" GroupName="TimeRange"
-                                     Style="{StaticResource TimeRangeButtonStyle}"
-                                     IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=All}"
-                                     Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="All"/>
-                    </StackPanel>
+                    <!-- Time window: preset chips plus a custom From/To range and the bar granularity -->
+                    <controls:TimeWindowPicker Window="{Binding Timeline.Window, Mode=TwoWay}"
+                                               Granularity="{Binding Timeline.Granularity, Mode=TwoWay}"
+                                               ShowGranularity="True"
+                                               MinDate="{Binding Timeline.EarliestDate}"
+                                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
                     <!-- Shared unlocks-over-time chart -->
                     <controls:UnlockTimelineChart Height="120"
