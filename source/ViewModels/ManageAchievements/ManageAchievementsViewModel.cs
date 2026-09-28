@@ -1682,7 +1682,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             CurrentCapstoneName = string.IsNullOrWhiteSpace(displayName)
                 ? L("LOCPlayAch_Common_None")
-                : displayName.Trim();            RefreshCustomDataState();
+                : displayName.Trim();
+            RefreshCustomDataState();
+            // The sidebar's capstone chip comes from OverviewSummary, which only the shell reload
+            // rebuilds. The caller has already invalidated the game data snapshot, so the
+            // coalesced reload reads the new capstone.
+            ScheduleShellReload();
         }
 
         internal void NotifyCustomDataChanged(
