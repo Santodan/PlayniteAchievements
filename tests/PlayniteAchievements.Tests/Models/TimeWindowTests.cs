@@ -43,6 +43,19 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void SixMonths_IsAPresetChipAndStartsTheDayAfterSixMonthsAgo()
+        {
+            Assert.IsTrue(TimeWindow.Presets.Contains(TimelineRange.SixMonths));
+
+            var range = TimeWindow.FromPreset(TimelineRange.SixMonths).Resolve(Today, null);
+
+            Assert.AreEqual(new DateTime(2026, 3, 29), range.Start);
+            Assert.AreEqual(Today, range.End);
+            Assert.IsTrue(TimeWindow.TryParse("SixMonths", out var parsed));
+            Assert.AreEqual(TimelineRange.SixMonths, parsed.Preset);
+        }
+
+        [TestMethod]
         public void ThreeMonths_FromMayThirtyFirst_StartsMarchFirst()
         {
             var range = TimeWindow.FromPreset(TimelineRange.ThreeMonths).Resolve(new DateTime(2026, 5, 31), null);
@@ -227,7 +240,7 @@ namespace PlayniteAchievements.Models.Tests
 
             Assert.IsFalse(TimeWindow.TryParse(null, out _));
             Assert.IsFalse(TimeWindow.TryParse("  ", out _));
-            Assert.IsFalse(TimeWindow.TryParse("SixMonths", out _));
+            Assert.IsFalse(TimeWindow.TryParse("TwoYears", out _));
             Assert.IsFalse(TimeWindow.TryParse("99", out _));
             Assert.IsFalse(TimeWindow.TryParse("Custom:2024-13-01..", out _));
             Assert.IsFalse(TimeWindow.TryParse("Custom:2024-01-01", out _));

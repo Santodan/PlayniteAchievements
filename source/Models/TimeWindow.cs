@@ -24,6 +24,7 @@ namespace PlayniteAchievements.Models
             TimelineRange.SevenDays,
             TimelineRange.OneMonth,
             TimelineRange.ThreeMonths,
+            TimelineRange.SixMonths,
             TimelineRange.OneYear,
             TimelineRange.All
         };
@@ -107,6 +108,8 @@ namespace PlayniteAchievements.Models
                     return new DayBounds(today.AddMonths(-1).AddDays(1), today);
                 case TimelineRange.ThreeMonths:
                     return new DayBounds(today.AddMonths(-3).AddDays(1), today);
+                case TimelineRange.SixMonths:
+                    return new DayBounds(today.AddMonths(-6).AddDays(1), today);
                 case TimelineRange.OneYear:
                     return new DayBounds(today.AddYears(-1).AddDays(1), today);
                 default:

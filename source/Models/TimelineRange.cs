@@ -10,7 +10,9 @@ namespace PlayniteAchievements.Models
         OneMonth,
         ThreeMonths,
         OneYear,
-        All
+        All,
+        // Appended after All: legacy settings store this enum as its integer ordinal.
+        SixMonths
     }
 
     /// <summary>
@@ -29,6 +31,8 @@ namespace PlayniteAchievements.Models
                     return Playnite.SDK.ResourceProvider.GetString("LOCPlayAch_TimeRange_14D");
                 case TimelineRange.OneMonth:
                     return Playnite.SDK.ResourceProvider.GetString("LOCPlayAch_TimeRange_1M");
+                case TimelineRange.SixMonths:
+                    return Playnite.SDK.ResourceProvider.GetString("LOCPlayAch_TimeRange_6M");
                 case TimelineRange.OneYear:
                     return Playnite.SDK.ResourceProvider.GetString("LOCPlayAch_TimeRange_1Y");
                 case TimelineRange.All:

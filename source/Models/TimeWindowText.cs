@@ -25,9 +25,10 @@ namespace PlayniteAchievements.Models
             var startText = start.HasValue
                 ? start.Value.ToString("d", culture)
                 : ResourceProvider.GetString("LOCPlayAch_Common_All");
+            // A rolling end reads as "Today" (Playnite's own string), which is what it resolves to.
             var endText = window.To.HasValue
                 ? window.To.Value.ToString("d", culture)
-                : ResourceProvider.GetString("LOCPlayAch_DateRange_UntilNow");
+                : ResourceProvider.GetString("LOCToday");
             return startText + " " + EnDash + " " + endText;
         }
     }
