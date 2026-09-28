@@ -656,6 +656,13 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            // Loaded runs in the dispatcher pass after the first layout, so this cost lands
+            // outside the host's Showcase.Widget.Layout scope; it is timed separately.
+            using var perf = Common.PerfScope.Start(
+                Logger,
+                "GameGrid.Loaded",
+                thresholdMs: 10,
+                context: $"key={ColumnSettingsKey} items={GameSummariesGrid.Items.Count}");
             UpdateColumnHeadersVisibility();
             UpdateRealizedRowHeights();
             // The category list mutates its visible-rows collection in place as subtrees collapse
