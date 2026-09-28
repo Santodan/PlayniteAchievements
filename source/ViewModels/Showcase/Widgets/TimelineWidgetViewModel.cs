@@ -60,7 +60,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected override void Refresh()
         {
             var counts = Projection?.Timeline ?? new Dictionary<DateTime, int>();
-            _timeline.TimelineRange = ShowcaseTimelineOptions.GetRange(Projection?.Instance);
+            _timeline.Window = ShowcaseTimelineOptions.GetWindow(Projection?.Instance);
+            _timeline.Granularity = ShowcaseTimelineOptions.GetGranularity(Projection?.Instance);
             _timeline.SetCounts(counts.ToDictionary(pair => pair.Key, pair => pair.Value));
 
             ShowEmpty = counts.Count == 0;
@@ -71,7 +72,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         {
             if (parameter is TimelineRange range)
             {
-                ShowcaseTimelineOptions.SetRange(Projection?.Instance, range);
+                ShowcaseTimelineOptions.SetWindow(Projection?.Instance, TimeWindow.FromPreset(range));
                 ShowcaseConfigurationCommit.Commit();
             }
         }
