@@ -153,7 +153,8 @@
         reveals and exposes both edges from that column. WPF's SetLeftGripperVisibility
         auto-collapses the first column's left gripper (no resizable column to its left), and
         DataGridColumnGripperBehavior collapses the last visible column's right gripper so there
-        is no orphan gripper at the grid's trailing edge.
+        is no orphan gripper at the grid's trailing edge, plus every gripper on either side of a
+        column locked from the header menu (DataGridColumnGripperBehavior.IsLocked).
     -->
     <Style x:Key="AchievementColumnHeaderLeftGripperStyle"
            TargetType="Thumb"
