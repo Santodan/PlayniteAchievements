@@ -7,7 +7,6 @@ using LiveCharts.Wpf;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
-using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
@@ -21,10 +20,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// </summary>
     public sealed class ScoreCardWithHistoryViewModel
     {
-        /// <summary>Kept modest so an early-game window crossing dozens of levels does not
-        /// turn the chart into solid stripes.</summary>
-        private const int MaxReachedTierLines = 10;
-
         private static readonly Func<double, string> AxisLabelFormatter =
             value => value.ToString("N0", FormattingCulture.Current);
 
@@ -45,15 +40,14 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             HistoryCaption = historyCaption;
             HistoryStartText = historyStartText;
             HistoryEndText = historyEndText;
-            HistoryMinValue = historyValues != null && historyValues.Count > 0
-                ? historyValues.Min()
-                : 0;
-            // The last history point should equal the live score, but tier math tolerates the
-            // two disagreeing by anchoring on whichever is higher so the line never clips.
-            var effectiveScore = historyValues != null && historyValues.Count > 0
-                ? Math.Max(currentScore, historyValues.Max())
-                : currentScore;
-            BuildTierMarkers(effectiveScore, (int)HistoryMinValue, card?.AccentBrush);
+            var hasHistory = historyValues != null && historyValues.Count > 0;
+            var frame = ScoreHistoryAxis.Frame(
+                currentScore,
+                hasHistory ? historyValues.Min() : currentScore,
+                hasHistory ? historyValues.Max() : currentScore);
+            HistoryMinValue = frame.Min;
+            HistoryAxisMax = frame.Max;
+            TierSections = BuildSections(frame, card?.AccentBrush);
         }
 
         public ScoreCardViewModel Card { get; }
@@ -61,73 +55,62 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         public ChartValues<int> HistoryValues { get; }
 
         /// <summary>
-        /// Bottom of the mini chart's Y axis. The series is cumulative, so the window's first
-        /// value is its minimum; pinning the axis there spends the chart height on score gained
-        /// inside the window instead of on padding below the already-earned total.
+        /// Bottom of the mini chart's Y axis: the window's first value, so the chart height is
+        /// spent on score gained inside the window rather than on the already-earned total. When
+        /// nothing was earned it drops to the current level's start instead.
         /// </summary>
         public double HistoryMinValue { get; }
 
         /// <summary>
-        /// Top of the mini chart's Y axis: the score that starts the next level, so the gap
-        /// between the line's end and the chart top reads as progress toward the next tier.
-        /// NaN (auto) once the maximum level is reached.
+        /// Top of the mini chart's Y axis: the window's last value plus headroom, so the line
+        /// always spans the chart however wide the current level is. It snaps down to the next
+        /// level's start when that lies within the headroom, and frames the whole level when
+        /// nothing was earned. NaN (auto) only at the true maximum level.
         /// </summary>
-        public double HistoryAxisMax { get; private set; } = double.NaN;
+        public double HistoryAxisMax { get; }
 
         /// <summary>
-        /// Dotted horizontal markers at the level boundaries crossed inside the window plus the
-        /// upcoming one at the chart top.
+        /// Horizontal reference lines: a solid hairline per tier reached inside the window in that
+        /// tier's accent, a solid hairline where the current level began, and a dashed line at the
+        /// next level when the ceiling snapped to it. See <see cref="ScoreHistoryAxis"/>.
         /// </summary>
-        public SectionsCollection TierSections { get; private set; }
+        public SectionsCollection TierSections { get; }
 
         public Func<double, string> YLabelFormatter => AxisLabelFormatter;
 
-        private void BuildTierMarkers(int currentScore, int windowMinScore, Brush accent)
+        private static SectionsCollection BuildSections(ScoreHistoryAxisFrame frame, Brush accent)
         {
             var sections = new SectionsCollection();
-            var current = AchievementLevelCalculator.CalculateModern(currentScore);
-            var axisMax = current.IsMaxLevel || current.CurrentLevelEndScore >= int.MaxValue - 1
-                ? double.NaN
-                : current.CurrentLevelEndScore + 1d;
-
-            var reached = new List<double>();
-            // Only the last few boundaries are drawn, so start the walk no more than that many
-            // levels below the current one; mastery lets a window span thousands of levels.
-            var walkFloor = AchievementLevelCalculator.GetScoreForLevel(
-                Math.Max(0, current.Level - MaxReachedTierLines));
-            var walker = AchievementLevelCalculator.CalculateModern(Math.Max(windowMinScore, walkFloor));
-            while (!walker.IsMaxLevel &&
-                walker.CurrentLevelEndScore < currentScore &&
-                walker.CurrentLevelEndScore < int.MaxValue - 1)
+            foreach (var tier in frame.TierStarts)
             {
-                var boundary = walker.CurrentLevelEndScore + 1;
-                reached.Add(boundary);
-                walker = AchievementLevelCalculator.CalculateModern(boundary);
+                sections.Add(CreateSection(
+                    tier.Score,
+                    ScoreCardViewModel.GetAccentBrushForRank(tier.Rank),
+                    dashed: false));
             }
 
-            foreach (var value in reached.Skip(Math.Max(0, reached.Count - MaxReachedTierLines)))
+            if (frame.CurrentLevelLine.HasValue)
             {
-                sections.Add(CreateTierSection(value, accent));
+                sections.Add(CreateSection(frame.CurrentLevelLine.Value, accent, dashed: false));
             }
 
-            if (!double.IsNaN(axisMax))
+            if (frame.NextLevelLine.HasValue)
             {
-                sections.Add(CreateTierSection(axisMax, accent));
+                sections.Add(CreateSection(frame.NextLevelLine.Value, accent, dashed: true));
             }
 
-            HistoryAxisMax = axisMax;
-            TierSections = sections;
+            return sections;
         }
 
-        private static AxisSection CreateTierSection(double value, Brush accent)
+        private static AxisSection CreateSection(double value, Brush stroke, bool dashed)
         {
             return new AxisSection
             {
                 Value = value,
                 SectionWidth = 0,
-                Stroke = accent ?? Brushes.Gray,
+                Stroke = stroke ?? Brushes.Gray,
                 StrokeThickness = 1,
-                StrokeDashArray = new DoubleCollection { 4, 4 },
+                StrokeDashArray = dashed ? new DoubleCollection { 4, 4 } : null,
                 DisableAnimations = true
             };
         }
