@@ -597,6 +597,20 @@ namespace PlayniteAchievements.ViewModels
                     }
                 }
 
+                // Customization writes reload this window, so the rows it already shows are kept
+                // and updated rather than replaced: all-new instances make the grid re-realize every
+                // row. A reveal is this window's own state, which the fresh rows do not carry.
+                displayItems = CollectionHelper.MergeByKey(
+                    _allAchievements,
+                    displayItems,
+                    row => row?.ApiName,
+                    (kept, source) =>
+                    {
+                        var wasRevealed = kept.IsRevealed;
+                        kept.UpdateFrom(source);
+                        kept.IsRevealed = wasRevealed;
+                    });
+
                 _allAchievements = displayItems;
                 Services.Captures.CapturePresenceMarker.MarkAchievements(_allAchievements, _captureLibrary);
                 RefreshOrderedAchievements(skipDefaultSort: false);
