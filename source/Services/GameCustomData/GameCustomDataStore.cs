@@ -990,6 +990,14 @@ namespace PlayniteAchievements.Services.GameCustomData
                     };
                 }
 
+                // A custom-achievements package is merged by ID (ImportCustomAchievementsPackage);
+                // replacing the game's custom data with it would drop everything else the game has.
+                if (IsCustomAchievementsPackage(entriesByName.Keys))
+                {
+                    throw new InvalidOperationException(
+                        "This .PA file contains custom achievements only and cannot replace the game's custom data.");
+                }
+
                 return ImportReplacePortableImageOnlyPackage(playniteGameId, entriesByName);
             }
         }
