@@ -852,6 +852,7 @@
                                     <controls:TimeWindowPicker Grid.Row="1"
                                                                Window="{Binding GlobalTimeline.Window, Mode=TwoWay}"
                                                                Granularity="{Binding GlobalTimeline.Granularity, Mode=TwoWay}"
+                                                               UnavailableGranularities="{Binding GlobalTimeline.UnavailableGranularities}"
                                                                ShowGranularity="True"
                                                                MinDate="{Binding GlobalTimeline.EarliestDate}"
                                                                Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
