@@ -47,7 +47,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 hasHistory ? historyValues.Max() : currentScore);
             HistoryMinValue = frame.Min;
             HistoryAxisMax = frame.Max;
-            TierSections = BuildSections(frame, card?.AccentBrush);
+            TierSections = BuildSections(frame, card?.AccentBrush, card?.NextTierAccentBrush);
         }
 
         public ScoreCardViewModel Card { get; }
@@ -57,46 +57,41 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         /// <summary>
         /// Bottom of the mini chart's Y axis: the window's first value, so the chart height is
         /// spent on score gained inside the window rather than on the already-earned total. When
-        /// nothing was earned it drops to the current level's start instead.
+        /// nothing was earned it drops to the current tier's start instead.
         /// </summary>
         public double HistoryMinValue { get; }
 
         /// <summary>
         /// Top of the mini chart's Y axis: the window's last value plus headroom, so the line
-        /// always spans the chart however wide the current level is. It snaps down to the next
-        /// level's start when that lies within the headroom, and frames the whole level when
-        /// nothing was earned. NaN (auto) only at the true maximum level.
+        /// always spans the chart however wide the current tier is. It snaps down to the next
+        /// tier's start when that lies within the headroom, and frames the whole tier when
+        /// nothing was earned. NaN (auto) only when no next tier exists.
         /// </summary>
         public double HistoryAxisMax { get; }
 
         /// <summary>
-        /// Horizontal reference lines: a solid hairline per tier reached inside the window in that
-        /// tier's accent, a solid hairline where the current level began, and a dashed line at the
-        /// next level when the ceiling snapped to it. See <see cref="ScoreHistoryAxis"/>.
+        /// At most two horizontal reference lines: a solid hairline in the card's accent where the
+        /// current tier began, and a dashed line in the next tier's accent at the next tier when the
+        /// ceiling snapped to it. See <see cref="ScoreHistoryAxis"/>.
         /// </summary>
         public SectionsCollection TierSections { get; }
 
         public Func<double, string> YLabelFormatter => AxisLabelFormatter;
 
-        private static SectionsCollection BuildSections(ScoreHistoryAxisFrame frame, Brush accent)
+        private static SectionsCollection BuildSections(
+            ScoreHistoryAxisFrame frame,
+            Brush accent,
+            Brush nextTierAccent)
         {
             var sections = new SectionsCollection();
-            foreach (var tier in frame.TierStarts)
+            if (frame.CurrentTierLine.HasValue)
             {
-                sections.Add(CreateSection(
-                    tier.Score,
-                    ScoreCardViewModel.GetAccentBrushForRank(tier.Rank),
-                    dashed: false));
+                sections.Add(CreateSection(frame.CurrentTierLine.Value, accent, dashed: false));
             }
 
-            if (frame.CurrentLevelLine.HasValue)
+            if (frame.NextTierLine.HasValue)
             {
-                sections.Add(CreateSection(frame.CurrentLevelLine.Value, accent, dashed: false));
-            }
-
-            if (frame.NextLevelLine.HasValue)
-            {
-                sections.Add(CreateSection(frame.NextLevelLine.Value, accent, dashed: true));
+                sections.Add(CreateSection(frame.NextTierLine.Value, nextTierAccent ?? accent, dashed: true));
             }
 
             return sections;
