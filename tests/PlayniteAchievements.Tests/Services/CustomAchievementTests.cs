@@ -389,7 +389,7 @@ namespace PlayniteAchievements.Services.Tests
             {
                 var store = new GameCustomDataStore(Path.Combine(tempDirectory, "store"));
                 var gameId = Guid.NewGuid();
-                var packagePath = Path.Combine(tempDirectory, "custom.pacustom");
+                var packagePath = Path.Combine(tempDirectory, "custom.pa");
                 store.ExportCustomAchievementsPackage(
                     gameId,
                     new List<CustomAchievementDefinition>
@@ -417,6 +417,11 @@ namespace PlayniteAchievements.Services.Tests
                     },
                     packagePath);
 
+                Assert.IsTrue(store.IsCustomAchievementsPackage(packagePath));
+                Assert.ThrowsException<InvalidOperationException>(
+                    () => store.ImportReplacePortable(gameId, packagePath),
+                    "A custom-achievements package must not replace the game's custom data.");
+
                 var result = store.ImportCustomAchievementsPackage(gameId, packagePath);
                 Assert.IsFalse(result.HasErrors, string.Join("; ", result.Errors));
                 Assert.AreEqual(2, result.Definitions.Count);
@@ -437,8 +442,9 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.IsNull(first.UnlockedIconPath);
                 Assert.AreEqual("second", result.Definitions[1].Id);
 
-                var templatePath = Path.Combine(tempDirectory, "template.pacustom");
+                var templatePath = Path.Combine(tempDirectory, "template.pa");
                 store.ExportCustomAchievementsPackage(gameId, new List<CustomAchievementDefinition>(), templatePath);
+                Assert.IsTrue(store.IsCustomAchievementsPackage(templatePath));
                 var templateResult = store.ImportCustomAchievementsPackage(gameId, templatePath);
                 Assert.AreEqual(0, templateResult.Definitions.Count);
                 Assert.IsTrue(templateResult.HasErrors, "A header-only template imports as no rows.");
