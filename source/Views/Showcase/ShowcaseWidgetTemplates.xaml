@@ -407,7 +407,7 @@
                                                 Fill="{Binding Card.AccentBackgroundBrush}"
                                                 StrokeThickness="2"
                                                 PointGeometry="{x:Null}"
-                                                LineSmoothness="0.3"/>
+                                                LineSmoothness="0"/>
                             </lvc:CartesianChart.Series>
                             <lvc:CartesianChart.AxisX>
                                 <lvc:Axis Labels="{Binding HistoryLabels}" ShowLabels="False">
@@ -417,9 +417,11 @@
                                 </lvc:Axis>
                             </lvc:CartesianChart.AxisX>
                             <lvc:CartesianChart.AxisY>
-                                <!-- Floor at the window minimum, ceiling at the next tier; the
-                                     dotted sections mark tier boundaries crossed in the window
-                                     plus the upcoming one at the top edge. -->
+                                <!-- Floor at the window minimum, ceiling just above the window
+                                     maximum (or at the next level when that is close), so the
+                                     line spans the chart height; the sections mark tiers reached
+                                     in the window, the current level's start, and the next level
+                                     when it is the ceiling. -->
                                 <lvc:Axis ShowLabels="True"
                                           FontSize="10"
                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
