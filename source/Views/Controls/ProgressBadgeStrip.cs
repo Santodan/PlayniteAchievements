@@ -343,7 +343,7 @@ namespace PlayniteAchievements.Views.Controls
                 {
                     if (_images.TryGetValue(badge.Spec.ImageKey, out var image) && image != null)
                     {
-                        icons.DrawImage(image, new Rect(badge.Left + ItemSideMargin, iconTop, _iconSize, _iconSize));
+                        icons.DrawImage(image, FitUniform(image, badge.Left + ItemSideMargin, iconTop, _iconSize));
                     }
                 }
             }
@@ -355,6 +355,27 @@ namespace PlayniteAchievements.Views.Controls
                     badge.Text,
                     new Point(badge.Left + ItemSideMargin + _iconSize + TextGap, textTop));
             }
+        }
+
+        // DrawImage fills its rect; the Image elements this replaces used Stretch=Uniform, so a
+        // glyph that is not square is scaled to fit the box and centered rather than stretched.
+        private static Rect FitUniform(ImageSource image, double left, double top, double box)
+        {
+            var width = image.Width;
+            var height = image.Height;
+            if (width <= 0 || height <= 0 || double.IsNaN(width) || double.IsNaN(height))
+            {
+                return new Rect(left, top, box, box);
+            }
+
+            var scale = Math.Min(box / width, box / height);
+            var drawnWidth = width * scale;
+            var drawnHeight = height * scale;
+            return new Rect(
+                left + (box - drawnWidth) / 2,
+                top + (box - drawnHeight) / 2,
+                drawnWidth,
+                drawnHeight);
         }
 
         private ToolTip _toolTip;
