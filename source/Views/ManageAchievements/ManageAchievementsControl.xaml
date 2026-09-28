@@ -85,7 +85,9 @@
     <Border Background="{DynamicResource PlayAch.Brush.Window.Background}" Padding="12">
     <Grid>
         <Grid.ColumnDefinitions>
-            <!-- As wide as the longest tab name or stat row; the cover follows that width. -->
+            <!-- As wide as the longest tab name or stat row; the cover follows that width. The
+                 stats reserve their widest row up front, so the width holds still: a change
+                 would resize the content column and re-lay-out every tab host in it. -->
             <ColumnDefinition Width="Auto" MinWidth="150" />
             <ColumnDefinition Width="12" />
             <ColumnDefinition Width="*" />
@@ -110,6 +112,37 @@
                         Margin="0,10,0,0"
                         Padding="0,10,0,0">
                     <StackPanel>
+                        <!-- Width reservation: a zero-height, hidden pair row with five-digit
+                             counts, so the sidebar is already wide enough for every chip it may
+                             later show. Without it a chip appearing or a count gaining a digit
+                             would widen the sidebar, and every tab host beside it would
+                             re-lay-out. -->
+                        <controls:PairedRowsPanel Height="0"
+                                                  Visibility="Hidden"
+                                                  Style="{StaticResource SidebarStatPairGroupStyle}"
+                                                  Margin="0">
+                            <Border Style="{StaticResource SidebarStatPairChipStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Image Style="{StaticResource OverviewBadgeImageStyle}" />
+                                    <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="00,000 / 00,000" />
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SidebarStatPairChipStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Image Style="{StaticResource OverviewBadgeImageStyle}" />
+                                    <TextBlock Style="{StaticResource SidebarStatValueStyle}" Text="00,000 / 00,000" />
+                                </Grid>
+                            </Border>
+                        </controls:PairedRowsPanel>
+
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
