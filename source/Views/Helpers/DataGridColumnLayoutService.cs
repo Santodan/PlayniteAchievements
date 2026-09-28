@@ -202,6 +202,11 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             _isAttached = true;
+            using var perf = Common.PerfScope.Start(
+                _logger,
+                "ColumnLayout.Attach",
+                thresholdMs: 10,
+                context: $"columns={_grid.Columns.Count}");
             BeginInitialRenderSuppression();
             InitializeTimer();
             AttachWidthChangeHandlers();
