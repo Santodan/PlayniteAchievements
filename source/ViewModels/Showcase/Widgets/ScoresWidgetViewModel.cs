@@ -203,8 +203,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             _builtHistoryMode = historyMode;
             _builtShowChart = showChart;
 
-            var rangeCaption = TimelineRangeText.Describe(
-                ShowcaseTimelineOptions.GetRange(Projection?.Instance));
+            var rangeCaption = TimeWindowText.Describe(
+                ShowcaseTimelineOptions.GetWindow(Projection?.Instance),
+                history.Count > 0 ? history[0].Date : (DateTime?)null);
             var culture = FormattingCulture.Current;
             var historyLabels = history
                 .Select(point => point.Date.ToString("d", culture))
