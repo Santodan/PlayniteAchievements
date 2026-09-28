@@ -32,6 +32,12 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
                         </Trigger>
+                        <!-- The calendar disables Next past DisplayDateEnd (today); without this the
+                             arrow kept its full color and hand cursor and looked clickable. -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
