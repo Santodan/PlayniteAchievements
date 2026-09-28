@@ -191,7 +191,6 @@
     <Compile Include="..\..\source\Services\Search\SearchTextIndex.cs" Link="Source\Services\Search\SearchTextIndex.cs" />
     <Compile Include="..\..\source\Services\Overview\OverviewAchievementFilters.cs" Link="Source\Services\Overview\OverviewAchievementFilters.cs" />
     <Compile Include="..\..\source\Services\Overview\OverviewGameSummaryFilters.cs" Link="Source\Services\Overview\OverviewGameSummaryFilters.cs" />
-    <Compile Include="..\..\source\Services\Overview\KeyedRowMerge.cs" Link="Source\Services\Overview\KeyedRowMerge.cs" />
     <Compile Include="..\..\source\Services\Summaries\AchievementGameStats.cs" Link="Source\Services\Summaries\AchievementGameStats.cs" />
     <Compile Include="..\..\source\Services\Summaries\AchievementStatsAccumulator.cs" Link="Source\Services\Summaries\AchievementStatsAccumulator.cs" />
     <Compile Include="..\..\source\Services\Summaries\CategorySummaryBuilder.cs" Link="Source\Services\Summaries\CategorySummaryBuilder.cs" />

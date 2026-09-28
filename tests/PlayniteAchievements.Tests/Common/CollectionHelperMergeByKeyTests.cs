@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using PlayniteAchievements.Services.Overview;
+using PlayniteAchievements.Common;
 
-namespace PlayniteAchievements.Services.Tests
+namespace PlayniteAchievements.Tests.Common
 {
     [TestClass]
-    public class KeyedRowMergeTests
+    public class CollectionHelperMergeByKeyTests
     {
         private sealed class Row
         {
@@ -23,7 +23,7 @@ namespace PlayniteAchievements.Services.Tests
 
         private static List<Row> Merge(IReadOnlyList<Row> existing, IReadOnlyList<Row> fresh)
         {
-            return KeyedRowMerge.Merge(existing, fresh, row => row.Key, (kept, source) => kept.Value = source.Value);
+            return CollectionHelper.MergeByKey(existing, fresh, row => row.Key, (kept, source) => kept.Value = source.Value);
         }
 
         [TestMethod]
