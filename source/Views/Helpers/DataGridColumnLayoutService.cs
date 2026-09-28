@@ -1945,13 +1945,23 @@ namespace PlayniteAchievements.Views.Helpers
                 }
 
                 LockColumn(column);
-                var width = ColumnWidthNormalization.RoundPixelWidth(ColumnWidthNormalization.GetCurrentWidth(column));
-                if (IsValidWidth(width))
+
+                // Save the whole visible layout, not just the locked column, as a finished drag
+                // does. Viewport rescales are seeded from the saved widths, so a map holding only
+                // the locked column would rescale its neighbours as equal shares instead of from
+                // where they sit on screen.
+                var widths = _getWidths?.Invoke() ?? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                foreach (var visible in GetVisibleResizableColumns())
                 {
-                    var widths = _getWidths?.Invoke() ?? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-                    widths[key] = width;
-                    _setWidths?.Invoke(widths);
+                    var visibleKey = GetColumnKey(visible);
+                    var width = ColumnWidthNormalization.RoundPixelWidth(ColumnWidthNormalization.GetCurrentWidth(visible));
+                    if (!string.IsNullOrWhiteSpace(visibleKey) && IsValidWidth(width))
+                    {
+                        widths[visibleKey] = width;
+                    }
                 }
+
+                _setWidths?.Invoke(widths);
             }
             else
             {
