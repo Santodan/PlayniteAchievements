@@ -782,10 +782,13 @@ namespace PlayniteAchievements.Views.Showcase
                 Presets = presets,
                 Window = read(),
                 ShowGranularity = applyGranularity != null,
-                Granularity = readGranularity?.Invoke() ?? TimelineGranularity.Auto
+                Granularity = readGranularity?.Invoke() ?? TimelineGranularity.Auto,
+                // A settings row has room: the pickers sit on their own line, no popup.
+                InlineCustomEditor = true
             };
             picker.WindowChanged += (_, __) =>
             {
+                RefreshGranularityAvailability(picker);
                 if (Equals(read(), picker.Window))
                 {
                     return;
@@ -796,6 +799,7 @@ namespace PlayniteAchievements.Views.Showcase
             };
             if (applyGranularity != null)
             {
+                RefreshGranularityAvailability(picker);
                 picker.GranularityChanged += (_, __) =>
                 {
                     if (readGranularity() == picker.Granularity)
@@ -811,6 +815,22 @@ namespace PlayniteAchievements.Views.Showcase
             container.Children.Add(picker);
             panel.Children.Add(container);
             return container;
+        }
+
+        // The dialog has no chart width to hand the picker, so it disables only the units that
+        // cannot fit at all (the absolute bar cap); the widget's own chart still escalates by width.
+        private static void RefreshGranularityAvailability(Controls.TimeWindowPicker picker)
+        {
+            if (!picker.ShowGranularity)
+            {
+                return;
+            }
+
+            var range = (picker.Window ?? TimeWindow.All).Resolve(DateTime.Today, null);
+            picker.UnavailableGranularities = new[] { TimelineGranularity.Day, TimelineGranularity.Week, TimelineGranularity.Month }
+                .Where(candidate => !Services.Achievements.TimelineBucketing.Fits(
+                    candidate, range.Start, range.End, Services.Achievements.TimelineBucketing.MaxOverrideBarCount))
+                .ToList();
         }
 
         private void PersistAndPublish()
