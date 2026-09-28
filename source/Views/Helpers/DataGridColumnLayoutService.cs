@@ -214,6 +214,35 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
+        /// Applies the persisted order, visibility, and pixel widths to the columns without
+        /// attaching handlers or normalizing. Safe before the grid is loaded, and idempotent.
+        /// </summary>
+        /// <remarks>
+        /// Attach runs from Loaded, which WPF raises after the first layout pass. Until then the
+        /// grid measured its first rows with every XAML column visible and every star column
+        /// clamped to its MinWidth, so wrapping text broke per glyph and the rows were rebuilt
+        /// once Attach collapsed the hidden columns. Calling this as soon as the settings key is
+        /// known lets the first measure lay out the columns the user will actually see; Attach
+        /// then re-applies the same values (no-ops) and normalizes against the real width.
+        /// </remarks>
+        public void PrepareColumns()
+        {
+            if (_grid == null || _isAttached)
+            {
+                return;
+            }
+
+            using var perf = Common.PerfScope.Start(
+                _logger,
+                "ColumnLayout.Prepare",
+                thresholdMs: 5,
+                context: $"columns={_grid.Columns.Count}");
+            ApplyPersistedOrder();
+            ApplyPersistedVisibility();
+            WritePersistedPixelWidths(BuildEffectivePreferredWidths(includePending: false));
+        }
+
+        /// <summary>
         /// Detaches handlers and flushes pending updates.
         /// </summary>
         public void Detach()
@@ -1143,6 +1172,19 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
+            WritePersistedPixelWidths(preferredWidths);
+            NormalizeOrQueue(true);
+        }
+
+        // Writes the given pixel widths onto the resizable columns that have one. Shared by the
+        // pre-load PrepareColumns pass and the Attach-time ApplyPersistedWidths pass.
+        private void WritePersistedPixelWidths(Dictionary<string, double> preferredWidths)
+        {
+            if (_grid == null || preferredWidths == null || preferredWidths.Count == 0)
+            {
+                return;
+            }
+
             _isApplyingWidths = true;
             try
             {
@@ -1169,8 +1211,6 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 _isApplyingWidths = false;
             }
-
-            NormalizeOrQueue(true);
         }
 
         private bool NormalizeColumnsToContainer(bool rescaleAll = false)
