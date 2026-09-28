@@ -19,11 +19,10 @@ namespace PlayniteAchievements.Views.Helpers
     /// two columns. The first column's left gripper is collapsed by WPF for the same reason.
     /// </summary>
     /// <remarks>
-    /// Locking a column sets CanUserResize false, so WPF itself hides that column's right gripper
-    /// and the next header's left gripper. The other edge is ours: the locked column's left
-    /// gripper and the previous header's right gripper. The pass writes every gripper it can see,
-    /// so it stays authoritative after WPF's own local writes on template apply and CanUserResize
-    /// changes.
+    /// A locked column stays CanUserResize=true (it still rescales with the grid), so WPF would
+    /// show all four grippers around it. This pass collapses the locked column's own two and the
+    /// facing gripper on each neighbour, and rewrites every gripper it can see so it stays
+    /// authoritative after WPF's own local writes on template apply and CanUserResize changes.
     /// </remarks>
     public static class DataGridColumnGripperBehavior
     {
