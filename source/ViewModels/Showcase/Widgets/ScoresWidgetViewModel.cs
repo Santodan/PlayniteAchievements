@@ -126,7 +126,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// Backs the Scores widget by reusing the existing <see cref="ScoreCardViewModel"/> /
     /// ScoreCardControl. Shows the collection and/or prestige card per the score mode, laid out in
     /// a UniformGrid whose orientation follows the viewport. Each card carries a cumulative score
-    /// history line derived from the projection; density only scales the card and chart sizes.
+    /// history line derived from the projection that fills whatever height the cell leaves under
+    /// the card; density only scales the card width.
     /// </summary>
     public sealed class ScoresWidgetViewModel : ShowcaseWidgetViewModelBase
     {
@@ -134,7 +135,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private int _columns = 1;
         private bool _isFeatured = true;
         private double _maxCardWidth = 360;
-        private double _chartHeight = 60;
 
         // What the cards were last built from. Rebuilding the collection makes LiveCharts throw
         // away and re-plot every series, so an unrelated refresh (a pin toggle, another widget's
@@ -158,8 +158,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public double MaxCardWidth { get => _maxCardWidth; private set => SetValue(ref _maxCardWidth, value); }
 
-        public double ChartHeight { get => _chartHeight; private set => SetValue(ref _chartHeight, value); }
-
         protected override void Refresh()
         {
             var snapshot = Projection?.Snapshot ?? new OverviewDataSnapshot();
@@ -173,7 +171,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             Columns = count > 1 && !tall ? 2 : 1;
             IsFeatured = true;
             MaxCardWidth = Density == WidgetViewportDensity.Expanded ? 440 : 360;
-            ChartHeight = Density == WidgetViewportDensity.Expanded ? 90 : 60;
 
             var history = Projection?.ScoreHistory ?? new List<ShowcaseScorePoint>();
             // Two points is the least that draws a line at all; the option then decides which
