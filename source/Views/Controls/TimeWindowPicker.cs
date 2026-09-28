@@ -6,6 +6,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Views.Helpers;
@@ -46,8 +47,10 @@ namespace PlayniteAchievements.Views.Controls
     }
 
     /// <summary>One entry of the granularity dropdown.</summary>
-    public sealed class TimelineGranularityChoice
+    public sealed class TimelineGranularityChoice : INotifyPropertyChanged
     {
+        private bool _isEnabled = true;
+
         public TimelineGranularityChoice(TimelineGranularity value, string label)
         {
             Value = value;
@@ -58,13 +61,32 @@ namespace PlayniteAchievements.Views.Controls
 
         public string Label { get; }
 
+        /// <summary>False when the current window cannot honor this unit within the bar cap.</summary>
+        public bool IsEnabled
+        {
+            get => _isEnabled;
+            set
+            {
+                if (_isEnabled == value)
+                {
+                    return;
+                }
+
+                _isEnabled = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEnabled)));
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
         public override string ToString() => Label;
     }
 
     /// <summary>
-    /// Picks a <see cref="TimeWindow"/> on one line: preset chips (7D, 1M, 3M, 1Y, All) plus a Custom
-    /// chip that reveals a From and a To date picker beside it. A blank To means "until now"; a
-    /// blank From means from the earliest data; picking a preset collapses the custom pickers again.
+    /// Picks a <see cref="TimeWindow"/> on one chip-height line: preset chips (7D, 1M, 3M, 1Y, All)
+    /// plus a Custom chip that opens a popup holding the From and To date pickers, so the strip
+    /// never grows and nothing below it shifts. A blank To means "until now"; a blank From means
+    /// from the earliest data. While a custom range is active the chip shows the range itself.
     /// Optionally shows the chart granularity override at the right edge.
     /// </summary>
     /// <remarks>
@@ -73,17 +95,25 @@ namespace PlayniteAchievements.Views.Controls
     /// </remarks>
     [TemplatePart(Name = PartPresets, Type = typeof(ItemsControl))]
     [TemplatePart(Name = PartCustomChip, Type = typeof(RadioButton))]
+    [TemplatePart(Name = PartCustomPopup, Type = typeof(Popup))]
     [TemplatePart(Name = PartFrom, Type = typeof(DatePicker))]
     [TemplatePart(Name = PartTo, Type = typeof(DatePicker))]
     [TemplatePart(Name = PartClear, Type = typeof(Button))]
+    [TemplatePart(Name = PartInlineFrom, Type = typeof(DatePicker))]
+    [TemplatePart(Name = PartInlineTo, Type = typeof(DatePicker))]
+    [TemplatePart(Name = PartInlineClear, Type = typeof(Button))]
     [TemplatePart(Name = PartGranularity, Type = typeof(ComboBox))]
     public class TimeWindowPicker : Control
     {
         private const string PartPresets = "PART_Presets";
         private const string PartCustomChip = "PART_CustomChip";
+        private const string PartCustomPopup = "PART_CustomPopup";
         private const string PartFrom = "PART_From";
         private const string PartTo = "PART_To";
         private const string PartClear = "PART_Clear";
+        private const string PartInlineFrom = "PART_InlineFrom";
+        private const string PartInlineTo = "PART_InlineTo";
+        private const string PartInlineClear = "PART_InlineClear";
         private const string PartGranularity = "PART_Granularity";
 
         static TimeWindowPicker()
@@ -120,6 +150,13 @@ namespace PlayniteAchievements.Views.Controls
         public static readonly DependencyProperty ShowGranularityProperty = DependencyProperty.Register(
             nameof(ShowGranularity), typeof(bool), typeof(TimeWindowPicker), new PropertyMetadata(false));
 
+        /// <summary>Granularity entries to disable because the window cannot honor them.</summary>
+        public static readonly DependencyProperty UnavailableGranularitiesProperty = DependencyProperty.Register(
+            nameof(UnavailableGranularities),
+            typeof(IReadOnlyList<TimelineGranularity>),
+            typeof(TimeWindowPicker),
+            new PropertyMetadata(null, (d, e) => ((TimeWindowPicker)d).ApplyGranularityAvailability()));
+
         public static readonly DependencyProperty MaxDateProperty = DependencyProperty.Register(
             nameof(MaxDate),
             typeof(DateTime?),
@@ -130,15 +167,36 @@ namespace PlayniteAchievements.Views.Controls
             nameof(MinDate),
             typeof(DateTime?),
             typeof(TimeWindowPicker),
-            new PropertyMetadata(null, (d, e) => ((TimeWindowPicker)d).ApplyDateLimits()));
+            new PropertyMetadata(null, (d, e) => ((TimeWindowPicker)d).OnMinDateChanged()));
 
         public static readonly DependencyProperty ChipStyleProperty = DependencyProperty.Register(
             nameof(ChipStyle), typeof(Style), typeof(TimeWindowPicker), new PropertyMetadata(null));
 
-        private static readonly DependencyPropertyKey IsCustomExpandedPropertyKey = DependencyProperty.RegisterReadOnly(
-            nameof(IsCustomExpanded), typeof(bool), typeof(TimeWindowPicker), new PropertyMetadata(false));
+        /// <summary>
+        /// True shows the From/To pickers on their own line under the chips, always visible, and
+        /// hides the Custom chip (the widget settings rows); false keeps them in a popup under the
+        /// Custom chip so the strip never grows (the chart strips).
+        /// </summary>
+        public static readonly DependencyProperty InlineCustomEditorProperty = DependencyProperty.Register(
+            nameof(InlineCustomEditor),
+            typeof(bool),
+            typeof(TimeWindowPicker),
+            new PropertyMetadata(false, (d, e) => ((TimeWindowPicker)d).OnInlineCustomEditorChanged()));
 
-        public static readonly DependencyProperty IsCustomExpandedProperty = IsCustomExpandedPropertyKey.DependencyProperty;
+        private static readonly DependencyPropertyKey IsCustomOpenPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(IsCustomOpen), typeof(bool), typeof(TimeWindowPicker), new PropertyMetadata(false));
+
+        public static readonly DependencyProperty IsCustomOpenProperty = IsCustomOpenPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey CustomChipTextPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(CustomChipText), typeof(string), typeof(TimeWindowPicker), new PropertyMetadata(null));
+
+        public static readonly DependencyProperty CustomChipTextProperty = CustomChipTextPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey CustomChipToolTipPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(CustomChipToolTip), typeof(string), typeof(TimeWindowPicker), new PropertyMetadata(null));
+
+        public static readonly DependencyProperty CustomChipToolTipProperty = CustomChipToolTipPropertyKey.DependencyProperty;
 
         private static readonly DependencyPropertyKey HasErrorPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(HasError), typeof(bool), typeof(TimeWindowPicker), new PropertyMetadata(false));
@@ -177,6 +235,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private ItemsControl _presets;
         private RadioButton _customChip;
+        private Popup _customPopup;
         private DatePicker _from;
         private DatePicker _to;
         private Button _clear;
@@ -184,10 +243,6 @@ namespace PlayniteAchievements.Views.Controls
         private TextBox _fromTextBox;
         private TextBox _toTextBox;
         private bool _syncing;
-
-        // True between a click on Custom and the first date commit, while the window is still a
-        // preset: the pickers are shown prefilled but nothing has been committed yet.
-        private bool _customArmed;
 
         public TimeWindowPicker()
         {
@@ -236,6 +291,12 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(ShowGranularityProperty, value);
         }
 
+        public IReadOnlyList<TimelineGranularity> UnavailableGranularities
+        {
+            get => (IReadOnlyList<TimelineGranularity>)GetValue(UnavailableGranularitiesProperty);
+            set => SetValue(UnavailableGranularitiesProperty, value);
+        }
+
         /// <summary>Latest selectable date; null means today. Later dates are blacked out.</summary>
         public DateTime? MaxDate
         {
@@ -256,8 +317,19 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(ChipStyleProperty, value);
         }
 
-        /// <summary>Whether the From/To pickers are shown: while the window is custom, or right after a click on Custom.</summary>
-        public bool IsCustomExpanded => (bool)GetValue(IsCustomExpandedProperty);
+        public bool InlineCustomEditor
+        {
+            get => (bool)GetValue(InlineCustomEditorProperty);
+            set => SetValue(InlineCustomEditorProperty, value);
+        }
+
+        /// <summary>Whether the custom-range popup is open.</summary>
+        public bool IsCustomOpen => (bool)GetValue(IsCustomOpenProperty);
+
+        /// <summary>The Custom chip's caption: the range while one is active, otherwise "Custom".</summary>
+        public string CustomChipText => (string)GetValue(CustomChipTextProperty);
+
+        public string CustomChipToolTip => (string)GetValue(CustomChipToolTipProperty);
 
         public bool HasError => (bool)GetValue(HasErrorProperty);
 
@@ -304,14 +376,24 @@ namespace PlayniteAchievements.Views.Controls
 
             _presets = GetTemplateChild(PartPresets) as ItemsControl;
             _customChip = GetTemplateChild(PartCustomChip) as RadioButton;
-            _from = GetTemplateChild(PartFrom) as DatePicker;
-            _to = GetTemplateChild(PartTo) as DatePicker;
-            _clear = GetTemplateChild(PartClear) as Button;
+            _customPopup = GetTemplateChild(PartCustomPopup) as Popup;
+            // The template holds both editor sets; only the one for the current mode is wired.
+            var inline = InlineCustomEditor;
+            _from = GetTemplateChild(inline ? PartInlineFrom : PartFrom) as DatePicker;
+            _to = GetTemplateChild(inline ? PartInlineTo : PartTo) as DatePicker;
+            _clear = GetTemplateChild(inline ? PartInlineClear : PartClear) as Button;
             _granularity = GetTemplateChild(PartGranularity) as ComboBox;
 
             if (_customChip != null)
             {
                 _customChip.Click += CustomChip_Click;
+            }
+
+            if (_customPopup != null)
+            {
+                _customPopup.Opened += CustomPopup_Opened;
+                _customPopup.Closed += CustomPopup_Closed;
+                _customPopup.PreviewKeyDown += CustomPopup_PreviewKeyDown;
             }
 
             foreach (var picker in new[] { _from, _to })
@@ -324,6 +406,7 @@ namespace PlayniteAchievements.Views.Controls
                 picker.SelectedDateChanged += DatePicker_SelectedDateChanged;
                 picker.DateValidationError += DatePicker_DateValidationError;
                 picker.Loaded += DatePicker_Loaded;
+                picker.GotKeyboardFocus += DatePicker_GotKeyboardFocus;
             }
 
             if (_clear != null)
@@ -341,11 +424,28 @@ namespace PlayniteAchievements.Views.Controls
             SyncGranularity();
         }
 
+        private void OnInlineCustomEditorChanged()
+        {
+            ClosePopup();
+            if (Template != null)
+            {
+                // Re-wire onto the other editor set.
+                OnApplyTemplate();
+            }
+        }
+
         private void DetachParts()
         {
             if (_customChip != null)
             {
                 _customChip.Click -= CustomChip_Click;
+            }
+
+            if (_customPopup != null)
+            {
+                _customPopup.Opened -= CustomPopup_Opened;
+                _customPopup.Closed -= CustomPopup_Closed;
+                _customPopup.PreviewKeyDown -= CustomPopup_PreviewKeyDown;
             }
 
             foreach (var picker in new[] { _from, _to })
@@ -358,6 +458,7 @@ namespace PlayniteAchievements.Views.Controls
                 picker.SelectedDateChanged -= DatePicker_SelectedDateChanged;
                 picker.DateValidationError -= DatePicker_DateValidationError;
                 picker.Loaded -= DatePicker_Loaded;
+                picker.GotKeyboardFocus -= DatePicker_GotKeyboardFocus;
             }
 
             if (_fromTextBox != null)
@@ -416,9 +517,8 @@ namespace PlayniteAchievements.Views.Controls
 
             if (sender is TimeWindowPresetChip chip && chip.IsSelected)
             {
-                // A preset click ends any custom editing and folds the pickers away.
-                _customArmed = false;
                 ClearError();
+                ClosePopup();
                 var next = TimeWindow.FromPreset(chip.Preset);
                 if (Equals(next, Window))
                 {
@@ -433,7 +533,6 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnWindowChanged()
         {
-            _customArmed = false;
             SyncFromWindow();
             WindowChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -442,6 +541,12 @@ namespace PlayniteAchievements.Views.Controls
         {
             SyncGranularity();
             GranularityChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void OnMinDateChanged()
+        {
+            ApplyDateLimits();
+            UpdateCustomChipText();
         }
 
         // Pushes the current window into the chips and pickers without committing anything back.
@@ -465,15 +570,16 @@ namespace PlayniteAchievements.Views.Controls
                     }
                 }
 
-                var expanded = window.IsCustom || _customArmed;
                 if (_customChip != null)
                 {
-                    _customChip.IsChecked = expanded;
+                    _customChip.IsChecked = window.IsCustom || IsCustomOpen;
                 }
 
-                SetValue(IsCustomExpandedPropertyKey, expanded);
-
-                if (!_customArmed)
+                // While the popup is open, or an inline preset prefill is being edited, the
+                // pickers belong to the user; they are re-seeded from the window otherwise.
+                var editing = IsCustomOpen ||
+                    (InlineCustomEditor && !window.IsCustom && (_from?.IsKeyboardFocusWithin == true || _to?.IsKeyboardFocusWithin == true));
+                if (!editing || window.IsCustom)
                 {
                     if (_from != null)
                     {
@@ -487,10 +593,37 @@ namespace PlayniteAchievements.Views.Controls
                 }
 
                 UpdateBlankMarkers();
+                UpdateCustomChipText();
             }
             finally
             {
                 _syncing = false;
+            }
+        }
+
+        private void UpdateCustomChipText()
+        {
+            var window = Window ?? TimeWindow.All;
+            var customLabel = ResourceProvider.GetString("LOCPlayAch_Common_Custom");
+            if (window.IsCustom)
+            {
+                var range = TimeWindowText.Describe(window, MinDate);
+                SetValue(CustomChipTextPropertyKey, range);
+                SetValue(CustomChipToolTipPropertyKey, customLabel);
+            }
+            else
+            {
+                SetValue(CustomChipTextPropertyKey, customLabel);
+                SetValue(CustomChipToolTipPropertyKey, null);
+            }
+        }
+
+        private void ApplyGranularityAvailability()
+        {
+            var unavailable = UnavailableGranularities;
+            foreach (var choice in GranularityItems ?? new TimelineGranularityChoice[0])
+            {
+                choice.IsEnabled = unavailable == null || !unavailable.Contains(choice.Value);
             }
         }
 
@@ -514,18 +647,33 @@ namespace PlayniteAchievements.Views.Controls
 
         private void CustomChip_Click(object sender, RoutedEventArgs e)
         {
-            if (Window?.IsCustom == true)
+            if (_customPopup == null)
+            {
+                return;
+            }
+
+            if (_customPopup.IsOpen)
             {
                 SyncFromWindow();
                 return;
             }
 
-            // Prefill From with the preset's resolved start so the first edit freezes what the
-            // user was looking at, but commit nothing until a date actually changes: clicking
-            // Custom and walking away must not turn a rolling preset into a fixed range.
+            PrefillFromPreset();
+            _customPopup.IsOpen = true;
+        }
+
+        // Prefills From with the preset's resolved start so the first edit freezes what the user
+        // was looking at, but commits nothing until a date actually changes: opening the editor
+        // and walking away must not turn a rolling preset into a fixed range.
+        private void PrefillFromPreset()
+        {
             var window = Window ?? TimeWindow.All;
+            if (window.IsCustom)
+            {
+                return;
+            }
+
             var range = window.Resolve(DateTime.Today, MinDate);
-            _customArmed = true;
             _syncing = true;
             try
             {
@@ -538,14 +686,65 @@ namespace PlayniteAchievements.Views.Controls
                 {
                     _to.SelectedDate = null;
                 }
+
+                UpdateBlankMarkers();
             }
             finally
             {
                 _syncing = false;
             }
+        }
 
-            SyncFromWindow();
+        // The inline editor has no open gesture, so focusing a blank picker while a preset is
+        // active plays the same prefill role as opening the popup.
+        private void DatePicker_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+        {
+            if (!InlineCustomEditor || _syncing || Window?.IsCustom == true)
+            {
+                return;
+            }
+
+            if (_from?.SelectedDate == null && _to?.SelectedDate == null)
+            {
+                PrefillFromPreset();
+            }
+        }
+
+        private void CustomPopup_Opened(object sender, EventArgs e)
+        {
+            SetValue(IsCustomOpenPropertyKey, true);
+            if (_customChip != null)
+            {
+                _customChip.IsChecked = true;
+            }
+
+            UpdateBlankMarkers();
             _from?.Focus();
+        }
+
+        private void CustomPopup_Closed(object sender, EventArgs e)
+        {
+            SetValue(IsCustomOpenPropertyKey, false);
+            ClearError();
+            // Whatever was typed but not committed is dropped; the chips show the real window.
+            SyncFromWindow();
+        }
+
+        private void CustomPopup_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape)
+            {
+                ClosePopup();
+                e.Handled = true;
+            }
+        }
+
+        private void ClosePopup()
+        {
+            if (_customPopup != null && _customPopup.IsOpen)
+            {
+                _customPopup.IsOpen = false;
+            }
         }
 
         private void DatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
@@ -589,8 +788,8 @@ namespace PlayniteAchievements.Views.Controls
 
         private void Clear_Click(object sender, RoutedEventArgs e)
         {
-            _customArmed = false;
             ClearError();
+            ClosePopup();
             if (Equals(Window, TimeWindow.All))
             {
                 SyncFromWindow();
