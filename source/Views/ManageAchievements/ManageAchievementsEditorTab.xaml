@@ -700,8 +700,11 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
+                    <!-- Bounded like the other achievement grids' icon columns: the icon fills the
+                         cell, so the column width is the icon size. -->
                     <DataGridTemplateColumn Width="58"
-                                            MinWidth="44"
+                                            MinWidth="32"
+                                            MaxWidth="180"
                                             CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorIcon"
                                             helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Icon}">
@@ -752,12 +755,14 @@
                                       AllowDrop="True"
                                       PreviewDragOver="IconDropTarget_PreviewDragOver"
                                       PreviewDrop="IconDropTarget_Drop">
-                                    <Image Width="44"
-                                           Height="44"
-                                           Stretch="Uniform"
+                                    <!-- Sized by the cell rather than fixed, the way the shared
+                                         AchievementIconTemplate is, so resizing the column
+                                         resizes the icon instead of the space around it. -->
+                                    <Image Stretch="Uniform"
+                                           Margin="2"
                                            RenderOptions.BitmapScalingMode="HighQuality"
                                            helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                                           helpers:AsyncImage.DecodePixel="96"
+                                           helpers:AsyncImage.DecodePixel="128"
                                            PreviewMouseLeftButtonDown="IconImage_PreviewMouseLeftButtonDown">
                                         <Image.Style>
                                             <Style TargetType="Image">
