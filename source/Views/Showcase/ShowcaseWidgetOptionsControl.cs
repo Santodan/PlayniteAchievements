@@ -735,24 +735,91 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        private static readonly TimelineRange[] RangeChoices =
-        {
-            TimelineRange.OneMonth,
-            TimelineRange.ThreeMonths,
-            TimelineRange.OneYear,
-            TimelineRange.All
-        };
-
-        /// <summary>The shared time-range picker used by every range-windowed widget.</summary>
+        /// <summary>
+        /// The shared time-window picker used by every range-windowed widget (Timeline, Scores,
+        /// Activity Calendar). Only the Timeline chart has a bar granularity to override.
+        /// </summary>
         private void AddRangeChoice(Panel panel)
         {
-            AddChoice(
+            var hasGranularity = _settings.Kind == ShowcaseWidgetKind.Timeline;
+            AddTimeWindowRow(
                 panel,
                 Localize("LOCPlayAch_Showcase_Range"),
-                RangeChoices,
-                ShowcaseTimelineOptions.GetRange(_settings),
-                value => ShowcaseTimelineOptions.SetRange(_settings, value),
-                TimelineRangeName);
+                TimeWindow.Presets,
+                () => ShowcaseTimelineOptions.GetWindow(_settings),
+                value => ShowcaseTimelineOptions.SetWindow(_settings, value),
+                hasGranularity ? () => ShowcaseTimelineOptions.GetGranularity(_settings) : (Func<TimelineGranularity>)null,
+                hasGranularity ? value => ShowcaseTimelineOptions.SetGranularity(_settings, value) : (Action<TimelineGranularity>)null);
+        }
+
+        /// <summary>
+        /// A labeled <see cref="Controls.TimeWindowPicker"/> on its own row (the picker is wider than
+        /// the two-column rows allow), persisting and publishing like every other row, gated on a
+        /// real change so a no-op edit never republishes the dashboard.
+        /// </summary>
+        private FrameworkElement AddTimeWindowRow(
+            Panel panel,
+            string label,
+            IReadOnlyList<TimelineRange> presets,
+            Func<TimeWindow> read,
+            Action<TimeWindow> apply,
+            Func<TimelineGranularity> readGranularity = null,
+            Action<TimelineGranularity> applyGranularity = null)
+        {
+            var container = new StackPanel();
+            container.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            var labelBlock = new TextBlock
+            {
+                Text = label,
+                Margin = new Thickness(0, 0, 0, 4),
+                FontWeight = FontWeights.SemiBold
+            };
+            labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            container.Children.Add(labelBlock);
+
+            var picker = new Controls.TimeWindowPicker
+            {
+                Presets = presets,
+                Window = read(),
+                ShowGranularity = applyGranularity != null,
+                Granularity = readGranularity?.Invoke() ?? TimelineGranularity.Auto
+            };
+            picker.WindowChanged += (_, __) =>
+            {
+                if (Equals(read(), picker.Window))
+                {
+                    return;
+                }
+
+                apply(picker.Window);
+                PersistAndPublish();
+            };
+            if (applyGranularity != null)
+            {
+                picker.GranularityChanged += (_, __) =>
+                {
+                    if (readGranularity() == picker.Granularity)
+                    {
+                        return;
+                    }
+
+                    applyGranularity(picker.Granularity);
+                    PersistAndPublish();
+                };
+            }
+
+            container.Children.Add(picker);
+            panel.Children.Add(container);
+            return container;
+        }
+
+        private void PersistAndPublish()
+        {
+            _persist?.Invoke();
+            if (_publishChanges)
+            {
+                ShowcaseConfigurationEvents.RaiseChanged();
+            }
         }
 
         /// <summary>
@@ -964,21 +1031,13 @@ namespace PlayniteAchievements.Views.Showcase
 
         // Unlock Next and Finish Next share the "played within" filter, so both panels build it
         // the same way.
-        private Grid AddLastPlayedWindowChoice(Panel panel) =>
-            AddChoice(
+        private FrameworkElement AddLastPlayedWindowChoice(Panel panel) =>
+            AddTimeWindowRow(
                 panel,
                 Localize("LOCPlayAch_Showcase_LastPlayedWindow"),
-                new[]
-                {
-                    TimelineRange.SevenDays,
-                    TimelineRange.OneMonth,
-                    TimelineRange.ThreeMonths,
-                    TimelineRange.OneYear,
-                    TimelineRange.All
-                },
-                ShowcaseWidgetOptions.GetLastPlayedWindow(_settings),
-                value => ShowcaseWidgetOptions.SetLastPlayedWindow(_settings, value),
-                TimelineRangeName);
+                TimeWindow.Presets,
+                () => ShowcaseWidgetOptions.GetLastPlayedTimeWindow(_settings),
+                value => ShowcaseWidgetOptions.SetLastPlayedTimeWindow(_settings, value));
 
         /// <summary>
         /// Unlock Next's criterion row replaces the generic sort rows: the criterion picks which
