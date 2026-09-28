@@ -569,32 +569,18 @@
 
     <!-- Timeline: the reused LiveCharts column chart with range buttons, identical at every size. -->
     <DataTemplate DataType="{x:Type widgets:TimelineWidgetViewModel}">
-        <Grid>
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <controls:UnlockTimelineChart Series="{Binding Timeline.TimelineSeries}"
-                                              Labels="{Binding Timeline.TimelineLabels}"
-                                              TooltipLabels="{Binding Timeline.TooltipLabels}"
-                                              XAxisMax="{Binding Timeline.XAxisMax}"
-                                              YAxisMax="{Binding Timeline.YAxisMax}"
-                                              YAxisStep="{Binding Timeline.YAxisStep}"
-                                              YLabelFormatter="{Binding Timeline.YAxisFormatter}"
-                                              IsEmpty="{Binding Timeline.IsEmpty}"
-                                              MaxTickCount="{Binding Timeline.MaxTickCount, Mode=OneWayToSource}"/>
-                <!-- Chips write the instance option; a compact cell keeps chips only and the
-                     Custom chip opens the widget settings dialog. -->
-                <controls:TimeWindowPicker Grid.Row="1"
-                                           Presets="{Binding Presets}"
-                                           Window="{Binding Window, Mode=TwoWay}"
-                                           IsCompact="{Binding IsCompactViewport}"
-                                           MoreCommand="{Binding OpenSettingsCommand}"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,5,0,0"/>
-            </Grid>
-        </Grid>
+        <!-- The window and granularity are widget settings (the Range and Granularity options);
+             the widget itself is only the chart. -->
+        <controls:UnlockTimelineChart Series="{Binding Timeline.TimelineSeries}"
+                                      Labels="{Binding Timeline.TimelineLabels}"
+                                      TooltipLabels="{Binding Timeline.TooltipLabels}"
+                                      XAxisMax="{Binding Timeline.XAxisMax}"
+                                      YAxisMax="{Binding Timeline.YAxisMax}"
+                                      YAxisStep="{Binding Timeline.YAxisStep}"
+                                      YLabelFormatter="{Binding Timeline.YAxisFormatter}"
+                                      IsEmpty="{Binding Timeline.IsEmpty}"
+                                      MaxTickCount="{Binding Timeline.MaxTickCount, Mode=OneWayToSource}"
+                                      MaxBarCount="{Binding Timeline.MaxBarCount, Mode=OneWayToSource}"/>
     </DataTemplate>
 
     <!-- Statistics: scrolling grid of value/label tiles. -->
