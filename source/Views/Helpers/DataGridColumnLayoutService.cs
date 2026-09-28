@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -51,6 +52,8 @@ namespace PlayniteAchievements.Views.Helpers
         private readonly Func<Dictionary<string, bool>> _getLocks;
         private readonly Action<Dictionary<string, bool>> _setLocks;
         private readonly Dictionary<DataGridColumn, LockedColumnState> _lockedColumns = new Dictionary<DataGridColumn, LockedColumnState>();
+        private ColumnResizeWidthAdorner _resizeWidthAdorner;
+        private AdornerLayer _resizeWidthAdornerLayer;
         private DispatcherTimer _saveTimer;
         private bool _isApplyingWidths;
         private bool _isApplyingOrder;
@@ -211,6 +214,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             FlushPendingUpdates();
+            HideResizeWidthPills();
             ReleaseRuntimeLocks();
 
             foreach (var pair in _columnWidthChangedHandlers.ToList())
@@ -638,6 +642,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             _isResizeInProgress = false;
+            HideResizeWidthPills();
             _grid?.Dispatcher.BeginInvoke(new Action(PersistPendingResizeWidths), DispatcherPriority.Background);
         }
 
@@ -673,6 +678,97 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 ApplyLiveNeighborResize(key, delta);
             }
+
+            // First real movement of the drag: the pills wait for it so a plain click on a gripper
+            // does not flash them.
+            ShowResizeWidthPills(key);
+            RefreshResizeWidthPills();
+        }
+
+        /// <summary>
+        /// Puts a width pill over each column sharing the dragged boundary: the two columns the
+        /// gripper sits between, or the resized column and its absorber when the boundary is not
+        /// known. Removed again by <see cref="HideResizeWidthPills"/> when the drag ends.
+        /// </summary>
+        private void ShowResizeWidthPills(string resizedColumnKey)
+        {
+            if (_grid == null || _resizeWidthAdorner != null)
+            {
+                return;
+            }
+
+            var layer = AdornerLayer.GetAdornerLayer(_grid);
+            if (layer == null)
+            {
+                return;
+            }
+
+            var keys = new List<string>();
+            if (!string.IsNullOrWhiteSpace(_resizeBoundaryLeftColumnKey) && !string.IsNullOrWhiteSpace(_resizeBoundaryRightColumnKey))
+            {
+                keys.Add(_resizeBoundaryLeftColumnKey);
+                keys.Add(_resizeBoundaryRightColumnKey);
+            }
+            else
+            {
+                keys.Add(resizedColumnKey);
+                keys.Add(_lastResizeAbsorberColumnKey);
+            }
+
+            var columns = keys
+                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .Select(FindColumnByKey)
+                .Where(c => c != null && c.Visibility == Visibility.Visible)
+                .ToList();
+            if (columns.Count == 0)
+            {
+                return;
+            }
+
+            var adorner = new ColumnResizeWidthAdorner(_grid);
+            adorner.SetColumns(columns);
+            layer.Add(adorner);
+            _resizeWidthAdorner = adorner;
+            _resizeWidthAdornerLayer = layer;
+            _grid.LayoutUpdated += Grid_LayoutUpdatedDuringResize;
+        }
+
+        private void HideResizeWidthPills()
+        {
+            if (_resizeWidthAdorner == null)
+            {
+                return;
+            }
+
+            if (_grid != null)
+            {
+                _grid.LayoutUpdated -= Grid_LayoutUpdatedDuringResize;
+            }
+
+            _resizeWidthAdornerLayer?.Remove(_resizeWidthAdorner);
+            _resizeWidthAdorner = null;
+            _resizeWidthAdornerLayer = null;
+        }
+
+        private void Grid_LayoutUpdatedDuringResize(object sender, EventArgs e)
+        {
+            // Header positions settle a layout pass after each width write, so re-centre then.
+            RefreshResizeWidthPills();
+        }
+
+        private void RefreshResizeWidthPills()
+        {
+            _resizeWidthAdorner?.Refresh(column => FormatWidthLabel(column, GetInteractiveColumnWidth(column)));
+        }
+
+        private DataGridColumn FindColumnByKey(string key)
+        {
+            if (_grid == null || string.IsNullOrWhiteSpace(key))
+            {
+                return null;
+            }
+
+            return _grid.Columns.FirstOrDefault(c => c != null && ColumnWidthNormalization.KeysEqual(GetColumnKey(c), key));
         }
 
         private void Grid_ColumnReordered(object sender, DataGridColumnEventArgs e)
@@ -2271,13 +2367,22 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static string FormatWidthNumber(DataGridColumn column)
         {
-            var width = ColumnWidthNormalization.RoundPixelWidth(ColumnWidthNormalization.GetCurrentWidth(column));
-            return width.ToString("0", System.Globalization.CultureInfo.CurrentCulture);
+            return FormatWidthNumber(ColumnWidthNormalization.GetCurrentWidth(column));
+        }
+
+        private static string FormatWidthNumber(double width)
+        {
+            return ColumnWidthNormalization.RoundPixelWidth(width).ToString("0", System.Globalization.CultureInfo.CurrentCulture);
         }
 
         private static string FormatWidthLabel(DataGridColumn column)
         {
             return FormatWidthNumber(column) + " px";
+        }
+
+        private static string FormatWidthLabel(DataGridColumn column, double width)
+        {
+            return FormatWidthNumber(IsValidWidth(width) ? width : ColumnWidthNormalization.GetCurrentWidth(column)) + " px";
         }
 
         private FrameworkElement CreateLockIcon(bool isLocked)
