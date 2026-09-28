@@ -1532,7 +1532,11 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            QueueNormalization(rescaleAll: true, DispatcherPriority.Background);
+            // Loaded, not Background: a window drag floods the dispatcher with input, which
+            // starves Background work, so the columns visibly lag the new width. Loaded runs
+            // after each layout pass and ahead of input, and QueueNormalization still
+            // coalesces the burst into one fit per pass.
+            QueueNormalization(rescaleAll: true, DispatcherPriority.Loaded);
         }
 
         private bool ShouldRescaleAll(bool requestedRescaleAll)
