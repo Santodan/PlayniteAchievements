@@ -5280,6 +5280,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         // Refused on provider rows by the row itself; a mixed selection is marked
                         // as provider-backed, so this only reaches an all-authored selection.
                         ApplyPerRow(row => row.RarityInput = bulk.RarityInput, property);
+                        // Re-seeded from the rows: a cleared box snapped each of them to Common,
+                        // and the proxy shows that rather than the blank the user left. Still
+                        // under the applying flag, so this is not read back as another edit.
+                        bulk.RarityInput = SharedValue(r => r.RarityInput);
                         return;
                 }
             }
@@ -8331,7 +8335,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 if (SetValueAndReturn(ref _rarityInput, value))
                 {
-                    ApplyRarityInput(value);
+                    // The field, not the argument: the change raised above can re-enter this
+                    // setter (the bulk handler re-seeds the proxy from the rows), and applying
+                    // the argument afterwards would put the stale text's state back.
+                    ApplyRarityInput(_rarityInput);
                 }
             }
         }
@@ -8342,8 +8349,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _rarityInputInvalid = false;
             if (string.IsNullOrWhiteSpace(normalized))
             {
-                Rarity = null;
+                // Blank snaps back to Common on an authored row, and the box is refilled so the
+                // field never reads as optional; the save already stored Common for a blank. The
+                // bulk proxy keeps its blank, which stands for a selection that disagrees.
+                Rarity = ManageAchievements.AchievementEditorFieldRules.NormalizeAuthoredRarity(null, IsBulkRow);
                 GlobalPercentUnlockedText = null;
+                if (!IsBulkRow)
+                {
+                    SyncRarityInputFromState();
+                }
+
                 return;
             }
 
@@ -8649,7 +8664,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var row = new AchievementEditorRow
             {
                 DisplayName = "New Achievement " + Math.Max(1, index).ToString(CultureInfo.InvariantCulture),
-                IsNew = true
+                IsNew = true,
+                Rarity = ManageAchievements.AchievementEditorFieldRules.NormalizeAuthoredRarity(null, isBulkRow: false)
             };
             row.SyncRarityInputFromState();
             row.CaptureBaseline();
@@ -8742,7 +8758,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             PointsText = FormatInt(definition.Points);
             TrophyType = definition.TrophyType;
             Hidden = definition.Hidden;
-            Rarity = definition.Rarity;
+            Rarity = ManageAchievements.AchievementEditorFieldRules.NormalizeAuthoredRarity(definition.Rarity, IsBulkRow);
             GlobalPercentUnlockedText = FormatDouble(definition.GlobalPercentUnlocked);
             SyncRarityInputFromState();
             ProgressNumText = FormatInt(definition.ProgressNum);
@@ -8840,7 +8856,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 Hidden = Hidden,
                 IsAutoCapstone = IsAutoCapstone,
                 IsWholeGameAutoCapstone = IsAutoCapstone && IsWholeGameAutoCapstone,
-                Rarity =string.IsNullOrWhiteSpace(Rarity) ? "Common" : Rarity.Trim()
+                // A stored definition always carries a rarity, whichever row built it.
+                Rarity = ManageAchievements.AchievementEditorFieldRules.NormalizeAuthoredRarity(Rarity, isBulkRow: false)
             };
 
             if (CanEditUnlockTime && !IsValidTime)
