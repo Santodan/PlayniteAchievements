@@ -458,6 +458,7 @@
     <Compile Include="..\..\source\Models\ShowcaseWidgetFramework.cs" Link="Source\Models\ShowcaseWidgetFramework.cs" />
     <Compile Include="..\..\source\Services\Showcase\ShowcaseGeometry.cs" Link="Source\Services\Showcase\ShowcaseGeometry.cs" />
     <Compile Include="..\..\source\Services\Showcase\ShowcaseLayoutService.cs" Link="Source\Services\Showcase\ShowcaseLayoutService.cs" />
+    <Compile Include="..\..\source\Services\Showcase\ShowcasePagePortableStore.cs" Link="Source\Services\Showcase\ShowcasePagePortableStore.cs" />
     <Compile Include="..\..\source\Services\Showcase\ShowcasePinService.cs" Link="Source\Services\Showcase\ShowcasePinService.cs" />
     <Compile Include="..\..\source\Services\Showcase\ShowcaseWidgetProjectionService.cs" Link="Source\Services\Showcase\ShowcaseWidgetProjectionService.cs" />
     <Compile Include="..\..\source\Services\Showcase\ShowcaseProfileResolver.cs" Link="Source\Services\Showcase\ShowcaseProfileResolver.cs" />

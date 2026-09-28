@@ -139,10 +139,16 @@ namespace PlayniteAchievements.Services.Showcase
             return true;
         }
 
+        /// <summary>
+        /// Inserts a copy of the page after it. Widgets are cloned under new instance ids and
+        /// keep their pin collection; with <paramref name="gridOptions"/>, grid widgets also keep
+        /// their column settings.
+        /// </summary>
         public static ShowcasePageSettings DuplicatePage(
             ShowcaseSettings settings,
             string pageId,
-            string copySuffix = null)
+            string copySuffix = null,
+            GridOptionsCatalog gridOptions = null)
         {
             Normalize(settings);
             var source = FindPage(settings, pageId);
@@ -151,14 +157,88 @@ namespace PlayniteAchievements.Services.Showcase
                 return null;
             }
 
-            var duplicate = source.Clone();
-            duplicate.PageId = NewId();
-            duplicate.Name = MakeUniquePageName(
+            return InsertPageCopy(
                 settings,
-                $"{source.Name} {(string.IsNullOrWhiteSpace(copySuffix) ? "Copy" : copySuffix.Trim())}");
+                source,
+                $"{source.Name} {(string.IsNullOrWhiteSpace(copySuffix) ? "Copy" : copySuffix.Trim())}",
+                widgetInstanceId => FindWidget(settings, widgetInstanceId),
+                settings.Pages.IndexOf(source) + 1,
+                (sourceWidget, copy) => ShowcaseGridSurfaces.CopySurface(gridOptions, sourceWidget, copy));
+        }
+
+        /// <summary>
+        /// Inserts a page that came from outside this layout (an imported file) after
+        /// <paramref name="insertAfterPageId"/>, or last when that page is not found. Every id is
+        /// regenerated so the page never collides with existing ones, widgets of unknown kinds
+        /// are dropped (their blocks stay empty), and pin-capable widgets point at this layout's
+        /// default collections. <paramref name="onWidgetImported"/> receives each source widget
+        /// with its imported copy so callers can carry per-instance data across the id change.
+        /// </summary>
+        public static ShowcasePageSettings ImportPage(
+            ShowcaseSettings settings,
+            ShowcasePageSettings page,
+            IEnumerable<ShowcaseWidgetInstanceSettings> widgets,
+            string insertAfterPageId = null,
+            Action<ShowcaseWidgetInstanceSettings, ShowcaseWidgetInstanceSettings> onWidgetImported = null)
+        {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (page == null)
+            {
+                return null;
+            }
+
+            Normalize(settings);
+            var sourceWidgets = new Dictionary<string, ShowcaseWidgetInstanceSettings>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var widget in widgets ?? Array.Empty<ShowcaseWidgetInstanceSettings>())
+            {
+                if (widget != null &&
+                    !string.IsNullOrWhiteSpace(widget.InstanceId) &&
+                    Enum.IsDefined(typeof(ShowcaseWidgetKind), widget.Kind) &&
+                    !sourceWidgets.ContainsKey(widget.InstanceId.Trim()))
+                {
+                    sourceWidgets[widget.InstanceId.Trim()] = widget;
+                }
+            }
+
+            var anchor = FindPage(settings, insertAfterPageId);
+            return InsertPageCopy(
+                settings,
+                page,
+                page.Name,
+                widgetInstanceId => sourceWidgets.TryGetValue(widgetInstanceId.Trim(), out var widget)
+                    ? widget
+                    : null,
+                anchor == null ? settings.Pages.Count : settings.Pages.IndexOf(anchor) + 1,
+                (sourceWidget, copy) =>
+                {
+                    ShowcaseWidgetOptions.SetPinCollectionId(copy, null);
+                    SeedPinCollectionSelection(settings, copy);
+                    onWidgetImported?.Invoke(sourceWidget, copy);
+                });
+        }
+
+        // Clones the page and every widget its blocks reference under fresh ids. A widget that
+        // fills several blocks is cloned once; blocks whose widget cannot be resolved are left
+        // empty.
+        private static ShowcasePageSettings InsertPageCopy(
+            ShowcaseSettings settings,
+            ShowcasePageSettings source,
+            string preferredName,
+            Func<string, ShowcaseWidgetInstanceSettings> resolveWidget,
+            int insertIndex,
+            Action<ShowcaseWidgetInstanceSettings, ShowcaseWidgetInstanceSettings> onWidgetCopied)
+        {
+            var copy = source.Clone();
+            copy.PageId = NewId();
+            copy.Name = MakeUniquePageName(settings, preferredName);
 
             var widgetIdMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var block in duplicate.Blocks)
+            foreach (var block in copy.Blocks)
             {
                 block.BlockId = NewId();
                 if (string.IsNullOrWhiteSpace(block.WidgetInstanceId))
@@ -168,7 +248,7 @@ namespace PlayniteAchievements.Services.Showcase
 
                 if (!widgetIdMap.TryGetValue(block.WidgetInstanceId, out var newWidgetId))
                 {
-                    var sourceWidget = FindWidget(settings, block.WidgetInstanceId);
+                    var sourceWidget = resolveWidget(block.WidgetInstanceId);
                     if (sourceWidget == null)
                     {
                         block.WidgetInstanceId = null;
@@ -179,15 +259,15 @@ namespace PlayniteAchievements.Services.Showcase
                     widgetCopy.InstanceId = newWidgetId = NewId();
                     settings.WidgetInstances.Add(widgetCopy);
                     widgetIdMap[block.WidgetInstanceId] = newWidgetId;
+                    onWidgetCopied?.Invoke(sourceWidget, widgetCopy);
                 }
 
                 block.WidgetInstanceId = newWidgetId;
             }
 
-            var sourceIndex = settings.Pages.IndexOf(source);
-            settings.Pages.Insert(Math.Min(settings.Pages.Count, sourceIndex + 1), duplicate);
-            settings.LastSelectedPageId = duplicate.PageId;
-            return duplicate;
+            settings.Pages.Insert(Math.Max(0, Math.Min(settings.Pages.Count, insertIndex)), copy);
+            settings.LastSelectedPageId = copy.PageId;
+            return copy;
         }
 
         public static bool DeletePage(ShowcaseSettings settings, string pageId)

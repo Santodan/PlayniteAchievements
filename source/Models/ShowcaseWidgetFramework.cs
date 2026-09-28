@@ -174,6 +174,38 @@ namespace PlayniteAchievements.Models
         }
 
         /// <summary>
+        /// Copies the grid surface owned by <paramref name="source"/> onto the surface owned by
+        /// <paramref name="copy"/>, so a cloned widget keeps its columns, widths, and sort.
+        /// No-op for kinds that do not host a grid.
+        /// </summary>
+        public static void CopySurface(
+            GridOptionsCatalog catalog,
+            ShowcaseWidgetInstanceSettings source,
+            ShowcaseWidgetInstanceSettings copy)
+        {
+            if (catalog == null || source == null || copy == null)
+            {
+                return;
+            }
+
+            var sourceKey = ResolveWidgetSurface(source.Kind, source.InstanceId);
+            var targetKey = ResolveWidgetSurface(copy.Kind, copy.InstanceId);
+            if (string.IsNullOrWhiteSpace(sourceKey) || string.IsNullOrWhiteSpace(targetKey))
+            {
+                return;
+            }
+
+            if (IsAchievementSurface(sourceKey) && IsAchievementSurface(targetKey))
+            {
+                catalog.SetAchievement(targetKey, catalog.GetAchievement(sourceKey));
+            }
+            else if (IsGameSurface(sourceKey) && IsGameSurface(targetKey))
+            {
+                catalog.SetGameSummaries(targetKey, catalog.GetGameSummaries(sourceKey));
+            }
+        }
+
+        /// <summary>
         /// Removes persisted per-instance grid surfaces whose widget instance no longer exists
         /// (dashboard or start-page hosted). Bare base keys are never pruned.
         /// </summary>

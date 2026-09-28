@@ -802,6 +802,40 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Stores a clone of <paramref name="options"/> under the surface, replacing (and
+        /// detaching) any existing record so change notifications follow the new instance.
+        /// </summary>
+        public void SetAchievement(string id, AchievementGridOptions options)
+        {
+            if (string.IsNullOrWhiteSpace(id) || options == null)
+            {
+                return;
+            }
+
+            RemoveAchievement(id);
+            var copy = options.Clone();
+            _achievement[id] = copy;
+            AttachOptions(AchievementKindName, id, copy);
+        }
+
+        /// <summary>
+        /// Stores a clone of <paramref name="options"/> under the surface, replacing (and
+        /// detaching) any existing record so change notifications follow the new instance.
+        /// </summary>
+        public void SetGameSummaries(string id, GameSummaryGridOptions options)
+        {
+            if (string.IsNullOrWhiteSpace(id) || options == null)
+            {
+                return;
+            }
+
+            RemoveGameSummaries(id);
+            var copy = options.Clone();
+            _gameSummaries[id] = copy;
+            AttachOptions(GameSummariesKindName, id, copy);
+        }
+
+        /// <summary>
         /// Creates the surface by cloning the donor's record (display options and column layout)
         /// when the surface does not exist yet; no-op when it does. Used to migrate a user's
         /// configured look onto a new per-instance surface.
