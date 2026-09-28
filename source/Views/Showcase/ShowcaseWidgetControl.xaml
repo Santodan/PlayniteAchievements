@@ -30,27 +30,12 @@
                     Background="{StaticResource PlayAch.Brush.Overlay.Tint.08}"
                     Padding="9,5"
                     Visibility="Collapsed">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="GlyphText"
-                               Width="18"
-                               Margin="0,0,6,0"
-                               FontFamily="Segoe MDL2 Assets"
-                               Foreground="{DynamicResource PlayAch.Brush.Accent}"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               FontSize="12"/>
-                    <TextBlock x:Name="TitleText"
-                               Grid.Column="1"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               FontWeight="SemiBold"
-                               FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                               VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"/>
-                </Grid>
+                <TextBlock x:Name="TitleText"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           FontWeight="SemiBold"
+                           FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"/>
             </Border>
             <ContentControl x:Name="BodyHost"
                             Grid.Row="1"
