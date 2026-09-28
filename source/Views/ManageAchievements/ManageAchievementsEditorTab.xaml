@@ -787,8 +787,12 @@
                          editor does not spoil what the achievement is. Each has its own toggle
                          beside it: reading one is not a reason to spoil the other. The toggle is
                          shown only when there is something to reveal, so a row whose display
-                         settings already reveal that facet carries no button at all. -->
+                         settings already reveal that facet carries no button at all.
+                         The name and description share one floor: room for the header's two
+                         toggle slots, and nothing that favors one column over the other when a
+                         drag has to take width from its neighbor. -->
                     <DataGridTemplateColumn Width="240"
+                                            MinWidth="64"
                                             SortMemberPath="DisplayName"
                                             HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorName"
@@ -885,7 +889,7 @@
                          and it picks the last visible resizable column as the absorber, so hiding
                          this one still leaves the row covered. -->
                     <DataGridTemplateColumn Width="*"
-                                            MinWidth="180"
+                                            MinWidth="64"
                                             SortMemberPath="Description"
                                             HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorDescription"
