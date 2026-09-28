@@ -3714,6 +3714,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             CaptureCollectionBaseline();
             RefreshAssignmentState();
+            // The grid's capstone cells read this off the view model, and the selected row may
+            // have just gained the ApiName that makes it editable.
+            OnPropertyChanged(nameof(IsCapstoneEditableForSelection));
         }
 
         private void ReplaceRows(IEnumerable<AchievementEditorRow> rows)
@@ -8781,6 +8784,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OriginalApiName = CustomAchievementProjectionService.BuildApiName(definition.Id);
             OnPropertyChanged(nameof(CanEditAssignments));
             OnPropertyChanged(nameof(CanEditGoal));
+            // Gated on the ApiName this save just assigned; without the raise the capstone button
+            // on a freshly added row stayed disabled until the selection changed.
+            OnPropertyChanged(nameof(CanEditCapstone));
             CaptureBaseline();
         }
 
