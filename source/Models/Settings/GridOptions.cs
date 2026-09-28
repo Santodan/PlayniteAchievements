@@ -65,6 +65,7 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, GridAlignment> _cellAlignments = new Dictionary<string, GridAlignment>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, GridVerticalAlignment> _cellVerticalAlignments = new Dictionary<string, GridVerticalAlignment>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, GridAlignment> _headerAlignments = new Dictionary<string, GridAlignment>(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, bool> _locked = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
         public Dictionary<string, bool> Visibility
         {
@@ -102,6 +103,17 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _headerAlignments, NormalizeAlignments(value));
         }
 
+        /// <summary>
+        /// Columns whose width is fixed: the header menu's lock. A locked column keeps its
+        /// pixel width from <see cref="Widths"/> while the other columns absorb resizes, and
+        /// neither of its boundaries can be dragged.
+        /// </summary>
+        public Dictionary<string, bool> Locked
+        {
+            get => _locked;
+            set => SetValue(ref _locked, NormalizeVisibility(value));
+        }
+
         public GridColumnLayoutOptions Clone()
         {
             return new GridColumnLayoutOptions
@@ -111,7 +123,8 @@ namespace PlayniteAchievements.Models.Settings
                 Order = Order,
                 CellAlignments = CellAlignments,
                 CellVerticalAlignments = CellVerticalAlignments,
-                HeaderAlignments = HeaderAlignments
+                HeaderAlignments = HeaderAlignments,
+                Locked = Locked
             };
         }
 
