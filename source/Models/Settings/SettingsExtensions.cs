@@ -260,8 +260,10 @@ namespace PlayniteAchievements.Models.Settings
                     kvp => kvp.Value?.Clone(),
                     StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, WindowPlacementState>(StringComparer.OrdinalIgnoreCase);
-            target.OverviewTimelineRange = source.OverviewTimelineRange;
-            target.ViewAchievementsTimelineRange = source.ViewAchievementsTimelineRange;
+            target.OverviewTimeWindow = source.OverviewTimeWindow;
+            target.OverviewTimelineGranularity = source.OverviewTimelineGranularity;
+            target.ViewAchievementsTimeWindow = source.ViewAchievementsTimeWindow;
+            target.ViewAchievementsTimelineGranularity = source.ViewAchievementsTimelineGranularity;
             target.ViewAchievementsTimelineVisible = source.ViewAchievementsTimelineVisible;
 
             // General Settings

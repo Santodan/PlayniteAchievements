@@ -534,7 +534,10 @@ namespace PlayniteAchievements.Models.Tests
         {
             var settings = new PersistedSettings();
 
-            Assert.AreEqual(TimelineRange.OneYear, settings.ViewAchievementsTimelineRange);
+            Assert.AreEqual(TimeWindow.FromPreset(TimelineRange.OneYear), settings.ViewAchievementsTimeWindow);
+            Assert.AreEqual(TimelineGranularity.Auto, settings.ViewAchievementsTimelineGranularity);
+            Assert.AreEqual(TimeWindow.FromPreset(TimelineRange.OneYear), settings.OverviewTimeWindow);
+            Assert.AreEqual(TimelineGranularity.Auto, settings.OverviewTimelineGranularity);
             Assert.IsFalse(settings.ViewAchievementsTimelineVisible);
         }
 
@@ -1011,9 +1014,11 @@ namespace PlayniteAchievements.Models.Tests
         [TestMethod]
         public void CloneAndCopyFrom_PreserveViewAchievementsTimelineState()
         {
+            var custom = TimeWindow.Custom(new DateTime(2024, 1, 1), new DateTime(2024, 6, 30));
             var source = new PersistedSettings
             {
-                ViewAchievementsTimelineRange = TimelineRange.All,
+                ViewAchievementsTimeWindow = custom,
+                ViewAchievementsTimelineGranularity = TimelineGranularity.Week,
                 ViewAchievementsTimelineVisible = true
             };
 
@@ -1021,9 +1026,11 @@ namespace PlayniteAchievements.Models.Tests
             var target = new PersistedSettings();
             target.CopyFrom(source);
 
-            Assert.AreEqual(TimelineRange.All, clone.ViewAchievementsTimelineRange);
+            Assert.AreEqual(custom, clone.ViewAchievementsTimeWindow);
+            Assert.AreEqual(TimelineGranularity.Week, clone.ViewAchievementsTimelineGranularity);
             Assert.IsTrue(clone.ViewAchievementsTimelineVisible);
-            Assert.AreEqual(TimelineRange.All, target.ViewAchievementsTimelineRange);
+            Assert.AreEqual(custom, target.ViewAchievementsTimeWindow);
+            Assert.AreEqual(TimelineGranularity.Week, target.ViewAchievementsTimelineGranularity);
             Assert.IsTrue(target.ViewAchievementsTimelineVisible);
         }
 
@@ -1544,7 +1551,8 @@ namespace PlayniteAchievements.Models.Tests
                 OverviewLeftColumnRatio = 0.72d,
                 FriendsOverviewFriendColumnRatio = 0.23d,
                 FriendsOverviewGameColumnRatio = 0.37d,
-                ViewAchievementsTimelineRange = TimelineRange.All,
+                ViewAchievementsTimeWindow = TimeWindow.All,
+                ViewAchievementsTimelineGranularity = TimelineGranularity.Month,
                 ViewAchievementsTimelineVisible = true
             };
 
@@ -1666,7 +1674,8 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(defaults.OverviewLeftColumnRatio, settings.OverviewLeftColumnRatio);
             Assert.AreEqual(defaults.FriendsOverviewFriendColumnRatio, settings.FriendsOverviewFriendColumnRatio);
             Assert.AreEqual(defaults.FriendsOverviewGameColumnRatio, settings.FriendsOverviewGameColumnRatio);
-            Assert.AreEqual(defaults.ViewAchievementsTimelineRange, settings.ViewAchievementsTimelineRange);
+            Assert.AreEqual(defaults.ViewAchievementsTimeWindow, settings.ViewAchievementsTimeWindow);
+            Assert.AreEqual(defaults.ViewAchievementsTimelineGranularity, settings.ViewAchievementsTimelineGranularity);
             Assert.AreEqual(defaults.ViewAchievementsTimelineVisible, settings.ViewAchievementsTimelineVisible);
 
             Assert.AreEqual(0, settings.DataGridColumnVisibility.Count);

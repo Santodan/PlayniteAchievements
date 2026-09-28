@@ -66,7 +66,10 @@ namespace PlayniteAchievements.Models.Settings
             ("StartPageGamesOverviewColumnVerticalAlignments", "StartPageGameSummariesColumnVerticalAlignments"),
             ("StartPageGamesOverviewColumnHeaderAlignments", "StartPageGameSummariesColumnHeaderAlignments"),
             ("SidebarOverviewLeftColumnRatio", "OverviewLeftColumnRatio"),
-            ("SidebarTimelineRange", "OverviewTimelineRange")
+            ("SidebarTimelineRange", "OverviewTimelineRange"),
+            // The enum-typed range became a TimeWindow; the converter still reads the old integer.
+            ("OverviewTimelineRange", "OverviewTimeWindow"),
+            ("ViewAchievementsTimelineRange", "ViewAchievementsTimeWindow")
         };
 
         private static readonly (string OldName, string NewName)[] GameSummaryColumnRenames =
