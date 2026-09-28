@@ -86,44 +86,21 @@
                          CommandParameter="All"/>
         </StackPanel>
 
-        <!-- LiveCharts CartesianChart -->
-        <lvc:CartesianChart Grid.Row="1"
-                            Series="{Binding TimelineViewModel.TimelineSeries, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
-                            LegendLocation="None"
-                            Hoverable="True"
-                            TooltipTimeout="0:0:0.1"
-                            DisableAnimations="True">
-            <!-- Theme-facing: Playnite's own popup and text keys, which themes restyle. -->
-            <lvc:CartesianChart.DataTooltip>
-                <controls:CartesianChartTooltip SurfaceBrush="{DynamicResource PopupBackgroundBrush}"
-                                                OutlineBrush="{DynamicResource PopupBorderBrush}"
-                                                Foreground="{DynamicResource TextBrush}"/>
-            </lvc:CartesianChart.DataTooltip>
-            <lvc:CartesianChart.Resources>
-                <Style TargetType="lvc:ColumnSeries" BasedOn="{StaticResource PlayAch.ChartColumnSeriesStyle}"/>
-            </lvc:CartesianChart.Resources>
-            <lvc:CartesianChart.AxisX>
-                <lvc:Axis Labels="{Binding TimelineViewModel.TimelineLabels, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
-                          ShowLabels="True"
-                          LabelsRotation="45"
-                          FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                          Foreground="{DynamicResource PlayAch.Brush.Text}">
-                    <lvc:Axis.Separator>
-                        <lvc:Separator Step="1" IsEnabled="False"/>
-                    </lvc:Axis.Separator>
-                </lvc:Axis>
-            </lvc:CartesianChart.AxisX>
-            <lvc:CartesianChart.AxisY>
-                <lvc:Axis MinValue="0"
-                          LabelFormatter="{Binding TimelineViewModel.YAxisFormatter, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
-                          FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                          Foreground="{DynamicResource PlayAch.Brush.Text}">
-                    <lvc:Axis.Separator>
-                        <lvc:Separator Stroke="{DynamicResource PlayAch.Brush.Border}" Opacity="0.2"/>
-                    </lvc:Axis.Separator>
-                </lvc:Axis>
-            </lvc:CartesianChart.AxisY>
-        </lvc:CartesianChart>
+        <!-- Shared unlocks-over-time chart. Theme-facing: the tooltip takes Playnite's own popup
+             and text keys, which themes restyle. -->
+        <controls:UnlockTimelineChart Grid.Row="1"
+                                      Series="{Binding TimelineViewModel.TimelineSeries, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                      Labels="{Binding TimelineViewModel.TimelineLabels, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                      TooltipLabels="{Binding TimelineViewModel.TooltipLabels, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                      XAxisMax="{Binding TimelineViewModel.XAxisMax, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                      YAxisMax="{Binding TimelineViewModel.YAxisMax, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                      YAxisStep="{Binding TimelineViewModel.YAxisStep, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                      YLabelFormatter="{Binding TimelineViewModel.YAxisFormatter, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                      IsEmpty="{Binding TimelineViewModel.IsEmpty, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                      MaxTickCount="{Binding TimelineViewModel.MaxTickCount, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Mode=OneWayToSource}"
+                                      TooltipSurfaceBrush="{DynamicResource PopupBackgroundBrush}"
+                                      TooltipOutlineBrush="{DynamicResource PopupBorderBrush}"
+                                      TooltipForeground="{DynamicResource TextBrush}"/>
     </Grid>
 </base:ThemeControlBase>
 
