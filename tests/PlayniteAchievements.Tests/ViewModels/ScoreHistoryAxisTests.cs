@@ -1,4 +1,3 @@
-using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.ViewModels.Showcase.Widgets;
@@ -8,9 +7,10 @@ namespace PlayniteAchievements.Tests.ViewModels
     [TestClass]
     public class ScoreHistoryAxisTests
     {
-        // Silver V spans levels 50-59 and Gold V starts at level 100, so level 53 sits well inside
-        // a tier and level 100 is both a level start and a tier start.
+        // Silver V spans levels 50-59, so level 53 sits inside a tier with Silver IV starting at 60.
+        private const int TierStartLevel = 50;
         private const int MidTierLevel = 53;
+        private const int NextTierStartLevel = 60;
 
         private static int LevelStart(int level)
         {
@@ -18,7 +18,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void GainInsideOneLevel_FitsAxisToWindowWithHeadroomAndDrawsNoLines()
+        public void GainInsideOneTier_FitsAxisToWindowWithHeadroomAndDrawsNoLines()
         {
             var windowMin = LevelStart(MidTierLevel) + 200;
             var windowMax = windowMin + 500;
@@ -27,13 +27,12 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             Assert.AreEqual(windowMin, frame.Min);
             Assert.AreEqual(windowMax + 500 * ScoreHistoryAxis.Headroom, frame.Max, 0.001);
-            Assert.IsNull(frame.CurrentLevelLine);
-            Assert.IsNull(frame.NextLevelLine);
-            Assert.AreEqual(0, frame.TierStarts.Count);
+            Assert.IsNull(frame.CurrentTierLine);
+            Assert.IsNull(frame.NextTierLine);
         }
 
         [TestMethod]
-        public void LevelCrossedInsideWindow_DrawsCurrentLevelStartOnly()
+        public void LevelCrossedInsideTier_DrawsNoLines()
         {
             var levelStart = LevelStart(MidTierLevel);
             var windowMin = levelStart - 300;
@@ -41,115 +40,88 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             var frame = ScoreHistoryAxis.Frame(windowMax, windowMin, windowMax);
 
-            Assert.AreEqual(windowMin, frame.Min);
-            Assert.AreEqual(windowMax + 700 * ScoreHistoryAxis.Headroom, frame.Max, 0.001);
-            Assert.AreEqual(levelStart, frame.CurrentLevelLine);
-            Assert.IsNull(frame.NextLevelLine);
-            Assert.AreEqual(0, frame.TierStarts.Count);
+            Assert.IsNull(frame.CurrentTierLine);
+            Assert.IsNull(frame.NextTierLine);
         }
 
         [TestMethod]
-        public void NextLevelWithinHeadroom_SnapsCeilingToItAndDrawsIt()
+        public void TierEnteredInsideWindow_DrawsCurrentTierStart()
         {
-            var nextStart = LevelStart(MidTierLevel + 1);
-            var windowMax = nextStart - 10;
+            var tierStart = LevelStart(TierStartLevel);
+            var windowMin = tierStart - 300;
+            var windowMax = LevelStart(MidTierLevel) + 400;
+
+            var frame = ScoreHistoryAxis.Frame(windowMax, windowMin, windowMax);
+
+            Assert.AreEqual(windowMin, frame.Min);
+            Assert.AreEqual(tierStart, frame.CurrentTierLine);
+            Assert.IsNull(frame.NextTierLine);
+        }
+
+        [TestMethod]
+        public void NextTierWithinHeadroom_SnapsCeilingToItAndDrawsIt()
+        {
+            var nextTierStart = LevelStart(NextTierStartLevel);
+            var windowMax = nextTierStart - 10;
             var windowMin = windowMax - 1000;
 
             var frame = ScoreHistoryAxis.Frame(windowMax, windowMin, windowMax);
 
             Assert.AreEqual(windowMin, frame.Min);
-            Assert.AreEqual(nextStart, frame.Max);
-            Assert.AreEqual(nextStart, frame.NextLevelLine);
-            Assert.IsNull(frame.CurrentLevelLine);
+            Assert.AreEqual(nextTierStart, frame.Max);
+            Assert.AreEqual(nextTierStart, frame.NextTierLine);
+            Assert.IsNull(frame.CurrentTierLine);
         }
 
         [TestMethod]
-        public void ZeroGain_FramesTheCurrentLevel()
+        public void ZeroGain_FramesTheCurrentTier()
         {
             var score = LevelStart(MidTierLevel) + 500;
 
             var frame = ScoreHistoryAxis.Frame(score, score, score);
 
-            Assert.AreEqual(LevelStart(MidTierLevel), frame.Min);
-            Assert.AreEqual(LevelStart(MidTierLevel + 1), frame.Max);
-            Assert.AreEqual(LevelStart(MidTierLevel + 1), frame.NextLevelLine);
-            Assert.IsNull(frame.CurrentLevelLine);
-            Assert.AreEqual(0, frame.TierStarts.Count);
+            Assert.AreEqual(LevelStart(TierStartLevel), frame.Min);
+            Assert.AreEqual(LevelStart(NextTierStartLevel), frame.Max);
+            Assert.AreEqual(LevelStart(NextTierStartLevel), frame.NextTierLine);
+            Assert.IsNull(frame.CurrentTierLine);
         }
 
         [TestMethod]
-        public void ManyLevelsCrossed_DrawsOnlyTheCurrentLevelAndTiersReached()
+        public void ManyTiersCrossed_DrawsOnlyTheCurrentTierStart()
         {
             var windowMin = LevelStart(MidTierLevel - 30);
             var windowMax = LevelStart(MidTierLevel) + 10;
 
             var frame = ScoreHistoryAxis.Frame(windowMax, windowMin, windowMax);
 
-            Assert.AreEqual(LevelStart(MidTierLevel), frame.CurrentLevelLine);
-            // Ten percent of a thirty-level gain is wider than one level, so the ceiling snaps to
-            // the next level and it is drawn; the older crossings are not.
-            Assert.AreEqual(LevelStart(MidTierLevel + 1), frame.Max);
-            Assert.AreEqual(LevelStart(MidTierLevel + 1), frame.NextLevelLine);
-            Assert.AreEqual(1, frame.TierStarts.Count);
-            Assert.AreEqual(AchievementRank.Silver5, frame.TierStarts[0].Rank);
-            Assert.AreEqual(LevelStart(50), frame.TierStarts[0].Score);
+            Assert.AreEqual(LevelStart(TierStartLevel), frame.CurrentTierLine);
+            // Ten percent of a thirty-level gain reaches past the next tier's start only when the
+            // remaining tier is small; here seven levels remain, so no snap.
+            Assert.IsNull(frame.NextTierLine);
         }
 
         [TestMethod]
-        public void CurrentLevelStartAtWindowMin_DrawsNoCurrentLevelLine()
+        public void CurrentTierStartAtWindowMin_DrawsNoCurrentTierLine()
         {
-            var windowMin = LevelStart(MidTierLevel);
+            var windowMin = LevelStart(TierStartLevel);
             var windowMax = windowMin + 100;
 
             var frame = ScoreHistoryAxis.Frame(windowMax, windowMin, windowMax);
 
             Assert.AreEqual(windowMin, frame.Min);
-            Assert.IsNull(frame.CurrentLevelLine);
+            Assert.IsNull(frame.CurrentTierLine);
         }
 
         [TestMethod]
-        public void AllTimeWindow_DrawsOneLinePerTierReachedAndSkipsTheFirstRank()
+        public void MasteryRollover_NextTierIsTheNewPassStart()
         {
-            var windowMax = LevelStart(105) + 5;
+            var score = LevelStart(245) + 5;
 
-            var frame = ScoreHistoryAxis.Frame(windowMax, 0, windowMax);
+            var frame = ScoreHistoryAxis.Frame(score, score, score);
 
-            Assert.AreEqual(0, frame.Min);
-            Assert.AreEqual(LevelStart(105), frame.CurrentLevelLine);
-            CollectionAssert.AreEqual(
-                new[] { AchievementRank.Silver5, AchievementRank.Gold5 },
-                frame.TierStarts.Select(tier => tier.Rank).ToArray());
-            CollectionAssert.AreEqual(
-                new[] { (double)LevelStart(50), LevelStart(100) },
-                frame.TierStarts.Select(tier => tier.Score).ToArray());
-        }
-
-        [TestMethod]
-        public void MasteryRollover_DrawsTheNewPassAsATierStart()
-        {
-            var windowMin = LevelStart(240);
-            var windowMax = LevelStart(252);
-
-            var frame = ScoreHistoryAxis.Frame(windowMax, windowMin, windowMax);
-
-            Assert.AreEqual(1, frame.TierStarts.Count);
-            Assert.AreEqual(AchievementRank.Bronze5, frame.TierStarts[0].Rank);
-            Assert.AreEqual(LevelStart(250), frame.TierStarts[0].Score);
-            Assert.AreEqual(LevelStart(252), frame.CurrentLevelLine);
-        }
-
-        [TestMethod]
-        public void CurrentLevelStartingATier_DrawsTheTierLineInsteadOfTheLevelLine()
-        {
-            var windowMin = LevelStart(95);
-            var windowMax = LevelStart(100) + 5;
-
-            var frame = ScoreHistoryAxis.Frame(windowMax, windowMin, windowMax);
-
-            Assert.AreEqual(1, frame.TierStarts.Count);
-            Assert.AreEqual(AchievementRank.Gold5, frame.TierStarts[0].Rank);
-            Assert.AreEqual(LevelStart(100), frame.TierStarts[0].Score);
-            Assert.IsNull(frame.CurrentLevelLine);
+            Assert.AreEqual(LevelStart(240), frame.Min);
+            Assert.AreEqual(LevelStart(250), frame.Max);
+            Assert.AreEqual(LevelStart(250), frame.NextTierLine);
         }
     }
 }
