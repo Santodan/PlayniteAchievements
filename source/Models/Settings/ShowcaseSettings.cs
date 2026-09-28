@@ -352,6 +352,14 @@ namespace PlayniteAchievements.Models.Settings
         public Dictionary<string, string> Options { get; set; } =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>
+        /// The profile card's manual data for a <see cref="ShowcaseWidgetKind.Profile"/> widget:
+        /// name, subtitle, avatar, background and links. Per instance, so a duplicated page's
+        /// profile card is edited independently of the original. Null for every other kind.
+        /// </summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public ShowcaseProfileSettings Profile { get; set; }
+
         public ShowcaseWidgetInstanceSettings Clone()
         {
             return new ShowcaseWidgetInstanceSettings
@@ -361,7 +369,8 @@ namespace PlayniteAchievements.Models.Settings
                 CustomTitle = CustomTitle,
                 Options = Options != null
                     ? new Dictionary<string, string>(Options, StringComparer.OrdinalIgnoreCase)
-                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                Profile = Profile?.Clone()
             };
         }
 
@@ -522,8 +531,13 @@ namespace PlayniteAchievements.Models.Settings
                 }
             };
 
-        public ShowcaseProfileSettings Profile { get; set; } =
-            new ShowcaseProfileSettings();
+        /// <summary>
+        /// Legacy layout-wide profile data, kept only so older settings still deserialize.
+        /// <c>ShowcaseLayoutService.Normalize</c> moves it onto every profile widget that has no
+        /// <see cref="ShowcaseWidgetInstanceSettings.Profile"/> of its own and then clears it.
+        /// </summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public ShowcaseProfileSettings Profile { get; set; }
 
         public Dictionary<string, ShowcaseWidgetInstanceSettings> StartPageInstances { get; set; } =
             new Dictionary<string, ShowcaseWidgetInstanceSettings>(StringComparer.OrdinalIgnoreCase);
@@ -553,7 +567,7 @@ namespace PlayniteAchievements.Models.Settings
                     .Where(collection => collection != null)
                     .Select(collection => collection.Clone())
                     .ToList(),
-                Profile = Profile?.Clone() ?? new ShowcaseProfileSettings(),
+                Profile = Profile?.Clone(),
                 StartPageInstances = (StartPageInstances ??
                     new Dictionary<string, ShowcaseWidgetInstanceSettings>(StringComparer.OrdinalIgnoreCase))
                     .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
