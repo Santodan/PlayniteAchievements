@@ -9,6 +9,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
@@ -109,6 +110,7 @@ namespace PlayniteAchievements.Views.Showcase
             Action persist,
             IPlayniteAPI api)
         {
+            using var perf = PerfScope.Start(Logger, "Showcase.Ctor", thresholdMs: 30);
             InitializeComponent();
             _overview = overview ?? throw new ArgumentNullException(nameof(overview));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -179,6 +181,7 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
+            using var perf = PerfScope.Start(Logger, "Showcase.Dispose", thresholdMs: 20);
             ClearDragVisuals();
             _disposed = true;
             ShowcaseControlBarStateStore.Instance.Flush();
@@ -244,6 +247,7 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
+            using var perf = PerfScope.Start(Logger, "Showcase.BuildDashboard", thresholdMs: 20);
             DashboardGrid.Children.Clear();
             _blockVisuals.Clear();
             _trackGrippers.Clear();
@@ -258,6 +262,7 @@ namespace PlayniteAchievements.Views.Showcase
             DashboardGrid.RowDefinitions.Clear();
             DashboardGrid.ColumnDefinitions.Clear();
             var gridSize = PageGridSize;
+            perf?.SetContext($"page={CurrentPage.PageId} blocks={CurrentPage.Blocks.Count} grid={gridSize}");
             var rowWeights = ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.RowWeights, gridSize);
             var columnWeights = ShowcaseLayoutService.NormalizeTrackWeights(CurrentPage.ColumnWeights, gridSize);
             for (var index = 0; index < gridSize; index++)
@@ -1769,14 +1774,59 @@ namespace PlayniteAchievements.Views.Showcase
                         return;
                     }
 
-                    host.Apply(ShowcaseWidgetProjectionService.Build(
-                        _overview.LatestSnapshot ?? new OverviewDataSnapshot(),
-                        Layout,
+                    ApplyWidgetProjection(
+                        host,
                         widget,
-                        gridOptions: _settings.Persisted?.GridOptions));
+                        _overview.LatestSnapshot ?? new OverviewDataSnapshot());
                 }),
                 System.Windows.Threading.DispatcherPriority.Background);
             return host;
+        }
+
+        // The one place a widget host receives its projection. Apply only sets the Projection
+        // property; the body's template inflation, grid row and mosaic tile realization, and
+        // chart plotting all run in the layout pass that follows, so a scope around Apply alone
+        // would under-report. With tracing on, layout is forced here so the per-widget number
+        // covers the whole cost; shipped builds leave layout to the dispatcher as before.
+        private void ApplyWidgetProjection(
+            ShowcaseWidgetControl host,
+            ShowcaseWidgetInstanceSettings widget,
+            OverviewDataSnapshot snapshot)
+        {
+            var context = $"kind={widget?.Kind} id={widget?.InstanceId}";
+            ShowcaseWidgetProjection projection;
+            using (var build = PerfScope.Start(Logger, "Showcase.Widget.Build", thresholdMs: 10, context: context))
+            {
+                projection = ShowcaseWidgetProjectionService.Build(
+                    snapshot,
+                    Layout,
+                    widget,
+                    gridOptions: _settings.Persisted?.GridOptions);
+                build?.SetContext(context + " " + DescribeProjection(projection));
+            }
+
+            using (PerfScope.Start(Logger, "Showcase.Widget.Apply", thresholdMs: 10, context: context))
+            {
+                host.Apply(projection);
+            }
+
+            if (PerfScope.PerfTracingEnabled)
+            {
+                using (PerfScope.Start(Logger, "Showcase.Widget.Layout", thresholdMs: 10, context: context))
+                {
+                    host.UpdateLayout();
+                }
+            }
+        }
+
+        private static string DescribeProjection(ShowcaseWidgetProjection projection)
+        {
+            return
+                $"rows={projection?.AchievementRows?.Count ?? 0} " +
+                $"mosaic={projection?.MosaicAchievements?.Count ?? 0} " +
+                $"games={projection?.Games?.Count ?? 0} " +
+                $"chart={projection?.ChartEntries?.Count ?? 0} " +
+                $"snapshot={projection?.Snapshot?.Achievements?.Count ?? 0}";
         }
 
         private Button CreateAddWidgetButton(ShowcaseBlockSettings block)
@@ -2690,18 +2740,18 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
+            using var perf = PerfScope.Start(
+                Logger,
+                "Showcase.RefreshWidgetData",
+                thresholdMs: 30,
+                context: $"cached={includeCachedHosts} visible={_blockVisuals.Count} hosts={_hostCache.Count}");
             var snapshot = _overview.LatestSnapshot ?? new OverviewDataSnapshot();
             var applied = new HashSet<ShowcaseWidgetControl>();
             foreach (var visual in _blockVisuals.Values)
             {
                 if (visual?.Host != null && visual.Widget != null)
                 {
-                    visual.Host.Apply(
-                        ShowcaseWidgetProjectionService.Build(
-                            snapshot,
-                            Layout,
-                            visual.Widget,
-                            gridOptions: _settings.Persisted?.GridOptions));
+                    ApplyWidgetProjection(visual.Host, visual.Widget, snapshot);
                     applied.Add(visual.Host);
                 }
             }
@@ -2737,12 +2787,7 @@ namespace PlayniteAchievements.Views.Showcase
                     continue;
                 }
 
-                entry.Value.Apply(
-                    ShowcaseWidgetProjectionService.Build(
-                        snapshot,
-                        Layout,
-                        widget,
-                        gridOptions: _settings.Persisted?.GridOptions));
+                ApplyWidgetProjection(entry.Value, widget, snapshot);
             }
         }
 
