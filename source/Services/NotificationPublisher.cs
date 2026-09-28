@@ -7761,6 +7761,26 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
         private static string ResolveRarityKey(string rarityText, int? points)
         {
             var value = rarityText?.Trim().ToLowerInvariant() ?? string.Empty;
+            // Providers commonly pass the global unlock percentage as the rarity text
+            // (for example, "12.5% - Rare"). Resolve that first so notification
+            // badges use the percentage just like the main window, independent of
+            // localized tier text and achievement points.
+            var rarityPercent = TryParseRarityPercent(rarityText);
+            if (rarityPercent.HasValue)
+            {
+                switch (PercentRarityHelper.GetRarityTier(rarityPercent.Value))
+                {
+                    case RarityTier.UltraRare:
+                        return "UltraRare";
+                    case RarityTier.Rare:
+                        return "Rare";
+                    case RarityTier.Uncommon:
+                        return "Uncommon";
+                    default:
+                        return "Common";
+                }
+            }
+
             if (value.Contains("ultra") || value.Contains("platinum")) return "UltraRare";
             if (value.Contains("uncommon")) return "Uncommon";
             if (value.Contains("rare")) return "Rare";

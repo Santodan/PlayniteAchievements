@@ -5861,7 +5861,7 @@ index 10ed192a6393c7feccfcf5a16e3b10a980c060a2..b07ad5f918014607a1e36bccc0255ba4
          {
              token.ThrowIfCancellationRequested();
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..0e1d2bdb99eedc4373480beba22a4219c92f73ed 100644
+index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..c9244c2dae78535aff79aed610fa76630de18226 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
 @@ -1,23 +1,82 @@
@@ -6594,7 +6594,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..0e1d2bdb99eedc4373480beba22a4219
          private static string AuthNotificationId(string providerKey) => $"PlayAch-AuthFailed-{providerKey}";
  
          public void ShowProviderAuthFailed(List<string> providerKeys)
-@@ -163,5 +862,7511 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +862,7531 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
@@ -13497,6 +13497,26 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..0e1d2bdb99eedc4373480beba22a4219
 +        private static string ResolveRarityKey(string rarityText, int? points)
 +        {
 +            var value = rarityText?.Trim().ToLowerInvariant() ?? string.Empty;
++            // Providers commonly pass the global unlock percentage as the rarity text
++            // (for example, "12.5% - Rare"). Resolve that first so notification
++            // badges use the percentage just like the main window, independent of
++            // localized tier text and achievement points.
++            var rarityPercent = TryParseRarityPercent(rarityText);
++            if (rarityPercent.HasValue)
++            {
++                switch (PercentRarityHelper.GetRarityTier(rarityPercent.Value))
++                {
++                    case RarityTier.UltraRare:
++                        return "UltraRare";
++                    case RarityTier.Rare:
++                        return "Rare";
++                    case RarityTier.Uncommon:
++                        return "Uncommon";
++                    default:
++                        return "Common";
++                }
++            }
++
 +            if (value.Contains("ultra") || value.Contains("platinum")) return "UltraRare";
 +            if (value.Contains("uncommon")) return "Uncommon";
 +            if (value.Contains("rare")) return "Rare";
