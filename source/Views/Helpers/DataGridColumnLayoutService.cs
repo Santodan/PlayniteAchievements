@@ -51,7 +51,7 @@ namespace PlayniteAchievements.Views.Helpers
         private readonly Func<string, double, bool> _isRuntimeDefaultWidth;
         private readonly Func<Dictionary<string, bool>> _getLocks;
         private readonly Action<Dictionary<string, bool>> _setLocks;
-        private readonly Dictionary<DataGridColumn, LockedColumnState> _lockedColumns = new Dictionary<DataGridColumn, LockedColumnState>();
+        private readonly HashSet<DataGridColumn> _lockedColumns = new HashSet<DataGridColumn>();
         private ColumnResizeWidthAdorner _resizeWidthAdorner;
         private AdornerLayer _resizeWidthAdornerLayer;
         private DispatcherTimer _saveTimer;
@@ -198,8 +198,6 @@ namespace PlayniteAchievements.Views.Helpers
             ApplyPersistedOrder();
             ApplyPersistedVisibility();
             ApplyPersistedWidths();
-            // After the widths: ApplyPersistedWidths skips non-resizable columns, and a lock makes
-            // its column exactly that, so the pixel width has to land first.
             ApplyPersistedLocks();
         }
 
@@ -263,9 +261,6 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            // Locks come off before the widths pass so a locked column whose persisted width
-            // changed elsewhere is not skipped as non-resizable, then go back on.
-            ReleaseRuntimeLocks();
             ApplyPersistedVisibility();
             ApplyPersistedOrder();
             ApplyPersistedWidths();
@@ -1238,7 +1233,20 @@ namespace PlayniteAchievements.Views.Helpers
                 BuildNormalizationPreferredWidths(includePending: true),
                 fallbackAvailableWidth: 0,
                 useEqualWidthForMissing: true,
+                GetLockedColumnKeys(),
                 out normalized);
+        }
+
+        /// <summary>
+        /// Keys of the columns locked from the header menu. They are handed to the planner as
+        /// columns that never absorb a drag or typed width, while still rescaling with the grid.
+        /// </summary>
+        private List<string> GetLockedColumnKeys()
+        {
+            return _lockedColumns
+                .Select(GetColumnKey)
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .ToList();
         }
 
         private string ResolveDefaultProtectedColumnKey(out string absorberKey)
@@ -1335,7 +1343,8 @@ namespace PlayniteAchievements.Views.Helpers
             var absorberOrder = ColumnWidthNormalization.BuildAbsorberOrder(
                 keys,
                 resizedColumnKey,
-                _lastResizeAbsorberColumnKey);
+                _lastResizeAbsorberColumnKey,
+                GetLockedColumnKeys());
             if (absorberOrder.Count == 0)
             {
                 return;
@@ -1446,10 +1455,18 @@ namespace PlayniteAchievements.Views.Helpers
                 return null;
             }
 
-            var nextIndex = index + Math.Sign(direction);
-            return nextIndex >= 0 && nextIndex < columns.Count
-                ? GetColumnKey(columns[nextIndex])
-                : null;
+            // A locked neighbour cannot absorb, so the boundary's partner is the next unlocked
+            // column in that direction.
+            var step = Math.Sign(direction);
+            for (var nextIndex = index + step; nextIndex >= 0 && nextIndex < columns.Count; nextIndex += step)
+            {
+                if (!IsColumnLocked(columns[nextIndex]))
+                {
+                    return GetColumnKey(columns[nextIndex]);
+                }
+            }
+
+            return null;
         }
 
         private List<DataGridColumn> GetVisibleResizableColumns()
@@ -1798,18 +1815,20 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// Whether the service has locked this column's width. Locked columns are the ones the
-        /// user locked from the header menu; a column declared CanUserResize="False" in XAML is
-        /// fixed for a different reason and is never reported here.
+        /// Whether the user has locked this column from the header menu. A locked column keeps
+        /// resizing with the grid like every other column, but no drag or typed width on another
+        /// column can take space from it, and the grippers on both of its edges are hidden.
+        /// A column declared CanUserResize="False" in XAML is fixed for a different reason and
+        /// is never reported here.
         /// </summary>
         public bool IsColumnLocked(DataGridColumn column)
         {
-            return column != null && _lockedColumns.ContainsKey(column);
+            return column != null && _lockedColumns.Contains(column);
         }
 
         /// <summary>
         /// Whether the column may be locked now: it must be resizable and visible, and at least
-        /// one other visible resizable column must remain to absorb layout changes.
+        /// one other visible unlocked column must remain to absorb drags.
         /// </summary>
         public bool CanLockColumn(DataGridColumn column)
         {
@@ -1818,12 +1837,13 @@ namespace PlayniteAchievements.Views.Helpers
                 _setLocks == null ||
                 column.Visibility != Visibility.Visible ||
                 !column.CanUserResize ||
+                IsColumnLocked(column) ||
                 string.IsNullOrWhiteSpace(GetColumnKey(column)))
             {
                 return false;
             }
 
-            return GetVisibleResizableColumns().Count >= 2;
+            return GetVisibleResizableColumns().Count(c => !IsColumnLocked(c)) >= 2;
         }
 
         /// <summary>
@@ -1844,7 +1864,8 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
 
-                var width = LockColumn(column);
+                LockColumn(column);
+                var width = ColumnWidthNormalization.RoundPixelWidth(ColumnWidthNormalization.GetCurrentWidth(column));
                 if (IsValidWidth(width))
                 {
                     var widths = _getWidths?.Invoke() ?? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
@@ -1874,57 +1895,27 @@ namespace PlayniteAchievements.Views.Helpers
 
             _setLocks.Invoke(locks);
             _saveSettings?.Invoke();
-            NormalizeOrQueue(rescaleAll: false);
         }
 
         /// <summary>
-        /// Sets a column's width from a typed pixel value. An unlocked column goes through the
-        /// same protected-column normalization a drag does, so its neighbour absorbs the
-        /// difference; a locked column is set directly and the resizable columns re-fit around it.
+        /// Sets a column's width from a typed pixel value through the same protected-column
+        /// normalization a drag uses, so an unlocked neighbour absorbs the difference. Works for a
+        /// locked column too: the lock stops other columns taking from it, not the user setting it.
         /// </summary>
         public void SetColumnWidthFromInput(DataGridColumn column, double width)
         {
             var key = GetColumnKey(column);
-            if (string.IsNullOrWhiteSpace(key) || !IsValidWidth(width) || column.Visibility != Visibility.Visible)
-            {
-                return;
-            }
-
-            var rounded = ColumnWidthNormalization.RoundPixelWidth(width);
-            if (IsColumnLocked(column))
-            {
-                var clamped = ClampLockedWidth(column, rounded);
-                var state = _lockedColumns[column];
-                _isApplyingWidths = true;
-                try
-                {
-                    // The normalization pass pinned MinWidth/MaxWidth to the old width; lift them
-                    // or WPF clamps the new width straight back.
-                    RestoreLocalValue(column, DataGridColumn.MinWidthProperty, state.MinWidthLocalValue);
-                    RestoreLocalValue(column, DataGridColumn.MaxWidthProperty, state.MaxWidthLocalValue);
-                    column.Width = new DataGridLength(clamped, DataGridLengthUnitType.Pixel);
-                }
-                finally
-                {
-                    _isApplyingWidths = false;
-                }
-
-                var widths = _getWidths?.Invoke() ?? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-                widths[key] = clamped;
-                _setWidths?.Invoke(widths);
-                _saveSettings?.Invoke();
-                NormalizeOrQueue(rescaleAll: false);
-                return;
-            }
-
-            if (!column.CanUserResize)
+            if (string.IsNullOrWhiteSpace(key) ||
+                !IsValidWidth(width) ||
+                column.Visibility != Visibility.Visible ||
+                !column.CanUserResize)
             {
                 return;
             }
 
             _lastResizedColumnKey = key;
             _lastResizeAbsorberColumnKey = ResolveResizeAbsorberColumnKey(key);
-            QueueWidthUpdate(key, rounded);
+            QueueWidthUpdate(key, ColumnWidthNormalization.RoundPixelWidth(width));
             PersistPendingResizeWidths();
         }
 
@@ -1958,132 +1949,36 @@ namespace PlayniteAchievements.Views.Helpers
 
         private void ReleaseRuntimeLocks()
         {
-            foreach (var column in _lockedColumns.Keys.ToList())
+            foreach (var column in _lockedColumns.ToList())
             {
                 UnlockColumn(column);
             }
         }
 
         /// <summary>
-        /// Fixes the column at its current width. CanUserResize=false is what the sizing planner
-        /// already treats as "fixed": excluded from normalization and from absorbing a neighbour's
-        /// resize, and WPF hides the gripper on its right edge. The gripper behavior hides the rest.
-        /// Returns the width it froze at, or 0 when none could be read.
+        /// Marks the column locked. The column stays a normal, resizable planner participant so a
+        /// viewport change rescales it with the rest; the lock only removes it from the absorber
+        /// order (see <see cref="GetLockedColumnKeys"/>) and, through the attached property, has
+        /// the gripper behavior hide the grippers on both of its edges.
         /// </summary>
-        private double LockColumn(DataGridColumn column)
+        private void LockColumn(DataGridColumn column)
         {
-            if (column == null || _lockedColumns.ContainsKey(column))
-            {
-                return 0;
-            }
-
-            var key = GetColumnKey(column);
-            _lockedColumns[column] = new LockedColumnState
-            {
-                MinWidthLocalValue = column.ReadLocalValue(DataGridColumn.MinWidthProperty),
-                MaxWidthLocalValue = column.ReadLocalValue(DataGridColumn.MaxWidthProperty)
-            };
-
-            var width = ColumnWidthNormalization.GetCurrentWidth(column);
-            if (!IsValidWidth(width))
-            {
-                var persisted = _getWidths?.Invoke();
-                if (persisted == null || string.IsNullOrWhiteSpace(key) || !persisted.TryGetValue(key, out width))
-                {
-                    width = 0;
-                }
-            }
-
-            _isApplyingWidths = true;
-            try
-            {
-                if (IsValidWidth(width))
-                {
-                    width = ColumnWidthNormalization.RoundPixelWidth(width);
-                    column.Width = new DataGridLength(width, DataGridLengthUnitType.Pixel);
-                }
-
-                column.CanUserResize = false;
-            }
-            finally
-            {
-                _isApplyingWidths = false;
-            }
-
-            if (!string.IsNullOrWhiteSpace(key))
-            {
-                _pendingWidthUpdates.Remove(key);
-            }
-
-            DataGridColumnGripperBehavior.SetIsLocked(column, true);
-            return width;
-        }
-
-        private void UnlockColumn(DataGridColumn column)
-        {
-            if (column == null || !_lockedColumns.TryGetValue(column, out var state))
+            if (column == null || !_lockedColumns.Add(column))
             {
                 return;
             }
 
-            _lockedColumns.Remove(column);
-            _isApplyingWidths = true;
-            try
+            DataGridColumnGripperBehavior.SetIsLocked(column, true);
+        }
+
+        private void UnlockColumn(DataGridColumn column)
+        {
+            if (column == null || !_lockedColumns.Remove(column))
             {
-                column.CanUserResize = true;
-                RestoreLocalValue(column, DataGridColumn.MinWidthProperty, state.MinWidthLocalValue);
-                RestoreLocalValue(column, DataGridColumn.MaxWidthProperty, state.MaxWidthLocalValue);
-            }
-            finally
-            {
-                _isApplyingWidths = false;
+                return;
             }
 
             DataGridColumnGripperBehavior.SetIsLocked(column, false);
-        }
-
-        /// <summary>
-        /// Keeps a typed locked width inside what the grid can hold: the other resizable columns
-        /// must keep their minimum widths, and the fixed ones their current widths.
-        /// </summary>
-        private double ClampLockedWidth(DataGridColumn column, double width)
-        {
-            var lower = 1d;
-            if (_lockedColumns.TryGetValue(column, out var state) &&
-                state.MinWidthLocalValue is double declaredMin &&
-                IsValidWidth(declaredMin))
-            {
-                lower = declaredMin;
-            }
-
-            var result = Math.Max(lower, width);
-            var available = ColumnWidthNormalization.GetGridAvailableWidth(_grid);
-            if (!IsValidWidth(available))
-            {
-                return result;
-            }
-
-            var reserved = 0d;
-            foreach (var other in _grid.Columns)
-            {
-                if (other == null || ReferenceEquals(other, column) || other.Visibility != Visibility.Visible)
-                {
-                    continue;
-                }
-
-                reserved += other.CanUserResize
-                    ? Math.Max(1, other.MinWidth)
-                    : Math.Max(ColumnWidthNormalization.GetCurrentWidth(other), Math.Max(1, other.MinWidth));
-            }
-
-            var upper = ColumnWidthNormalization.RoundPixelWidth(available - reserved);
-            return upper >= lower ? Math.Min(result, upper) : result;
-        }
-
-        private sealed class LockedColumnState
-        {
-            public object MinWidthLocalValue { get; set; }
-            public object MaxWidthLocalValue { get; set; }
         }
 
         /// <summary>
