@@ -22,6 +22,34 @@ namespace PlayniteAchievements.Views.Helpers
             double targetWidth,
             out Dictionary<string, double> plannedWidths)
         {
+            return TryPlan(
+                keys,
+                seedWidths,
+                floorWidths,
+                protectedKey,
+                preferredAbsorberKey,
+                rescaleAll,
+                targetWidth,
+                excludedAbsorberKeys: null,
+                out plannedWidths);
+        }
+
+        /// <param name="excludedAbsorberKeys">
+        /// Keys that never absorb another column's delta (the header menu's locked columns).
+        /// They still take part in a proportional rescale, so a viewport change moves them like
+        /// every other column; only a drag or typed width leaves them alone.
+        /// </param>
+        public static bool TryPlan(
+            IReadOnlyList<string> keys,
+            IReadOnlyList<double> seedWidths,
+            IReadOnlyList<double> floorWidths,
+            string protectedKey,
+            string preferredAbsorberKey,
+            bool rescaleAll,
+            double targetWidth,
+            IReadOnlyCollection<string> excludedAbsorberKeys,
+            out Dictionary<string, double> plannedWidths)
+        {
             plannedWidths = null;
             if (keys == null ||
                 seedWidths == null ||
@@ -72,11 +100,11 @@ namespace PlayniteAchievements.Views.Helpers
                 }
                 else
                 {
-                    DistributeDelta(widths, floors, normalizedKeys, protectedKey, preferredAbsorberKey, delta, targetWidth);
+                    DistributeDelta(widths, floors, normalizedKeys, protectedKey, preferredAbsorberKey, excludedAbsorberKeys, delta, targetWidth);
                 }
             }
 
-            plannedWidths = RoundToTarget(normalizedKeys, widths, floors, protectedKey, preferredAbsorberKey, targetWidth);
+            plannedWidths = RoundToTarget(normalizedKeys, widths, floors, protectedKey, preferredAbsorberKey, excludedAbsorberKeys, targetWidth);
             return true;
         }
 
@@ -84,6 +112,15 @@ namespace PlayniteAchievements.Views.Helpers
             IReadOnlyList<string> keys,
             string protectedKey,
             string preferredAbsorberKey)
+        {
+            return BuildAbsorberOrder(keys, protectedKey, preferredAbsorberKey, excludedAbsorberKeys: null);
+        }
+
+        public static List<int> BuildAbsorberOrder(
+            IReadOnlyList<string> keys,
+            string protectedKey,
+            string preferredAbsorberKey,
+            IReadOnlyCollection<string> excludedAbsorberKeys)
         {
             var order = new List<int>();
             if (keys == null || keys.Count == 0)
@@ -98,7 +135,8 @@ namespace PlayniteAchievements.Views.Helpers
                 if (index < 0 ||
                     index >= keys.Count ||
                     index == protectedIndex ||
-                    order.Contains(index))
+                    order.Contains(index) ||
+                    IsExcluded(keys[index], excludedAbsorberKeys))
                 {
                     return;
                 }
@@ -228,10 +266,11 @@ namespace PlayniteAchievements.Views.Helpers
             IReadOnlyList<string> keys,
             string protectedKey,
             string preferredAbsorberKey,
+            IReadOnlyCollection<string> excludedAbsorberKeys,
             double delta,
             double targetWidth)
         {
-            var absorberOrder = BuildAbsorberOrder(keys, protectedKey, preferredAbsorberKey);
+            var absorberOrder = BuildAbsorberOrder(keys, protectedKey, preferredAbsorberKey, excludedAbsorberKeys);
             if (absorberOrder.Count == 0)
             {
                 return;
@@ -284,6 +323,7 @@ namespace PlayniteAchievements.Views.Helpers
             IReadOnlyList<double> floorWidths,
             string protectedKey,
             string preferredAbsorberKey,
+            IReadOnlyCollection<string> excludedAbsorberKeys,
             double targetWidth)
         {
             var roundedWidths = new List<double>(keys.Count);
@@ -298,7 +338,7 @@ namespace PlayniteAchievements.Views.Helpers
             var delta = RoundPixelWidth(targetWidth) - roundedWidths.Sum();
             if (Math.Abs(delta) > LayoutEpsilon)
             {
-                DistributeRoundedDelta(roundedWidths, roundedFloors, keys, protectedKey, preferredAbsorberKey, delta);
+                DistributeRoundedDelta(roundedWidths, roundedFloors, keys, protectedKey, preferredAbsorberKey, excludedAbsorberKeys, delta);
             }
 
             var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
@@ -316,9 +356,10 @@ namespace PlayniteAchievements.Views.Helpers
             IReadOnlyList<string> keys,
             string protectedKey,
             string preferredAbsorberKey,
+            IReadOnlyCollection<string> excludedAbsorberKeys,
             double delta)
         {
-            var absorberOrder = BuildAbsorberOrder(keys, protectedKey, preferredAbsorberKey);
+            var absorberOrder = BuildAbsorberOrder(keys, protectedKey, preferredAbsorberKey, excludedAbsorberKeys);
             if (absorberOrder.Count == 0)
             {
                 return;
@@ -346,6 +387,24 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
             }
+        }
+
+        private static bool IsExcluded(string key, IReadOnlyCollection<string> excludedKeys)
+        {
+            if (excludedKeys == null || excludedKeys.Count == 0 || string.IsNullOrWhiteSpace(key))
+            {
+                return false;
+            }
+
+            foreach (var excluded in excludedKeys)
+            {
+                if (KeysEqual(excluded, key))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static int IndexOfKey(IReadOnlyList<string> keys, string key)
