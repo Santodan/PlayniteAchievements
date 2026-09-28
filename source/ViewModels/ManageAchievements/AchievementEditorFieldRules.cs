@@ -1,4 +1,5 @@
-﻿using System;
+﻿using PlayniteAchievements.Models.Achievements;
+using System;
 using System.Globalization;
 
 namespace PlayniteAchievements.ViewModels.ManageAchievements
@@ -16,6 +17,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public static bool CanEditRarity(bool isCustomRow, bool isAutoCapstone = false) =>
             isCustomRow && !isAutoCapstone;
+
+        /// <summary>
+        /// An authored achievement always has a rarity: blank reads as Common, on a new row, on a
+        /// stored definition that carries none, and when the user clears the box. The bulk proxy is
+        /// the one exception, where blank stands for a selection that disagrees.
+        /// </summary>
+        public static string NormalizeAuthoredRarity(string rarity, bool isBulkRow) =>
+            string.IsNullOrWhiteSpace(rarity)
+                ? (isBulkRow ? null : nameof(RarityTier.Common))
+                : rarity.Trim();
 
         /// <summary>
         /// An unlock timestamp is only a correction to an achievement that is already unlocked.
