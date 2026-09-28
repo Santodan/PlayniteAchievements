@@ -321,7 +321,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void InitializeTimelineRangePersistence()
         {
-            ApplySavedTimelineRange();
+            ApplySavedTimelineWindow();
             if (GlobalTimeline != null)
             {
                 GlobalTimeline.PropertyChanged += Timeline_PropertyChanged;
@@ -331,6 +331,15 @@ namespace PlayniteAchievements.ViewModels
             {
                 SelectedGameTimeline.PropertyChanged += Timeline_PropertyChanged;
             }
+
+            // A window that ends at "today" moves at local midnight; the counts do not.
+            LocalDayRollover.Subscribe(OnLocalDayChanged);
+        }
+
+        private void OnLocalDayChanged(object sender, DateTime today)
+        {
+            GlobalTimeline?.UpdateTimelineData();
+            SelectedGameTimeline?.UpdateTimelineData();
         }
 
         private void InitializeGridControlBars()
@@ -391,9 +400,14 @@ namespace PlayniteAchievements.ViewModels
 
         private void Timeline_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (_isApplyingTimelineRange ||
-                e?.PropertyName != nameof(TimelineViewModel.TimelineRange) ||
-                !(sender is TimelineViewModel timeline))
+            if (_isApplyingTimelineRange || !(sender is TimelineViewModel timeline))
+            {
+                return;
+            }
+
+            var isWindow = e?.PropertyName == nameof(TimelineViewModel.Window);
+            var isGranularity = e?.PropertyName == nameof(TimelineViewModel.Granularity);
+            if (!isWindow && !isGranularity)
             {
                 return;
             }
@@ -401,20 +415,45 @@ namespace PlayniteAchievements.ViewModels
             try
             {
                 _isApplyingTimelineRange = true;
-                if (!ReferenceEquals(timeline, GlobalTimeline) && GlobalTimeline != null)
+                // The global and selected-game charts share one window and one granularity.
+                foreach (var other in new[] { GlobalTimeline, SelectedGameTimeline })
                 {
-                    GlobalTimeline.TimelineRange = timeline.TimelineRange;
+                    if (other == null || ReferenceEquals(other, timeline))
+                    {
+                        continue;
+                    }
+
+                    if (isWindow)
+                    {
+                        other.Window = timeline.Window;
+                    }
+                    else
+                    {
+                        other.Granularity = timeline.Granularity;
+                    }
                 }
 
-                if (!ReferenceEquals(timeline, SelectedGameTimeline) && SelectedGameTimeline != null)
+                var persisted = _settings?.Persisted;
+                if (persisted == null)
                 {
-                    SelectedGameTimeline.TimelineRange = timeline.TimelineRange;
+                    return;
                 }
 
-                if (_settings?.Persisted != null &&
-                    _settings.Persisted.OverviewTimelineRange != timeline.TimelineRange)
+                var changed = false;
+                if (isWindow && !Equals(persisted.OverviewTimeWindow, timeline.Window))
                 {
-                    _settings.Persisted.OverviewTimelineRange = timeline.TimelineRange;
+                    persisted.OverviewTimeWindow = timeline.Window;
+                    changed = true;
+                }
+
+                if (isGranularity && persisted.OverviewTimelineGranularity != timeline.Granularity)
+                {
+                    persisted.OverviewTimelineGranularity = timeline.Granularity;
+                    changed = true;
+                }
+
+                if (changed)
+                {
                     _persistSettingsForUi?.Invoke();
                 }
             }
@@ -424,20 +463,29 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void ApplySavedTimelineRange()
+        private void ApplySavedTimelineWindow()
         {
-            var range = _settings?.Persisted?.OverviewTimelineRange ?? TimelineRange.OneYear;
+            var window = _settings?.Persisted?.OverviewTimeWindow ?? TimeWindow.FromPreset(TimelineRange.OneYear);
+            var granularity = _settings?.Persisted?.OverviewTimelineGranularity ?? TimelineGranularity.Auto;
             try
             {
                 _isApplyingTimelineRange = true;
-                if (GlobalTimeline != null && GlobalTimeline.TimelineRange != range)
+                foreach (var timeline in new[] { GlobalTimeline, SelectedGameTimeline })
                 {
-                    GlobalTimeline.TimelineRange = range;
-                }
+                    if (timeline == null)
+                    {
+                        continue;
+                    }
 
-                if (SelectedGameTimeline != null && SelectedGameTimeline.TimelineRange != range)
-                {
-                    SelectedGameTimeline.TimelineRange = range;
+                    if (!Equals(timeline.Window, window))
+                    {
+                        timeline.Window = window;
+                    }
+
+                    if (timeline.Granularity != granularity)
+                    {
+                        timeline.Granularity = granularity;
+                    }
                 }
             }
             finally
@@ -2647,7 +2695,7 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(OverviewSelectedGameGridRowHeight));
                 OnPropertyChanged(nameof(UseUniformRarityBadges));
                 ApplyScoreCards();
-                ApplySavedTimelineRange();
+                ApplySavedTimelineWindow();
                 _ = RefreshViewAsync();
                 ApplyLeftFilters();
                 UpdateAggregatePieCharts();
@@ -2825,9 +2873,10 @@ namespace PlayniteAchievements.ViewModels
                 ApplyOverviewPieIncludeLocked();
                 UpdateAggregatePieCharts();
             }
-            else if (propertyName == nameof(PersistedSettings.OverviewTimelineRange))
+            else if (propertyName == nameof(PersistedSettings.OverviewTimeWindow) ||
+                propertyName == nameof(PersistedSettings.OverviewTimelineGranularity))
             {
-                ApplySavedTimelineRange();
+                ApplySavedTimelineWindow();
             }
             else if (GameSummariesSortHelper.IsConfiguredDefaultSortPropertyName(propertyName))
             {
@@ -4742,6 +4791,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _gameCustomDataStore.CustomDataChanged -= OnCustomDataChanged;
             }
+            LocalDayRollover.Unsubscribe(OnLocalDayChanged);
             if (GlobalTimeline != null)
             {
                 GlobalTimeline.PropertyChanged -= Timeline_PropertyChanged;
