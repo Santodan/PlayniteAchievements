@@ -4,6 +4,8 @@ using System.Reflection;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Views.Helpers;
@@ -533,6 +535,289 @@ namespace PlayniteAchievements.Tests.Views
             });
         }
 
+        [TestMethod]
+        public void SetColumnLocked_FreezesTheColumnAndPersistsItsWidthAndLock()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var saveCount = 0;
+                var maps = new PersistedMaps();
+                var widths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["A"] = 100,
+                    ["B"] = 120,
+                    ["C"] = 100
+                };
+                var grid = CreateGrid();
+                grid.Columns[1].MaxWidth = 400;
+                var service = CreateService(grid, order, () => saveCount++, widths, maps: maps);
+                service.Attach();
+                DrainDispatcher();
+
+                var column = ColumnByKey(grid, "B");
+                Assert.IsTrue(service.CanLockColumn(column));
+
+                service.SetColumnLocked(column, true);
+
+                Assert.IsTrue(service.IsColumnLocked(column));
+                Assert.IsFalse(column.CanUserResize);
+                Assert.IsTrue(DataGridColumnGripperBehavior.GetIsLocked(column));
+                Assert.IsTrue(column.Width.IsAbsolute);
+                Assert.IsTrue(maps.Locks.TryGetValue("B", out var locked) && locked);
+                Assert.AreEqual(column.Width.Value, maps.Widths["B"]);
+                Assert.AreEqual(1, saveCount);
+
+                // A normalization pass pins the fixed column's bounds; unlocking has to lift them.
+                column.MinWidth = column.Width.Value;
+                column.MaxWidth = column.Width.Value;
+
+                service.SetColumnLocked(column, false);
+
+                Assert.IsFalse(service.IsColumnLocked(column));
+                Assert.IsTrue(column.CanUserResize);
+                Assert.IsFalse(DataGridColumnGripperBehavior.GetIsLocked(column));
+                Assert.IsFalse(maps.Locks.ContainsKey("B"));
+                Assert.AreEqual(400d, column.MaxWidth);
+                Assert.AreEqual(2, saveCount);
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void Attach_WithPersistedLockAppliesTheSavedWidthBeforeLocking()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var widths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["A"] = 100,
+                    ["B"] = 150,
+                    ["C"] = 100
+                };
+                var locks = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase) { ["B"] = true };
+                var grid = CreateGrid();
+                var service = CreateService(grid, order, () => { }, widths, initialLocks: locks);
+
+                service.Attach();
+
+                var column = ColumnByKey(grid, "B");
+                Assert.IsTrue(service.IsColumnLocked(column));
+                Assert.IsFalse(column.CanUserResize);
+                Assert.IsTrue(column.Width.IsAbsolute);
+                Assert.AreEqual(150d, column.Width.Value);
+                Assert.IsTrue(ColumnByKey(grid, "A").CanUserResize);
+
+                service.Detach();
+
+                // Released on detach so a re-attach can apply widths to it again.
+                Assert.IsTrue(column.CanUserResize);
+                Assert.IsFalse(service.IsColumnLocked(column));
+            });
+        }
+
+        [TestMethod]
+        public void CanLockColumn_IsFalseForTheLastResizableColumn()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGrid();
+                var service = CreateService(grid, order, () => { });
+                service.Attach();
+
+                service.SetColumnLocked(ColumnByKey(grid, "A"), true);
+                service.SetColumnLocked(ColumnByKey(grid, "B"), true);
+
+                Assert.IsFalse(service.CanLockColumn(ColumnByKey(grid, "C")));
+                service.SetColumnLocked(ColumnByKey(grid, "C"), true);
+                Assert.IsFalse(service.IsColumnLocked(ColumnByKey(grid, "C")));
+                Assert.IsTrue(ColumnByKey(grid, "C").CanUserResize);
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void BuildColumnVisibilityMenu_WithoutAlignmentDelegates_NamesTheColumnAboveAWidthRow()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGrid();
+                var service = CreateService(grid, order, () => { });
+                service.Attach();
+
+                var menu = service.BuildColumnVisibilityMenu(ColumnByKey(grid, "B"));
+
+                Assert.IsNotNull(menu);
+                var header = menu.Items[0] as MenuItem;
+                Assert.IsNotNull(header);
+                Assert.AreEqual("B", (header.Header as TextBlock)?.Text);
+
+                var widthRow = (menu.Items[1] as MenuItem)?.Header as StackPanel;
+                Assert.IsNotNull(widthRow);
+                Assert.AreEqual(2, widthRow.Children.Count);
+                var editor = widthRow.Children[0] as TextBox;
+                Assert.IsNotNull(editor);
+                Assert.IsTrue(editor.Text.EndsWith(" px", StringComparison.Ordinal));
+                Assert.IsInstanceOfType(widthRow.Children[1], typeof(Button));
+                Assert.IsTrue(((Button)widthRow.Children[1]).IsEnabled);
+
+                Assert.IsInstanceOfType(menu.Items[2], typeof(Separator));
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
+        public void SetColumnWidthFromInput_OnAnUnlockedColumnMovesTheBoundaryAndKeepsTheTotal()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGrid();
+                grid.Width = 360;
+                grid.Height = 160;
+
+                var window = new Window
+                {
+                    Width = 420,
+                    Height = 220,
+                    Content = grid,
+                    ShowActivated = false
+                };
+
+                DataGridColumnLayoutService service = null;
+                try
+                {
+                    window.Show();
+                    grid.UpdateLayout();
+
+                    service = CreateService(grid, order, () => { });
+                    service.Attach();
+                    DrainDispatcher();
+                    grid.UpdateLayout();
+
+                    var before = 0d;
+                    foreach (var column in grid.Columns)
+                    {
+                        before += column.ActualWidth;
+                    }
+
+                    var target = ColumnByKey(grid, "B");
+                    var typed = Math.Round(target.ActualWidth) + 30;
+                    service.SetColumnWidthFromInput(target, typed);
+                    DrainDispatcher();
+                    grid.UpdateLayout();
+
+                    var after = 0d;
+                    foreach (var column in grid.Columns)
+                    {
+                        after += column.ActualWidth;
+                    }
+
+                    Assert.AreEqual(typed, target.ActualWidth, 1d);
+                    Assert.AreEqual(before, after, 1d);
+                }
+                finally
+                {
+                    service?.Detach();
+                    window.Close();
+                }
+            });
+        }
+
+        [TestMethod]
+        public void LiveResize_ShowsWidthPillsOverBothBoundaryColumnsUntilTheDragEnds()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var grid = CreateGrid();
+                grid.Width = 360;
+                grid.Height = 160;
+
+                var window = new Window
+                {
+                    Width = 420,
+                    Height = 220,
+                    Content = grid,
+                    ShowActivated = false
+                };
+
+                DataGridColumnLayoutService service = null;
+                try
+                {
+                    window.Show();
+                    grid.UpdateLayout();
+
+                    service = CreateService(grid, order, () => { });
+                    service.Attach();
+                    DrainDispatcher();
+                    grid.UpdateLayout();
+
+                    var layer = AdornerLayer.GetAdornerLayer(grid);
+                    Assert.IsNotNull(layer);
+                    Assert.IsNull(layer.GetAdorners(grid));
+
+                    InvokePrivate(service, "CaptureResizeObservedWidths");
+                    SetPrivateField(service, "_isResizeInProgress", true);
+                    SetPrivateField(service, "_resizeBoundaryLeftColumnKey", "A");
+                    SetPrivateField(service, "_resizeBoundaryRightColumnKey", "B");
+
+                    var resized = ColumnByKey(grid, "A");
+                    resized.Width = new DataGridLength(Math.Round(resized.ActualWidth) + 20, DataGridLengthUnitType.Pixel);
+                    InvokePrivate(service, "OnColumnWidthChanged", resized);
+                    grid.UpdateLayout();
+
+                    var adorners = layer.GetAdorners(grid);
+                    Assert.IsNotNull(adorners);
+                    Assert.AreEqual(1, adorners.Length);
+                    var pills = FindVisualChildren<TextBlock>(adorners[0]);
+                    Assert.AreEqual(2, pills.Count);
+                    Assert.AreEqual(resized.Width.Value.ToString("0") + " px", pills[0].Text);
+                    Assert.IsTrue(pills[1].Text.EndsWith(" px", StringComparison.Ordinal));
+
+                    InvokePrivate(service, "CompleteResizeNormalization");
+                    DrainDispatcher();
+
+                    Assert.IsNull(layer.GetAdorners(grid));
+                }
+                finally
+                {
+                    service?.Detach();
+                    window.Close();
+                }
+            });
+        }
+
+        private static List<T> FindVisualChildren<T>(DependencyObject root)
+            where T : DependencyObject
+        {
+            var result = new List<T>();
+            if (root == null)
+            {
+                return result;
+            }
+
+            var count = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T typed)
+                {
+                    result.Add(typed);
+                }
+
+                result.AddRange(FindVisualChildren<T>(child));
+            }
+
+            return result;
+        }
+
         /// <summary>
         /// Two pinned columns ahead of three customizable ones, shaped like the achievement editor:
         /// the pinned pair is fixed width and undraggable, the rest resize and reorder.
@@ -582,28 +867,49 @@ namespace PlayniteAchievements.Tests.Views
             return (T)method.Invoke(null, args);
         }
 
+        /// <summary>
+        /// The maps a service writes through its delegates, so a test can read back what it persisted.
+        /// </summary>
+        private sealed class PersistedMaps
+        {
+            public Dictionary<string, double> Widths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            public Dictionary<string, bool> Visibility = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            public Dictionary<string, bool> Locks = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        }
+
         private static DataGridColumnLayoutService CreateService(
             DataGrid grid,
             Dictionary<string, int> order,
             Action saveSettings,
             Dictionary<string, double> initialWidths = null,
             Dictionary<string, bool> initialVisibility = null,
-            IReadOnlyDictionary<string, double> defaultWidthSeeds = null)
+            IReadOnlyDictionary<string, double> defaultWidthSeeds = null,
+            Dictionary<string, bool> initialLocks = null,
+            PersistedMaps maps = null)
         {
-            var widths = initialWidths != null
-                ? new Dictionary<string, double>(initialWidths, StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            var visibility = initialVisibility != null
-                ? new Dictionary<string, bool>(initialVisibility, StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            maps = maps ?? new PersistedMaps();
+            if (initialWidths != null)
+            {
+                maps.Widths = new Dictionary<string, double>(initialWidths, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (initialVisibility != null)
+            {
+                maps.Visibility = new Dictionary<string, bool>(initialVisibility, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (initialLocks != null)
+            {
+                maps.Locks = new Dictionary<string, bool>(initialLocks, StringComparer.OrdinalIgnoreCase);
+            }
 
             return new DataGridColumnLayoutService(
                 grid,
                 logger: null,
-                getWidths: () => widths,
-                setWidths: map => widths = map,
-                getVisibility: () => visibility,
-                setVisibility: map => visibility = map,
+                getWidths: () => maps.Widths,
+                setWidths: map => maps.Widths = map,
+                getVisibility: () => maps.Visibility,
+                setVisibility: map => maps.Visibility = map,
                 saveSettings: saveSettings,
                 defaultWidthSeeds: defaultWidthSeeds,
                 getOrder: () => order,
@@ -619,7 +925,9 @@ namespace PlayniteAchievements.Tests.Views
                     {
                         order[pair.Key] = pair.Value;
                     }
-                });
+                },
+                getLocks: () => maps.Locks,
+                setLocks: map => maps.Locks = map);
         }
 
         private static DataGrid CreateGrid()

@@ -365,7 +365,16 @@ namespace PlayniteAchievements.Views.Controls
                     }
                 },
                 getDefaultHeaderHorizontalAlignment: () => settings.Persisted?.GridColumnHeaderAlignment ?? GridAlignment.Center,
-                applyCellAlignments: () => DataGridAlignmentBehavior.Refresh(FriendSummariesGrid));
+                applyCellAlignments: () => DataGridAlignmentBehavior.Refresh(FriendSummariesGrid),
+                getLocks: () => GetColumnLayoutOptions(settings)?.Locked,
+                setLocks: map =>
+                {
+                    var columns = GetColumnLayoutOptions(settings);
+                    if (columns != null)
+                    {
+                        columns.Locked = map;
+                    }
+                });
             _columnPersistence.DelayInitialRenderUntilNormalized = DelayInitialRenderUntilNormalized;
             _columnPersistence.Attach();
             _isAttached = true;

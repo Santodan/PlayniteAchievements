@@ -3006,7 +3006,15 @@ namespace PlayniteAchievements.Views.Controls
                 },
                 getDefaultHeaderHorizontalAlignment: () => settings.Persisted?.GridColumnHeaderAlignment ?? GridAlignment.Center,
                 applyCellAlignments: () => DataGridAlignmentBehavior.Refresh(AchievementsDataGrid),
-                isRuntimeDefaultWidth: IsLegacyImageColumnRuntimeDefaultWidth);
+                isRuntimeDefaultWidth: IsLegacyImageColumnRuntimeDefaultWidth,
+                getLocks: () => GetColumnLayoutOptions(settings)?.Locked,
+                setLocks: map =>
+                {
+                    if (AllowLayoutPersistence)
+                    {
+                        SetLocksByKey(settings, map);
+                    }
+                });
             _columnPersistence.DelayInitialRenderUntilNormalized = DelayInitialRenderUntilNormalized;
 
             UpdateColumnPersistenceContextOverrides();
@@ -3303,6 +3311,15 @@ namespace PlayniteAchievements.Views.Controls
             if (options != null)
             {
                 options.Widths = map;
+            }
+        }
+
+        private void SetLocksByKey(PlayniteAchievementsSettings settings, Dictionary<string, bool> map)
+        {
+            var options = GetColumnLayoutOptions(settings);
+            if (options != null)
+            {
+                options.Locked = map;
             }
         }
 

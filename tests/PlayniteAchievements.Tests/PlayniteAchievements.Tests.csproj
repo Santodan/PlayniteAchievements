@@ -528,6 +528,8 @@
     <Compile Include="..\..\source\Views\Helpers\ContextMenuStyleHelper.cs" Link="Source\Views\Helpers\ContextMenuStyleHelper.cs" />
     <Compile Include="..\..\source\Views\Helpers\DataGridHoverScrollBarBehavior.cs" Link="Source\Views\Helpers\DataGridHoverScrollBarBehavior.cs" />
     <Compile Include="..\..\source\Views\Helpers\DataGridColumnLayoutService.cs" Link="Source\Views\Helpers\DataGridColumnLayoutService.cs" />
+    <Compile Include="..\..\source\Views\Helpers\DataGridColumnGripperBehavior.cs" Link="Source\Views\Helpers\DataGridColumnGripperBehavior.cs" />
+    <Compile Include="..\..\source\Views\Helpers\ColumnResizeWidthAdorner.cs" Link="Source\Views\Helpers\ColumnResizeWidthAdorner.cs" />
     <Compile Include="..\..\source\Views\Helpers\ColumnWidthNormalization.cs" Link="Source\Views\Helpers\ColumnWidthNormalization.cs" />
     <Compile Include="..\..\source\Views\Helpers\ColumnSizingPlanner.cs" Link="Source\Views\Helpers\ColumnSizingPlanner.cs" />
     <Compile Include="..\..\source\Views\Helpers\GridAlignmentMapping.cs" Link="Source\Views\Helpers\GridAlignmentMapping.cs" />
